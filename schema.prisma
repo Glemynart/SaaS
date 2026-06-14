@@ -1,0 +1,687 @@
+// =============================================================================
+// SCHEMA PRISMA — MVP SaaS Multiempresa
+// Contratos · Expediente Digital · Alertas · Facturación Electrónica
+// =============================================================================
+// Convenciones:
+//   - Todos los modelos tienen id UUID, tenantId, createdAt, updatedAt
+//   - Todos los índices incluyen tenantId como primera columna
+//   - Soft delete (deletedAt) solo en entidades que lo requieren
+//   - Enums en PascalCase, valores en UPPER_SNAKE_CASE
+//   - Tablas en snake_case plural via @@map
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum Plan {
+  STARTER
+  PROFESIONAL
+  OPERADOR_EDUCATIVO
+}
+
+enum UserRole {
+  ADMIN
+  OPERADOR
+  VIEWER
+}
+
+enum EmpleadoEstado {
+  ACTIVO
+  INACTIVO
+  SUSPENDIDO
+  RETIRADO
+}
+
+enum ContratoTipo {
+  TERMINO_FIJO
+  TERMINO_INDEFINIDO
+  OBRA_LABOR
+  APRENDIZAJE
+  PRESTACION_SERVICIOS
+}
+
+enum ContratoEstado {
+  VIGENTE
+  VENCIDO
+  TERMINADO
+  RENOVADO
+}
+
+enum LoteEstado {
+  PENDIENTE
+  EN_PROCESO
+  COMPLETADO
+  COMPLETADO_CON_ERRORES
+  FALLIDO
+}
+
+enum PlantillaTipo {
+  CONTRATO
+  PREAVISO
+  TERMINACION
+  CERTIFICADO
+  OTRO
+}
+
+enum ExpedienteCategoria {
+  CONTRATO
+  AFILIACION
+  CERTIFICADO
+  DOCUMENTO_PERSONAL
+  PREAVISO
+  TERMINACION
+  OTRO
+}
+
+enum AlertaTipo {
+  CONTRATO_POR_VENCER
+  CONTRATO_VENCIDO
+}
+
+enum AlertaEstado {
+  PENDIENTE
+  ENVIADA
+  FALLIDA
+}
+
+enum ClienteFERegimen {
+  SIMPLIFICADO
+  COMUN
+  GRAN_CONTRIBUYENTE
+  NO_RESPONSABLE
+}
+
+enum FacturaEstado {
+  BORRADOR
+  ENVIANDO
+  ACEPTADA
+  RECHAZADA
+  ERROR_TECNICO
+}
+
+enum FacturaTipo {
+  FACTURA_VENTA
+  NOTA_CREDITO
+  NOTA_DEBITO
+}
+
+enum ImpuestoTipo {
+  IVA_0
+  IVA_5
+  IVA_19
+  EXCLUIDO
+  EXENTO
+}
+
+// =============================================================================
+// TENANT — Empresa registrada en la plataforma
+// =============================================================================
+// Entidad raíz del sistema multiempresa. Todo dato del sistema pertenece a
+// exactamente un Tenant. El tenantId es el primer filtro en cada query.
+// Un Tenant representa una organización: operador educativo, empresa, etc.
+// =============================================================================
+
+model Tenant {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Datos de la organización
+  nombre       String
+  nit          String   @unique        // NIT sin dígito de verificación
+  digitoVerif  String                  // Dígito de verificación del NIT
+  razonSocial  String
+  direccion    String?
+  ciudad       String?
+  departamento String?
+  telefono     String?
+  email        String?
+  logoUrl      String?                 // URL en R2 del logo de la empresa
+
+  // Configuración del plan
+  plan         Plan     @default(STARTER)
+  activo       Boolean  @default(true)
+  trialEndsAt  DateTime?               // Fecha fin del período de prueba
+
+  // Configuración DIAN para facturación electrónica
+  // Estos campos se completan si el tenant usa el módulo FE
+  feActivo          Boolean  @default(false)
+  feResolucion      String?             // Número de resolución DIAN
+  feResolucionFecha DateTime?           // Fecha de la resolución
+  feResolucionVence DateTime?           // Fecha de vencimiento
+  fePrefijo         String?             // Prefijo autorizado (ej: SETT)
+  feRangoDesde      Int?                // Número inicial autorizado
+  feRangoHasta      Int?                // Número final autorizado
+  feUltimoNumero    Int?                // Último número emitido
+  feTecnicoId       String?             // ID técnico Matías API
+  feTecnicoKey      String?             // Clave técnica Matías API
+
+  // Relaciones
+  users         User[]
+  empleados     Empleado[]
+  plantillas    Plantilla[]
+  contratos     Contrato[]
+  lotes         LoteContrato[]
+  expedientes   ExpedienteDoc[]
+  alertas       Alerta[]
+  clientesFE    ClienteFE[]
+  productos     Producto[]
+  facturas      Factura[]
+
+  @@map("tenants")
+}
+
+// =============================================================================
+// USER — Usuario de la plataforma
+// =============================================================================
+// Representa a una persona que accede al sistema. Pertenece a un Tenant.
+// Un usuario solo puede ver y operar datos de su propio Tenant.
+// El rol determina qué operaciones puede realizar (RBAC).
+// =============================================================================
+
+model User {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  email          String
+  passwordHash   String
+  nombre         String
+  apellido       String
+  rol            UserRole @default(OPERADOR)
+  activo         Boolean  @default(true)
+
+  // Control de sesión
+  lastLoginAt    DateTime?
+  refreshTokens  RefreshToken[]
+
+  @@unique([tenantId, email])          // Un email es único por empresa, no globalmente
+  @@index([tenantId, activo])
+  @@index([tenantId, rol])
+  @@map("users")
+}
+
+// =============================================================================
+// REFRESH TOKEN — Control de sesiones activas
+// =============================================================================
+// Almacena los refresh tokens activos por usuario.
+// Permite invalidar sesiones específicas (logout en un dispositivo)
+// y detectar refresh token rotation (seguridad contra token theft).
+// =============================================================================
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash  String   @unique         // Hash SHA-256 del token, nunca el token en texto plano
+  expiresAt  DateTime
+  revokedAt  DateTime?                // Nulo = activo, fecha = revocado
+  userAgent  String?                  // Dispositivo/browser para auditoría
+  ipAddress  String?
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+// =============================================================================
+// EMPLEADO — Trabajador de la organización
+// =============================================================================
+// Entidad central del módulo de RRHH. Todos los contratos, expedientes
+// y alertas referencian a un Empleado. La cédula es única por tenant.
+// Un empleado puede tener múltiples contratos a lo largo del tiempo.
+// =============================================================================
+
+model Empleado {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?                 // Soft delete: nunca borrar empleados con historial
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Identificación
+  cedula          String
+  tipoDocumento   String   @default("CC")  // CC, CE, TI, PA
+  nombre          String
+  apellido        String
+  email           String?
+  telefono        String?
+  fechaNacimiento DateTime?
+
+  // Datos laborales
+  cargo           String
+  dependencia     String?              // Área o departamento
+  sede            String?              // Para operadores con múltiples sedes
+  salario         Decimal  @db.Decimal(12, 2)
+  tipoContrato    ContratoTipo @default(TERMINO_FIJO)
+  fechaIngreso    DateTime
+  estado          EmpleadoEstado @default(ACTIVO)
+
+  // Datos de seguridad social (para nómina en V1)
+  eps             String?
+  arl             String?
+  fondoPension    String?
+  cajaCompensacion String?
+
+  // Relaciones
+  contratos   Contrato[]
+  expediente  ExpedienteDoc[]
+  alertas     Alerta[]
+
+  @@unique([tenantId, cedula])
+  @@index([tenantId, estado])
+  @@index([tenantId, cargo])
+  @@index([tenantId, dependencia])
+  @@index([tenantId, deletedAt])      // Para filtrar soft-deleted eficientemente
+  @@map("empleados")
+}
+
+// =============================================================================
+// PLANTILLA — Plantilla DOCX para generación de documentos
+// =============================================================================
+// Archivo DOCX almacenado en R2 con marcadores de variables ({{variable}}).
+// El campo variablesMapa es un JSON que mapea marcadores a campos del Empleado.
+// Ejemplo: { "{{nombre_completo}}": "empleado.nombre + empleado.apellido" }
+// Un tenant puede tener múltiples plantillas por tipo de documento.
+// =============================================================================
+
+model Plantilla {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  nombre       String
+  descripcion  String?
+  tipo         PlantillaTipo
+  storageKey   String                 // Ruta en R2: {tenantId}/plantillas/{id}.docx
+  activa       Boolean  @default(true)
+
+  // JSON con el mapa de variables de la plantilla
+  // Estructura: { "{{MARCADOR}}": "campo.ruta" | "literal:valor" }
+  variablesMapa Json     @default("{}")
+
+  // Relaciones
+  contratos Contrato[]
+  lotes     LoteContrato[]
+
+  @@index([tenantId, tipo])
+  @@index([tenantId, activa])
+  @@map("plantillas")
+}
+
+// =============================================================================
+// CONTRATO — Contrato laboral de un empleado
+// =============================================================================
+// Representa un contrato generado (individual o parte de un lote).
+// Almacena las URLs de los documentos generados en R2.
+// Un empleado puede tener múltiples contratos a lo largo del tiempo
+// (renovaciones, cambios de cargo, etc.).
+// =============================================================================
+
+model Contrato {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  empleadoId  String
+  empleado    Empleado  @relation(fields: [empleadoId], references: [id])
+
+  plantillaId String?                 // Null si fue creado sin plantilla (manual)
+  plantilla   Plantilla? @relation(fields: [plantillaId], references: [id])
+
+  loteId      String?                 // Null si fue generado individualmente
+  lote        LoteContrato? @relation(fields: [loteId], references: [id])
+
+  // Datos del contrato
+  tipo         ContratoTipo
+  estado       ContratoEstado @default(VIGENTE)
+  fechaInicio  DateTime
+  fechaFin     DateTime?              // Null para contratos indefinidos
+  cargo        String                 // Snapshot del cargo al momento del contrato
+  salario      Decimal  @db.Decimal(12, 2) // Snapshot del salario
+
+  // Documentos generados — URLs en R2
+  pdfKey    String?                   // {tenantId}/contratos/{id}/contrato.pdf
+  docxKey   String?                   // {tenantId}/contratos/{id}/contrato.docx
+
+  // Snapshot de variables usadas en la generación
+  // Preserva los valores exactos usados aunque el empleado cambie después
+  variablesSnapshot Json @default("{}")
+
+  // Relaciones
+  alertas   Alerta[]
+
+  @@index([tenantId, estado])
+  @@index([tenantId, empleadoId])
+  @@index([tenantId, fechaFin])       // Crítico para el cron de alertas
+  @@index([tenantId, loteId])
+  @@index([tenantId, tipo])
+  @@map("contratos")
+}
+
+// =============================================================================
+// LOTE CONTRATO — Proceso de generación masiva de contratos
+// =============================================================================
+// Representa un job de generación masiva procesado por BullMQ.
+// El cliente crea el lote → recibe el loteId → consulta el progreso
+// → descarga el ZIP cuando el estado es COMPLETADO.
+// Los campos `procesados` y `fallidos` se actualizan en tiempo real.
+// =============================================================================
+
+model LoteContrato {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  plantillaId String
+  plantilla   Plantilla @relation(fields: [plantillaId], references: [id])
+
+  // Estado del procesamiento
+  estado      LoteEstado @default(PENDIENTE)
+  total       Int                     // Total de contratos a generar
+  procesados  Int        @default(0)  // Generados exitosamente
+  fallidos    Int        @default(0)  // Fallaron en la generación
+
+  // Tiempos de procesamiento
+  iniciadoAt   DateTime?
+  completadoAt DateTime?
+
+  // Resultado
+  zipKey       String?                // {tenantId}/lotes/{id}/contratos.zip
+  erroresLog   Json?    @default("[]") // Array de { empleadoId, cedula, error }
+
+  // Parámetros del lote (snapshot de la configuración al momento de crear)
+  configuracion Json @default("{}")   // fechaInicio, fechaFin, tipo, etc.
+
+  // Relaciones
+  contratos Contrato[]
+
+  @@index([tenantId, estado])
+  @@index([tenantId, createdAt])
+  @@map("lotes_contrato")
+}
+
+// =============================================================================
+// EXPEDIENTE DOC — Documento del expediente digital de un empleado
+// =============================================================================
+// Cada fila es un documento almacenado en R2 dentro del expediente
+// de un empleado. Soporta versioning básico mediante el campo `version`.
+// La categoría determina en qué carpeta lógica aparece en la UI.
+// =============================================================================
+
+model ExpedienteDoc {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  empleadoId String
+  empleado   Empleado @relation(fields: [empleadoId], references: [id])
+
+  // Clasificación del documento
+  categoria    ExpedienteCategoria
+  nombre       String               // Nombre original del archivo
+  descripcion  String?
+  version      Int      @default(1) // Incrementa cuando se sube una nueva versión
+
+  // Almacenamiento
+  // Ruta: {tenantId}/expediente/{empleadoId}/{categoria}/{id}_v{version}.{ext}
+  storageKey   String
+  mimeType     String               // application/pdf, image/jpeg, etc.
+  tamanoBytes  Int
+
+  // Trazabilidad
+  subidoPorId  String?              // userId de quien subió el archivo
+  subidoPorNombre String?           // Snapshot del nombre por si el usuario se elimina
+
+  @@index([tenantId, empleadoId])
+  @@index([tenantId, empleadoId, categoria])
+  @@index([tenantId, categoria])
+  @@map("expediente_docs")
+}
+
+// =============================================================================
+// ALERTA — Notificación de vencimiento de contrato
+// =============================================================================
+// El scheduler diario evalúa todos los contratos VIGENTES con fechaFin
+// en los próximos 30 días y crea registros de Alerta.
+// La combinación única (contratoId, diasAnticipacion) evita alertas duplicadas.
+// El estado ENVIADA confirma que el correo salió exitosamente.
+// =============================================================================
+
+model Alerta {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  contratoId String
+  contrato   Contrato  @relation(fields: [contratoId], references: [id])
+
+  empleadoId String
+  empleado   Empleado  @relation(fields: [empleadoId], references: [id])
+
+  tipo             AlertaTipo
+  estado           AlertaEstado @default(PENDIENTE)
+  diasAnticipacion Int          // 30, 15 o 7 días antes del vencimiento
+
+  // Resultado del envío
+  enviadaAt    DateTime?
+  destinatario String?          // Email al que se envió la alerta
+  errorMensaje String?          // Detalle del error si estado = FALLIDA
+
+  // Evita crear la misma alerta dos veces para el mismo contrato y anticipación
+  @@unique([contratoId, diasAnticipacion])
+  @@index([tenantId, estado])
+  @@index([tenantId, tipo])
+  @@index([tenantId, createdAt])
+  @@map("alertas")
+}
+
+// =============================================================================
+// CLIENTE FE — Cliente para facturación electrónica
+// =============================================================================
+// Representa a quien se le emiten las facturas electrónicas.
+// Es independiente del módulo de Empleados — son entidades separadas.
+// Almacena los datos fiscales necesarios para el XML de la DIAN.
+// =============================================================================
+
+model ClienteFE {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Datos fiscales
+  razonSocial     String
+  nit             String               // NIT o cédula del cliente
+  digitoVerif     String?
+  tipoDocumento   String   @default("NIT") // NIT, CC, CE
+  regimen         ClienteFERegimen @default(COMUN)
+
+  // Datos de contacto
+  email           String?              // Para envío automático de facturas
+  telefono        String?
+  direccion       String?
+  ciudad          String?
+  departamento    String?
+
+  activo          Boolean  @default(true)
+
+  // Relaciones
+  facturas Factura[]
+
+  @@unique([tenantId, nit])
+  @@index([tenantId, activo])
+  @@index([tenantId, razonSocial])
+  @@index([tenantId, deletedAt])
+  @@map("clientes_fe")
+}
+
+// =============================================================================
+// PRODUCTO — Producto o servicio para facturación electrónica
+// =============================================================================
+// Catálogo de productos y servicios que el tenant puede facturar.
+// Incluye código de la DIAN (código estándar de producto/servicio),
+// descripción, precio base y tarifa de IVA.
+// =============================================================================
+
+model Producto {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  codigo       String                 // Código interno del tenant
+  codigoDIAN   String?                // Código estándar DIAN (opcional)
+  nombre       String
+  descripcion  String?
+  precioBase   Decimal  @db.Decimal(12, 2)
+  impuesto     ImpuestoTipo @default(IVA_19)
+  unidadMedida String   @default("94") // Código DIAN de unidad (94 = Unidad)
+  activo       Boolean  @default(true)
+
+  // Relaciones
+  items ItemFactura[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, activo])
+  @@index([tenantId, nombre])
+  @@map("productos")
+}
+
+// =============================================================================
+// FACTURA — Documento de facturación electrónica
+// =============================================================================
+// Representa una factura electrónica, nota crédito o nota débito
+// transmitida a la DIAN vía Matías API.
+// El XML firmado se almacena en R2 permanentemente (obligación legal).
+// El estado sigue el ciclo: BORRADOR → ENVIANDO → ACEPTADA | RECHAZADA
+// =============================================================================
+
+model Factura {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  clienteId String
+  cliente   ClienteFE @relation(fields: [clienteId], references: [id])
+
+  // Numeración
+  tipo       FacturaTipo @default(FACTURA_VENTA)
+  prefijo    String?                  // Prefijo de la resolución DIAN
+  numero     Int                      // Número secuencial dentro del prefijo
+  estado     FacturaEstado @default(BORRADOR)
+
+  // Fechas
+  fechaEmision    DateTime @default(now())
+  fechaVencimiento DateTime?           // Para control de cartera (no DIAN)
+
+  // Totales calculados y almacenados (desnormalización intencional)
+  subtotal   Decimal  @db.Decimal(12, 2)
+  totalIva   Decimal  @db.Decimal(12, 2)
+  total      Decimal  @db.Decimal(12, 2)
+
+  // Respuesta DIAN vía Matías API
+  matiasId        String?              // ID del documento en Matías API
+  cufe            String?              // Código Único de Facturación Electrónica
+  qrCode          String?              // Contenido del QR para representación gráfica
+  dianRespuesta   String?              // Mensaje de respuesta de la DIAN
+  dianFecha       DateTime?            // Fecha de respuesta de la DIAN
+  reintentos      Int      @default(0) // Número de intentos de transmisión
+
+  // Almacenamiento en R2
+  xmlKey  String?                     // {tenantId}/facturacion/{id}/factura.xml
+  pdfKey  String?                     // {tenantId}/facturacion/{id}/factura.pdf
+
+  // Notas y referencia para NC/ND
+  notas              String?
+  facturaOrigenId    String?           // Para NC/ND: factura que origina el documento
+  facturaOrigen      Factura?  @relation("FacturaReferencia", fields: [facturaOrigenId], references: [id])
+  notasEmitidas      Factura[] @relation("FacturaReferencia")
+
+  // Relaciones
+  items ItemFactura[]
+
+  @@unique([tenantId, prefijo, numero])
+  @@index([tenantId, estado])
+  @@index([tenantId, clienteId])
+  @@index([tenantId, fechaEmision])
+  @@index([tenantId, tipo])
+  @@index([tenantId, cufe])
+  @@map("facturas")
+}
+
+// =============================================================================
+// ITEM FACTURA — Línea de detalle de una factura
+// =============================================================================
+// Cada línea de la factura referencia un Producto del catálogo.
+// Los valores de precio y descripción son snapshots del momento
+// de la facturación — si el producto cambia después, la factura
+// conserva los valores originales (requisito legal).
+// =============================================================================
+
+model ItemFactura {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  facturaId  String
+  factura    Factura  @relation(fields: [facturaId], references: [id], onDelete: Cascade)
+
+  productoId String?                  // Null si el ítem fue ingresado manualmente
+  producto   Producto? @relation(fields: [productoId], references: [id])
+
+  // Snapshot de los valores al momento de facturar
+  codigoDIAN    String?
+  descripcion   String                // Copia de producto.nombre al facturar
+  cantidad      Decimal  @db.Decimal(10, 3)
+  precioUnitario Decimal @db.Decimal(12, 2)
+  impuesto      ImpuestoTipo
+  porcentajeIva Decimal  @db.Decimal(5, 2) // 0, 5 o 19
+  subtotal      Decimal  @db.Decimal(12, 2) // cantidad * precioUnitario
+  valorIva      Decimal  @db.Decimal(12, 2)
+  total         Decimal  @db.Decimal(12, 2) // subtotal + valorIva
+  unidadMedida  String   @default("94")
+
+  @@index([facturaId])
+  @@map("items_factura")
+}
