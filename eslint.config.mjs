@@ -9,6 +9,8 @@ export default tseslint.config(
       '**/build/**',
       '**/.next/**',
       '**/.turbo/**',
+      '**/.agents/**',
+      '**/.impeccable/**',
       'apps/**',
       'packages/**',
     ],
