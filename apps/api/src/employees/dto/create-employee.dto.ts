@@ -75,6 +75,7 @@ export class CreateEmployeeDto {
   @IsOptional()
   segundoApellido?: string;
 
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsEmail()
   @IsOptional()
   email?: string;

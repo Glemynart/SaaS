@@ -41,6 +41,7 @@ export class UpdateEmployeeDto {
   @IsOptional()
   segundoApellido?: string;
 
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsEmail()
   @IsOptional()
   email?: string;
