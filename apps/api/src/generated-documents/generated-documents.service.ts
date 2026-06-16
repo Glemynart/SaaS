@@ -188,7 +188,7 @@ export class GeneratedDocumentsService {
     return this.prisma.generatedDocument.delete({ where: { id } });
   }
 
-  async generatePdf(tenantId: string, id: string) {
+  async generatePdf(tenantId: string, userId: string, id: string) {
     const doc = await this.findOne(tenantId, id);
     if (!doc) throw new NotFoundException('Documento no encontrado');
 
@@ -244,7 +244,7 @@ export class GeneratedDocumentsService {
     this.auditService
       .log({
         tenantId: updated.tenantId,
-        userId: 'system',
+        userId,
         action: 'PDF_GENERATE',
         entityType: 'GeneratedDocument',
         entityId: updated.id,
@@ -296,6 +296,10 @@ export class GeneratedDocumentsService {
     },
     employee: { nombre: string; apellido: string; cedula: string },
   ) {
+    const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:4000';
+    const logoHtml = tenant.logoUrl
+      ? `<img src="${backendUrl}${tenant.logoUrl}" alt="${tenant.nombre}" />`
+      : '';
     return `<!DOCTYPE html>
 <html>
 <head>
@@ -323,7 +327,7 @@ export class GeneratedDocumentsService {
 </head>
 <body>
   <div class="header">
-    ${tenant.logoUrl ? `<img src="http://localhost:4000${tenant.logoUrl}" alt="${tenant.nombre}" />` : ''}
+    ${logoHtml}
     <div class="header-info">
       <h1>${tenant.razonSocial ?? tenant.nombre}</h1>
       <p>Documento generado para: ${employee.nombre} ${employee.apellido} — ${employee.cedula}</p>
