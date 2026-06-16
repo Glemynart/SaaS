@@ -43,4 +43,18 @@ export class DaneService implements OnModuleInit {
     }
     if (created > 0) this.logger.log(`${created} municipios DANE creados.`);
   }
+
+  async findAllMunicipios(search?: string) {
+    return this.prisma.municipioDane.findMany({
+      where: search
+        ? {
+            OR: [
+              { nombre: { contains: search, mode: 'insensitive' } },
+              { departamento: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : undefined,
+      orderBy: { nombre: 'asc' },
+    });
+  }
 }

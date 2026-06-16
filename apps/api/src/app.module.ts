@@ -17,6 +17,7 @@ import { PayrollModule } from './payroll/payroll.module';
 import { BillingModule } from './billing/billing.module';
 import { AuditModule } from './audit/audit.module';
 import { DaneModule } from './dane/dane.module';
+import { SedesModule } from './sedes/sedes.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
@@ -37,6 +38,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     BillingModule,
     AuditModule,
     DaneModule,
+    SedesModule,
     ThrottlerModule.forRoot([
       {
         name: 'login',
