@@ -42,3 +42,4 @@ postgres_data/
 .system_generated/
 .gemini/
 scratch/
+uploads/
