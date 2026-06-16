@@ -35,6 +35,11 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
       tipoContrato: 'TERMINO_FIJO',
       fechaIngreso: new Date().toISOString().split('T')[0],
       estado: 'ACTIVO',
+      municipioExpedicionDocId: '',
+      salarioIntegral: false,
+      jornadaLaboral: undefined,
+      fechaRetiro: '',
+      motivoRetiro: undefined,
     },
   });
 
@@ -49,6 +54,14 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
           : '',
         tipoContrato: initialData.tipoContrato as EmployeeFormData['tipoContrato'],
         estado: initialData.estado as EmployeeFormData['estado'],
+        municipioExpedicionDocId: initialData.municipioExpedicionDocId || '',
+        salarioIntegral: initialData.salarioIntegral ?? false,
+        jornadaLaboral:
+          (initialData.jornadaLaboral as EmployeeFormData['jornadaLaboral']) ?? undefined,
+        fechaRetiro: initialData.fechaRetiro
+          ? new Date(initialData.fechaRetiro).toISOString().split('T')[0]
+          : '',
+        motivoRetiro: (initialData.motivoRetiro as EmployeeFormData['motivoRetiro']) ?? undefined,
       });
     } else {
       reset({
@@ -149,6 +162,52 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
             <span className="text-xs text-red-500">{errors.fechaIngreso.message}</span>
           )}
         </div>
+        <div className="space-y-2">
+          <Label htmlFor="jornadaLaboral">Jornada Laboral</Label>
+          <select
+            id="jornadaLaboral"
+            {...register('jornadaLaboral')}
+            className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-950 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <option value="">Sin especificar</option>
+            <option value="COMPLETA">Jornada Completa</option>
+            <option value="MEDIA">Media Jornada</option>
+            <option value="POR_HORAS">Por Horas</option>
+          </select>
+        </div>
+        <div className="flex items-center space-x-3 pt-2">
+          <input
+            id="salarioIntegral"
+            type="checkbox"
+            {...register('salarioIntegral')}
+            className="h-4 w-4 rounded border-gray-300"
+          />
+          <Label htmlFor="salarioIntegral">Salario Integral</Label>
+        </div>
+        {initialData && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="fechaRetiro">Fecha de Retiro</Label>
+              <Input id="fechaRetiro" type="date" {...register('fechaRetiro')} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="motivoRetiro">Motivo de Retiro</Label>
+              <select
+                id="motivoRetiro"
+                {...register('motivoRetiro')}
+                className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-950 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="">Sin especificar</option>
+                <option value="RENUNCIA">Renuncia</option>
+                <option value="TERMINACION_CONTRATO">Terminación de Contrato</option>
+                <option value="MUTUO_ACUERDO">Mutuo Acuerdo</option>
+                <option value="JUSTA_CAUSA">Justa Causa</option>
+                <option value="FALLECIMIENTO">Fallecimiento</option>
+                <option value="OTRO">Otro</option>
+              </select>
+            </div>
+          </>
+        )}
         {initialData && (
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="estado">Estado</Label>

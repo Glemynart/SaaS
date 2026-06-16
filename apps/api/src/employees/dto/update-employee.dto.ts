@@ -4,10 +4,16 @@ import {
   IsOptional,
   IsEnum,
   IsNumber,
+  IsBoolean,
   Min,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { EmpleadoEstado, ContratoTipo } from './create-employee.dto';
+import {
+  EmpleadoEstado,
+  ContratoTipo,
+  JornadaLaboral,
+  MotivoRetiro,
+} from './create-employee.dto';
 
 export class UpdateEmployeeDto {
   @IsString()
@@ -55,4 +61,25 @@ export class UpdateEmployeeDto {
   @IsEnum(EmpleadoEstado)
   @IsOptional()
   estado?: EmpleadoEstado;
+
+  @IsString()
+  @IsOptional()
+  municipioExpedicionDocId?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  salarioIntegral?: boolean;
+
+  @IsEnum(JornadaLaboral)
+  @IsOptional()
+  jornadaLaboral?: JornadaLaboral;
+
+  @IsString()
+  @IsOptional()
+  fechaRetiro?: string;
+
+  @IsEnum(MotivoRetiro)
+  @IsOptional()
+  motivoRetiro?: MotivoRetiro;
 }

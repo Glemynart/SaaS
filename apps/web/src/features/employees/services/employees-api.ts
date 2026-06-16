@@ -19,6 +19,11 @@ export interface Employee {
   arl: string | null;
   fondoPension: string | null;
   cajaCompensacion: string | null;
+  municipioExpedicionDocId: string | null;
+  salarioIntegral: boolean;
+  jornadaLaboral: string | null;
+  fechaRetiro: string | null;
+  motivoRetiro: string | null;
   createdAt: string;
   updatedAt: string;
 }

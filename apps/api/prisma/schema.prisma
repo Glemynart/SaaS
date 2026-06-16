@@ -331,6 +331,14 @@ model Empleado {
   fondoPension    String?
   cajaCompensacion String?
 
+  // Campos Colombia expansion — FASE 2
+  municipioExpedicionDocId String?
+  municipioExpedicionDoc   MunicipioDane? @relation(fields: [municipioExpedicionDocId], references: [id])
+  salarioIntegral          Boolean        @default(false)
+  jornadaLaboral           JornadaLaboral?
+  fechaRetiro              DateTime?
+  motivoRetiro             MotivoRetiro?
+
   // Relaciones
   contratos           Contrato[]
   generatedDocuments  GeneratedDocument[]
@@ -862,8 +870,9 @@ model MunicipioDane {
   departamento String
 
   // Relaciones
-  tenants  Tenant[]
-  sedes    Sede[]
+  tenants              Tenant[]
+  sedes                Sede[]
+  empleadosExpedicion  Empleado[]
 
   @@index([departamento])
   @@index([nombre])
