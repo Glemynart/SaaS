@@ -10,8 +10,6 @@ export interface GeneratedDocument {
   createdAt: string;
   employee: {
     id: string;
-    nombre?: string | null;
-    apellido?: string | null;
     primerNombre: string;
     segundoNombre: string | null;
     primerApellido: string;

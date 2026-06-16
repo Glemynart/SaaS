@@ -63,9 +63,9 @@ export class GeneratedDocumentsService {
 
     const context: ReplacementContext = {
       NOMBRE_COMPLETO: formatNombreCompleto({
-        primerNombre: employee.primerNombre ?? '',
+        primerNombre: employee.primerNombre,
         segundoNombre: employee.segundoNombre,
-        primerApellido: employee.primerApellido ?? '',
+        primerApellido: employee.primerApellido,
         segundoApellido: employee.segundoApellido,
       }),
       DOCUMENTO: `${employee.tipoDocumento} ${employee.cedula}`,
@@ -137,8 +137,6 @@ export class GeneratedDocumentsService {
           employee: {
             select: {
               id: true,
-              nombre: true,
-              apellido: true,
               primerNombre: true,
               segundoNombre: true,
               primerApellido: true,
@@ -173,8 +171,6 @@ export class GeneratedDocumentsService {
         employee: {
           select: {
             id: true,
-            nombre: true,
-            apellido: true,
             primerNombre: true,
             segundoNombre: true,
             primerApellido: true,
@@ -309,11 +305,9 @@ export class GeneratedDocumentsService {
       logoUrl: string | null;
     },
     employee: {
-      nombre: string;
-      apellido: string;
-      primerNombre: string | null;
+      primerNombre: string;
       segundoNombre: string | null;
-      primerApellido: string | null;
+      primerApellido: string;
       segundoApellido: string | null;
       cedula: string;
     },
@@ -352,7 +346,7 @@ export class GeneratedDocumentsService {
     ${logoHtml}
     <div class="header-info">
       <h1>${tenant.razonSocial ?? tenant.nombre}</h1>
-      <p>Documento generado para: ${formatNombreCompleto({ primerNombre: employee.primerNombre ?? '', segundoNombre: employee.segundoNombre, primerApellido: employee.primerApellido ?? '', segundoApellido: employee.segundoApellido })} — ${employee.cedula}</p>
+      <p>Documento generado para: ${formatNombreCompleto({ primerNombre: employee.primerNombre, segundoNombre: employee.segundoNombre, primerApellido: employee.primerApellido, segundoApellido: employee.segundoApellido })} — ${employee.cedula}</p>
     </div>
   </div>
   ${content}

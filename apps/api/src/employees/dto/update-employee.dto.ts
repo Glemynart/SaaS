@@ -27,14 +27,6 @@ export class UpdateEmployeeDto {
 
   @IsString()
   @IsOptional()
-  nombre?: string;
-
-  @IsString()
-  @IsOptional()
-  apellido?: string;
-
-  @IsString()
-  @IsOptional()
   primerNombre?: string;
 
   @IsString()

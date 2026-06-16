@@ -61,14 +61,6 @@ export class CreateEmployeeDto {
 
   @IsString()
   @IsNotEmpty()
-  nombre: string;
-
-  @IsString()
-  @IsNotEmpty()
-  apellido: string;
-
-  @IsString()
-  @IsNotEmpty()
   primerNombre: string;
 
   @IsString()

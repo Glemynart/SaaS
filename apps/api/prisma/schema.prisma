@@ -310,11 +310,9 @@ model Empleado {
   // Identificación
   cedula          String
   tipoDocumento   TipoDocIdentidad @default(CC)
-  nombre          String
-  apellido        String
-  primerNombre    String?
+  primerNombre    String
   segundoNombre   String?
-  primerApellido  String?
+  primerApellido  String
   segundoApellido String?
   email           String?
   telefono        String?
