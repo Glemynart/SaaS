@@ -94,6 +94,8 @@ export function GenerateDocumentForm({
                   minimumFractionDigits: 0,
                 }).format(employee.salario)}
               </span>
+              <span className="text-muted-foreground">Sede:</span>
+              <span className="text-foreground">{employee.sedeRef?.nombre ?? '-'}</span>
             </div>
           </div>
 

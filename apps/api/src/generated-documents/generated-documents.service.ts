@@ -20,6 +20,7 @@ interface ReplacementContext {
   SALARIO: string;
   TIPO_CONTRATO: string;
   FECHA_INGRESO: string;
+  SEDE: string;
   EMPRESA: string;
   NIT: string;
   REPRESENTANTE_LEGAL: string;
@@ -38,6 +39,7 @@ export class GeneratedDocumentsService {
   async generate(tenantId: string, dto: CreateGeneratedDocumentDto) {
     const employee = await this.prisma.empleado.findFirst({
       where: { id: dto.employeeId, tenantId, deletedAt: null },
+      include: { sedeRef: { select: { nombre: true } } },
     });
     if (!employee) {
       throw new NotFoundException('Empleado no encontrado');
@@ -85,6 +87,7 @@ export class GeneratedDocumentsService {
           day: 'numeric',
         },
       ),
+      SEDE: employee.sedeRef?.nombre ?? '',
       EMPRESA: tenant.razonSocial ?? tenant.nombre,
       NIT: tenant.nit,
       REPRESENTANTE_LEGAL: tenant.representanteLegal ?? 'No definido',
@@ -143,6 +146,7 @@ export class GeneratedDocumentsService {
               segundoApellido: true,
               cedula: true,
               cargo: true,
+              sedeRef: { select: { id: true, nombre: true } },
             },
           },
           template: {
@@ -178,6 +182,7 @@ export class GeneratedDocumentsService {
             cedula: true,
             cargo: true,
             tipoDocumento: true,
+            sedeRef: { select: { id: true, nombre: true } },
           },
         },
         template: {
