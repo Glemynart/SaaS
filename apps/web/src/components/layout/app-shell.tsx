@@ -8,6 +8,7 @@ import {
   FileText,
   LayoutDashboard,
   LogOut,
+  MapPin,
   UserRound,
   Receipt,
   ShieldCheck,
@@ -30,6 +31,7 @@ const navItems = [
   { href: '/dashboard', label: 'Inicio', icon: LayoutDashboard, enabled: true },
   { href: '/perfil', label: 'Perfil', icon: UserRound, enabled: true },
   { href: '/empleados', label: 'Empleados', icon: Users, enabled: true },
+  { href: '/sedes', label: 'Sedes', icon: MapPin, enabled: true },
   { href: '/documentos/plantillas', label: 'Plantillas', icon: ScrollText, enabled: true },
   { href: '/documentos/generados', label: 'Generados', icon: Files, enabled: true },
   { href: '/configuracion/identidad', label: 'Identidad', icon: Settings, enabled: true },
@@ -45,36 +47,40 @@ export function AppShell({ children }: { children: ReactNode }) {
   const me = useMe();
   const logout = useLogout();
   const user = me.data?.user;
-  const pageTitle = pathname.startsWith('/documentos/plantillas')
-    ? 'Plantillas'
-    : pathname.startsWith('/documentos/generados')
-      ? 'Documentos generados'
-      : pathname.startsWith('/configuracion/identidad')
-        ? 'Identidad corporativa'
-        : pathname.startsWith('/alertas')
-          ? 'Alertas'
-          : pathname.startsWith('/nomina')
-            ? 'Nómina'
-            : pathname.startsWith('/facturacion')
-              ? 'Facturación'
-              : pathname === '/perfil'
-                ? 'Perfil'
-                : 'Inicio';
-  const pageDescription = pathname.startsWith('/documentos/plantillas')
-    ? 'Motor documental — Plantillas base'
-    : pathname.startsWith('/documentos/generados')
-      ? 'Motor documental — Documentos generados'
-      : pathname.startsWith('/configuracion/identidad')
-        ? 'Configuración — Identidad corporativa'
-        : pathname.startsWith('/alertas')
-          ? 'Seguimiento — Ciclo de vida contractual'
-          : pathname.startsWith('/nomina')
-            ? 'Motor de nómina — Cálculo y liquidación'
-            : pathname.startsWith('/facturacion')
-              ? 'Dominio de facturación — Clientes, productos, facturas'
-              : pathname === '/perfil'
-                ? 'Credencial y contexto de acceso'
-                : 'Resumen de sesion y modulos';
+  const pageTitle = pathname.startsWith('/sedes')
+    ? 'Sedes'
+    : pathname.startsWith('/documentos/plantillas')
+      ? 'Plantillas'
+      : pathname.startsWith('/documentos/generados')
+        ? 'Documentos generados'
+        : pathname.startsWith('/configuracion/identidad')
+          ? 'Identidad corporativa'
+          : pathname.startsWith('/alertas')
+            ? 'Alertas'
+            : pathname.startsWith('/nomina')
+              ? 'Nómina'
+              : pathname.startsWith('/facturacion')
+                ? 'Facturación'
+                : pathname === '/perfil'
+                  ? 'Perfil'
+                  : 'Inicio';
+  const pageDescription = pathname.startsWith('/sedes')
+    ? 'Estructura organizacional — Sedes y centros de trabajo'
+    : pathname.startsWith('/documentos/plantillas')
+      ? 'Motor documental — Plantillas base'
+      : pathname.startsWith('/documentos/generados')
+        ? 'Motor documental — Documentos generados'
+        : pathname.startsWith('/configuracion/identidad')
+          ? 'Configuración — Identidad corporativa'
+          : pathname.startsWith('/alertas')
+            ? 'Seguimiento — Ciclo de vida contractual'
+            : pathname.startsWith('/nomina')
+              ? 'Motor de nómina — Cálculo y liquidación'
+              : pathname.startsWith('/facturacion')
+                ? 'Dominio de facturación — Clientes, productos, facturas'
+                : pathname === '/perfil'
+                  ? 'Credencial y contexto de acceso'
+                  : 'Resumen de sesion y modulos';
 
   return (
     <div className="min-h-screen bg-background text-foreground">
