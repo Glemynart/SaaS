@@ -40,13 +40,14 @@ export default function EmpleadosPage() {
   };
 
   const handleSubmit = (formData: EmployeeFormData) => {
+    const cleaned = { ...formData, sedeId: formData.sedeId || null };
     if (selectedEmployee) {
       updateMutation.mutate(
-        { id: selectedEmployee.id, data: formData },
+        { id: selectedEmployee.id, data: cleaned },
         { onSuccess: () => setIsSheetOpen(false) },
       );
     } else {
-      createMutation.mutate(formData, {
+      createMutation.mutate(cleaned, {
         onSuccess: () => setIsSheetOpen(false),
       });
     }

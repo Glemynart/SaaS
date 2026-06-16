@@ -38,6 +38,7 @@ export function EmployeesTable({ employees, isLoading, onEdit, onDelete }: Emplo
             <th className="px-6 py-4 font-medium">Empleado</th>
             <th className="px-6 py-4 font-medium">Documento</th>
             <th className="px-6 py-4 font-medium">Cargo</th>
+            <th className="px-6 py-4 font-medium">Sede</th>
             <th className="px-6 py-4 font-medium">Estado</th>
             <th className="px-6 py-4 text-right font-medium">Acciones</th>
           </tr>
@@ -58,6 +59,7 @@ export function EmployeesTable({ employees, isLoading, onEdit, onDelete }: Emplo
                   <span className="block text-xs text-gray-400">{emp.dependencia}</span>
                 )}
               </td>
+              <td className="px-6 py-4 text-gray-600">{emp.sedeRef?.nombre ?? '-'}</td>
               <td className="px-6 py-4">
                 <Badge
                   className={

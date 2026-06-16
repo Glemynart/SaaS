@@ -13,6 +13,8 @@ export interface Employee {
   cargo: string;
   dependencia: string | null;
   sede: string | null;
+  sedeId: string | null;
+  sedeRef: { id: string; nombre: string } | null;
   salario: number;
   tipoContrato: string;
   fechaIngreso: string;

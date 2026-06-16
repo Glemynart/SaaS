@@ -28,6 +28,7 @@ export const employeeSchema = z.object({
   fechaIngreso: z.string().min(1, 'La fecha de ingreso es requerida'),
   estado: z.enum(['ACTIVO', 'INACTIVO', 'SUSPENDIDO', 'RETIRADO'] as const).optional(),
   municipioExpedicionDocId: z.string().optional(),
+  sedeId: z.string().optional(),
   salarioIntegral: z.boolean().optional().default(false),
   jornadaLaboral: z.enum(['COMPLETA', 'MEDIA', 'POR_HORAS'] as const).optional(),
   fechaRetiro: z.string().optional(),

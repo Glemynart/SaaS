@@ -321,7 +321,9 @@ model Empleado {
   // Datos laborales
   cargo           String
   dependencia     String?              // Área o departamento
-  sede            String?              // Para operadores con múltiples sedes
+  sede            String?              // [LEGACY] Campo texto libre — será reemplazado por sedeId
+  sedeId          String?              // FK → Sede (relación formal)
+  sedeRef         Sede?                @relation(fields: [sedeId], references: [id])
   salario         Decimal  @db.Decimal(12, 2)
   tipoContrato    ContratoTipo @default(TERMINO_FIJO)
   fechaIngreso    DateTime
@@ -355,6 +357,7 @@ model Empleado {
   @@index([tenantId, estado])
   @@index([tenantId, cargo])
   @@index([tenantId, dependencia])
+  @@index([tenantId, sedeId])
   @@index([tenantId, deletedAt])      // Para filtrar soft-deleted eficientemente
   @@map("empleados")
 }
@@ -905,6 +908,7 @@ model Sede {
   // Relaciones
   contratos Contrato[]
   lotes     LoteContrato[]
+  empleados Empleado[]
 
   @@index([tenantId, activo])
   @@index([tenantId, municipioId])
