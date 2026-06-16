@@ -14,8 +14,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'La Oficina Nítida',
-  description: 'Gestión administrativa SaaS para operadores educativos y contratistas.',
+  title: {
+    default: 'La Oficina Nítida',
+    template: '%s | La Oficina Nítida',
+  },
+  description: 'Plataforma de gestión laboral para operadores educativos colombianos.',
 };
 
 export default function RootLayout({
