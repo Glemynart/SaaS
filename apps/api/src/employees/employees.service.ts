@@ -17,7 +17,7 @@ export class EmployeesService {
     private auditService: AuditService,
   ) {}
 
-  async create(tenantId: string, createDto: CreateEmployeeDto) {
+  async create(tenantId: string, userId: string, createDto: CreateEmployeeDto) {
     const existing = await this.prisma.empleado.findUnique({
       where: {
         tenantId_cedula: {
@@ -46,7 +46,7 @@ export class EmployeesService {
     this.auditService
       .log({
         tenantId,
-        userId: 'system',
+        userId,
         action: 'EMPLOYEE_CREATE',
         entityType: 'Employee',
         entityId: employee.id,
@@ -138,7 +138,7 @@ export class EmployeesService {
     }
 
     return this.prisma.empleado.update({
-      where: { id },
+      where: { id, tenantId },
       data: dataToUpdate,
     });
   }
@@ -147,7 +147,7 @@ export class EmployeesService {
     await this.findOne(tenantId, id);
 
     return this.prisma.empleado.update({
-      where: { id },
+      where: { id, tenantId },
       data: {
         deletedAt: new Date(),
         estado: 'INACTIVO',

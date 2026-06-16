@@ -21,6 +21,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 interface RequestUser {
+  userId: string;
   tenantId: string;
 }
 
@@ -57,7 +58,7 @@ export class GeneratedDocumentsController {
 
   @Post(':id/generate-pdf')
   async generatePdf(@CurrentUser() user: RequestUser, @Param('id') id: string) {
-    return this.service.generatePdf(user.tenantId, id);
+    return this.service.generatePdf(user.tenantId, user.userId, id);
   }
 
   @Get(':id/pdf')

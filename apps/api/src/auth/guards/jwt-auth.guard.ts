@@ -26,15 +26,17 @@ export class JwtAuthGuard implements CanActivate {
     if (!token) {
       throw new UnauthorizedException('Token de acceso no proporcionado.');
     }
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new UnauthorizedException('Configuración JWT no disponible.');
+    }
     try {
       const payload = await this.jwtService.verifyAsync<{
         sub: string;
         tenantId: string;
         rol: string;
         email: string;
-      }>(token, {
-        secret: process.env.JWT_SECRET || 'dev-secret-key-321-go',
-      });
+      }>(token, { secret });
       (request as RequestWithUser).user = {
         userId: payload.sub,
         tenantId: payload.tenantId,

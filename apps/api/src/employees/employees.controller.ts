@@ -18,6 +18,7 @@ import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 interface RequestUser {
+  userId: string;
   tenantId: string;
 }
 
@@ -27,11 +28,8 @@ export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) {}
 
   @Post()
-  create(
-    @CurrentUser() user: RequestUser,
-    @Body() createDto: CreateEmployeeDto,
-  ) {
-    return this.employeesService.create(user.tenantId, createDto);
+  create(@CurrentUser() user: RequestUser, @Body() dto: CreateEmployeeDto) {
+    return this.employeesService.create(user.tenantId, user.userId, dto);
   }
 
   @Get()
@@ -48,9 +46,9 @@ export class EmployeesController {
   update(
     @CurrentUser() user: RequestUser,
     @Param('id') id: string,
-    @Body() updateDto: UpdateEmployeeDto,
+    @Body() dto: UpdateEmployeeDto,
   ) {
-    return this.employeesService.update(user.tenantId, id, updateDto);
+    return this.employeesService.update(user.tenantId, id, dto);
   }
 
   @Delete(':id')
