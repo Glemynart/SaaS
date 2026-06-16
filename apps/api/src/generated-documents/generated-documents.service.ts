@@ -9,6 +9,7 @@ import { GeneratedDocumentQueryDto } from './dto/generated-document-query.dto';
 import { Prisma } from '@prisma/client';
 import { EmployeeFilesService } from '../employee-files/employee-files.service';
 import { AuditService } from '../audit/audit.service';
+import { formatNombreCompleto } from '@saas/types';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -61,7 +62,12 @@ export class GeneratedDocumentsService {
     }
 
     const context: ReplacementContext = {
-      NOMBRE_COMPLETO: `${employee.nombre} ${employee.apellido}`,
+      NOMBRE_COMPLETO: formatNombreCompleto({
+        primerNombre: employee.primerNombre ?? '',
+        segundoNombre: employee.segundoNombre,
+        primerApellido: employee.primerApellido ?? '',
+        segundoApellido: employee.segundoApellido,
+      }),
       DOCUMENTO: `${employee.tipoDocumento} ${employee.cedula}`,
       CARGO: employee.cargo,
       SALARIO: new Intl.NumberFormat('es-CO', {
@@ -165,6 +171,10 @@ export class GeneratedDocumentsService {
             id: true,
             nombre: true,
             apellido: true,
+            primerNombre: true,
+            segundoNombre: true,
+            primerApellido: true,
+            segundoApellido: true,
             cedula: true,
             cargo: true,
             tipoDocumento: true,
@@ -294,7 +304,15 @@ export class GeneratedDocumentsService {
       nombre: string;
       logoUrl: string | null;
     },
-    employee: { nombre: string; apellido: string; cedula: string },
+    employee: {
+      nombre: string;
+      apellido: string;
+      primerNombre: string | null;
+      segundoNombre: string | null;
+      primerApellido: string | null;
+      segundoApellido: string | null;
+      cedula: string;
+    },
   ) {
     const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:4000';
     const logoHtml = tenant.logoUrl
@@ -330,7 +348,7 @@ export class GeneratedDocumentsService {
     ${logoHtml}
     <div class="header-info">
       <h1>${tenant.razonSocial ?? tenant.nombre}</h1>
-      <p>Documento generado para: ${employee.nombre} ${employee.apellido} — ${employee.cedula}</p>
+      <p>Documento generado para: ${formatNombreCompleto({ primerNombre: employee.primerNombre ?? '', segundoNombre: employee.segundoNombre, primerApellido: employee.primerApellido ?? '', segundoApellido: employee.segundoApellido })} — ${employee.cedula}</p>
     </div>
   </div>
   ${content}

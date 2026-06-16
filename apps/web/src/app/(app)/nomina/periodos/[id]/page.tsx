@@ -6,6 +6,7 @@ import { usePayrollPeriod } from '@/features/payroll/hooks/use-payroll';
 import { ArrowLeft } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { formatNombreCompleto } from '@saas/types';
 
 function cop(n: number) {
   return new Intl.NumberFormat('es-CO', {
@@ -81,7 +82,7 @@ export default function PeriodDetailPage({ params }: { params: Promise<{ id: str
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-foreground">
-                      {r.employee.nombre} {r.employee.apellido}
+                      {formatNombreCompleto(r.employee)}
                     </p>
                     <p className="text-xs text-muted-foreground">{r.employee.cargo}</p>
                   </div>

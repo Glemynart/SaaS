@@ -10,6 +10,7 @@ import { GenerateDocumentForm } from '@/features/generated-documents/components/
 import type { GenerateDocumentFormValues } from '@/features/generated-documents/schemas/generated-document-schemas';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { formatNombreCompleto } from '@saas/types';
 import { Button } from '@/components/ui/button';
 
 export default function EmployeeDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -83,9 +84,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
         <div className="border-b border-gray-100 p-6 sm:flex sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              {employee.nombre} {employee.apellido}
-            </h1>
+            <h1 className="text-2xl font-bold text-gray-900">{formatNombreCompleto(employee)}</h1>
             <p className="mt-1 text-sm text-gray-500">
               {employee.tipoDocumento} {employee.cedula}
             </p>

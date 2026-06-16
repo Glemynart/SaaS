@@ -1,4 +1,5 @@
 import { type GeneratedDocument } from '../services/generated-documents-api';
+import { formatNombreCompleto } from '@saas/types';
 import { DOCUMENT_TEMPLATE_TYPE_LABELS } from '@/features/document-templates/schemas/document-template-schemas';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -66,7 +67,7 @@ export function GeneratedDocsTable({
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-foreground">{doc.nombre}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {doc.employee.nombre} {doc.employee.apellido} — {doc.employee.cargo}
+                    {formatNombreCompleto(doc.employee)} — {doc.employee.cargo}
                   </p>
                   <div className="mt-1.5 flex items-center gap-2">
                     <Badge>{DOCUMENT_TEMPLATE_TYPE_LABELS[doc.tipo] ?? doc.tipo}</Badge>

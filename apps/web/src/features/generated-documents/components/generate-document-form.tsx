@@ -16,6 +16,7 @@ import {
   type GenerateDocumentFormValues,
 } from '../schemas/generated-document-schemas';
 import type { Employee } from '@/features/employees/services/employees-api';
+import { formatNombreCompleto } from '@saas/types';
 import { FileText, Loader2 } from 'lucide-react';
 
 interface GenerateDocumentFormProps {
@@ -50,7 +51,7 @@ export function GenerateDocumentForm({
     defaultValues: {
       employeeId: employee.id,
       templateId: '',
-      nombre: `Doc. ${employee.nombre} ${employee.apellido}`,
+      nombre: `Doc. ${formatNombreCompleto(employee)}`,
     },
   });
 
@@ -68,7 +69,7 @@ export function GenerateDocumentForm({
       open={open}
       onOpenChange={onOpenChange}
       title="Generar documento"
-      description={`Empleado: ${employee.nombre} ${employee.apellido}`}
+      description={`Empleado: ${formatNombreCompleto(employee)}`}
     >
       <form onSubmit={handleSubmit(onSubmit)} className="flex h-full flex-col">
         <div className="flex-1 space-y-5">

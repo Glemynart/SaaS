@@ -40,7 +40,15 @@ export class EmployeeFilesService {
     const file = await this.prisma.employeeFile.findFirst({
       where: { id, tenantId },
       include: {
-        employee: { select: { id: true, nombre: true, apellido: true } },
+        employee: {
+          select: {
+            id: true,
+            primerNombre: true,
+            segundoNombre: true,
+            primerApellido: true,
+            segundoApellido: true,
+          },
+        },
         generatedDocument: { select: { id: true, nombre: true, tipo: true } },
       },
     });

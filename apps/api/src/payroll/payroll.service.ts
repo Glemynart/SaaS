@@ -49,8 +49,10 @@ export class PayrollService {
         employee: {
           select: {
             id: true,
-            nombre: true,
-            apellido: true,
+            primerNombre: true,
+            segundoNombre: true,
+            primerApellido: true,
+            segundoApellido: true,
             cedula: true,
             cargo: true,
           },
@@ -181,7 +183,15 @@ export class PayrollService {
     return this.prisma.payrollNovelty.findMany({
       where: { tenantId, ...(employeeId ? { employeeId } : {}) },
       include: {
-        employee: { select: { id: true, nombre: true, apellido: true } },
+        employee: {
+          select: {
+            id: true,
+            primerNombre: true,
+            segundoNombre: true,
+            primerApellido: true,
+            segundoApellido: true,
+          },
+        },
       },
       orderBy: { fecha: 'desc' },
     });

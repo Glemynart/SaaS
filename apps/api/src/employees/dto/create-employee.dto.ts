@@ -67,6 +67,22 @@ export class CreateEmployeeDto {
   @IsNotEmpty()
   apellido: string;
 
+  @IsString()
+  @IsNotEmpty()
+  primerNombre: string;
+
+  @IsString()
+  @IsOptional()
+  segundoNombre?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  primerApellido: string;
+
+  @IsString()
+  @IsOptional()
+  segundoApellido?: string;
+
   @IsEmail()
   @IsOptional()
   email?: string;

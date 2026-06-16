@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, FileText, FileDown, Loader2, Printer } from 'lucide-react';
+import { formatNombreCompleto } from '@saas/types';
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('es-CO', {
@@ -118,9 +119,7 @@ export function GeneratedDocDetail() {
             <span className="text-[0.68rem] font-medium uppercase tracking-wider text-muted-foreground">
               Empleado
             </span>
-            <p className="mt-0.5 text-sm text-foreground">
-              {doc.employee.nombre} {doc.employee.apellido}
-            </p>
+            <p className="mt-0.5 text-sm text-foreground">{formatNombreCompleto(doc.employee)}</p>
             <p className="text-xs text-muted-foreground">
               {doc.employee.tipoDocumento} {doc.employee.cedula} — {doc.employee.cargo}
             </p>

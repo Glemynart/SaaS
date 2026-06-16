@@ -10,8 +10,12 @@ export interface GeneratedDocument {
   createdAt: string;
   employee: {
     id: string;
-    nombre: string;
-    apellido: string;
+    nombre?: string | null;
+    apellido?: string | null;
+    primerNombre: string;
+    segundoNombre: string | null;
+    primerApellido: string;
+    segundoApellido: string | null;
     cedula: string;
     cargo: string;
     tipoDocumento?: string;

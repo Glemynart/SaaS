@@ -10,7 +10,13 @@ export interface EmployeeFile {
   tamanoBytes: number | null;
   observaciones: string | null;
   createdAt: string;
-  employee?: { id: string; nombre: string; apellido: string };
+  employee?: {
+    id: string;
+    primerNombre: string;
+    segundoNombre: string | null;
+    primerApellido: string;
+    segundoApellido: string | null;
+  };
   generatedDocument?: { id: string; nombre: string; tipo: string } | null;
 }
 

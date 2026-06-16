@@ -10,7 +10,15 @@ export interface AlertItem {
   dueDate: string | null;
   createdAt: string;
   resolvedAt: string | null;
-  employee: { id: string; nombre: string; apellido: string; cedula: string; cargo: string } | null;
+  employee: {
+    id: string;
+    primerNombre: string;
+    segundoNombre: string | null;
+    primerApellido: string;
+    segundoApellido: string | null;
+    cedula: string;
+    cargo: string;
+  } | null;
   employeeFile: { id: string; nombre: string; categoria: string } | null;
 }
 

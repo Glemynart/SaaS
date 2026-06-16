@@ -33,6 +33,22 @@ export class UpdateEmployeeDto {
   @IsOptional()
   apellido?: string;
 
+  @IsString()
+  @IsOptional()
+  primerNombre?: string;
+
+  @IsString()
+  @IsOptional()
+  segundoNombre?: string;
+
+  @IsString()
+  @IsOptional()
+  primerApellido?: string;
+
+  @IsString()
+  @IsOptional()
+  segundoApellido?: string;
+
   @IsEmail()
   @IsOptional()
   email?: string;

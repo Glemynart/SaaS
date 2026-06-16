@@ -3,3 +3,5 @@ export interface User {
   email: string;
   role: 'ADMIN' | 'OPERADOR' | 'VIEWER';
 }
+
+export * from './employee';

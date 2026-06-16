@@ -68,8 +68,10 @@ export class EmployeesService {
 
     if (search) {
       where.OR = [
-        { nombre: { contains: search, mode: 'insensitive' } },
-        { apellido: { contains: search, mode: 'insensitive' } },
+        { primerNombre: { contains: search, mode: 'insensitive' } },
+        { segundoNombre: { contains: search, mode: 'insensitive' } },
+        { primerApellido: { contains: search, mode: 'insensitive' } },
+        { segundoApellido: { contains: search, mode: 'insensitive' } },
         { cedula: { contains: search, mode: 'insensitive' } },
         { email: { contains: search, mode: 'insensitive' } },
       ];

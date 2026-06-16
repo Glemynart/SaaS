@@ -26,8 +26,10 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
     defaultValues: {
       tipoDocumento: 'CC',
       cedula: '',
-      nombre: '',
-      apellido: '',
+      primerNombre: '',
+      segundoNombre: '',
+      primerApellido: '',
+      segundoApellido: '',
       email: '',
       telefono: '',
       cargo: '',
@@ -47,6 +49,10 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
     if (initialData) {
       reset({
         ...initialData,
+        primerNombre: initialData.primerNombre ?? '',
+        segundoNombre: initialData.segundoNombre ?? undefined,
+        primerApellido: initialData.primerApellido ?? '',
+        segundoApellido: initialData.segundoApellido ?? undefined,
         email: initialData.email || '',
         telefono: initialData.telefono || '',
         fechaIngreso: initialData.fechaIngreso
@@ -67,8 +73,10 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
       reset({
         tipoDocumento: 'CC',
         cedula: '',
-        nombre: '',
-        apellido: '',
+        primerNombre: '',
+        segundoNombre: '',
+        primerApellido: '',
+        segundoApellido: '',
         email: '',
         telefono: '',
         cargo: '',
@@ -108,16 +116,26 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
           {errors.cedula && <span className="text-xs text-red-500">{errors.cedula.message}</span>}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="nombre">Nombres</Label>
-          <Input id="nombre" {...register('nombre')} />
-          {errors.nombre && <span className="text-xs text-red-500">{errors.nombre.message}</span>}
+          <Label htmlFor="primerNombre">Primer nombre</Label>
+          <Input id="primerNombre" {...register('primerNombre')} />
+          {errors.primerNombre && (
+            <span className="text-xs text-red-500">{errors.primerNombre.message}</span>
+          )}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="apellido">Apellidos</Label>
-          <Input id="apellido" {...register('apellido')} />
-          {errors.apellido && (
-            <span className="text-xs text-red-500">{errors.apellido.message}</span>
+          <Label htmlFor="segundoNombre">Segundo nombre</Label>
+          <Input id="segundoNombre" {...register('segundoNombre')} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="primerApellido">Primer apellido</Label>
+          <Input id="primerApellido" {...register('primerApellido')} />
+          {errors.primerApellido && (
+            <span className="text-xs text-red-500">{errors.primerApellido.message}</span>
           )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="segundoApellido">Segundo apellido</Label>
+          <Input id="segundoApellido" {...register('segundoApellido')} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="email">Correo Electrónico</Label>

@@ -1,4 +1,5 @@
 import { type Employee } from '../services/employees-api';
+import { formatNombreCompleto } from '@saas/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -45,9 +46,7 @@ export function EmployeesTable({ employees, isLoading, onEdit, onDelete }: Emplo
           {employees.map((emp) => (
             <tr key={emp.id} className="group transition-colors hover:bg-gray-50/50">
               <td className="px-6 py-4">
-                <div className="font-medium text-gray-900">
-                  {emp.nombre} {emp.apellido}
-                </div>
+                <div className="font-medium text-gray-900">{formatNombreCompleto(emp)}</div>
                 {emp.email && <div className="text-gray-500">{emp.email}</div>}
               </td>
               <td className="px-6 py-4 text-gray-600">

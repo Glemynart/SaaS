@@ -12,6 +12,7 @@ import {
   RefreshCw,
   UserRound,
 } from 'lucide-react';
+import { formatNombreCompleto } from '@saas/types';
 import {
   useAlerts,
   useResolveAlert,
@@ -198,8 +199,7 @@ export default function AlertasPage() {
                           href={`/empleados/${alert.employee.id}`}
                           className="inline-flex items-center gap-1 hover:text-foreground"
                         >
-                          <UserRound className="size-3" /> {alert.employee.nombre}{' '}
-                          {alert.employee.apellido}
+                          <UserRound className="size-3" /> {formatNombreCompleto(alert.employee)}
                         </Link>
                       )}
                       {alert.employeeFile && <span>{alert.employeeFile.nombre}</span>}

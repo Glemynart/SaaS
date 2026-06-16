@@ -3,8 +3,12 @@ export interface Employee {
   tenantId: string;
   cedula: string;
   tipoDocumento: 'CC' | 'CE' | 'TI' | 'PA' | 'NIT' | 'PEP' | 'PPT';
-  nombre: string;
-  apellido: string;
+  nombre?: string | null;
+  apellido?: string | null;
+  primerNombre: string;
+  segundoNombre: string | null;
+  primerApellido: string;
+  segundoApellido: string | null;
   email: string | null;
   telefono: string | null;
   fechaNacimiento: string | null;

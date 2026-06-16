@@ -9,6 +9,7 @@ import {
   useDeleteEmployeeFile,
 } from '@/features/employee-files/hooks/use-employee-files';
 import { generatedDocumentsApi } from '@/features/generated-documents/services/generated-documents-api';
+import { formatNombreCompleto } from '@saas/types';
 import { DOCUMENT_TEMPLATE_TYPE_LABELS } from '@/features/document-templates/schemas/document-template-schemas';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -92,9 +93,7 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
             <h1 className="text-lg font-semibold tracking-[-0.018em] text-foreground">
               Expediente digital
             </h1>
-            <p className="text-sm text-muted-foreground">
-              {employee.nombre} {employee.apellido}
-            </p>
+            <p className="text-sm text-muted-foreground">{formatNombreCompleto(employee)}</p>
           </div>
         </div>
       </div>

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AlertQueryDto } from './dto/alert-query.dto';
 import { Prisma } from '@prisma/client';
+import { formatNombreCompleto } from '@saas/types';
 
 @Injectable()
 export class AlertsService {
@@ -27,8 +28,10 @@ export class AlertsService {
           employee: {
             select: {
               id: true,
-              nombre: true,
-              apellido: true,
+              primerNombre: true,
+              segundoNombre: true,
+              primerApellido: true,
+              segundoApellido: true,
               cedula: true,
               cargo: true,
             },
@@ -55,8 +58,10 @@ export class AlertsService {
         employee: {
           select: {
             id: true,
-            nombre: true,
-            apellido: true,
+            primerNombre: true,
+            segundoNombre: true,
+            primerApellido: true,
+            segundoApellido: true,
             cedula: true,
             cargo: true,
           },
@@ -88,7 +93,15 @@ export class AlertsService {
     const contractFiles = await this.prisma.employeeFile.findMany({
       where: { tenantId, categoria: 'CONTRACT' },
       include: {
-        employee: { select: { id: true, nombre: true, apellido: true } },
+        employee: {
+          select: {
+            id: true,
+            primerNombre: true,
+            segundoNombre: true,
+            primerApellido: true,
+            segundoApellido: true,
+          },
+        },
       },
     });
 
@@ -120,7 +133,7 @@ export class AlertsService {
               employeeId: file.employeeId,
               employeeFileId: file.id,
               titulo: `Contrato próximo a vencer (${threshold.label})`,
-              descripcion: `El documento "${file.nombre}" del empleado ${file.employee.nombre} ${file.employee.apellido} requiere atención. Quedan aproximadamente ${threshold.days} días.`,
+              descripcion: `El documento "${file.nombre}" del empleado ${formatNombreCompleto({ primerNombre: file.employee.primerNombre ?? '', segundoNombre: file.employee.segundoNombre, primerApellido: file.employee.primerApellido ?? '', segundoApellido: file.employee.segundoApellido })} requiere atención. Quedan aproximadamente ${threshold.days} días.`,
               severity: threshold.severity,
               dueDate,
             },
@@ -139,7 +152,13 @@ export class AlertsService {
   async generateMissingDocAlerts(tenantId: string) {
     const employees = await this.prisma.empleado.findMany({
       where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
-      select: { id: true, nombre: true, apellido: true },
+      select: {
+        id: true,
+        primerNombre: true,
+        segundoNombre: true,
+        primerApellido: true,
+        segundoApellido: true,
+      },
     });
 
     let created = 0;
@@ -164,7 +183,7 @@ export class AlertsService {
           tenantId,
           employeeId: emp.id,
           titulo: 'Empleado sin contrato registrado',
-          descripcion: `${emp.nombre} ${emp.apellido} no tiene ningún contrato en su expediente digital.`,
+          descripcion: `${formatNombreCompleto({ primerNombre: emp.primerNombre ?? '', segundoNombre: emp.segundoNombre, primerApellido: emp.primerApellido ?? '', segundoApellido: emp.segundoApellido })} no tiene ningún contrato en su expediente digital.`,
           severity: 'WARNING',
         },
       });

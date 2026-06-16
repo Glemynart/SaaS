@@ -312,6 +312,10 @@ model Empleado {
   tipoDocumento   TipoDocIdentidad @default(CC)
   nombre          String
   apellido        String
+  primerNombre    String?
+  segundoNombre   String?
+  primerApellido  String?
+  segundoApellido String?
   email           String?
   telefono        String?
   fechaNacimiento DateTime?
@@ -362,7 +366,7 @@ model Empleado {
 // =============================================================================
 // Archivo DOCX almacenado en R2 con marcadores de variables ({{variable}}).
 // El campo variablesMapa es un JSON que mapea marcadores a campos del Empleado.
-// Ejemplo: { "{{nombre_completo}}": "empleado.nombre + empleado.apellido" }
+// Ejemplo: { "{{nombre_completo}}": "empleado.primerNombre + empleado.primerApellido" }
 // Un tenant puede tener múltiples plantillas por tipo de documento.
 // =============================================================================
 

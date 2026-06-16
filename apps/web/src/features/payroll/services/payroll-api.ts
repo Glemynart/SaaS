@@ -15,7 +15,15 @@ export interface PayrollRun {
   totalDevengos: number;
   totalDeducciones: number;
   netoPagar: number;
-  employee: { id: string; nombre: string; apellido: string; cedula: string; cargo: string };
+  employee: {
+    id: string;
+    primerNombre: string;
+    segundoNombre: string | null;
+    primerApellido: string;
+    segundoApellido: string | null;
+    cedula: string;
+    cargo: string;
+  };
   concepts: PayrollConcept[];
 }
 
@@ -33,7 +41,13 @@ export interface PayrollNovelty {
   descripcion: string | null;
   fecha: string;
   valor: number | null;
-  employee: { id: string; nombre: string; apellido: string };
+  employee: {
+    id: string;
+    primerNombre: string;
+    segundoNombre: string | null;
+    primerApellido: string;
+    segundoApellido: string | null;
+  };
 }
 
 export interface PayrollDashboard {
