@@ -19,10 +19,14 @@ import { CurrentUser } from './decorators/current-user.decorator';
 import type { CurrentUserPayload } from './decorators/current-user.decorator';
 import type { Request } from 'express';
 import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
+import { AuditService } from '../audit/audit.service';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private auditService: AuditService,
+  ) {}
 
   @Post('register')
   @UseGuards(ThrottlerGuard)
@@ -37,11 +41,23 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto, @Req() req: Request, @Ip() ip: string) {
     const userAgent = req.headers['user-agent'];
-    return this.authService.login({
+    const result = await this.authService.login({
       ...dto,
       userAgent,
       ipAddress: ip,
     });
+    if (result?.user) {
+      await this.auditService
+        .log({
+          tenantId: result.user.tenantId,
+          userId: result.user.id,
+          action: 'LOGIN',
+          entityType: 'Auth',
+          metadata: { ip, userAgent: String(userAgent ?? '') },
+        })
+        .catch(() => {});
+    }
+    return result;
   }
 
   @Post('refresh')

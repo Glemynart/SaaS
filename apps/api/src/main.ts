@@ -19,8 +19,12 @@ async function bootstrap() {
     prefix: '/uploads/',
   });
 
+  const origins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:3000')
+    .split(',')
+    .map((s) => s.trim());
+
   app.enableCors({
-    origin: ['http://localhost:3000'],
+    origin: origins,
     credentials: true,
   });
 

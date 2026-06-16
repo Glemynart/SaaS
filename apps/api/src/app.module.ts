@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AppConfigModule } from './config/app-config.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { UsersModule } from './users/users.module';
@@ -13,10 +15,14 @@ import { EmployeeFilesModule } from './employee-files/employee-files.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { PayrollModule } from './payroll/payroll.module';
 import { BillingModule } from './billing/billing.module';
+import { AuditModule } from './audit/audit.module';
+import { DaneModule } from './dane/dane.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    AppConfigModule,
     PrismaModule,
     TenantsModule,
     UsersModule,
@@ -29,6 +35,8 @@ import { ThrottlerModule } from '@nestjs/throttler';
     AlertsModule,
     PayrollModule,
     BillingModule,
+    AuditModule,
+    DaneModule,
     ThrottlerModule.forRoot([
       {
         name: 'login',

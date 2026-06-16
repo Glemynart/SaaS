@@ -8,6 +8,7 @@ import { CreateGeneratedDocumentDto } from './dto/create-generated-document.dto'
 import { GeneratedDocumentQueryDto } from './dto/generated-document-query.dto';
 import { Prisma } from '@prisma/client';
 import { EmployeeFilesService } from '../employee-files/employee-files.service';
+import { AuditService } from '../audit/audit.service';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -30,6 +31,7 @@ export class GeneratedDocumentsService {
   constructor(
     private prisma: PrismaService,
     private employeeFilesService: EmployeeFilesService,
+    private auditService: AuditService,
   ) {}
 
   async generate(tenantId: string, dto: CreateGeneratedDocumentDto) {
@@ -238,6 +240,17 @@ export class GeneratedDocumentsService {
       pdfUrl,
       updated.tipo,
     );
+
+    this.auditService
+      .log({
+        tenantId: updated.tenantId,
+        userId: 'system',
+        action: 'PDF_GENERATE',
+        entityType: 'GeneratedDocument',
+        entityId: updated.id,
+        metadata: { pdfUrl },
+      })
+      .catch(() => {});
 
     return { id: updated.id, pdfUrl: updated.pdfUrl, nombre: updated.nombre };
   }

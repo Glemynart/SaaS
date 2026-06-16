@@ -793,6 +793,43 @@ model InvoiceItem {
 }
 
 // =============================================================================
+// AUDIT LOG — Registro de auditoría (Fase: Platform Hardening)
+// =============================================================================
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId String
+  userId   String
+  action   String
+  entityType String
+  entityId   String?
+  metadata   Json?     @default("{}")
+
+  @@index([tenantId])
+  @@index([tenantId, action])
+  @@index([tenantId, createdAt])
+  @@index([userId])
+  @@map("audit_logs")
+}
+
+// =============================================================================
+// MUNICIPIO DANE — Catálogo de municipios de Colombia
+// =============================================================================
+
+model MunicipioDane {
+  id        String   @id @default(uuid())
+  codigo    String   @unique
+  nombre    String
+  departamento String
+
+  @@index([departamento])
+  @@index([nombre])
+  @@map("municipios_dane")
+}
+
+// =============================================================================
 // CONTRATO — Contrato laboral de un empleado
 // =============================================================================
 // Representa un contrato generado (individual o parte de un lote).

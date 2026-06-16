@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeeQueryDto } from './dto/employee-query.dto';
@@ -11,7 +12,10 @@ import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class EmployeesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
   async create(tenantId: string, createDto: CreateEmployeeDto) {
     const existing = await this.prisma.empleado.findUnique({
@@ -32,13 +36,24 @@ export class EmployeesService {
       throw new BadRequestException('Ya existe un empleado con esta cédula');
     }
 
-    return this.prisma.empleado.create({
+    const employee = await this.prisma.empleado.create({
       data: {
         ...createDto,
         fechaIngreso: new Date(createDto.fechaIngreso),
         tenantId,
       },
     });
+    this.auditService
+      .log({
+        tenantId,
+        userId: 'system',
+        action: 'EMPLOYEE_CREATE',
+        entityType: 'Employee',
+        entityId: employee.id,
+        metadata: { cedula: employee.cedula },
+      })
+      .catch(() => {});
+    return employee;
   }
 
   async findAll(tenantId: string, query: EmployeeQueryDto) {
