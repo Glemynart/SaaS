@@ -6,5 +6,6 @@ allowBuilds:
   '@prisma/engines': true
   bcrypt: true
   prisma: true
+  puppeteer: true
   sharp: set this to true or false
   unrs-resolver: set this to true or false

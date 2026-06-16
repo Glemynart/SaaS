@@ -148,6 +148,10 @@ model Tenant {
   email        String?
   logoUrl      String?                 // URL en R2 del logo de la empresa
 
+  // Identidad corporativa — Branding
+  representanteLegal    String?          // Nombre del representante legal
+  firmaRepresentanteUrl String?          // URL en R2 de la firma digitalizada
+
   // Configuración del plan
   plan         Plan     @default(STARTER)
   activo       Boolean  @default(true)
@@ -167,16 +171,26 @@ model Tenant {
   feTecnicoKey      String?             // Clave técnica Matías API
 
   // Relaciones
-  users         User[]
-  empleados     Empleado[]
-  plantillas    Plantilla[]
-  contratos     Contrato[]
-  lotes         LoteContrato[]
-  expedientes   ExpedienteDoc[]
-  alertas       Alerta[]
-  clientesFE    ClienteFE[]
-  productos     Producto[]
-  facturas      Factura[]
+  users              User[]
+  empleados          Empleado[]
+  plantillas         Plantilla[]
+  documentTemplates  DocumentTemplate[]
+  generatedDocuments GeneratedDocument[]
+  employeeFiles      EmployeeFile[]
+  alerts             Alert[]
+  payrollPeriods     PayrollPeriod[]
+  payrollRuns        PayrollRun[]
+  payrollNovelties   PayrollNovelty[]
+  customers          Customer[]
+  productServices    ProductService[]
+  invoices           Invoice[]
+  contratos          Contrato[]
+  lotes              LoteContrato[]
+  expedientes        ExpedienteDoc[]
+  alertas            Alerta[]
+  clientesFE         ClienteFE[]
+  productos          Producto[]
+  facturas           Factura[]
 
   @@map("tenants")
 }
@@ -282,9 +296,14 @@ model Empleado {
   cajaCompensacion String?
 
   // Relaciones
-  contratos   Contrato[]
-  expediente  ExpedienteDoc[]
-  alertas     Alerta[]
+  contratos           Contrato[]
+  generatedDocuments  GeneratedDocument[]
+  employeeFiles       EmployeeFile[]
+  alerts              Alert[]
+  payrollRuns         PayrollRun[]
+  payrollNovelties    PayrollNovelty[]
+  expediente          ExpedienteDoc[]
+  alertas             Alerta[]
 
   @@unique([tenantId, cedula])
   @@index([tenantId, estado])
@@ -328,6 +347,449 @@ model Plantilla {
   @@index([tenantId, tipo])
   @@index([tenantId, activa])
   @@map("plantillas")
+}
+
+// =============================================================================
+// DOCUMENT TEMPLATE TYPE — Enumerado de tipos de documento plantilla
+// =============================================================================
+
+enum DocumentTemplateType {
+  CONTRACT
+  CERTIFICATION
+  LETTER
+  MEMO
+}
+
+// =============================================================================
+// DOCUMENT TEMPLATE — Plantilla base del motor documental (Fase 1)
+// =============================================================================
+// Entidad genérica y reutilizable para cualquier tipo de documento.
+// El contenido almacena el texto con placeholders {{VARIABLE}}.
+// Las variables disponibles son las definidas en el módulo de plantillas
+// (NOMBRE_COMPLETO, DOCUMENTO, CARGO, SALARIO, TIPO_CONTRATO, etc.)
+//
+// Futura evolución:
+//   DocumentTemplate → GeneratedDocument → PDF → EmployeeFile → Alerts
+// =============================================================================
+
+model DocumentTemplate {
+  id          String               @id @default(uuid())
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  deletedAt   DateTime?
+
+  tenantId    String
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  nombre      String
+  descripcion String?
+  tipo        DocumentTemplateType
+  contenido   String               // Texto con placeholders {{VARIABLE}}
+  activo      Boolean              @default(true)
+
+  // Relaciones
+  generatedDocuments GeneratedDocument[]
+
+  @@index([tenantId])
+  @@index([tenantId, tipo])
+  @@index([tenantId, activo])
+  @@index([tenantId, deletedAt])
+  @@map("document_templates")
+}
+
+// =============================================================================
+// GENERATED DOCUMENT — Documento generado desde una plantilla (Fase 2)
+// =============================================================================
+// Representa un documento concreto generado a partir de una plantilla
+// y los datos de un empleado. El contenidoFinal es un snapshot inmutable:
+// aunque el empleado cambie de cargo, salario o dependencia después,
+// el documento generado conserva los valores originales del momento.
+//
+// Futura evolución:
+//   GeneratedDocument → PDF → EmployeeFile → Alerts
+// =============================================================================
+
+model GeneratedDocument {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId   String
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Empleado          @relation(fields: [employeeId], references: [id])
+
+  templateId String
+  template   DocumentTemplate  @relation(fields: [templateId], references: [id])
+
+  nombre          String   // Nombre del documento generado
+  contenidoFinal  String   // Contenido con variables ya reemplazadas (snapshot inmutable)
+  pdfUrl          String?  // URL del PDF generado (R2-ready)
+  tipo            DocumentTemplateType
+
+  // Relaciones
+  employeeFiles EmployeeFile[]
+
+  @@index([tenantId])
+  @@index([tenantId, employeeId])
+  @@index([tenantId, tipo])
+  @@index([tenantId, createdAt])
+  @@map("generated_documents")
+}
+
+// =============================================================================
+// EMPLOYEE FILE CATEGORY — Categorías del expediente digital
+// =============================================================================
+
+enum EmployeeFileCategory {
+  CONTRACT
+  CERTIFICATION
+  MEMO
+  LETTER
+  OTHER
+}
+
+// =============================================================================
+// EMPLOYEE FILE — Expediente digital del empleado (Fase: Employee File)
+// =============================================================================
+// Consolida todos los documentos generados y subidos en un expediente
+// digital organizado por empleado. Se crea automáticamente al generar un PDF
+// desde GeneratedDocument, o manualmente vía upload.
+//
+// Futura evolución:
+//   EmployeeFile → Alerts → Recordatorios → Vencimientos
+// =============================================================================
+
+model EmployeeFile {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId   String
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Empleado          @relation(fields: [employeeId], references: [id])
+
+  generatedDocumentId String?    // Null si fue subido manualmente
+  generatedDocument   GeneratedDocument? @relation(fields: [generatedDocumentId], references: [id])
+
+  nombre      String
+  categoria   EmployeeFileCategory
+  archivoUrl  String              // URL del PDF en disco o R2
+  mimeType    String?             // ej: application/pdf
+  tamanoBytes Int?                // Tamaño del archivo
+  observaciones String?            // Notas opcionales
+
+  // Relaciones
+  alerts Alert[]
+
+  @@index([tenantId])
+  @@index([tenantId, employeeId])
+  @@index([tenantId, categoria])
+  @@index([tenantId, createdAt])
+  @@map("employee_files")
+}
+
+// =============================================================================
+// ALERT SEVERITY — Nivel de criticidad de la alerta
+// =============================================================================
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+// =============================================================================
+// ALERT STATUS — Estado de la alerta
+// =============================================================================
+
+enum AlertStatus {
+  OPEN
+  RESOLVED
+}
+
+// =============================================================================
+// ALERT — Alerta de seguimiento documental y contractual (Fase: Alertas)
+// =============================================================================
+// Sistema de alertas internas para seguimiento del ciclo de vida contractual.
+// Se generan automáticamente al detectar vencimientos, documentos faltantes
+// o empleados sin contrato. Las alertas viven dentro del sistema (no email aún).
+//
+// Futura evolución:
+//   Alert → Recordatorios → Notificaciones → Email/WhatsApp
+// =============================================================================
+
+model Alert {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  employeeId String?
+  employee   Empleado? @relation(fields: [employeeId], references: [id])
+
+  employeeFileId String?
+  employeeFile   EmployeeFile? @relation(fields: [employeeFileId], references: [id])
+
+  titulo      String
+  descripcion String
+  severity    AlertSeverity
+  status      AlertStatus   @default(OPEN)
+  dueDate     DateTime?
+  resolvedAt  DateTime?
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, severity])
+  @@index([tenantId, employeeId])
+  @@index([tenantId, dueDate])
+  @@map("alerts_new")
+}
+
+// =============================================================================
+// PAYROLL PERIOD STATUS — Estado del período de nómina
+// =============================================================================
+
+enum PayrollPeriodStatus {
+  DRAFT
+  CLOSED
+}
+
+// =============================================================================
+// PAYROLL CONCEPT TYPE — Tipo de concepto (devengo o deducción)
+// =============================================================================
+
+enum PayrollConceptType {
+  EARNING
+  DEDUCTION
+}
+
+// =============================================================================
+// PAYROLL NOVELTY TYPE — Tipo de novedad de nómina
+// =============================================================================
+
+enum PayrollNoveltyType {
+  VACATION
+  SICKNESS
+  LICENSE
+  OVERTIME
+  BONUS
+  OTHER
+}
+
+// =============================================================================
+// PAYROLL PERIOD — Período de liquidación de nómina
+// =============================================================================
+
+model PayrollPeriod {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  nombre      String
+  fechaInicio DateTime
+  fechaFin    DateTime
+  status      PayrollPeriodStatus @default(DRAFT)
+
+  runs PayrollRun[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@map("payroll_periods")
+}
+
+// =============================================================================
+// PAYROLL RUN — Liquidación individual de un empleado en un período
+// =============================================================================
+
+model PayrollRun {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId   String
+  tenant     Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  payrollPeriodId String
+  payrollPeriod   PayrollPeriod @relation(fields: [payrollPeriodId], references: [id])
+
+  employeeId String
+  employee   Empleado @relation(fields: [employeeId], references: [id])
+
+  totalDevengos    Decimal @db.Decimal(12, 2)
+  totalDeducciones Decimal @db.Decimal(12, 2)
+  netoPagar        Decimal @db.Decimal(12, 2)
+
+  concepts PayrollConcept[]
+
+  @@index([tenantId])
+  @@index([tenantId, payrollPeriodId])
+  @@index([tenantId, employeeId])
+  @@map("payroll_runs")
+}
+
+// =============================================================================
+// PAYROLL CONCEPT — Concepto individual dentro de una liquidación
+// =============================================================================
+
+model PayrollConcept {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  payrollRunId String
+  payrollRun   PayrollRun @relation(fields: [payrollRunId], references: [id])
+
+  tipo   PayrollConceptType
+  nombre String
+  valor  Decimal @db.Decimal(12, 2)
+
+  @@index([payrollRunId])
+  @@map("payroll_concepts")
+}
+
+// =============================================================================
+// PAYROLL NOVELTY — Novedad de nómina por empleado
+// =============================================================================
+
+model PayrollNovelty {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Empleado @relation(fields: [employeeId], references: [id])
+
+  tipo        PayrollNoveltyType
+  descripcion String?
+  fecha       DateTime
+  valor       Decimal? @db.Decimal(12, 2)
+
+  @@index([tenantId])
+  @@index([tenantId, employeeId])
+  @@index([tenantId, tipo])
+  @@map("payroll_novelties")
+}
+
+// =============================================================================
+// CUSTOMER STATUS — Estado del cliente
+// =============================================================================
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+// =============================================================================
+// INVOICE STATUS — Estado de la factura
+// =============================================================================
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  CANCELLED
+}
+
+// =============================================================================
+// CUSTOMER — Cliente para facturación
+// =============================================================================
+
+model Customer {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  razonSocial String
+  nit         String
+  email       String?
+  telefono    String?
+  direccion   String?
+  status      CustomerStatus @default(ACTIVE)
+
+  invoices Invoice[]
+
+  @@unique([tenantId, nit])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@map("customers")
+}
+
+// =============================================================================
+// PRODUCT SERVICE — Producto o servicio para facturación
+// =============================================================================
+
+model ProductService {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  nombre      String
+  descripcion String?
+  precio      Decimal  @db.Decimal(12, 2)
+  impuesto    Decimal  @default(19) @db.Decimal(5, 2)
+  activo      Boolean  @default(true)
+
+  @@index([tenantId])
+  @@index([tenantId, activo])
+  @@map("product_services")
+}
+
+// =============================================================================
+// INVOICE — Factura de venta (dominio interno, no DIAN aún)
+// =============================================================================
+
+model Invoice {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  numero      String
+  subtotal    Decimal  @db.Decimal(12, 2)
+  impuestos   Decimal  @db.Decimal(12, 2)
+  total       Decimal  @db.Decimal(12, 2)
+  status      InvoiceStatus @default(DRAFT)
+  fechaEmision DateTime @default(now())
+
+  items InvoiceItem[]
+
+  @@index([tenantId])
+  @@index([tenantId, customerId])
+  @@index([tenantId, status])
+  @@map("invoices")
+}
+
+// =============================================================================
+// INVOICE ITEM — Línea de detalle de una factura
+// =============================================================================
+
+model InvoiceItem {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
+
+  productServiceId String?
+  descripcion      String
+  cantidad         Decimal  @db.Decimal(10, 3)
+  valorUnitario    Decimal  @db.Decimal(12, 2)
+  subtotal         Decimal  @db.Decimal(12, 2)
+
+  @@index([invoiceId])
+  @@map("invoice_items")
 }
 
 // =============================================================================

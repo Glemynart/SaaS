@@ -5,6 +5,14 @@ import { PrismaModule } from './prisma/prisma.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
+import { EmployeesModule } from './employees/employees.module';
+import { DocumentTemplatesModule } from './document-templates/document-templates.module';
+import { GeneratedDocumentsModule } from './generated-documents/generated-documents.module';
+import { TenantBrandingModule } from './tenant-branding/tenant-branding.module';
+import { EmployeeFilesModule } from './employee-files/employee-files.module';
+import { AlertsModule } from './alerts/alerts.module';
+import { PayrollModule } from './payroll/payroll.module';
+import { BillingModule } from './billing/billing.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
@@ -13,6 +21,14 @@ import { ThrottlerModule } from '@nestjs/throttler';
     TenantsModule,
     UsersModule,
     AuthModule,
+    EmployeesModule,
+    DocumentTemplatesModule,
+    GeneratedDocumentsModule,
+    TenantBrandingModule,
+    EmployeeFilesModule,
+    AlertsModule,
+    PayrollModule,
+    BillingModule,
     ThrottlerModule.forRoot([
       {
         name: 'login',

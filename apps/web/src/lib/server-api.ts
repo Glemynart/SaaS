@@ -102,7 +102,7 @@ export async function getAuthenticatedUser(request: NextRequest) {
     try {
       const payload = await backendFetch<BackendMe>('/auth/me', {}, accessToken);
       const user = mergeUsers(normalizeMe(payload), cookieUser);
-      return { user, response: NextResponse.json({ user }) };
+      return { user, response: NextResponse.json({ user }), token: accessToken };
     } catch (error) {
       if (!(error instanceof BackendError) || error.status !== 401) {
         throw error;
@@ -124,7 +124,7 @@ export async function getAuthenticatedUser(request: NextRequest) {
     user,
   });
 
-  return { user, response };
+  return { user, response, token: tokens.accessToken };
 }
 
 export function loginResponse(body: LoginResponse) {

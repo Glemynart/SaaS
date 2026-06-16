@@ -1,0 +1,228 @@
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import {
+  CreatePayrollPeriodDto,
+  CreatePayrollNoveltyDto,
+} from './dto/create-payroll.dto';
+
+@Injectable()
+export class PayrollService {
+  constructor(private prisma: PrismaService) {}
+
+  async createPeriod(tenantId: string, dto: CreatePayrollPeriodDto) {
+    return this.prisma.payrollPeriod.create({
+      data: {
+        ...dto,
+        fechaInicio: new Date(dto.fechaInicio),
+        fechaFin: new Date(dto.fechaFin),
+        tenantId,
+      },
+    });
+  }
+
+  async findAllPeriods(tenantId: string) {
+    const periods = await this.prisma.payrollPeriod.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: 'desc' },
+      include: { _count: { select: { runs: true } } },
+    });
+    return periods.map((p) => ({
+      ...p,
+      empleadosProcesados: p._count.runs,
+      _count: undefined,
+    }));
+  }
+
+  async findOnePeriod(tenantId: string, id: string) {
+    const period = await this.prisma.payrollPeriod.findFirst({
+      where: { id, tenantId },
+    });
+    if (!period) throw new NotFoundException('Período no encontrado');
+
+    const runs = await this.prisma.payrollRun.findMany({
+      where: { tenantId, payrollPeriodId: id },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            nombre: true,
+            apellido: true,
+            cedula: true,
+            cargo: true,
+          },
+        },
+        concepts: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const totalDevengos = runs.reduce((s, r) => s + Number(r.totalDevengos), 0);
+    const totalDeducciones = runs.reduce(
+      (s, r) => s + Number(r.totalDeducciones),
+      0,
+    );
+    const totalNeto = runs.reduce((s, r) => s + Number(r.netoPagar), 0);
+
+    return {
+      period,
+      runs,
+      totals: { totalDevengos, totalDeducciones, totalNeto },
+    };
+  }
+
+  async closePeriod(tenantId: string, id: string) {
+    const period = await this.findOnePeriod(tenantId, id);
+    if (period.period.status === 'CLOSED')
+      throw new BadRequestException('El período ya está cerrado');
+    return this.prisma.payrollPeriod.update({
+      where: { id },
+      data: { status: 'CLOSED' },
+    });
+  }
+
+  async generatePayroll(tenantId: string, periodId: string) {
+    const period = await this.prisma.payrollPeriod.findFirst({
+      where: { id: periodId, tenantId },
+    });
+    if (!period) throw new NotFoundException('Período no encontrado');
+    if (period.status === 'CLOSED')
+      throw new BadRequestException(
+        'No se puede generar nómina en un período cerrado',
+      );
+
+    const employees = await this.prisma.empleado.findMany({
+      where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
+    });
+
+    const created: unknown[] = [];
+    for (const emp of employees) {
+      const existing = await this.prisma.payrollRun.findFirst({
+        where: { tenantId, payrollPeriodId: periodId, employeeId: emp.id },
+      });
+      if (existing) continue;
+
+      const novelties = await this.prisma.payrollNovelty.findMany({
+        where: { tenantId, employeeId: emp.id },
+      });
+
+      const salarioBase = Number(emp.salario);
+      const bonificaciones = novelties
+        .filter((n) => n.tipo === 'BONUS')
+        .reduce((s, n) => s + Number(n.valor ?? 0), 0);
+      const horasExtra = novelties
+        .filter((n) => n.tipo === 'OVERTIME')
+        .reduce((s, n) => s + Number(n.valor ?? 0), 0);
+
+      const totalDevengos = salarioBase + bonificaciones + horasExtra;
+      const salud = totalDevengos * 0.04;
+      const pension = totalDevengos * 0.04;
+      const totalDeducciones = salud + pension;
+      const netoPagar = totalDevengos - totalDeducciones;
+
+      const run = await this.prisma.payrollRun.create({
+        data: {
+          tenantId,
+          payrollPeriodId: periodId,
+          employeeId: emp.id,
+          totalDevengos,
+          totalDeducciones,
+          netoPagar,
+          concepts: {
+            create: [
+              { tipo: 'EARNING', nombre: 'Salario base', valor: salarioBase },
+              ...(bonificaciones > 0
+                ? [
+                    {
+                      tipo: 'EARNING' as const,
+                      nombre: 'Bonificaciones',
+                      valor: bonificaciones,
+                    },
+                  ]
+                : []),
+              ...(horasExtra > 0
+                ? [
+                    {
+                      tipo: 'EARNING' as const,
+                      nombre: 'Horas extra',
+                      valor: horasExtra,
+                    },
+                  ]
+                : []),
+              { tipo: 'DEDUCTION', nombre: 'Salud (4%)', valor: salud },
+              { tipo: 'DEDUCTION', nombre: 'Pensión (4%)', valor: pension },
+            ],
+          },
+        },
+      });
+      created.push(run);
+    }
+
+    return {
+      created: created.length,
+      message: `${created.length} empleados liquidados`,
+    };
+  }
+
+  async createNovelty(tenantId: string, dto: CreatePayrollNoveltyDto) {
+    const emp = await this.prisma.empleado.findFirst({
+      where: { id: dto.employeeId, tenantId, deletedAt: null },
+    });
+    if (!emp) throw new NotFoundException('Empleado no encontrado');
+    return this.prisma.payrollNovelty.create({
+      data: { ...dto, fecha: new Date(dto.fecha), tenantId },
+    });
+  }
+
+  async findNovelties(tenantId: string, employeeId?: string) {
+    return this.prisma.payrollNovelty.findMany({
+      where: { tenantId, ...(employeeId ? { employeeId } : {}) },
+      include: {
+        employee: { select: { id: true, nombre: true, apellido: true } },
+      },
+      orderBy: { fecha: 'desc' },
+    });
+  }
+
+  async getDashboard(tenantId: string) {
+    const [periods, totalRuns] = await Promise.all([
+      this.prisma.payrollPeriod.count({ where: { tenantId } }),
+      this.prisma.payrollRun.count({ where: { tenantId } }),
+    ]);
+
+    const lastPeriod = await this.prisma.payrollPeriod.findFirst({
+      where: { tenantId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, nombre: true, status: true },
+    });
+
+    let lastPeriodTotals = {
+      totalDevengos: 0,
+      totalDeducciones: 0,
+      totalNeto: 0,
+    };
+    if (lastPeriod) {
+      const runs = await this.prisma.payrollRun.findMany({
+        where: { tenantId, payrollPeriodId: lastPeriod.id },
+      });
+      lastPeriodTotals = {
+        totalDevengos: runs.reduce((s, r) => s + Number(r.totalDevengos), 0),
+        totalDeducciones: runs.reduce(
+          (s, r) => s + Number(r.totalDeducciones),
+          0,
+        ),
+        totalNeto: runs.reduce((s, r) => s + Number(r.netoPagar), 0),
+      };
+    }
+
+    return {
+      totalPeriodos: periods,
+      empleadosLiquidados: totalRuns,
+      ...lastPeriodTotals,
+      ultimoPeriodo: lastPeriod?.nombre ?? null,
+    };
+  }
+}
