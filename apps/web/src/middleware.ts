@@ -11,10 +11,6 @@ export function middleware(request: NextRequest) {
   const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value;
   const hasSession = Boolean(accessToken || refreshToken);
 
-  if (pathname === '/') {
-    return NextResponse.redirect(new URL(hasSession ? '/dashboard' : '/login', request.url));
-  }
-
   if (publicRoutes.some((route) => pathname.startsWith(route)) && hasSession) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }

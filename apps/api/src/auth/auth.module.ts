@@ -11,6 +11,7 @@ import { TenantsModule } from '../tenants/tenants.module';
     UsersModule,
     TenantsModule,
     JwtModule.registerAsync({
+      global: true,
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
@@ -18,7 +19,6 @@ import { TenantsModule } from '../tenants/tenants.module';
           config.get<string>('jwt.secret') ?? process.env.JWT_SECRET;
         if (!secret) throw new Error('JWT_SECRET es obligatorio.');
         return {
-          global: true,
           secret,
           signOptions: { expiresIn: '15m' as const },
         };

@@ -123,6 +123,36 @@ enum ImpuestoTipo {
   EXENTO
 }
 
+enum TipoDocIdentidad {
+  CC
+  CE
+  TI
+  PA
+  NIT
+  PEP
+  PPT
+}
+
+enum JornadaLaboral {
+  COMPLETA
+  MEDIA
+  POR_HORAS
+}
+
+enum MotivoRetiro {
+  RENUNCIA
+  TERMINACION_CONTRATO
+  MUTUO_ACUERDO
+  JUSTA_CAUSA
+  FALLECIMIENTO
+  OTRO
+}
+
+enum ZonaMunicipio {
+  URBANA
+  RURAL
+}
+
 // =============================================================================
 // TENANT — Empresa registrada en la plataforma
 // =============================================================================
@@ -152,6 +182,10 @@ model Tenant {
   representanteLegal    String?          // Nombre del representante legal
   firmaRepresentanteUrl String?          // URL en R2 de la firma digitalizada
 
+  // Municipio de ubicación principal (Colombia)
+  municipioId  String?
+  municipio    MunicipioDane? @relation(fields: [municipioId], references: [id])
+
   // Configuración del plan
   plan         Plan     @default(STARTER)
   activo       Boolean  @default(true)
@@ -173,6 +207,7 @@ model Tenant {
   // Relaciones
   users              User[]
   empleados          Empleado[]
+  sedes              Sede[]
   plantillas         Plantilla[]
   documentTemplates  DocumentTemplate[]
   generatedDocuments GeneratedDocument[]
@@ -221,6 +256,7 @@ model User {
   // Control de sesión
   lastLoginAt    DateTime?
   refreshTokens  RefreshToken[]
+  lotesCreados   LoteContrato[]
 
   @@unique([tenantId, email])          // Un email es único por empresa, no globalmente
   @@index([tenantId, activo])
@@ -428,7 +464,8 @@ model GeneratedDocument {
   tipo            DocumentTemplateType
 
   // Relaciones
-  employeeFiles EmployeeFile[]
+  employeeFiles  EmployeeFile[]
+  expedienteDocs ExpedienteDoc[]
 
   @@index([tenantId])
   @@index([tenantId, employeeId])
@@ -824,9 +861,43 @@ model MunicipioDane {
   nombre    String
   departamento String
 
+  // Relaciones
+  tenants  Tenant[]
+  sedes    Sede[]
+
   @@index([departamento])
   @@index([nombre])
   @@map("municipios_dane")
+}
+
+// =============================================================================
+// SEDE — Sede o instalación de un operador educativo
+// =============================================================================
+// Representa una sede física de la organización. Permite clasificar
+// contratos y lotes por sede. Un tenant puede tener múltiples sedes.
+// =============================================================================
+
+model Sede {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  nombre    String
+  direccion String?
+  municipioId String?
+  municipio   MunicipioDane? @relation(fields: [municipioId], references: [id])
+  activo    Boolean  @default(true)
+
+  // Relaciones
+  contratos Contrato[]
+  lotes     LoteContrato[]
+
+  @@index([tenantId, activo])
+  @@index([tenantId, municipioId])
+  @@map("sedes")
 }
 
 // =============================================================================
@@ -855,6 +926,14 @@ model Contrato {
   loteId      String?                 // Null si fue generado individualmente
   lote        LoteContrato? @relation(fields: [loteId], references: [id])
 
+  sedeId      String?
+  sede        Sede?         @relation(fields: [sedeId], references: [id])
+
+  // Auto-referencia: contrato anterior que este contrato renueva
+  contratoRenovaId String?
+  contratoRenova   Contrato?  @relation("ContratoRenovacion", fields: [contratoRenovaId], references: [id])
+  renovaciones     Contrato[] @relation("ContratoRenovacion")
+
   // Datos del contrato
   tipo         ContratoTipo
   estado       ContratoEstado @default(VIGENTE)
@@ -862,6 +941,10 @@ model Contrato {
   fechaFin     DateTime?              // Null para contratos indefinidos
   cargo        String                 // Snapshot del cargo al momento del contrato
   salario      Decimal  @db.Decimal(12, 2) // Snapshot del salario
+
+  // Campos adicionales Colombia expansion
+  fechaFinPeriodoPrueba DateTime?
+  plantillaVersion      String?
 
   // Documentos generados — URLs en R2
   pdfKey    String?                   // {tenantId}/contratos/{id}/contrato.pdf
@@ -872,13 +955,15 @@ model Contrato {
   variablesSnapshot Json @default("{}")
 
   // Relaciones
-  alertas   Alerta[]
+  alertas        Alerta[]
+  expedienteDocs ExpedienteDoc[]
 
   @@index([tenantId, estado])
   @@index([tenantId, empleadoId])
   @@index([tenantId, fechaFin])       // Crítico para el cron de alertas
   @@index([tenantId, loteId])
   @@index([tenantId, tipo])
+  @@index([tenantId, sedeId])
   @@map("contratos")
 }
 
@@ -901,6 +986,18 @@ model LoteContrato {
 
   plantillaId String
   plantilla   Plantilla @relation(fields: [plantillaId], references: [id])
+
+  sedeId      String?
+  sede        Sede?   @relation(fields: [sedeId], references: [id])
+
+  creadoPorId String?
+  creadoPor   User?   @relation(fields: [creadoPorId], references: [id])
+
+  // Metadata del lote
+  nombreLote          String?
+  tipoContrato        ContratoTipo?
+  fechaInicioContrato DateTime?
+  fechaFinContrato    DateTime?
 
   // Estado del procesamiento
   estado      LoteEstado @default(PENDIENTE)
@@ -946,11 +1043,22 @@ model ExpedienteDoc {
   empleadoId String
   empleado   Empleado @relation(fields: [empleadoId], references: [id])
 
+  contratoId String?
+  contrato   Contrato? @relation(fields: [contratoId], references: [id])
+
+  generatedDocumentId String?
+  generatedDocument   GeneratedDocument? @relation(fields: [generatedDocumentId], references: [id])
+
   // Clasificación del documento
   categoria    ExpedienteCategoria
   nombre       String               // Nombre original del archivo
   descripcion  String?
   version      Int      @default(1) // Incrementa cuando se sube una nueva versión
+
+  // Fechas de vigencia del documento
+  fechaDocumento   DateTime?
+  fechaVencimiento DateTime?
+  requiereRenovacion Boolean?
 
   // Almacenamiento
   // Ruta: {tenantId}/expediente/{empleadoId}/{categoria}/{id}_v{version}.{ext}
@@ -962,6 +1070,7 @@ model ExpedienteDoc {
   subidoPorId  String?              // userId de quien subió el archivo
   subidoPorNombre String?           // Snapshot del nombre por si el usuario se elimina
 
+  @@unique([empleadoId, categoria, version])
   @@index([tenantId, empleadoId])
   @@index([tenantId, empleadoId, categoria])
   @@index([tenantId, categoria])

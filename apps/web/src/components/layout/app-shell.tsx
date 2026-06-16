@@ -38,7 +38,6 @@ const navItems = [
   { href: '/facturacion', label: 'Facturación', icon: Receipt, enabled: true },
   { href: '#contratos', label: 'Contratos', icon: FileText, enabled: false },
   { href: '#expediente', label: 'Expediente', icon: FileArchive, enabled: false },
-  { href: '#facturacion', label: 'Facturación', icon: Receipt, enabled: false },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
