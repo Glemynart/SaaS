@@ -2,7 +2,7 @@ export interface Employee {
   id: string;
   tenantId: string;
   cedula: string;
-  tipoDocumento: string;
+  tipoDocumento: 'CC' | 'CE' | 'TI' | 'PA' | 'NIT' | 'PEP' | 'PPT';
   nombre: string;
   apellido: string;
   email: string | null;

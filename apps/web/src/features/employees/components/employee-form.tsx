@@ -94,6 +94,9 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
             <option value="CE">Cédula de Extranjería</option>
             <option value="TI">Tarjeta de Identidad</option>
             <option value="PA">Pasaporte</option>
+            <option value="NIT">NIT</option>
+            <option value="PEP">Permiso Especial de Permanencia</option>
+            <option value="PPT">Permiso por Protección Temporal</option>
           </select>
           {errors.tipoDocumento && (
             <span className="text-xs text-red-500">{errors.tipoDocumento.message}</span>

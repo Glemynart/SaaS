@@ -309,7 +309,7 @@ model Empleado {
 
   // Identificación
   cedula          String
-  tipoDocumento   String   @default("CC")  // CC, CE, TI, PA
+  tipoDocumento   TipoDocIdentidad @default(CC)
   nombre          String
   apellido        String
   email           String?

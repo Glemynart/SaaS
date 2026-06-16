@@ -10,6 +10,16 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
+export enum TipoDocIdentidad {
+  CC = 'CC',
+  CE = 'CE',
+  TI = 'TI',
+  PA = 'PA',
+  NIT = 'NIT',
+  PEP = 'PEP',
+  PPT = 'PPT',
+}
+
 export enum EmpleadoEstado {
   ACTIVO = 'ACTIVO',
   INACTIVO = 'INACTIVO',
@@ -45,9 +55,9 @@ export class CreateEmployeeDto {
   @IsNotEmpty()
   cedula: string;
 
-  @IsString()
+  @IsEnum(TipoDocIdentidad)
   @IsNotEmpty()
-  tipoDocumento: string;
+  tipoDocumento: TipoDocIdentidad;
 
   @IsString()
   @IsNotEmpty()

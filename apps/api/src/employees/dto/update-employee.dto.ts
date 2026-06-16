@@ -13,6 +13,7 @@ import {
   ContratoTipo,
   JornadaLaboral,
   MotivoRetiro,
+  TipoDocIdentidad,
 } from './create-employee.dto';
 
 export class UpdateEmployeeDto {
@@ -20,9 +21,9 @@ export class UpdateEmployeeDto {
   @IsOptional()
   cedula?: string;
 
-  @IsString()
+  @IsEnum(TipoDocIdentidad)
   @IsOptional()
-  tipoDocumento?: string;
+  tipoDocumento?: TipoDocIdentidad;
 
   @IsString()
   @IsOptional()

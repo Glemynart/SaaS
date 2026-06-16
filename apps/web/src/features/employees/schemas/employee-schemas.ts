@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
 export const employeeSchema = z.object({
-  tipoDocumento: z.string().min(1, 'El tipo de documento es requerido'),
+  tipoDocumento: z.enum(['CC', 'CE', 'TI', 'PA', 'NIT', 'PEP', 'PPT'] as const, {
+    message: 'Tipo de documento inválido',
+  }),
   cedula: z.string().min(1, 'El número de documento es requerido'),
   nombre: z.string().min(1, 'Los nombres son requeridos'),
   apellido: z.string().min(1, 'Los apellidos son requeridos'),
