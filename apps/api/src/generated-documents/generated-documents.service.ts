@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
@@ -9,6 +10,7 @@ import { GeneratedDocumentQueryDto } from './dto/generated-document-query.dto';
 import { Prisma } from '@prisma/client';
 import { EmployeeFilesService } from '../employee-files/employee-files.service';
 import { AuditService } from '../audit/audit.service';
+import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
 import { formatNombreCompleto } from '@saas/types';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -29,9 +31,12 @@ interface ReplacementContext {
 
 @Injectable()
 export class GeneratedDocumentsService {
+  private readonly logger = new Logger(GeneratedDocumentsService.name);
+
   constructor(
     private prisma: PrismaService,
     private employeeFilesService: EmployeeFilesService,
+    private expedienteDocsService: ExpedienteDocsService,
     private auditService: AuditService,
   ) {}
 
@@ -250,6 +255,20 @@ export class GeneratedDocumentsService {
       pdfUrl,
       updated.tipo,
     );
+
+    try {
+      await this.expedienteDocsService.createFromGeneratedDoc(
+        updated.tenantId,
+        updated.id,
+        updated.employeeId,
+        updated.nombre,
+        updated.tipo,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Dual-write ExpedienteDoc falló para GeneratedDocument ${updated.id}: ${(err as Error).message}`,
+      );
+    }
 
     this.auditService
       .log({
