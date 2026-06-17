@@ -22,4 +22,9 @@ export default () => ({
     apiUrl: process.env.MATIAS_API_URL,
     apiKey: process.env.MATIAS_API_KEY,
   },
+  email: {
+    apiKey: process.env.RESEND_API_KEY,
+    from: process.env.EMAIL_FROM,
+    fromName: process.env.EMAIL_FROM_NAME ?? 'La Oficina Nítida',
+  },
 });

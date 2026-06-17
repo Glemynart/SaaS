@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { EmailService } from '../email/email.service';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 
@@ -13,7 +15,9 @@ const INVALID_TOKEN_MSG = 'Token inválido o expirado.';
 export class PasswordResetService {
   constructor(
     private prisma: PrismaService,
+    private config: ConfigService,
     private auditService: AuditService,
+    private emailService: EmailService,
   ) {}
 
   async requestReset(params: {
@@ -62,10 +66,20 @@ export class PasswordResetService {
       'base64',
     );
 
-    // MVP: consola — reemplazar por emailService.send() en Fase C
-    console.log(
-      `[PASSWORD RESET] /reset-password?token=${tokenEncoded}  (expira: ${expiresAt.toISOString()})`,
-    );
+    const frontendUrl =
+      this.config.get<string>('frontendUrl') ?? 'http://localhost:3000';
+    const resetUrl = `${frontendUrl}/reset-password?token=${tokenEncoded}`;
+
+    await this.emailService.send({
+      type: 'password-reset',
+      to: email,
+      payload: {
+        userName: `${user.nombre} ${user.apellido}`.trim(),
+        resetUrl,
+        expiresInHours: RESET_EXPIRY_HOURS,
+      },
+      auditContext: { tenantId: tenant.id, userId: user.id },
+    });
 
     const emailObfuscated = email.replace(/^(.).*?(@.*)$/, '$1***$2');
     await this.auditService
