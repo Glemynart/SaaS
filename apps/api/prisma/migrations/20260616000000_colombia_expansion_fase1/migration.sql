@@ -57,9 +57,6 @@ CREATE INDEX "sedes_tenantId_municipioId_idx" ON "sedes"("tenantId", "municipioI
 -- CreateIndex
 CREATE INDEX "contratos_tenantId_sedeId_idx" ON "contratos"("tenantId", "sedeId");
 
--- CreateIndex
-CREATE UNIQUE INDEX "expediente_docs_empleadoId_categoria_version_key" ON "expediente_docs"("empleadoId", "categoria", "version");
-
 -- AddForeignKey
 ALTER TABLE "tenants" ADD CONSTRAINT "tenants_municipioId_fkey" FOREIGN KEY ("municipioId") REFERENCES "municipios_dane"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 

@@ -1108,7 +1108,6 @@ model ExpedienteDoc {
   subidoPorId  String?              // userId de quien subió el archivo
   subidoPorNombre String?           // Snapshot del nombre por si el usuario se elimina
 
-  @@unique([empleadoId, categoria, version])
   @@index([tenantId, empleadoId])
   @@index([tenantId, empleadoId, categoria])
   @@index([tenantId, categoria])
