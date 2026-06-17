@@ -102,4 +102,46 @@ export const employeesApi = {
       method: 'DELETE',
     });
   },
+
+  importFile: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch('/api/employees/import', {
+      method: 'POST',
+      body: formData,
+    });
+    const body = (await response.json().catch(() => ({}))) as ApiEnvelope<{
+      imported: number;
+      message: string;
+      errors?: { fila: number; campo: string; mensaje: string }[];
+    }>;
+    if (!response.ok) {
+      throw new ImportError(body.message ?? 'Error al importar', body.errors ?? []);
+    }
+    return body as { imported: number; message: string };
+  },
+
+  downloadTemplate: async () => {
+    const response = await fetch('/api/employees/import/template');
+    if (!response.ok) throw new Error('Error al descargar la plantilla.');
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'plantilla_empleados.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  },
 };
+
+export class ImportError extends Error {
+  constructor(
+    message: string,
+    public readonly errors: { fila: number; campo: string; mensaje: string }[],
+  ) {
+    super(message);
+    this.name = 'ImportError';
+  }
+}

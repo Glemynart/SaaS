@@ -58,3 +58,14 @@ export function useDeleteEmployee() {
     },
   });
 }
+
+export function useImportEmployees() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (file: File) => employeesApi.importFile(file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: employeeKeys.lists() });
+    },
+  });
+}
