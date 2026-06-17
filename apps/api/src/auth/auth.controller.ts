@@ -10,21 +10,25 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { PasswordResetService } from './password-reset.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { ActiveTenantGuard } from './guards/active-tenant.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import type { CurrentUserPayload } from './decorators/current-user.decorator';
 import type { Request } from 'express';
-import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
+import { ThrottlerGuard, Throttle, SkipThrottle } from '@nestjs/throttler';
 import { AuditService } from '../audit/audit.service';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private authService: AuthService,
+    private passwordResetService: PasswordResetService,
     private auditService: AuditService,
   ) {}
 
@@ -84,5 +88,53 @@ export class AuthController {
   @Get('me')
   getMe(@CurrentUser() user: CurrentUserPayload) {
     return user;
+  }
+
+  @Post('forgot-password')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ forgotPassword: { limit: 3, ttl: 3600000 } })
+  @SkipThrottle({
+    login: true,
+    register: true,
+    refresh: true,
+    resetPassword: true,
+  })
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(
+    @Body() dto: ForgotPasswordDto,
+    @Req() req: Request,
+    @Ip() ip: string,
+  ) {
+    const userAgent = req.headers['user-agent'];
+    return this.passwordResetService.requestReset({
+      tenantNit: dto.tenantNit,
+      email: dto.email,
+      ipAddress: ip,
+      userAgent: String(userAgent ?? ''),
+    });
+  }
+
+  @Post('reset-password')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ resetPassword: { limit: 5, ttl: 900000 } })
+  @SkipThrottle({
+    login: true,
+    register: true,
+    refresh: true,
+    forgotPassword: true,
+  })
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(
+    @Body() dto: ResetPasswordDto,
+    @Req() req: Request,
+    @Ip() ip: string,
+  ) {
+    const userAgent = req.headers['user-agent'];
+    return this.passwordResetService.consumeReset({
+      token: dto.token,
+      newPassword: dto.newPassword,
+      ipAddress: ip,
+      userAgent: String(userAgent ?? ''),
+    });
   }
 }

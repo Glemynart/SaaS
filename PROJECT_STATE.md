@@ -701,7 +701,107 @@ Resultado final:
 - Integración completa con Employees y Sedes.
 - Listo para uso operativo.
 
-# <a name="fase-6-consolidación-documental"></a>FASE 6 — Consolidación Documental
+# FASE 6 — Módulo de Contratos
+
+Estado:
+
+🟡 En progreso
+
+Objetivo:
+
+Implementar la gestión contractual completa para operadores educativos colombianos.
+
+---
+
+## Contexto
+
+El modelo Contrato ya existía en Prisma desde fases anteriores.
+
+Durante FASE 6 se inició la construcción del módulo funcional completo de contratos.
+
+La implementación se divide en Backend Core, Frontend Core y futuras capacidades documentales.
+
+---
+
+# FASE 6A — Contracts Backend Core
+
+Estado:
+
+✅ COMPLETADA
+
+Objetivo:
+
+Implementar la base operativa del módulo de contratos.
+
+Implementado:
+
+- Listado de contratos.
+- Detalle de contrato.
+- Creación de contratos.
+- Cambio de estado.
+- Historial contractual por empleado.
+- Tenant isolation.
+- AuditLog.
+- Validaciones de negocio.
+
+Endpoints:
+
+- GET /contracts
+- GET /contracts/:id
+- POST /contracts
+- PATCH /contracts/:id/status
+- GET /contracts/employees/:id/contracts
+
+Estados soportados:
+
+- VIGENTE
+- VENCIDO
+- TERMINADO
+- RENOVADO
+
+Transiciones aprobadas:
+
+- VIGENTE → VENCIDO
+- VIGENTE → TERMINADO
+- VIGENTE → RENOVADO
+- VENCIDO → RENOVADO
+
+---
+
+# FASE 6B — Contracts Frontend Core
+
+Estado:
+
+✅ COMPLETADA
+
+Objetivo:
+
+Permitir gestión contractual completa desde la interfaz.
+
+Implementado:
+
+- Listado de contratos.
+- Búsqueda.
+- Filtro por estado.
+- Paginación.
+- Página de detalle.
+- Creación de contratos.
+- Cambio de estado desde UI.
+- Navegación integrada en sidebar.
+
+Resultado:
+
+Flujo contractual operativo end-to-end.
+
+Empleado
+→ Crear contrato
+→ Consultar contrato
+→ Cambiar estado
+→ Consultar historial
+
+---
+
+# FASE 6C — Contratos Documentales
 
 Estado:
 
@@ -709,88 +809,60 @@ Estado:
 
 Objetivo:
 
-Consolidar todo el sistema documental sobre ExpedienteDoc.
+Incorporar generación documental asociada a contratos.
+
+Alcance previsto:
+
+- PDF de contratos.
+- Integración con plantillas.
+- Asociación documental con expediente.
+
+No incluye aún:
+
+- DOCX.
+- R2.
+- Renovaciones automáticas.
 
 ---
 
-## <a name="problema-actual"></a>Problema actual
+## Decisiones arquitectónicas
 
-Actualmente coexisten:
+### Contrato es la fuente de verdad contractual
 
-- EmployeeFile
-- ExpedienteDoc
+Toda nueva funcionalidad laboral deberá construirse sobre:
 
-Esto genera duplicación funcional y deuda técnica.
-
----
-
-## <a name="objetivo-aprobado"></a>Objetivo aprobado
-
-Arquitectura final:
-
-Empleado → ExpedienteDoc
-
-EmployeeFile será eliminado.
+Contrato
 
 ---
 
-## <a name="decisiones-arquitectónicas-1"></a>Decisiones arquitectónicas
+### Contrato conserva snapshots históricos
 
-### <a name="expedientedoc-es-la-fuente-de-verdad"></a>ExpedienteDoc es la fuente de verdad
+Los campos:
 
-Toda nueva funcionalidad documental debe construirse sobre:
+- cargo
+- salario
 
-ExpedienteDoc
-
----
-
-### <a name="employeefile-entra-en-deprecación"></a>EmployeeFile entra en deprecación
-
-No desarrollar nuevas funcionalidades sobre:
-
-EmployeeFile
+se almacenan dentro del contrato para preservar el contexto histórico.
 
 ---
 
-### <a name="compatibilidad-futura"></a>Compatibilidad futura
+### Renovaciones serán una fase posterior
 
-La consolidación debe soportar:
+RENOVADO actualmente es un estado terminal.
 
-- contratos
-- certificaciones
-- documentos de identidad
-- afiliaciones
-- exámenes médicos
-- licencias
-- renovaciones documentales
-- alertas documentales
+La creación automática del contrato sucesor se implementará en una fase futura.
 
 ---
 
-### <a name="estrategia-de-migración"></a>Estrategia de migración
+## Resultado esperado
 
-Migrar:
+Arquitectura objetivo:
 
-- consultas
-- uploads
-- vistas
-- servicios
-
-desde EmployeeFile hacia ExpedienteDoc.
-
-Una vez validado:
-
-eliminar EmployeeFile.
-
----
-
-## <a name="resultado-esperado-1"></a>Resultado esperado
-
-Arquitectura final:
-
-Empleado → ExpedienteDoc → Contratos → Alertas → Gestión documental futura
-
-Sin dependencias activas sobre EmployeeFile.
+Tenant
+→ Empleado
+→ Contrato
+→ ExpedienteDoc
+→ Gestión documental futura
 
 ---
 

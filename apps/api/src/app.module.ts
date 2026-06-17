@@ -19,6 +19,7 @@ import { AuditModule } from './audit/audit.module';
 import { DaneModule } from './dane/dane.module';
 import { SedesModule } from './sedes/sedes.module';
 import { EmployeeImportModule } from './employee-import/employee-import.module';
+import { ContractsModule } from './contracts/contracts.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
@@ -41,6 +42,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     DaneModule,
     SedesModule,
     EmployeeImportModule,
+    ContractsModule,
     ThrottlerModule.forRoot([
       {
         name: 'login',
@@ -56,6 +58,16 @@ import { ThrottlerModule } from '@nestjs/throttler';
         name: 'refresh',
         ttl: 60000,
         limit: 10,
+      },
+      {
+        name: 'forgotPassword',
+        ttl: 3600000,
+        limit: 3,
+      },
+      {
+        name: 'resetPassword',
+        ttl: 900000,
+        limit: 5,
       },
     ]),
   ],

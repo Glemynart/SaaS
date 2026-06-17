@@ -254,9 +254,10 @@ model User {
   activo         Boolean  @default(true)
 
   // Control de sesión
-  lastLoginAt    DateTime?
-  refreshTokens  RefreshToken[]
-  lotesCreados   LoteContrato[]
+  lastLoginAt         DateTime?
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  lotesCreados        LoteContrato[]
 
   @@unique([tenantId, email])          // Un email es único por empresa, no globalmente
   @@index([tenantId, activo])
@@ -288,6 +289,32 @@ model RefreshToken {
   @@index([userId])
   @@index([tokenHash])
   @@map("refresh_tokens")
+}
+
+// =============================================================================
+// PASSWORD RESET TOKEN — Recuperación de contraseña
+// =============================================================================
+// Token de un solo uso para recuperación de contraseña.
+// Sigue el mismo patrón de seguridad que RefreshToken:
+// el secreto viaja en el link, solo el hash bcrypt se persiste.
+// Un usuario solo puede tener un token pendiente a la vez.
+// =============================================================================
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId String
+
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  @@index([userId])
+  @@index([tenantId, userId])
+  @@map("password_reset_tokens")
 }
 
 // =============================================================================

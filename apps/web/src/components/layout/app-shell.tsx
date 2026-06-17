@@ -38,7 +38,7 @@ const navItems = [
   { href: '/alertas', label: 'Alertas', icon: Bell, enabled: true },
   { href: '/nomina', label: 'Nómina', icon: Calculator, enabled: true },
   { href: '/facturacion', label: 'Facturación', icon: Receipt, enabled: true },
-  { href: '#contratos', label: 'Contratos', icon: FileText, enabled: false },
+  { href: '/contratos', label: 'Contratos', icon: FileText, enabled: true },
   { href: '#expediente', label: 'Expediente', icon: FileArchive, enabled: false },
 ];
 
@@ -61,9 +61,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               ? 'Nómina'
               : pathname.startsWith('/facturacion')
                 ? 'Facturación'
-                : pathname === '/perfil'
-                  ? 'Perfil'
-                  : 'Inicio';
+                : pathname.startsWith('/contratos')
+                  ? 'Contratos'
+                  : pathname === '/perfil'
+                    ? 'Perfil'
+                    : 'Inicio';
   const pageDescription = pathname.startsWith('/sedes')
     ? 'Estructura organizacional — Sedes y centros de trabajo'
     : pathname.startsWith('/documentos/plantillas')
@@ -78,9 +80,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               ? 'Motor de nómina — Cálculo y liquidación'
               : pathname.startsWith('/facturacion')
                 ? 'Dominio de facturación — Clientes, productos, facturas'
-                : pathname === '/perfil'
-                  ? 'Credencial y contexto de acceso'
-                  : 'Resumen de sesion y modulos';
+                : pathname.startsWith('/contratos')
+                  ? 'Gestión contractual — Contratos laborales'
+                  : pathname === '/perfil'
+                    ? 'Credencial y contexto de acceso'
+                    : 'Resumen de sesion y modulos';
 
   return (
     <div className="min-h-screen bg-background text-foreground">

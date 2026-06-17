@@ -1,0 +1,57 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Query,
+  Body,
+  UseGuards,
+} from '@nestjs/common';
+import { ContractsService } from './contracts.service';
+import { ContractQueryDto } from './dto/contract-query.dto';
+import { CreateContractDto } from './dto/create-contract.dto';
+import { UpdateContractStatusDto } from './dto/update-contract-status.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+
+interface RequestUser {
+  userId: string;
+  tenantId: string;
+}
+
+@UseGuards(JwtAuthGuard, ActiveTenantGuard)
+@Controller('contracts')
+export class ContractsController {
+  constructor(private readonly service: ContractsService) {}
+
+  @Post()
+  create(@CurrentUser() user: RequestUser, @Body() dto: CreateContractDto) {
+    return this.service.create(user.tenantId, user.userId, dto);
+  }
+
+  @Get()
+  findAll(@CurrentUser() user: RequestUser, @Query() query: ContractQueryDto) {
+    return this.service.findAll(user.tenantId, query);
+  }
+
+  @Get(':id')
+  findOne(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.service.findOne(user.tenantId, id);
+  }
+
+  @Patch(':id/status')
+  updateStatus(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateContractStatusDto,
+  ) {
+    return this.service.updateStatus(user.tenantId, user.userId, id, dto);
+  }
+
+  @Get('employees/:id/contracts')
+  findByEmployee(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.service.findByEmployee(user.tenantId, id);
+  }
+}
