@@ -43,3 +43,4 @@ postgres_data/
 .gemini/
 scratch/
 uploads/
+.agents/

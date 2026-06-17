@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: FASE 5 completada (Gestión de Sedes e integración Employee ↔ Sede)
+## Última actualización: FASE 7A completada (Password Reset Backend)
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -863,6 +863,44 @@ Tenant
 → Contrato
 → ExpedienteDoc
 → Gestión documental futura
+
+---
+
+# FASE 7A — Password Reset Backend
+
+Estado:
+
+✅ COMPLETADA
+
+Objetivo:
+
+Implementar restablecimiento seguro de contraseña sin exposición de información de usuarios o tenants.
+
+Implementado:
+
+- Tabla `password_reset_tokens` (migración `20260617000000_add_password_reset_tokens`).
+- Modelo Prisma `PasswordResetToken` con relación `User → PasswordResetToken`.
+- `PasswordResetService` con `requestReset()` y `consumeReset()`.
+- Endpoints `POST /auth/forgot-password` y `POST /auth/reset-password`.
+- Throttling independiente por endpoint (`forgotPassword`, `resetPassword`).
+- Tokens de un solo uso con expiración de 1 hora.
+- Patrón `base64(tokenId:secret)` — solo el hash bcrypt se almacena en DB.
+- Respuestas genéricas anti-enumeración.
+- Invalidación de tokens pendientes al solicitar nuevo reset.
+- Revocación de todos los RefreshTokens al completar el reset.
+- AuditLog: `PASSWORD_RESET_REQUESTED`, `PASSWORD_RESET_COMPLETED`.
+- MVP: URL de reset emitida vía `console.log` (sin email service).
+
+Decisiones aprobadas:
+
+- Requiere `tenantNit` + `email` (no solo email) para alinearse con el login multiempresa.
+- Respuesta genérica en todos los casos de error para evitar enumeración.
+- Token multi-tenant safe: validado contra `tenantId` del usuario.
+- No se implementa servicio de email en esta fase.
+
+Rama:
+
+feat/password-reset
 
 ---
 

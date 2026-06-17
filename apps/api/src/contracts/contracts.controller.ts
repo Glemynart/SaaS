@@ -36,6 +36,11 @@ export class ContractsController {
     return this.service.findAll(user.tenantId, query);
   }
 
+  @Get('employees/:id/contracts')
+  findByEmployee(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.service.findByEmployee(user.tenantId, id);
+  }
+
   @Get(':id')
   findOne(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     return this.service.findOne(user.tenantId, id);
@@ -48,10 +53,5 @@ export class ContractsController {
     @Body() dto: UpdateContractStatusDto,
   ) {
     return this.service.updateStatus(user.tenantId, user.userId, id, dto);
-  }
-
-  @Get('employees/:id/contracts')
-  findByEmployee(@CurrentUser() user: RequestUser, @Param('id') id: string) {
-    return this.service.findByEmployee(user.tenantId, id);
   }
 }
