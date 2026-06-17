@@ -20,6 +20,7 @@ import { DaneModule } from './dane/dane.module';
 import { SedesModule } from './sedes/sedes.module';
 import { EmployeeImportModule } from './employee-import/employee-import.module';
 import { ContractsModule } from './contracts/contracts.module';
+import { EmailModule } from './email/email.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
@@ -43,6 +44,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     SedesModule,
     EmployeeImportModule,
     ContractsModule,
+    EmailModule,
     ThrottlerModule.forRoot([
       {
         name: 'login',

@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: FASE 7A completada (Password Reset Backend)
+## Última actualización: FASE 7B.1 — Email Infrastructure MVP
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -901,6 +901,53 @@ Decisiones aprobadas:
 Rama:
 
 feat/password-reset
+
+---
+
+# FASE 7B.1 — Email Infrastructure MVP
+
+Estado:
+
+🟡 Implementada
+
+Rama:
+
+feat/email-infrastructure
+
+Objetivo:
+
+Infraestructura de email mínima y operativa sobre Resend, integrada con Password Reset.
+
+Implementado:
+
+- `EmailModule` global (`@Global()`).
+- `EmailService` con Resend SDK.
+- Modo degradado cuando `RESEND_API_KEY` no está definida (`Logger.error`, sin crash).
+- Templates HTML simples: `base-layout`, `password-reset`.
+- Integración con `PasswordResetService` — reemplaza `console.log`.
+- Auditoría `EMAIL_FAILED` vía `AuditService`.
+- Sección `email` en `configuration.ts`.
+
+Decisiones aprobadas:
+
+- Resend como proveedor único.
+- Sin BullMQ — envío síncrono.
+- Sin React Email — funciones TypeScript que retornan HTML.
+- Sin dominios por tenant — `from` único de plataforma.
+- Sin TenantBranding ni logos dinámicos en MVP.
+- Auditar `EMAIL_FAILED`. No auditar `EMAIL_SENT`.
+- Fallo de email no interrumpe el flujo de negocio.
+
+Pendiente (fuera del alcance de 7B.1):
+
+- Configuración `RESEND_API_KEY` y `EMAIL_FROM` en Railway.
+- DNS del dominio: SPF, DKIM, DMARC.
+- Verificación de dominio en Resend dashboard.
+- Validación end-to-end con correo real.
+
+Commit:
+
+b4647d5
 
 ---
 
