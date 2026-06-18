@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: ExpedienteDoc Consolidation — PR4
+## Última actualización: ExpedienteDoc Consolidation — PR5 (validado 2026-06-18)
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -401,7 +401,7 @@ Empleado → ExpedienteDoc
 
 EmployeeFile es considerado legado. No desarrollar nuevas funcionalidades sobre EmployeeFile.
 
-La migración está en `feat/expedientedoc-consolidation` mediante una estrategia de fases (PR1–PR6). PR4 completado: la UI del expediente ya lee desde `ExpedienteDoc`. Pendiente: PR5 (retiro de dual-write y consumidores activos) y PR6 (DROP destructivo). Ver sección **ExpedienteDoc Consolidation** para el estado detallado.
+La migración está en `feat/expedientedoc-consolidation` mediante una estrategia de fases (PR1–PR6). PR5 completado: `ExpedienteDoc` es el único destino activo; dual-write eliminado; `EmployeeFile` es código muerto sin consumidores. Pendiente: PR6 (DROP destructivo, requiere observación en producción). Ver sección **ExpedienteDoc Consolidation** para el estado detallado.
 
 Convención oficial de `storageKey`:
 
@@ -968,7 +968,7 @@ Commits:
 
 Estado:
 
-🟡 En progreso
+🟡 En progreso — PR5 completado. Pendiente: PR6A (atomicidad) y PR6 (DROP destructivo).
 
 Rama:
 
@@ -980,7 +980,7 @@ Migrar el expediente digital de empleados desde EmployeeFile (legado) hacia Expe
 
 Estrategia:
 
-Dual-write + lectura paralela + retiro gradual. La UI ya lee desde ExpedienteDoc (PR4 completado). El dual-write sigue activo; se retira en PR5.
+Dual-write + lectura paralela + retiro gradual. PR5 completado (2026-06-18): dual-write eliminado. `ExpedienteDoc` es la fuente única activa. `EmployeeFile` no recibe nuevos datos — es código muerto hasta que PR6 lo elimine definitivamente.
 
 ---
 
@@ -1203,32 +1203,116 @@ Commit:
 
 Estado:
 
-⏳ Pendiente
+✅ COMPLETADA
+
+Commit:
+
+91af667
+
+### Implementado
+
+- `GeneratedDocumentsService`: dual-write eliminado. `ExpedienteDoc` es el único destino. `EmployeeFilesService` desacoplado del módulo.
+- `AlertsService.findAll/findOne`: `include: { employeeFile }` eliminado. Alertas históricas con `employeeFileId` no rompen — campo existe en BD pero no se lee.
+- `CreateAlertDto.employeeFileId`: campo eliminado.
+- `alertas/page.tsx`: fallback simplificado → solo `alert.expedienteDoc`.
+- `alerts-api.ts` (web): `employeeFileId` y `employeeFile` eliminados del tipo `AlertItem`.
+- `features/employee-files/` (web): directorio eliminado (era huérfano desde PR4).
+- BFF routes legacy eliminados: `app/api/employees/[id]/files/route.ts` y `app/api/employee-files/[id]/route.ts`.
+
+### No tocado (para PR6)
+
+Schema Prisma, tabla `employee_files`, `EmployeeFilesModule`, `EmployeeFilesController`, `EmployeeFilesService`.
+
+### Resultados de validación (2026-06-18)
+
+- `prisma generate`: OK.
+- `tsc --noEmit` API: 0 errores.
+- `tsc --noEmit` Web: 0 errores.
+- `nest build`: OK.
+- `next build`: OK — 52+ páginas. `/api/employees/[id]/files` y `/api/employee-files/[id]` AUSENTES del route map. `/api/employees/[id]/expediente` y `/api/expediente-docs/[id]` PRESENTES.
+- `employee_files` count: 2 (backfill PR2, sin nuevas inserciones).
+- `expediente_docs` count: 2 (espejo exacto).
+- Referencias web a `EmployeeFile`: cero en `.ts` y `.tsx`.
+- Referencias API a `EmployeeFile`: solo dentro de `apps/api/src/employee-files/` (código muerto para PR6) y `app.module.ts`.
+
+### Incidente documentado
+
+`Remove-Item` de PowerShell interpretó `[id]` como wildcard — la ruta `/api/employees/[id]/files` fue eliminada con `rm` de Bash.
+
+### Deuda técnica identificada (para PR6)
+
+- `generatePdf()` sin transacción: `pdfUrl` se persiste antes de `expedienteDoc.create()`. Si el insert falla, estado semi-comprometido (PDF en disco + pdfUrl en DB, sin fila en `expediente_docs`). Fix: envolver ambas operaciones en `prisma.$transaction`.
+- Decisión pendiente: alertas históricas con `employeeFileId IS NOT NULL` — ¿migrar a `expedienteDocId` o descartar?
+
+### Veredicto de validación
+
+**PR5 APROBADO CON OBSERVACIONES** — observaciones son deuda pre-existente, no regresiones introducidas en PR5.
+
+---
+
+## PR6A — Atomicidad de generatePdf()
+
+Estado:
+
+⏳ Pendiente (diseño aprobado, sin implementar)
 
 Objetivo:
 
-Eliminar todas las escrituras y lecturas activas a `EmployeeFile`. Dejar la tabla vacía e ignorada sin tocar el schema.
+Eliminar la ventana de half-commit en `generatePdf()`: actualmente `generatedDocument.pdfUrl` puede persistirse sin que `expedienteDoc` se cree, dejando estado inconsistente visible al usuario como HTTP 500.
 
-### Dependencias activas a eliminar
+### Diagnóstico
 
-| Elemento                               | Acción                                                                                                                                   |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `GeneratedDocumentsService` dual-write | Eliminar llamada a `employeeFilesService.createFromGeneratedDoc()`. Eliminar inyección de `EmployeeFilesService` y su import del módulo. |
-| `AlertsService.findAll/findOne`        | Eliminar `include: { employeeFile: ... }`. Alertas históricas con `employeeFileId` perderán el link visual — aceptable.                  |
-| `CreateAlertDto.employeeFileId`        | Eliminar el campo — ningún servicio lo popula desde PR3 F2.                                                                              |
-| `alertas/page.tsx`                     | Simplificar `(alert.expedienteDoc ?? alert.employeeFile)` → `alert.expedienteDoc`.                                                       |
-| `alerts-api.ts` (web)                  | Eliminar `employeeFileId` y `employeeFile` del tipo `Alert`.                                                                             |
-| `features/employee-files/` (web)       | Eliminar directorio completo — ya huérfano.                                                                                              |
-| BFF routes legacy                      | Eliminar `app/api/employees/[id]/files/route.ts` y `app/api/employee-files/[id]/route.ts`.                                               |
-| `EmployeeFilesController`              | Eliminar de su módulo (o vaciar el módulo para PR6).                                                                                     |
+Flujo actual en [generated-documents.service.ts:204](apps/api/src/generated-documents/generated-documents.service.ts):
 
-### No tocar en PR5
+1. #1–#8: Lecturas DB, generación HTML, puppeteer, escritura PDF a disco — **fuera del alcance transaccional** (procesos externos + filesystem).
+2. #9: `generatedDocument.update({ pdfUrl })` — **write DB #1**.
+3. #10: `expedienteDoc.create()` via `createFromGeneratedDoc()` — **write DB #2**.
+4. #11: `auditService.log()` — fire-and-forget, fuera por diseño.
 
-Schema de Prisma, tabla `employee_files`, `EmployeeFilesService`.
+**Ventana de fallo**: si #10 lanza tras completar #9, `pdfUrl` queda persistida sin `expedienteDoc`. El PDF existe en disco pero nunca aparece en el expediente del empleado.
 
-### Condición de entrada
+### Decisión arquitectónica
 
-Verificar 24–48h sin tráfico a `GET /api/employees/:id/files` y `DELETE /api/employee-files/:id` en logs.
+Envolver únicamente #9 y #10 en `prisma.$transaction`. El PDF (puppeteer/fs) permanece **antes** de la transacción — no es transaccionable por Prisma.
+
+Peor caso residual post-fix: PDF escrito en disco + transacción fallida → DB consistente (sin `pdfUrl`, sin `expedienteDoc`) + archivo huérfano en disco. Archivo inofensivo: filename determinista (`${tenantId}-${id}.pdf`), retry sobreescribe.
+
+### Archivos a modificar
+
+| Archivo                                                           | Cambio                                                                                                         |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `apps/api/src/generated-documents/generated-documents.service.ts` | Envolver #9–#10 en `$transaction(async (tx) => {...})`. Audit log fuera.                                       |
+| `apps/api/src/expediente-docs/expediente-docs.service.ts`         | `createFromGeneratedDoc` acepta `tx: Prisma.TransactionClient = this.prisma`. Usa `tx.expedienteDoc.create()`. |
+
+Sin cambios de schema. Sin migración. **PR6A es 100% code-only.**
+
+### Riesgos
+
+- **R1** (baja): Archivo huérfano en disco si la transacción falla. Aceptado — filename determinista, retry sobreescribe.
+- **R2** (alta si se comete en implementación): `createFromGeneratedDoc` usa `this.prisma` en vez de `tx` — el insert escapa de la transacción y el half-commit reaparece. Punto #1 de code review.
+- **R3** (fuera de scope): Duplicado de `expedienteDoc` si `generatePdf` se re-ejecuta sobre un doc que ya tuvo éxito — requiere `@@unique` sobre `generatedDocumentId`, colisiona con PR6. Documentado, no resuelto en PR6A.
+
+### Smoke tests requeridos
+
+| ID    | Test                                                             | Resultado esperado                                                     |
+| ----- | ---------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| ST-1  | Happy path: generar PDF real                                     | 200; `pdfUrl` poblado; `expediente_docs` +1                            |
+| ST-2  | Fault injection: throw dentro de la transacción tras el `update` | `pdfUrl` **NO** persiste; `expediente_docs` sin cambio; DB consistente |
+| ST-3  | Retry tras ST-2                                                  | Éxito; un solo `expedienteDoc`; sin duplicado                          |
+| ST-4  | Code review                                                      | Puppeteer/fs antes del `$transaction`                                  |
+| Gates | `tsc --noEmit` API + `nest build`                                | Verde                                                                  |
+
+### Criterio de cierre
+
+1. `update(pdfUrl)` y `expedienteDoc.create()` dentro del mismo `$transaction`.
+2. `createFromGeneratedDoc` usa `tx`, no `this.prisma`.
+3. ST-1, ST-2, ST-3 PASS — especialmente ST-2 demostrando rollback de `pdfUrl`.
+4. `tsc --noEmit` API + `nest build` verdes.
+5. Sin schema changes ni migración.
+
+### Rollback
+
+`git revert` del commit. Sin datos que restaurar ni schema que revertir.
 
 ---
 
@@ -1240,7 +1324,12 @@ Estado:
 
 Condición de entrada:
 
-PR5 en producción. `SELECT COUNT(*) FROM employee_files` confirma que no hay registros nuevos post-PR5 (dual-write apagado). Backup verificado.
+1. PR5 desplegado en producción.
+2. 24–48h sin tráfico a rutas legacy eliminadas (confirmar en logs).
+3. `SELECT COUNT(*) FROM employee_files` = 2 (mismo valor que fin de PR5, sin inserts nuevos).
+4. Decidir si alertas con `employeeFileId IS NOT NULL` son descartables o requieren migración de campo.
+5. Fix de `generatePdf()` atomicidad completado o documentado como riesgo aceptado.
+6. Backup verificado.
 
 ### Alcance
 
@@ -1269,9 +1358,9 @@ Toda nueva funcionalidad de expediente digital debe construirse sobre `Expedient
 
 No desarrollar nuevas funcionalidades sobre `EmployeeFile`.
 
-### Dual-write es la estrategia de transición
+### ExpedienteDoc es el único destino activo desde PR5
 
-Durante PR3–PR4, toda escritura nueva cae en ambas tablas. `ExpedienteDoc` es la fuente de verdad para lecturas desde PR4. `EmployeeFile` sigue recibiendo escrituras por dual-write hasta PR5. Si el write a `ExpedienteDoc` falla, no interrumpe el flujo.
+El dual-write fue retirado en PR5. Toda escritura nueva va exclusivamente a `ExpedienteDoc`. `EmployeeFile` no recibe nuevos datos. La tabla `employee_files` es código muerto hasta que PR6 la elimine definitivamente.
 
 ### Sin feature flags
 
