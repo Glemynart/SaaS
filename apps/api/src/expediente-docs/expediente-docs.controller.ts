@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Delete, Param, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -21,5 +21,10 @@ export class ExpedienteDocsController {
   @Get('expediente-docs/:id')
   findOne(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     return this.service.findOne(user.tenantId, id);
+  }
+
+  @Delete('expediente-docs/:id')
+  remove(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.service.remove(user.tenantId, id);
   }
 }

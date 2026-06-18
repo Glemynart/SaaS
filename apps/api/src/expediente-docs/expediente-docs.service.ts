@@ -55,6 +55,11 @@ export class ExpedienteDocsService {
     return doc;
   }
 
+  async remove(tenantId: string, id: string) {
+    const doc = await this.findOne(tenantId, id);
+    return this.prisma.expedienteDoc.delete({ where: { id: doc.id } });
+  }
+
   async createFromGeneratedDoc(
     tenantId: string,
     generatedDocId: string,
