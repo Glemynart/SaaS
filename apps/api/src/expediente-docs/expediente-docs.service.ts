@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ExpedienteCategoria } from '@prisma/client';
+import { ExpedienteCategoria, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 const TIPO_TO_CATEGORIA: Record<string, ExpedienteCategoria> = {
@@ -66,11 +66,12 @@ export class ExpedienteDocsService {
     employeeId: string,
     nombre: string,
     tipo: string,
+    tx: Prisma.TransactionClient = this.prisma,
   ) {
     const categoria = TIPO_TO_CATEGORIA[tipo] ?? ExpedienteCategoria.OTRO;
     const storageKey = `${tenantId}/expediente/${employeeId}/${categoria}/gen_${generatedDocId}_v1.pdf`;
 
-    return this.prisma.expedienteDoc.create({
+    return tx.expedienteDoc.create({
       data: {
         tenantId,
         empleadoId: employeeId,

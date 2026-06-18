@@ -232,26 +232,31 @@ export class GeneratedDocumentsService {
 
     await browser.close();
 
-    const updated = await this.prisma.generatedDocument.update({
-      where: { id },
-      data: { pdfUrl },
-      select: {
-        id: true,
-        pdfUrl: true,
-        nombre: true,
-        tipo: true,
-        employeeId: true,
-        tenantId: true,
-      },
-    });
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.generatedDocument.update({
+        where: { id },
+        data: { pdfUrl },
+        select: {
+          id: true,
+          pdfUrl: true,
+          nombre: true,
+          tipo: true,
+          employeeId: true,
+          tenantId: true,
+        },
+      });
 
-    await this.expedienteDocsService.createFromGeneratedDoc(
-      updated.tenantId,
-      updated.id,
-      updated.employeeId,
-      updated.nombre,
-      updated.tipo,
-    );
+      await this.expedienteDocsService.createFromGeneratedDoc(
+        result.tenantId,
+        result.id,
+        result.employeeId,
+        result.nombre,
+        result.tipo,
+        tx,
+      );
+
+      return result;
+    });
 
     this.auditService
       .log({
