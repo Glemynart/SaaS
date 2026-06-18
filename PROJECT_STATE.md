@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: FASE 7B.1 — Email Infrastructure MVP
+## Última actualización: ExpedienteDoc Consolidation — PR3 Fase 1
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -399,9 +399,21 @@ La dirección arquitectónica aprobada es:
 
 Empleado → ExpedienteDoc
 
-EmployeeFile es considerado legado.
+EmployeeFile es considerado legado. No desarrollar nuevas funcionalidades sobre EmployeeFile.
 
-No desarrollar nuevas funcionalidades sobre EmployeeFile.
+La migración está en curso en `feat/expedientedoc-consolidation` mediante una estrategia de fases (PR1–PR4). Ver sección **ExpedienteDoc Consolidation** para el estado detallado.
+
+Convención oficial de `storageKey`:
+
+```
+{tenantId}/expediente/{empleadoId}/{categoria}/{id}_v{version}.{ext}
+```
+
+Para documentos generados desde el motor documental:
+
+```
+{tenantId}/expediente/{empleadoId}/{categoria}/gen_{generatedDocId}_v1.pdf
+```
 
 ---
 
@@ -908,11 +920,11 @@ feat/password-reset
 
 Estado:
 
-🟡 Implementada
+✅ COMPLETADA
 
 Rama:
 
-feat/email-infrastructure
+feat/email-infrastructure (mergeada — PR #1, commit 4371da4)
 
 Objetivo:
 
@@ -945,9 +957,265 @@ Pendiente (fuera del alcance de 7B.1):
 - Verificación de dominio en Resend dashboard.
 - Validación end-to-end con correo real.
 
+Commits:
+
+- b4647d5 (implementación)
+- 4371da4 (merge a main)
+
+---
+
+# ExpedienteDoc Consolidation
+
+Estado:
+
+🟡 En progreso
+
+Rama:
+
+feat/expedientedoc-consolidation
+
+Objetivo:
+
+Migrar el expediente digital de empleados desde EmployeeFile (legado) hacia ExpedienteDoc (nuevo), preservando todos los datos existentes y manteniendo el sistema operativo durante la transición.
+
+Estrategia:
+
+Dual-write + lectura paralela + retiro gradual. EmployeeFile permanece como fuente de verdad hasta PR4.
+
+---
+
+## PR1 — Schema reconciliation
+
+Estado:
+
+✅ COMPLETADA
+
 Commit:
 
-b4647d5
+f3e17ed
+
+Implementado:
+
+- Migración `20260617000001_drop_expedientedoc_unique`.
+- Eliminado `@@unique([empleadoId, categoria, version])` — incompatible con múltiples documentos por categoría.
+- Migraciones previas (000000–000002) reconciliadas via `migrate resolve` (SQL ya existía en BD).
+- `migrate status`: limpio — 17 migraciones aplicadas, 0 pendientes.
+
+---
+
+## PR2 — Backfill employee_files → expediente_docs
+
+Estado:
+
+✅ COMPLETADA
+
+Commit PR2B:
+
+0674af6
+
+### PR2A — Diagnóstico (read-only)
+
+Resultado:
+
+- 1 fila en `employee_files`.
+- 0 blockers.
+- `tamanoBytes = NULL` — resuelto con `COALESCE(..., 0)`.
+
+### PR2B — Backfill
+
+Script:
+
+`apps/api/prisma/scripts/backfill_pr2b_employee_files.sql`
+
+Características:
+
+- Transaccional.
+- Idempotente: guard `WHERE NOT EXISTS` + tombstone `subidoPorNombre = '[migracion legado]'`.
+- Mapeo de categorías: `CONTRACT → CONTRATO`, `CERTIFICATION → CERTIFICADO`, `MEMO/LETTER/OTHER → OTRO`.
+- `storageKey` derivado de `archivoUrl` (solo para datos legacy — nuevos documentos usan convención directa).
+
+Resultado de validación:
+
+- 1 fila migrada.
+- 0 FK violations.
+- Idempotencia verificada: segunda ejecución → `INSERT 0 0`.
+
+---
+
+## PR3 Fase 1 — ExpedienteDocsModule + dual-write
+
+Estado:
+
+✅ COMPLETADA
+
+Commit:
+
+00a80f8
+
+### Archivos creados
+
+- `apps/api/src/expediente-docs/expediente-docs.module.ts`
+- `apps/api/src/expediente-docs/expediente-docs.service.ts`
+- `apps/api/src/expediente-docs/expediente-docs.controller.ts`
+
+### Archivos modificados
+
+- `apps/api/src/app.module.ts` — registro de `ExpedienteDocsModule`.
+- `apps/api/src/generated-documents/generated-documents.module.ts` — import de `ExpedienteDocsModule`.
+- `apps/api/src/generated-documents/generated-documents.service.ts` — Logger + inyección + dual-write best-effort en `generatePdf()`.
+
+### Endpoints expuestos
+
+- `GET /employees/:id/expediente` — lista de documentos + stats por empleado.
+- `GET /expediente-docs/:id` — detalle de documento.
+
+Ambos protegidos con `JwtAuthGuard` + `ActiveTenantGuard`.
+
+### Dual-write
+
+Patrón: best-effort. La escritura a `ExpedienteDoc` está envuelta en `try/catch`. Si falla, se registra `logger.warn` con el `generatedDocumentId` y `generatePdf()` continúa normalmente. `EmployeeFile` sigue siendo fuente de verdad.
+
+### Resultados verificados
+
+- `GET /employees/:id/expediente` → 200, `total: 1`, `byCategory: {CERTIFICADO: 1}`.
+- `GET /expediente-docs/:id` → 200, campos correctos.
+- Sin token → 401.
+- Empleado de otro tenant → 404.
+- UUID inexistente → 404.
+- `GET /employees/:id/files` (legacy) → 200, sin regresión.
+- Dual-write: generar PDF → `employee_files` +1, `expediente_docs` +1.
+- `storageKey` del nuevo doc: `{tenantId}/expediente/{empleadoId}/{categoria}/gen_{generatedDocId}_v1.pdf`.
+- `generatedDocumentId` FK correcta en DB.
+- `typecheck`: 0 errores.
+- `build`: exit 0.
+
+### Deuda técnica identificada (no bloqueante)
+
+- `buildStats` hace una segunda query DB sobre los mismos datos que `findByEmployee` ya cargó — se puede eliminar pasando el array ya cargado.
+- `private readonly logger` declarado en `ExpedienteDocsService` pero nunca usado.
+- `RequestUser` interface duplicada en cada controller (patrón heredado de `EmployeeFilesController`).
+
+### Riesgos documentados
+
+- **R1** (pre-existente): Si `employeeFilesService.createFromGeneratedDoc` falla, el dual-write nunca corre y `pdfUrl` queda huérfano.
+- **R2**: Retry de `generatePdf()` crea filas duplicadas en `expediente_docs` (sin guard de idempotencia). Relevante cuando haya R2 real.
+- **R3** (cosmético): `(err as Error).message` puede ser `undefined` si el error no es un `Error` estándar.
+
+---
+
+## PR3 Fase 2 — AlertsService sobre Contrato
+
+Estado:
+
+⏳ Pendiente
+
+Objetivo:
+
+Desacoplar `AlertsService` de `EmployeeFile`. Es el último consumidor de lectura activa que impide avanzar al retiro.
+
+Alcance:
+
+- Reescribir `generateContractAlerts()` — leer `prisma.contrato.findMany({ where: { estado: 'VIGENTE', fechaFin: { not: null } } })` en lugar de `employeeFile.findMany({ categoria: 'CONTRACT' })`.
+- Reescribir `generateMissingDocAlerts()` — sustituir test de existencia por `prisma.contrato.findFirst({ where: { empleadoId, estado: { in: ['VIGENTE', 'VENCIDO'] } } })`.
+- Migración: `add_contratoId_to_alerts` (columna nullable + FK, sin tocar `employeeFileId`).
+- Actualizar `findAll`/`findOne` en `AlertsService`: `include: contrato` en lugar de `include: employeeFile`.
+- Corregir bug semántico en `generateContractAlerts`: `dueDate` actualmente se calcula como `now + threshold.days` sin leer `fechaFin` real del contrato.
+
+Nota: `Alerta` (modelo nuevo en schema, vinculado a `Contrato`) no tiene service ni controller. No activar en PR3 — consolidar en PR4/PR5.
+
+---
+
+## PR3 Fase 3 — Frontend cutover
+
+Estado:
+
+⏳ Pendiente
+
+Objetivo:
+
+La UI lee `ExpedienteDoc` en lugar de `EmployeeFile`.
+
+Alcance:
+
+- Nueva feature `apps/web/src/features/expediente-docs/` (api client + hooks).
+- BFF: `GET /api/employees/:id/expediente` y `DELETE /api/expediente-docs/:id`.
+- Swap en `expediente/page.tsx`: `useEmployeeFiles → useExpedienteDocs`.
+- Ajustar `CATEGORY_LABELS` — actualmente hardcodeados a `{CONTRACT, CERTIFICATION, MEMO, LETTER, OTHER}`.
+- Corregir `stats.byCategory.CONTRACT` y `stats.byCategory.CERTIFICATION` — claves hardcodeadas en stat cards que quedarán silenciosamente rotas tras el cutover.
+- Actualizar `alertas/page.tsx:205`: `alert.employeeFile.nombre → alert.contrato?.cargo ?? ''` (tras Fase 2).
+- No eliminar `employee-files/` ni sus BFF — solo dejar de importarlos.
+
+---
+
+## PR4 — Retiro de EmployeeFile
+
+Estado:
+
+⏳ Pendiente
+
+Condición de entrada:
+
+PR3 Fase 2 y Fase 3 completadas y observadas en producción durante 1 sprint.
+
+Alcance:
+
+- Detener dual-write — quitar `createFromGeneratedDoc` de `EmployeeFilesService` en el contexto de `generatePdf()`.
+- Archivar `EmployeeFilesModule` de `app.module.ts`.
+- Archivar controller, service, DTOs y BFF routes de `employee-files`.
+- Migración: eliminar `alerts.employeeFileId` (drop column + drop FK).
+- Eliminar relaciones `employeeFiles` de `Empleado`, `Tenant`, `GeneratedDocument` en schema.
+- NO `DROP TABLE employee_files` — renombrar a `employee_files_deprecated` y conservar 1 release más.
+- Eliminar enum `EmployeeFileCategory`.
+- Mover `backfill_pr2b_employee_files.sql` a `archive/`.
+
+---
+
+## Decisiones arquitectónicas — ExpedienteDoc Consolidation
+
+### ExpedienteDoc es el modelo oficial
+
+Toda nueva funcionalidad de expediente digital debe construirse sobre `ExpedienteDoc`.
+
+No desarrollar nuevas funcionalidades sobre `EmployeeFile`.
+
+### Dual-write es la estrategia de transición
+
+Durante PR3, toda escritura nueva cae en ambas tablas. `EmployeeFile` es la fuente de verdad. Si el write a `ExpedienteDoc` falla, no interrumpe el flujo.
+
+### Sin feature flags
+
+El volumen de datos (dev: 1 fila) no justifica flags de activación. La reversibilidad se garantiza a nivel de código.
+
+### `tamanoBytes = 0` para PDFs generados
+
+El tamaño real requiere leer el archivo desde el filesystem o R2. Diferido a PR4 cuando haya almacenamiento real.
+
+### Nunca eliminar datos históricos
+
+El `DROP TABLE employee_files` nunca se ejecuta directamente. Se renombra la tabla y se conserva un release como safety net.
+
+---
+
+## Estado de rama relacionada — feat/phase-5c-sede-employee-integration
+
+Estado:
+
+⚠️ No mergeada — requiere atención
+
+Problema:
+
+- Añade `sedeId String?` y `sedeRef Sede?` a `Empleado` en `schema.prisma`.
+- Falta migración (`prisma migrate dev --name add_sede_to_empleados`).
+- Falta `prisma generate` — cliente Prisma no regenerado.
+- Resultado: 7 errores de TypeScript (`sedeRef` doesn't exist in `EmpleadoInclude<DefaultArgs>`).
+
+Impacto en `feat/expedientedoc-consolidation`:
+
+Ninguno — ramas independientes.
+
+Acción requerida (fuera del alcance de ExpedienteDoc Consolidation):
+
+Crear migración, ejecutar `prisma generate`, verificar typecheck, decidir si mergear.
 
 ---
 
