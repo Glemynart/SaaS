@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: ExpedienteDoc Consolidation — PR3 Fase 1
+## Última actualización: ExpedienteDoc Consolidation — PR3 Fase 2
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -1103,25 +1103,58 @@ Patrón: best-effort. La escritura a `ExpedienteDoc` está envuelta en `try/catc
 
 ---
 
-## PR3 Fase 2 — AlertsService sobre Contrato
+## PR3 Fase 2 — AlertsService sobre Contrato y ExpedienteDoc
 
 Estado:
 
-⏳ Pendiente
+✅ COMPLETADA
+
+Commit:
+
+b7f1e45
+
+Rama:
+
+feat/expedientedoc-consolidation
 
 Objetivo:
 
-Desacoplar `AlertsService` de `EmployeeFile`. Es el último consumidor de lectura activa que impide avanzar al retiro.
+Desacoplar `AlertsService` de `EmployeeFile`. Era el último consumidor de lectura activa que impedía avanzar al retiro.
 
-Alcance:
+### Archivos modificados
 
-- Reescribir `generateContractAlerts()` — leer `prisma.contrato.findMany({ where: { estado: 'VIGENTE', fechaFin: { not: null } } })` en lugar de `employeeFile.findMany({ categoria: 'CONTRACT' })`.
-- Reescribir `generateMissingDocAlerts()` — sustituir test de existencia por `prisma.contrato.findFirst({ where: { empleadoId, estado: { in: ['VIGENTE', 'VENCIDO'] } } })`.
-- Migración: `add_contratoId_to_alerts` (columna nullable + FK, sin tocar `employeeFileId`).
-- Actualizar `findAll`/`findOne` en `AlertsService`: `include: contrato` en lugar de `include: employeeFile`.
-- Corregir bug semántico en `generateContractAlerts`: `dueDate` actualmente se calcula como `now + threshold.days` sin leer `fechaFin` real del contrato.
+- `apps/api/prisma/schema.prisma` — `expedienteDocId String?` + relación + `@@index([tenantId, expedienteDocId])` en `Alert`; relación inversa `alerts Alert[]` en `ExpedienteDoc`.
+- `apps/api/prisma/migrations/20260618000000_add_expediente_doc_to_alert/migration.sql` — ADD COLUMN + FK + índice sobre `alerts_new`.
+- `apps/api/src/alerts/alerts.service.ts` — `generateContractAlerts()` y `generateMissingDocAlerts()` reescritos; `findAll`/`findOne` incluyen `expedienteDoc`.
+- `apps/api/src/alerts/dto/create-alert.dto.ts` — `expedienteDocId?: string` opcional.
+- `apps/web/src/features/alerts/services/alerts-api.ts` — `AlertItem` añade `expedienteDocId` y `expedienteDoc`.
+- `apps/web/src/app/(app)/alertas/page.tsx` — fallback `expedienteDoc ?? employeeFile` en nombre de documento.
 
-Nota: `Alerta` (modelo nuevo en schema, vinculado a `Contrato`) no tiene service ni controller. No activar en PR3 — consolidar en PR4/PR5.
+### Decisiones implementadas
+
+- **Fuente de verdad para contratos**: `prisma.contrato.findMany({ where: { estado: { in: ['VIGENTE', 'RENOVADO'] }, fechaFin: { gte: now, lte: lookahead } } })` — elimina lectura de `EmployeeFile`.
+- **Fuente de verdad para documentos faltantes**: `prisma.contrato.findFirst({ where: { empleadoId, estado: { in: ['VIGENTE', 'RENOVADO'] } } })` — elimina lectura de `EmployeeFile`.
+- **expedienteDocId (no contratoId)**: El campo añadido a `Alert` enlaza al `ExpedienteDoc` de categoría CONTRATO más reciente del contrato (`orderBy: version desc, take: 1`). `employeeFileId` permanece como legado nullable.
+- **Dedup dual**: Si `expedienteDocId` está disponible se deduplica por `(expedienteDocId, severity, OPEN)`; si no, por `(employeeId, severity, titulo, OPEN)`.
+- **Bug `dueDate` corregido**: `dueDate` ahora toma `contrato.fechaFin` real — antes calculaba `now + threshold.days`.
+- **Migración por `prisma db execute` + `migrate resolve`**: Shadow DB rota (`municipios_dane` ausente); patrón establecido para todas las migraciones futuras.
+
+### Resultado de smoke tests
+
+```
+AUTH   PASS — tenantId obtenido
+ST-1   PASS — GET /alerts 200
+ST-2   PASS — generate-contract-alerts: 0 creadas (sin contratos VIGENTE/RENOVADO con fechaFin próxima)
+ST-3   PASS — generate-missing-doc-alerts: 2 nuevas alertas creadas
+ST-4   PASS — GET /alerts retorna 4 alertas tras generación
+ST-5   PASS — campo expedienteDocId presente en respuesta (null para tipo faltante-doc, esperado)
+ST-6   PASS — filtro ?severity=WARNING 200
+OVERALL: ALL PASS
+```
+
+### Nota sobre `Alerta` (modelo schema)
+
+`Alerta` (modelo nuevo vinculado a `Contrato`) no tiene service ni controller. No activar en PR3 — consolidar en PR4/PR5.
 
 ---
 
@@ -1142,7 +1175,7 @@ Alcance:
 - Swap en `expediente/page.tsx`: `useEmployeeFiles → useExpedienteDocs`.
 - Ajustar `CATEGORY_LABELS` — actualmente hardcodeados a `{CONTRACT, CERTIFICATION, MEMO, LETTER, OTHER}`.
 - Corregir `stats.byCategory.CONTRACT` y `stats.byCategory.CERTIFICATION` — claves hardcodeadas en stat cards que quedarán silenciosamente rotas tras el cutover.
-- Actualizar `alertas/page.tsx:205`: `alert.employeeFile.nombre → alert.contrato?.cargo ?? ''` (tras Fase 2).
+- `alertas/page.tsx`: fallback `expedienteDoc ?? employeeFile` ya aplicado en PR3 Fase 2.
 - No eliminar `employee-files/` ni sus BFF — solo dejar de importarlos.
 
 ---
