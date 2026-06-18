@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: ExpedienteDoc Consolidation — PR5 (validado 2026-06-18)
+## Última actualización: ExpedienteDoc Consolidation — PR6B COMPLETADO (2026-06-18)
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -399,9 +399,7 @@ La dirección arquitectónica aprobada es:
 
 Empleado → ExpedienteDoc
 
-EmployeeFile es considerado legado. No desarrollar nuevas funcionalidades sobre EmployeeFile.
-
-La migración está en `feat/expedientedoc-consolidation` mediante una estrategia de fases (PR1–PR6). PR5 completado: `ExpedienteDoc` es el único destino activo; dual-write eliminado; `EmployeeFile` es código muerto sin consumidores. Pendiente: PR6 (DROP destructivo, requiere observación en producción). Ver sección **ExpedienteDoc Consolidation** para el estado detallado.
+`EmployeeFile` fue eliminado definitivamente en PR6B (2026-06-18). `ExpedienteDoc` es el modelo oficial y único. No existen referencias residuales al modelo legado.
 
 Convención oficial de `storageKey`:
 
@@ -968,7 +966,7 @@ Commits:
 
 Estado:
 
-🟡 En progreso — PR5 completado. Pendiente: PR6A (atomicidad) y PR6 (DROP destructivo).
+✅ COMPLETED (2026-06-18)
 
 Rama:
 
@@ -978,9 +976,9 @@ Objetivo:
 
 Migrar el expediente digital de empleados desde EmployeeFile (legado) hacia ExpedienteDoc (nuevo), preservando todos los datos existentes y manteniendo el sistema operativo durante la transición.
 
-Estrategia:
+Estrategia aplicada:
 
-Dual-write + lectura paralela + retiro gradual. PR5 completado (2026-06-18): dual-write eliminado. `ExpedienteDoc` es la fuente única activa. `EmployeeFile` no recibe nuevos datos — es código muerto hasta que PR6 lo elimine definitivamente.
+Dual-write + lectura paralela + retiro gradual. Completado en 6 PRs: backfill, dual-write, cutover frontend, retiro de consumidores, atomicidad de `generatePdf()`, y DROP destructivo final.
 
 ---
 
@@ -1254,7 +1252,7 @@ Schema Prisma, tabla `employee_files`, `EmployeeFilesModule`, `EmployeeFilesCont
 
 Estado:
 
-⏳ Pendiente (diseño aprobado, sin implementar)
+✅ COMPLETADA
 
 Objetivo:
 
@@ -1316,37 +1314,30 @@ Sin cambios de schema. Sin migración. **PR6A es 100% code-only.**
 
 ---
 
-## PR6 — Eliminación destructiva de EmployeeFile
+## PR6B — Eliminación destructiva de EmployeeFile
 
 Estado:
 
-⏳ Pendiente
+✅ COMPLETADA (2026-06-18) — Commit: 97e9a1c
 
-Condición de entrada:
+### Implementado
 
-1. PR5 desplegado en producción.
-2. 24–48h sin tráfico a rutas legacy eliminadas (confirmar en logs).
-3. `SELECT COUNT(*) FROM employee_files` = 2 (mismo valor que fin de PR5, sin inserts nuevos).
-4. Decidir si alertas con `employeeFileId IS NOT NULL` son descartables o requieren migración de campo.
-5. Fix de `generatePdf()` atomicidad completado o documentado como riesgo aceptado.
-6. Backup verificado.
+- Migración `20260618000001_drop_employee_files`: DROP FK, DROP COLUMN `employeeFileId` de `alerts_new`, DROP índices, DROP FKs, DROP TABLE `employee_files`, DROP TYPE `EmployeeFileCategory`.
+- Schema Prisma: eliminados `model EmployeeFile`, `enum EmployeeFileCategory`, relaciones en Tenant/Empleado/GeneratedDocument/Alert, campos `employeeFileId`/`employeeFile` de Alert.
+- NestJS: eliminado directorio `apps/api/src/employee-files/` completo (module, service, controller, DTO).
+- `app.module.ts`: eliminados import y registro de `EmployeeFilesModule`.
+- `prisma generate`: cliente regenerado sin referencias a `EmployeeFile`.
 
-### Alcance
+### Verificaciones de cierre
 
-- Schema: eliminar `model EmployeeFile`, `enum EmployeeFileCategory`.
-- Schema: eliminar campo `Alert.employeeFileId` / relación `Alert.employeeFile`.
-- Schema: eliminar relaciones `employeeFiles EmployeeFile[]` de `GeneratedDocument`, `Empleado`.
-- Migración: `DROP TABLE employee_files` + `DROP TYPE "EmployeeFileCategory"` + `ALTER TABLE alerts_new DROP CONSTRAINT ... DROP COLUMN employeeFileId`.
-- NestJS: eliminar `apps/api/src/employee-files/` completo.
-- `app.module.ts`: eliminar `EmployeeFilesModule`.
-
-### Criterio exacto de cierre
-
-1. `SELECT COUNT(*) FROM employee_files` = mismo valor que fin de PR5 (sin inserts nuevos).
-2. Decidir si alertas con `employeeFileId IS NOT NULL` son descartables o requieren migración de campo.
-3. Sin tráfico en logs a rutas legacy (24–48h post-PR5).
-4. `tsc --noEmit` y `next build` sin referencias a `EmployeeFile`.
-5. `prisma migrate status` limpio antes de ejecutar la migración destructiva.
+- `employee_files` table: **no existe**.
+- `employeeFileId` en `alerts_new`: **no existe**.
+- `EmployeeFileCategory` enum: **no existe**.
+- `apps/api/src/employee-files/`: **no existe**.
+- Referencias `EmployeeFile` en src/: **cero**.
+- `tsc --noEmit`: 0 errores.
+- `nest build`: OK.
+- `prisma migrate status`: Database schema is up to date (19 migraciones).
 
 ---
 
@@ -1358,21 +1349,17 @@ Toda nueva funcionalidad de expediente digital debe construirse sobre `Expedient
 
 No desarrollar nuevas funcionalidades sobre `EmployeeFile`.
 
-### ExpedienteDoc es el único destino activo desde PR5
+### ExpedienteDoc es el único destino activo
 
-El dual-write fue retirado en PR5. Toda escritura nueva va exclusivamente a `ExpedienteDoc`. `EmployeeFile` no recibe nuevos datos. La tabla `employee_files` es código muerto hasta que PR6 la elimine definitivamente.
+`EmployeeFile` fue eliminado definitivamente en PR6B. La tabla `employee_files`, el enum `EmployeeFileCategory`, el módulo NestJS y todas las relaciones de schema fueron removidos. No existen referencias residuales.
 
 ### Sin feature flags
 
-El volumen de datos (dev: 1 fila) no justifica flags de activación. La reversibilidad se garantiza a nivel de código.
+El volumen de datos no justificó flags de activación. La reversibilidad se garantizó a nivel de código en cada fase.
 
 ### `tamanoBytes = 0` para PDFs generados
 
-El tamaño real requiere leer el archivo desde el filesystem o R2. Diferido a PR4 cuando haya almacenamiento real.
-
-### Retiro de EmployeeFile en dos fases
-
-PR5 apaga lecturas y escrituras activas sin tocar el schema. PR6 ejecuta `DROP TABLE employee_files` solo después de confirmar ausencia de tráfico y datos nuevos post-PR5.
+El tamaño real requiere leer el archivo desde el filesystem o R2. Diferido cuando haya almacenamiento real en producción.
 
 ---
 
