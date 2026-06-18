@@ -211,7 +211,6 @@ model Tenant {
   plantillas         Plantilla[]
   documentTemplates  DocumentTemplate[]
   generatedDocuments GeneratedDocument[]
-  employeeFiles      EmployeeFile[]
   alerts             Alert[]
   payrollPeriods     PayrollPeriod[]
   payrollRuns        PayrollRun[]
@@ -371,7 +370,6 @@ model Empleado {
   // Relaciones
   contratos           Contrato[]
   generatedDocuments  GeneratedDocument[]
-  employeeFiles       EmployeeFile[]
   alerts              Alert[]
   payrollRuns         PayrollRun[]
   payrollNovelties    PayrollNovelty[]
@@ -442,7 +440,7 @@ enum DocumentTemplateType {
 // (NOMBRE_COMPLETO, DOCUMENTO, CARGO, SALARIO, TIPO_CONTRATO, etc.)
 //
 // Futura evolución:
-//   DocumentTemplate → GeneratedDocument → PDF → EmployeeFile → Alerts
+//   DocumentTemplate → GeneratedDocument → PDF → ExpedienteDoc → Alertas
 // =============================================================================
 
 model DocumentTemplate {
@@ -479,7 +477,7 @@ model DocumentTemplate {
 // el documento generado conserva los valores originales del momento.
 //
 // Futura evolución:
-//   GeneratedDocument → PDF → EmployeeFile → Alerts
+//   GeneratedDocument → PDF → ExpedienteDoc → Alertas
 // =============================================================================
 
 model GeneratedDocument {
@@ -501,7 +499,6 @@ model GeneratedDocument {
   tipo            DocumentTemplateType
 
   // Relaciones
-  employeeFiles  EmployeeFile[]
   expedienteDocs ExpedienteDoc[]
 
   @@index([tenantId])
@@ -509,59 +506,6 @@ model GeneratedDocument {
   @@index([tenantId, tipo])
   @@index([tenantId, createdAt])
   @@map("generated_documents")
-}
-
-// =============================================================================
-// EMPLOYEE FILE CATEGORY — Categorías del expediente digital
-// =============================================================================
-
-enum EmployeeFileCategory {
-  CONTRACT
-  CERTIFICATION
-  MEMO
-  LETTER
-  OTHER
-}
-
-// =============================================================================
-// EMPLOYEE FILE — Expediente digital del empleado (Fase: Employee File)
-// =============================================================================
-// Consolida todos los documentos generados y subidos en un expediente
-// digital organizado por empleado. Se crea automáticamente al generar un PDF
-// desde GeneratedDocument, o manualmente vía upload.
-//
-// Futura evolución:
-//   EmployeeFile → Alerts → Recordatorios → Vencimientos
-// =============================================================================
-
-model EmployeeFile {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-
-  tenantId   String
-  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  employeeId String
-  employee   Empleado          @relation(fields: [employeeId], references: [id])
-
-  generatedDocumentId String?    // Null si fue subido manualmente
-  generatedDocument   GeneratedDocument? @relation(fields: [generatedDocumentId], references: [id])
-
-  nombre      String
-  categoria   EmployeeFileCategory
-  archivoUrl  String              // URL del PDF en disco o R2
-  mimeType    String?             // ej: application/pdf
-  tamanoBytes Int?                // Tamaño del archivo
-  observaciones String?            // Notas opcionales
-
-  // Relaciones
-  alerts Alert[]
-
-  @@index([tenantId])
-  @@index([tenantId, employeeId])
-  @@index([tenantId, categoria])
-  @@index([tenantId, createdAt])
-  @@map("employee_files")
 }
 
 // =============================================================================
@@ -603,9 +547,6 @@ model Alert {
 
   employeeId String?
   employee   Empleado? @relation(fields: [employeeId], references: [id])
-
-  employeeFileId String?
-  employeeFile   EmployeeFile? @relation(fields: [employeeFileId], references: [id])
 
   expedienteDocId String?
   expedienteDoc   ExpedienteDoc? @relation(fields: [expedienteDocId], references: [id])

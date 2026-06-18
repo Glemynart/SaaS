@@ -11,7 +11,6 @@ import { EmployeesModule } from './employees/employees.module';
 import { DocumentTemplatesModule } from './document-templates/document-templates.module';
 import { GeneratedDocumentsModule } from './generated-documents/generated-documents.module';
 import { TenantBrandingModule } from './tenant-branding/tenant-branding.module';
-import { EmployeeFilesModule } from './employee-files/employee-files.module';
 import { ExpedienteDocsModule } from './expediente-docs/expediente-docs.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { PayrollModule } from './payroll/payroll.module';
@@ -36,7 +35,6 @@ import { ThrottlerModule } from '@nestjs/throttler';
     DocumentTemplatesModule,
     GeneratedDocumentsModule,
     TenantBrandingModule,
-    EmployeeFilesModule,
     ExpedienteDocsModule,
     AlertsModule,
     PayrollModule,
