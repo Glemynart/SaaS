@@ -36,10 +36,6 @@ export class CreateAlertDto {
 
   @IsString()
   @IsOptional()
-  employeeFileId?: string;
-
-  @IsString()
-  @IsOptional()
   expedienteDocId?: string;
 
   @IsDateString()

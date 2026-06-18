@@ -2,7 +2,6 @@ export interface AlertItem {
   id: string;
   tenantId: string;
   employeeId: string | null;
-  employeeFileId: string | null;
   expedienteDocId: string | null;
   titulo: string;
   descripcion: string;
@@ -20,7 +19,6 @@ export interface AlertItem {
     cedula: string;
     cargo: string;
   } | null;
-  employeeFile: { id: string; nombre: string; categoria: string } | null;
   expedienteDoc: { id: string; nombre: string; categoria: string } | null;
 }
 

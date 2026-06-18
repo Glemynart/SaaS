@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: ExpedienteDoc Consolidation — PR3 Fase 2
+## Última actualización: ExpedienteDoc Consolidation — PR4
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -401,7 +401,7 @@ Empleado → ExpedienteDoc
 
 EmployeeFile es considerado legado. No desarrollar nuevas funcionalidades sobre EmployeeFile.
 
-La migración está en curso en `feat/expedientedoc-consolidation` mediante una estrategia de fases (PR1–PR4). Ver sección **ExpedienteDoc Consolidation** para el estado detallado.
+La migración está en `feat/expedientedoc-consolidation` mediante una estrategia de fases (PR1–PR6). PR4 completado: la UI del expediente ya lee desde `ExpedienteDoc`. Pendiente: PR5 (retiro de dual-write y consumidores activos) y PR6 (DROP destructivo). Ver sección **ExpedienteDoc Consolidation** para el estado detallado.
 
 Convención oficial de `storageKey`:
 
@@ -980,7 +980,7 @@ Migrar el expediente digital de empleados desde EmployeeFile (legado) hacia Expe
 
 Estrategia:
 
-Dual-write + lectura paralela + retiro gradual. EmployeeFile permanece como fuente de verdad hasta PR4.
+Dual-write + lectura paralela + retiro gradual. La UI ya lee desde ExpedienteDoc (PR4 completado). El dual-write sigue activo; se retira en PR5.
 
 ---
 
@@ -1158,7 +1158,48 @@ OVERALL: ALL PASS
 
 ---
 
-## PR3 Fase 3 — Frontend cutover
+## PR3 Fase 3 / PR4 — Frontend cutover + DELETE ExpedienteDoc
+
+Estado:
+
+✅ COMPLETADA
+
+Commit:
+
+83819f3
+
+### Archivos creados
+
+- `apps/api/src/expediente-docs/expediente-docs.service.ts` — método `remove(tenantId, id)` (patrón `findOne → delete`).
+- `apps/api/src/expediente-docs/expediente-docs.controller.ts` — endpoint `DELETE /expediente-docs/:id`.
+- `apps/web/src/app/api/employees/[id]/expediente/route.ts` — BFF GET.
+- `apps/web/src/app/api/expediente-docs/[id]/route.ts` — BFF DELETE.
+- `apps/web/src/features/expediente-docs/services/expediente-docs-api.ts` — tipos `ExpedienteDoc`, `ExpedienteDocsResponse`; métodos `getByEmployee`, `delete`.
+- `apps/web/src/features/expediente-docs/hooks/use-expediente-docs.ts` — `useExpedienteDocs`, `useDeleteExpedienteDoc`.
+
+### Archivos modificados
+
+- `apps/web/src/app/(app)/empleados/[id]/expediente/page.tsx` — migrado a `useExpedienteDocs`; `CATEGORY_LABELS` y `categoryBadge` actualizados a `ExpedienteCategoria`; stats con claves `CONTRATO`/`CERTIFICADO`.
+
+### Invariantes mantenidos
+
+- Endpoints legacy (`GET /employees/:id/files`, `DELETE /employee-files/:id`) intactos.
+- Dual-write sin cambios — `GeneratedDocumentsService` sigue escribiendo a ambas tablas.
+- `EmployeeFile` sin cambios de schema ni de tabla.
+- `features/employee-files/` (hooks + service) huérfana — sin importadores desde este PR.
+
+### Resultados verificados
+
+- `prisma generate`: OK.
+- `tsc --noEmit` API: 0 errores.
+- `tsc --noEmit` Web: 0 errores.
+- `nest build`: OK.
+- `next build`: OK — 52 páginas, 0 errores (2 warnings pre-existentes de `<img>` en `/configuracion/identidad`, fuera de scope).
+- Confirmado: `alertas/page.tsx` maneja `expedienteDocId = null` con `??` sin crash.
+
+---
+
+## PR5 — Retiro de consumidores activos de EmployeeFile
 
 Estado:
 
@@ -1166,21 +1207,32 @@ Estado:
 
 Objetivo:
 
-La UI lee `ExpedienteDoc` en lugar de `EmployeeFile`.
+Eliminar todas las escrituras y lecturas activas a `EmployeeFile`. Dejar la tabla vacía e ignorada sin tocar el schema.
 
-Alcance:
+### Dependencias activas a eliminar
 
-- Nueva feature `apps/web/src/features/expediente-docs/` (api client + hooks).
-- BFF: `GET /api/employees/:id/expediente` y `DELETE /api/expediente-docs/:id`.
-- Swap en `expediente/page.tsx`: `useEmployeeFiles → useExpedienteDocs`.
-- Ajustar `CATEGORY_LABELS` — actualmente hardcodeados a `{CONTRACT, CERTIFICATION, MEMO, LETTER, OTHER}`.
-- Corregir `stats.byCategory.CONTRACT` y `stats.byCategory.CERTIFICATION` — claves hardcodeadas en stat cards que quedarán silenciosamente rotas tras el cutover.
-- `alertas/page.tsx`: fallback `expedienteDoc ?? employeeFile` ya aplicado en PR3 Fase 2.
-- No eliminar `employee-files/` ni sus BFF — solo dejar de importarlos.
+| Elemento                               | Acción                                                                                                                                   |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `GeneratedDocumentsService` dual-write | Eliminar llamada a `employeeFilesService.createFromGeneratedDoc()`. Eliminar inyección de `EmployeeFilesService` y su import del módulo. |
+| `AlertsService.findAll/findOne`        | Eliminar `include: { employeeFile: ... }`. Alertas históricas con `employeeFileId` perderán el link visual — aceptable.                  |
+| `CreateAlertDto.employeeFileId`        | Eliminar el campo — ningún servicio lo popula desde PR3 F2.                                                                              |
+| `alertas/page.tsx`                     | Simplificar `(alert.expedienteDoc ?? alert.employeeFile)` → `alert.expedienteDoc`.                                                       |
+| `alerts-api.ts` (web)                  | Eliminar `employeeFileId` y `employeeFile` del tipo `Alert`.                                                                             |
+| `features/employee-files/` (web)       | Eliminar directorio completo — ya huérfano.                                                                                              |
+| BFF routes legacy                      | Eliminar `app/api/employees/[id]/files/route.ts` y `app/api/employee-files/[id]/route.ts`.                                               |
+| `EmployeeFilesController`              | Eliminar de su módulo (o vaciar el módulo para PR6).                                                                                     |
+
+### No tocar en PR5
+
+Schema de Prisma, tabla `employee_files`, `EmployeeFilesService`.
+
+### Condición de entrada
+
+Verificar 24–48h sin tráfico a `GET /api/employees/:id/files` y `DELETE /api/employee-files/:id` en logs.
 
 ---
 
-## PR4 — Retiro de EmployeeFile
+## PR6 — Eliminación destructiva de EmployeeFile
 
 Estado:
 
@@ -1188,18 +1240,24 @@ Estado:
 
 Condición de entrada:
 
-PR3 Fase 2 y Fase 3 completadas y observadas en producción durante 1 sprint.
+PR5 en producción. `SELECT COUNT(*) FROM employee_files` confirma que no hay registros nuevos post-PR5 (dual-write apagado). Backup verificado.
 
-Alcance:
+### Alcance
 
-- Detener dual-write — quitar `createFromGeneratedDoc` de `EmployeeFilesService` en el contexto de `generatePdf()`.
-- Archivar `EmployeeFilesModule` de `app.module.ts`.
-- Archivar controller, service, DTOs y BFF routes de `employee-files`.
-- Migración: eliminar `alerts.employeeFileId` (drop column + drop FK).
-- Eliminar relaciones `employeeFiles` de `Empleado`, `Tenant`, `GeneratedDocument` en schema.
-- NO `DROP TABLE employee_files` — renombrar a `employee_files_deprecated` y conservar 1 release más.
-- Eliminar enum `EmployeeFileCategory`.
-- Mover `backfill_pr2b_employee_files.sql` a `archive/`.
+- Schema: eliminar `model EmployeeFile`, `enum EmployeeFileCategory`.
+- Schema: eliminar campo `Alert.employeeFileId` / relación `Alert.employeeFile`.
+- Schema: eliminar relaciones `employeeFiles EmployeeFile[]` de `GeneratedDocument`, `Empleado`.
+- Migración: `DROP TABLE employee_files` + `DROP TYPE "EmployeeFileCategory"` + `ALTER TABLE alerts_new DROP CONSTRAINT ... DROP COLUMN employeeFileId`.
+- NestJS: eliminar `apps/api/src/employee-files/` completo.
+- `app.module.ts`: eliminar `EmployeeFilesModule`.
+
+### Criterio exacto de cierre
+
+1. `SELECT COUNT(*) FROM employee_files` = mismo valor que fin de PR5 (sin inserts nuevos).
+2. Decidir si alertas con `employeeFileId IS NOT NULL` son descartables o requieren migración de campo.
+3. Sin tráfico en logs a rutas legacy (24–48h post-PR5).
+4. `tsc --noEmit` y `next build` sin referencias a `EmployeeFile`.
+5. `prisma migrate status` limpio antes de ejecutar la migración destructiva.
 
 ---
 
@@ -1213,7 +1271,7 @@ No desarrollar nuevas funcionalidades sobre `EmployeeFile`.
 
 ### Dual-write es la estrategia de transición
 
-Durante PR3, toda escritura nueva cae en ambas tablas. `EmployeeFile` es la fuente de verdad. Si el write a `ExpedienteDoc` falla, no interrumpe el flujo.
+Durante PR3–PR4, toda escritura nueva cae en ambas tablas. `ExpedienteDoc` es la fuente de verdad para lecturas desde PR4. `EmployeeFile` sigue recibiendo escrituras por dual-write hasta PR5. Si el write a `ExpedienteDoc` falla, no interrumpe el flujo.
 
 ### Sin feature flags
 
@@ -1223,9 +1281,9 @@ El volumen de datos (dev: 1 fila) no justifica flags de activación. La reversib
 
 El tamaño real requiere leer el archivo desde el filesystem o R2. Diferido a PR4 cuando haya almacenamiento real.
 
-### Nunca eliminar datos históricos
+### Retiro de EmployeeFile en dos fases
 
-El `DROP TABLE employee_files` nunca se ejecuta directamente. Se renombra la tabla y se conserva un release como safety net.
+PR5 apaga lecturas y escrituras activas sin tocar el schema. PR6 ejecuta `DROP TABLE employee_files` solo después de confirmar ausencia de tráfico y datos nuevos post-PR5.
 
 ---
 

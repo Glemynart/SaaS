@@ -36,7 +36,6 @@ export class AlertsService {
               cargo: true,
             },
           },
-          employeeFile: { select: { id: true, nombre: true, categoria: true } },
           expedienteDoc: {
             select: { id: true, nombre: true, categoria: true },
           },
@@ -69,7 +68,6 @@ export class AlertsService {
             cargo: true,
           },
         },
-        employeeFile: { select: { id: true, nombre: true, categoria: true } },
         expedienteDoc: { select: { id: true, nombre: true, categoria: true } },
       },
     });

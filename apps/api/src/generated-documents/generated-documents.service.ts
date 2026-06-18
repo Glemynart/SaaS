@@ -8,7 +8,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateGeneratedDocumentDto } from './dto/create-generated-document.dto';
 import { GeneratedDocumentQueryDto } from './dto/generated-document-query.dto';
 import { Prisma } from '@prisma/client';
-import { EmployeeFilesService } from '../employee-files/employee-files.service';
 import { AuditService } from '../audit/audit.service';
 import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
 import { formatNombreCompleto } from '@saas/types';
@@ -35,7 +34,6 @@ export class GeneratedDocumentsService {
 
   constructor(
     private prisma: PrismaService,
-    private employeeFilesService: EmployeeFilesService,
     private expedienteDocsService: ExpedienteDocsService,
     private auditService: AuditService,
   ) {}
@@ -247,28 +245,13 @@ export class GeneratedDocumentsService {
       },
     });
 
-    await this.employeeFilesService.createFromGeneratedDoc(
+    await this.expedienteDocsService.createFromGeneratedDoc(
       updated.tenantId,
       updated.id,
       updated.employeeId,
       updated.nombre,
-      pdfUrl,
       updated.tipo,
     );
-
-    try {
-      await this.expedienteDocsService.createFromGeneratedDoc(
-        updated.tenantId,
-        updated.id,
-        updated.employeeId,
-        updated.nombre,
-        updated.tipo,
-      );
-    } catch (err) {
-      this.logger.warn(
-        `Dual-write ExpedienteDoc falló para GeneratedDocument ${updated.id}: ${(err as Error).message}`,
-      );
-    }
 
     this.auditService
       .log({
