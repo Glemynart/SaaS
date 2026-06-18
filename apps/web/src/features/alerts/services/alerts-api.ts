@@ -3,6 +3,7 @@ export interface AlertItem {
   tenantId: string;
   employeeId: string | null;
   employeeFileId: string | null;
+  expedienteDocId: string | null;
   titulo: string;
   descripcion: string;
   severity: 'INFO' | 'WARNING' | 'CRITICAL';
@@ -20,6 +21,7 @@ export interface AlertItem {
     cargo: string;
   } | null;
   employeeFile: { id: string; nombre: string; categoria: string } | null;
+  expedienteDoc: { id: string; nombre: string; categoria: string } | null;
 }
 
 export interface AlertStats {

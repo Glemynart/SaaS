@@ -37,6 +37,9 @@ export class AlertsService {
             },
           },
           employeeFile: { select: { id: true, nombre: true, categoria: true } },
+          expedienteDoc: {
+            select: { id: true, nombre: true, categoria: true },
+          },
         },
       }),
       this.prisma.alert.count({ where }),
@@ -67,6 +70,7 @@ export class AlertsService {
           },
         },
         employeeFile: { select: { id: true, nombre: true, categoria: true } },
+        expedienteDoc: { select: { id: true, nombre: true, categoria: true } },
       },
     });
     if (!alert) throw new NotFoundException('Alerta no encontrada');
@@ -89,11 +93,17 @@ export class AlertsService {
       { days: 15, severity: 'WARNING' as const, label: '15 días' },
       { days: 7, severity: 'CRITICAL' as const, label: '7 días' },
     ];
+    const lookahead = new Date(now);
+    lookahead.setDate(lookahead.getDate() + 30);
 
-    const contractFiles = await this.prisma.employeeFile.findMany({
-      where: { tenantId, categoria: 'CONTRACT' },
+    const contratos = await this.prisma.contrato.findMany({
+      where: {
+        tenantId,
+        estado: { in: ['VIGENTE', 'RENOVADO'] },
+        fechaFin: { gte: now, lte: lookahead },
+      },
       include: {
-        employee: {
+        empleado: {
           select: {
             id: true,
             primerNombre: true,
@@ -102,44 +112,56 @@ export class AlertsService {
             segundoApellido: true,
           },
         },
+        expedienteDocs: {
+          where: { categoria: 'CONTRATO' },
+          orderBy: { version: 'desc' },
+          select: { id: true },
+          take: 1,
+        },
       },
     });
 
-    for (const file of contractFiles) {
-      const genDoc = file.generatedDocumentId
-        ? await this.prisma.generatedDocument.findUnique({
-            where: { id: file.generatedDocumentId },
-          })
-        : null;
+    for (const contrato of contratos) {
+      const diasRestantes = Math.floor(
+        (contrato.fechaFin!.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      const expedienteDocId = contrato.expedienteDocs[0]?.id ?? null;
 
       for (const threshold of thresholds) {
-        const dueDate = new Date(now);
-        dueDate.setDate(dueDate.getDate() + threshold.days);
+        if (diasRestantes > threshold.days) continue;
 
-        if (genDoc) {
-          const exists = await this.prisma.alert.findFirst({
-            where: {
+        const dedupeWhere = expedienteDocId
+          ? {
               tenantId,
-              employeeFileId: file.id,
+              expedienteDocId,
               severity: threshold.severity,
-              status: 'OPEN',
-            },
-          });
-          if (exists) continue;
-
-          const alert = await this.prisma.alert.create({
-            data: {
+              status: 'OPEN' as const,
+            }
+          : {
               tenantId,
-              employeeId: file.employeeId,
-              employeeFileId: file.id,
+              employeeId: contrato.empleadoId,
+              severity: threshold.severity,
+              status: 'OPEN' as const,
               titulo: `Contrato próximo a vencer (${threshold.label})`,
-              descripcion: `El documento "${file.nombre}" del empleado ${formatNombreCompleto({ primerNombre: file.employee.primerNombre ?? '', segundoNombre: file.employee.segundoNombre, primerApellido: file.employee.primerApellido ?? '', segundoApellido: file.employee.segundoApellido })} requiere atención. Quedan aproximadamente ${threshold.days} días.`,
-              severity: threshold.severity,
-              dueDate,
-            },
-          });
-          created.push(alert);
-        }
+            };
+
+        const exists = await this.prisma.alert.findFirst({
+          where: dedupeWhere,
+        });
+        if (exists) continue;
+
+        const alert = await this.prisma.alert.create({
+          data: {
+            tenantId,
+            employeeId: contrato.empleadoId,
+            expedienteDocId,
+            titulo: `Contrato próximo a vencer (${threshold.label})`,
+            descripcion: `El contrato de ${formatNombreCompleto({ primerNombre: contrato.empleado.primerNombre ?? '', segundoNombre: contrato.empleado.segundoNombre, primerApellido: contrato.empleado.primerApellido ?? '', segundoApellido: contrato.empleado.segundoApellido })} vence el ${contrato.fechaFin!.toLocaleDateString('es-CO')}. Quedan aproximadamente ${diasRestantes} días.`,
+            severity: threshold.severity,
+            dueDate: contrato.fechaFin,
+          },
+        });
+        created.push(alert);
       }
     }
 
@@ -163,8 +185,13 @@ export class AlertsService {
 
     let created = 0;
     for (const emp of employees) {
-      const hasContract = await this.prisma.employeeFile.findFirst({
-        where: { tenantId, employeeId: emp.id, categoria: 'CONTRACT' },
+      const hasContract = await this.prisma.contrato.findFirst({
+        where: {
+          tenantId,
+          empleadoId: emp.id,
+          estado: { in: ['VIGENTE', 'RENOVADO'] },
+        },
+        select: { id: true },
       });
       if (hasContract) continue;
 
@@ -183,7 +210,7 @@ export class AlertsService {
           tenantId,
           employeeId: emp.id,
           titulo: 'Empleado sin contrato registrado',
-          descripcion: `${formatNombreCompleto({ primerNombre: emp.primerNombre ?? '', segundoNombre: emp.segundoNombre, primerApellido: emp.primerApellido ?? '', segundoApellido: emp.segundoApellido })} no tiene ningún contrato en su expediente digital.`,
+          descripcion: `${formatNombreCompleto({ primerNombre: emp.primerNombre ?? '', segundoNombre: emp.segundoNombre, primerApellido: emp.primerApellido ?? '', segundoApellido: emp.segundoApellido })} no tiene ningún contrato activo registrado.`,
           severity: 'WARNING',
         },
       });

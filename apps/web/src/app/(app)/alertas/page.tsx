@@ -202,7 +202,9 @@ export default function AlertasPage() {
                           <UserRound className="size-3" /> {formatNombreCompleto(alert.employee)}
                         </Link>
                       )}
-                      {alert.employeeFile && <span>{alert.employeeFile.nombre}</span>}
+                      {(alert.expedienteDoc ?? alert.employeeFile) && (
+                        <span>{(alert.expedienteDoc ?? alert.employeeFile)!.nombre}</span>
+                      )}
                       <span>{formatDate(alert.createdAt)}</span>
                     </div>
                   </div>

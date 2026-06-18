@@ -607,6 +607,9 @@ model Alert {
   employeeFileId String?
   employeeFile   EmployeeFile? @relation(fields: [employeeFileId], references: [id])
 
+  expedienteDocId String?
+  expedienteDoc   ExpedienteDoc? @relation(fields: [expedienteDocId], references: [id])
+
   titulo      String
   descripcion String
   severity    AlertSeverity
@@ -619,6 +622,7 @@ model Alert {
   @@index([tenantId, severity])
   @@index([tenantId, employeeId])
   @@index([tenantId, dueDate])
+  @@index([tenantId, expedienteDocId])
   @@map("alerts_new")
 }
 
@@ -1107,6 +1111,8 @@ model ExpedienteDoc {
   // Trazabilidad
   subidoPorId  String?              // userId de quien subió el archivo
   subidoPorNombre String?           // Snapshot del nombre por si el usuario se elimina
+
+  alerts Alert[]
 
   @@index([tenantId, empleadoId])
   @@index([tenantId, empleadoId, categoria])

@@ -38,6 +38,10 @@ export class CreateAlertDto {
   @IsOptional()
   employeeFileId?: string;
 
+  @IsString()
+  @IsOptional()
+  expedienteDocId?: string;
+
   @IsDateString()
   @IsOptional()
   dueDate?: string;
