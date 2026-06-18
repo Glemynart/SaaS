@@ -5,6 +5,8 @@ import {
   IsEnum,
   IsNumber,
   IsBoolean,
+  IsUUID,
+  ValidateIf,
   Min,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
@@ -92,4 +94,9 @@ export class UpdateEmployeeDto {
   @IsEnum(MotivoRetiro)
   @IsOptional()
   motivoRetiro?: MotivoRetiro;
+
+  @ValidateIf((o) => o.sedeId !== null && o.sedeId !== undefined)
+  @IsUUID()
+  @IsOptional()
+  sedeId?: string | null;
 }

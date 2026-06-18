@@ -135,6 +135,10 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                 <dd className="font-medium text-gray-900">{employee.dependencia || '-'}</dd>
               </div>
               <div className="grid grid-cols-2 gap-2">
+                <dt className="text-gray-500">Sede</dt>
+                <dd className="font-medium text-gray-900">{employee.sedeRef?.nombre ?? '-'}</dd>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
                 <dt className="text-gray-500">Tipo de Contrato</dt>
                 <dd className="font-medium text-gray-900">
                   {employee.tipoContrato.replace(/_/g, ' ')}

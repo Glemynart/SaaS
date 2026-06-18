@@ -36,6 +36,10 @@ export class EmployeesService {
       throw new BadRequestException('Ya existe un empleado con esta cédula');
     }
 
+    if (createDto.sedeId) {
+      await this.ensureSedeBelongsToTenant(tenantId, createDto.sedeId);
+    }
+
     const employee = await this.prisma.empleado.create({
       data: {
         ...createDto,
@@ -83,6 +87,9 @@ export class EmployeesService {
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
+        include: {
+          sedeRef: { select: { id: true, nombre: true } },
+        },
       }),
       this.prisma.empleado.count({ where }),
     ]);
@@ -104,6 +111,9 @@ export class EmployeesService {
         id,
         tenantId,
         deletedAt: null,
+      },
+      include: {
+        sedeRef: { select: { id: true, nombre: true } },
       },
     });
 
@@ -134,6 +144,10 @@ export class EmployeesService {
       }
     }
 
+    if (updateDto.sedeId) {
+      await this.ensureSedeBelongsToTenant(tenantId, updateDto.sedeId);
+    }
+
     const dataToUpdate: Prisma.EmpleadoUpdateInput = { ...updateDto };
     if (updateDto.fechaIngreso) {
       dataToUpdate.fechaIngreso = new Date(updateDto.fechaIngreso);
@@ -155,5 +169,16 @@ export class EmployeesService {
         estado: 'INACTIVO',
       },
     });
+  }
+
+  private async ensureSedeBelongsToTenant(tenantId: string, sedeId: string) {
+    const sede = await this.prisma.sede.findFirst({
+      where: { id: sedeId, tenantId },
+    });
+    if (!sede) {
+      throw new BadRequestException(
+        'La sede no existe o no pertenece a esta empresa',
+      );
+    }
   }
 }

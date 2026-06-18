@@ -122,6 +122,7 @@ export function GeneratedDocDetail() {
             <p className="mt-0.5 text-sm text-foreground">{formatNombreCompleto(doc.employee)}</p>
             <p className="text-xs text-muted-foreground">
               {doc.employee.tipoDocumento} {doc.employee.cedula} — {doc.employee.cargo}
+              {doc.employee.sedeRef?.nombre && ` — ${doc.employee.sedeRef.nombre}`}
             </p>
           </div>
           <div>

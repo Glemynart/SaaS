@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { employeeSchema, type EmployeeFormData } from '../schemas/employee-schemas';
 import { type Employee } from '../services/employees-api';
+import { useSedes } from '@/features/sedes/hooks/use-sedes';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ interface EmployeeFormProps {
 import { type Resolver } from 'react-hook-form';
 
 export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormProps) {
+  const { data: sedes } = useSedes({ activo: true });
   const {
     register,
     handleSubmit,
@@ -38,6 +40,7 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
       fechaIngreso: new Date().toISOString().split('T')[0],
       estado: 'ACTIVO',
       municipioExpedicionDocId: '',
+      sedeId: '',
       salarioIntegral: false,
       jornadaLaboral: undefined,
       fechaRetiro: '',
@@ -61,6 +64,7 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
         tipoContrato: initialData.tipoContrato as EmployeeFormData['tipoContrato'],
         estado: initialData.estado as EmployeeFormData['estado'],
         municipioExpedicionDocId: initialData.municipioExpedicionDocId || '',
+        sedeId: initialData.sedeId || '',
         salarioIntegral: initialData.salarioIntegral ?? false,
         jornadaLaboral:
           (initialData.jornadaLaboral as EmployeeFormData['jornadaLaboral']) ?? undefined,
@@ -153,6 +157,21 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
           <Label htmlFor="cargo">Cargo</Label>
           <Input id="cargo" {...register('cargo')} />
           {errors.cargo && <span className="text-xs text-red-500">{errors.cargo.message}</span>}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="sedeId">Sede</Label>
+          <select
+            id="sedeId"
+            {...register('sedeId')}
+            className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-950 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <option value="">Sin sede asignada</option>
+            {(sedes ?? []).map((sede) => (
+              <option key={sede.id} value={sede.id}>
+                {sede.nombre}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="space-y-2">
           <Label htmlFor="salario">Salario (Requerido)</Label>

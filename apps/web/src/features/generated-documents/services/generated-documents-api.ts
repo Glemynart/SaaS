@@ -17,6 +17,7 @@ export interface GeneratedDocument {
     cedula: string;
     cargo: string;
     tipoDocumento?: string;
+    sedeRef: { id: string; nombre: string } | null;
   };
   template: {
     id: string;

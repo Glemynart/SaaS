@@ -25,6 +25,7 @@ export const AVAILABLE_VARIABLES = [
   { key: 'SALARIO', label: 'Salario', example: '$ 3.500.000' },
   { key: 'TIPO_CONTRATO', label: 'Tipo de contrato', example: 'Término Fijo' },
   { key: 'FECHA_INGRESO', label: 'Fecha de ingreso', example: '15 de enero de 2026' },
+  { key: 'SEDE', label: 'Sede', example: 'Sede Norte' },
   { key: 'EMPRESA', label: 'Empresa', example: 'Operador Educativo S.A.S.' },
   { key: 'NIT', label: 'NIT', example: '900.123.456-7' },
   { key: 'REPRESENTANTE_LEGAL', label: 'Representante legal', example: 'María Gómez Rodríguez' },
