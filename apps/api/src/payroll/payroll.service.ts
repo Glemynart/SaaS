@@ -129,63 +129,8 @@ export class PayrollService {
             if (existing) continue;
 
             const novelties = noveltiesByEmployee.get(emp.id) ?? [];
-
-            const salarioBase = Number(emp.salario);
-            const bonificaciones = novelties
-              .filter((n) => n.tipo === 'BONUS')
-              .reduce((s, n) => s + Number(n.valor ?? 0), 0);
-            const horasExtra = novelties
-              .filter((n) => n.tipo === 'OVERTIME')
-              .reduce((s, n) => s + Number(n.valor ?? 0), 0);
-
-            const totalDevengos = salarioBase + bonificaciones + horasExtra;
-            const salud = totalDevengos * 0.04;
-            const pension = totalDevengos * 0.04;
-            const totalDeducciones = salud + pension;
-            const netoPagar = totalDevengos - totalDeducciones;
-
             const run = await tx.payrollRun.create({
-              data: {
-                tenantId,
-                payrollPeriodId: periodId,
-                employeeId: emp.id,
-                totalDevengos,
-                totalDeducciones,
-                netoPagar,
-                concepts: {
-                  create: [
-                    {
-                      tipo: 'EARNING',
-                      nombre: 'Salario base',
-                      valor: salarioBase,
-                    },
-                    ...(bonificaciones > 0
-                      ? [
-                          {
-                            tipo: 'EARNING' as const,
-                            nombre: 'Bonificaciones',
-                            valor: bonificaciones,
-                          },
-                        ]
-                      : []),
-                    ...(horasExtra > 0
-                      ? [
-                          {
-                            tipo: 'EARNING' as const,
-                            nombre: 'Horas extra',
-                            valor: horasExtra,
-                          },
-                        ]
-                      : []),
-                    { tipo: 'DEDUCTION', nombre: 'Salud (4%)', valor: salud },
-                    {
-                      tipo: 'DEDUCTION',
-                      nombre: 'Pensión (4%)',
-                      valor: pension,
-                    },
-                  ],
-                },
-              },
+              data: this.buildRunPayload(emp, novelties, periodId, tenantId),
             });
             created.push(run);
           }
@@ -207,6 +152,134 @@ export class PayrollService {
     return {
       created: created.length,
       message: `${created.length} empleados liquidados`,
+    };
+  }
+
+  async recalculatePayroll(tenantId: string, periodId: string) {
+    const period = await this.prisma.payrollPeriod.findFirst({
+      where: { id: periodId, tenantId },
+    });
+    if (!period) throw new NotFoundException('Período no encontrado');
+    if (period.status === 'CLOSED')
+      throw new ConflictException('No se puede recalcular un período cerrado');
+
+    const employees = await this.prisma.empleado.findMany({
+      where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
+    });
+
+    const allNovelties = await this.prisma.payrollNovelty.findMany({
+      where: { tenantId, payrollPeriodId: periodId },
+    });
+    const noveltiesByEmployee = new Map<string, typeof allNovelties>();
+    for (const novelty of allNovelties) {
+      const list = noveltiesByEmployee.get(novelty.employeeId) ?? [];
+      list.push(novelty);
+      noveltiesByEmployee.set(novelty.employeeId, list);
+    }
+
+    try {
+      await this.prisma.$transaction(
+        async (tx) => {
+          const existingRuns = await tx.payrollRun.findMany({
+            where: { tenantId, payrollPeriodId: periodId },
+            select: { id: true },
+          });
+          const runIds = existingRuns.map((r) => r.id);
+
+          if (runIds.length > 0) {
+            await tx.payrollConcept.deleteMany({
+              where: { payrollRunId: { in: runIds } },
+            });
+            await tx.payrollRun.deleteMany({
+              where: { tenantId, payrollPeriodId: periodId },
+            });
+          }
+
+          for (const emp of employees) {
+            const novelties = noveltiesByEmployee.get(emp.id) ?? [];
+            await tx.payrollRun.create({
+              data: this.buildRunPayload(emp, novelties, periodId, tenantId),
+            });
+          }
+        },
+        { timeout: 30000 },
+      );
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        throw new ConflictException('Error de duplicado al regenerar nómina');
+      }
+      throw e;
+    }
+
+    return {
+      recalculated: employees.length,
+      message: `${employees.length} empleados reliquidados`,
+    };
+  }
+
+  private buildRunPayload(
+    emp: { id: string; salario: Prisma.Decimal },
+    novelties: Array<{ tipo: string; valor: Prisma.Decimal | null }>,
+    periodId: string,
+    tenantId: string,
+  ) {
+    const salarioBase = Number(emp.salario);
+    const bonificaciones = novelties
+      .filter((n) => n.tipo === 'BONUS')
+      .reduce((s, n) => s + Number(n.valor ?? 0), 0);
+    const horasExtra = novelties
+      .filter((n) => n.tipo === 'OVERTIME')
+      .reduce((s, n) => s + Number(n.valor ?? 0), 0);
+
+    const totalDevengos = salarioBase + bonificaciones + horasExtra;
+    const salud = totalDevengos * 0.04;
+    const pension = totalDevengos * 0.04;
+    const totalDeducciones = salud + pension;
+    const netoPagar = totalDevengos - totalDeducciones;
+
+    return {
+      tenantId,
+      payrollPeriodId: periodId,
+      employeeId: emp.id,
+      totalDevengos,
+      totalDeducciones,
+      netoPagar,
+      concepts: {
+        create: [
+          {
+            tipo: 'EARNING' as const,
+            nombre: 'Salario base',
+            valor: salarioBase,
+          },
+          ...(bonificaciones > 0
+            ? [
+                {
+                  tipo: 'EARNING' as const,
+                  nombre: 'Bonificaciones',
+                  valor: bonificaciones,
+                },
+              ]
+            : []),
+          ...(horasExtra > 0
+            ? [
+                {
+                  tipo: 'EARNING' as const,
+                  nombre: 'Horas extra',
+                  valor: horasExtra,
+                },
+              ]
+            : []),
+          { tipo: 'DEDUCTION' as const, nombre: 'Salud (4%)', valor: salud },
+          {
+            tipo: 'DEDUCTION' as const,
+            nombre: 'Pensión (4%)',
+            valor: pension,
+          },
+        ],
+      },
     };
   }
 

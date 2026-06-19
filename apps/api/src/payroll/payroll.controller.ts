@@ -15,7 +15,10 @@ import {
 } from './dto/create-payroll.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
 
 interface RequestUser {
   tenantId: string;
@@ -57,6 +60,16 @@ export class PayrollController {
   @Post('payroll/periods/:id/generate')
   generatePayroll(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     return this.service.generatePayroll(user.tenantId, id);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @UseGuards(RolesGuard)
+  @Post('payroll/periods/:id/recalculate')
+  recalculatePayroll(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ) {
+    return this.service.recalculatePayroll(user.tenantId, id);
   }
 
   @Get('payroll/novelties')
