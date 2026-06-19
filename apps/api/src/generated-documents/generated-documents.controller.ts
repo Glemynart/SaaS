@@ -16,23 +16,23 @@ import { CreateGeneratedDocumentDto } from './dto/create-generated-document.dto'
 import { GeneratedDocumentQueryDto } from './dto/generated-document-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
 
-interface RequestUser {
-  userId: string;
-  tenantId: string;
-}
-
-@UseGuards(JwtAuthGuard, ActiveTenantGuard)
+@UseGuards(JwtAuthGuard, ActiveTenantGuard, RolesGuard)
 @Controller('generated-documents')
 export class GeneratedDocumentsController {
   constructor(private readonly service: GeneratedDocumentsService) {}
 
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Post('generate')
   generate(
-    @CurrentUser() user: RequestUser,
+    @CurrentUser() user: CurrentUserPayload,
     @Body() dto: CreateGeneratedDocumentDto,
   ) {
     return this.service.generate(user.tenantId, dto);
@@ -40,30 +40,35 @@ export class GeneratedDocumentsController {
 
   @Get()
   findAll(
-    @CurrentUser() user: RequestUser,
+    @CurrentUser() user: CurrentUserPayload,
     @Query() query: GeneratedDocumentQueryDto,
   ) {
     return this.service.findAll(user.tenantId, query);
   }
 
   @Get(':id')
-  findOne(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+  findOne(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
     return this.service.findOne(user.tenantId, id);
   }
 
+  @Roles(UserRole.ADMIN)
   @Delete(':id')
-  remove(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+  remove(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
     return this.service.remove(user.tenantId, id);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Post(':id/generate-pdf')
-  async generatePdf(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+  async generatePdf(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+  ) {
     return this.service.generatePdf(user.tenantId, user.userId, id);
   }
 
   @Get(':id/pdf')
   async downloadPdf(
-    @CurrentUser() user: RequestUser,
+    @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
     @Res() res: Response,
   ) {

@@ -14,21 +14,21 @@ import type { Response } from 'express';
 import { EmployeeImportService } from './employee-import.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-
-interface RequestUser {
-  userId: string;
-  tenantId: string;
-}
+import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
 
 const XLSX_MIME =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-@UseGuards(JwtAuthGuard, ActiveTenantGuard)
+@UseGuards(JwtAuthGuard, ActiveTenantGuard, RolesGuard)
 @Controller('employees/import')
 export class EmployeeImportController {
   constructor(private readonly importService: EmployeeImportService) {}
 
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Get('template')
   downloadTemplate(@Res() res: Response) {
     const buffer = this.importService.generateTemplate();
@@ -40,6 +40,7 @@ export class EmployeeImportController {
     res.end(buffer);
   }
 
+  @Roles(UserRole.ADMIN)
   @Post()
   @UseInterceptors(
     FileInterceptor('file', {
@@ -61,7 +62,7 @@ export class EmployeeImportController {
     }),
   )
   async importEmployees(
-    @CurrentUser() user: RequestUser,
+    @CurrentUser() user: CurrentUserPayload,
     @UploadedFile() file: Express.Multer.File,
   ) {
     if (!file) {

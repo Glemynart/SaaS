@@ -14,11 +14,11 @@ import { TenantBrandingService } from './tenant-branding.service';
 import { UpdateTenantBrandingDto } from './dto/update-tenant-branding.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-
-interface RequestUser {
-  tenantId: string;
-}
+import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
 
 interface MulterFile {
   originalname: string;
@@ -39,24 +39,26 @@ function extractFile(file: MulterFile) {
   return { originalname: file.originalname, buffer: file.buffer };
 }
 
-@UseGuards(JwtAuthGuard, ActiveTenantGuard)
+@UseGuards(JwtAuthGuard, ActiveTenantGuard, RolesGuard)
 @Controller('tenant-branding')
 export class TenantBrandingController {
   constructor(private readonly service: TenantBrandingService) {}
 
   @Get()
-  getBranding(@CurrentUser() user: RequestUser) {
+  getBranding(@CurrentUser() user: CurrentUserPayload) {
     return this.service.getBranding(user.tenantId);
   }
 
+  @Roles(UserRole.ADMIN)
   @Patch()
   updateBranding(
-    @CurrentUser() user: RequestUser,
+    @CurrentUser() user: CurrentUserPayload,
     @Body() dto: UpdateTenantBrandingDto,
   ) {
     return this.service.updateBranding(user.tenantId, dto);
   }
 
+  @Roles(UserRole.ADMIN)
   @Post('upload-logo')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -76,7 +78,7 @@ export class TenantBrandingController {
     }),
   )
   async uploadLogo(
-    @CurrentUser() user: RequestUser,
+    @CurrentUser() user: CurrentUserPayload,
     @UploadedFile() file: MulterFile,
   ) {
     if (!file) throw new BadRequestException('Archivo no proporcionado');
@@ -84,6 +86,7 @@ export class TenantBrandingController {
     return this.service.uploadLogo(user.tenantId, f.originalname, f.buffer);
   }
 
+  @Roles(UserRole.ADMIN)
   @Post('upload-firma')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -103,7 +106,7 @@ export class TenantBrandingController {
     }),
   )
   async uploadFirma(
-    @CurrentUser() user: RequestUser,
+    @CurrentUser() user: CurrentUserPayload,
     @UploadedFile() file: MulterFile,
   ) {
     if (!file) throw new BadRequestException('Archivo no proporcionado');
