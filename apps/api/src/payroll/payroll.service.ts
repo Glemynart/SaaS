@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import {
   CreatePayrollPeriodDto,
   CreatePayrollNoveltyDto,
@@ -13,10 +14,17 @@ import {
 
 @Injectable()
 export class PayrollService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
-  async createPeriod(tenantId: string, dto: CreatePayrollPeriodDto) {
-    return this.prisma.payrollPeriod.create({
+  async createPeriod(
+    tenantId: string,
+    userId: string,
+    dto: CreatePayrollPeriodDto,
+  ) {
+    const period = await this.prisma.payrollPeriod.create({
       data: {
         ...dto,
         fechaInicio: new Date(dto.fechaInicio),
@@ -24,6 +32,17 @@ export class PayrollService {
         tenantId,
       },
     });
+    this.auditService
+      .log({
+        tenantId,
+        userId,
+        action: 'PAYROLL_PERIOD_CREATED',
+        entityType: 'PayrollPeriod',
+        entityId: period.id,
+        metadata: { periodName: period.nombre, payrollPeriodId: period.id },
+      })
+      .catch(() => {});
+    return period;
   }
 
   async findAllPeriods(tenantId: string) {
@@ -78,17 +97,33 @@ export class PayrollService {
     };
   }
 
-  async closePeriod(tenantId: string, id: string) {
-    const period = await this.findOnePeriod(tenantId, id);
-    if (period.period.status === 'CLOSED')
+  async closePeriod(tenantId: string, userId: string, id: string) {
+    const { period, runs, totals } = await this.findOnePeriod(tenantId, id);
+    if (period.status === 'CLOSED')
       throw new BadRequestException('El período ya está cerrado');
-    return this.prisma.payrollPeriod.update({
+    const updated = await this.prisma.payrollPeriod.update({
       where: { id },
       data: { status: 'CLOSED' },
     });
+    this.auditService
+      .log({
+        tenantId,
+        userId,
+        action: 'PAYROLL_PERIOD_CLOSED',
+        entityType: 'PayrollPeriod',
+        entityId: id,
+        metadata: {
+          periodName: period.nombre,
+          payrollPeriodId: id,
+          totalRuns: runs.length,
+          totalNeto: totals.totalNeto,
+        },
+      })
+      .catch(() => {});
+    return updated;
   }
 
-  async generatePayroll(tenantId: string, periodId: string) {
+  async generatePayroll(tenantId: string, userId: string, periodId: string) {
     const period = await this.prisma.payrollPeriod.findFirst({
       where: { id: periodId, tenantId },
     });
@@ -149,13 +184,29 @@ export class PayrollService {
       throw e;
     }
 
+    this.auditService
+      .log({
+        tenantId,
+        userId,
+        action: 'PAYROLL_GENERATED',
+        entityType: 'PayrollPeriod',
+        entityId: periodId,
+        metadata: {
+          periodName: period.nombre,
+          payrollPeriodId: periodId,
+          runsCreated: created.length,
+          skipped: employees.length - created.length,
+        },
+      })
+      .catch(() => {});
+
     return {
       created: created.length,
       message: `${created.length} empleados liquidados`,
     };
   }
 
-  async recalculatePayroll(tenantId: string, periodId: string) {
+  async recalculatePayroll(tenantId: string, userId: string, periodId: string) {
     const period = await this.prisma.payrollPeriod.findFirst({
       where: { id: periodId, tenantId },
     });
@@ -177,6 +228,8 @@ export class PayrollService {
       noveltiesByEmployee.set(novelty.employeeId, list);
     }
 
+    const summary = { runsDeleted: 0, runsCreated: 0 };
+
     try {
       await this.prisma.$transaction(
         async (tx) => {
@@ -185,6 +238,7 @@ export class PayrollService {
             select: { id: true },
           });
           const runIds = existingRuns.map((r) => r.id);
+          summary.runsDeleted = runIds.length;
 
           if (runIds.length > 0) {
             await tx.payrollConcept.deleteMany({
@@ -201,6 +255,7 @@ export class PayrollService {
               data: this.buildRunPayload(emp, novelties, periodId, tenantId),
             });
           }
+          summary.runsCreated = employees.length;
         },
         { timeout: 30000 },
       );
@@ -213,6 +268,22 @@ export class PayrollService {
       }
       throw e;
     }
+
+    this.auditService
+      .log({
+        tenantId,
+        userId,
+        action: 'PAYROLL_RECALCULATED',
+        entityType: 'PayrollPeriod',
+        entityId: periodId,
+        metadata: {
+          periodName: period.nombre,
+          payrollPeriodId: periodId,
+          runsDeleted: summary.runsDeleted,
+          runsCreated: summary.runsCreated,
+        },
+      })
+      .catch(() => {});
 
     return {
       recalculated: employees.length,
@@ -284,7 +355,11 @@ export class PayrollService {
     };
   }
 
-  async createNovelty(tenantId: string, dto: CreatePayrollNoveltyDto) {
+  async createNovelty(
+    tenantId: string,
+    userId: string,
+    dto: CreatePayrollNoveltyDto,
+  ) {
     const [emp, period] = await Promise.all([
       this.prisma.empleado.findFirst({
         where: { id: dto.employeeId, tenantId, deletedAt: null },
@@ -295,9 +370,25 @@ export class PayrollService {
     ]);
     if (!emp) throw new NotFoundException('Empleado no encontrado');
     if (!period) throw new NotFoundException('Período no encontrado');
-    return this.prisma.payrollNovelty.create({
+    const novelty = await this.prisma.payrollNovelty.create({
       data: { ...dto, fecha: new Date(dto.fecha), tenantId },
     });
+    this.auditService
+      .log({
+        tenantId,
+        userId,
+        action: 'PAYROLL_NOVELTY_CREATED',
+        entityType: 'PayrollNovelty',
+        entityId: novelty.id,
+        metadata: {
+          employeeId: dto.employeeId,
+          payrollPeriodId: dto.payrollPeriodId,
+          tipo: dto.tipo,
+          valor: dto.valor ?? null,
+        },
+      })
+      .catch(() => {});
+    return novelty;
   }
 
   async findNovelties(tenantId: string, employeeId?: string) {
