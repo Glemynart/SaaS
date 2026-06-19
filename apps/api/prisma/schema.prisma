@@ -642,9 +642,10 @@ model PayrollRun {
   employeeId String
   employee   Empleado @relation(fields: [employeeId], references: [id])
 
-  totalDevengos    Decimal @db.Decimal(12, 2)
-  totalDeducciones Decimal @db.Decimal(12, 2)
-  netoPagar        Decimal @db.Decimal(12, 2)
+  totalDevengos        Decimal  @db.Decimal(12, 2)
+  totalDeducciones     Decimal  @db.Decimal(12, 2)
+  netoPagar            Decimal  @db.Decimal(12, 2)
+  salarioBaseSnapshot  Decimal? @db.Decimal(12, 2)
 
   concepts PayrollConcept[]
 

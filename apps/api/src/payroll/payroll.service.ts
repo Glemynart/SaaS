@@ -247,6 +247,7 @@ export class PayrollService {
       totalDevengos,
       totalDeducciones,
       netoPagar,
+      salarioBaseSnapshot: salarioBase,
       concepts: {
         create: [
           {
