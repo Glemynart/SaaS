@@ -21,7 +21,7 @@ import type { CurrentUserPayload } from '../auth/decorators/current-user.decorat
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
 
-@UseGuards(JwtAuthGuard, ActiveTenantGuard)
+@UseGuards(JwtAuthGuard, ActiveTenantGuard, RolesGuard)
 @Controller()
 export class PayrollController {
   constructor(private readonly service: PayrollService) {}
@@ -36,6 +36,7 @@ export class PayrollController {
     return this.service.findAllPeriods(user.tenantId);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Post('payroll/periods')
   createPeriod(
     @CurrentUser() user: CurrentUserPayload,
@@ -52,6 +53,7 @@ export class PayrollController {
     return this.service.findOnePeriod(user.tenantId, id);
   }
 
+  @Roles(UserRole.ADMIN)
   @Patch('payroll/periods/:id/close')
   closePeriod(
     @CurrentUser() user: CurrentUserPayload,
@@ -60,6 +62,7 @@ export class PayrollController {
     return this.service.closePeriod(user.tenantId, user.userId, id);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Post('payroll/periods/:id/generate')
   generatePayroll(
     @CurrentUser() user: CurrentUserPayload,
@@ -69,7 +72,6 @@ export class PayrollController {
   }
 
   @Roles(UserRole.ADMIN)
-  @UseGuards(RolesGuard)
   @Post('payroll/periods/:id/recalculate')
   recalculatePayroll(
     @CurrentUser() user: CurrentUserPayload,
@@ -86,6 +88,7 @@ export class PayrollController {
     return this.service.findNovelties(user.tenantId, employeeId);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Post('payroll/novelties')
   createNovelty(
     @CurrentUser() user: CurrentUserPayload,
