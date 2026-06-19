@@ -40,6 +40,10 @@ export class CreatePayrollNoveltyDto {
   @IsNotEmpty()
   employeeId: string;
 
+  @IsString()
+  @IsNotEmpty()
+  payrollPeriodId: string;
+
   @IsEnum(PayrollNoveltyType)
   @IsNotEmpty()
   tipo: PayrollNoveltyType;
