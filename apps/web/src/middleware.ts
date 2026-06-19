@@ -3,7 +3,7 @@ import { ACCESS_COOKIE, REFRESH_COOKIE } from '@/lib/auth-cookies';
 
 const publicRoutes = ['/login', '/registro'];
 const privateRoutes = ['/dashboard', '/perfil'];
-const allowedRoles = new Set(['ADMIN', 'OPERADOR']);
+const allowedRoles = new Set(['ADMIN', 'OPERADOR', 'VIEWER']);
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

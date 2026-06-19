@@ -5,7 +5,7 @@ import {
   readUserCookie,
   setSessionCookies,
 } from '@/lib/auth-cookies';
-import type { AuthUser, LoginResponse } from '@/types/auth';
+import type { AuthUser, LoginResponse, UserRole } from '@/types/auth';
 
 const backendUrl =
   process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
@@ -143,11 +143,16 @@ function mergeUsers(payload: AuthUser, cookieUser: AuthUser | null): AuthUser {
   };
 }
 
+const VALID_ROLES: readonly UserRole[] = ['ADMIN', 'OPERADOR', 'VIEWER'];
+
 function normalizeMe(payload: BackendMe): AuthUser {
+  const rol = VALID_ROLES.includes(payload.rol as UserRole)
+    ? (payload.rol as UserRole)
+    : 'OPERADOR';
   return {
     id: payload.id ?? payload.userId ?? '',
     tenantId: payload.tenantId,
     email: payload.email,
-    rol: payload.rol === 'ADMIN' ? 'ADMIN' : 'OPERADOR',
+    rol,
   };
 }

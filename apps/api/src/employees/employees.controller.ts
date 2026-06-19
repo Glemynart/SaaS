@@ -15,14 +15,17 @@ import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeeQueryDto } from './dto/employee-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
 
 interface RequestUser {
   userId: string;
   tenantId: string;
 }
 
-@UseGuards(JwtAuthGuard, ActiveTenantGuard)
+@UseGuards(JwtAuthGuard, ActiveTenantGuard, RolesGuard)
 @Controller('employees')
 export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) {}
@@ -51,6 +54,7 @@ export class EmployeesController {
     return this.employeesService.update(user.tenantId, id, dto);
   }
 
+  @Roles(UserRole.ADMIN)
   @Delete(':id')
   remove(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     return this.employeesService.remove(user.tenantId, id);

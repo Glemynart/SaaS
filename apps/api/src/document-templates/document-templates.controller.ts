@@ -16,13 +16,16 @@ import { DocumentTemplateQueryDto } from './dto/document-template-query.dto';
 import { DuplicateDocumentTemplateDto } from './dto/duplicate-document-template.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
 
 interface RequestUser {
   tenantId: string;
 }
 
-@UseGuards(JwtAuthGuard, ActiveTenantGuard)
+@UseGuards(JwtAuthGuard, ActiveTenantGuard, RolesGuard)
 @Controller('document-templates')
 export class DocumentTemplatesController {
   constructor(private readonly service: DocumentTemplatesService) {}
@@ -62,6 +65,7 @@ export class DocumentTemplatesController {
     return this.service.update(user.tenantId, id, dto);
   }
 
+  @Roles(UserRole.ADMIN)
   @Delete(':id')
   remove(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     return this.service.remove(user.tenantId, id);

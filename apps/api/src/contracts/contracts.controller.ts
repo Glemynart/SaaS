@@ -14,14 +14,17 @@ import { CreateContractDto } from './dto/create-contract.dto';
 import { UpdateContractStatusDto } from './dto/update-contract-status.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
 
 interface RequestUser {
   userId: string;
   tenantId: string;
 }
 
-@UseGuards(JwtAuthGuard, ActiveTenantGuard)
+@UseGuards(JwtAuthGuard, ActiveTenantGuard, RolesGuard)
 @Controller('contracts')
 export class ContractsController {
   constructor(private readonly service: ContractsService) {}
@@ -46,6 +49,7 @@ export class ContractsController {
     return this.service.findOne(user.tenantId, id);
   }
 
+  @Roles(UserRole.ADMIN)
   @Patch(':id/status')
   updateStatus(
     @CurrentUser() user: RequestUser,

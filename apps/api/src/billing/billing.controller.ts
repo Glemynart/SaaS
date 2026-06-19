@@ -20,13 +20,16 @@ import {
 } from './dto/billing.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
 
 interface RequestUser {
   tenantId: string;
 }
 
-@UseGuards(JwtAuthGuard, ActiveTenantGuard)
+@UseGuards(JwtAuthGuard, ActiveTenantGuard, RolesGuard)
 @Controller()
 export class BillingController {
   constructor(private readonly service: BillingService) {}
@@ -56,6 +59,7 @@ export class BillingController {
   ) {
     return this.service.updateCustomer(u.tenantId, id, d);
   }
+  @Roles(UserRole.ADMIN)
   @Delete('billing/customers/:id')
   removeCustomer(@CurrentUser() u: RequestUser, @Param('id') id: string) {
     return this.service.removeCustomer(u.tenantId, id);

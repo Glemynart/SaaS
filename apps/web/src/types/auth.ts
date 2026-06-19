@@ -1,4 +1,4 @@
-export type UserRole = 'ADMIN' | 'OPERADOR';
+export type UserRole = 'ADMIN' | 'OPERADOR' | 'VIEWER';
 
 export type AuthUser = {
   id: string;
