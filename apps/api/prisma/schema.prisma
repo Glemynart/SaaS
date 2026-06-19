@@ -648,6 +648,7 @@ model PayrollRun {
 
   concepts PayrollConcept[]
 
+  @@unique([tenantId, payrollPeriodId, employeeId])
   @@index([tenantId])
   @@index([tenantId, payrollPeriodId])
   @@index([tenantId, employeeId])
