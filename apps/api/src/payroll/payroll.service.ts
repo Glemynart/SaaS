@@ -2,7 +2,9 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreatePayrollPeriodDto,
@@ -100,67 +102,106 @@ export class PayrollService {
       where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
     });
 
+    // Load all novelties for the period in a single query to avoid N+1
+    const allNovelties = await this.prisma.payrollNovelty.findMany({
+      where: { tenantId, payrollPeriodId: periodId },
+    });
+    const noveltiesByEmployee = new Map<string, typeof allNovelties>();
+    for (const novelty of allNovelties) {
+      const list = noveltiesByEmployee.get(novelty.employeeId) ?? [];
+      list.push(novelty);
+      noveltiesByEmployee.set(novelty.employeeId, list);
+    }
+
     const created: unknown[] = [];
-    for (const emp of employees) {
-      const existing = await this.prisma.payrollRun.findFirst({
-        where: { tenantId, payrollPeriodId: periodId, employeeId: emp.id },
-      });
-      if (existing) continue;
 
-      const novelties = await this.prisma.payrollNovelty.findMany({
-        where: { tenantId, employeeId: emp.id, payrollPeriodId: periodId },
-      });
+    try {
+      await this.prisma.$transaction(
+        async (tx) => {
+          for (const emp of employees) {
+            const existing = await tx.payrollRun.findFirst({
+              where: {
+                tenantId,
+                payrollPeriodId: periodId,
+                employeeId: emp.id,
+              },
+            });
+            if (existing) continue;
 
-      const salarioBase = Number(emp.salario);
-      const bonificaciones = novelties
-        .filter((n) => n.tipo === 'BONUS')
-        .reduce((s, n) => s + Number(n.valor ?? 0), 0);
-      const horasExtra = novelties
-        .filter((n) => n.tipo === 'OVERTIME')
-        .reduce((s, n) => s + Number(n.valor ?? 0), 0);
+            const novelties = noveltiesByEmployee.get(emp.id) ?? [];
 
-      const totalDevengos = salarioBase + bonificaciones + horasExtra;
-      const salud = totalDevengos * 0.04;
-      const pension = totalDevengos * 0.04;
-      const totalDeducciones = salud + pension;
-      const netoPagar = totalDevengos - totalDeducciones;
+            const salarioBase = Number(emp.salario);
+            const bonificaciones = novelties
+              .filter((n) => n.tipo === 'BONUS')
+              .reduce((s, n) => s + Number(n.valor ?? 0), 0);
+            const horasExtra = novelties
+              .filter((n) => n.tipo === 'OVERTIME')
+              .reduce((s, n) => s + Number(n.valor ?? 0), 0);
 
-      const run = await this.prisma.payrollRun.create({
-        data: {
-          tenantId,
-          payrollPeriodId: periodId,
-          employeeId: emp.id,
-          totalDevengos,
-          totalDeducciones,
-          netoPagar,
-          concepts: {
-            create: [
-              { tipo: 'EARNING', nombre: 'Salario base', valor: salarioBase },
-              ...(bonificaciones > 0
-                ? [
+            const totalDevengos = salarioBase + bonificaciones + horasExtra;
+            const salud = totalDevengos * 0.04;
+            const pension = totalDevengos * 0.04;
+            const totalDeducciones = salud + pension;
+            const netoPagar = totalDevengos - totalDeducciones;
+
+            const run = await tx.payrollRun.create({
+              data: {
+                tenantId,
+                payrollPeriodId: periodId,
+                employeeId: emp.id,
+                totalDevengos,
+                totalDeducciones,
+                netoPagar,
+                concepts: {
+                  create: [
                     {
-                      tipo: 'EARNING' as const,
-                      nombre: 'Bonificaciones',
-                      valor: bonificaciones,
+                      tipo: 'EARNING',
+                      nombre: 'Salario base',
+                      valor: salarioBase,
                     },
-                  ]
-                : []),
-              ...(horasExtra > 0
-                ? [
+                    ...(bonificaciones > 0
+                      ? [
+                          {
+                            tipo: 'EARNING' as const,
+                            nombre: 'Bonificaciones',
+                            valor: bonificaciones,
+                          },
+                        ]
+                      : []),
+                    ...(horasExtra > 0
+                      ? [
+                          {
+                            tipo: 'EARNING' as const,
+                            nombre: 'Horas extra',
+                            valor: horasExtra,
+                          },
+                        ]
+                      : []),
+                    { tipo: 'DEDUCTION', nombre: 'Salud (4%)', valor: salud },
                     {
-                      tipo: 'EARNING' as const,
-                      nombre: 'Horas extra',
-                      valor: horasExtra,
+                      tipo: 'DEDUCTION',
+                      nombre: 'Pensión (4%)',
+                      valor: pension,
                     },
-                  ]
-                : []),
-              { tipo: 'DEDUCTION', nombre: 'Salud (4%)', valor: salud },
-              { tipo: 'DEDUCTION', nombre: 'Pensión (4%)', valor: pension },
-            ],
-          },
+                  ],
+                },
+              },
+            });
+            created.push(run);
+          }
         },
-      });
-      created.push(run);
+        { timeout: 30000 },
+      );
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'Ya existe una liquidación para uno de los empleados en este período',
+        );
+      }
+      throw e;
     }
 
     return {
