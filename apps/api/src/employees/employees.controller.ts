@@ -30,6 +30,7 @@ interface RequestUser {
 export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) {}
 
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Post()
   create(@CurrentUser() user: RequestUser, @Body() dto: CreateEmployeeDto) {
     return this.employeesService.create(user.tenantId, user.userId, dto);
@@ -45,6 +46,7 @@ export class EmployeesController {
     return this.employeesService.findOne(user.tenantId, id);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Patch(':id')
   update(
     @CurrentUser() user: RequestUser,

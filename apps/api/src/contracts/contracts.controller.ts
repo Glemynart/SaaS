@@ -29,6 +29,7 @@ interface RequestUser {
 export class ContractsController {
   constructor(private readonly service: ContractsService) {}
 
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Post()
   create(@CurrentUser() user: RequestUser, @Body() dto: CreateContractDto) {
     return this.service.create(user.tenantId, user.userId, dto);
