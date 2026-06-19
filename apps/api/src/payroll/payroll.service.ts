@@ -108,7 +108,7 @@ export class PayrollService {
       if (existing) continue;
 
       const novelties = await this.prisma.payrollNovelty.findMany({
-        where: { tenantId, employeeId: emp.id },
+        where: { tenantId, employeeId: emp.id, payrollPeriodId: periodId },
       });
 
       const salarioBase = Number(emp.salario);
@@ -170,10 +170,16 @@ export class PayrollService {
   }
 
   async createNovelty(tenantId: string, dto: CreatePayrollNoveltyDto) {
-    const emp = await this.prisma.empleado.findFirst({
-      where: { id: dto.employeeId, tenantId, deletedAt: null },
-    });
+    const [emp, period] = await Promise.all([
+      this.prisma.empleado.findFirst({
+        where: { id: dto.employeeId, tenantId, deletedAt: null },
+      }),
+      this.prisma.payrollPeriod.findFirst({
+        where: { id: dto.payrollPeriodId, tenantId },
+      }),
+    ]);
     if (!emp) throw new NotFoundException('Empleado no encontrado');
+    if (!period) throw new NotFoundException('Período no encontrado');
     return this.prisma.payrollNovelty.create({
       data: { ...dto, fecha: new Date(dto.fecha), tenantId },
     });
