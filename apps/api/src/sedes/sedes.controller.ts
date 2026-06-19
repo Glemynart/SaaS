@@ -14,36 +14,40 @@ import { UpdateSedeDto } from './dto/update-sede.dto';
 import { SedeQueryDto } from './dto/sede-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
 
-interface RequestUser {
-  userId: string;
-  tenantId: string;
-}
-
-@UseGuards(JwtAuthGuard, ActiveTenantGuard)
+@UseGuards(JwtAuthGuard, ActiveTenantGuard, RolesGuard)
 @Controller('sedes')
 export class SedesController {
   constructor(private readonly sedesService: SedesService) {}
 
+  @Roles(UserRole.ADMIN)
   @Post()
-  create(@CurrentUser() user: RequestUser, @Body() dto: CreateSedeDto) {
+  create(@CurrentUser() user: CurrentUserPayload, @Body() dto: CreateSedeDto) {
     return this.sedesService.create(user.tenantId, user.userId, dto);
   }
 
   @Get()
-  findAll(@CurrentUser() user: RequestUser, @Query() query: SedeQueryDto) {
+  findAll(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query() query: SedeQueryDto,
+  ) {
     return this.sedesService.findAll(user.tenantId, query);
   }
 
   @Get(':id')
-  findOne(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+  findOne(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
     return this.sedesService.findOne(user.tenantId, id);
   }
 
+  @Roles(UserRole.ADMIN)
   @Patch(':id')
   update(
-    @CurrentUser() user: RequestUser,
+    @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
     @Body() dto: UpdateSedeDto,
   ) {
