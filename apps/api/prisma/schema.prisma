@@ -191,6 +191,9 @@ model Tenant {
   activo       Boolean  @default(true)
   trialEndsAt  DateTime?               // Fecha fin del período de prueba
 
+  // Configuración nómina colombiana
+  aportesExonerados Boolean  @default(false) // Art. 114-1 ET: exoneración salud pat., ICBF, SENA
+
   // Configuración DIAN para facturación electrónica
   // Estos campos se completan si el tenant usa el módulo FE
   feActivo          Boolean  @default(false)
@@ -585,8 +588,9 @@ enum PayrollPeriodStatus {
 // =============================================================================
 
 enum PayrollConceptType {
-  EARNING
-  DEDUCTION
+  EARNING                // Devengo del empleado: salario, auxilio, bonos, extras
+  DEDUCTION              // Deducción del empleado: salud 4%, pensión 4%, FSP
+  EMPLOYER_CONTRIBUTION  // Aporte patronal: salud 8.5%, pensión 12%, ARL, caja, ICBF, SENA
 }
 
 // =============================================================================
@@ -648,12 +652,22 @@ model PayrollRun {
   netoPagar            Decimal  @db.Decimal(12, 2)
   salarioBaseSnapshot  Decimal? @db.Decimal(12, 2)
 
+  // N2A — snapshot de cálculo colombiano (nullable: runs N1 quedan en NULL)
+  ibc                    Decimal? @db.Decimal(14, 2)  // Base de cotización liquidada
+  auxilioTransporte      Decimal? @db.Decimal(14, 2)  // Devengo separado, no es IBC
+  totalAportesPatronales Decimal? @db.Decimal(14, 2)  // Σ EMPLOYER_CONTRIBUTION
+  costoTotalEmpleador    Decimal? @db.Decimal(14, 2)  // totalDevengos + totalAportesPatronales
+  parametroLegalId       String?                       // FK → vigencia de parámetros usada
+
+  parametroLegal ParametroLegalNomina? @relation(fields: [parametroLegalId], references: [id], onDelete: Restrict)
+
   concepts PayrollConcept[]
 
   @@unique([tenantId, payrollPeriodId, employeeId])
   @@index([tenantId])
   @@index([tenantId, payrollPeriodId])
   @@index([tenantId, employeeId])
+  @@index([parametroLegalId])
   @@map("payroll_runs")
 }
 
@@ -671,6 +685,11 @@ model PayrollConcept {
   tipo   PayrollConceptType
   nombre String
   valor  Decimal @db.Decimal(12, 2)
+
+  // N2A — trazabilidad del cálculo (nullable: conceptos N1 quedan en NULL)
+  codigo String?           // Código estable del catálogo: SALARIO_BASE, SALUD_EMP, ARL, etc.
+  base   Decimal? @db.Decimal(14, 2)  // Base sobre la que se calculó (IBC, nómina)
+  factor Decimal? @db.Decimal(8, 6)   // Tarifa aplicada (0.04, 0.085, tarifa ARL…)
 
   @@index([payrollRunId])
   @@map("payroll_concepts")
@@ -940,6 +959,7 @@ model Contrato {
   // Campos adicionales Colombia expansion
   fechaFinPeriodoPrueba DateTime?
   plantillaVersion      String?
+  claseRiesgoArl        Int?     // Clase de riesgo ARL: 1=mínimo … 5=máximo (Decreto 1072/2015)
 
   // Documentos generados — URLs en R2
   pdfKey    String?                   // {tenantId}/contratos/{id}/contrato.pdf
@@ -1353,6 +1373,9 @@ model ParametroLegalNomina {
   // Trazabilidad legal del decreto/resolución que fija estos valores
   fuente String?  // Ej: "Decreto 2613 de 2024, Art. 1"
   notas  String?
+
+  // Inversa de PayrollRun.parametroLegalId (añadida en N2A.2)
+  runs PayrollRun[]
 
   @@unique([tenantId, vigenciaDesde])
   @@index([tenantId, vigenciaDesde, vigenciaHasta])
