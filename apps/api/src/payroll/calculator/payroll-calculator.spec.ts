@@ -189,9 +189,10 @@ describe('PayrollCalculator — invariantes', () => {
     expect(r.totalDevengos).toBe(sum('EARNING'));
     expect(r.totalDeducciones).toBe(sum('DEDUCTION'));
     expect(r.totalAportesPatronales).toBe(sum('EMPLOYER_CONTRIBUTION'));
+    expect(r.totalProvisiones).toBe(sum('PROVISION'));
     expect(r.netoPagar).toBe(r.totalDevengos - r.totalDeducciones);
     expect(r.costoTotalEmpleador).toBe(
-      r.totalDevengos + r.totalAportesPatronales,
+      r.totalDevengos + r.totalAportesPatronales + r.totalProvisiones,
     );
   });
 
@@ -214,5 +215,76 @@ describe('PayrollCalculator — invariantes', () => {
     expect(r.ibc).toBe(3_700_000); // base + bonos + extras
     expect(byCodigo(r.concepts, 'BONUS')!.valor).toBe(500_000);
     expect(byCodigo(r.concepts, 'OVERTIME')!.valor).toBe(200_000);
+  });
+});
+
+describe('PayrollCalculator — provisiones N2B', () => {
+  it('11. provisiones normales: prima/cesantías/intereses sobre salario+auxilio', () => {
+    const r = calculate(baseInput({ salarioBase: SMMLV })); // con auxilio
+    const baseConAux = SMMLV + AUX; // 1_626_397
+
+    const prima = byCodigo(r.concepts, 'PROV_PRIMA')!;
+    const cesantias = byCodigo(r.concepts, 'PROV_CESANTIAS')!;
+    const intereses = byCodigo(r.concepts, 'PROV_INT_CESANTIAS')!;
+    const vacaciones = byCodigo(r.concepts, 'PROV_VACACIONES')!;
+
+    expect(prima.tipo).toBe('PROVISION');
+    expect(prima.base).toBe(baseConAux);
+    expect(prima.factor).toBe(0.0833);
+    expect(prima.valor).toBe(135479); // 1_626_397 * 0.0833
+
+    expect(cesantias.base).toBe(baseConAux);
+    expect(cesantias.valor).toBe(135479);
+
+    expect(intereses.base).toBe(baseConAux);
+    expect(intereses.factor).toBe(0.01);
+    expect(intereses.valor).toBe(16264); // 1_626_397 * 0.01
+
+    expect(vacaciones.base).toBe(SMMLV); // sin auxilio
+    expect(vacaciones.factor).toBe(0.0417);
+    expect(vacaciones.valor).toBe(59360); // 1_423_500 * 0.0417
+
+    expect(r.totalProvisiones).toBe(135479 + 135479 + 16264 + 59360);
+  });
+
+  it('12. con auxilio: prima/cesantías/intereses incluyen auxilio; vacaciones lo excluye', () => {
+    const r = calculate(baseInput({ salarioBase: 2_000_000 })); // ≤ 2 SMMLV → auxilio
+    expect(r.auxilioTransporte).toBe(AUX);
+    expect(byCodigo(r.concepts, 'PROV_PRIMA')!.base).toBe(2_000_000 + AUX);
+    expect(byCodigo(r.concepts, 'PROV_CESANTIAS')!.base).toBe(2_000_000 + AUX);
+    expect(byCodigo(r.concepts, 'PROV_INT_CESANTIAS')!.base).toBe(
+      2_000_000 + AUX,
+    );
+    expect(byCodigo(r.concepts, 'PROV_VACACIONES')!.base).toBe(2_000_000);
+  });
+
+  it('13. sin auxilio: > 2 SMMLV → base prestacional = salario (auxilio 0)', () => {
+    const r = calculate(baseInput({ salarioBase: 3_000_000 }));
+    expect(r.auxilioTransporte).toBe(0);
+    expect(byCodigo(r.concepts, 'PROV_PRIMA')!.base).toBe(3_000_000);
+    expect(byCodigo(r.concepts, 'PROV_PRIMA')!.valor).toBe(249900); // 3M * 0.0833
+    expect(byCodigo(r.concepts, 'PROV_VACACIONES')!.valor).toBe(125100); // 3M * 0.0417
+  });
+
+  it('14. salario integral: solo provisiona VACACIONES (no prima/cesantías/intereses)', () => {
+    const r = calculate(
+      baseInput({ salarioBase: 15_000_000, salarioIntegral: true }),
+    );
+    expect(byCodigo(r.concepts, 'PROV_PRIMA')).toBeUndefined();
+    expect(byCodigo(r.concepts, 'PROV_CESANTIAS')).toBeUndefined();
+    expect(byCodigo(r.concepts, 'PROV_INT_CESANTIAS')).toBeUndefined();
+
+    const vac = byCodigo(r.concepts, 'PROV_VACACIONES')!;
+    expect(vac.base).toBe(15_000_000); // salario completo, NO el 70% del IBC
+    expect(vac.valor).toBe(625500); // 15M * 0.0417
+    expect(r.totalProvisiones).toBe(625500);
+  });
+
+  it('15. invariante: costoTotalEmpleador incluye provisiones', () => {
+    const r = calculate(baseInput({ salarioBase: 2_000_000 }));
+    expect(r.totalProvisiones).toBeGreaterThan(0);
+    expect(r.costoTotalEmpleador).toBe(
+      r.totalDevengos + r.totalAportesPatronales + r.totalProvisiones,
+    );
   });
 });

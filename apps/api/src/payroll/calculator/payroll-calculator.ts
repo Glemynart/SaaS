@@ -28,6 +28,18 @@ import { ibcCapped, ibcFloored, PayrollWarning } from './payroll-warnings';
 /** Factor de IBC para salario integral (CST Art. 132): cotiza sobre el 70%. */
 const SALARIO_INTEGRAL_IBC_FACTOR = 0.7;
 
+// Factores de provisión mensual (N2B). Aproximaciones legales colombianas:
+//  - Prima de servicios (CST Art. 306): 30/360 ≈ 8.33% mensual.
+//  - Cesantías (CST Art. 249): 30/360 ≈ 8.33% mensual.
+//  - Intereses sobre cesantías (Ley 52/1975): 12% anual ≈ 1% mensual de la base.
+//  - Vacaciones (CST Art. 186): 15/360 ≈ 4.17% mensual.
+// NOTA (riesgo de versionado): hoy son constantes; idealmente vivirían en
+// ParametroLegalNomina por vigencia (no se toca schema en N2B.2).
+const FACTOR_PROV_PRIMA = 0.0833;
+const FACTOR_PROV_CESANTIAS = 0.0833;
+const FACTOR_PROV_INT_CESANTIAS = 0.01;
+const FACTOR_PROV_VACACIONES = 0.0417;
+
 /**
  * Redondeo half-up a peso entero. Limpia ruido de punto flotante a 6 decimales
  * antes de redondear, para que un valor legítimamente .5 no caiga a .4999998.
@@ -158,12 +170,57 @@ export function calculate(
     concepts.push(contribution(ConceptCodigo.SENA, 'SENA', ibc, p.pctSena));
   }
 
-  // ── 6. Totales (suma de conceptos YA redondeados) ───────────────────────────
+  // ── 6. Provisiones prestacionales (costo empleador; NO se pagan al empleado) ─
+  // Base prestacional ≠ IBC: incluye auxilio (prima/cesantías/intereses), NO se
+  // topa a 25 SMMLV y para integral NO aplica el factor 70%.
+  // Salario integral (CST Art. 132): el factor prestacional ya remunera prima,
+  // cesantías e intereses → solo se provisiona VACACIONES (es descanso, no
+  // prestación social). Vacaciones se causa sobre el salario completo, sin auxilio.
+  const baseConAuxilio = salarioBase + auxilioTransporte;
+
+  if (!input.salarioIntegral) {
+    concepts.push(
+      provision(
+        ConceptCodigo.PROV_PRIMA,
+        'Provisión prima de servicios',
+        baseConAuxilio,
+        FACTOR_PROV_PRIMA,
+      ),
+    );
+    concepts.push(
+      provision(
+        ConceptCodigo.PROV_CESANTIAS,
+        'Provisión cesantías',
+        baseConAuxilio,
+        FACTOR_PROV_CESANTIAS,
+      ),
+    );
+    concepts.push(
+      provision(
+        ConceptCodigo.PROV_INT_CESANTIAS,
+        'Provisión intereses sobre cesantías',
+        baseConAuxilio,
+        FACTOR_PROV_INT_CESANTIAS,
+      ),
+    );
+  }
+  concepts.push(
+    provision(
+      ConceptCodigo.PROV_VACACIONES,
+      'Provisión vacaciones',
+      salarioBase,
+      FACTOR_PROV_VACACIONES,
+    ),
+  );
+
+  // ── 7. Totales (suma de conceptos YA redondeados) ───────────────────────────
   const totalDevengos = sumByType(concepts, 'EARNING');
   const totalDeducciones = sumByType(concepts, 'DEDUCTION');
   const totalAportesPatronales = sumByType(concepts, 'EMPLOYER_CONTRIBUTION');
+  const totalProvisiones = sumByType(concepts, 'PROVISION');
   const netoPagar = totalDevengos - totalDeducciones;
-  const costoTotalEmpleador = totalDevengos + totalAportesPatronales;
+  const costoTotalEmpleador =
+    totalDevengos + totalAportesPatronales + totalProvisiones;
 
   return {
     concepts,
@@ -172,6 +229,7 @@ export function calculate(
     totalDevengos,
     totalDeducciones,
     totalAportesPatronales,
+    totalProvisiones,
     netoPagar,
     costoTotalEmpleador,
     warnings,
@@ -225,6 +283,22 @@ function contribution(
 ): ConceptResult {
   return {
     tipo: 'EMPLOYER_CONTRIBUTION',
+    codigo,
+    nombre,
+    base: roundPeso(base),
+    factor,
+    valor: roundPeso(base * factor),
+  };
+}
+
+function provision(
+  codigo: ConceptCodigo,
+  nombre: string,
+  base: number,
+  factor: number,
+): ConceptResult {
+  return {
+    tipo: 'PROVISION',
     codigo,
     nombre,
     base: roundPeso(base),
