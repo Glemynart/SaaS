@@ -19,6 +19,7 @@ import {
   resolveContrato,
   toSnapshot,
 } from './payroll-mapper';
+import { resolveDiasCausados } from './dias-causados';
 
 @Injectable()
 export class PayrollService {
@@ -152,9 +153,23 @@ export class PayrollService {
     const legalSnapshot = toSnapshot(legalParam);
     const aportesExonerados = tenant!.aportesExonerados;
 
+    // N2C: incluye RETIRADO cuyo fechaRetiro cae dentro o después del inicio del período.
     const employees = await this.prisma.empleado.findMany({
-      where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
-      select: { id: true, salario: true, salarioIntegral: true },
+      where: {
+        tenantId,
+        deletedAt: null,
+        OR: [
+          { estado: 'ACTIVO' },
+          { estado: 'RETIRADO', fechaRetiro: { gte: period.fechaInicio } },
+        ],
+      },
+      select: {
+        id: true,
+        salario: true,
+        salarioIntegral: true,
+        fechaIngreso: true,
+        fechaRetiro: true,
+      },
     });
 
     const allNovelties = await this.prisma.payrollNovelty.findMany({
@@ -196,6 +211,15 @@ export class PayrollService {
       await this.prisma.$transaction(
         async (tx) => {
           for (const emp of employees) {
+            // N2C: resolver días causados; omitir si el empleado no causa días en este período.
+            const diasCausados = resolveDiasCausados(
+              emp.fechaIngreso,
+              emp.fechaRetiro,
+              period.fechaInicio,
+              period.fechaFin,
+            );
+            if (diasCausados === 0) continue;
+
             const existing = await tx.payrollRun.findFirst({
               where: {
                 tenantId,
@@ -213,6 +237,7 @@ export class PayrollService {
               legalSnapshot,
               period.fechaInicio,
               runWarnings,
+              diasCausados,
             );
 
             const run = await tx.payrollRun.create({
@@ -285,9 +310,23 @@ export class PayrollService {
     const legalSnapshot = toSnapshot(legalParam);
     const aportesExonerados = tenant!.aportesExonerados;
 
+    // N2C: incluye RETIRADO cuyo fechaRetiro cae dentro o después del inicio del período.
     const employees = await this.prisma.empleado.findMany({
-      where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
-      select: { id: true, salario: true, salarioIntegral: true },
+      where: {
+        tenantId,
+        deletedAt: null,
+        OR: [
+          { estado: 'ACTIVO' },
+          { estado: 'RETIRADO', fechaRetiro: { gte: period.fechaInicio } },
+        ],
+      },
+      select: {
+        id: true,
+        salario: true,
+        salarioIntegral: true,
+        fechaIngreso: true,
+        fechaRetiro: true,
+      },
     });
 
     const allNovelties = await this.prisma.payrollNovelty.findMany({
@@ -345,6 +384,15 @@ export class PayrollService {
           }
 
           for (const emp of employees) {
+            // N2C: resolver días causados; omitir si el empleado no causa días en este período.
+            const diasCausados = resolveDiasCausados(
+              emp.fechaIngreso,
+              emp.fechaRetiro,
+              period.fechaInicio,
+              period.fechaFin,
+            );
+            if (diasCausados === 0) continue;
+
             const empWarnings = this.calculateAndCollectWarnings(
               emp,
               contractsByEmployee.get(emp.id) ?? [],
@@ -353,6 +401,7 @@ export class PayrollService {
               legalSnapshot,
               period.fechaInicio,
               runWarnings,
+              diasCausados,
             );
 
             await tx.payrollRun.create({
@@ -364,8 +413,8 @@ export class PayrollService {
                 tenantId,
               ),
             });
+            summary.runsCreated++;
           }
-          summary.runsCreated = employees.length;
         },
         { timeout: 30000 },
       );
@@ -398,8 +447,8 @@ export class PayrollService {
       .catch(() => {});
 
     return {
-      recalculated: employees.length,
-      message: `${employees.length} empleados reliquidados`,
+      recalculated: summary.runsCreated,
+      message: `${summary.runsCreated} empleados reliquidados`,
       ...(Object.keys(runWarnings).length > 0 && { warnings: runWarnings }),
     };
   }
@@ -562,6 +611,7 @@ export class PayrollService {
     legalSnapshot: ReturnType<typeof toSnapshot>,
     periodStart: Date,
     warningsMap: Record<string, string[]>,
+    diasCausados: number,
   ): { result: PayrollCalculationResult } {
     const { contrato, fallback } = resolveContrato(empContracts, periodStart);
 
@@ -571,6 +621,7 @@ export class PayrollService {
       empNovelties,
       aportesExonerados,
       legalSnapshot,
+      diasCausados,
     );
 
     const allWarnings: string[] = [];

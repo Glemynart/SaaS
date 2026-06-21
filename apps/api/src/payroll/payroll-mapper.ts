@@ -20,6 +20,8 @@ export interface EmpForPayroll {
   id: string;
   salario: Prisma.Decimal;
   salarioIntegral: boolean;
+  fechaIngreso: Date;
+  fechaRetiro: Date | null;
 }
 
 export interface ContratoForPayroll {
@@ -167,6 +169,7 @@ export function buildCalculationInput(
   novelties: Array<{ tipo: string; valor: Prisma.Decimal | null }>,
   aportesExonerados: boolean,
   legalParams: LegalParamsSnapshot,
+  diasCausados?: number,
 ): BuildInputResult {
   const serviceWarnings: string[] = [];
 
@@ -203,6 +206,7 @@ export function buildCalculationInput(
     novelties: novelties.map(
       (n): NoveltyInput => ({ tipo: n.tipo, valor: Number(n.valor ?? 0) }),
     ),
+    diasCausados,
   };
 
   return { input, serviceWarnings };

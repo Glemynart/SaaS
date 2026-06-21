@@ -97,6 +97,12 @@ export interface PayrollCalculationInput {
   legalParams: LegalParamsSnapshot;
   /** Novedades del período para este empleado. */
   novelties: NoveltyInput[];
+  /**
+   * N2C — días causados del período en mes comercial [0..30]. El servicio los
+   * resuelve con resolveDiasCausados(). Omitido o undefined → 30 (mes completo),
+   * preservando el comportamiento N2A/N2B bit a bit.
+   */
+  diasCausados?: number;
 }
 
 /** Una línea de concepto calculada. */

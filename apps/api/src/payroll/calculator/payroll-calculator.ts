@@ -56,13 +56,23 @@ export function calculate(
   const warnings: PayrollWarning[] = [];
   const concepts: ConceptResult[] = [];
 
+  // ── 0. Proporcionalidad por días causados (N2C) ─────────────────────────────
+  // diasCausados ∈ [0..30]; default 30 (mes completo). proporcion = días/30.
+  // Con 30 días → proporcion = 1.0 exacto → toda multiplicación es no-op y la
+  // salida es bit-idéntica a N2A/N2B. La elegibilidad de auxilio y exoneración
+  // usa el salario MENSUAL completo; solo los montos se prorratean.
+  const diasCausados = Math.min(Math.max(input.diasCausados ?? 30, 0), 30);
+  const proporcion = diasCausados / 30;
+
   // ── 1. Devengos constitutivos (entran a IBC) ────────────────────────────────
-  const salarioBase = input.salarioBase;
+  const salarioBase = input.salarioBase; // mensual completo (para elegibilidad)
+  const salarioBaseProrr = salarioBase * proporcion; // prorrateado (devengo/bases)
+  // Novedades (BONUS/OVERTIME) son montos reales del período: NO se prorratean.
   const bonificaciones = sumNovelties(input, 'BONUS');
   const horasExtra = sumNovelties(input, 'OVERTIME');
 
   concepts.push(
-    earning(ConceptCodigo.SALARIO_BASE, 'Salario base', salarioBase),
+    earning(ConceptCodigo.SALARIO_BASE, 'Salario base', salarioBaseProrr),
   );
   if (bonificaciones > 0) {
     concepts.push(
@@ -74,11 +84,13 @@ export function calculate(
   }
 
   // ── 2. IBC (constitutivos; sin auxilio; integral al 70%; topado y redondeado)─
-  let ibcRaw = salarioBase + bonificaciones + horasExtra;
+  // Base prorrateada; piso y techo también se prorratean (un mes parcial cotiza
+  // sobre topes parciales). Con proporcion = 1 → idéntico a N2A.
+  let ibcRaw = salarioBaseProrr + bonificaciones + horasExtra;
   if (input.salarioIntegral) ibcRaw *= SALARIO_INTEGRAL_IBC_FACTOR;
 
-  const ibcMin = p.smmlv * p.topeIbcMinSmmlv;
-  const ibcMax = p.smmlv * p.topeIbcMaxSmmlv;
+  const ibcMin = p.smmlv * p.topeIbcMinSmmlv * proporcion;
+  const ibcMax = p.smmlv * p.topeIbcMaxSmmlv * proporcion;
   let ibc = ibcRaw;
   if (ibc < ibcMin) {
     warnings.push(ibcFloored(roundPeso(ibcRaw), roundPeso(ibcMin)));
@@ -90,8 +102,11 @@ export function calculate(
   ibc = roundPeso(ibc); // IBC redondeado ANTES de cotizar
 
   // ── 3. Auxilio de transporte (devengo, NO entra a IBC) ──────────────────────
+  // Elegibilidad por salario mensual completo; monto prorrateado por días.
   const aplicaAuxilio = salarioBase <= p.smmlv * p.umbralAuxilioSmmlv;
-  const auxilioTransporte = aplicaAuxilio ? roundPeso(p.auxilioTransporte) : 0;
+  const auxilioTransporte = aplicaAuxilio
+    ? roundPeso(p.auxilioTransporte * proporcion)
+    : 0;
   if (auxilioTransporte > 0) {
     concepts.push(
       earning(
@@ -176,7 +191,8 @@ export function calculate(
   // Salario integral (CST Art. 132): el factor prestacional ya remunera prima,
   // cesantías e intereses → solo se provisiona VACACIONES (es descanso, no
   // prestación social). Vacaciones se causa sobre el salario completo, sin auxilio.
-  const baseConAuxilio = salarioBase + auxilioTransporte;
+  // Bases prorrateadas por días causados (auxilioTransporte ya viene prorrateado).
+  const baseConAuxilio = salarioBaseProrr + auxilioTransporte;
 
   if (!input.salarioIntegral) {
     concepts.push(
@@ -208,7 +224,7 @@ export function calculate(
     provision(
       ConceptCodigo.PROV_VACACIONES,
       'Provisión vacaciones',
-      salarioBase,
+      salarioBaseProrr,
       FACTOR_PROV_VACACIONES,
     ),
   );

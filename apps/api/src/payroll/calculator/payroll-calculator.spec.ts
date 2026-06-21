@@ -288,3 +288,81 @@ describe('PayrollCalculator — provisiones N2B', () => {
     );
   });
 });
+
+describe('PayrollCalculator — proporcionalidad por días causados N2C', () => {
+  it('16. backward compatible: diasCausados=30 explícito ≡ default (omitido)', () => {
+    const sinDias = calculate(baseInput({ salarioBase: 6_000_000 }));
+    const con30 = calculate(
+      baseInput({ salarioBase: 6_000_000, diasCausados: 30 }),
+    );
+    expect(con30).toEqual(sinDias);
+  });
+
+  it('17. 15 días: prorratea salario, auxilio, IBC, deducciones y provisiones', () => {
+    const half = calculate(baseInput({ salarioBase: SMMLV, diasCausados: 15 }));
+
+    // Salario base e IBC a la mitad (piso de IBC también prorrateado → no aplica)
+    expect(byCodigo(half.concepts, 'SALARIO_BASE')!.valor).toBe(
+      roundPeso(SMMLV * 0.5),
+    );
+    expect(half.ibc).toBe(roundPeso(SMMLV * 0.5));
+    // Auxilio prorrateado (elegible por salario mensual completo ≤ 2 SMMLV)
+    expect(half.auxilioTransporte).toBe(roundPeso(AUX * 0.5));
+    // Deducción empleado sobre IBC prorrateado
+    expect(byCodigo(half.concepts, 'SALUD_EMP')!.valor).toBe(
+      roundPeso(half.ibc * 0.04),
+    );
+    // Aporte patronal sobre IBC prorrateado
+    expect(byCodigo(half.concepts, 'PENSION_PAT')!.valor).toBe(
+      roundPeso(half.ibc * 0.12),
+    );
+    // Provisión vacaciones sobre salario prorrateado
+    expect(byCodigo(half.concepts, 'PROV_VACACIONES')!.valor).toBe(
+      roundPeso(SMMLV * 0.5 * 0.0417),
+    );
+  });
+
+  it('18. la elegibilidad de auxilio usa el salario mensual, no el prorrateado', () => {
+    // 2 SMMLV trabaja 6 días: salario prorrateado bajo, pero SIGUE siendo elegible.
+    const r = calculate(baseInput({ salarioBase: 2_000_000, diasCausados: 6 }));
+    expect(r.auxilioTransporte).toBe(roundPeso(AUX * (6 / 30)));
+    expect(byCodigo(r.concepts, 'AUX_TRANSP')).toBeDefined();
+  });
+
+  it('19. diasCausados=0: run en cero (sin causación)', () => {
+    const r = calculate(baseInput({ salarioBase: 2_000_000, diasCausados: 0 }));
+    expect(r.ibc).toBe(0);
+    expect(r.auxilioTransporte).toBe(0);
+    expect(r.totalDevengos).toBe(0);
+    expect(r.totalDeducciones).toBe(0);
+    expect(r.totalAportesPatronales).toBe(0);
+    expect(r.totalProvisiones).toBe(0);
+    expect(r.netoPagar).toBe(0);
+    expect(r.costoTotalEmpleador).toBe(0);
+  });
+
+  it('20. integral + parcial: solo vacaciones, prorrateadas sobre el salario integral', () => {
+    const r = calculate(
+      baseInput({
+        salarioBase: 15_000_000,
+        salarioIntegral: true,
+        diasCausados: 15,
+      }),
+    );
+    expect(byCodigo(r.concepts, 'PROV_PRIMA')).toBeUndefined();
+    expect(byCodigo(r.concepts, 'PROV_CESANTIAS')).toBeUndefined();
+    expect(byCodigo(r.concepts, 'PROV_INT_CESANTIAS')).toBeUndefined();
+
+    const vac = byCodigo(r.concepts, 'PROV_VACACIONES')!;
+    expect(vac.base).toBe(roundPeso(15_000_000 * 0.5)); // prorrateado, sin factor 70%
+    expect(vac.valor).toBe(roundPeso(15_000_000 * 0.5 * 0.0417));
+  });
+
+  it('21. fuera de rango se clampa a [0,30]: 45 días ≡ 30 (mes completo)', () => {
+    const completo = calculate(baseInput({ salarioBase: 3_000_000 }));
+    const excedido = calculate(
+      baseInput({ salarioBase: 3_000_000, diasCausados: 45 }),
+    );
+    expect(excedido).toEqual(completo);
+  });
+});
