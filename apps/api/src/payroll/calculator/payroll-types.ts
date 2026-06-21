@@ -12,12 +12,13 @@ import { PayrollWarning } from './payroll-warnings';
 export type PayrollConceptType =
   | 'EARNING'
   | 'DEDUCTION'
-  | 'EMPLOYER_CONTRIBUTION';
+  | 'EMPLOYER_CONTRIBUTION'
+  | 'PROVISION';
 
 /** Clase de riesgo ARL (Decreto 1072/2015). El servicio resuelve null → 1. */
 export type ArlClase = 1 | 2 | 3 | 4 | 5;
 
-/** Códigos estables del catálogo de conceptos N2A. */
+/** Códigos estables del catálogo de conceptos N2A / N2B. */
 export const ConceptCodigo = {
   SALARIO_BASE: 'SALARIO_BASE',
   BONUS: 'BONUS',
@@ -32,6 +33,11 @@ export const ConceptCodigo = {
   CAJA: 'CAJA',
   ICBF: 'ICBF',
   SENA: 'SENA',
+  // N2B — provisiones prestacionales (tipo = PROVISION)
+  PROV_PRIMA: 'PROV_PRIMA',
+  PROV_CESANTIAS: 'PROV_CESANTIAS',
+  PROV_INT_CESANTIAS: 'PROV_INT_CESANTIAS',
+  PROV_VACACIONES: 'PROV_VACACIONES',
 } as const;
 
 export type ConceptCodigo = (typeof ConceptCodigo)[keyof typeof ConceptCodigo];
@@ -111,6 +117,7 @@ export interface PayrollCalculationResult {
   totalDevengos: number;
   totalDeducciones: number;
   totalAportesPatronales: number;
+  totalProvisiones: number; // N2B — Σ conceptos tipo PROVISION
   netoPagar: number;
   costoTotalEmpleador: number;
   warnings: PayrollWarning[];

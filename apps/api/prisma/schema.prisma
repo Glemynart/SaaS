@@ -591,6 +591,7 @@ enum PayrollConceptType {
   EARNING                // Devengo del empleado: salario, auxilio, bonos, extras
   DEDUCTION              // Deducción del empleado: salud 4%, pensión 4%, FSP
   EMPLOYER_CONTRIBUTION  // Aporte patronal: salud 8.5%, pensión 12%, ARL, caja, ICBF, SENA
+  PROVISION              // N2B — provisión prestacional: prima, cesantías, intereses, vacaciones
 }
 
 // =============================================================================
@@ -658,6 +659,9 @@ model PayrollRun {
   totalAportesPatronales Decimal? @db.Decimal(14, 2)  // Σ EMPLOYER_CONTRIBUTION
   costoTotalEmpleador    Decimal? @db.Decimal(14, 2)  // totalDevengos + totalAportesPatronales
   parametroLegalId       String?                       // FK → vigencia de parámetros usada
+
+  // N2B — snapshot de provisiones prestacionales (nullable: runs N1/N2A quedan en NULL)
+  totalProvisiones       Decimal? @db.Decimal(14, 2)  // Σ PROVISION (prima, cesantías, intereses, vacaciones)
 
   parametroLegal ParametroLegalNomina? @relation(fields: [parametroLegalId], references: [id], onDelete: Restrict)
 

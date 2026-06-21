@@ -612,7 +612,10 @@ export class PayrollService {
       auxilioTransporte: result.auxilioTransporte,
       totalAportesPatronales: result.totalAportesPatronales,
       costoTotalEmpleador: result.costoTotalEmpleador,
+      // N2B — snapshot de provisiones prestacionales
+      totalProvisiones: result.totalProvisiones,
       parametroLegalId,
+      // Conceptos (mapeo genérico): incluye PROVISION con codigo/base/factor.
       concepts: {
         create: result.concepts.map((c) => ({
           tipo: c.tipo,
