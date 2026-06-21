@@ -191,6 +191,9 @@ model Tenant {
   activo       Boolean  @default(true)
   trialEndsAt  DateTime?               // Fecha fin del período de prueba
 
+  // Configuración nómina colombiana
+  aportesExonerados Boolean  @default(false) // Art. 114-1 ET: exoneración salud pat., ICBF, SENA
+
   // Configuración DIAN para facturación electrónica
   // Estos campos se completan si el tenant usa el módulo FE
   feActivo          Boolean  @default(false)
@@ -225,6 +228,7 @@ model Tenant {
   clientesFE         ClienteFE[]
   productos          Producto[]
   facturas           Factura[]
+  parametrosLegales  ParametroLegalNomina[]
 
   @@map("tenants")
 }
@@ -584,8 +588,9 @@ enum PayrollPeriodStatus {
 // =============================================================================
 
 enum PayrollConceptType {
-  EARNING
-  DEDUCTION
+  EARNING                // Devengo del empleado: salario, auxilio, bonos, extras
+  DEDUCTION              // Deducción del empleado: salud 4%, pensión 4%, FSP
+  EMPLOYER_CONTRIBUTION  // Aporte patronal: salud 8.5%, pensión 12%, ARL, caja, ICBF, SENA
 }
 
 // =============================================================================
@@ -647,12 +652,22 @@ model PayrollRun {
   netoPagar            Decimal  @db.Decimal(12, 2)
   salarioBaseSnapshot  Decimal? @db.Decimal(12, 2)
 
+  // N2A — snapshot de cálculo colombiano (nullable: runs N1 quedan en NULL)
+  ibc                    Decimal? @db.Decimal(14, 2)  // Base de cotización liquidada
+  auxilioTransporte      Decimal? @db.Decimal(14, 2)  // Devengo separado, no es IBC
+  totalAportesPatronales Decimal? @db.Decimal(14, 2)  // Σ EMPLOYER_CONTRIBUTION
+  costoTotalEmpleador    Decimal? @db.Decimal(14, 2)  // totalDevengos + totalAportesPatronales
+  parametroLegalId       String?                       // FK → vigencia de parámetros usada
+
+  parametroLegal ParametroLegalNomina? @relation(fields: [parametroLegalId], references: [id], onDelete: Restrict)
+
   concepts PayrollConcept[]
 
   @@unique([tenantId, payrollPeriodId, employeeId])
   @@index([tenantId])
   @@index([tenantId, payrollPeriodId])
   @@index([tenantId, employeeId])
+  @@index([parametroLegalId])
   @@map("payroll_runs")
 }
 
@@ -670,6 +685,11 @@ model PayrollConcept {
   tipo   PayrollConceptType
   nombre String
   valor  Decimal @db.Decimal(12, 2)
+
+  // N2A — trazabilidad del cálculo (nullable: conceptos N1 quedan en NULL)
+  codigo String?           // Código estable del catálogo: SALARIO_BASE, SALUD_EMP, ARL, etc.
+  base   Decimal? @db.Decimal(14, 2)  // Base sobre la que se calculó (IBC, nómina)
+  factor Decimal? @db.Decimal(8, 6)   // Tarifa aplicada (0.04, 0.085, tarifa ARL…)
 
   @@index([payrollRunId])
   @@map("payroll_concepts")
@@ -939,6 +959,7 @@ model Contrato {
   // Campos adicionales Colombia expansion
   fechaFinPeriodoPrueba DateTime?
   plantillaVersion      String?
+  claseRiesgoArl        Int?     // Clase de riesgo ARL: 1=mínimo … 5=máximo (Decreto 1072/2015)
 
   // Documentos generados — URLs en R2
   pdfKey    String?                   // {tenantId}/contratos/{id}/contrato.pdf
@@ -1287,4 +1308,77 @@ model ItemFactura {
 
   @@index([facturaId])
   @@map("items_factura")
+}
+
+// =============================================================================
+// PARAMETRO LEGAL NOMINA — Tarifas y topes legales colombianos por vigencia
+// =============================================================================
+// Una fila = un bloque de parámetros vigentes para un rango de fechas.
+// tenantId NULL  = default global de plataforma (sembrado en seed).
+// tenantId valor = override por tenant (caso raro).
+// El PayrollCalculator lee el bloque completo como un snapshot inmutable.
+// PayrollRun.parametroLegalId (FK futura, N2A.3) congela qué fila se usó.
+// Reproducibilidad: un período cerrado de 2025 se re-explica con tarifas 2025.
+// =============================================================================
+
+model ParametroLegalNomina {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Alcance multi-tenant: NULL = global de plataforma, valor = override por tenant
+  tenantId  String?
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Vigencia (fechas como Date, sin zona horaria, para evitar corrimientos)
+  vigenciaDesde DateTime @db.Date
+  vigenciaHasta DateTime? @db.Date  // NULL = vigencia abierta (la más reciente)
+  anio          Int                 // Denormalizado para filtrado humano / admin
+
+  // Salarios de referencia (COP)
+  smmlv             Decimal @db.Decimal(14, 2)
+  auxilioTransporte Decimal @db.Decimal(14, 2)
+  uvt               Decimal @db.Decimal(14, 2)  // Reservado: FSP / retención futura
+
+  // Topes IBC expresados en múltiplos de SMMLV
+  topeIbcMinSmmlv    Int     @default(1)          // Piso IBC = 1 SMMLV
+  topeIbcMaxSmmlv    Int     @default(25)         // Techo IBC = 25 SMMLV
+  umbralAuxilioSmmlv Decimal @default(2) @db.Decimal(4, 2)   // ≤ 2 SMMLV → aplica auxilio
+  umbralExoneracionSmmlv Int @default(10)         // Art. 114-1: < 10 SMMLV → exoneración
+
+  // Tarifas empleado (fracción: 0.04 = 4%) — base = IBC
+  pctSaludEmpleado   Decimal @db.Decimal(8, 6)   // 0.040000
+  pctPensionEmpleado Decimal @db.Decimal(8, 6)   // 0.040000
+
+  // Tarifas empleador (fracción) — base = IBC o nómina según concepto
+  pctSaludEmpleador   Decimal @db.Decimal(8, 6)  // 0.085000 (exonerable)
+  pctPensionEmpleador Decimal @db.Decimal(8, 6)  // 0.120000
+  pctCaja             Decimal @db.Decimal(8, 6)  // 0.040000 (no exonerable)
+  pctIcbf             Decimal @db.Decimal(8, 6)  // 0.030000 (exonerable)
+  pctSena             Decimal @db.Decimal(8, 6)  // 0.020000 (exonerable)
+
+  // ARL — tarifa por clase de riesgo I a V (fracción)
+  arlClaseI   Decimal @db.Decimal(8, 6)  // 0.00522
+  arlClaseII  Decimal @db.Decimal(8, 6)  // 0.01044
+  arlClaseIII Decimal @db.Decimal(8, 6)  // 0.02436
+  arlClaseIV  Decimal @db.Decimal(8, 6)  // 0.04350
+  arlClaseV   Decimal @db.Decimal(8, 6)  // 0.06960
+
+  // FSP — escala progresiva por tramos (Ley 100 Art. 27, Ley 797/2003)
+  // Shape: [{ desdeSmmlv: number, hastaSmmlv: number | null, pct: number }]
+  // Ejemplo: [{ desdeSmmlv: 4, hastaSmmlv: 16, pct: 0.01 }, { desdeSmmlv: 16, hastaSmmlv: 17, pct: 0.012 }, ...]
+  // pct = tasa TOTAL para el tramo (no adicional)
+  fspTramos Json
+
+  // Trazabilidad legal del decreto/resolución que fija estos valores
+  fuente String?  // Ej: "Decreto 2613 de 2024, Art. 1"
+  notas  String?
+
+  // Inversa de PayrollRun.parametroLegalId (añadida en N2A.2)
+  runs PayrollRun[]
+
+  @@unique([tenantId, vigenciaDesde])
+  @@index([tenantId, vigenciaDesde, vigenciaHasta])
+  @@index([tenantId, anio])
+  @@map("parametros_legales_nomina")
 }
