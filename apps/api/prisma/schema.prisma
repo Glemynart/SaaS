@@ -229,6 +229,7 @@ model Tenant {
   productos          Producto[]
   facturas           Factura[]
   parametrosLegales  ParametroLegalNomina[]
+  liquidations       Liquidation[]
 
   @@map("tenants")
 }
@@ -381,6 +382,7 @@ model Empleado {
   payrollNovelties    PayrollNovelty[]
   expediente          ExpedienteDoc[]
   alertas             Alerta[]
+  liquidations        Liquidation[]
 
   @@unique([tenantId, cedula])
   @@index([tenantId, estado])
@@ -608,6 +610,25 @@ enum PayrollNoveltyType {
 }
 
 // =============================================================================
+// LIQUIDATION STATUS — Estado de la liquidación laboral
+// =============================================================================
+
+enum LiquidationStatus {
+  DRAFT       // En elaboración, aún modificable
+  FINALIZED   // Aprobada y congelada
+  VOIDED      // Anulada
+}
+
+// =============================================================================
+// LIQUIDATION CONCEPT TYPE — Tipo de concepto en liquidación laboral
+// =============================================================================
+
+enum LiquidationConceptType {
+  EARNING    // Prestación social / devengo: prima, cesantías, intereses, vacaciones, salario pendiente
+  PROVISION  // Concepto de costo diferido (reservado para extensiones futuras)
+}
+
+// =============================================================================
 // PAYROLL PERIOD — Período de liquidación de nómina
 // =============================================================================
 
@@ -726,6 +747,71 @@ model PayrollNovelty {
   @@index([tenantId, employeeId])
   @@index([tenantId, tipo])
   @@map("payroll_novelties")
+}
+
+// =============================================================================
+// LIQUIDATION — Liquidación laboral de un empleado (N2D)
+// =============================================================================
+// Dominio propio: no depende de PayrollRun ni PayrollPeriod.
+// El calculator (N2D.1) recalcula desde fechas y bases legales reales;
+// las provisiones N2B son costo contable y nunca se leen aquí.
+// =============================================================================
+
+model Liquidation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  empleadoId String
+  empleado   Empleado @relation(fields: [empleadoId], references: [id])
+
+  // Fecha de retiro usada en el cálculo (snapshot; no mutable tras FINALIZED)
+  fechaRetiro DateTime
+
+  status LiquidationStatus @default(DRAFT)
+
+  // Días comerciales liquidados (convención 30/360, extremo exclusivo)
+  diasLiquidados Int
+
+  // Totales en peso entero
+  totalDevengado   Decimal @db.Decimal(14, 2)
+  totalProvisiones Decimal @db.Decimal(14, 2)
+  totalLiquidacion Decimal @db.Decimal(14, 2)
+
+  concepts LiquidationConcept[]
+
+  @@index([tenantId])
+  @@index([empleadoId])
+  @@index([status])
+  @@map("liquidations")
+}
+
+// =============================================================================
+// LIQUIDATION CONCEPT — Concepto individual dentro de una liquidación
+// =============================================================================
+
+model LiquidationConcept {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  liquidationId String
+  liquidation   Liquidation @relation(fields: [liquidationId], references: [id], onDelete: Cascade)
+
+  codigo String                  // Código estable del catálogo: LIQ_PRIMA, LIQ_CESANTIAS, etc.
+  nombre String
+  tipo   LiquidationConceptType
+
+  base   Decimal? @db.Decimal(14, 2)  // Base monetaria del cálculo
+  factor Decimal? @db.Decimal(8, 6)   // Factor aplicado (ej. 0.5 = 180 días / 360)
+  valor  Decimal  @db.Decimal(14, 2)  // Monto en peso entero: roundPeso(base × factor)
+
+  @@index([liquidationId])
+  @@index([codigo])
+  @@map("liquidation_concepts")
 }
 
 // =============================================================================
