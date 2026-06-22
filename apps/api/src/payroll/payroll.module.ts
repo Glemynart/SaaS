@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { PayrollController } from './payroll.controller';
 import { PayrollService } from './payroll.service';
+import { LiquidationService } from './liquidation/liquidation.service';
 import { TenantsModule } from '../tenants/tenants.module';
 
 @Module({
   imports: [TenantsModule],
   controllers: [PayrollController],
-  providers: [PayrollService],
+  providers: [PayrollService, LiquidationService],
 })
 export class PayrollModule {}
