@@ -12,6 +12,7 @@ import { ContractsService } from './contracts.service';
 import { ContractQueryDto } from './dto/contract-query.dto';
 import { CreateContractDto } from './dto/create-contract.dto';
 import { UpdateContractStatusDto } from './dto/update-contract-status.dto';
+import { GenerateContractDocumentDto } from './dto/generate-contract-document.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -63,5 +64,15 @@ export class ContractsController {
     @Body() dto: UpdateContractStatusDto,
   ) {
     return this.service.updateStatus(user.tenantId, user.userId, id, dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Post(':id/generate-document')
+  generateDocument(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() dto: GenerateContractDocumentDto,
+  ) {
+    return this.service.generateDocument(user.tenantId, user.userId, id, dto);
   }
 }
