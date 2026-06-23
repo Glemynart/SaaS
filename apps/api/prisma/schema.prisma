@@ -502,6 +502,9 @@ model GeneratedDocument {
   templateId String
   template   DocumentTemplate  @relation(fields: [templateId], references: [id])
 
+  contratoId String?
+  contrato   Contrato?         @relation(fields: [contratoId], references: [id])
+
   nombre          String   // Nombre del documento generado
   contenidoFinal  String   // Contenido con variables ya reemplazadas (snapshot inmutable)
   pdfUrl          String?  // URL del PDF generado (R2-ready)
@@ -514,6 +517,7 @@ model GeneratedDocument {
   @@index([tenantId, employeeId])
   @@index([tenantId, tipo])
   @@index([tenantId, createdAt])
+  @@index([tenantId, contratoId])
   @@map("generated_documents")
 }
 
@@ -1061,8 +1065,9 @@ model Contrato {
   variablesSnapshot Json @default("{}")
 
   // Relaciones
-  alertas        Alerta[]
-  expedienteDocs ExpedienteDoc[]
+  alertas            Alerta[]
+  expedienteDocs     ExpedienteDoc[]
+  generatedDocuments GeneratedDocument[]
 
   @@index([tenantId, estado])
   @@index([tenantId, empleadoId])

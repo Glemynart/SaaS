@@ -248,6 +248,7 @@ export class GeneratedDocumentsService {
           tipo: true,
           employeeId: true,
           tenantId: true,
+          contratoId: true,
         },
       });
 
@@ -258,6 +259,7 @@ export class GeneratedDocumentsService {
         result.nombre,
         result.tipo,
         tx,
+        result.contratoId,
       );
 
       return result;

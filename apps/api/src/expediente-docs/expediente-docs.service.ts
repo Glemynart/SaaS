@@ -67,6 +67,7 @@ export class ExpedienteDocsService {
     nombre: string,
     tipo: string,
     tx: Prisma.TransactionClient = this.prisma,
+    contratoId?: string | null,
   ) {
     const categoria = TIPO_TO_CATEGORIA[tipo] ?? ExpedienteCategoria.OTRO;
     const storageKey = `${tenantId}/expediente/${employeeId}/${categoria}/gen_${generatedDocId}_v1.pdf`;
@@ -76,6 +77,7 @@ export class ExpedienteDocsService {
         tenantId,
         empleadoId: employeeId,
         generatedDocumentId: generatedDocId,
+        contratoId: contratoId ?? undefined,
         categoria,
         nombre,
         storageKey,
