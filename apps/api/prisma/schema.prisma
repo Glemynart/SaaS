@@ -614,9 +614,10 @@ enum PayrollNoveltyType {
 // =============================================================================
 
 enum LiquidationStatus {
-  DRAFT       // En elaboración, aún modificable
-  FINALIZED   // Aprobada y congelada
-  VOIDED      // Anulada
+  DRAFT     // En elaboración, aún modificable
+  APPROVED  // Aprobada y congelada — no modificable
+  PAID      // Pagada — terminal
+  VOIDED    // Anulada sin pago — terminal
 }
 
 // =============================================================================

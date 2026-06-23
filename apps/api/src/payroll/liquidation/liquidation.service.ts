@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { LiquidationStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { calculate, diasComerciales } from './liquidation-calculator';
@@ -13,12 +14,35 @@ import {
   buildLiquidationInput,
 } from './liquidation-mapper';
 
+const VALID_TRANSITIONS: Record<LiquidationStatus, LiquidationStatus[]> = {
+  DRAFT: ['APPROVED', 'VOIDED'],
+  APPROVED: ['PAID', 'VOIDED'],
+  PAID: [],
+  VOIDED: [],
+};
+
 @Injectable()
 export class LiquidationService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
   ) {}
+
+  assertTransition(current: LiquidationStatus, target: LiquidationStatus) {
+    if (!VALID_TRANSITIONS[current].includes(target)) {
+      throw new BadRequestException(
+        `Transición de estado no permitida: ${current} → ${target}`,
+      );
+    }
+  }
+
+  assertEditable(status: LiquidationStatus) {
+    if (status !== 'DRAFT') {
+      throw new BadRequestException(
+        `La liquidación en estado ${status} no es modificable`,
+      );
+    }
+  }
 
   async createLiquidacion(
     tenantId: string,
@@ -188,5 +212,115 @@ export class LiquidationService {
       periodo.fechaInicio > fechaIngreso ? periodo.fechaInicio : fechaIngreso;
     const dias = diasComerciales(desde, addDays(fechaRetiro, 1));
     return dias > 0 ? dias : 0;
+  }
+
+  // ── Transiciones de estado (N2D.5) ──────────────────────────────────────────
+
+  async approveLiquidation(
+    tenantId: string,
+    userId: string,
+    liquidationId: string,
+  ) {
+    const liq = await this.prisma.liquidation.findFirst({
+      where: { id: liquidationId, tenantId },
+      select: { id: true, status: true, empleadoId: true },
+    });
+
+    if (!liq) {
+      throw new NotFoundException('Liquidación no encontrada');
+    }
+
+    this.assertTransition(liq.status, 'APPROVED');
+
+    const updated = await this.prisma.liquidation.update({
+      where: { id: liquidationId },
+      data: { status: 'APPROVED' },
+      include: { concepts: true },
+    });
+
+    this.audit
+      .log({
+        tenantId,
+        userId,
+        action: 'LIQUIDATION_APPROVED',
+        entityType: 'Liquidation',
+        entityId: liquidationId,
+        metadata: { empleadoId: liq.empleadoId },
+      })
+      .catch(() => {});
+
+    return updated;
+  }
+
+  async markLiquidationPaid(
+    tenantId: string,
+    userId: string,
+    liquidationId: string,
+  ) {
+    const liq = await this.prisma.liquidation.findFirst({
+      where: { id: liquidationId, tenantId },
+      select: { id: true, status: true, empleadoId: true },
+    });
+
+    if (!liq) {
+      throw new NotFoundException('Liquidación no encontrada');
+    }
+
+    this.assertTransition(liq.status, 'PAID');
+
+    const updated = await this.prisma.liquidation.update({
+      where: { id: liquidationId },
+      data: { status: 'PAID' },
+      include: { concepts: true },
+    });
+
+    this.audit
+      .log({
+        tenantId,
+        userId,
+        action: 'LIQUIDATION_PAID',
+        entityType: 'Liquidation',
+        entityId: liquidationId,
+        metadata: { empleadoId: liq.empleadoId },
+      })
+      .catch(() => {});
+
+    return updated;
+  }
+
+  async voidLiquidation(
+    tenantId: string,
+    userId: string,
+    liquidationId: string,
+  ) {
+    const liq = await this.prisma.liquidation.findFirst({
+      where: { id: liquidationId, tenantId },
+      select: { id: true, status: true, empleadoId: true },
+    });
+
+    if (!liq) {
+      throw new NotFoundException('Liquidación no encontrada');
+    }
+
+    this.assertTransition(liq.status, 'VOIDED');
+
+    const updated = await this.prisma.liquidation.update({
+      where: { id: liquidationId },
+      data: { status: 'VOIDED' },
+      include: { concepts: true },
+    });
+
+    this.audit
+      .log({
+        tenantId,
+        userId,
+        action: 'LIQUIDATION_VOIDED',
+        entityType: 'Liquidation',
+        entityId: liquidationId,
+        metadata: { empleadoId: liq.empleadoId },
+      })
+      .catch(() => {});
+
+    return updated;
   }
 }
