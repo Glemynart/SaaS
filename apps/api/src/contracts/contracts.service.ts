@@ -13,6 +13,38 @@ import {
 } from './dto/update-contract-status.dto';
 import { Prisma } from '@prisma/client';
 
+export interface ContractVariablesSnapshot {
+  empleado: {
+    nombreCompleto: string;
+    primerNombre: string;
+    segundoNombre: string | null;
+    primerApellido: string;
+    segundoApellido: string | null;
+    tipoDocumento: string;
+    cedula: string;
+  };
+  contrato: {
+    cargo: string;
+    salario: string;
+    tipo: string;
+    fechaInicio: string;
+    fechaFin: string | null;
+  };
+  empresa: {
+    nombre: string;
+    razonSocial: string;
+    nit: string;
+    representanteLegal: string | null;
+  };
+  sede: {
+    nombre: string;
+  } | null;
+  metadata: {
+    generatedAt: string;
+    version: number;
+  };
+}
+
 @Injectable()
 export class ContractsService {
   constructor(
@@ -102,10 +134,11 @@ export class ContractsService {
   }
 
   async create(tenantId: string, userId: string, dto: CreateContractDto) {
-    await this.validateEmployee(tenantId, dto.employeeId);
+    const employee = await this.validateEmployee(tenantId, dto.employeeId);
 
+    let sede: { id: string; nombre: string } | null = null;
     if (dto.sedeId) {
-      await this.validateSede(tenantId, dto.sedeId);
+      sede = await this.validateSede(tenantId, dto.sedeId);
     }
 
     if (dto.plantillaId) {
@@ -122,6 +155,54 @@ export class ContractsService {
       }
     }
 
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        nombre: true,
+        razonSocial: true,
+        nit: true,
+        representanteLegal: true,
+      },
+    });
+    if (!tenant) throw new NotFoundException('Empresa no encontrada');
+
+    const snapshot: ContractVariablesSnapshot = {
+      empleado: {
+        nombreCompleto: [
+          employee.primerNombre,
+          employee.segundoNombre,
+          employee.primerApellido,
+          employee.segundoApellido,
+        ]
+          .filter((v) => v?.trim())
+          .join(' '),
+        primerNombre: employee.primerNombre,
+        segundoNombre: employee.segundoNombre,
+        primerApellido: employee.primerApellido,
+        segundoApellido: employee.segundoApellido,
+        tipoDocumento: employee.tipoDocumento,
+        cedula: employee.cedula,
+      },
+      contrato: {
+        cargo: dto.cargo,
+        salario: String(dto.salario),
+        tipo: dto.tipo,
+        fechaInicio: dto.fechaInicio,
+        fechaFin: dto.fechaFin ?? null,
+      },
+      empresa: {
+        nombre: tenant.nombre,
+        razonSocial: tenant.razonSocial,
+        nit: tenant.nit,
+        representanteLegal: tenant.representanteLegal,
+      },
+      sede: sede ? { nombre: sede.nombre } : null,
+      metadata: {
+        generatedAt: new Date().toISOString(),
+        version: 1,
+      },
+    };
+
     const data = {
       tenantId,
       empleadoId: dto.employeeId,
@@ -133,6 +214,7 @@ export class ContractsService {
       sedeId: dto.sedeId ?? null,
       plantillaId: dto.plantillaId ?? null,
       estado: 'VIGENTE' as const,
+      variablesSnapshot: snapshot as unknown as Prisma.JsonValue,
     } as Prisma.ContratoUncheckedCreateInput;
 
     const contract = await this.prisma.contrato.create({
@@ -239,21 +321,33 @@ export class ContractsService {
   private async validateEmployee(tenantId: string, employeeId: string) {
     const emp = await this.prisma.empleado.findFirst({
       where: { id: employeeId, tenantId, deletedAt: null },
+      select: {
+        id: true,
+        primerNombre: true,
+        segundoNombre: true,
+        primerApellido: true,
+        segundoApellido: true,
+        tipoDocumento: true,
+        cedula: true,
+      },
     });
     if (!emp)
       throw new BadRequestException(
         'El empleado no existe o no pertenece a esta empresa.',
       );
+    return emp;
   }
 
   private async validateSede(tenantId: string, sedeId: string) {
     const sede = await this.prisma.sede.findFirst({
       where: { id: sedeId, tenantId },
+      select: { id: true, nombre: true },
     });
     if (!sede)
       throw new BadRequestException(
         'La sede no existe o no pertenece a esta empresa.',
       );
+    return sede;
   }
 
   private async validatePlantilla(tenantId: string, plantillaId: string) {
