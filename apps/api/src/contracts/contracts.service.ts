@@ -5,12 +5,14 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { GeneratedDocumentsService } from '../generated-documents/generated-documents.service';
 import { ContractQueryDto } from './dto/contract-query.dto';
 import { CreateContractDto } from './dto/create-contract.dto';
 import {
   UpdateContractStatusDto,
   ContratoEstado as ContratoEstadoEnum,
 } from './dto/update-contract-status.dto';
+import { GenerateContractDocumentDto } from './dto/generate-contract-document.dto';
 import { Prisma } from '@prisma/client';
 
 export interface ContractVariablesSnapshot {
@@ -50,6 +52,7 @@ export class ContractsService {
   constructor(
     private prisma: PrismaService,
     private auditService: AuditService,
+    private generatedDocumentsService: GeneratedDocumentsService,
   ) {}
 
   async findAll(tenantId: string, query: ContractQueryDto) {
@@ -316,6 +319,162 @@ export class ContractsService {
       },
       orderBy: { fechaInicio: 'desc' },
     });
+  }
+
+  async generateDocument(
+    tenantId: string,
+    userId: string,
+    contratoId: string,
+    dto?: GenerateContractDocumentDto,
+  ) {
+    const contract = await this.prisma.contrato.findFirst({
+      where: { id: contratoId, tenantId },
+    });
+    if (!contract) {
+      throw new NotFoundException('Contrato no encontrado');
+    }
+
+    const template = await this.resolveTemplate(tenantId, dto?.templateId);
+
+    const existing = await this.prisma.generatedDocument.findFirst({
+      where: { contratoId: contract.id, tenantId },
+    });
+    if (existing) {
+      throw new BadRequestException(
+        'Este contrato ya tiene un documento generado. Elimine el existente antes de generar uno nuevo.',
+      );
+    }
+
+    const snapshot = contract.variablesSnapshot;
+    this.validateSnapshot(snapshot, contract.id);
+    const validSnapshot = snapshot as unknown as ContractVariablesSnapshot;
+    const contenidoFinal = this.buildContentFromSnapshot(
+      template.contenido,
+      validSnapshot,
+    );
+
+    const genDoc = await this.prisma.generatedDocument.create({
+      data: {
+        tenantId,
+        employeeId: contract.empleadoId,
+        templateId: template.id,
+        contratoId: contract.id,
+        nombre: `Contrato — ${validSnapshot.empleado.nombreCompleto}`,
+        contenidoFinal,
+        tipo: template.tipo,
+      },
+    });
+
+    return this.generatedDocumentsService.generatePdf(
+      tenantId,
+      userId,
+      genDoc.id,
+    );
+  }
+
+  private async resolveTemplate(tenantId: string, templateId?: string) {
+    if (templateId) {
+      const template = await this.prisma.documentTemplate.findFirst({
+        where: { id: templateId, tenantId, deletedAt: null },
+      });
+      if (!template) {
+        throw new NotFoundException('Plantilla no encontrada');
+      }
+      if (template.tipo !== 'CONTRACT') {
+        throw new BadRequestException('La plantilla debe ser de tipo CONTRACT');
+      }
+      if (!template.activo) {
+        throw new BadRequestException('La plantilla está inactiva');
+      }
+      return template;
+    }
+
+    const templates = await this.prisma.documentTemplate.findMany({
+      where: { tenantId, tipo: 'CONTRACT', activo: true, deletedAt: null },
+    });
+    if (templates.length === 0) {
+      throw new NotFoundException(
+        'No hay plantilla de contrato activa para esta empresa',
+      );
+    }
+    if (templates.length > 1) {
+      throw new BadRequestException(
+        `Existen ${templates.length} plantillas CONTRACT activas. Indique templateId para seleccionar una.`,
+      );
+    }
+    return templates[0];
+  }
+
+  private buildContentFromSnapshot(
+    templateContent: string,
+    snapshot: ContractVariablesSnapshot,
+  ): string {
+    const salarioNum = Number(snapshot.contrato.salario);
+    const salarioFormatted = new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(salarioNum);
+
+    const tipoLabels: Record<string, string> = {
+      TERMINO_FIJO: 'Término Fijo',
+      TERMINO_INDEFINIDO: 'Término Indefinido',
+      OBRA_LABOR: 'Obra o Labor',
+      APRENDIZAJE: 'Aprendizaje',
+      PRESTACION_SERVICIOS: 'Prestación de Servicios',
+    };
+
+    const fechaIngreso = new Date(
+      snapshot.contrato.fechaInicio,
+    ).toLocaleDateString('es-CO', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+
+    const variables: Record<string, string> = {
+      NOMBRE_COMPLETO: snapshot.empleado.nombreCompleto,
+      DOCUMENTO: `${snapshot.empleado.tipoDocumento} ${snapshot.empleado.cedula}`,
+      CARGO: snapshot.contrato.cargo,
+      SALARIO: salarioFormatted,
+      TIPO_CONTRATO:
+        tipoLabels[snapshot.contrato.tipo] ??
+        snapshot.contrato.tipo.replace(/_/g, ' '),
+      FECHA_INGRESO: fechaIngreso,
+      SEDE: snapshot.sede?.nombre ?? '',
+      EMPRESA: snapshot.empresa.razonSocial ?? snapshot.empresa.nombre,
+      NIT: snapshot.empresa.nit,
+      REPRESENTANTE_LEGAL: snapshot.empresa.representanteLegal ?? 'No definido',
+      LOGO_EMPRESA: '',
+      FIRMA_REPRESENTANTE: '',
+    };
+
+    let result = templateContent;
+    for (const [key, value] of Object.entries(variables)) {
+      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
+    }
+    return result;
+  }
+
+  private validateSnapshot(snapshot: unknown, contratoId: string): void {
+    const s = snapshot as Record<string, unknown> | null | undefined;
+    const hasShape =
+      s &&
+      typeof s === 'object' &&
+      typeof (s as any).metadata?.version === 'number' &&
+      typeof (s as any).empleado?.nombreCompleto === 'string' &&
+      typeof (s as any).empleado?.cedula === 'string' &&
+      typeof (s as any).contrato?.cargo === 'string' &&
+      typeof (s as any).contrato?.salario === 'string' &&
+      typeof (s as any).empresa?.nit === 'string';
+
+    if (!hasShape) {
+      throw new BadRequestException(
+        `El contrato ${contratoId} tiene un variablesSnapshot incompatible con la generación de documentos. ` +
+          'Fue creado antes de N3A.1 o tiene datos corruptos. Contacte soporte.',
+      );
+    }
   }
 
   private async validateEmployee(tenantId: string, employeeId: string) {
