@@ -1,4 +1,9 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { Test } from '@nestjs/testing';
 import {
   ContractsService,
@@ -24,6 +29,7 @@ const mockDocumentTemplateFindFirst = jest.fn();
 const mockDocumentTemplateFindMany = jest.fn();
 const mockGeneratedDocumentFindFirst = jest.fn();
 const mockGeneratedDocumentCreate = jest.fn();
+const mockGeneratedDocumentDelete = jest.fn();
 
 const mockPrisma = {
   empleado: { findFirst: mockEmpleadoFindFirst },
@@ -44,6 +50,7 @@ const mockPrisma = {
   generatedDocument: {
     findFirst: mockGeneratedDocumentFindFirst,
     create: mockGeneratedDocumentCreate,
+    delete: mockGeneratedDocumentDelete,
   },
 };
 
@@ -782,6 +789,65 @@ describe('ContractsService', () => {
       await expect(
         service.generateDocument(TENANT_ID, USER_ID, 'contract-legacy-99'),
       ).rejects.toThrow(/contract-legacy-99/);
+    });
+
+    // ── Hardening: cleanup huérfano (Parte A) ──────────────────────────────
+
+    it('elimina GeneratedDocument si generatePdf falla y propaga la excepción original', async () => {
+      setupSuccessful();
+      const pdfError = new Error('Puppeteer crashed');
+      mockGeneratePdf.mockRejectedValue(pdfError);
+      mockGeneratedDocumentDelete.mockResolvedValue({});
+
+      await expect(
+        service.generateDocument(TENANT_ID, USER_ID, 'contract-001'),
+      ).rejects.toThrow(pdfError);
+
+      expect(mockGeneratedDocumentDelete).toHaveBeenCalledWith({
+        where: { id: 'gendoc-001' },
+      });
+    });
+
+    it('propaga la excepción de generatePdf incluso si el cleanup falla', async () => {
+      setupSuccessful();
+      const pdfError = new Error('Puppeteer crashed');
+      mockGeneratePdf.mockRejectedValue(pdfError);
+      mockGeneratedDocumentDelete.mockRejectedValue(
+        new Error('DB connection lost'),
+      );
+
+      await expect(
+        service.generateDocument(TENANT_ID, USER_ID, 'contract-001'),
+      ).rejects.toThrow(pdfError);
+    });
+
+    // ── Hardening: TOCTOU / unique constraint (Parte B) ────────────────────
+
+    it('lanza ConflictException si el unique index detecta generación concurrente', async () => {
+      mockContratoFindFirst.mockResolvedValue(makeContractWithSnapshot());
+      mockDocumentTemplateFindMany.mockResolvedValue([makeTemplate()]);
+      mockGeneratedDocumentFindFirst.mockResolvedValue(null);
+      mockGeneratedDocumentCreate.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: '5.0.0',
+          meta: { target: ['contratoId'] },
+        }),
+      );
+
+      await expect(
+        service.generateDocument(TENANT_ID, USER_ID, 'contract-001'),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    // ── Hardening: camino feliz intacto ────────────────────────────────────
+
+    it('no intenta cleanup cuando generatePdf tiene éxito', async () => {
+      setupSuccessful();
+
+      await service.generateDocument(TENANT_ID, USER_ID, 'contract-001');
+
+      expect(mockGeneratedDocumentDelete).not.toHaveBeenCalled();
     });
   });
 });

@@ -1,8 +1,11 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { GeneratedDocumentsService } from '../generated-documents/generated-documents.service';
@@ -13,7 +16,6 @@ import {
   ContratoEstado as ContratoEstadoEnum,
 } from './dto/update-contract-status.dto';
 import { GenerateContractDocumentDto } from './dto/generate-contract-document.dto';
-import { Prisma } from '@prisma/client';
 
 export interface ContractVariablesSnapshot {
   empleado: {
@@ -49,6 +51,8 @@ export interface ContractVariablesSnapshot {
 
 @Injectable()
 export class ContractsService {
+  private readonly logger = new Logger(ContractsService.name);
+
   constructor(
     private prisma: PrismaService,
     private auditService: AuditService,
@@ -353,23 +357,51 @@ export class ContractsService {
       validSnapshot,
     );
 
-    const genDoc = await this.prisma.generatedDocument.create({
-      data: {
-        tenantId,
-        employeeId: contract.empleadoId,
-        templateId: template.id,
-        contratoId: contract.id,
-        nombre: `Contrato — ${validSnapshot.empleado.nombreCompleto}`,
-        contenidoFinal,
-        tipo: template.tipo,
-      },
-    });
+    let genDoc: { id: string };
+    try {
+      genDoc = await this.prisma.generatedDocument.create({
+        data: {
+          tenantId,
+          employeeId: contract.empleadoId,
+          templateId: template.id,
+          contratoId: contract.id,
+          nombre: `Contrato — ${validSnapshot.empleado.nombreCompleto}`,
+          contenidoFinal,
+          tipo: template.tipo,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'Ya existe un documento generado para este contrato (conflicto de concurrencia).',
+        );
+      }
+      throw error;
+    }
 
-    return this.generatedDocumentsService.generatePdf(
-      tenantId,
-      userId,
-      genDoc.id,
-    );
+    try {
+      return await this.generatedDocumentsService.generatePdf(
+        tenantId,
+        userId,
+        genDoc.id,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `generatePdf falló para GeneratedDocument ${genDoc.id}, eliminando documento huérfano`,
+      );
+      await this.prisma.generatedDocument
+        .delete({ where: { id: genDoc.id } })
+        .catch((deleteErr) =>
+          this.logger.error(
+            `No se pudo eliminar GeneratedDocument huérfano ${genDoc.id}`,
+            deleteErr,
+          ),
+        );
+      throw error;
+    }
   }
 
   private async resolveTemplate(tenantId: string, templateId?: string) {
