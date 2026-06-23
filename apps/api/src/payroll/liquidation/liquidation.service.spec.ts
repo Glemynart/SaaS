@@ -1,4 +1,9 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { Test } from '@nestjs/testing';
 import { LiquidationService } from './liquidation.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -8,6 +13,9 @@ import { AuditService } from '../../audit/audit.service';
 
 const mockEmpleadoFindFirst = jest.fn();
 const mockLiquidationFindFirst = jest.fn();
+const mockLiquidationUpdateMany = jest.fn();
+const mockLiquidationFindMany = jest.fn();
+const mockLiquidationCount = jest.fn();
 const mockPayrollPeriodFindFirst = jest.fn();
 const mockPayrollRunFindFirst = jest.fn();
 
@@ -15,8 +23,11 @@ const mockPrisma = {
   empleado: { findFirst: mockEmpleadoFindFirst },
   liquidation: {
     findFirst: mockLiquidationFindFirst,
+    findMany: mockLiquidationFindMany,
+    count: mockLiquidationCount,
     create: jest.fn(),
     update: jest.fn(),
+    updateMany: mockLiquidationUpdateMany,
   },
   payrollPeriod: { findFirst: mockPayrollPeriodFindFirst },
   payrollRun: { findFirst: mockPayrollRunFindFirst },
@@ -343,23 +354,27 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
 
   // ── approveLiquidation ──────────────────────────────────────────────────────
 
-  it('DRAFT → APPROVED: transición válida', async () => {
-    mockLiquidationFindFirst.mockResolvedValue(makeLiq('DRAFT'));
-    mockPrisma.liquidation.update.mockResolvedValue(makeLiq('APPROVED'));
+  it('DRAFT → APPROVED: transición válida (updateMany condicional por estado)', async () => {
+    mockLiquidationFindFirst
+      .mockResolvedValueOnce(makeLiq('DRAFT')) // carga
+      .mockResolvedValueOnce(makeLiq('APPROVED')); // re-fetch
+    mockLiquidationUpdateMany.mockResolvedValue({ count: 1 });
 
     const result = await service.approveLiquidation(TENANT, USER, LIQ_ID);
 
-    expect(result.status).toBe('APPROVED');
-    expect(mockPrisma.liquidation.update).toHaveBeenCalledWith({
-      where: { id: LIQ_ID },
+    expect(result!.status).toBe('APPROVED');
+    // El WHERE incluye el estado leído → cierra la ventana TOCTOU.
+    expect(mockLiquidationUpdateMany).toHaveBeenCalledWith({
+      where: { id: LIQ_ID, tenantId: TENANT, status: 'DRAFT' },
       data: { status: 'APPROVED' },
-      include: { concepts: true },
     });
   });
 
   it('DRAFT → APPROVED: registra auditoría LIQUIDATION_APPROVED', async () => {
-    mockLiquidationFindFirst.mockResolvedValue(makeLiq('DRAFT'));
-    mockPrisma.liquidation.update.mockResolvedValue(makeLiq('APPROVED'));
+    mockLiquidationFindFirst
+      .mockResolvedValueOnce(makeLiq('DRAFT'))
+      .mockResolvedValueOnce(makeLiq('APPROVED'));
+    mockLiquidationUpdateMany.mockResolvedValue({ count: 1 });
 
     await service.approveLiquidation(TENANT, USER, LIQ_ID);
 
@@ -396,33 +411,43 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
     ).rejects.toThrow(NotFoundException);
   });
 
-  it('approveLiquidation: tenant incorrecto → NotFoundException', async () => {
-    mockLiquidationFindFirst.mockResolvedValue(null);
+  it('approveLiquidation: findFirst filtra por tenantId en where', async () => {
+    mockLiquidationFindFirst
+      .mockResolvedValueOnce(makeLiq('DRAFT'))
+      .mockResolvedValueOnce(makeLiq('APPROVED'));
+    mockLiquidationUpdateMany.mockResolvedValue({ count: 1 });
 
-    await expect(
-      service.approveLiquidation('otro-tenant', USER, LIQ_ID),
-    ).rejects.toThrow(NotFoundException);
+    await service.approveLiquidation(TENANT, USER, LIQ_ID);
+
+    expect(mockLiquidationFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tenantId: TENANT }),
+      }),
+    );
   });
 
   // ── markLiquidationPaid ─────────────────────────────────────────────────────
 
-  it('APPROVED → PAID: transición válida', async () => {
-    mockLiquidationFindFirst.mockResolvedValue(makeLiq('APPROVED'));
-    mockPrisma.liquidation.update.mockResolvedValue(makeLiq('PAID'));
+  it('APPROVED → PAID: transición válida (updateMany condicional por estado)', async () => {
+    mockLiquidationFindFirst
+      .mockResolvedValueOnce(makeLiq('APPROVED'))
+      .mockResolvedValueOnce(makeLiq('PAID'));
+    mockLiquidationUpdateMany.mockResolvedValue({ count: 1 });
 
     const result = await service.markLiquidationPaid(TENANT, USER, LIQ_ID);
 
-    expect(result.status).toBe('PAID');
-    expect(mockPrisma.liquidation.update).toHaveBeenCalledWith({
-      where: { id: LIQ_ID },
+    expect(result!.status).toBe('PAID');
+    expect(mockLiquidationUpdateMany).toHaveBeenCalledWith({
+      where: { id: LIQ_ID, tenantId: TENANT, status: 'APPROVED' },
       data: { status: 'PAID' },
-      include: { concepts: true },
     });
   });
 
   it('APPROVED → PAID: registra auditoría LIQUIDATION_PAID', async () => {
-    mockLiquidationFindFirst.mockResolvedValue(makeLiq('APPROVED'));
-    mockPrisma.liquidation.update.mockResolvedValue(makeLiq('PAID'));
+    mockLiquidationFindFirst
+      .mockResolvedValueOnce(makeLiq('APPROVED'))
+      .mockResolvedValueOnce(makeLiq('PAID'));
+    mockLiquidationUpdateMany.mockResolvedValue({ count: 1 });
 
     await service.markLiquidationPaid(TENANT, USER, LIQ_ID);
 
@@ -459,34 +484,54 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
     ).rejects.toThrow(NotFoundException);
   });
 
+  it('markLiquidationPaid: findFirst filtra por tenantId en where', async () => {
+    mockLiquidationFindFirst
+      .mockResolvedValueOnce(makeLiq('APPROVED'))
+      .mockResolvedValueOnce(makeLiq('PAID'));
+    mockLiquidationUpdateMany.mockResolvedValue({ count: 1 });
+
+    await service.markLiquidationPaid(TENANT, USER, LIQ_ID);
+
+    expect(mockLiquidationFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tenantId: TENANT }),
+      }),
+    );
+  });
+
   // ── voidLiquidation ─────────────────────────────────────────────────────────
 
-  it('DRAFT → VOIDED: transición válida', async () => {
-    mockLiquidationFindFirst.mockResolvedValue(makeLiq('DRAFT'));
-    mockPrisma.liquidation.update.mockResolvedValue(makeLiq('VOIDED'));
+  it('DRAFT → VOIDED: transición válida (updateMany condicional por estado)', async () => {
+    mockLiquidationFindFirst
+      .mockResolvedValueOnce(makeLiq('DRAFT'))
+      .mockResolvedValueOnce(makeLiq('VOIDED'));
+    mockLiquidationUpdateMany.mockResolvedValue({ count: 1 });
 
     const result = await service.voidLiquidation(TENANT, USER, LIQ_ID);
 
-    expect(result.status).toBe('VOIDED');
-    expect(mockPrisma.liquidation.update).toHaveBeenCalledWith({
-      where: { id: LIQ_ID },
+    expect(result!.status).toBe('VOIDED');
+    expect(mockLiquidationUpdateMany).toHaveBeenCalledWith({
+      where: { id: LIQ_ID, tenantId: TENANT, status: 'DRAFT' },
       data: { status: 'VOIDED' },
-      include: { concepts: true },
     });
   });
 
   it('APPROVED → VOIDED: transición válida', async () => {
-    mockLiquidationFindFirst.mockResolvedValue(makeLiq('APPROVED'));
-    mockPrisma.liquidation.update.mockResolvedValue(makeLiq('VOIDED'));
+    mockLiquidationFindFirst
+      .mockResolvedValueOnce(makeLiq('APPROVED'))
+      .mockResolvedValueOnce(makeLiq('VOIDED'));
+    mockLiquidationUpdateMany.mockResolvedValue({ count: 1 });
 
     const result = await service.voidLiquidation(TENANT, USER, LIQ_ID);
 
-    expect(result.status).toBe('VOIDED');
+    expect(result!.status).toBe('VOIDED');
   });
 
   it('DRAFT → VOIDED: registra auditoría LIQUIDATION_VOIDED', async () => {
-    mockLiquidationFindFirst.mockResolvedValue(makeLiq('DRAFT'));
-    mockPrisma.liquidation.update.mockResolvedValue(makeLiq('VOIDED'));
+    mockLiquidationFindFirst
+      .mockResolvedValueOnce(makeLiq('DRAFT'))
+      .mockResolvedValueOnce(makeLiq('VOIDED'));
+    mockLiquidationUpdateMany.mockResolvedValue({ count: 1 });
 
     await service.voidLiquidation(TENANT, USER, LIQ_ID);
 
@@ -523,12 +568,19 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
     );
   });
 
-  it('voidLiquidation: tenant incorrecto → NotFoundException', async () => {
-    mockLiquidationFindFirst.mockResolvedValue(null);
+  it('voidLiquidation: findFirst filtra por tenantId en where', async () => {
+    mockLiquidationFindFirst
+      .mockResolvedValueOnce(makeLiq('DRAFT'))
+      .mockResolvedValueOnce(makeLiq('VOIDED'));
+    mockLiquidationUpdateMany.mockResolvedValue({ count: 1 });
 
-    await expect(
-      service.voidLiquidation('otro-tenant', USER, LIQ_ID),
-    ).rejects.toThrow(NotFoundException);
+    await service.voidLiquidation(TENANT, USER, LIQ_ID);
+
+    expect(mockLiquidationFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tenantId: TENANT }),
+      }),
+    );
   });
 
   it('VOIDED es terminal: no puede aprobarse ni pagarse', async () => {
@@ -627,6 +679,189 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
   it('assertTransition: VOIDED → PAID lanza (VOIDED terminal)', () => {
     expect(() => service.assertTransition('VOIDED', 'PAID')).toThrow(
       BadRequestException,
+    );
+  });
+});
+
+// ── N2D.6 — Concurrencia, conflicto DRAFT y lectura ─────────────────────────
+
+describe('LiquidationService — concurrencia y lectura (N2D.6)', () => {
+  let service: LiquidationService;
+
+  const TENANT = 'tenant-1';
+  const USER = 'user-1';
+  const LIQ_ID = 'liq-001';
+
+  function makeLiq(status: string) {
+    return { id: LIQ_ID, status, empleadoId: 'emp-001', concepts: [] };
+  }
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    const module = await Test.createTestingModule({
+      providers: [
+        LiquidationService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: AuditService, useValue: mockAudit },
+      ],
+    }).compile();
+
+    service = module.get(LiquidationService);
+  });
+
+  // ── Concurrencia: carrera perdida en transición ──────────────────────────────
+
+  it('transición válida pero count === 0 → ConflictException (carrera perdida)', async () => {
+    // findFirst carga DRAFT, assertTransition pasa, pero otro request ya
+    // cambió el estado → updateMany matchea 0 filas.
+    mockLiquidationFindFirst.mockResolvedValue(makeLiq('DRAFT'));
+    mockLiquidationUpdateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      service.approveLiquidation(TENANT, USER, LIQ_ID),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('carrera perdida: NO registra auditoría', async () => {
+    // APPROVED → PAID es transición válida; la carrera la pierde el updateMany.
+    mockLiquidationFindFirst.mockResolvedValue(makeLiq('APPROVED'));
+    mockLiquidationUpdateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      service.markLiquidationPaid(TENANT, USER, LIQ_ID),
+    ).rejects.toThrow(ConflictException);
+    expect(mockAudit.log).not.toHaveBeenCalled();
+  });
+
+  it('approve + void simultáneos: solo uno gana, el otro recibe Conflict', async () => {
+    // Request A: lee DRAFT, gana el updateMany.
+    mockLiquidationFindFirst
+      .mockResolvedValueOnce(makeLiq('DRAFT'))
+      .mockResolvedValueOnce(makeLiq('APPROVED'));
+    mockLiquidationUpdateMany.mockResolvedValueOnce({ count: 1 });
+    await expect(
+      service.approveLiquidation(TENANT, USER, LIQ_ID),
+    ).resolves.toBeDefined();
+
+    // Request B: también leyó DRAFT, pero el estado ya cambió → count 0.
+    mockLiquidationFindFirst.mockResolvedValueOnce(makeLiq('DRAFT'));
+    mockLiquidationUpdateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(service.voidLiquidation(TENANT, USER, LIQ_ID)).rejects.toThrow(
+      ConflictException,
+    );
+  });
+
+  // ── Conflicto índice único DRAFT (doble click) ───────────────────────────────
+
+  it('createLiquidacion: P2002 del índice DRAFT → ConflictException', async () => {
+    mockEmpleadoFindFirst.mockResolvedValue({
+      id: 'emp-001',
+      estado: 'RETIRADO',
+      salario: 3_000_000,
+      salarioIntegral: false,
+      fechaIngreso: new Date('2023-01-01'),
+      fechaRetiro: new Date('2023-12-31'),
+    });
+    mockLiquidationFindFirst.mockResolvedValue(null);
+    mockPayrollPeriodFindFirst.mockResolvedValue(null);
+    mockPrisma.$transaction.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: '6.19.3',
+        meta: { target: ['liquidations_tenantId_empleadoId_draft_key'] },
+      }),
+    );
+
+    await expect(
+      service.createLiquidacion(TENANT, USER, 'emp-001'),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('createLiquidacion: P2002 de otra constraint → re-lanza el error original', async () => {
+    mockEmpleadoFindFirst.mockResolvedValue({
+      id: 'emp-001',
+      estado: 'RETIRADO',
+      salario: 3_000_000,
+      salarioIntegral: false,
+      fechaIngreso: new Date('2023-01-01'),
+      fechaRetiro: new Date('2023-12-31'),
+    });
+    mockLiquidationFindFirst.mockResolvedValue(null);
+    mockPayrollPeriodFindFirst.mockResolvedValue(null);
+    const otherP2002 = new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed',
+      {
+        code: 'P2002',
+        clientVersion: '6.19.3',
+        meta: { target: ['some_other_index'] },
+      },
+    );
+    mockPrisma.$transaction.mockRejectedValue(otherP2002);
+
+    await expect(
+      service.createLiquidacion(TENANT, USER, 'emp-001'),
+    ).rejects.toThrow(otherP2002);
+  });
+
+  // ── findAll ──────────────────────────────────────────────────────────────────
+
+  it('findAll: pagina y filtra por tenant; devuelve meta', async () => {
+    mockLiquidationFindMany.mockResolvedValue([makeLiq('DRAFT')]);
+    mockLiquidationCount.mockResolvedValue(1);
+
+    const res = await service.findAll(TENANT, { page: 1, limit: 10 });
+
+    expect(res.data).toHaveLength(1);
+    expect(res.meta).toEqual({ total: 1, page: 1, limit: 10, totalPages: 1 });
+    expect(mockLiquidationFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId: TENANT },
+        skip: 0,
+        take: 10,
+      }),
+    );
+  });
+
+  it('findAll: aplica filtros de status y empleadoId', async () => {
+    mockLiquidationFindMany.mockResolvedValue([]);
+    mockLiquidationCount.mockResolvedValue(0);
+
+    await service.findAll(TENANT, {
+      page: 2,
+      limit: 5,
+      status: 'PAID',
+      empleadoId: 'emp-999',
+    });
+
+    expect(mockLiquidationFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId: TENANT, status: 'PAID', empleadoId: 'emp-999' },
+        skip: 5,
+        take: 5,
+      }),
+    );
+  });
+
+  // ── findOne ──────────────────────────────────────────────────────────────────
+
+  it('findOne: devuelve la liquidación con conceptos', async () => {
+    mockLiquidationFindFirst.mockResolvedValue(makeLiq('APPROVED'));
+
+    const res = await service.findOne(TENANT, LIQ_ID);
+
+    expect(res.status).toBe('APPROVED');
+    expect(mockLiquidationFindFirst).toHaveBeenCalledWith({
+      where: { id: LIQ_ID, tenantId: TENANT },
+      include: { concepts: true },
+    });
+  });
+
+  it('findOne: inexistente o de otro tenant → NotFoundException', async () => {
+    mockLiquidationFindFirst.mockResolvedValue(null);
+
+    await expect(service.findOne('otro-tenant', LIQ_ID)).rejects.toThrow(
+      NotFoundException,
     );
   });
 });
