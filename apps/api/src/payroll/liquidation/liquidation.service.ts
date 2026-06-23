@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { LiquidationStatus } from '@prisma/client';
+import { LiquidationStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { calculate, diasComerciales } from './liquidation-calculator';
@@ -13,6 +13,7 @@ import {
   buildLiquidationCreateData,
   buildLiquidationInput,
 } from './liquidation-mapper';
+import { ListLiquidationsDto } from '../dto/list-liquidations.dto';
 
 const VALID_TRANSITIONS: Record<LiquidationStatus, LiquidationStatus[]> = {
   DRAFT: ['APPROVED', 'VOIDED'],
@@ -112,18 +113,38 @@ export class LiquidationService {
     const result = calculate(input);
 
     // ── 6. Persistir en transacción ──────────────────────────────────────────
-    const liquidation = await this.prisma.$transaction(async (tx) => {
-      return tx.liquidation.create({
-        data: buildLiquidationCreateData(
-          tenantId,
-          empleadoId,
-          emp.fechaRetiro!,
-          diasLiquidados,
-          result,
-        ),
-        include: { concepts: true },
+    //    El findFirst anterior es una optimización con mensaje amable, pero es
+    //    racy (TOCTOU). El índice único parcial DRAFT (migración N2D.6) es la
+    //    garantía real: dos requests simultáneos (doble click) chocan en P2002
+    //    y aquí se traduce a 409 Conflict.
+    let liquidation;
+    try {
+      liquidation = await this.prisma.$transaction(async (tx) => {
+        return tx.liquidation.create({
+          data: buildLiquidationCreateData(
+            tenantId,
+            empleadoId,
+            emp.fechaRetiro!,
+            diasLiquidados,
+            result,
+          ),
+          include: { concepts: true },
+        });
       });
-    });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        const target = (e.meta?.target as string[]) ?? [];
+        if (target.includes('liquidations_tenantId_empleadoId_draft_key')) {
+          throw new ConflictException(
+            'Ya existe una liquidación en estado DRAFT para este empleado.',
+          );
+        }
+      }
+      throw e;
+    }
 
     // ── 7. Auditoría ─────────────────────────────────────────────────────────
     this.audit
@@ -214,84 +235,106 @@ export class LiquidationService {
     return dias > 0 ? dias : 0;
   }
 
-  // ── Transiciones de estado (N2D.5) ──────────────────────────────────────────
+  // ── Lectura (N2D.6) ─────────────────────────────────────────────────────────
 
-  async approveLiquidation(
-    tenantId: string,
-    userId: string,
-    liquidationId: string,
-  ) {
-    const liq = await this.prisma.liquidation.findFirst({
-      where: { id: liquidationId, tenantId },
-      select: { id: true, status: true, empleadoId: true },
-    });
+  async findAll(tenantId: string, query: ListLiquidationsDto) {
+    const { page = 1, limit = 10, status, empleadoId } = query;
+    const skip = (page - 1) * limit;
 
-    if (!liq) {
-      throw new NotFoundException('Liquidación no encontrada');
-    }
+    const where: Prisma.LiquidationWhereInput = {
+      tenantId,
+      ...(status && { status }),
+      ...(empleadoId && { empleadoId }),
+    };
 
-    this.assertTransition(liq.status, 'APPROVED');
+    const [data, total] = await Promise.all([
+      this.prisma.liquidation.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.liquidation.count({ where }),
+    ]);
 
-    const updated = await this.prisma.liquidation.update({
-      where: { id: liquidationId },
-      data: { status: 'APPROVED' },
-      include: { concepts: true },
-    });
-
-    this.audit
-      .log({
-        tenantId,
-        userId,
-        action: 'LIQUIDATION_APPROVED',
-        entityType: 'Liquidation',
-        entityId: liquidationId,
-        metadata: { empleadoId: liq.empleadoId },
-      })
-      .catch(() => {});
-
-    return updated;
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
-  async markLiquidationPaid(
-    tenantId: string,
-    userId: string,
-    liquidationId: string,
-  ) {
-    const liq = await this.prisma.liquidation.findFirst({
-      where: { id: liquidationId, tenantId },
-      select: { id: true, status: true, empleadoId: true },
-    });
-
-    if (!liq) {
-      throw new NotFoundException('Liquidación no encontrada');
-    }
-
-    this.assertTransition(liq.status, 'PAID');
-
-    const updated = await this.prisma.liquidation.update({
-      where: { id: liquidationId },
-      data: { status: 'PAID' },
+  async findOne(tenantId: string, id: string) {
+    const liquidation = await this.prisma.liquidation.findFirst({
+      where: { id, tenantId },
       include: { concepts: true },
     });
 
-    this.audit
-      .log({
-        tenantId,
-        userId,
-        action: 'LIQUIDATION_PAID',
-        entityType: 'Liquidation',
-        entityId: liquidationId,
-        metadata: { empleadoId: liq.empleadoId },
-      })
-      .catch(() => {});
+    if (!liquidation) {
+      throw new NotFoundException('Liquidación no encontrada');
+    }
 
-    return updated;
+    return liquidation;
   }
 
-  async voidLiquidation(
+  // ── Transiciones de estado (N2D.5 / concurrencia N2D.6) ──────────────────────
+
+  approveLiquidation(tenantId: string, userId: string, liquidationId: string) {
+    return this.transition(
+      tenantId,
+      userId,
+      liquidationId,
+      'APPROVED',
+      'LIQUIDATION_APPROVED',
+    );
+  }
+
+  markLiquidationPaid(tenantId: string, userId: string, liquidationId: string) {
+    return this.transition(
+      tenantId,
+      userId,
+      liquidationId,
+      'PAID',
+      'LIQUIDATION_PAID',
+    );
+  }
+
+  voidLiquidation(tenantId: string, userId: string, liquidationId: string) {
+    return this.transition(
+      tenantId,
+      userId,
+      liquidationId,
+      'VOIDED',
+      'LIQUIDATION_VOIDED',
+    );
+  }
+
+  /**
+   * Transición de estado segura ante concurrencia (N2D.6).
+   *
+   * El patrón previo findFirst+update tenía una ventana TOCTOU: dos requests
+   * concurrentes (approve+void, pay+void) leían el mismo estado, ambos pasaban
+   * assertTransition y ambos escribían, con last-write-wins no determinístico.
+   *
+   * Solución más simple compatible con Prisma: updateMany condicional con el
+   * estado leído en el WHERE. La BD garantiza atomicidad de la condición; solo
+   * el primer request que commitea cambia el estado. El segundo matchea 0 filas
+   * (el estado ya no es el esperado) → 409 Conflict.
+   *
+   *   - 404: no existe o no es del tenant (findFirst).
+   *   - 400: transición inválida según la máquina de estados (assertTransition).
+   *   - 409: carrera perdida — otro request transicionó primero (count === 0).
+   */
+  private async transition(
     tenantId: string,
     userId: string,
     liquidationId: string,
+    target: LiquidationStatus,
+    auditAction: string,
   ) {
     const liq = await this.prisma.liquidation.findFirst({
       where: { id: liquidationId, tenantId },
@@ -302,11 +345,22 @@ export class LiquidationService {
       throw new NotFoundException('Liquidación no encontrada');
     }
 
-    this.assertTransition(liq.status, 'VOIDED');
+    this.assertTransition(liq.status, target);
 
-    const updated = await this.prisma.liquidation.update({
-      where: { id: liquidationId },
-      data: { status: 'VOIDED' },
+    const { count } = await this.prisma.liquidation.updateMany({
+      where: { id: liquidationId, tenantId, status: liq.status },
+      data: { status: target },
+    });
+
+    if (count === 0) {
+      throw new ConflictException(
+        'La liquidación cambió de estado de forma concurrente. ' +
+          'Recargue e intente de nuevo.',
+      );
+    }
+
+    const updated = await this.prisma.liquidation.findFirst({
+      where: { id: liquidationId, tenantId },
       include: { concepts: true },
     });
 
@@ -314,7 +368,7 @@ export class LiquidationService {
       .log({
         tenantId,
         userId,
-        action: 'LIQUIDATION_VOIDED',
+        action: auditAction,
         entityType: 'Liquidation',
         entityId: liquidationId,
         metadata: { empleadoId: liq.empleadoId },
