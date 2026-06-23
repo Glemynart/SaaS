@@ -6,8 +6,9 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
-import { calculate } from './liquidation-calculator';
+import { calculate, diasComerciales } from './liquidation-calculator';
 import {
+  addDays,
   buildLiquidationCreateData,
   buildLiquidationInput,
 } from './liquidation-mapper';
@@ -68,16 +69,25 @@ export class LiquidationService {
       );
     }
 
-    // ── 3. Construir input (mapper adapta semántica inclusivo → exclusivo) ───
-    const { input, diasLiquidados } = buildLiquidationInput(
-      emp,
+    // ── 3. Resolver salario pendiente (política N2D.4) ───────────────────────
+    const diasSalarioPendiente = await this.resolveDiasSalarioPendiente(
+      tenantId,
+      empleadoId,
+      emp.fechaIngreso,
       emp.fechaRetiro,
     );
 
-    // ── 4. Calcular ──────────────────────────────────────────────────────────
+    // ── 4. Construir input (mapper adapta semántica inclusivo → exclusivo) ───
+    const { input, diasLiquidados } = buildLiquidationInput(
+      emp,
+      emp.fechaRetiro,
+      diasSalarioPendiente,
+    );
+
+    // ── 5. Calcular ──────────────────────────────────────────────────────────
     const result = calculate(input);
 
-    // ── 5. Persistir en transacción ──────────────────────────────────────────
+    // ── 6. Persistir en transacción ──────────────────────────────────────────
     const liquidation = await this.prisma.$transaction(async (tx) => {
       return tx.liquidation.create({
         data: buildLiquidationCreateData(
@@ -91,7 +101,7 @@ export class LiquidationService {
       });
     });
 
-    // ── 6. Auditoría ─────────────────────────────────────────────────────────
+    // ── 7. Auditoría ─────────────────────────────────────────────────────────
     this.audit
       .log({
         tenantId,
@@ -110,5 +120,73 @@ export class LiquidationService {
       .catch(() => {});
 
     return liquidation;
+  }
+
+  /**
+   * Resuelve los días de salario pendiente del mes de retiro (política N2D.4).
+   *
+   * Política (decisión funcional cerrada):
+   *  1. Buscar el PayrollPeriod que contiene fechaRetiro (último día trabajado).
+   *  2. Si existe un PayrollRun del empleado en ese período y el período está
+   *     CLOSED → 0 (el salario del mes ya se pagó; CLOSED es proxy temporal de
+   *     PAID).
+   *  3. En caso contrario → días comerciales (30/360) trabajados dentro del
+   *     período de retiro.
+   *
+   * No se analizan períodos anteriores ni se reconcilian históricos. Si no
+   * existe ningún período que contenga fechaRetiro, no hay marco temporal para
+   * determinar días pendientes y se retorna 0 (no se emite el concepto).
+   *
+   * @param fechaRetiro - Último día trabajado (inclusivo) leído de la BD.
+   */
+  private async resolveDiasSalarioPendiente(
+    tenantId: string,
+    empleadoId: string,
+    fechaIngreso: Date,
+    fechaRetiro: Date,
+  ): Promise<number> {
+    // 1. Período que contiene fechaRetiro.
+    const periodo = await this.prisma.payrollPeriod.findFirst({
+      where: {
+        tenantId,
+        fechaInicio: { lte: fechaRetiro },
+        fechaFin: { gte: fechaRetiro },
+      },
+      orderBy: { fechaInicio: 'desc' },
+      select: { id: true, status: true, fechaInicio: true },
+    });
+
+    // Sin período → fallback: mes calendario de fechaRetiro como ventana.
+    if (!periodo) {
+      const inicioMes = new Date(
+        Date.UTC(fechaRetiro.getUTCFullYear(), fechaRetiro.getUTCMonth(), 1),
+      );
+      const desde = inicioMes > fechaIngreso ? inicioMes : fechaIngreso;
+      const dias = diasComerciales(desde, addDays(fechaRetiro, 1));
+      return dias > 0 ? dias : 0;
+    }
+
+    // 2. ¿Existe un PayrollRun CLOSED del empleado para ese período?
+    if (periodo.status === 'CLOSED') {
+      const run = await this.prisma.payrollRun.findFirst({
+        where: {
+          tenantId,
+          employeeId: empleadoId,
+          payrollPeriodId: periodo.id,
+        },
+        select: { id: true },
+      });
+      if (run) {
+        return 0;
+      }
+    }
+
+    // 3. Días comerciales trabajados dentro del período de retiro.
+    //    El empleado no trabaja antes de su ingreso → se acota a fechaIngreso.
+    //    fechaRetiro es inclusivo → extremo exclusivo = fechaRetiro + 1 día.
+    const desde =
+      periodo.fechaInicio > fechaIngreso ? periodo.fechaInicio : fechaIngreso;
+    const dias = diasComerciales(desde, addDays(fechaRetiro, 1));
+    return dias > 0 ? dias : 0;
   }
 }
