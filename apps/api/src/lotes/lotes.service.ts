@@ -40,19 +40,19 @@ export class LotesService {
    * `configuracion` para tener un snapshot completo e inmutable.
    */
   async create(tenantId: string, userId: string, dto: CreateLoteDto) {
-    const plantilla = await this.prisma.plantilla.findFirst({
-      where: { id: dto.templateId, tenantId },
-      select: { id: true, tipo: true, activa: true },
+    const template = await this.prisma.documentTemplate.findFirst({
+      where: { id: dto.templateId, tenantId, deletedAt: null },
+      select: { id: true, tipo: true, activo: true },
     });
-    if (!plantilla) {
+    if (!template) {
       throw new BadRequestException(
         'La plantilla no existe o no pertenece a esta empresa.',
       );
     }
-    if (plantilla.tipo !== 'CONTRATO') {
-      throw new BadRequestException('La plantilla debe ser de tipo CONTRATO.');
+    if (template.tipo !== 'CONTRACT') {
+      throw new BadRequestException('La plantilla debe ser de tipo CONTRACT.');
     }
-    if (!plantilla.activa) {
+    if (!template.activo) {
       throw new BadRequestException('La plantilla está inactiva.');
     }
 
@@ -89,7 +89,7 @@ export class LotesService {
     const lote = await this.prisma.loteContrato.create({
       data: {
         tenantId,
-        plantillaId: dto.templateId,
+        documentTemplateId: dto.templateId,
         creadoPorId: userId,
         nombreLote: dto.nombre,
         tipoContrato: dto.tipoContrato ?? null,
@@ -111,7 +111,7 @@ export class LotesService {
         entityId: lote.id,
         metadata: {
           nombre: dto.nombre,
-          plantillaId: dto.templateId,
+          documentTemplateId: dto.templateId,
           total: empleadoIds.length,
         },
       })
@@ -139,7 +139,7 @@ export class LotesService {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
-          plantilla: { select: { id: true, nombre: true } },
+          documentTemplate: { select: { id: true, nombre: true } },
           sede: { select: { id: true, nombre: true } },
           _count: { select: { contratos: true } },
         },
@@ -157,7 +157,7 @@ export class LotesService {
     const lote = await this.prisma.loteContrato.findFirst({
       where: { id, tenantId },
       include: {
-        plantilla: { select: { id: true, nombre: true } },
+        documentTemplate: { select: { id: true, nombre: true } },
         sede: { select: { id: true, nombre: true } },
         creadoPor: { select: { id: true, nombre: true, email: true } },
         _count: { select: { contratos: true } },

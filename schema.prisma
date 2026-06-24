@@ -323,7 +323,6 @@ model Plantilla {
 
   // Relaciones
   contratos Contrato[]
-  lotes     LoteContrato[]
 
   @@index([tenantId, tipo])
   @@index([tenantId, activa])
@@ -400,8 +399,7 @@ model LoteContrato {
   tenantId  String
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  plantillaId String
-  plantilla   Plantilla @relation(fields: [plantillaId], references: [id])
+  documentTemplateId String   // FK a DocumentTemplate (ver schema completo en apps/api)
 
   // Estado del procesamiento
   estado      LoteEstado @default(PENDIENTE)
