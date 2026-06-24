@@ -6,6 +6,7 @@ import {
   Building2,
   FileArchive,
   FileText,
+  Layers,
   LayoutDashboard,
   LogOut,
   MapPin,
@@ -39,6 +40,7 @@ const navItems = [
   { href: '/nomina', label: 'Nómina', icon: Calculator, enabled: true },
   { href: '/facturacion', label: 'Facturación', icon: Receipt, enabled: true },
   { href: '/contratos', label: 'Contratos', icon: FileText, enabled: true },
+  { href: '/contratos/lotes', label: 'Lotes', icon: Layers, enabled: true },
   { href: '#expediente', label: 'Expediente', icon: FileArchive, enabled: false },
 ];
 
@@ -61,11 +63,13 @@ export function AppShell({ children }: { children: ReactNode }) {
               ? 'Nómina'
               : pathname.startsWith('/facturacion')
                 ? 'Facturación'
-                : pathname.startsWith('/contratos')
-                  ? 'Contratos'
-                  : pathname === '/perfil'
-                    ? 'Perfil'
-                    : 'Inicio';
+                : pathname.startsWith('/contratos/lotes')
+                  ? 'Lotes'
+                  : pathname.startsWith('/contratos')
+                    ? 'Contratos'
+                    : pathname === '/perfil'
+                      ? 'Perfil'
+                      : 'Inicio';
   const pageDescription = pathname.startsWith('/sedes')
     ? 'Estructura organizacional — Sedes y centros de trabajo'
     : pathname.startsWith('/documentos/plantillas')
@@ -80,11 +84,13 @@ export function AppShell({ children }: { children: ReactNode }) {
               ? 'Motor de nómina — Cálculo y liquidación'
               : pathname.startsWith('/facturacion')
                 ? 'Dominio de facturación — Clientes, productos, facturas'
-                : pathname.startsWith('/contratos')
-                  ? 'Gestión contractual — Contratos laborales'
-                  : pathname === '/perfil'
-                    ? 'Credencial y contexto de acceso'
-                    : 'Resumen de sesion y modulos';
+                : pathname.startsWith('/contratos/lotes')
+                  ? 'Gestión contractual — Lotes de contratos'
+                  : pathname.startsWith('/contratos')
+                    ? 'Gestión contractual — Contratos laborales'
+                    : pathname === '/perfil'
+                      ? 'Credencial y contexto de acceso'
+                      : 'Resumen de sesion y modulos';
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -102,7 +108,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav className="flex-1 space-y-1.5 px-3 py-4" aria-label="Navegación principal">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const active = pathname === item.href;
+            const isSubroute = navItems.some(
+              (other) => other.href !== item.href && other.href.startsWith(item.href + '/'),
+            );
+            const active = isSubroute
+              ? pathname === item.href
+              : pathname === item.href || pathname.startsWith(item.href + '/');
             const className = cn(
               'group flex h-10 items-center gap-3 rounded-md px-3 text-sm transition-[background-color,color,transform] duration-150 ease-out',
               active
