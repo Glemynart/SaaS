@@ -8,5 +8,6 @@ import { GeneratedDocumentsModule } from '../generated-documents/generated-docum
   imports: [TenantsModule, GeneratedDocumentsModule],
   controllers: [ContractsController],
   providers: [ContractsService],
+  exports: [ContractsService],
 })
 export class ContractsModule {}

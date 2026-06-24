@@ -140,7 +140,12 @@ export class ContractsService {
     return contract;
   }
 
-  async create(tenantId: string, userId: string, dto: CreateContractDto) {
+  async create(
+    tenantId: string,
+    userId: string,
+    dto: CreateContractDto,
+    loteId?: string,
+  ) {
     const employee = await this.validateEmployee(tenantId, dto.employeeId);
 
     let sede: { id: string; nombre: string } | null = null;
@@ -215,6 +220,7 @@ export class ContractsService {
       fechaInicio: new Date(dto.fechaInicio),
       fechaFin: dto.fechaFin ? new Date(dto.fechaFin) : null,
       sedeId: dto.sedeId ?? null,
+      loteId: loteId ?? null,
       estado: 'VIGENTE' as const,
       variablesSnapshot: snapshot as unknown as Prisma.JsonValue,
     } as Prisma.ContratoUncheckedCreateInput;
