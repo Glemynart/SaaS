@@ -1,12 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { UpdateTenantBrandingDto } from './dto/update-tenant-branding.dto';
 import * as path from 'path';
-import * as fs from 'fs';
 
 @Injectable()
 export class TenantBrandingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private storage: StorageService,
+  ) {}
 
   async getBranding(tenantId: string) {
     const tenant = await this.prisma.tenant.findUnique({
@@ -52,14 +55,10 @@ export class TenantBrandingService {
 
     const ext = path.extname(originalname);
     const filename = `${tenantId}-logo-${Date.now()}${ext}`;
-    const uploadsDir = path.join(process.cwd(), '..', '..', 'uploads', 'logos');
+    const storageKey = `logos/${filename}`;
 
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
-    fs.writeFileSync(path.join(uploadsDir, filename), buffer);
-    const logoUrl = `/uploads/logos/${filename}`;
+    await this.storage.putObject({ key: storageKey, body: buffer });
+    const logoUrl = `/uploads/${storageKey}`;
 
     return this.prisma.tenant.update({
       where: { id: tenantId },
@@ -76,20 +75,10 @@ export class TenantBrandingService {
 
     const ext = path.extname(originalname);
     const filename = `${tenantId}-firma-${Date.now()}${ext}`;
-    const uploadsDir = path.join(
-      process.cwd(),
-      '..',
-      '..',
-      'uploads',
-      'firmas',
-    );
+    const storageKey = `firmas/${filename}`;
 
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
-    fs.writeFileSync(path.join(uploadsDir, filename), buffer);
-    const firmaUrl = `/uploads/firmas/${filename}`;
+    await this.storage.putObject({ key: storageKey, body: buffer });
+    const firmaUrl = `/uploads/${storageKey}`;
 
     return this.prisma.tenant.update({
       where: { id: tenantId },

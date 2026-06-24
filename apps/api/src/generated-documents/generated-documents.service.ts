@@ -10,8 +10,8 @@ import { GeneratedDocumentQueryDto } from './dto/generated-document-query.dto';
 import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
+import { StorageService } from '../storage/storage.service';
 import { formatNombreCompleto } from '@saas/types';
-import * as path from 'path';
 import * as fs from 'fs';
 
 interface ReplacementContext {
@@ -37,6 +37,7 @@ export class GeneratedDocumentsService {
     private prisma: PrismaService,
     private expedienteDocsService: ExpedienteDocsService,
     private auditService: AuditService,
+    private storage: StorageService,
   ) {}
 
   async generate(tenantId: string, dto: CreateGeneratedDocumentDto) {
@@ -221,21 +222,23 @@ export class GeneratedDocumentsService {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'domcontentloaded' });
 
-    const pdfsDir = path.join(process.cwd(), '..', '..', 'uploads', 'pdfs');
-    if (!fs.existsSync(pdfsDir)) fs.mkdirSync(pdfsDir, { recursive: true });
-
     const pdfFilename = `${tenantId}-${id}.pdf`;
-    const pdfPath = path.join(pdfsDir, pdfFilename);
-    const pdfUrl = `/uploads/pdfs/${pdfFilename}`;
+    const storageKey = `pdfs/${pdfFilename}`;
+    const pdfUrl = `/uploads/${storageKey}`;
 
-    await page.pdf({
-      path: pdfPath,
+    const pdfBuffer = await page.pdf({
       format: 'A4',
       margin: { top: '2cm', bottom: '2cm', left: '2.5cm', right: '2.5cm' },
       printBackground: true,
     });
 
     await browser.close();
+
+    await this.storage.putObject({
+      key: storageKey,
+      body: Buffer.from(pdfBuffer),
+      contentType: 'application/pdf',
+    });
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.generatedDocument.update({
