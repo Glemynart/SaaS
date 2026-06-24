@@ -581,14 +581,14 @@ describe('ContractsService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('lanza BadRequestException si ya existe documento generado para el contrato', async () => {
+    it('lanza ConflictException si ya existe documento generado para el contrato', async () => {
       mockContratoFindFirst.mockResolvedValue(makeContractWithSnapshot());
       mockDocumentTemplateFindMany.mockResolvedValue([makeTemplate()]);
       mockGeneratedDocumentFindFirst.mockResolvedValue({ id: 'existing-doc' });
 
       await expect(
         service.generateDocument(TENANT_ID, USER_ID, 'contract-001'),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(ConflictException);
     });
 
     it('crea GeneratedDocument con contratoId vinculado', async () => {
