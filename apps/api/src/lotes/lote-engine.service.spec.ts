@@ -1,5 +1,10 @@
 import { Test } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { LoteEngineService } from './lote-engine.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ContractsService } from '../contracts/contracts.service';
@@ -312,6 +317,128 @@ describe('LoteEngineService', () => {
       const finalize = mockLoteUpdate.mock.calls.at(-1)![0];
       expect(finalize.data.estado).toBe('COMPLETADO_CON_ERRORES');
       expect(finalize.data.erroresLog).toHaveLength(1);
+    });
+
+    it('EN_PROCESO → retorna lote sin reprocesar (idempotente)', async () => {
+      const loteEnProceso = makeLote({ estado: 'EN_PROCESO' });
+      mockLoteFindUnique.mockResolvedValue(loteEnProceso);
+
+      const result = await service.procesarLote(LOTE_ID);
+
+      expect(result).toBe(loteEnProceso);
+      expect(mockLoteUpdate).not.toHaveBeenCalled();
+    });
+
+    it('recalcula total desde empleadoIds.length', async () => {
+      mockLoteFindUnique.mockResolvedValue(
+        makeLote({
+          total: 999,
+          configuracion: { empleadoIds: ['emp-001', 'emp-002', 'emp-003'] },
+        }),
+      );
+      // Todos los empleados en S3 (ya procesados)
+      mockContratoFindFirst.mockResolvedValue({
+        id: 'c-ok',
+        empleadoId: 'emp-001',
+      });
+      mockGeneratedDocumentFindFirst.mockResolvedValue(makeGenDoc());
+      mockExpedienteDocFindFirst.mockResolvedValue({ id: 'exp-ok' });
+
+      await service.procesarLote(LOTE_ID);
+
+      const enProcesoCall = mockLoteUpdate.mock.calls.find(
+        (call) => call[0].data.estado === 'EN_PROCESO',
+      );
+      expect(enProcesoCall).toBeDefined();
+      expect(enProcesoCall![0].data.total).toBe(3);
+    });
+  });
+
+  // ── Batch Safety: P2002 idempotente ────────────────────────────────────────
+
+  describe('batch safety — P2002 idempotente', () => {
+    it('S1: carrera resuelta (ConflictException) → skip sin error', async () => {
+      // generateDocument lanza ConflictException tanto por el find-before-create
+      // ("ya tiene un documento generado") como por el catch P2002. Ambos casos
+      // representan una carrera ya resuelta por otro proceso → el engine omite.
+      mockGeneratedDocumentFindFirst.mockResolvedValue(null);
+      mockContractsGenerateDocument.mockRejectedValue(
+        new ConflictException(
+          'Este contrato ya tiene un documento generado. Elimine el existente antes de generar uno nuevo.',
+        ),
+      );
+
+      await expect(
+        service.ensureDocumento(TENANT_ID, 'user-001', { id: 'contrato-001' }),
+      ).resolves.toBeUndefined();
+
+      expect(mockContractsGenerateDocument).toHaveBeenCalled();
+    });
+
+    it('S1: snapshot inválido (BadRequestException) → sigue fallando', async () => {
+      mockGeneratedDocumentFindFirst.mockResolvedValue(null);
+      mockContractsGenerateDocument.mockRejectedValue(
+        new BadRequestException(
+          'El contrato contrato-001 tiene un variablesSnapshot incompatible con la generación de documentos.',
+        ),
+      );
+
+      await expect(
+        service.ensureDocumento(TENANT_ID, 'user-001', { id: 'contrato-001' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('S1: plantilla inválida (BadRequestException) → sigue fallando', async () => {
+      mockGeneratedDocumentFindFirst.mockResolvedValue(null);
+      mockContractsGenerateDocument.mockRejectedValue(
+        new BadRequestException('La plantilla debe ser de tipo CONTRACT'),
+      );
+
+      await expect(
+        service.ensureDocumento(TENANT_ID, 'user-001', { id: 'contrato-001' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('S4: P2002 en ExpedienteDoc → skip sin error', async () => {
+      mockGeneratedDocumentFindFirst.mockResolvedValue(makeGenDoc());
+      mockExpedienteDocFindFirst.mockResolvedValue(null);
+
+      const p2002 = new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed',
+        {
+          code: 'P2002',
+          clientVersion: '5.0.0',
+          meta: { target: ['generatedDocumentId'] },
+        },
+      );
+      mockCreateFromGeneratedDoc.mockRejectedValue(p2002);
+
+      await expect(
+        service.ensureDocumento(TENANT_ID, 'user-001', { id: 'contrato-001' }),
+      ).resolves.toBeUndefined();
+
+      expect(mockCreateFromGeneratedDoc).toHaveBeenCalled();
+    });
+
+    it('S1: error no-P2002 se propaga normalmente', async () => {
+      mockGeneratedDocumentFindFirst.mockResolvedValue(null);
+      mockContractsGenerateDocument.mockRejectedValue(
+        new Error('Unexpected DB failure'),
+      );
+
+      await expect(
+        service.ensureDocumento(TENANT_ID, 'user-001', { id: 'contrato-001' }),
+      ).rejects.toThrow('Unexpected DB failure');
+    });
+
+    it('S4: error no-P2002 se propaga normalmente', async () => {
+      mockGeneratedDocumentFindFirst.mockResolvedValue(makeGenDoc());
+      mockExpedienteDocFindFirst.mockResolvedValue(null);
+      mockCreateFromGeneratedDoc.mockRejectedValue(new Error('Disk full'));
+
+      await expect(
+        service.ensureDocumento(TENANT_ID, 'user-001', { id: 'contrato-001' }),
+      ).rejects.toThrow('Disk full');
     });
   });
 });

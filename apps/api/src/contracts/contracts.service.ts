@@ -345,7 +345,12 @@ export class ContractsService {
       where: { contratoId: contract.id, tenantId },
     });
     if (existing) {
-      throw new BadRequestException(
+      // "Ya existe" es un conflicto de estado (409), no una validación de
+      // entrada (400). Usar ConflictException unifica este camino con el catch
+      // P2002 de abajo: ambos representan "el documento ya fue creado" y
+      // permiten que LoteEngineService los trate como idempotentes (skip),
+      // sin confundirlos con BadRequestException de plantilla/snapshot.
+      throw new ConflictException(
         'Este contrato ya tiene un documento generado. Elimine el existente antes de generar uno nuevo.',
       );
     }

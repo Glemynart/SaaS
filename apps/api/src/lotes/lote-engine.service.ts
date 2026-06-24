@@ -1,5 +1,10 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Contrato, LoteContrato } from '@prisma/client';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { Contrato, LoteContrato, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ContractsService } from '../contracts/contracts.service';
 import { GeneratedDocumentsService } from '../generated-documents/generated-documents.service';
@@ -57,14 +62,21 @@ export class LoteEngineService {
       throw new NotFoundException('Lote no encontrado');
     }
 
+    if (lote.estado === 'EN_PROCESO') {
+      this.logger.log(
+        `Lote ${loteId} ya está EN_PROCESO, omitiendo re-ejecución`,
+      );
+      return lote;
+    }
+
     const empleadoIds = await this.resolveTargets(lote);
     const userId = lote.creadoPorId ?? 'system';
 
-    // Marca inicio y resetea contadores para reflejar esta corrida.
     await this.prisma.loteContrato.update({
       where: { id: loteId },
       data: {
         estado: 'EN_PROCESO',
+        total: empleadoIds.length,
         iniciadoAt: new Date(),
         completadoAt: null,
         procesados: 0,
@@ -205,11 +217,21 @@ export class LoteEngineService {
 
     // S1: GeneratedDocument ausente → generar documento + PDF + expediente.
     if (!genDoc) {
-      await this.contractsService.generateDocument(
-        tenantId,
-        userId,
-        contrato.id,
-      );
+      try {
+        await this.contractsService.generateDocument(
+          tenantId,
+          userId,
+          contrato.id,
+        );
+      } catch (error) {
+        if (error instanceof ConflictException) {
+          this.logger.log(
+            `Contrato ${contrato.id}: GeneratedDocument ya creado por otro proceso, omitiendo`,
+          );
+          return;
+        }
+        throw error;
+      }
       return;
     }
 
@@ -217,11 +239,21 @@ export class LoteEngineService {
     // limpiar el documento huérfano y regenerar desde cero.
     if (genDoc.pdfUrl == null) {
       await this.generatedDocumentsService.remove(tenantId, genDoc.id);
-      await this.contractsService.generateDocument(
-        tenantId,
-        userId,
-        contrato.id,
-      );
+      try {
+        await this.contractsService.generateDocument(
+          tenantId,
+          userId,
+          contrato.id,
+        );
+      } catch (error) {
+        if (error instanceof ConflictException) {
+          this.logger.log(
+            `Contrato ${contrato.id}: GeneratedDocument ya creado por otro proceso, omitiendo`,
+          );
+          return;
+        }
+        throw error;
+      }
       return;
     }
 
@@ -237,15 +269,28 @@ export class LoteEngineService {
     }
 
     // S4: pdfUrl != null pero ExpedienteDoc ausente → reparar SIN regenerar PDF.
-    await this.expedienteDocsService.createFromGeneratedDoc(
-      tenantId,
-      genDoc.id,
-      genDoc.employeeId,
-      genDoc.nombre,
-      genDoc.tipo,
-      undefined,
-      genDoc.contratoId,
-    );
+    try {
+      await this.expedienteDocsService.createFromGeneratedDoc(
+        tenantId,
+        genDoc.id,
+        genDoc.employeeId,
+        genDoc.nombre,
+        genDoc.tipo,
+        undefined,
+        genDoc.contratoId,
+      );
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        this.logger.log(
+          `GenDoc ${genDoc.id}: ExpedienteDoc ya creado por otro proceso, omitiendo`,
+        );
+        return;
+      }
+      throw error;
+    }
   }
 
   /**
