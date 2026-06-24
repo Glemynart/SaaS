@@ -56,7 +56,7 @@ function makeLote(overrides: Record<string, unknown> = {}) {
   return {
     id: LOTE_ID,
     tenantId: TENANT_ID,
-    plantillaId: 'plantilla-001',
+    documentTemplateId: 'dt-001',
     sedeId: null,
     creadoPorId: 'user-001',
     tipoContrato: 'TERMINO_FIJO',

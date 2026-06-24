@@ -422,7 +422,6 @@ model Plantilla {
 
   // Relaciones
   contratos Contrato[]
-  lotes     LoteContrato[]
 
   @@index([tenantId, tipo])
   @@index([tenantId, activa])
@@ -469,6 +468,7 @@ model DocumentTemplate {
 
   // Relaciones
   generatedDocuments GeneratedDocument[]
+  lotes              LoteContrato[]
 
   @@index([tenantId])
   @@index([tenantId, tipo])
@@ -1095,8 +1095,8 @@ model LoteContrato {
   tenantId  String
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  plantillaId String
-  plantilla   Plantilla @relation(fields: [plantillaId], references: [id])
+  documentTemplateId String
+  documentTemplate   DocumentTemplate @relation(fields: [documentTemplateId], references: [id])
 
   sedeId      String?
   sede        Sede?   @relation(fields: [sedeId], references: [id])
