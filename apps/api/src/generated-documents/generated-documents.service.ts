@@ -11,8 +11,8 @@ import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
 import { StorageService } from '../storage/storage.service';
+import { PdfRenderService } from '../pdf-render/pdf-render.service';
 import { formatNombreCompleto } from '@saas/types';
-import * as fs from 'fs';
 
 interface ReplacementContext {
   NOMBRE_COMPLETO: string;
@@ -38,6 +38,7 @@ export class GeneratedDocumentsService {
     private expedienteDocsService: ExpedienteDocsService,
     private auditService: AuditService,
     private storage: StorageService,
+    private pdfRender: PdfRenderService,
   ) {}
 
   async generate(tenantId: string, dto: CreateGeneratedDocumentDto) {
@@ -218,21 +219,11 @@ export class GeneratedDocumentsService {
 
     const html = this.buildPdfHtml(doc.contenidoFinal, tenant, doc.employee);
 
-    const browser = await this.getBrowser();
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'domcontentloaded' });
-
     const pdfFilename = `${tenantId}-${id}.pdf`;
     const storageKey = `pdfs/${pdfFilename}`;
     const pdfUrl = `/uploads/${storageKey}`;
 
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
-      margin: { top: '2cm', bottom: '2cm', left: '2.5cm', right: '2.5cm' },
-      printBackground: true,
-    });
-
-    await browser.close();
+    const pdfBuffer = await this.pdfRender.renderPdf(html);
 
     await this.storage.putObject({
       key: storageKey,
@@ -280,38 +271,6 @@ export class GeneratedDocumentsService {
       .catch(() => {});
 
     return { id: updated.id, pdfUrl: updated.pdfUrl, nombre: updated.nombre };
-  }
-
-  private async getBrowser() {
-    const puppeteer = await import('puppeteer');
-    try {
-      return await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      });
-    } catch {
-      return await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        executablePath: this.findChromePath(),
-      });
-    }
-  }
-
-  private findChromePath(): string | undefined {
-    const paths = [
-      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-      'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-      'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-      '/usr/bin/google-chrome',
-      '/usr/bin/chromium-browser',
-      '/usr/bin/chromium',
-    ];
-    for (const p of paths) {
-      if (fs.existsSync(p)) return p;
-    }
-    return undefined;
   }
 
   private buildPdfHtml(

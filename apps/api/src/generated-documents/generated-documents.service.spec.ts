@@ -6,15 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
 import { StorageService } from '../storage/storage.service';
-
-interface FakePage {
-  setContent: jest.Mock;
-  pdf: jest.Mock;
-}
-interface FakeBrowser {
-  newPage: jest.Mock;
-  close: jest.Mock;
-}
+import { PdfRenderService } from '../pdf-render/pdf-render.service';
 
 describe('GeneratedDocumentsService.generatePdf', () => {
   let service: GeneratedDocumentsService;
@@ -26,9 +18,7 @@ describe('GeneratedDocumentsService.generatePdf', () => {
   const mockCreateFromGeneratedDoc = jest.fn();
   const mockAuditLog = jest.fn();
   const mockPutObject = jest.fn();
-
-  let fakePage: FakePage;
-  let fakeBrowser: FakeBrowser;
+  const mockRenderPdf = jest.fn();
 
   beforeEach(async () => {
     mockFindFirst.mockReset().mockResolvedValue({
@@ -66,6 +56,7 @@ describe('GeneratedDocumentsService.generatePdf', () => {
     mockCreateFromGeneratedDoc.mockReset().mockResolvedValue(undefined);
     mockAuditLog.mockReset().mockResolvedValue(undefined);
     mockPutObject.mockReset().mockResolvedValue({ key: 'k', size: 5 });
+    mockRenderPdf.mockReset().mockResolvedValue(Buffer.from('PDF-BYTES'));
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -84,44 +75,26 @@ describe('GeneratedDocumentsService.generatePdf', () => {
         },
         { provide: AuditService, useValue: { log: mockAuditLog } },
         { provide: StorageService, useValue: { putObject: mockPutObject } },
+        { provide: PdfRenderService, useValue: { renderPdf: mockRenderPdf } },
       ],
     }).compile();
 
     service = moduleRef.get(GeneratedDocumentsService);
-
-    fakePage = {
-      setContent: jest.fn().mockResolvedValue(undefined),
-      pdf: jest.fn().mockResolvedValue(Buffer.from('PDF-BYTES')),
-    };
-    fakeBrowser = {
-      newPage: jest.fn().mockResolvedValue(fakePage),
-      close: jest.fn().mockResolvedValue(undefined),
-    };
-    jest
-      .spyOn(
-        service as unknown as { getBrowser: () => Promise<FakeBrowser> },
-        'getBrowser',
-      )
-      .mockResolvedValue(fakeBrowser);
   });
 
-  it('genera el PDF en buffer y lo persiste vía StorageService', async () => {
+  it('genera el PDF vía PdfRenderService y lo persiste vía StorageService', async () => {
     const result = await service.generatePdf('t1', 'u1', 'd1');
 
+    expect(mockRenderPdf).toHaveBeenCalledTimes(1);
+    expect(mockRenderPdf).toHaveBeenCalledWith(
+      expect.stringContaining('Contenido'),
+    );
     expect(mockPutObject).toHaveBeenCalledTimes(1);
     const arg = mockPutObject.mock.calls[0][0];
     expect(arg.key).toBe('pdfs/t1-d1.pdf');
     expect(arg.contentType).toBe('application/pdf');
     expect(Buffer.isBuffer(arg.body)).toBe(true);
     expect(result.pdfUrl).toBe('/uploads/pdfs/t1-d1.pdf');
-  });
-
-  it('invoca page.pdf sin la opción path (no escribe a disco)', async () => {
-    await service.generatePdf('t1', 'u1', 'd1');
-
-    expect(fakePage.pdf).toHaveBeenCalledWith(
-      expect.not.objectContaining({ path: expect.anything() }),
-    );
   });
 
   it('mantiene el flujo: registra ExpedienteDoc y audita', async () => {
@@ -133,7 +106,7 @@ describe('GeneratedDocumentsService.generatePdf', () => {
     );
   });
 
-  it('el código fuente no contiene escrituras directas a fs', () => {
+  it('el código fuente no contiene Puppeteer ni escrituras directas a fs', () => {
     const src = fs.readFileSync(
       join(__dirname, 'generated-documents.service.ts'),
       'utf8',
@@ -141,6 +114,9 @@ describe('GeneratedDocumentsService.generatePdf', () => {
     expect(src).not.toMatch(
       /writeFileSync|writeFile\(|createWriteStream|mkdirSync/,
     );
+    expect(src).not.toMatch(/puppeteer/);
+    expect(src).not.toMatch(/getBrowser/);
+    expect(src).toMatch(/pdfRender\.renderPdf/);
     expect(src).toMatch(/storage\.putObject/);
   });
 });
