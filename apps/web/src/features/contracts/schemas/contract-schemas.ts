@@ -14,7 +14,6 @@ export const contractSchema = z.object({
   fechaInicio: z.string().min(1, 'La fecha de inicio es obligatoria'),
   fechaFin: z.string().optional().or(z.literal('')),
   sedeId: z.string().optional().or(z.literal('')),
-  plantillaId: z.string().optional().or(z.literal('')),
 });
 
 export type ContractFormData = z.infer<typeof contractSchema>;

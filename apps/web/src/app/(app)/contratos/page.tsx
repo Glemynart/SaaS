@@ -34,7 +34,6 @@ export default function ContratosPage() {
     fechaInicio: new Date().toISOString().split('T')[0],
     fechaFin: '',
     sedeId: '',
-    plantillaId: '',
   });
 
   const { data, isLoading } = useContracts(filters);
@@ -58,7 +57,6 @@ export default function ContratosPage() {
     const payload = {
       ...form,
       sedeId: form.sedeId || undefined,
-      plantillaId: form.plantillaId || undefined,
       fechaFin: form.fechaFin || undefined,
     };
     createMutation.mutate(payload as CreateContractPayload, {
@@ -72,7 +70,6 @@ export default function ContratosPage() {
           fechaInicio: new Date().toISOString().split('T')[0],
           fechaFin: '',
           sedeId: '',
-          plantillaId: '',
         });
       },
     });
