@@ -148,10 +148,6 @@ export class ContractsService {
       sede = await this.validateSede(tenantId, dto.sedeId);
     }
 
-    if (dto.plantillaId) {
-      await this.validatePlantilla(tenantId, dto.plantillaId);
-    }
-
     if (dto.fechaFin) {
       const inicio = new Date(dto.fechaInicio);
       const fin = new Date(dto.fechaFin);
@@ -219,7 +215,6 @@ export class ContractsService {
       fechaInicio: new Date(dto.fechaInicio),
       fechaFin: dto.fechaFin ? new Date(dto.fechaFin) : null,
       sedeId: dto.sedeId ?? null,
-      plantillaId: dto.plantillaId ?? null,
       estado: 'VIGENTE' as const,
       variablesSnapshot: snapshot as unknown as Prisma.JsonValue,
     } as Prisma.ContratoUncheckedCreateInput;
@@ -539,15 +534,5 @@ export class ContractsService {
         'La sede no existe o no pertenece a esta empresa.',
       );
     return sede;
-  }
-
-  private async validatePlantilla(tenantId: string, plantillaId: string) {
-    const plantilla = await this.prisma.plantilla.findFirst({
-      where: { id: plantillaId, tenantId },
-    });
-    if (!plantilla)
-      throw new BadRequestException(
-        'La plantilla no existe o no pertenece a esta empresa.',
-      );
   }
 }

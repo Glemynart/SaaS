@@ -93,5 +93,4 @@ export interface CreateContractPayload {
   fechaInicio: string;
   fechaFin?: string;
   sedeId?: string;
-  plantillaId?: string;
 }

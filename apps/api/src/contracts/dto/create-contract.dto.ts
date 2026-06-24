@@ -45,8 +45,4 @@ export class CreateContractDto {
   @IsUUID()
   @IsOptional()
   sedeId?: string;
-
-  @IsUUID()
-  @IsOptional()
-  plantillaId?: string;
 }

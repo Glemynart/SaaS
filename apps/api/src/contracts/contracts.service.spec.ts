@@ -24,7 +24,6 @@ const mockContratoCount = jest.fn();
 const mockContratoUpdate = jest.fn();
 const mockTenantFindUnique = jest.fn();
 const mockSedeFindFirst = jest.fn();
-const mockPlantillaFindFirst = jest.fn();
 const mockDocumentTemplateFindFirst = jest.fn();
 const mockDocumentTemplateFindMany = jest.fn();
 const mockGeneratedDocumentFindFirst = jest.fn();
@@ -42,7 +41,6 @@ const mockPrisma = {
   },
   tenant: { findUnique: mockTenantFindUnique },
   sede: { findFirst: mockSedeFindFirst },
-  plantilla: { findFirst: mockPlantillaFindFirst },
   documentTemplate: {
     findFirst: mockDocumentTemplateFindFirst,
     findMany: mockDocumentTemplateFindMany,
@@ -350,19 +348,6 @@ describe('ContractsService', () => {
             fechaInicio: '2026-12-01',
             fechaFin: '2026-01-01',
           }),
-        ),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('lanza BadRequestException si la plantilla no existe', async () => {
-      mockEmpleadoFindFirst.mockResolvedValue(makeEmployee());
-      mockPlantillaFindFirst.mockResolvedValue(null);
-
-      await expect(
-        service.create(
-          TENANT_ID,
-          USER_ID,
-          makeCreateDto({ plantillaId: 'plantilla-bad' }),
         ),
       ).rejects.toThrow(BadRequestException);
     });
