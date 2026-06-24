@@ -20,6 +20,7 @@ import { DaneModule } from './dane/dane.module';
 import { SedesModule } from './sedes/sedes.module';
 import { EmployeeImportModule } from './employee-import/employee-import.module';
 import { ContractsModule } from './contracts/contracts.module';
+import { LotesModule } from './lotes/lotes.module';
 import { EmailModule } from './email/email.module';
 import { StorageModule } from './storage/storage.module';
 import { PdfRenderModule } from './pdf-render/pdf-render.module';
@@ -46,6 +47,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     SedesModule,
     EmployeeImportModule,
     ContractsModule,
+    LotesModule,
     EmailModule,
     StorageModule,
     PdfRenderModule,
