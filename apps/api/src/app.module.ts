@@ -22,6 +22,7 @@ import { EmployeeImportModule } from './employee-import/employee-import.module';
 import { ContractsModule } from './contracts/contracts.module';
 import { EmailModule } from './email/email.module';
 import { StorageModule } from './storage/storage.module';
+import { PdfRenderModule } from './pdf-render/pdf-render.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
@@ -47,6 +48,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     ContractsModule,
     EmailModule,
     StorageModule,
+    PdfRenderModule,
     ThrottlerModule.forRoot([
       {
         name: 'login',
