@@ -112,4 +112,52 @@ describe('PdfRenderService', () => {
   it('onModuleDestroy no falla si no hay browser', async () => {
     await expect(service.onModuleDestroy()).resolves.toBeUndefined();
   });
+
+  it('dos renderPdf concurrentes solo lanzan el browser una vez', async () => {
+    const launchSpy = jest.spyOn(service as never, 'launchBrowser' as never);
+
+    const [r1, r2] = await Promise.all([
+      service.renderPdf('<p>1</p>'),
+      service.renderPdf('<p>2</p>'),
+    ]);
+
+    expect(Buffer.isBuffer(r1)).toBe(true);
+    expect(Buffer.isBuffer(r2)).toBe(true);
+    expect(launchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('reintenta launch si el anterior falló', async () => {
+    const launchSpy = jest.spyOn(service as never, 'launchBrowser' as never);
+    launchSpy.mockRejectedValueOnce(new Error('launch failed') as never);
+
+    await expect(service.renderPdf('<p>1</p>')).rejects.toThrow(
+      'launch failed',
+    );
+
+    launchSpy.mockResolvedValueOnce(makeBrowser() as never);
+    const result = await service.renderPdf('<p>2</p>');
+
+    expect(Buffer.isBuffer(result)).toBe(true);
+    expect(launchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('recovery concurrente: browser desconectado + dos renderPdf = un solo launch', async () => {
+    const launchSpy = jest.spyOn(service as never, 'launchBrowser' as never);
+
+    await service.renderPdf('<p>initial</p>');
+    expect(launchSpy).toHaveBeenCalledTimes(1);
+
+    const deadBrowser = makeBrowser(false);
+    (service as unknown as { browser: unknown }).browser = deadBrowser;
+    launchSpy.mockResolvedValue(makeBrowser(true) as never);
+
+    const [r1, r2] = await Promise.all([
+      service.renderPdf('<p>1</p>'),
+      service.renderPdf('<p>2</p>'),
+    ]);
+
+    expect(Buffer.isBuffer(r1)).toBe(true);
+    expect(Buffer.isBuffer(r2)).toBe(true);
+    expect(launchSpy).toHaveBeenCalledTimes(2);
+  });
 });

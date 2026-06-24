@@ -13,6 +13,7 @@ type Browser = Awaited<ReturnType<PuppeteerModule['launch']>>;
 export class PdfRenderService implements OnModuleDestroy {
   private readonly logger = new Logger(PdfRenderService.name);
   private browser: Browser | null = null;
+  private launchPromise: Promise<Browser> | null = null;
 
   async renderPdf(html: string): Promise<Buffer> {
     const browser = await this.ensureBrowser();
@@ -33,6 +34,13 @@ export class PdfRenderService implements OnModuleDestroy {
   }
 
   async onModuleDestroy() {
+    if (this.launchPromise) {
+      try {
+        await this.launchPromise;
+      } catch {
+        // launch already failed — nothing to close
+      }
+    }
     await this.closeBrowser();
   }
 
@@ -40,9 +48,24 @@ export class PdfRenderService implements OnModuleDestroy {
     if (this.browser && this.browser.connected) {
       return this.browser;
     }
-    await this.closeBrowser();
-    this.browser = await this.launchBrowser();
-    return this.browser;
+
+    if (this.launchPromise) {
+      return this.launchPromise;
+    }
+
+    this.launchPromise = this.initBrowser();
+    return this.launchPromise;
+  }
+
+  private async initBrowser(): Promise<Browser> {
+    try {
+      await this.closeBrowser();
+      const browser = await this.launchBrowser();
+      this.browser = browser;
+      return browser;
+    } finally {
+      this.launchPromise = null;
+    }
   }
 
   private async launchBrowser(): Promise<Browser> {
