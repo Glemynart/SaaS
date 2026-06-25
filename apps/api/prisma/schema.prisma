@@ -153,6 +153,40 @@ enum ZonaMunicipio {
   RURAL
 }
 
+// --- Motor contable ADR-001 · Fase C0 — Catálogos -------------------------
+
+// Naturaleza del saldo de una cuenta del PUC.
+enum NaturalezaContable {
+  DEBITO
+  CREDITO
+}
+
+// Clase del Plan Único de Cuentas (PUC, Decreto 2650/1993). El ordinal
+// corresponde al primer dígito del código de la cuenta (1..9).
+enum ClaseContable {
+  ACTIVO // 1
+  PASIVO // 2
+  PATRIMONIO // 3
+  INGRESOS // 4
+  GASTOS // 5
+  COSTOS_VENTAS // 6
+  COSTOS_PRODUCCION // 7
+  CUENTAS_ORDEN_DEUDORAS // 8
+  CUENTAS_ORDEN_ACREEDORAS // 9
+}
+
+// Estado de control de cierre de un período contable.
+enum EstadoPeriodo {
+  ABIERTO
+  CERRADO
+}
+
+// Naturaleza jurídica de un tercero (define qué campos de nombre aplican).
+enum TipoPersona {
+  NATURAL
+  JURIDICA
+}
+
 // =============================================================================
 // TENANT — Empresa registrada en la plataforma
 // =============================================================================
@@ -168,44 +202,44 @@ model Tenant {
 
   // Datos de la organización
   nombre       String
-  nit          String   @unique        // NIT sin dígito de verificación
-  digitoVerif  String                  // Dígito de verificación del NIT
+  nit          String  @unique // NIT sin dígito de verificación
+  digitoVerif  String // Dígito de verificación del NIT
   razonSocial  String
   direccion    String?
   ciudad       String?
   departamento String?
   telefono     String?
   email        String?
-  logoUrl      String?                 // URL en R2 del logo de la empresa
+  logoUrl      String? // URL en R2 del logo de la empresa
 
   // Identidad corporativa — Branding
-  representanteLegal    String?          // Nombre del representante legal
-  firmaRepresentanteUrl String?          // URL en R2 de la firma digitalizada
+  representanteLegal    String? // Nombre del representante legal
+  firmaRepresentanteUrl String? // URL en R2 de la firma digitalizada
 
   // Municipio de ubicación principal (Colombia)
-  municipioId  String?
-  municipio    MunicipioDane? @relation(fields: [municipioId], references: [id])
+  municipioId String?
+  municipio   MunicipioDane? @relation(fields: [municipioId], references: [id])
 
   // Configuración del plan
-  plan         Plan     @default(STARTER)
-  activo       Boolean  @default(true)
-  trialEndsAt  DateTime?               // Fecha fin del período de prueba
+  plan        Plan      @default(STARTER)
+  activo      Boolean   @default(true)
+  trialEndsAt DateTime? // Fecha fin del período de prueba
 
   // Configuración nómina colombiana
-  aportesExonerados Boolean  @default(false) // Art. 114-1 ET: exoneración salud pat., ICBF, SENA
+  aportesExonerados Boolean @default(false) // Art. 114-1 ET: exoneración salud pat., ICBF, SENA
 
   // Configuración DIAN para facturación electrónica
   // Estos campos se completan si el tenant usa el módulo FE
-  feActivo          Boolean  @default(false)
-  feResolucion      String?             // Número de resolución DIAN
-  feResolucionFecha DateTime?           // Fecha de la resolución
-  feResolucionVence DateTime?           // Fecha de vencimiento
-  fePrefijo         String?             // Prefijo autorizado (ej: SETT)
-  feRangoDesde      Int?                // Número inicial autorizado
-  feRangoHasta      Int?                // Número final autorizado
-  feUltimoNumero    Int?                // Último número emitido
-  feTecnicoId       String?             // ID técnico Matías API
-  feTecnicoKey      String?             // Clave técnica Matías API
+  feActivo          Boolean   @default(false)
+  feResolucion      String? // Número de resolución DIAN
+  feResolucionFecha DateTime? // Fecha de la resolución
+  feResolucionVence DateTime? // Fecha de vencimiento
+  fePrefijo         String? // Prefijo autorizado (ej: SETT)
+  feRangoDesde      Int? // Número inicial autorizado
+  feRangoHasta      Int? // Número final autorizado
+  feUltimoNumero    Int? // Último número emitido
+  feTecnicoId       String? // ID técnico Matías API
+  feTecnicoKey      String? // Clave técnica Matías API
 
   // Relaciones
   users              User[]
@@ -231,6 +265,13 @@ model Tenant {
   parametrosLegales  ParametroLegalNomina[]
   liquidations       Liquidation[]
 
+  // Motor contable C0 (TipoComprobante es catálogo global → sin relación aquí)
+  cuentasContables  CuentaContable[]
+  terceros          Tercero[]
+  periodosContables PeriodoContable[]
+  centrosCosto      CentroCosto[]
+  cuentaSistemaMaps CuentaSistemaMap[]
+
   @@map("tenants")
 }
 
@@ -247,15 +288,15 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  email          String
-  passwordHash   String
-  nombre         String
-  apellido       String
-  rol            UserRole @default(OPERADOR)
-  activo         Boolean  @default(true)
+  email        String
+  passwordHash String
+  nombre       String
+  apellido     String
+  rol          UserRole @default(OPERADOR)
+  activo       Boolean  @default(true)
 
   // Control de sesión
   lastLoginAt         DateTime?
@@ -263,7 +304,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   lotesCreados        LoteContrato[]
 
-  @@unique([tenantId, email])          // Un email es único por empresa, no globalmente
+  @@unique([tenantId, email]) // Un email es único por empresa, no globalmente
   @@index([tenantId, activo])
   @@index([tenantId, rol])
   @@map("users")
@@ -281,14 +322,14 @@ model RefreshToken {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
 
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  tokenHash  String   @unique         // Hash SHA-256 del token, nunca el token en texto plano
-  expiresAt  DateTime
-  revokedAt  DateTime?                // Nulo = activo, fecha = revocado
-  userAgent  String?                  // Dispositivo/browser para auditoría
-  ipAddress  String?
+  tokenHash String    @unique // Hash SHA-256 del token, nunca el token en texto plano
+  expiresAt DateTime
+  revokedAt DateTime? // Nulo = activo, fecha = revocado
+  userAgent String? // Dispositivo/browser para auditoría
+  ipAddress String?
 
   @@index([userId])
   @@index([tokenHash])
@@ -330,13 +371,13 @@ model PasswordResetToken {
 // =============================================================================
 
 model Empleado {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deletedAt DateTime?                 // Soft delete: nunca borrar empleados con historial
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? // Soft delete: nunca borrar empleados con historial
 
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   // Identificación
   cedula          String
@@ -350,46 +391,46 @@ model Empleado {
   fechaNacimiento DateTime?
 
   // Datos laborales
-  cargo           String
-  dependencia     String?              // Área o departamento
-  sede            String?              // [LEGACY] Campo texto libre — será reemplazado por sedeId
-  sedeId          String?              // FK → Sede (relación formal)
-  sedeRef         Sede?                @relation(fields: [sedeId], references: [id])
-  salario         Decimal  @db.Decimal(12, 2)
-  tipoContrato    ContratoTipo @default(TERMINO_FIJO)
-  fechaIngreso    DateTime
-  estado          EmpleadoEstado @default(ACTIVO)
+  cargo        String
+  dependencia  String? // Área o departamento
+  sede         String? // [LEGACY] Campo texto libre — será reemplazado por sedeId
+  sedeId       String? // FK → Sede (relación formal)
+  sedeRef      Sede?          @relation(fields: [sedeId], references: [id])
+  salario      Decimal        @db.Decimal(12, 2)
+  tipoContrato ContratoTipo   @default(TERMINO_FIJO)
+  fechaIngreso DateTime
+  estado       EmpleadoEstado @default(ACTIVO)
 
   // Datos de seguridad social (para nómina en V1)
-  eps             String?
-  arl             String?
-  fondoPension    String?
+  eps              String?
+  arl              String?
+  fondoPension     String?
   cajaCompensacion String?
 
   // Campos Colombia expansion — FASE 2
   municipioExpedicionDocId String?
-  municipioExpedicionDoc   MunicipioDane? @relation(fields: [municipioExpedicionDocId], references: [id])
-  salarioIntegral          Boolean        @default(false)
+  municipioExpedicionDoc   MunicipioDane?  @relation(fields: [municipioExpedicionDocId], references: [id])
+  salarioIntegral          Boolean         @default(false)
   jornadaLaboral           JornadaLaboral?
   fechaRetiro              DateTime?
   motivoRetiro             MotivoRetiro?
 
   // Relaciones
-  contratos           Contrato[]
-  generatedDocuments  GeneratedDocument[]
-  alerts              Alert[]
-  payrollRuns         PayrollRun[]
-  payrollNovelties    PayrollNovelty[]
-  expediente          ExpedienteDoc[]
-  alertas             Alerta[]
-  liquidations        Liquidation[]
+  contratos          Contrato[]
+  generatedDocuments GeneratedDocument[]
+  alerts             Alert[]
+  payrollRuns        PayrollRun[]
+  payrollNovelties   PayrollNovelty[]
+  expediente         ExpedienteDoc[]
+  alertas            Alerta[]
+  liquidations       Liquidation[]
 
   @@unique([tenantId, cedula])
   @@index([tenantId, estado])
   @@index([tenantId, cargo])
   @@index([tenantId, dependencia])
   @@index([tenantId, sedeId])
-  @@index([tenantId, deletedAt])      // Para filtrar soft-deleted eficientemente
+  @@index([tenantId, deletedAt]) // Para filtrar soft-deleted eficientemente
   @@map("empleados")
 }
 
@@ -407,18 +448,18 @@ model Plantilla {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  nombre       String
-  descripcion  String?
-  tipo         PlantillaTipo
-  storageKey   String                 // Ruta en R2: {tenantId}/plantillas/{id}.docx
-  activa       Boolean  @default(true)
+  nombre      String
+  descripcion String?
+  tipo        PlantillaTipo
+  storageKey  String // Ruta en R2: {tenantId}/plantillas/{id}.docx
+  activa      Boolean       @default(true)
 
   // JSON con el mapa de variables de la plantilla
   // Estructura: { "{{MARCADOR}}": "campo.ruta" | "literal:valor" }
-  variablesMapa Json     @default("{}")
+  variablesMapa Json @default("{}")
 
   // Relaciones
   contratos Contrato[]
@@ -452,18 +493,18 @@ enum DocumentTemplateType {
 // =============================================================================
 
 model DocumentTemplate {
-  id          String               @id @default(uuid())
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
-  deletedAt   DateTime?
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
-  tenantId    String
-  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   nombre      String
   descripcion String?
   tipo        DocumentTemplateType
-  contenido   String               // Texto con placeholders {{VARIABLE}}
+  contenido   String // Texto con placeholders {{VARIABLE}}
   activo      Boolean              @default(true)
 
   // Relaciones
@@ -493,22 +534,22 @@ model GeneratedDocument {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
 
-  tenantId   String
-  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   employeeId String
-  employee   Empleado          @relation(fields: [employeeId], references: [id])
+  employee   Empleado @relation(fields: [employeeId], references: [id])
 
   templateId String
-  template   DocumentTemplate  @relation(fields: [templateId], references: [id])
+  template   DocumentTemplate @relation(fields: [templateId], references: [id])
 
   contratoId String?
-  contrato   Contrato?         @relation(fields: [contratoId], references: [id])
+  contrato   Contrato? @relation(fields: [contratoId], references: [id])
 
-  nombre          String   // Nombre del documento generado
-  contenidoFinal  String   // Contenido con variables ya reemplazadas (snapshot inmutable)
-  pdfUrl          String?  // URL del PDF generado (R2-ready)
-  tipo            DocumentTemplateType
+  nombre         String // Nombre del documento generado
+  contenidoFinal String // Contenido con variables ya reemplazadas (snapshot inmutable)
+  pdfUrl         String? // URL del PDF generado (R2-ready)
+  tipo           DocumentTemplateType
 
   // Relaciones
   expedienteDocs ExpedienteDoc[]
@@ -555,8 +596,8 @@ model Alert {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
 
-  tenantId   String
-  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   employeeId String?
   employee   Empleado? @relation(fields: [employeeId], references: [id])
@@ -594,10 +635,10 @@ enum PayrollPeriodStatus {
 // =============================================================================
 
 enum PayrollConceptType {
-  EARNING                // Devengo del empleado: salario, auxilio, bonos, extras
-  DEDUCTION              // Deducción del empleado: salud 4%, pensión 4%, FSP
-  EMPLOYER_CONTRIBUTION  // Aporte patronal: salud 8.5%, pensión 12%, ARL, caja, ICBF, SENA
-  PROVISION              // N2B — provisión prestacional: prima, cesantías, intereses, vacaciones
+  EARNING // Devengo del empleado: salario, auxilio, bonos, extras
+  DEDUCTION // Deducción del empleado: salud 4%, pensión 4%, FSP
+  EMPLOYER_CONTRIBUTION // Aporte patronal: salud 8.5%, pensión 12%, ARL, caja, ICBF, SENA
+  PROVISION // N2B — provisión prestacional: prima, cesantías, intereses, vacaciones
 }
 
 // =============================================================================
@@ -618,10 +659,10 @@ enum PayrollNoveltyType {
 // =============================================================================
 
 enum LiquidationStatus {
-  DRAFT     // En elaboración, aún modificable
-  APPROVED  // Aprobada y congelada — no modificable
-  PAID      // Pagada — terminal
-  VOIDED    // Anulada sin pago — terminal
+  DRAFT // En elaboración, aún modificable
+  APPROVED // Aprobada y congelada — no modificable
+  PAID // Pagada — terminal
+  VOIDED // Anulada sin pago — terminal
 }
 
 // =============================================================================
@@ -629,8 +670,8 @@ enum LiquidationStatus {
 // =============================================================================
 
 enum LiquidationConceptType {
-  EARNING    // Prestación social / devengo: prima, cesantías, intereses, vacaciones, salario pendiente
-  PROVISION  // Concepto de costo diferido (reservado para extensiones futuras)
+  EARNING // Prestación social / devengo: prima, cesantías, intereses, vacaciones, salario pendiente
+  PROVISION // Concepto de costo diferido (reservado para extensiones futuras)
 }
 
 // =============================================================================
@@ -641,8 +682,8 @@ model PayrollPeriod {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
 
-  tenantId   String
-  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   nombre      String
   fechaInicio DateTime
@@ -665,8 +706,8 @@ model PayrollRun {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
 
-  tenantId   String
-  tenant     Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   payrollPeriodId String
   payrollPeriod   PayrollPeriod @relation(fields: [payrollPeriodId], references: [id])
@@ -674,20 +715,20 @@ model PayrollRun {
   employeeId String
   employee   Empleado @relation(fields: [employeeId], references: [id])
 
-  totalDevengos        Decimal  @db.Decimal(12, 2)
-  totalDeducciones     Decimal  @db.Decimal(12, 2)
-  netoPagar            Decimal  @db.Decimal(12, 2)
-  salarioBaseSnapshot  Decimal? @db.Decimal(12, 2)
+  totalDevengos       Decimal  @db.Decimal(12, 2)
+  totalDeducciones    Decimal  @db.Decimal(12, 2)
+  netoPagar           Decimal  @db.Decimal(12, 2)
+  salarioBaseSnapshot Decimal? @db.Decimal(12, 2)
 
   // N2A — snapshot de cálculo colombiano (nullable: runs N1 quedan en NULL)
-  ibc                    Decimal? @db.Decimal(14, 2)  // Base de cotización liquidada
-  auxilioTransporte      Decimal? @db.Decimal(14, 2)  // Devengo separado, no es IBC
-  totalAportesPatronales Decimal? @db.Decimal(14, 2)  // Σ EMPLOYER_CONTRIBUTION
-  costoTotalEmpleador    Decimal? @db.Decimal(14, 2)  // totalDevengos + totalAportesPatronales
-  parametroLegalId       String?                       // FK → vigencia de parámetros usada
+  ibc                    Decimal? @db.Decimal(14, 2) // Base de cotización liquidada
+  auxilioTransporte      Decimal? @db.Decimal(14, 2) // Devengo separado, no es IBC
+  totalAportesPatronales Decimal? @db.Decimal(14, 2) // Σ EMPLOYER_CONTRIBUTION
+  costoTotalEmpleador    Decimal? @db.Decimal(14, 2) // totalDevengos + totalAportesPatronales
+  parametroLegalId       String? // FK → vigencia de parámetros usada
 
   // N2B — snapshot de provisiones prestacionales (nullable: runs N1/N2A quedan en NULL)
-  totalProvisiones       Decimal? @db.Decimal(14, 2)  // Σ PROVISION (prima, cesantías, intereses, vacaciones)
+  totalProvisiones Decimal? @db.Decimal(14, 2) // Σ PROVISION (prima, cesantías, intereses, vacaciones)
 
   parametroLegal ParametroLegalNomina? @relation(fields: [parametroLegalId], references: [id], onDelete: Restrict)
 
@@ -714,12 +755,12 @@ model PayrollConcept {
 
   tipo   PayrollConceptType
   nombre String
-  valor  Decimal @db.Decimal(12, 2)
+  valor  Decimal            @db.Decimal(12, 2)
 
   // N2A — trazabilidad del cálculo (nullable: conceptos N1 quedan en NULL)
-  codigo String?           // Código estable del catálogo: SALARIO_BASE, SALUD_EMP, ARL, etc.
-  base   Decimal? @db.Decimal(14, 2)  // Base sobre la que se calculó (IBC, nómina)
-  factor Decimal? @db.Decimal(8, 6)   // Tarifa aplicada (0.04, 0.085, tarifa ARL…)
+  codigo String? // Código estable del catálogo: SALARIO_BASE, SALUD_EMP, ARL, etc.
+  base   Decimal? @db.Decimal(14, 2) // Base sobre la que se calculó (IBC, nómina)
+  factor Decimal? @db.Decimal(8, 6) // Tarifa aplicada (0.04, 0.085, tarifa ARL…)
 
   @@index([payrollRunId])
   @@map("payroll_concepts")
@@ -733,8 +774,8 @@ model PayrollNovelty {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
 
-  tenantId   String
-  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   payrollPeriodId String
   payrollPeriod   PayrollPeriod @relation(fields: [payrollPeriodId], references: [id])
@@ -745,7 +786,7 @@ model PayrollNovelty {
   tipo        PayrollNoveltyType
   descripcion String?
   fecha       DateTime
-  valor       Decimal? @db.Decimal(12, 2)
+  valor       Decimal?           @db.Decimal(12, 2)
 
   @@index([tenantId])
   @@index([tenantId, payrollPeriodId])
@@ -767,8 +808,8 @@ model Liquidation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   empleadoId String
   empleado   Empleado @relation(fields: [empleadoId], references: [id])
@@ -806,13 +847,13 @@ model LiquidationConcept {
   liquidationId String
   liquidation   Liquidation @relation(fields: [liquidationId], references: [id], onDelete: Cascade)
 
-  codigo String                  // Código estable del catálogo: LIQ_PRIMA, LIQ_CESANTIAS, etc.
+  codigo String // Código estable del catálogo: LIQ_PRIMA, LIQ_CESANTIAS, etc.
   nombre String
   tipo   LiquidationConceptType
 
-  base   Decimal? @db.Decimal(14, 2)  // Base monetaria del cálculo
-  factor Decimal? @db.Decimal(8, 6)   // Factor aplicado (ej. 0.5 = 180 días / 360)
-  valor  Decimal  @db.Decimal(14, 2)  // Monto en peso entero: roundPeso(base × factor)
+  base   Decimal? @db.Decimal(14, 2) // Base monetaria del cálculo
+  factor Decimal? @db.Decimal(8, 6) // Factor aplicado (ej. 0.5 = 180 días / 360)
+  valor  Decimal  @db.Decimal(14, 2) // Monto en peso entero: roundPeso(base × factor)
 
   @@index([liquidationId])
   @@index([codigo])
@@ -846,8 +887,8 @@ model Customer {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
 
-  tenantId   String
-  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   razonSocial String
   nit         String
@@ -872,14 +913,14 @@ model ProductService {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
 
-  tenantId   String
-  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   nombre      String
   descripcion String?
-  precio      Decimal  @db.Decimal(12, 2)
-  impuesto    Decimal  @default(19) @db.Decimal(5, 2)
-  activo      Boolean  @default(true)
+  precio      Decimal @db.Decimal(12, 2)
+  impuesto    Decimal @default(19) @db.Decimal(5, 2)
+  activo      Boolean @default(true)
 
   @@index([tenantId])
   @@index([tenantId, activo])
@@ -894,18 +935,18 @@ model Invoice {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
 
-  tenantId   String
-  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id])
 
-  numero      String
-  subtotal    Decimal  @db.Decimal(12, 2)
-  impuestos   Decimal  @db.Decimal(12, 2)
-  total       Decimal  @db.Decimal(12, 2)
-  status      InvoiceStatus @default(DRAFT)
-  fechaEmision DateTime @default(now())
+  numero       String
+  subtotal     Decimal       @db.Decimal(12, 2)
+  impuestos    Decimal       @db.Decimal(12, 2)
+  total        Decimal       @db.Decimal(12, 2)
+  status       InvoiceStatus @default(DRAFT)
+  fechaEmision DateTime      @default(now())
 
   items InvoiceItem[]
 
@@ -924,13 +965,13 @@ model InvoiceItem {
   createdAt DateTime @default(now())
 
   invoiceId String
-  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
 
   productServiceId String?
   descripcion      String
-  cantidad         Decimal  @db.Decimal(10, 3)
-  valorUnitario    Decimal  @db.Decimal(12, 2)
-  subtotal         Decimal  @db.Decimal(12, 2)
+  cantidad         Decimal @db.Decimal(10, 3)
+  valorUnitario    Decimal @db.Decimal(12, 2)
+  subtotal         Decimal @db.Decimal(12, 2)
 
   @@index([invoiceId])
   @@map("invoice_items")
@@ -944,12 +985,12 @@ model AuditLog {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
 
-  tenantId String
-  userId   String
-  action   String
+  tenantId   String
+  userId     String
+  action     String
   entityType String
   entityId   String?
-  metadata   Json?     @default("{}")
+  metadata   Json?   @default("{}")
 
   @@index([tenantId])
   @@index([tenantId, action])
@@ -963,15 +1004,16 @@ model AuditLog {
 // =============================================================================
 
 model MunicipioDane {
-  id        String   @id @default(uuid())
-  codigo    String   @unique
-  nombre    String
+  id           String @id @default(uuid())
+  codigo       String @unique
+  nombre       String
   departamento String
 
   // Relaciones
-  tenants              Tenant[]
-  sedes                Sede[]
-  empleadosExpedicion  Empleado[]
+  tenants             Tenant[]
+  sedes               Sede[]
+  empleadosExpedicion Empleado[]
+  terceros            Tercero[]
 
   @@index([departamento])
   @@index([nombre])
@@ -990,19 +1032,20 @@ model Sede {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  nombre    String
-  direccion String?
+  nombre      String
+  direccion   String?
   municipioId String?
   municipio   MunicipioDane? @relation(fields: [municipioId], references: [id])
-  activo    Boolean  @default(true)
+  activo      Boolean        @default(true)
 
   // Relaciones
-  contratos Contrato[]
-  lotes     LoteContrato[]
-  empleados Empleado[]
+  contratos    Contrato[]
+  lotes        LoteContrato[]
+  empleados    Empleado[]
+  centrosCosto CentroCosto[]
 
   @@index([tenantId, activo])
   @@index([tenantId, municipioId])
@@ -1023,20 +1066,20 @@ model Contrato {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  empleadoId  String
-  empleado    Empleado  @relation(fields: [empleadoId], references: [id])
+  empleadoId String
+  empleado   Empleado @relation(fields: [empleadoId], references: [id])
 
-  plantillaId String?                 // Null si fue creado sin plantilla (manual)
+  plantillaId String? // Null si fue creado sin plantilla (manual)
   plantilla   Plantilla? @relation(fields: [plantillaId], references: [id])
 
-  loteId      String?                 // Null si fue generado individualmente
-  lote        LoteContrato? @relation(fields: [loteId], references: [id])
+  loteId String? // Null si fue generado individualmente
+  lote   LoteContrato? @relation(fields: [loteId], references: [id])
 
-  sedeId      String?
-  sede        Sede?         @relation(fields: [sedeId], references: [id])
+  sedeId String?
+  sede   Sede?   @relation(fields: [sedeId], references: [id])
 
   // Auto-referencia: contrato anterior que este contrato renueva
   contratoRenovaId String?
@@ -1044,21 +1087,21 @@ model Contrato {
   renovaciones     Contrato[] @relation("ContratoRenovacion")
 
   // Datos del contrato
-  tipo         ContratoTipo
-  estado       ContratoEstado @default(VIGENTE)
-  fechaInicio  DateTime
-  fechaFin     DateTime?              // Null para contratos indefinidos
-  cargo        String                 // Snapshot del cargo al momento del contrato
-  salario      Decimal  @db.Decimal(12, 2) // Snapshot del salario
+  tipo        ContratoTipo
+  estado      ContratoEstado @default(VIGENTE)
+  fechaInicio DateTime
+  fechaFin    DateTime? // Null para contratos indefinidos
+  cargo       String // Snapshot del cargo al momento del contrato
+  salario     Decimal        @db.Decimal(12, 2) // Snapshot del salario
 
   // Campos adicionales Colombia expansion
   fechaFinPeriodoPrueba DateTime?
   plantillaVersion      String?
-  claseRiesgoArl        Int?     // Clase de riesgo ARL: 1=mínimo … 5=máximo (Decreto 1072/2015)
+  claseRiesgoArl        Int? // Clase de riesgo ARL: 1=mínimo … 5=máximo (Decreto 1072/2015)
 
   // Documentos generados — URLs en R2
-  pdfKey    String?                   // {tenantId}/contratos/{id}/contrato.pdf
-  docxKey   String?                   // {tenantId}/contratos/{id}/contrato.docx
+  pdfKey  String? // {tenantId}/contratos/{id}/contrato.pdf
+  docxKey String? // {tenantId}/contratos/{id}/contrato.docx
 
   // Snapshot de variables usadas en la generación
   // Preserva los valores exactos usados aunque el empleado cambie después
@@ -1071,7 +1114,7 @@ model Contrato {
 
   @@index([tenantId, estado])
   @@index([tenantId, empleadoId])
-  @@index([tenantId, fechaFin])       // Crítico para el cron de alertas
+  @@index([tenantId, fechaFin]) // Crítico para el cron de alertas
   @@index([tenantId, loteId])
   @@index([tenantId, tipo])
   @@index([tenantId, sedeId])
@@ -1092,14 +1135,14 @@ model LoteContrato {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   documentTemplateId String
   documentTemplate   DocumentTemplate @relation(fields: [documentTemplateId], references: [id])
 
-  sedeId      String?
-  sede        Sede?   @relation(fields: [sedeId], references: [id])
+  sedeId String?
+  sede   Sede?   @relation(fields: [sedeId], references: [id])
 
   creadoPorId String?
   creadoPor   User?   @relation(fields: [creadoPorId], references: [id])
@@ -1111,21 +1154,21 @@ model LoteContrato {
   fechaFinContrato    DateTime?
 
   // Estado del procesamiento
-  estado      LoteEstado @default(PENDIENTE)
-  total       Int                     // Total de contratos a generar
-  procesados  Int        @default(0)  // Generados exitosamente
-  fallidos    Int        @default(0)  // Fallaron en la generación
+  estado     LoteEstado @default(PENDIENTE)
+  total      Int // Total de contratos a generar
+  procesados Int        @default(0) // Generados exitosamente
+  fallidos   Int        @default(0) // Fallaron en la generación
 
   // Tiempos de procesamiento
   iniciadoAt   DateTime?
   completadoAt DateTime?
 
   // Resultado
-  zipKey       String?                // {tenantId}/lotes/{id}/contratos.zip
-  erroresLog   Json?    @default("[]") // Array de { empleadoId, cedula, error }
+  zipKey     String? // {tenantId}/lotes/{id}/contratos.zip
+  erroresLog Json?   @default("[]") // Array de { empleadoId, cedula, error }
 
   // Parámetros del lote (snapshot de la configuración al momento de crear)
-  configuracion Json @default("{}")   // fechaInicio, fechaFin, tipo, etc.
+  configuracion Json @default("{}") // fechaInicio, fechaFin, tipo, etc.
 
   // Relaciones
   contratos Contrato[]
@@ -1148,8 +1191,8 @@ model ExpedienteDoc {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   empleadoId String
   empleado   Empleado @relation(fields: [empleadoId], references: [id])
@@ -1161,25 +1204,25 @@ model ExpedienteDoc {
   generatedDocument   GeneratedDocument? @relation(fields: [generatedDocumentId], references: [id])
 
   // Clasificación del documento
-  categoria    ExpedienteCategoria
-  nombre       String               // Nombre original del archivo
-  descripcion  String?
-  version      Int      @default(1) // Incrementa cuando se sube una nueva versión
+  categoria   ExpedienteCategoria
+  nombre      String // Nombre original del archivo
+  descripcion String?
+  version     Int                 @default(1) // Incrementa cuando se sube una nueva versión
 
   // Fechas de vigencia del documento
-  fechaDocumento   DateTime?
-  fechaVencimiento DateTime?
+  fechaDocumento     DateTime?
+  fechaVencimiento   DateTime?
   requiereRenovacion Boolean?
 
   // Almacenamiento
   // Ruta: {tenantId}/expediente/{empleadoId}/{categoria}/{id}_v{version}.{ext}
-  storageKey   String
-  mimeType     String               // application/pdf, image/jpeg, etc.
-  tamanoBytes  Int
+  storageKey  String
+  mimeType    String // application/pdf, image/jpeg, etc.
+  tamanoBytes Int
 
   // Trazabilidad
-  subidoPorId  String?              // userId de quien subió el archivo
-  subidoPorNombre String?           // Snapshot del nombre por si el usuario se elimina
+  subidoPorId     String? // userId de quien subió el archivo
+  subidoPorNombre String? // Snapshot del nombre por si el usuario se elimina
 
   alerts Alert[]
 
@@ -1203,23 +1246,23 @@ model Alerta {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   contratoId String
-  contrato   Contrato  @relation(fields: [contratoId], references: [id])
+  contrato   Contrato @relation(fields: [contratoId], references: [id])
 
   empleadoId String
-  empleado   Empleado  @relation(fields: [empleadoId], references: [id])
+  empleado   Empleado @relation(fields: [empleadoId], references: [id])
 
   tipo             AlertaTipo
   estado           AlertaEstado @default(PENDIENTE)
-  diasAnticipacion Int          // 30, 15 o 7 días antes del vencimiento
+  diasAnticipacion Int // 30, 15 o 7 días antes del vencimiento
 
   // Resultado del envío
   enviadaAt    DateTime?
-  destinatario String?          // Email al que se envió la alerta
-  errorMensaje String?          // Detalle del error si estado = FALLIDA
+  destinatario String? // Email al que se envió la alerta
+  errorMensaje String? // Detalle del error si estado = FALLIDA
 
   // Evita crear la misma alerta dos veces para el mismo contrato y anticipación
   @@unique([contratoId, diasAnticipacion])
@@ -1238,29 +1281,29 @@ model Alerta {
 // =============================================================================
 
 model ClienteFE {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   // Datos fiscales
-  razonSocial     String
-  nit             String               // NIT o cédula del cliente
-  digitoVerif     String?
-  tipoDocumento   String   @default("NIT") // NIT, CC, CE
-  regimen         ClienteFERegimen @default(COMUN)
+  razonSocial   String
+  nit           String // NIT o cédula del cliente
+  digitoVerif   String?
+  tipoDocumento String           @default("NIT") // NIT, CC, CE
+  regimen       ClienteFERegimen @default(COMUN)
 
   // Datos de contacto
-  email           String?              // Para envío automático de facturas
-  telefono        String?
-  direccion       String?
-  ciudad          String?
-  departamento    String?
+  email        String? // Para envío automático de facturas
+  telefono     String?
+  direccion    String?
+  ciudad       String?
+  departamento String?
 
-  activo          Boolean  @default(true)
+  activo Boolean @default(true)
 
   // Relaciones
   facturas Factura[]
@@ -1285,17 +1328,17 @@ model Producto {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  codigo       String                 // Código interno del tenant
-  codigoDIAN   String?                // Código estándar DIAN (opcional)
+  codigo       String // Código interno del tenant
+  codigoDIAN   String? // Código estándar DIAN (opcional)
   nombre       String
   descripcion  String?
-  precioBase   Decimal  @db.Decimal(12, 2)
+  precioBase   Decimal      @db.Decimal(12, 2)
   impuesto     ImpuestoTipo @default(IVA_19)
-  unidadMedida String   @default("94") // Código DIAN de unidad (94 = Unidad)
-  activo       Boolean  @default(true)
+  unidadMedida String       @default("94") // Código DIAN de unidad (94 = Unidad)
+  activo       Boolean      @default(true)
 
   // Relaciones
   items ItemFactura[]
@@ -1320,44 +1363,44 @@ model Factura {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   clienteId String
   cliente   ClienteFE @relation(fields: [clienteId], references: [id])
 
   // Numeración
-  tipo       FacturaTipo @default(FACTURA_VENTA)
-  prefijo    String?                  // Prefijo de la resolución DIAN
-  numero     Int                      // Número secuencial dentro del prefijo
-  estado     FacturaEstado @default(BORRADOR)
+  tipo    FacturaTipo   @default(FACTURA_VENTA)
+  prefijo String? // Prefijo de la resolución DIAN
+  numero  Int // Número secuencial dentro del prefijo
+  estado  FacturaEstado @default(BORRADOR)
 
   // Fechas
-  fechaEmision    DateTime @default(now())
-  fechaVencimiento DateTime?           // Para control de cartera (no DIAN)
+  fechaEmision     DateTime  @default(now())
+  fechaVencimiento DateTime? // Para control de cartera (no DIAN)
 
   // Totales calculados y almacenados (desnormalización intencional)
-  subtotal   Decimal  @db.Decimal(12, 2)
-  totalIva   Decimal  @db.Decimal(12, 2)
-  total      Decimal  @db.Decimal(12, 2)
+  subtotal Decimal @db.Decimal(12, 2)
+  totalIva Decimal @db.Decimal(12, 2)
+  total    Decimal @db.Decimal(12, 2)
 
   // Respuesta DIAN vía Matías API
-  matiasId        String?              // ID del documento en Matías API
-  cufe            String?              // Código Único de Facturación Electrónica
-  qrCode          String?              // Contenido del QR para representación gráfica
-  dianRespuesta   String?              // Mensaje de respuesta de la DIAN
-  dianFecha       DateTime?            // Fecha de respuesta de la DIAN
-  reintentos      Int      @default(0) // Número de intentos de transmisión
+  matiasId      String? // ID del documento en Matías API
+  cufe          String? // Código Único de Facturación Electrónica
+  qrCode        String? // Contenido del QR para representación gráfica
+  dianRespuesta String? // Mensaje de respuesta de la DIAN
+  dianFecha     DateTime? // Fecha de respuesta de la DIAN
+  reintentos    Int       @default(0) // Número de intentos de transmisión
 
   // Almacenamiento en R2
-  xmlKey  String?                     // {tenantId}/facturacion/{id}/factura.xml
-  pdfKey  String?                     // {tenantId}/facturacion/{id}/factura.pdf
+  xmlKey String? // {tenantId}/facturacion/{id}/factura.xml
+  pdfKey String? // {tenantId}/facturacion/{id}/factura.pdf
 
   // Notas y referencia para NC/ND
-  notas              String?
-  facturaOrigenId    String?           // Para NC/ND: factura que origina el documento
-  facturaOrigen      Factura?  @relation("FacturaReferencia", fields: [facturaOrigenId], references: [id])
-  notasEmitidas      Factura[] @relation("FacturaReferencia")
+  notas           String?
+  facturaOrigenId String? // Para NC/ND: factura que origina el documento
+  facturaOrigen   Factura?  @relation("FacturaReferencia", fields: [facturaOrigenId], references: [id])
+  notasEmitidas   Factura[] @relation("FacturaReferencia")
 
   // Relaciones
   items ItemFactura[]
@@ -1384,23 +1427,23 @@ model ItemFactura {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
 
-  facturaId  String
-  factura    Factura  @relation(fields: [facturaId], references: [id], onDelete: Cascade)
+  facturaId String
+  factura   Factura @relation(fields: [facturaId], references: [id], onDelete: Cascade)
 
-  productoId String?                  // Null si el ítem fue ingresado manualmente
+  productoId String? // Null si el ítem fue ingresado manualmente
   producto   Producto? @relation(fields: [productoId], references: [id])
 
   // Snapshot de los valores al momento de facturar
-  codigoDIAN    String?
-  descripcion   String                // Copia de producto.nombre al facturar
-  cantidad      Decimal  @db.Decimal(10, 3)
-  precioUnitario Decimal @db.Decimal(12, 2)
-  impuesto      ImpuestoTipo
-  porcentajeIva Decimal  @db.Decimal(5, 2) // 0, 5 o 19
-  subtotal      Decimal  @db.Decimal(12, 2) // cantidad * precioUnitario
-  valorIva      Decimal  @db.Decimal(12, 2)
-  total         Decimal  @db.Decimal(12, 2) // subtotal + valorIva
-  unidadMedida  String   @default("94")
+  codigoDIAN     String?
+  descripcion    String // Copia de producto.nombre al facturar
+  cantidad       Decimal      @db.Decimal(10, 3)
+  precioUnitario Decimal      @db.Decimal(12, 2)
+  impuesto       ImpuestoTipo
+  porcentajeIva  Decimal      @db.Decimal(5, 2) // 0, 5 o 19
+  subtotal       Decimal      @db.Decimal(12, 2) // cantidad * precioUnitario
+  valorIva       Decimal      @db.Decimal(12, 2)
+  total          Decimal      @db.Decimal(12, 2) // subtotal + valorIva
+  unidadMedida   String       @default("94")
 
   @@index([facturaId])
   @@map("items_factura")
@@ -1423,42 +1466,42 @@ model ParametroLegalNomina {
   updatedAt DateTime @updatedAt
 
   // Alcance multi-tenant: NULL = global de plataforma, valor = override por tenant
-  tenantId  String?
-  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   // Vigencia (fechas como Date, sin zona horaria, para evitar corrimientos)
-  vigenciaDesde DateTime @db.Date
-  vigenciaHasta DateTime? @db.Date  // NULL = vigencia abierta (la más reciente)
-  anio          Int                 // Denormalizado para filtrado humano / admin
+  vigenciaDesde DateTime  @db.Date
+  vigenciaHasta DateTime? @db.Date // NULL = vigencia abierta (la más reciente)
+  anio          Int // Denormalizado para filtrado humano / admin
 
   // Salarios de referencia (COP)
   smmlv             Decimal @db.Decimal(14, 2)
   auxilioTransporte Decimal @db.Decimal(14, 2)
-  uvt               Decimal @db.Decimal(14, 2)  // Reservado: FSP / retención futura
+  uvt               Decimal @db.Decimal(14, 2) // Reservado: FSP / retención futura
 
   // Topes IBC expresados en múltiplos de SMMLV
-  topeIbcMinSmmlv    Int     @default(1)          // Piso IBC = 1 SMMLV
-  topeIbcMaxSmmlv    Int     @default(25)         // Techo IBC = 25 SMMLV
-  umbralAuxilioSmmlv Decimal @default(2) @db.Decimal(4, 2)   // ≤ 2 SMMLV → aplica auxilio
-  umbralExoneracionSmmlv Int @default(10)         // Art. 114-1: < 10 SMMLV → exoneración
+  topeIbcMinSmmlv        Int     @default(1) // Piso IBC = 1 SMMLV
+  topeIbcMaxSmmlv        Int     @default(25) // Techo IBC = 25 SMMLV
+  umbralAuxilioSmmlv     Decimal @default(2) @db.Decimal(4, 2) // ≤ 2 SMMLV → aplica auxilio
+  umbralExoneracionSmmlv Int     @default(10) // Art. 114-1: < 10 SMMLV → exoneración
 
   // Tarifas empleado (fracción: 0.04 = 4%) — base = IBC
-  pctSaludEmpleado   Decimal @db.Decimal(8, 6)   // 0.040000
-  pctPensionEmpleado Decimal @db.Decimal(8, 6)   // 0.040000
+  pctSaludEmpleado   Decimal @db.Decimal(8, 6) // 0.040000
+  pctPensionEmpleado Decimal @db.Decimal(8, 6) // 0.040000
 
   // Tarifas empleador (fracción) — base = IBC o nómina según concepto
-  pctSaludEmpleador   Decimal @db.Decimal(8, 6)  // 0.085000 (exonerable)
-  pctPensionEmpleador Decimal @db.Decimal(8, 6)  // 0.120000
-  pctCaja             Decimal @db.Decimal(8, 6)  // 0.040000 (no exonerable)
-  pctIcbf             Decimal @db.Decimal(8, 6)  // 0.030000 (exonerable)
-  pctSena             Decimal @db.Decimal(8, 6)  // 0.020000 (exonerable)
+  pctSaludEmpleador   Decimal @db.Decimal(8, 6) // 0.085000 (exonerable)
+  pctPensionEmpleador Decimal @db.Decimal(8, 6) // 0.120000
+  pctCaja             Decimal @db.Decimal(8, 6) // 0.040000 (no exonerable)
+  pctIcbf             Decimal @db.Decimal(8, 6) // 0.030000 (exonerable)
+  pctSena             Decimal @db.Decimal(8, 6) // 0.020000 (exonerable)
 
   // ARL — tarifa por clase de riesgo I a V (fracción)
-  arlClaseI   Decimal @db.Decimal(8, 6)  // 0.00522
-  arlClaseII  Decimal @db.Decimal(8, 6)  // 0.01044
-  arlClaseIII Decimal @db.Decimal(8, 6)  // 0.02436
-  arlClaseIV  Decimal @db.Decimal(8, 6)  // 0.04350
-  arlClaseV   Decimal @db.Decimal(8, 6)  // 0.06960
+  arlClaseI   Decimal @db.Decimal(8, 6) // 0.00522
+  arlClaseII  Decimal @db.Decimal(8, 6) // 0.01044
+  arlClaseIII Decimal @db.Decimal(8, 6) // 0.02436
+  arlClaseIV  Decimal @db.Decimal(8, 6) // 0.04350
+  arlClaseV   Decimal @db.Decimal(8, 6) // 0.06960
 
   // FSP — escala progresiva por tramos (Ley 100 Art. 27, Ley 797/2003)
   // Shape: [{ desdeSmmlv: number, hastaSmmlv: number | null, pct: number }]
@@ -1467,7 +1510,7 @@ model ParametroLegalNomina {
   fspTramos Json
 
   // Trazabilidad legal del decreto/resolución que fija estos valores
-  fuente String?  // Ej: "Decreto 2613 de 2024, Art. 1"
+  fuente String? // Ej: "Decreto 2613 de 2024, Art. 1"
   notas  String?
 
   // Inversa de PayrollRun.parametroLegalId (añadida en N2A.2)
@@ -1477,4 +1520,252 @@ model ParametroLegalNomina {
   @@index([tenantId, vigenciaDesde, vigenciaHasta])
   @@index([tenantId, anio])
   @@map("parametros_legales_nomina")
+}
+
+// =============================================================================
+// MOTOR CONTABLE — ADR-001 · FASE C0 (CATÁLOGOS)
+// =============================================================================
+// Alcance estricto de C0: catálogos + provisioning + CRUD administrativo.
+//   - Sin ComprobanteContable ni MovimientoContable (C1).
+//   - Sin saldos almacenados: los saldos se DERIVAN de movimientos (C2).
+//   - Sin lógica contable, posteo, numeración ni cálculo en estos modelos.
+// Convenciones del repo: UUID, tenantId como 1ª columna de cada índice,
+// soft delete (deletedAt) donde aplica, snake_case plural vía @@map.
+// =============================================================================
+
+// =============================================================================
+// CUENTA CONTABLE — Plan de cuentas (árbol PUC)
+// =============================================================================
+// tenantId NULL  = plantilla PUC global de plataforma (sembrada en seed).
+// tenantId valor = cuenta perteneciente a un tenant (clon de la plantilla).
+// El clonado por tenant lo realiza AccountingProvisioningService (explícito,
+// bajo demanda). El catálogo global nunca recibe movimientos (ADR §2.4).
+// SIN columna de saldo: la verdad son los movimientos (C1), el saldo se deriva.
+// =============================================================================
+
+model CuentaContable {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? // Soft delete: preserva integridad histórica
+
+  // tenantId NULL = plantilla global; valor = cuenta del tenant
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  codigo        String // Código PUC: '1', '11', '1105', '110505'
+  nombre        String
+  claseContable ClaseContable
+  naturaleza    NaturalezaContable
+  nivel         Int // 1 clase, 2 grupo, 3 cuenta, 4 subcuenta, 5 auxiliar
+
+  // Árbol PUC (auto-referencia). NoAction evita ciclos de borrado en Postgres;
+  // las cuentas nunca se borran en duro (soft delete).
+  cuentaPadreId String?
+  cuentaPadre   CuentaContable?  @relation("ArbolPUC", fields: [cuentaPadreId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subcuentas    CuentaContable[] @relation("ArbolPUC")
+
+  // Banderas de control. En C0 solo se persisten; las hacen cumplir las
+  // invariantes I5/I6 del service de contabilización en C1 (no aquí).
+  imputable           Boolean @default(false) // hoja que recibe movimiento vs. cuenta agrupadora
+  esCuentaSistema     Boolean @default(false) // reservada de plataforma: el tenant no la borra/edita
+  requiereTercero     Boolean @default(false)
+  requiereCentroCosto Boolean @default(false)
+  requiereBase        Boolean @default(false) // exige baseGravable en la línea (C1)
+  activa              Boolean @default(true) // estado operativo (I5)
+
+  // Inversas
+  sistemaMaps CuentaSistemaMap[]
+
+  // Unicidad por tenant. OJO: con tenantId NULL Postgres trata los NULL como
+  // distintos, por lo que este @@unique NO protege la plantilla global; la
+  // migración añade un índice único PARCIAL (WHERE tenantId IS NULL) para ello.
+  @@unique([tenantId, codigo])
+  @@index([tenantId, cuentaPadreId])
+  @@index([tenantId, claseContable])
+  @@index([tenantId, imputable])
+  @@index([tenantId, deletedAt])
+  @@map("cuentas_contables")
+}
+
+// =============================================================================
+// TERCERO — Contraparte contable canónica
+// =============================================================================
+// Identidad documental única por tenant (tipoDocumento + numeroDocumento).
+// Roles por banderas (no tablas por tipo — anti-objetivo ADR §8). Convive con
+// Empleado / ClienteFE / Customer SIN fusionarlos (ADR §2.5).
+// =============================================================================
+
+model Tercero {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Identidad documental canónica (reusa el enum existente TipoDocIdentidad)
+  tipoDocumento      TipoDocIdentidad
+  numeroDocumento    String
+  digitoVerificacion String? // Dígito de verificación del NIT
+
+  tipoPersona     TipoPersona
+  razonSocial     String? // Persona jurídica
+  primerNombre    String? // Persona natural
+  segundoNombre   String?
+  primerApellido  String?
+  segundoApellido String?
+  nombreComercial String?
+
+  // Roles por banderas
+  esCliente              Boolean @default(false)
+  esProveedor            Boolean @default(false)
+  esEmpleado             Boolean @default(false)
+  esEntidadGubernamental Boolean @default(false)
+  esBanco                Boolean @default(false)
+
+  // Datos fiscales para información exógena (reservados; sin lógica en C0)
+  responsabilidadesFiscales Json    @default("[]") // Códigos DIAN (O-13, O-15, …)
+  regimenSimple             Boolean @default(false)
+  granContribuyente         Boolean @default(false)
+
+  // Contacto
+  email       String?
+  telefono    String?
+  direccion   String?
+  municipioId String?
+  municipio   MunicipioDane? @relation(fields: [municipioId], references: [id])
+
+  activo Boolean @default(true)
+
+  @@unique([tenantId, tipoDocumento, numeroDocumento])
+  @@index([tenantId, esCliente])
+  @@index([tenantId, esProveedor])
+  @@index([tenantId, razonSocial])
+  @@index([tenantId, deletedAt])
+  @@map("terceros")
+}
+
+// =============================================================================
+// PERIODO CONTABLE — Unidad de control de cierre
+// =============================================================================
+// (tenant, anio, mes) único. Ciclo ABIERTO → CERRADO (la reapertura es rara y
+// se audita en AuditLog, I9). SIN soft delete: un período no se borra.
+// El cierre anual lo resuelve C3 vía comprobante; no requiere columna en C0.
+// =============================================================================
+
+model PeriodoContable {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  anio Int
+  mes  Int // 1–12
+
+  fechaInicio DateTime @db.Date // Derivadas de (anio, mes); almacenadas para rangos
+  fechaFin    DateTime @db.Date
+
+  estado       EstadoPeriodo @default(ABIERTO)
+  cerradoAt    DateTime?
+  cerradoPorId String? // userId que cerró; el detalle queda en AuditLog (I9)
+
+  @@unique([tenantId, anio, mes])
+  @@index([tenantId, estado])
+  @@index([tenantId, anio])
+  @@map("periodos_contables")
+}
+
+// =============================================================================
+// CENTRO DE COSTO — Dimensión analítica opcional (catálogo plano)
+// =============================================================================
+// Arranca mapeado 1:1 con Sede. SIN jerarquía ni prorrateo (anti-objetivo
+// ADR §8): no existe padreId.
+// =============================================================================
+
+model CentroCosto {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  codigo String
+  nombre String
+
+  sedeId String? // Mapeo inicial 1:1 con Sede
+  sede   Sede?   @relation(fields: [sedeId], references: [id])
+
+  activo Boolean @default(true)
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, activo])
+  @@index([tenantId, sedeId])
+  @@index([tenantId, deletedAt])
+  @@map("centros_costo")
+}
+
+// =============================================================================
+// CUENTA SISTEMA MAP — Lookup puro rol → cuenta
+// =============================================================================
+// CONTRATO INMUTABLE: esto es un diccionario de IDENTIDAD de cuenta, NO un
+// motor de reglas. Resuelve exactamente:
+//
+//     (tenant, rol) -> cuentaId
+//
+// PROHIBIDO en fases futuras: condiciones, fórmulas, prioridades, porcentajes,
+// reglaJson o cualquier columna con semántica de decisión. La lógica de
+// causación (qué cuenta bajo qué circunstancia) vive en los mappers puros de
+// cada módulo (calculadoras versionadas y testeadas, como las de nómina), no
+// aquí. Un DSL de reglas de causación es anti-objetivo explícito (ADR §8).
+//
+// `rol` es código de TEXTO estable (no enum de BD), coherente con origenEvento
+// (I8): 'IVA_GENERADO', 'SALARIOS_POR_PAGAR', 'BANCO_PRINCIPAL', …
+// =============================================================================
+
+model CuentaSistemaMap {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  rol         String // Código de rol estable (texto), p. ej. 'IVA_GENERADO'
+  cuentaId    String
+  cuenta      CuentaContable @relation(fields: [cuentaId], references: [id])
+  descripcion String?
+  activo      Boolean        @default(true)
+
+  @@unique([tenantId, rol])
+  @@index([tenantId, cuentaId])
+  @@map("cuenta_sistema_map")
+}
+
+// =============================================================================
+// TIPO COMPROBANTE — Catálogo GLOBAL de plataforma
+// =============================================================================
+// Catálogo puro y global (sin tenantId): las definiciones de tipo (CI, CE, CC,
+// FV, NC…) son estándar contable e idénticas entre tenants. NO se clona.
+// En C0 es inerte: SIN consecutivos, SIN numeración, SIN lógica. La numeración
+// per-tenant (I7) la introduce C1 en una entidad de secuencia separada.
+// =============================================================================
+
+model TipoComprobante {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  codigo  String  @unique // 'CI', 'CE', 'CC', 'FV', 'NC', 'ND', 'NOM', 'AJ'
+  nombre  String
+  prefijo String?
+  activo  Boolean @default(true)
+
+  @@index([activo])
+  @@map("tipos_comprobante")
 }

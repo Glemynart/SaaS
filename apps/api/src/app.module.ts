@@ -24,6 +24,7 @@ import { LotesModule } from './lotes/lotes.module';
 import { EmailModule } from './email/email.module';
 import { StorageModule } from './storage/storage.module';
 import { PdfRenderModule } from './pdf-render/pdf-render.module';
+import { AccountingModule } from './accounting/accounting.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
@@ -51,6 +52,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     EmailModule,
     StorageModule,
     PdfRenderModule,
+    AccountingModule,
     ThrottlerModule.forRoot([
       {
         name: 'login',
