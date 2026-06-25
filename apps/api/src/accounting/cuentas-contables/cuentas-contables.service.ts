@@ -95,6 +95,25 @@ export class CuentasContablesService {
   ) {
     const current = await this.findOne(tenantId, id);
 
+    // Una cuenta de sistema solo admite cambios inocuos (nombre). Sus banderas
+    // de control son contrato para C1 (CuentaSistemaMap / invariantes I5/I6):
+    // desactivarla o cambiar su naturaleza rompería el posteo silenciosamente.
+    if (current.esCuentaSistema) {
+      const protegidos: (keyof UpdateCuentaContableDto)[] = [
+        'activa',
+        'imputable',
+        'requiereTercero',
+        'requiereCentroCosto',
+        'requiereBase',
+      ];
+      const intentos = protegidos.filter((campo) => dto[campo] !== undefined);
+      if (intentos.length > 0) {
+        throw new ConflictException(
+          `Una cuenta de sistema no permite modificar: ${intentos.join(', ')}`,
+        );
+      }
+    }
+
     const updated = await this.prisma.cuentaContable.update({
       where: { id: current.id },
       data: {
