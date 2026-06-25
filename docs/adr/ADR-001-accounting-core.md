@@ -37,7 +37,7 @@ Principios no negociables de la decisión:
 3. **Movimientos como fuente de verdad.** Los saldos se derivan; cualquier snapshot de saldos es caché reconstruible, jamás la verdad.
 4. **PUC plantilla de plataforma clonado por tenant.** Cada tenant tiene su propio plan de cuentas, personalizable; el catálogo global nunca altera libros en operación.
 5. **Tercero canónico unificado** por identidad documental, conviviendo con los modelos operativos existentes (`Empleado`, `ClienteFE`, `Customer`), sin fusionarlos.
-6. **Monolito + misma transacción.** La operación fuente y su contabilización ocurren en el mismo `$transaction` de PostgreSQL: sin broker, sin outbox, sin consistencia eventual.
+6. **Monolito + posteo según naturaleza del origen.** Cuando el disparador es **síncrono** (operación interna), la operación fuente y su contabilización ocurren en el mismo `$transaction` de PostgreSQL: sin broker, sin outbox, sin consistencia eventual. Cuando el disparador es **asíncrono** (webhook, respuesta DIAN, integración externa), el posteo es **posterior e idempotente** apoyado en la clave de origen (ver invariante I8); no se fuerza una transacción compartida con un evento que llega después y desde fuera.
 
 ---
 
@@ -45,17 +45,17 @@ Principios no negociables de la decisión:
 
 Estas reglas son verificables y se hacen cumplir en el service de contabilización (y, donde aplique, por constraints de BD). Su violación es un defecto bloqueante.
 
-| #   | Invariante                                                                                                                | Punto de aplicación |
-| --- | ------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| I1  | Todo comprobante `CONTABILIZADO` cumple **Σ débitos = Σ créditos**.                                                       | Contabilización     |
-| I2  | Lo `CONTABILIZADO` es **inmutable**: nunca `UPDATE` de línea ni `DELETE` de comprobante. Corrección por reverso o ajuste. | Persistencia        |
-| I3  | **No se contabiliza en período `CERRADO`.**                                                                               | Contabilización     |
-| I4  | Cada línea tiene **exactamente uno** de `debito`/`credito` mayor que cero.                                                | Validación de línea |
-| I5  | Solo cuentas **`imputable` y `activa`** reciben movimiento.                                                               | Validación de línea |
-| I6  | Se respeta `requiereTercero` / `requiereCentroCosto` / `requiereBase` de la cuenta.                                       | Validación de línea |
-| I7  | Numeración **consecutiva y sin huecos** por `(tenant, tipoComprobante)`, asignada en la contabilización (no en borrador). | Contabilización     |
-| I8  | **Idempotencia de origen:** un documento fuente genera a lo sumo un comprobante — único `(tenant, origenTipo, origenId)`. | Constraint de BD    |
-| I9  | Toda transición de estado, cierre, reapertura y anulación queda en `AuditLog` (quién, cuándo, motivo).                    | Auditoría           |
+| #   | Invariante                                                                                                                                                                                                                                                                                   | Punto de aplicación |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| I1  | Todo comprobante `CONTABILIZADO` cumple **Σ débitos = Σ créditos**.                                                                                                                                                                                                                          | Contabilización     |
+| I2  | Lo `CONTABILIZADO` es **inmutable**: nunca `UPDATE` de línea ni `DELETE` de comprobante. Corrección por reverso o ajuste.                                                                                                                                                                    | Persistencia        |
+| I3  | **No se contabiliza en período `CERRADO`.**                                                                                                                                                                                                                                                  | Contabilización     |
+| I4  | Cada línea tiene **exactamente uno** de `debito`/`credito` mayor que cero.                                                                                                                                                                                                                   | Validación de línea |
+| I5  | Solo cuentas **`imputable` y `activa`** reciben movimiento.                                                                                                                                                                                                                                  | Validación de línea |
+| I6  | Se respeta `requiereTercero` / `requiereCentroCosto` / `requiereBase` de la cuenta.                                                                                                                                                                                                          | Validación de línea |
+| I7  | Numeración **consecutiva y sin huecos** por `(tenant, tipoComprobante)`, asignada en la contabilización (no en borrador).                                                                                                                                                                    | Contabilización     |
+| I8  | **Idempotencia de origen:** un documento fuente genera a lo sumo un comprobante **por evento contable** — único `(tenant, origenTipo, origenId, origenEvento)`. Un mismo documento puede producir varios comprobantes para eventos distintos (`CAUSACION`, `PAGO`, `REVERSO`, `RECAUDO`, …). | Constraint de BD    |
+| I9  | Toda transición de estado, cierre, reapertura y anulación queda en `AuditLog` (quién, cuándo, motivo).                                                                                                                                                                                       | Auditoría           |
 
 ---
 
@@ -69,7 +69,7 @@ Vocabulario de dominio en español (es contabilidad colombiana; lo leen contador
 | **Tercero**             | Contraparte contable canónica | Único `(tipoDocumento, numeroDocumento)`. Roles por banderas (cliente, proveedor, empleado, entidad gubernamental, banco). Régimen y responsabilidades fiscales para exógena.     |
 | **PeriodoContable**     | Unidad de control de cierre   | `(tenant, año, mes)` + envoltorio de año fiscal. `estado` ABIERTO/CERRADO.                                                                                                        |
 | **TipoComprobante**     | Catálogo de comprobantes      | Prefijo + consecutivo propio (CI, CE, CC, NC, nómina, ventas).                                                                                                                    |
-| **ComprobanteContable** | Encabezado del asiento        | `fecha`, `periodoId`, `tipoId`, `numero`, `concepto`, `estado`, `moneda`, `totalDebito/Credito`, `origenTipo`/`origenId`, `usuarioId`.                                            |
+| **ComprobanteContable** | Encabezado del asiento        | `fecha`, `periodoId`, `tipoId`, `numero`, `concepto`, `estado`, `moneda`, `totalDebito/Credito`, `origenTipo`/`origenId`/`origenEvento`, `usuarioId`.                             |
 | **MovimientoContable**  | Línea débito/crédito          | `cuentaId`, `terceroId`, `centroCostoId?`, `debito`, `credito`, `baseGravable?`, `descripcion`.                                                                                   |
 | **CentroCosto**         | Dimensión analítica opcional  | Catálogo plano (arranca mapeado 1:1 con `Sede`). **Sin jerarquía ni prorrateo.**                                                                                                  |
 | **CuentaSistemaMap**    | Registro rol → cuenta         | Desacopla integraciones del código de cuenta (`IVA_GENERADO_19`, `SALARIOS_POR_PAGAR`, `BANCO_PRINCIPAL`…).                                                                       |
@@ -108,7 +108,7 @@ La **reapertura es rara por diseño**: el mecanismo de corrección preferente es
 
 ## 6. Puerto contable
 
-El núcleo expone **una única superficie de entrada**. Los módulos fuente construyen un comprobante en borrador (encabezado + líneas + `origenTipo`/`origenId`) y lo entregan; el núcleo valida, numera, contabiliza y devuelve el resultado.
+El núcleo expone **una única superficie de entrada**. Los módulos fuente construyen un comprobante en borrador (encabezado + líneas + `origenTipo`/`origenId`/`origenEvento`) y lo entregan; el núcleo valida, numera, contabiliza y devuelve el resultado.
 
 Operaciones del puerto:
 
@@ -121,8 +121,8 @@ Reglas del puerto:
 
 - **El núcleo no conoce nómina ni facturación.** El `borrador` es genérico (cuenta, tercero, centro de costo, débito/crédito).
 - Cada módulo es dueño de su **mapper dominio → cuentas** (calculadora pura, como las de nómina), que resuelve `rol → cuenta` vía `CuentaSistemaMap`.
-- La contabilización ocurre en la **misma transacción** que la operación fuente.
-- La **idempotencia** (I8) protege contra doble contabilización al reprocesar.
+- Si el origen es **síncrono**, la contabilización ocurre en la **misma transacción** que la operación fuente; si es **asíncrono** (webhook, DIAN, integración externa), se postea después de forma **idempotente** por la clave de origen.
+- La **idempotencia** (I8) protege contra doble contabilización al reprocesar, y su clave `(tenant, origenTipo, origenId, origenEvento)` permite que un mismo documento postee comprobantes para eventos contables distintos.
 
 ---
 
