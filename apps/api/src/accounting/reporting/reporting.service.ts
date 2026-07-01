@@ -5,6 +5,9 @@ import {
   SaldosFilters,
   SaldoCuenta,
   BalancePruebaItem,
+  LibroDiarioFilters,
+  LibroDiarioItem,
+  LibroDiarioMovimiento,
 } from './reporting.types';
 
 @Injectable()
@@ -107,5 +110,83 @@ export class ReportingService {
         };
       })
       .sort((a, b) => a.codigo.localeCompare(b.codigo));
+  }
+
+  async obtenerLibroDiario(
+    tenantId: string,
+    filters: LibroDiarioFilters,
+  ): Promise<{ items: LibroDiarioItem[]; total: number }> {
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 50;
+    const incluirBorradores = filters.incluirBorradores ?? false;
+
+    const where: Record<string, unknown> = { tenantId };
+
+    if (filters.fechaInicio || filters.fechaFin) {
+      const fechaFilter: Record<string, Date> = {};
+      if (filters.fechaInicio) fechaFilter.gte = filters.fechaInicio;
+      if (filters.fechaFin) fechaFilter.lte = filters.fechaFin;
+      where.fecha = fechaFilter;
+    }
+
+    if (filters.tipoComprobanteId) {
+      where.tipoComprobanteId = filters.tipoComprobanteId;
+    }
+
+    if (incluirBorradores) {
+      where.estado = { in: ['CONTABILIZADO', 'BORRADOR'] };
+    } else {
+      where.estado = 'CONTABILIZADO';
+    }
+
+    const orderBy: Record<string, string>[] = incluirBorradores
+      ? [{ fecha: 'desc' }, { createdAt: 'desc' }]
+      : [{ fecha: 'desc' }, { numero: 'desc' }];
+
+    const [comprobantes, total] = await Promise.all([
+      this.prisma.comprobanteContable.findMany({
+        where: where as any,
+        orderBy: orderBy as any,
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          movimientos: {
+            orderBy: { linea: 'asc' },
+            include: {
+              cuenta: { select: { codigo: true, nombre: true } },
+            },
+          },
+        },
+      }),
+      this.prisma.comprobanteContable.count({
+        where: where as any,
+      }),
+    ]);
+
+    const items: LibroDiarioItem[] = comprobantes.map((c) => ({
+      comprobanteId: c.id,
+      numero: c.numero,
+      fecha: c.fecha,
+      concepto: c.concepto,
+      estado: c.estado,
+      tipoComprobanteId: c.tipoComprobanteId,
+      totalDebito: c.totalDebito,
+      totalCredito: c.totalCredito,
+      movimientos: c.movimientos.map(
+        (m): LibroDiarioMovimiento => ({
+          linea: m.linea,
+          cuentaId: m.cuentaId,
+          cuentaCodigo: m.cuenta.codigo,
+          cuentaNombre: m.cuenta.nombre,
+          debito: m.debito,
+          credito: m.credito,
+          terceroId: m.terceroId,
+          centroCostoId: m.centroCostoId,
+          descripcion: m.descripcion,
+        }),
+      ),
+    }));
+
+    return { items, total };
   }
 }

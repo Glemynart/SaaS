@@ -23,3 +23,36 @@ export interface BalancePruebaItem {
   totalCredito: Prisma.Decimal;
   saldo: Prisma.Decimal;
 }
+
+export interface LibroDiarioFilters {
+  fechaInicio?: Date;
+  fechaFin?: Date;
+  tipoComprobanteId?: string;
+  incluirBorradores?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+export interface LibroDiarioMovimiento {
+  linea: number;
+  cuentaId: string;
+  cuentaCodigo: string;
+  cuentaNombre: string;
+  debito: Prisma.Decimal;
+  credito: Prisma.Decimal;
+  terceroId: string | null;
+  centroCostoId: string | null;
+  descripcion: string | null;
+}
+
+export interface LibroDiarioItem {
+  comprobanteId: string;
+  numero: number | null;
+  fecha: Date;
+  concepto: string;
+  estado: string;
+  tipoComprobanteId: string;
+  totalDebito: Prisma.Decimal;
+  totalCredito: Prisma.Decimal;
+  movimientos: LibroDiarioMovimiento[];
+}
