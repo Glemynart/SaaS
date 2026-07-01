@@ -16,6 +16,7 @@ import { TiposComprobanteService } from './tipos-comprobante/tipos-comprobante.s
 import { AccountingProvisioningController } from './provisioning/accounting-provisioning.controller';
 import { AccountingProvisioningService } from './provisioning/accounting-provisioning.service';
 import { LedgerService } from './ledger/ledger.service';
+import { ReportingService } from './reporting/reporting.service';
 
 // Motor contable ADR-001 · Fase C1.1 — C0 catálogos + C1 Ledger Core.
 @Module({
@@ -38,6 +39,7 @@ import { LedgerService } from './ledger/ledger.service';
     TiposComprobanteService,
     AccountingProvisioningService,
     LedgerService,
+    ReportingService,
   ],
   exports: [AccountingProvisioningService, LedgerService],
 })
