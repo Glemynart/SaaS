@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: ExpedienteDoc Consolidation — PR6B COMPLETADO (2026-06-18)
+## Última actualización: C1.1 Ledger Core completado (2026-07-01)
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -1383,6 +1383,156 @@ Ninguno — ramas independientes.
 Acción requerida (fuera del alcance de ExpedienteDoc Consolidation):
 
 Crear migración, ejecutar `prisma generate`, verificar typecheck, decidir si mergear.
+
+---
+
+# Accounting Module
+
+Objetivo:
+
+Motor contable de partida doble, en causación, append-only, multiempresa. Infraestructura habilitante para Nómina, Facturación Electrónica, Cartera y Tesorería.
+
+## ADR-001 — Accounting Core
+
+Estado:
+
+✅ Aprobado
+
+Documento:
+
+`docs/adr/ADR-001-accounting-core.md`
+
+Decisiones clave:
+
+- Único libro mayor de partida doble en causación.
+- Append-only: sin UPDATE/DELETE tras contabilizar.
+- Puerto único de entrada (`registrarComprobante`).
+- Transacción PostgreSQL síncrona (sin broker, sin outbox, sin consistencia eventual).
+- Multimoneda reservada, solo COP en v1.
+- Centros de costo planos, sin jerarquía ni prorrateo.
+
+## C0 — Accounting Catalogs
+
+Estado:
+
+✅ COMPLETADA
+
+Rama:
+
+`feat/accounting-c0-catalogs` (mergeada)
+
+Implementado:
+
+- `CuentaContable` (árbol PUC, seed de plantilla global).
+- `Tercero` (identidad documental canónica).
+- `PeriodoContable` (control de cierre).
+- `CentroCosto` (catálogo plano, mapeado 1:1 con Sede).
+- `TipoComprobante` (catálogo global).
+- `CuentaSistemaMap` (rol → cuenta, desacopla integraciones).
+- `AccountingProvisioningService` (clonado de PUC por tenant).
+- CRUD completo de catálogos con controllers y DTOs.
+
+## C1.1 — Ledger Core
+
+Estado:
+
+✅ COMPLETADA
+
+Rama:
+
+`feat/accounting-c1-ledger-core` (mergeada — PR #28)
+
+Implementado:
+
+- Schema: `ComprobanteContable`, `MovimientoContable`, `SecuenciaComprobante` + enum `EstadoComprobante`.
+- Migración: 4 ajustes manuales (CHECK origen I8, CHECK débito/crédito I4, UNIQUE parcial consecutivo I7, UNIQUE parcial idempotencia I8).
+- `LedgerService.registrarComprobante()` — valida I1–I8, asigna consecutivo, persiste en transacción única.
+- `LedgerService.anular()` — anulación con período abierto, reverso append-only en período abierto actual con período cerrado.
+- 26 unit tests + 13 e2e DB constraint tests.
+- Build, typecheck y 343 tests en verde.
+
+## C2 — Reporting
+
+Estado:
+
+⏳ Pendiente
+
+Alcance previsto:
+
+- Primitiva `saldos()` → libro diario, mayor, balance de prueba.
+
+## C3 — Financial Statements
+
+Estado:
+
+⏳ Pendiente
+
+Alcance previsto:
+
+- Balance general, estado de resultados, cierre mensual y anual.
+
+---
+
+# Payroll Module
+
+Objetivo:
+
+Liquidar la nómina mensual ordinaria de operadores educativos colombianos de forma correcta, auditable y reproducible. Payroll es dueño de la corrección laboral; Accounting contabiliza el resultado; Tesorería lo paga.
+
+## Research
+
+Estado:
+
+✅ COMPLETADA
+
+Documentos:
+
+- `docs/research/payroll/01-excel-analysis.md` — Ingeniería inversa del Excel real de nómina.
+- `docs/research/payroll/02-domain-model.md` — Modelo de dominio, bounded contexts, agregados.
+- `docs/research/payroll/03-payroll-mvp.md` — Alcance v1, flujo funcional, riesgos de sobreingeniería.
+- `docs/research/payroll/04-business-rules.md` — Catálogo completo de reglas de negocio (16 categorías).
+
+## ADR-002 — Payroll Core
+
+Estado:
+
+✅ Aprobado
+
+Documento:
+
+`docs/adr/ADR-002-payroll-core.md`
+
+Decisiones clave:
+
+- Payroll como core domain dentro del monolito.
+- Catálogo de conceptos cerrado y curado (no motor de reglas del usuario).
+- Parámetros legales versionados por vigencia.
+- Separación Proceso / Liquidación en agregados distintos.
+- Resultado de negocio como frontera Payroll ↔ Accounting.
+- Ciclo de estados: Borrador → Calculada → Revisión → Aprobada → Causada → Pagada → Cerrada.
+- v1 = nómina mensual ordinaria completa.
+- Explícitamente fuera de v1: retención en la fuente, FSP, salario integral, PILA, nómina electrónica, motor de reglas configurable.
+
+## Implementación
+
+Estado:
+
+⏳ Pendiente
+
+Roadmap aprobado:
+
+```
+P0 — Payroll Catalogs       (parámetros legales, conceptos, escalas, calendarios)
+P1 — Payroll Core            (empleados, contratos, novedades, liquidación, estados, congelamiento)
+P2 — Accounting Integration  (mapper concepto → cuenta, causación al aprobar)
+P3 — Treasury Integration    (resultado de dispersión, hitos de pago)
+P4 — PILA                    (Planilla Integrada de Liquidación de Aportes)
+P5 — Nómina Electrónica      (Documento soporte DIAN)
+```
+
+Ramas antiguas de Payroll (pre-ADR-002):
+
+Las 12 ramas `feat/payroll-*` existentes fueron creadas antes de la investigación completa y del ADR-002. **No reflejan la arquitectura actualmente aprobada.** Se conservan únicamente como referencia histórica. La utilidad pura `dias-causados.ts` (rama `feat/payroll-n2c-novelties`, PR #7 cerrada) se reutilizará en P1.
 
 ---
 
