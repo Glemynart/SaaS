@@ -8,6 +8,8 @@ import {
   LibroDiarioFilters,
   LibroDiarioItem,
   LibroDiarioMovimiento,
+  LibroMayorFilters,
+  LibroMayorMovimiento,
 } from './reporting.types';
 
 @Injectable()
@@ -186,6 +188,153 @@ export class ReportingService {
         }),
       ),
     }));
+
+    return { items, total };
+  }
+
+  private async saldoCuenta(
+    tenantId: string,
+    cuentaId: string,
+    options?: {
+      fechaDesde?: Date;
+      hasta?: { fecha: Date; numero: number; linea: number };
+    },
+  ): Promise<Prisma.Decimal> {
+    const comprobanteFilter: Record<string, unknown> = {
+      estado: 'CONTABILIZADO',
+    };
+
+    if (options?.fechaDesde) {
+      comprobanteFilter.fecha = { gte: options.fechaDesde };
+    }
+
+    const where: Record<string, unknown> = {
+      tenantId,
+      cuentaId,
+      comprobante: comprobanteFilter,
+    };
+
+    if (options?.hasta) {
+      const { fecha, numero, linea } = options.hasta;
+      where.OR = [
+        { comprobante: { fecha: { lt: fecha } } },
+        {
+          comprobante: {
+            fecha,
+            numero: { lt: numero },
+          },
+        },
+        {
+          comprobante: {
+            fecha,
+            numero,
+          },
+          linea: { lt: linea },
+        },
+      ];
+    }
+
+    const rows = await this.prisma.movimientoContable.groupBy({
+      by: ['cuentaId'],
+      where: where as Prisma.MovimientoContableWhereInput,
+      _sum: { debito: true, credito: true },
+    });
+
+    if (rows.length === 0) {
+      return new Prisma.Decimal(0);
+    }
+
+    const debito = rows[0]._sum.debito ?? new Prisma.Decimal(0);
+    const credito = rows[0]._sum.credito ?? new Prisma.Decimal(0);
+    return debito.minus(credito);
+  }
+
+  async obtenerLibroMayor(
+    tenantId: string,
+    filters: LibroMayorFilters,
+  ): Promise<{ items: LibroMayorMovimiento[]; total: number }> {
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 50;
+
+    const comprobanteFilter: Record<string, unknown> = {
+      estado: 'CONTABILIZADO',
+    };
+
+    if (filters.fechaInicio || filters.fechaFin) {
+      const fechaFilter: Record<string, Date> = {};
+      if (filters.fechaInicio) fechaFilter.gte = filters.fechaInicio;
+      if (filters.fechaFin) fechaFilter.lte = filters.fechaFin;
+      comprobanteFilter.fecha = fechaFilter;
+    }
+
+    const where: Record<string, unknown> = {
+      tenantId,
+      cuentaId: filters.cuentaId,
+      comprobante: comprobanteFilter,
+    };
+
+    const orderBy: any[] = [
+      { comprobante: { fecha: 'asc' } },
+      { comprobante: { numero: 'asc' } },
+      { linea: 'asc' },
+    ];
+
+    const [movimientos, total] = await Promise.all([
+      this.prisma.movimientoContable.findMany({
+        where: where as any,
+        orderBy,
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          comprobante: {
+            select: { id: true, numero: true, concepto: true, fecha: true },
+          },
+        },
+      }),
+      this.prisma.movimientoContable.count({
+        where: where as any,
+      }),
+    ]);
+
+    if (movimientos.length === 0) {
+      return { items: [], total };
+    }
+
+    const primero = movimientos[0];
+    const primeroNumero = primero.comprobante.numero;
+
+    const hasta: { fecha: Date; numero: number; linea: number } | undefined =
+      primeroNumero !== null
+        ? {
+            fecha: primero.comprobante.fecha,
+            numero: primeroNumero,
+            linea: primero.linea,
+          }
+        : undefined;
+
+    const saldoInicial = await this.saldoCuenta(tenantId, filters.cuentaId, {
+      fechaDesde: filters.fechaInicio,
+      hasta,
+    });
+
+    let saldoCorriente = saldoInicial;
+
+    const items: LibroMayorMovimiento[] = movimientos.map((m) => {
+      saldoCorriente = saldoCorriente.add(m.debito).minus(m.credito);
+      return {
+        fecha: m.comprobante.fecha,
+        comprobanteId: m.comprobante.id,
+        comprobanteNumero: m.comprobante.numero,
+        concepto: m.comprobante.concepto,
+        linea: m.linea,
+        debito: m.debito,
+        credito: m.credito,
+        saldoCorriente,
+        terceroId: m.terceroId,
+        centroCostoId: m.centroCostoId,
+        descripcion: m.descripcion,
+      };
+    });
 
     return { items, total };
   }

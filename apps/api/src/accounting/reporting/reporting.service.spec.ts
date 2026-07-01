@@ -9,11 +9,15 @@ function build() {
     cuentasFindMany: jest.fn(),
     comprobanteFindMany: jest.fn(),
     comprobanteCount: jest.fn(),
+    movimientoFindMany: jest.fn(),
+    movimientoCount: jest.fn(),
   };
 
   const prisma = {
     movimientoContable: {
       groupBy: mocks.movimientosGroupBy,
+      findMany: mocks.movimientoFindMany,
+      count: mocks.movimientoCount,
     },
     cuentaContable: {
       findMany: mocks.cuentasFindMany,
@@ -76,6 +80,24 @@ function comprobanteDiario(overrides: Record<string, unknown> = {}): any {
         cuenta: { codigo: '4105', nombre: 'Ventas' },
       },
     ],
+    ...overrides,
+  };
+}
+
+function movimientoMayor(overrides: Record<string, unknown> = {}): any {
+  return {
+    linea: 1,
+    debito: new Prisma.Decimal(100),
+    credito: new Prisma.Decimal(0),
+    terceroId: null,
+    centroCostoId: null,
+    descripcion: null,
+    comprobante: {
+      id: 'comp-001',
+      numero: 1,
+      concepto: 'Apertura',
+      fecha: new Date('2026-06-01'),
+    },
     ...overrides,
   };
 }
@@ -421,6 +443,213 @@ describe('ReportingService', () => {
           where: expect.objectContaining({
             tipoComprobanteId: 'tc-001',
           }),
+        }),
+      );
+    });
+  });
+
+  describe('obtenerLibroMayor', () => {
+    const CUENTA_ID = 'cuenta-001';
+
+    it('devuelve movimientos con saldoCorriente incremental', async () => {
+      const { service, mocks } = build();
+
+      mocks.movimientoFindMany.mockResolvedValue([
+        movimientoMayor({
+          linea: 1,
+          debito: new Prisma.Decimal(200),
+          credito: new Prisma.Decimal(0),
+          comprobante: {
+            id: 'comp-001',
+            numero: 1,
+            concepto: 'Cargo',
+            fecha: new Date('2026-06-01'),
+          },
+        }),
+        movimientoMayor({
+          linea: 1,
+          debito: new Prisma.Decimal(0),
+          credito: new Prisma.Decimal(50),
+          comprobante: {
+            id: 'comp-002',
+            numero: 2,
+            concepto: 'Abono',
+            fecha: new Date('2026-06-02'),
+          },
+        }),
+      ]);
+      mocks.movimientoCount.mockResolvedValue(2);
+      mocks.movimientosGroupBy.mockResolvedValue([]);
+
+      const { items } = await service.obtenerLibroMayor(TENANT_ID, {
+        cuentaId: CUENTA_ID,
+      });
+
+      // Saldo inicial = 0 (primera página, sin fechaInicio)
+      expect(items[0].saldoCorriente).toEqual(new Prisma.Decimal(200));
+      expect(items[1].saldoCorriente).toEqual(new Prisma.Decimal(150));
+    });
+
+    it('devuelve array vacío si la cuenta no tiene movimientos', async () => {
+      const { service, mocks } = build();
+
+      mocks.movimientoFindMany.mockResolvedValue([]);
+      mocks.movimientoCount.mockResolvedValue(0);
+
+      const { items, total } = await service.obtenerLibroMayor(TENANT_ID, {
+        cuentaId: CUENTA_ID,
+      });
+
+      expect(items).toEqual([]);
+      expect(total).toBe(0);
+    });
+
+    it('solo incluye comprobantes CONTABILIZADO', async () => {
+      const { service, mocks } = build();
+
+      mocks.movimientoFindMany.mockResolvedValue([]);
+      mocks.movimientoCount.mockResolvedValue(0);
+
+      await service.obtenerLibroMayor(TENANT_ID, {
+        cuentaId: CUENTA_ID,
+      });
+
+      expect(mocks.movimientoFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            comprobante: expect.objectContaining({
+              estado: 'CONTABILIZADO',
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('página correctamente', async () => {
+      const { service, mocks } = build();
+
+      mocks.movimientoFindMany.mockResolvedValue([]);
+      mocks.movimientoCount.mockResolvedValue(0);
+
+      await service.obtenerLibroMayor(TENANT_ID, {
+        cuentaId: CUENTA_ID,
+        page: 2,
+        limit: 10,
+      });
+
+      expect(mocks.movimientoFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skip: 10,
+          take: 10,
+        }),
+      );
+    });
+
+    it('calcula saldoInicial desde saldoCuenta con filtro compuesto', async () => {
+      const { service, mocks } = build();
+
+      mocks.movimientoFindMany.mockResolvedValue([
+        movimientoMayor({
+          linea: 1,
+          comprobante: {
+            id: 'comp-010',
+            numero: 10,
+            concepto: 'Página 2',
+            fecha: new Date('2026-06-15'),
+          },
+        }),
+      ]);
+      mocks.movimientoCount.mockResolvedValue(15);
+      mocks.movimientosGroupBy.mockResolvedValue([
+        grupoSaldo(CUENTA_ID, 500, 200),
+      ]);
+
+      const { items } = await service.obtenerLibroMayor(TENANT_ID, {
+        cuentaId: CUENTA_ID,
+        page: 2,
+        limit: 5,
+      });
+
+      // groupBy fue llamado con el filtro compuesto para saldoInicial
+      expect(mocks.movimientosGroupBy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: expect.arrayContaining([
+              expect.objectContaining({
+                comprobante: expect.objectContaining({
+                  fecha: { lt: new Date('2026-06-15') },
+                }),
+              }),
+              expect.objectContaining({
+                comprobante: expect.objectContaining({
+                  fecha: new Date('2026-06-15'),
+                  numero: { lt: 10 },
+                }),
+              }),
+              expect.objectContaining({
+                comprobante: expect.objectContaining({
+                  fecha: new Date('2026-06-15'),
+                  numero: 10,
+                }),
+                linea: { lt: 1 },
+              }),
+            ]),
+          }),
+        }),
+      );
+
+      // saldoInicial = 500 - 200 = 300
+      expect(items[0].saldoCorriente).toEqual(new Prisma.Decimal(400));
+    });
+
+    it('filtra por rango de fechas', async () => {
+      const { service, mocks } = build();
+
+      mocks.movimientoFindMany.mockResolvedValue([]);
+      mocks.movimientoCount.mockResolvedValue(0);
+      mocks.movimientosGroupBy.mockResolvedValue([]);
+
+      const fechaInicio = new Date('2026-06-01');
+      const fechaFin = new Date('2026-06-30');
+
+      await service.obtenerLibroMayor(TENANT_ID, {
+        cuentaId: CUENTA_ID,
+        fechaInicio,
+        fechaFin,
+      });
+
+      expect(mocks.movimientoFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            comprobante: expect.objectContaining({
+              estado: 'CONTABILIZADO',
+              fecha: expect.objectContaining({
+                gte: fechaInicio,
+                lte: fechaFin,
+              }),
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('ordena cronológicamente por fecha, numero y linea asc', async () => {
+      const { service, mocks } = build();
+
+      mocks.movimientoFindMany.mockResolvedValue([]);
+      mocks.movimientoCount.mockResolvedValue(0);
+
+      await service.obtenerLibroMayor(TENANT_ID, {
+        cuentaId: CUENTA_ID,
+      });
+
+      expect(mocks.movimientoFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [
+            { comprobante: { fecha: 'asc' } },
+            { comprobante: { numero: 'asc' } },
+            { linea: 'asc' },
+          ],
         }),
       );
     });

@@ -56,3 +56,25 @@ export interface LibroDiarioItem {
   totalCredito: Prisma.Decimal;
   movimientos: LibroDiarioMovimiento[];
 }
+
+export interface LibroMayorFilters {
+  cuentaId: string;
+  fechaInicio?: Date;
+  fechaFin?: Date;
+  page?: number;
+  limit?: number;
+}
+
+export interface LibroMayorMovimiento {
+  fecha: Date;
+  comprobanteId: string;
+  comprobanteNumero: number | null;
+  concepto: string;
+  linea: number;
+  debito: Prisma.Decimal;
+  credito: Prisma.Decimal;
+  saldoCorriente: Prisma.Decimal;
+  terceroId: string | null;
+  centroCostoId: string | null;
+  descripcion: string | null;
+}
