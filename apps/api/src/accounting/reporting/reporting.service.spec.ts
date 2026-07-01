@@ -654,4 +654,143 @@ describe('ReportingService', () => {
       );
     });
   });
+
+  describe('obtenerAuxiliarTercero', () => {
+    const CUENTA_ID = 'cuenta-001';
+    const TERCERO_ID = 'ter-001';
+
+    it('filtra por cuentaId y terceroId con saldoCorriente', async () => {
+      const { service, mocks } = build();
+
+      mocks.movimientoFindMany.mockResolvedValue([
+        movimientoMayor({
+          linea: 1,
+          debito: new Prisma.Decimal(500),
+          tercero: { razonSocial: 'Cliente ABC' },
+        }),
+      ]);
+      mocks.movimientoCount.mockResolvedValue(1);
+      mocks.movimientosGroupBy.mockResolvedValue([]);
+
+      const { items, total } = await service.obtenerAuxiliarTercero(TENANT_ID, {
+        cuentaId: CUENTA_ID,
+        terceroId: TERCERO_ID,
+      });
+
+      expect(total).toBe(1);
+      expect(items[0].terceroNombre).toBe('Cliente ABC');
+      expect(items[0].saldoCorriente).toEqual(new Prisma.Decimal(500));
+    });
+
+    it('incluye terceroId en el where y en saldoCuenta', async () => {
+      const { service, mocks } = build();
+
+      mocks.movimientoFindMany.mockResolvedValue([]);
+      mocks.movimientoCount.mockResolvedValue(0);
+
+      await service.obtenerAuxiliarTercero(TENANT_ID, {
+        cuentaId: CUENTA_ID,
+        terceroId: TERCERO_ID,
+      });
+
+      expect(mocks.movimientoFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            cuentaId: CUENTA_ID,
+            terceroId: TERCERO_ID,
+          }),
+        }),
+      );
+    });
+
+    it('tercero sin razonSocial muestra N/A', async () => {
+      const { service, mocks } = build();
+
+      mocks.movimientoFindMany.mockResolvedValue([
+        movimientoMayor({
+          linea: 1,
+          tercero: null,
+        }),
+      ]);
+      mocks.movimientoCount.mockResolvedValue(1);
+      mocks.movimientosGroupBy.mockResolvedValue([]);
+
+      const { items } = await service.obtenerAuxiliarTercero(TENANT_ID, {
+        cuentaId: CUENTA_ID,
+        terceroId: TERCERO_ID,
+      });
+
+      expect(items[0].terceroNombre).toBe('N/A');
+    });
+  });
+
+  describe('obtenerAuxiliarCentroCosto', () => {
+    const CUENTA_ID = 'cuenta-001';
+    const CC_ID = 'cc-001';
+
+    it('filtra por cuentaId y centroCostoId con saldoCorriente', async () => {
+      const { service, mocks } = build();
+
+      mocks.movimientoFindMany.mockResolvedValue([
+        movimientoMayor({
+          linea: 1,
+          debito: new Prisma.Decimal(300),
+          centroCosto: { codigo: 'CC01', nombre: 'Oficina Principal' },
+        }),
+      ]);
+      mocks.movimientoCount.mockResolvedValue(1);
+      mocks.movimientosGroupBy.mockResolvedValue([]);
+
+      const { items } = await service.obtenerAuxiliarCentroCosto(TENANT_ID, {
+        cuentaId: CUENTA_ID,
+        centroCostoId: CC_ID,
+      });
+
+      expect(items[0].centroCostoCodigo).toBe('CC01');
+      expect(items[0].centroCostoNombre).toBe('Oficina Principal');
+      expect(items[0].saldoCorriente).toEqual(new Prisma.Decimal(300));
+    });
+
+    it('incluye centroCostoId en el where y en saldoCuenta', async () => {
+      const { service, mocks } = build();
+
+      mocks.movimientoFindMany.mockResolvedValue([]);
+      mocks.movimientoCount.mockResolvedValue(0);
+
+      await service.obtenerAuxiliarCentroCosto(TENANT_ID, {
+        cuentaId: CUENTA_ID,
+        centroCostoId: CC_ID,
+      });
+
+      expect(mocks.movimientoFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            cuentaId: CUENTA_ID,
+            centroCostoId: CC_ID,
+          }),
+        }),
+      );
+    });
+
+    it('centroCosto sin datos muestra N/A', async () => {
+      const { service, mocks } = build();
+
+      mocks.movimientoFindMany.mockResolvedValue([
+        movimientoMayor({
+          linea: 1,
+          centroCosto: null,
+        }),
+      ]);
+      mocks.movimientoCount.mockResolvedValue(1);
+      mocks.movimientosGroupBy.mockResolvedValue([]);
+
+      const { items } = await service.obtenerAuxiliarCentroCosto(TENANT_ID, {
+        cuentaId: CUENTA_ID,
+        centroCostoId: CC_ID,
+      });
+
+      expect(items[0].centroCostoCodigo).toBe('N/A');
+      expect(items[0].centroCostoNombre).toBe('N/A');
+    });
+  });
 });

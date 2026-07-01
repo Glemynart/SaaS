@@ -78,3 +78,50 @@ export interface LibroMayorMovimiento {
   centroCostoId: string | null;
   descripcion: string | null;
 }
+
+export interface AuxiliarTerceroFilters {
+  cuentaId: string;
+  terceroId: string;
+  fechaInicio?: Date;
+  fechaFin?: Date;
+  page?: number;
+  limit?: number;
+}
+
+export interface AuxiliarTerceroMovimiento {
+  fecha: Date;
+  comprobanteId: string;
+  comprobanteNumero: number | null;
+  concepto: string;
+  linea: number;
+  debito: Prisma.Decimal;
+  credito: Prisma.Decimal;
+  saldoCorriente: Prisma.Decimal;
+  terceroNombre: string;
+  centroCostoId: string | null;
+  descripcion: string | null;
+}
+
+export interface AuxiliarCentroCostoFilters {
+  cuentaId: string;
+  centroCostoId: string;
+  fechaInicio?: Date;
+  fechaFin?: Date;
+  page?: number;
+  limit?: number;
+}
+
+export interface AuxiliarCentroCostoMovimiento {
+  fecha: Date;
+  comprobanteId: string;
+  comprobanteNumero: number | null;
+  concepto: string;
+  linea: number;
+  debito: Prisma.Decimal;
+  credito: Prisma.Decimal;
+  saldoCorriente: Prisma.Decimal;
+  terceroId: string | null;
+  centroCostoCodigo: string;
+  centroCostoNombre: string;
+  descripcion: string | null;
+}

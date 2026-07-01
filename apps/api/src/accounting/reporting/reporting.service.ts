@@ -10,6 +10,10 @@ import {
   LibroDiarioMovimiento,
   LibroMayorFilters,
   LibroMayorMovimiento,
+  AuxiliarTerceroFilters,
+  AuxiliarTerceroMovimiento,
+  AuxiliarCentroCostoFilters,
+  AuxiliarCentroCostoMovimiento,
 } from './reporting.types';
 
 @Injectable()
@@ -59,7 +63,7 @@ export class ReportingService {
 
     const rows = await this.prisma.movimientoContable.groupBy({
       by: ['cuentaId'],
-      where: where as Prisma.MovimientoContableWhereInput,
+      where: where,
       _sum: {
         debito: true,
         credito: true,
@@ -198,6 +202,8 @@ export class ReportingService {
     options?: {
       fechaDesde?: Date;
       hasta?: { fecha: Date; numero: number; linea: number };
+      terceroId?: string;
+      centroCostoId?: string;
     },
   ): Promise<Prisma.Decimal> {
     const comprobanteFilter: Record<string, unknown> = {
@@ -213,6 +219,14 @@ export class ReportingService {
       cuentaId,
       comprobante: comprobanteFilter,
     };
+
+    if (options?.terceroId) {
+      where.terceroId = options.terceroId;
+    }
+
+    if (options?.centroCostoId) {
+      where.centroCostoId = options.centroCostoId;
+    }
 
     if (options?.hasta) {
       const { fecha, numero, linea } = options.hasta;
@@ -236,7 +250,7 @@ export class ReportingService {
 
     const rows = await this.prisma.movimientoContable.groupBy({
       by: ['cuentaId'],
-      where: where as Prisma.MovimientoContableWhereInput,
+      where: where,
       _sum: { debito: true, credito: true },
     });
 
@@ -249,12 +263,21 @@ export class ReportingService {
     return debito.minus(credito);
   }
 
-  async obtenerLibroMayor(
+  private async mayorBase<T>(
     tenantId: string,
-    filters: LibroMayorFilters,
-  ): Promise<{ items: LibroMayorMovimiento[]; total: number }> {
-    const page = filters.page ?? 1;
-    const limit = filters.limit ?? 50;
+    cuentaId: string,
+    filters: {
+      page: number;
+      limit: number;
+      fechaInicio?: Date;
+      fechaFin?: Date;
+    },
+    extraWhere: Record<string, unknown>,
+    extraInclude: Record<string, unknown>,
+    extraSaldoCuenta: Record<string, unknown>,
+    mapFn: (movimiento: any) => T,
+  ): Promise<{ items: T[]; total: number }> {
+    const { page, limit } = filters;
 
     const comprobanteFilter: Record<string, unknown> = {
       estado: 'CONTABILIZADO',
@@ -269,7 +292,8 @@ export class ReportingService {
 
     const where: Record<string, unknown> = {
       tenantId,
-      cuentaId: filters.cuentaId,
+      cuentaId,
+      ...extraWhere,
       comprobante: comprobanteFilter,
     };
 
@@ -279,17 +303,20 @@ export class ReportingService {
       { linea: 'asc' },
     ];
 
+    const include: Record<string, unknown> = {
+      comprobante: {
+        select: { id: true, numero: true, concepto: true, fecha: true },
+      },
+      ...extraInclude,
+    };
+
     const [movimientos, total] = await Promise.all([
       this.prisma.movimientoContable.findMany({
         where: where as any,
         orderBy,
         skip: (page - 1) * limit,
         take: limit,
-        include: {
-          comprobante: {
-            select: { id: true, numero: true, concepto: true, fecha: true },
-          },
-        },
+        include: include as any,
       }),
       this.prisma.movimientoContable.count({
         where: where as any,
@@ -300,7 +327,7 @@ export class ReportingService {
       return { items: [], total };
     }
 
-    const primero = movimientos[0];
+    const primero: any = movimientos[0];
     const primeroNumero = primero.comprobante.numero;
 
     const hasta: { fecha: Date; numero: number; linea: number } | undefined =
@@ -312,16 +339,39 @@ export class ReportingService {
           }
         : undefined;
 
-    const saldoInicial = await this.saldoCuenta(tenantId, filters.cuentaId, {
+    const saldoInicial = await this.saldoCuenta(tenantId, cuentaId, {
       fechaDesde: filters.fechaInicio,
       hasta,
+      ...extraSaldoCuenta,
     });
 
     let saldoCorriente = saldoInicial;
 
-    const items: LibroMayorMovimiento[] = movimientos.map((m) => {
+    const items: T[] = movimientos.map((m) => {
       saldoCorriente = saldoCorriente.add(m.debito).minus(m.credito);
-      return {
+      return mapFn({ ...m, saldoCorriente });
+    });
+
+    return { items, total };
+  }
+
+  async obtenerLibroMayor(
+    tenantId: string,
+    filters: LibroMayorFilters,
+  ): Promise<{ items: LibroMayorMovimiento[]; total: number }> {
+    return this.mayorBase<LibroMayorMovimiento>(
+      tenantId,
+      filters.cuentaId,
+      {
+        page: filters.page ?? 1,
+        limit: filters.limit ?? 50,
+        fechaInicio: filters.fechaInicio,
+        fechaFin: filters.fechaFin,
+      },
+      {},
+      {},
+      {},
+      (m): LibroMayorMovimiento => ({
         fecha: m.comprobante.fecha,
         comprobanteId: m.comprobante.id,
         comprobanteNumero: m.comprobante.numero,
@@ -329,13 +379,76 @@ export class ReportingService {
         linea: m.linea,
         debito: m.debito,
         credito: m.credito,
-        saldoCorriente,
+        saldoCorriente: m.saldoCorriente,
         terceroId: m.terceroId,
         centroCostoId: m.centroCostoId,
         descripcion: m.descripcion,
-      };
-    });
+      }),
+    );
+  }
 
-    return { items, total };
+  async obtenerAuxiliarTercero(
+    tenantId: string,
+    filters: AuxiliarTerceroFilters,
+  ): Promise<{ items: AuxiliarTerceroMovimiento[]; total: number }> {
+    return this.mayorBase<AuxiliarTerceroMovimiento>(
+      tenantId,
+      filters.cuentaId,
+      {
+        page: filters.page ?? 1,
+        limit: filters.limit ?? 50,
+        fechaInicio: filters.fechaInicio,
+        fechaFin: filters.fechaFin,
+      },
+      { terceroId: filters.terceroId },
+      { tercero: { select: { razonSocial: true } } },
+      { terceroId: filters.terceroId },
+      (m): AuxiliarTerceroMovimiento => ({
+        fecha: m.comprobante.fecha,
+        comprobanteId: m.comprobante.id,
+        comprobanteNumero: m.comprobante.numero,
+        concepto: m.comprobante.concepto,
+        linea: m.linea,
+        debito: m.debito,
+        credito: m.credito,
+        saldoCorriente: m.saldoCorriente,
+        terceroNombre: m.tercero?.razonSocial ?? 'N/A',
+        centroCostoId: m.centroCostoId,
+        descripcion: m.descripcion,
+      }),
+    );
+  }
+
+  async obtenerAuxiliarCentroCosto(
+    tenantId: string,
+    filters: AuxiliarCentroCostoFilters,
+  ): Promise<{ items: AuxiliarCentroCostoMovimiento[]; total: number }> {
+    return this.mayorBase<AuxiliarCentroCostoMovimiento>(
+      tenantId,
+      filters.cuentaId,
+      {
+        page: filters.page ?? 1,
+        limit: filters.limit ?? 50,
+        fechaInicio: filters.fechaInicio,
+        fechaFin: filters.fechaFin,
+      },
+      { centroCostoId: filters.centroCostoId },
+      { centroCosto: { select: { codigo: true, nombre: true } } },
+      { centroCostoId: filters.centroCostoId },
+      (m): AuxiliarCentroCostoMovimiento => ({
+        fecha: m.comprobante.fecha,
+        comprobanteId: m.comprobante.id,
+        comprobanteNumero: m.comprobante.numero,
+        concepto: m.comprobante.concepto,
+        linea: m.linea,
+        debito: m.debito,
+        credito: m.credito,
+        saldoCorriente: m.saldoCorriente,
+        terceroId: m.terceroId,
+        centroCostoCodigo: m.centroCosto?.codigo ?? 'N/A',
+        centroCostoNombre: m.centroCosto?.nombre ?? 'N/A',
+        descripcion: m.descripcion,
+      }),
+    );
   }
 }
