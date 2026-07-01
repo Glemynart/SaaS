@@ -15,9 +15,9 @@ import { TiposComprobanteController } from './tipos-comprobante/tipos-comprobant
 import { TiposComprobanteService } from './tipos-comprobante/tipos-comprobante.service';
 import { AccountingProvisioningController } from './provisioning/accounting-provisioning.controller';
 import { AccountingProvisioningService } from './provisioning/accounting-provisioning.service';
+import { LedgerService } from './ledger/ledger.service';
 
-// Motor contable ADR-001 · Fase C0 — catálogos + provisioning + CRUD admin.
-// Sin comprobantes, sin movimientos, sin lógica contable.
+// Motor contable ADR-001 · Fase C1.1 — C0 catálogos + C1 Ledger Core.
 @Module({
   imports: [TenantsModule],
   controllers: [
@@ -37,7 +37,8 @@ import { AccountingProvisioningService } from './provisioning/accounting-provisi
     CuentaSistemaMapService,
     TiposComprobanteService,
     AccountingProvisioningService,
+    LedgerService,
   ],
-  exports: [AccountingProvisioningService],
+  exports: [AccountingProvisioningService, LedgerService],
 })
 export class AccountingModule {}

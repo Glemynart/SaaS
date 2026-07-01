@@ -1,0 +1,2 @@
+-- RenameIndex
+ALTER INDEX "parametros_legales_nomina_tenantId_vigenciaDesde_vigenciaHasta_" RENAME TO "parametros_legales_nomina_tenantId_vigenciaDesde_vigenciaHa_idx";

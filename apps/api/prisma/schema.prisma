@@ -187,6 +187,15 @@ enum TipoPersona {
   JURIDICA
 }
 
+// Ciclo de vida del comprobante contable (ADR-001 §5).
+// BORRADOR: editable, sin número, no afecta libros.
+// CONTABILIZADO: inmutable, numerado, cuadrado (I1). ANULADO: conserva número.
+enum EstadoComprobante {
+  BORRADOR
+  CONTABILIZADO
+  ANULADO
+}
+
 // =============================================================================
 // TENANT — Empresa registrada en la plataforma
 // =============================================================================
@@ -271,6 +280,11 @@ model Tenant {
   periodosContables PeriodoContable[]
   centrosCosto      CentroCosto[]
   cuentaSistemaMaps CuentaSistemaMap[]
+
+  // Motor contable C1 — Ledger
+  comprobantesContables ComprobanteContable[]
+  movimientosContables  MovimientoContable[]
+  secuenciasComprobante SecuenciaComprobante[]
 
   @@map("tenants")
 }
@@ -1576,6 +1590,7 @@ model CuentaContable {
 
   // Inversas
   sistemaMaps CuentaSistemaMap[]
+  movimientos MovimientoContable[]
 
   // Unicidad por tenant. OJO: con tenantId NULL Postgres trata los NULL como
   // distintos, por lo que este @@unique NO protege la plantilla global; la
@@ -1639,6 +1654,9 @@ model Tercero {
 
   activo Boolean @default(true)
 
+  // Inversas
+  movimientos MovimientoContable[]
+
   @@unique([tenantId, tipoDocumento, numeroDocumento])
   @@index([tenantId, esCliente])
   @@index([tenantId, esProveedor])
@@ -1673,6 +1691,9 @@ model PeriodoContable {
   cerradoAt    DateTime?
   cerradoPorId String? // userId que cerró; el detalle queda en AuditLog (I9)
 
+  // Inversas
+  comprobantes ComprobanteContable[]
+
   @@unique([tenantId, anio, mes])
   @@index([tenantId, estado])
   @@index([tenantId, anio])
@@ -1702,6 +1723,9 @@ model CentroCosto {
   sede   Sede?   @relation(fields: [sedeId], references: [id])
 
   activo Boolean @default(true)
+
+  // Inversas
+  movimientos MovimientoContable[]
 
   @@unique([tenantId, codigo])
   @@index([tenantId, activo])
@@ -1766,6 +1790,131 @@ model TipoComprobante {
   prefijo String?
   activo  Boolean @default(true)
 
+  // Inversas (C1 — el consecutivo y los comprobantes son por tenant)
+  comprobantes ComprobanteContable[]
+  secuencias   SecuenciaComprobante[]
+
   @@index([activo])
   @@map("tipos_comprobante")
+}
+
+// =============================================================================
+// COMPROBANTE CONTABLE — Encabezado del asiento (ADR-001 §4, §5)
+// =============================================================================
+// Fase C1.1 — Ledger Core. Append-only: sin deletedAt, sin UPDATE/DELETE tras
+// CONTABILIZADO (I2); la corrección es reverso, no edición. `numero` es NULL
+// en BORRADOR y se asigna solo al contabilizar (I7), vía SecuenciaComprobante
+// en la misma transacción. Solo COP en C1: sin moneda/tasaCambio.
+// =============================================================================
+
+model ComprobanteContable {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  tipoComprobanteId String
+  tipoComprobante   TipoComprobante @relation(fields: [tipoComprobanteId], references: [id])
+
+  periodoId String
+  periodo   PeriodoContable @relation(fields: [periodoId], references: [id])
+
+  numero Int? // Asignado al contabilizar (I7); NULL en BORRADOR
+
+  fecha    DateTime @db.Date
+  concepto String
+
+  estado EstadoComprobante @default(BORRADOR)
+
+  totalDebito  Decimal @default(0) @db.Decimal(14, 2)
+  totalCredito Decimal @default(0) @db.Decimal(14, 2)
+
+  // Idempotencia de origen (I8). Texto/UUID sueltos — NUNCA FK a nómina ni
+  // facturación: el núcleo contable no importa módulos fuente (ADR §2.2).
+  // Todos NULL (nota manual) o todos NOT NULL — CHECK en la migración.
+  origenTipo   String?
+  origenId     String?
+  origenEvento String? // 'CAUSACION', 'PAGO', 'RECAUDO', 'REVERSO_CAUSACION', …
+
+  // Reverso: el original nunca se toca (I2); el reverso apunta a él.
+  // NoAction/NoAction: un comprobante contabilizado no se borra ni actualiza
+  // en cascada — la reversión es un registro nuevo, no una mutación.
+  reversaAId String?
+  reversaA   ComprobanteContable?  @relation("Reverso", fields: [reversaAId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reversos   ComprobanteContable[] @relation("Reverso")
+
+  usuarioId       String // userId que registra el comprobante
+  contabilizadoAt DateTime?
+
+  // Inversas
+  movimientos MovimientoContable[]
+
+  // Índices de consulta: se difieren a C2 (Reportes). Los índices únicos
+  // parciales de I7 (consecutivo) e I8 (idempotencia) viven en la migración SQL.
+  @@map("comprobantes_contables")
+}
+
+// =============================================================================
+// MOVIMIENTO CONTABLE — Línea débito/crédito (ADR-001 §4)
+// =============================================================================
+// Append-only: sin deletedAt. `linea` fija el orden dentro del comprobante y
+// es único junto a comprobanteId. Exactamente uno de debito/credito > 0 (I4)
+// — CHECK en la migración. `baseGravable` reservado para I6 (requiereBase).
+// =============================================================================
+
+model MovimientoContable {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  comprobanteId String
+  comprobante   ComprobanteContable @relation(fields: [comprobanteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  linea Int // Orden dentro del comprobante; único junto a comprobanteId
+
+  cuentaId String
+  cuenta   CuentaContable @relation(fields: [cuentaId], references: [id])
+
+  terceroId String?
+  tercero   Tercero? @relation(fields: [terceroId], references: [id])
+
+  centroCostoId String?
+  centroCosto   CentroCosto? @relation(fields: [centroCostoId], references: [id])
+
+  debito  Decimal @default(0) @db.Decimal(14, 2)
+  credito Decimal @default(0) @db.Decimal(14, 2)
+
+  baseGravable Decimal? @db.Decimal(14, 2) // Base para I6 (requiereBase)
+  descripcion  String?
+
+  // Índices de consulta diferidos a C2. Se conserva solo la restricción de
+  // integridad de orden de línea (no es optimización).
+  @@unique([comprobanteId, linea])
+  @@map("movimientos_contables")
+}
+
+// =============================================================================
+// SECUENCIA COMPROBANTE — Consecutivo por (tenant, tipo) (ADR-001 I7)
+// =============================================================================
+// Contador puro: sin id artificial, la clave natural (tenantId,
+// tipoComprobanteId) es suficiente y evita un índice único redundante.
+// Se incrementa dentro de la misma transacción que contabiliza (I7).
+// =============================================================================
+
+model SecuenciaComprobante {
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  tipoComprobanteId String
+  tipoComprobante   TipoComprobante @relation(fields: [tipoComprobanteId], references: [id])
+
+  ultimoNumero Int      @default(0)
+  updatedAt    DateTime @updatedAt
+
+  @@id([tenantId, tipoComprobanteId])
+  @@map("secuencias_comprobante")
 }
