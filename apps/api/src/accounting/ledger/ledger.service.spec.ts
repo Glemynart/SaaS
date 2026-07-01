@@ -30,15 +30,6 @@ function cuenta(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function linea(overrides: Record<string, unknown> = {}) {
-  return {
-    cuentaId: 'cuenta-001',
-    debito: new Prisma.Decimal(100000),
-    credito: new Prisma.Decimal(0),
-    ...overrides,
-  };
-}
-
 function comprobanteInput(
   overrides: Partial<RegistrarComprobanteInput> = {},
 ): RegistrarComprobanteInput {
@@ -632,6 +623,10 @@ describe('LedgerService', () => {
         id: PERIODO_ID,
         estado: 'CERRADO',
       });
+      mocks.periodoFindFirst.mockResolvedValue({
+        id: 'periodo-abierto',
+        estado: 'ABIERTO',
+      });
 
       mocks.movimientoFindMany.mockResolvedValue([
         {
@@ -712,6 +707,10 @@ describe('LedgerService', () => {
       mocks.periodoFindUniqueOrThrow.mockResolvedValue({
         id: PERIODO_ID,
         estado: 'CERRADO',
+      });
+      mocks.periodoFindFirst.mockResolvedValue({
+        id: 'periodo-abierto',
+        estado: 'ABIERTO',
       });
       mocks.movimientoFindMany.mockResolvedValue([
         {

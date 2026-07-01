@@ -163,8 +163,19 @@ export class LedgerService {
         return anulado;
       }
 
-      // Período CERRADO → comprobante de reverso (append-only)
-      return this.crearReverso(tx, tenantId, userId, comprobante, motivo);
+      // Período CERRADO → comprobante de reverso en período ABIERTO actual
+      const periodoAbierto = await this.resolvePeriodoAbiertoActual(
+        tx,
+        tenantId,
+      );
+      return this.crearReverso(
+        tx,
+        tenantId,
+        userId,
+        comprobante,
+        motivo,
+        periodoAbierto.id,
+      );
     });
   }
 
@@ -180,11 +191,10 @@ export class LedgerService {
       id: string;
       numero: number | null;
       tipoComprobanteId: string;
-      periodoId: string;
       concepto: string;
-      fecha: Date;
     },
     motivo: string,
+    periodoAbiertoId: string,
   ) {
     const lineas = await tx.movimientoContable.findMany({
       where: { comprobanteId: original.id },
@@ -204,7 +214,7 @@ export class LedgerService {
       data: {
         tenantId,
         tipoComprobanteId: original.tipoComprobanteId,
-        periodoId: original.periodoId,
+        periodoId: periodoAbiertoId,
         numero,
         fecha: new Date(),
         concepto: `Reverso: ${original.concepto}. Motivo: ${motivo}`,
@@ -504,6 +514,25 @@ export class LedgerService {
     });
 
     return secuencia.ultimoNumero;
+  }
+
+  private async resolvePeriodoAbiertoActual(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+  ) {
+    const periodo = await tx.periodoContable.findFirst({
+      where: { tenantId, estado: 'ABIERTO' },
+      orderBy: [{ anio: 'desc' }, { mes: 'desc' }],
+    });
+
+    if (!periodo) {
+      throw new BadRequestException(
+        'No existe un período contable ABIERTO en este tenant. ' +
+          'Abra un período antes de revertir comprobantes de períodos cerrados.',
+      );
+    }
+
+    return periodo;
   }
 
   private async findComprobante(
