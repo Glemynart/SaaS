@@ -2,10 +2,17 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ReportingService } from '../reporting/reporting.service';
+import { AuditService } from '../../audit/audit.service';
 
 export interface ValidacionCierreResult {
   procede: boolean;
   bloqueos: string[];
+}
+
+export interface CerrarPeriodoResult {
+  cerrado: boolean;
+  yaEstabaCerrado: boolean;
+  bloqueos?: string[];
 }
 
 @Injectable()
@@ -13,6 +20,7 @@ export class ClosureService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly reporting: ReportingService,
+    private readonly audit: AuditService,
   ) {}
 
   async validarCierrePeriodo(
@@ -102,5 +110,58 @@ export class ClosureService {
       procede: bloqueos.length === 0,
       bloqueos,
     };
+  }
+
+  async cerrarPeriodo(
+    tenantId: string,
+    periodoId: string,
+    userId: string,
+  ): Promise<CerrarPeriodoResult> {
+    const validacion = await this.validarCierrePeriodo(tenantId, periodoId);
+
+    if (validacion.bloqueos.includes('PERIODO_YA_CERRADO')) {
+      return { cerrado: true, yaEstabaCerrado: true };
+    }
+
+    if (!validacion.procede) {
+      return {
+        cerrado: false,
+        yaEstabaCerrado: false,
+        bloqueos: validacion.bloqueos,
+      };
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.periodoContable.updateMany({
+        where: {
+          id: periodoId,
+          tenantId,
+          estado: 'ABIERTO',
+        },
+        data: {
+          estado: 'CERRADO',
+          cerradoAt: new Date(),
+          cerradoPorId: userId,
+        },
+      });
+
+      return result.count;
+    });
+
+    if (updated === 0) {
+      return { cerrado: true, yaEstabaCerrado: true };
+    }
+
+    this.audit
+      .log({
+        tenantId,
+        userId,
+        action: 'PERIODO_CONTABLE_CERRADO',
+        entityType: 'PeriodoContable',
+        entityId: periodoId,
+      })
+      .catch(() => {});
+
+    return { cerrado: true, yaEstabaCerrado: false };
   }
 }
