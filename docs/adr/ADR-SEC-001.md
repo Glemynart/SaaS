@@ -1,4 +1,4 @@
-# ADR-SEC-000 — Arquitectura de seguridad de la plataforma (documento rector)
+# ADR-SEC-001 — Arquitectura de seguridad de la plataforma (documento rector)
 
 | Campo           | Valor                                                                                               |
 | --------------- | --------------------------------------------------------------------------------------------------- |
@@ -7,8 +7,8 @@
 | **Decisores**   | Arquitectura · Seguridad                                                                            |
 | **Ámbito**      | Toda la plataforma SaaS multiempresa "La Oficina Nítida" — todos los módulos presentes y futuros    |
 | **Naturaleza**  | Documento rector de seguridad. Independiente de tecnología: sobrevive a cambios de stack.           |
-| **Reemplaza**   | — (ADR-SEC-001 existente queda subordinado como ADR de implementación; ver §22)                     |
-| **Relacionado** | ADR-001 (motor contable), ADR-SEC-001 (estado actual), expedientes, nómina, facturación electrónica |
+| **Reemplaza**   | — (ADR-SEC-002 queda subordinado como ADR de implementación; ver §22)                               |
+| **Relacionado** | ADR-001 (motor contable), ADR-SEC-002 (estado actual), expedientes, nómina, facturación electrónica |
 
 ---
 
@@ -400,12 +400,11 @@ Estas invariantes rigen durante toda la vida del producto. Ningún módulo, opti
 
 ## 22. Fuera de alcance — futuros ADR de seguridad
 
-Este documento fija el marco; los siguientes temas requieren ADR propio, subordinado a las invariantes de §21. El **ADR-SEC-001 existente** (inventario del estado implementado actual) queda subordinado a este marco: donde contradiga estas invariantes (p. ej. su renuncia explícita a certificaciones), prevalece este documento y aquel deberá revisarse como ADR de implementación/hoja de ruta.
+Este documento fija el marco; los siguientes temas requieren ADR propio, subordinado a las invariantes de §21. El **ADR-SEC-002** (inventario del estado implementado actual) queda subordinado a este marco: donde contradiga estas invariantes (p. ej. su renuncia explícita a certificaciones), prevalece este documento y aquel deberá revisarse como ADR de implementación/hoja de ruta.
 
 | ADR futuro         | Tema                                                                                                                             |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| ADR-SEC-001 (rev.) | Estado actual e implementación: brechas frente a este marco y hoja de ruta de hardening                                          |
-| ADR-SEC-002        | Modelo de autorización detallado: catálogo de roles, permisos, sedes, delegación y flujo de aprobación de elevaciones            |
+| ADR-SEC-002 (rev.) | Estado actual e implementación: brechas frente a este marco y hoja de ruta de hardening                                          |
 | ADR-SEC-003        | Diseño del subsistema de auditoría: esquema de eventos, encadenamiento, retención y archivado                                    |
 | ADR-SEC-004        | Ciclo de vida de sesiones e identidad: expiraciones, step-up, revocación, MFA, recuperación de cuentas                           |
 | ADR-SEC-005        | Seguridad del almacén documental: versionado, firmas, huellas de integridad, análisis de contenido, retención legal              |
@@ -418,6 +417,7 @@ Este documento fija el marco; los siguientes temas requieren ADR propio, subordi
 | ADR-SEC-012        | APIs públicas para terceros: ciclo de vida de credenciales de integración, scopes, cuotas comerciales                            |
 | ADR-SEC-013        | Cumplimiento y certificaciones: mapeo de este marco contra ASVS, ISO 27001, SOC 2 cuando se emprendan                            |
 | ADR-SEC-014        | Retención y supresión de datos personales: matriz finalidad/retención por tipo de dato (Habeas Data), incluidos datos de menores |
+| ADR-SEC-015        | Modelo de autorización detallado: catálogo de roles, permisos, sedes, delegación y flujo de aprobación de elevaciones            |
 
 ---
 

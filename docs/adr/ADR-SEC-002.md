@@ -1,13 +1,14 @@
-# ADR-SEC-001 — Security Architecture
+# ADR-SEC-002 — Security Architecture
 
-| Campo           | Valor                                                                             |
-| --------------- | --------------------------------------------------------------------------------- |
-| **Estado**      | Propuesto                                                                         |
-| **Fecha**       | 2026-07-02                                                                        |
-| **Decisores**   | Arquitectura · Seguridad                                                          |
-| **Ámbito**      | SaaS multiempresa "La Oficina Nítida" — `apps/api` (NestJS · Prisma · PostgreSQL) |
-| **Reemplaza**   | —                                                                                 |
-| **Relacionado** | ADR-001 (motor contable), C3 (cierre), N2A–N2D (nómina)                           |
+| Campo             | Valor                                                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Estado**        | Propuesto                                                                                                    |
+| **Fecha**         | 2026-07-02                                                                                                   |
+| **Decisores**     | Arquitectura · Seguridad                                                                                     |
+| **Ámbito**        | SaaS multiempresa "La Oficina Nítida" — `apps/api` (NestJS · Prisma · PostgreSQL)                            |
+| **Subordinado a** | ADR-SEC-001 (documento rector). Este ADR es el inventario de implementación subordinado; ver ADR-SEC-001 §22 |
+| **Reemplaza**     | —                                                                                                            |
+| **Relacionado**   | ADR-SEC-001 (documento rector), ADR-001 (motor contable), C3 (cierre), N2A–N2D (nómina)                      |
 
 ---
 
@@ -372,4 +373,4 @@ Cada fase es independiente, mergeable y desplegable por sí misma. El orden refl
 
 ---
 
-_FIN del ADR-SEC-001._
+_FIN del ADR-SEC-002._

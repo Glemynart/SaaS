@@ -8,9 +8,9 @@
 | **Ámbito**      | Toda la plataforma, módulos presentes y futuros                                                                                                                                   |
 | **Naturaleza**  | Documento vivo de modelado de amenazas. No es un ADR de decisión: es el registro adversario que gobierna la revisión de seguridad de toda funcionalidad nueva.                    |
 | **Depende de**  | ADR-SEC-001 (documento rector — invariantes S1–S15, zonas Z0–Z5/ZX). Este Threat Model **no redefine** filosofía, principios ni invariantes; los usa como criterio de mitigación. |
-| **Relacionado** | ADR-SEC-002 (inventario de implementación actual), ADR-001 (motor contable), y los ADRs futuros SEC-003…SEC-014 reservados en el rector                                           |
+| **Relacionado** | ADR-SEC-002 (inventario de implementación actual), ADR-001 (motor contable), y los ADRs futuros SEC-003…SEC-015 reservados en el rector                                           |
 
-> **Regla de lectura.** Cada vez que este documento dice "mitigación arquitectónica", se refiere a una garantía ya definida en el rector (una invariante Sx, una zona Zx o una sección). Si una amenaza no está cubierta por ninguna invariante, es un **gap** y se marca como tal en §17. Un gap es una decisión pendiente, no una implementación autorizada.
+> **Regla de lectura.** Cada vez que este documento dice "mitigación arquitectónica", se refiere a una garantía ya definida en el rector (una invariante Sx, una zona Zx o una sección). Si una amenaza no está cubierta por ninguna invariante, es un **gap** y se marca como tal en §20. Un gap es una decisión pendiente, no una implementación autorizada.
 
 ---
 
@@ -68,7 +68,7 @@ Severidad = f(impacto sobre la confianza del producto, reversibilidad, alcance).
 
 ### 2.5 Convención de trazabilidad
 
-Cada amenaza cita las invariantes del rector que la contienen. La cobertura inversa (invariante → amenazas que protege) está en §16. Las amenazas **sin cobertura completa** por el estado implementado actual (ADR-SEC-002) están en §17.
+Cada amenaza cita las invariantes del rector que la contienen. La cobertura inversa (invariante → amenazas que protege) está en §22. Las amenazas **sin cobertura completa** por el estado implementado actual (ADR-SEC-002) están en §20.
 
 ---
 
@@ -174,7 +174,7 @@ Puntos de ruptura que el atacante busca: (a) saltar Z2→Z4 sin pasar por los co
 - **Impacto:** acceso prolongado; renovación continua de sesiones.
 - **Probabilidad:** Media. **Severidad:** Alta.
 - **Detección:** presentación de un refresh token ya rotado (señal fuerte de robo).
-- **Mitigaciones arquitectónicas:** rotación por uso y detección de reuso que revoca toda la familia de tokens del usuario (ADR-SEC-002 §4.2, SEC-I7); revocación efectiva antes de expiración natural (rector §6.3). **Observación:** el access token no es revocable hoy (ventana de 15 min, R4 de ADR-SEC-002) — gap aceptado, ver §17.
+- **Mitigaciones arquitectónicas:** rotación por uso y detección de reuso que revoca toda la familia de tokens del usuario (ADR-SEC-002 §4.2, SEC-I7); revocación efectiva antes de expiración natural (rector §6.3). **Observación:** el access token no es revocable hoy (ventana de 15 min, R4 de ADR-SEC-002) — gap aceptado, ver §20.
 - **Relacionado:** ADR-SEC-004.
 
 ### T-ID-5 — Bypass de MFA (cuando exista)
@@ -186,7 +186,7 @@ Puntos de ruptura que el atacante busca: (a) saltar Z2→Z4 sin pasar por los co
 - **Probabilidad:** Media (futuro). **Severidad:** Crítica para cuentas de plataforma.
 - **Detección:** acceso privilegiado sin evento de step-up correspondiente (§13.2).
 - **Mitigaciones arquitectónicas:** MFA como propiedad de la identidad, no de un endpoint (rector §6.2); toda acción crítica exige re-verificación reciente (S11); fail secure si el factor no puede evaluarse (S2).
-- **Relacionado:** ADR-SEC-004. **Gap** hasta que MFA exista (§17).
+- **Relacionado:** ADR-SEC-004. **Gap** hasta que MFA exista (§20).
 
 ### T-ID-6 — Abuso de recuperación de cuenta / reset de contraseña
 
@@ -224,7 +224,7 @@ Puntos de ruptura que el atacante busca: (a) saltar Z2→Z4 sin pasar por los co
 - **Impacto:** fuga masiva cross-tenant; fin de la confianza (A1).
 - **Probabilidad:** Media (un solo olvido basta; el equipo crecerá). **Severidad:** Crítica.
 - **Detección:** un servicio que lee volúmenes o filas fuera de su tenant habitual (§19.5); pruebas de invariante que intentan cruzar tenant y deben fallar (rector §21, verificabilidad).
-- **Mitigaciones arquitectónicas:** doble imposición dominio **y** datos (S4, rector §5.2.2); rutas de acceso sin tenant obligatorio no deben existir (rector §5.2.3, "imposible por construcción"); pruebas de cruce en el pipeline (S12, rector §17.4). **Estado:** hoy solo hay una capa (aplicación); RLS está diferido (ADR-SEC-002 §9 Fase 3) — **gap crítico**, ver §17.
+- **Mitigaciones arquitectónicas:** doble imposición dominio **y** datos (S4, rector §5.2.2); rutas de acceso sin tenant obligatorio no deben existir (rector §5.2.3, "imposible por construcción"); pruebas de cruce en el pipeline (S12, rector §17.4). **Estado:** hoy solo hay una capa (aplicación); RLS está diferido (ADR-SEC-002 §9 Fase 3) — **gap crítico**, ver §20.
 - **Relacionado:** ADR-SEC-001 §5, ADR-SEC-002 §6.
 
 ### T-MT-2 — IDOR / BOLA: acceso a recurso de otro tenant por su identificador
@@ -305,7 +305,7 @@ Puntos de ruptura que el atacante busca: (a) saltar Z2→Z4 sin pasar por los co
 - **Impacto:** escalamiento funcional dentro del tenant.
 - **Probabilidad:** Media. **Severidad:** Alta.
 - **Detección:** invocación de funciones fuera del perfil del rol (§13.2).
-- **Mitigaciones arquitectónicas:** secure by default — un módulo que no declara su política no es accesible (rector §5.2/§9.1, S2); autorización declarativa central (rector §6.5). **Observación:** el default actual (endpoint sin `@Roles` = abierto a autenticados) contradice secure-by-default — **gap**, §17.
+- **Mitigaciones arquitectónicas:** secure by default — un módulo que no declara su política no es accesible (rector §5.2/§9.1, S2); autorización declarativa central (rector §6.5). **Observación:** el default actual (endpoint sin `@Roles` = abierto a autenticados) contradice secure-by-default — **gap**, §20.
 - **Relacionado:** ADR-SEC-001 §6–7, ADR-SEC-002 §5.
 
 ### T-API-2 — Mass assignment / parameter tampering
@@ -360,7 +360,7 @@ Puntos de ruptura que el atacante busca: (a) saltar Z2→Z4 sin pasar por los co
 - **Impacto:** toma de cuenta, DoS, costo de cómputo.
 - **Probabilidad:** Alta. **Severidad:** Media.
 - **Detección:** tasa anómala por endpoint/identidad (§19.4).
-- **Mitigaciones arquitectónicas:** anti-abuso por diseño, rate limiting por identidad y por tenant (rector §7.4); el borde absorbe la hostilidad (rector §16.3). **Estado:** rate limiting global pendiente (ADR-SEC-002 §9 Fase 1) — **gap**, §17.
+- **Mitigaciones arquitectónicas:** anti-abuso por diseño, rate limiting por identidad y por tenant (rector §7.4); el borde absorbe la hostilidad (rector §16.3). **Estado:** rate limiting global pendiente (ADR-SEC-002 §9 Fase 1) — **gap**, §20.
 - **Relacionado:** ADR-SEC-001 §7, §16.
 
 ### T-API-7 — Fuga de información por errores/respuestas verbosas
@@ -419,7 +419,7 @@ Puntos de ruptura que el atacante busca: (a) saltar Z2→Z4 sin pasar por los co
 - **Impacto:** acciones no intencionadas del usuario.
 - **Probabilidad:** Baja. **Severidad:** Baja.
 - **Detección:** —.
-- **Mitigaciones arquitectónicas:** restricción estructural del enmarcado (rector §8.7, headers de seguridad). **Estado:** headers (Helmet) pendientes (ADR-SEC-002 §9 Fase 1) — **gap**, §17.
+- **Mitigaciones arquitectónicas:** restricción estructural del enmarcado (rector §8.7, headers de seguridad). **Estado:** headers (Helmet) pendientes (ADR-SEC-002 §9 Fase 1) — **gap**, §20.
 - **Relacionado:** ADR-SEC-001 §8.
 
 ### T-FE-4 — Fuga de datos por sobreexposición del backend a la vista
@@ -548,7 +548,7 @@ Puntos de ruptura que el atacante busca: (a) saltar Z2→Z4 sin pasar por los co
 - **Impacto:** fuga o alteración total, sin auditoría (invisible).
 - **Probabilidad:** Baja. **Severidad:** Crítica.
 - **Detección:** conexiones desde origen no-Z3; anomalías de acceso (§19.5).
-- **Mitigaciones arquitectónicas:** Z4 sin ruta de red desde el exterior, único cliente Z3 (rector §4.2.5); identidades de servicio de mínimo privilegio (rector §6.6); RLS como defensa en profundidad para que ni una consulta raw cruce tenant (ADR-SEC-002 §9 Fase 3 — diferido, **gap** §17).
+- **Mitigaciones arquitectónicas:** Z4 sin ruta de red desde el exterior, único cliente Z3 (rector §4.2.5); identidades de servicio de mínimo privilegio (rector §6.6); RLS como defensa en profundidad para que ni una consulta raw cruce tenant (ADR-SEC-002 §9 Fase 3 — diferido, **gap** §20).
 - **Relacionado:** ADR-SEC-001 §4, §16.
 
 ### T-DB-2 — Fuga o robo de backups
@@ -608,7 +608,7 @@ Puntos de ruptura que el atacante busca: (a) saltar Z2→Z4 sin pasar por los co
 - **Probabilidad:** Media. **Severidad:** Alta.
 - **Detección:** accesos a rutas inexistentes en secuencia (§19.4).
 - **Mitigaciones arquitectónicas:** almacén no navegable, nombres no enumerables ni significativos; metadatos en el sistema de registro, no en el nombre del archivo (rector §11.2).
-- **Relacionado:** ADR-SEC-001 §11, ADR-SEC-005. **Observación:** hoy expediente y branding viven en filesystem local (memoria) — verificar no-navegabilidad, posible **gap** §17.
+- **Relacionado:** ADR-SEC-001 §11, ADR-SEC-005. **Observación:** hoy expediente y branding viven en filesystem local (memoria) — verificar no-navegabilidad, posible **gap** §20.
 
 ### T-DO-3 — Subida de contenido malicioso
 
@@ -690,8 +690,8 @@ Puntos de ruptura que el atacante busca: (a) saltar Z2→Z4 sin pasar por los co
 - **Impacto:** fraude sin segundo control.
 - **Probabilidad:** Media. **Severidad:** Alta.
 - **Detección:** misma identidad en todos los pasos de un flujo crítico (§13).
-- **Mitigaciones arquitectónicas:** segregación de deberes: registrar/aprobar/cerrar separables por rol, con identidades distintas exigibles (rector §12.4, S11). **Estado:** el RBAC actual no separa crear/aprobar — **gap**, §17; destino ADR-SEC-002 (modelo de autorización detallado).
-- **Relacionado:** ADR-SEC-001 §12, ADR-SEC-002 (rol detallado).
+- **Mitigaciones arquitectónicas:** segregación de deberes: registrar/aprobar/cerrar separables por rol, con identidades distintas exigibles (rector §12.4, S11). **Estado:** el RBAC actual no separa crear/aprobar — **gap**, §20; destino ADR-SEC-015 (modelo de autorización detallado).
+- **Relacionado:** ADR-SEC-001 §12, ADR-SEC-015 (rol detallado).
 
 ---
 
@@ -845,7 +845,7 @@ Puntos de ruptura que el atacante busca: (a) saltar Z2→Z4 sin pasar por los co
 - **Impacto:** con JWT_SECRET, forjar sesiones de cualquier tenant (Crítica); con DATABASE_URL, T-DB-1.
 - **Probabilidad:** Media. **Severidad:** Crítica.
 - **Detección:** escaneo de secretos; uso de secreto desde origen inesperado (§19).
-- **Mitigaciones arquitectónicas:** cero secretos fuera del inventario gobernado, nunca en código/repositorio/artefacto/config/cliente; rotables y de ámbito mínimo (S8, rector §14); ejecución sobre código no confiable sin acceso a secretos (rector §15.3). **Estado:** gestión centralizada de secretos diferida, `.env` hoy — **gap**, §17.
+- **Mitigaciones arquitectónicas:** cero secretos fuera del inventario gobernado, nunca en código/repositorio/artefacto/config/cliente; rotables y de ámbito mínimo (S8, rector §14); ejecución sobre código no confiable sin acceso a secretos (rector §15.3). **Estado:** gestión centralizada de secretos diferida, `.env` hoy — **gap**, §20.
 - **Relacionado:** ADR-SEC-001 §14, §15, ADR-SEC-006.
 
 ### T-DV-4 — Compromiso de identidad de repositorio / commits no verificables
@@ -970,7 +970,7 @@ Puntos de ruptura que el atacante busca: (a) saltar Z2→Z4 sin pasar por los co
 
 ## 19. Priorización consolidada
 
-Ordenadas por severidad y, dentro de cada nivel, por probabilidad. La columna "Estado" indica si el rector ya cubre la amenaza estructuralmente (**Cubierta**) o si el estado implementado actual deja un **Gap** (detalle en §17→§20 más abajo, tabla de gaps).
+Ordenadas por severidad y, dentro de cada nivel, por probabilidad. La columna "Estado" indica si el rector ya cubre la amenaza estructuralmente (**Cubierta**) o si el estado implementado actual deja un **Gap** (detalle en §20 más abajo, tabla de gaps).
 
 ### 19.1 Críticas
 
@@ -986,13 +986,13 @@ Ordenadas por severidad y, dentro de cada nivel, por probabilidad. La columna "E
 | T-CO-1 | Alteración de evidencia contable            | Baja  | S5               | Cubierta          |
 | T-CO-3 | Reapertura informal de períodos             | Baja  | S5, S11          | Cubierta (C3)     |
 | T-DB-1 | Acceso directo a la base                    | Baja  | Z4, S4           | **Gap** (sin RLS) |
-| T-DB-2 | Fuga de backups                             | Baja  | S13              | Gap infra (§17)   |
-| T-DB-3 | Ransomware                                  | Media | S13              | Gap infra (§17)   |
+| T-DB-2 | Fuga de backups                             | Baja  | S13              | Gap infra (§20)   |
+| T-DB-3 | Ransomware                                  | Media | S13              | Gap infra (§20)   |
 | T-FA-2 | Robo de certificados de firma DIAN          | Baja  | S8               | Futuro (SEC-007)  |
 | T-AI-2 | Exceso de privilegio de agente IA           | Media | S14, S7          | Futuro (SEC-010)  |
 | T-AI-5 | Acción irreversible de IA sin humano        | Media | S14              | Futuro (SEC-010)  |
-| T-DV-1 | Compromiso de dependencia                   | Media | §15              | Gap CI/CD (§17)   |
-| T-DV-2 | Compromiso del pipeline                     | Baja  | S12              | Gap CI/CD (§17)   |
+| T-DV-1 | Compromiso de dependencia                   | Media | §15              | Gap CI/CD (§20)   |
+| T-DV-2 | Compromiso del pipeline                     | Baja  | S12              | Gap CI/CD (§20)   |
 | T-DV-3 | Exfiltración de secretos                    | Media | S8               | **Gap** (.env)    |
 | T-IN-2 | Abuso de superadmin catastrófico            | Baja  | S11, S6          | Cubierta (diseño) |
 
@@ -1002,14 +1002,14 @@ Ordenadas por severidad y, dentro de cada nivel, por probabilidad. La columna "E
 | ------- | --------------------------------------------- | ----- | ---------------- | ----------------------------------- |
 | T-ID-1  | Credential stuffing                           | Alta  | §6.2, §7.4       | Parcial (MFA futuro)                |
 | T-ID-2  | Phishing                                      | Media | §6.2, S11        | Parcial (MFA futuro)                |
-| T-ID-3  | Session hijacking                             | Media | §8.3             | Parcial (headers §17)               |
+| T-ID-3  | Session hijacking                             | Media | §8.3             | Parcial (headers §20)               |
 | T-ID-4  | Abuso de refresh token                        | Media | SEC-I7           | Cubierta                            |
 | T-ID-6  | Abuso de recuperación de cuenta               | Media | §6.3             | Futuro (SEC-004)                    |
 | T-MT-4  | Ruptura de frontera de sede                   | Media | S3, §5.3         | **Gap** (sede parcial)              |
 | T-API-1 | BFLA (función sin rol)                        | Media | S2, §6.5         | **Gap** (default abierto)           |
 | T-API-2 | Mass assignment                               | Alta  | S9, SEC-I2       | Cubierta                            |
 | T-API-3 | Race condition                                | Media | §9.5             | Parcial                             |
-| T-FE-1  | XSS                                           | Media | §8.3, §8.7       | Parcial (CSP §17)                   |
+| T-FE-1  | XSS                                           | Media | §8.3, §8.7       | Parcial (CSP §20)                   |
 | T-FE-4  | Sobreexposición del backend                   | Alta  | S9, §8.2         | Cubierta (disciplina)               |
 | T-FE-7  | Autorización por interfaz                     | Alta  | S3, §8.6         | Cubierta                            |
 | T-BE-1  | Bypass de autorización por camino no cubierto | Media | S3, S4           | Cubierta (diseño)                   |
@@ -1061,7 +1061,7 @@ Ordenadas por severidad y, dentro de cada nivel, por probabilidad. La columna "E
 
 | ID     | Amenaza      | Prob. | Invariante clave | Estado                |
 | ------ | ------------ | ----- | ---------------- | --------------------- |
-| T-FE-3 | Clickjacking | Baja  | §8.7             | **Gap** (headers §17) |
+| T-FE-3 | Clickjacking | Baja  | §8.7             | **Gap** (headers §20) |
 
 ---
 
