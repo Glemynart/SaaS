@@ -66,6 +66,7 @@ function build() {
   const mocks = {
     periodoFindFirst: jest.fn(),
     comprobanteCount: jest.fn(),
+    comprobanteFindFirst: jest.fn(),
     obtenerBalancePrueba: jest.fn(),
     periodoUpdateMany: jest.fn(),
     auditLog: jest.fn(),
@@ -85,6 +86,7 @@ function build() {
     },
     comprobanteContable: {
       count: mocks.comprobanteCount,
+      findFirst: mocks.comprobanteFindFirst,
     },
     $transaction: jest
       .fn()
@@ -406,6 +408,236 @@ describe('ClosureService', () => {
       mocks.txUpdateMany.mockResolvedValue({ count: 0 });
 
       await service.cerrarPeriodo(TENANT_ID, PERIODO_ID, USER_ID);
+
+      expect(audit.log).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reabrirPeriodo()', () => {
+    const MOTIVO = 'Corrección de asiento detectada por auditoría externa';
+
+    it('devuelve bloqueo PERIODO_NO_ENCONTRADO cuando el período no existe', async () => {
+      const { service, mocks } = build();
+      mocks.periodoFindFirst.mockResolvedValueOnce(null);
+
+      const result = await service.reabrirPeriodo(
+        TENANT_ID,
+        PERIODO_ID,
+        USER_ID,
+        MOTIVO,
+      );
+
+      expect(result).toEqual({
+        reabierto: false,
+        yaEstabaAbierto: false,
+        bloqueos: ['PERIODO_NO_ENCONTRADO'],
+      });
+    });
+
+    it('devuelve bloqueo MOTIVO_REQUERIDO cuando el motivo está vacío', async () => {
+      const { service, mocks } = build();
+      mocks.periodoFindFirst.mockResolvedValueOnce(
+        periodo({ estado: 'CERRADO' }),
+      );
+
+      const result = await service.reabrirPeriodo(
+        TENANT_ID,
+        PERIODO_ID,
+        USER_ID,
+        '   ',
+      );
+
+      expect(result).toEqual({
+        reabierto: false,
+        yaEstabaAbierto: false,
+        bloqueos: ['MOTIVO_REQUERIDO'],
+      });
+    });
+
+    it('devuelve reabierto=true yaEstabaAbierto=true cuando el período ya está ABIERTO (no-op)', async () => {
+      const { service, mocks, audit } = build();
+      mocks.periodoFindFirst.mockResolvedValueOnce(
+        periodo({ estado: 'ABIERTO' }),
+      );
+
+      const result = await service.reabrirPeriodo(
+        TENANT_ID,
+        PERIODO_ID,
+        USER_ID,
+        MOTIVO,
+      );
+
+      expect(result).toEqual({ reabierto: true, yaEstabaAbierto: true });
+      expect(audit.log).not.toHaveBeenCalled();
+      expect(mocks.periodoFindFirst).toHaveBeenCalledTimes(1);
+    });
+
+    it('devuelve bloqueo NO_ES_ULTIMO_PERIODO_CERRADO cuando existe un período CERRADO posterior', async () => {
+      const { service, mocks } = build();
+      mocks.periodoFindFirst
+        .mockResolvedValueOnce(
+          periodo({ estado: 'CERRADO', anio: 2026, mes: 5 }),
+        )
+        .mockResolvedValueOnce({ id: 'p-006' }); // junio 2026, también CERRADO
+      mocks.comprobanteFindFirst.mockResolvedValue(null);
+
+      const result = await service.reabrirPeriodo(
+        TENANT_ID,
+        PERIODO_ID,
+        USER_ID,
+        MOTIVO,
+      );
+
+      expect(result).toEqual({
+        reabierto: false,
+        yaEstabaAbierto: false,
+        bloqueos: ['NO_ES_ULTIMO_PERIODO_CERRADO'],
+      });
+      expect(mocks.periodoFindFirst).toHaveBeenNthCalledWith(2, {
+        where: {
+          tenantId: TENANT_ID,
+          estado: 'CERRADO',
+          OR: [{ anio: { gt: 2026 } }, { anio: 2026, mes: { gt: 5 } }],
+        },
+        select: { id: true },
+      });
+    });
+
+    it('detecta LIFO correctamente al cruzar el año (diciembre cerrado bloquea reapertura de noviembre del año anterior)', async () => {
+      const { service, mocks } = build();
+      mocks.periodoFindFirst
+        .mockResolvedValueOnce(
+          periodo({ estado: 'CERRADO', anio: 2025, mes: 12 }),
+        )
+        .mockResolvedValueOnce({ id: 'p-ene-2026' });
+      mocks.comprobanteFindFirst.mockResolvedValue(null);
+
+      const result = await service.reabrirPeriodo(
+        TENANT_ID,
+        PERIODO_ID,
+        USER_ID,
+        MOTIVO,
+      );
+
+      expect(result.bloqueos).toEqual(['NO_ES_ULTIMO_PERIODO_CERRADO']);
+      expect(mocks.periodoFindFirst).toHaveBeenNthCalledWith(2, {
+        where: {
+          tenantId: TENANT_ID,
+          estado: 'CERRADO',
+          OR: [{ anio: { gt: 2025 } }, { anio: 2025, mes: { gt: 12 } }],
+        },
+        select: { id: true },
+      });
+    });
+
+    it('devuelve bloqueo CIERRE_ANUAL_POSTEADO cuando existe un comprobante de cierre anual no anulado', async () => {
+      const { service, mocks } = build();
+      mocks.periodoFindFirst
+        .mockResolvedValueOnce(periodo({ estado: 'CERRADO' }))
+        .mockResolvedValueOnce(null);
+      mocks.comprobanteFindFirst.mockResolvedValue({ id: 'cc-001' });
+
+      const result = await service.reabrirPeriodo(
+        TENANT_ID,
+        PERIODO_ID,
+        USER_ID,
+        MOTIVO,
+      );
+
+      expect(result).toEqual({
+        reabierto: false,
+        yaEstabaAbierto: false,
+        bloqueos: ['CIERRE_ANUAL_POSTEADO'],
+      });
+      expect(mocks.comprobanteFindFirst).toHaveBeenCalledWith({
+        where: {
+          tenantId: TENANT_ID,
+          periodoId: PERIODO_ID,
+          origenTipo: 'CIERRE_ANUAL',
+          estado: { not: 'ANULADO' },
+        },
+        select: { id: true },
+      });
+    });
+
+    it('no bloquea cuando el cierre anual existente ya fue ANULADO', async () => {
+      const { service, mocks } = build();
+      mocks.periodoFindFirst
+        .mockResolvedValueOnce(periodo({ estado: 'CERRADO' }))
+        .mockResolvedValueOnce(null);
+      mocks.comprobanteFindFirst.mockResolvedValue(null); // filtrado por estado:{not:'ANULADO'}
+      mocks.txUpdateMany.mockResolvedValue({ count: 1 });
+      mocks.auditLog.mockResolvedValue(undefined);
+
+      const result = await service.reabrirPeriodo(
+        TENANT_ID,
+        PERIODO_ID,
+        USER_ID,
+        MOTIVO,
+      );
+
+      expect(result).toEqual({ reabierto: true, yaEstabaAbierto: false });
+    });
+
+    it('reabre exitosamente el único período cerrado (la frontera) y audita con el motivo', async () => {
+      const { service, mocks, audit } = build();
+      mocks.periodoFindFirst
+        .mockResolvedValueOnce(periodo({ estado: 'CERRADO' }))
+        .mockResolvedValueOnce(null);
+      mocks.comprobanteFindFirst.mockResolvedValue(null);
+      mocks.txUpdateMany.mockResolvedValue({ count: 1 });
+      mocks.auditLog.mockResolvedValue(undefined);
+
+      const result = await service.reabrirPeriodo(
+        TENANT_ID,
+        PERIODO_ID,
+        USER_ID,
+        MOTIVO,
+      );
+
+      expect(result).toEqual({ reabierto: true, yaEstabaAbierto: false });
+      expect(mocks.txUpdateMany).toHaveBeenCalledWith({
+        where: { id: PERIODO_ID, tenantId: TENANT_ID, estado: 'CERRADO' },
+        data: {
+          estado: 'ABIERTO',
+          cerradoAt: null,
+          cerradoPorId: null,
+        },
+      });
+      expect(audit.log).toHaveBeenCalledWith({
+        tenantId: TENANT_ID,
+        userId: USER_ID,
+        action: 'PERIODO_CONTABLE_REABIERTO',
+        entityType: 'PeriodoContable',
+        entityId: PERIODO_ID,
+        metadata: { motivo: MOTIVO },
+      });
+    });
+
+    it('devuelve reabierto=true yaEstabaAbierto=true cuando una reapertura concurrente ya actuó (carrera)', async () => {
+      const { service, mocks, audit } = build();
+      mocks.periodoFindFirst
+        .mockResolvedValueOnce(periodo({ estado: 'CERRADO' }))
+        .mockResolvedValueOnce(null);
+      mocks.comprobanteFindFirst.mockResolvedValue(null);
+      mocks.txUpdateMany.mockResolvedValue({ count: 0 });
+
+      const result = await service.reabrirPeriodo(
+        TENANT_ID,
+        PERIODO_ID,
+        USER_ID,
+        MOTIVO,
+      );
+
+      expect(result).toEqual({ reabierto: true, yaEstabaAbierto: true });
+      expect(audit.log).not.toHaveBeenCalled();
+    });
+
+    it('no registra auditoría cuando la reapertura es rechazada por bloqueos', async () => {
+      const { service, mocks, audit } = build();
+      mocks.periodoFindFirst.mockResolvedValueOnce(null);
+
+      await service.reabrirPeriodo(TENANT_ID, PERIODO_ID, USER_ID, MOTIVO);
 
       expect(audit.log).not.toHaveBeenCalled();
     });
