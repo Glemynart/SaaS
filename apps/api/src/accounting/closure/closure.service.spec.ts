@@ -3,6 +3,7 @@ import { ClosureService } from './closure.service';
 
 const TENANT_ID = 't-001';
 const PERIODO_ID = 'p-001';
+const USER_ID = 'u-001';
 
 const FECHA_INICIO = new Date('2026-06-01');
 const FECHA_FIN = new Date('2026-06-30');
@@ -66,24 +67,45 @@ function build() {
     periodoFindFirst: jest.fn(),
     comprobanteCount: jest.fn(),
     obtenerBalancePrueba: jest.fn(),
+    periodoUpdateMany: jest.fn(),
+    auditLog: jest.fn(),
+    txUpdateMany: jest.fn(),
+  };
+
+  const tx = {
+    periodoContable: {
+      updateMany: mocks.txUpdateMany,
+    },
   };
 
   const prisma = {
     periodoContable: {
       findFirst: mocks.periodoFindFirst,
+      updateMany: mocks.periodoUpdateMany,
     },
     comprobanteContable: {
       count: mocks.comprobanteCount,
     },
+    $transaction: jest
+      .fn()
+      .mockImplementation(async (cb: (tx: unknown) => unknown) => cb(tx)),
   };
 
   const reporting = {
     obtenerBalancePrueba: mocks.obtenerBalancePrueba,
   };
 
-  const service = new ClosureService(prisma as never, reporting as never);
+  const audit = {
+    log: mocks.auditLog,
+  };
 
-  return { service, mocks };
+  const service = new ClosureService(
+    prisma as never,
+    reporting as never,
+    audit as never,
+  );
+
+  return { service, mocks, audit };
 }
 
 describe('ClosureService', () => {
@@ -258,6 +280,134 @@ describe('ClosureService', () => {
         fechaInicio: FECHA_INICIO,
         fechaFin: FECHA_FIN,
       });
+    });
+  });
+
+  describe('cerrarPeriodo()', () => {
+    it('cierra exitosamente un período que pasa todas las validaciones', async () => {
+      const { service, mocks, audit } = build();
+      mocks.periodoFindFirst
+        .mockResolvedValueOnce(periodo())
+        .mockResolvedValueOnce(null);
+      mocks.comprobanteCount.mockResolvedValue(0);
+      mocks.obtenerBalancePrueba.mockResolvedValue(balanceCuadrado());
+      mocks.txUpdateMany.mockResolvedValue({ count: 1 });
+      mocks.auditLog.mockResolvedValue(undefined);
+
+      const result = await service.cerrarPeriodo(
+        TENANT_ID,
+        PERIODO_ID,
+        USER_ID,
+      );
+
+      expect(result).toEqual({ cerrado: true, yaEstabaCerrado: false });
+      expect(mocks.txUpdateMany).toHaveBeenCalledWith({
+        where: { id: PERIODO_ID, tenantId: TENANT_ID, estado: 'ABIERTO' },
+        data: {
+          estado: 'CERRADO',
+          cerradoAt: expect.any(Date),
+          cerradoPorId: USER_ID,
+        },
+      });
+      expect(audit.log).toHaveBeenCalledWith({
+        tenantId: TENANT_ID,
+        userId: USER_ID,
+        action: 'PERIODO_CONTABLE_CERRADO',
+        entityType: 'PeriodoContable',
+        entityId: PERIODO_ID,
+      });
+    });
+
+    it('devuelve cerrado=false con bloqueos cuando el período no existe', async () => {
+      const { service, mocks } = build();
+      mocks.periodoFindFirst.mockResolvedValue(null);
+
+      const result = await service.cerrarPeriodo(
+        TENANT_ID,
+        PERIODO_ID,
+        USER_ID,
+      );
+
+      expect(result).toEqual({
+        cerrado: false,
+        yaEstabaCerrado: false,
+        bloqueos: ['PERIODO_NO_ENCONTRADO'],
+      });
+    });
+
+    it('devuelve cerrado=true yaEstabaCerrado=true cuando el período ya está cerrado', async () => {
+      const { service, mocks } = build();
+      mocks.periodoFindFirst.mockResolvedValue(periodo({ estado: 'CERRADO' }));
+
+      const result = await service.cerrarPeriodo(
+        TENANT_ID,
+        PERIODO_ID,
+        USER_ID,
+      );
+
+      expect(result).toEqual({ cerrado: true, yaEstabaCerrado: true });
+    });
+
+    it('devuelve cerrado=false con bloqueos cuando la validación falla por borradores', async () => {
+      const { service, mocks } = build();
+      mocks.periodoFindFirst
+        .mockResolvedValueOnce(periodo())
+        .mockResolvedValueOnce(null);
+      mocks.comprobanteCount.mockResolvedValue(5);
+      mocks.obtenerBalancePrueba.mockResolvedValue(balanceCuadrado());
+
+      const result = await service.cerrarPeriodo(
+        TENANT_ID,
+        PERIODO_ID,
+        USER_ID,
+      );
+
+      expect(result).toEqual({
+        cerrado: false,
+        yaEstabaCerrado: false,
+        bloqueos: ['BORRADORES_PENDIENTES'],
+      });
+    });
+
+    it('devuelve cerrado=true yaEstabaCerrado=true cuando un cierre concurrente ya cerró el período', async () => {
+      const { service, mocks } = build();
+      mocks.periodoFindFirst
+        .mockResolvedValueOnce(periodo())
+        .mockResolvedValueOnce(null);
+      mocks.comprobanteCount.mockResolvedValue(0);
+      mocks.obtenerBalancePrueba.mockResolvedValue(balanceCuadrado());
+      mocks.txUpdateMany.mockResolvedValue({ count: 0 });
+
+      const result = await service.cerrarPeriodo(
+        TENANT_ID,
+        PERIODO_ID,
+        USER_ID,
+      );
+
+      expect(result).toEqual({ cerrado: true, yaEstabaCerrado: true });
+    });
+
+    it('no registra auditoría cuando el cierre es rechazado por validación', async () => {
+      const { service, mocks, audit } = build();
+      mocks.periodoFindFirst.mockResolvedValue(null);
+
+      await service.cerrarPeriodo(TENANT_ID, PERIODO_ID, USER_ID);
+
+      expect(audit.log).not.toHaveBeenCalled();
+    });
+
+    it('no registra auditoría cuando el cierre concurrente no actualiza filas', async () => {
+      const { service, mocks, audit } = build();
+      mocks.periodoFindFirst
+        .mockResolvedValueOnce(periodo())
+        .mockResolvedValueOnce(null);
+      mocks.comprobanteCount.mockResolvedValue(0);
+      mocks.obtenerBalancePrueba.mockResolvedValue(balanceCuadrado());
+      mocks.txUpdateMany.mockResolvedValue({ count: 0 });
+
+      await service.cerrarPeriodo(TENANT_ID, PERIODO_ID, USER_ID);
+
+      expect(audit.log).not.toHaveBeenCalled();
     });
   });
 });
