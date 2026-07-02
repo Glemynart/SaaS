@@ -17,8 +17,9 @@ import { AccountingProvisioningController } from './provisioning/accounting-prov
 import { AccountingProvisioningService } from './provisioning/accounting-provisioning.service';
 import { LedgerService } from './ledger/ledger.service';
 import { ReportingService } from './reporting/reporting.service';
+import { ClosureService } from './closure/closure.service';
 
-// Motor contable ADR-001 · Fase C1.1 — C0 catálogos + C1 Ledger Core.
+// Motor contable ADR-001 · Fase C3 — C0 catálogos + C1 Ledger Core + C2 Reporting + C3 Cierre.
 @Module({
   imports: [TenantsModule],
   controllers: [
@@ -40,6 +41,7 @@ import { ReportingService } from './reporting/reporting.service';
     AccountingProvisioningService,
     LedgerService,
     ReportingService,
+    ClosureService,
   ],
   exports: [AccountingProvisioningService, LedgerService],
 })
