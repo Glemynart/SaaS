@@ -125,3 +125,21 @@ export interface AuxiliarCentroCostoMovimiento {
   centroCostoNombre: string;
   descripcion: string | null;
 }
+
+export interface MovimientoEnMayor {
+  comprobante: {
+    id: string;
+    numero: number | null;
+    concepto: string;
+    fecha: Date;
+  };
+  linea: number;
+  debito: Prisma.Decimal;
+  credito: Prisma.Decimal;
+  saldoCorriente: Prisma.Decimal;
+  terceroId: string | null;
+  centroCostoId: string | null;
+  descripcion: string | null;
+  tercero?: { razonSocial: string } | null;
+  centroCosto?: { codigo: string; nombre: string } | null;
+}

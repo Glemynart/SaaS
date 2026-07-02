@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument */
 import { Prisma } from '@prisma/client';
 import { ReportingService } from './reporting.service';
 

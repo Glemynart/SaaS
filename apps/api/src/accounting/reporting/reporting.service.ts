@@ -14,6 +14,7 @@ import {
   AuxiliarTerceroMovimiento,
   AuxiliarCentroCostoFilters,
   AuxiliarCentroCostoMovimiento,
+  MovimientoEnMayor,
 } from './reporting.types';
 
 @Injectable()
@@ -149,6 +150,7 @@ export class ReportingService {
       ? [{ fecha: 'desc' }, { createdAt: 'desc' }]
       : [{ fecha: 'desc' }, { numero: 'desc' }];
 
+    /* eslint-disable @typescript-eslint/no-unsafe-assignment */
     const [comprobantes, total] = await Promise.all([
       this.prisma.comprobanteContable.findMany({
         where: where as any,
@@ -194,6 +196,7 @@ export class ReportingService {
     }));
 
     return { items, total };
+    /* eslint-enable @typescript-eslint/no-unsafe-assignment */
   }
 
   private async saldoCuenta(
@@ -263,7 +266,7 @@ export class ReportingService {
 
     const rows = await this.prisma.movimientoContable.groupBy({
       by: ['cuentaId'],
-      where: where as Prisma.MovimientoContableWhereInput,
+      where,
       _sum: { debito: true, credito: true },
     });
 
@@ -288,7 +291,7 @@ export class ReportingService {
     extraWhere: Record<string, unknown>,
     extraInclude: Record<string, unknown>,
     extraSaldoCuenta: Record<string, unknown>,
-    mapFn: (movimiento: any) => T,
+    mapFn: (movimiento: MovimientoEnMayor) => T,
   ): Promise<{ items: T[]; total: number }> {
     const { page, limit } = filters;
 
@@ -324,6 +327,7 @@ export class ReportingService {
       ...extraInclude,
     };
 
+    /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
     const [movimientos, total] = await Promise.all([
       this.prisma.movimientoContable.findMany({
         where: where as any,
@@ -366,10 +370,14 @@ export class ReportingService {
 
     const items: T[] = movimientos.map((m) => {
       saldoCorriente = saldoCorriente.add(m.debito).minus(m.credito);
-      return mapFn({ ...m, saldoCorriente });
+      return mapFn({
+        ...(m as unknown as MovimientoEnMayor),
+        saldoCorriente,
+      });
     });
 
     return { items, total };
+    /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
   }
 
   async obtenerLibroMayor(
