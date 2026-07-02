@@ -95,7 +95,7 @@ Todos los reportes de C2 se construyen sobre esta consulta o variantes de ella.
 
 ## 1.5 Casos de uso
 
-C2 expone cinco capacidades de consulta. La decisión de si se invocan mediante REST, GraphQL, CLI, exportación batch o cualquier otro mecanismo pertenece a la capa de transporte, no a este módulo.
+C2 expone siete capacidades de consulta. La decisión de si se invocan mediante REST, GraphQL, CLI, exportación batch o cualquier otro mecanismo pertenece a la capa de transporte, no a este módulo.
 
 | #   | Caso de uso                  | Descripción                                                                                                   | Fuente principal                             |
 | --- | ---------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
@@ -104,6 +104,10 @@ C2 expone cinco capacidades de consulta. La decisión de si se invocan mediante 
 | U3  | `ObtenerBalancePrueba`       | Suma de débitos y créditos agrupada por cuenta a una fecha de corte.                                          | `MovimientoContable` + `GROUP BY cuentaId`   |
 | U4  | `ObtenerAuxiliarTercero`     | Mayor filtrado por cuenta + tercero.                                                                          | `MovimientoContable` + `JOIN Tercero`        |
 | U5  | `ObtenerAuxiliarCentroCosto` | Mayor filtrado por cuenta + centro de costo.                                                                  | `MovimientoContable` + `JOIN CentroCosto`    |
+| U6  | `ObtenerBalanceGeneral`      | Posición financiera a fecha de corte: Activo, Pasivo, Patrimonio agrupados por clase/grupo PUC.               | `saldos()` agrupado por clase (1, 2, 3)      |
+| U7  | `ObtenerEstadoResultados`    | Resultado de un rango: Ingresos − Gastos − Costos = Utilidad/Pérdida del ejercicio.                           | `saldos()` agrupado por clase (4, 5, 6, 7)   |
+
+U6 y U7 son proyecciones estructuradas de `saldos()`, de la misma naturaleza de solo-lectura que U1–U5. **C3 (cierre contable) consume U6 y U7 para validar el cuadre previo al cierre mensual y para calcular el neto del cierre anual; C2 no conoce ni depende de C3.**
 
 **Parámetros comunes de consulta:**
 
@@ -123,6 +127,8 @@ U2: + cuentaId (obligatorio)
 U3: + nivel (profundidad PUC), cuentaDesde, cuentaHasta
 U4: + cuentaId, terceroId
 U5: + cuentaId, centroCostoId
+U6: + fechaCorte (o periodoId)
+U7: + fechaInicio, fechaFin (o periodoId)
 ```
 
 **Ninguno de estos casos de uso acepta operaciones de escritura.**
@@ -136,7 +142,7 @@ U5: + cuentaId, centroCostoId
 | **R1** | `ObtenerBalancePrueba` sobre millones de movimientos degrada con GROUP BY masivo         | Medio   | Baja (escala C2) | Fase 5: índices compuestos + EXPLAIN ANALYZE. Si >1M movimientos, paginar con `LIMIT + OFFSET` o cursor.                                                                                         |
 | **R2** | `ObtenerLibroMayor` con saldo corriente en memoria: O(n) en app para cuentas muy activas | Bajo    | Baja             | El saldo corriente se calcula en el backend secuencialmente. Para cuentas con >100K movimientos, paginar y calcular saldo inicial desde `saldos()` previamente.                                  |
 | **R3** | Confusión del usuario: "balance de prueba" vs "balance de cierre de período"             | Alto    | Alta             | Documentar: C2 entrega saldo _a fecha de corte_, no _a cierre de período_. El cierre es C3.                                                                                                      |
-| **R4** | Scope creep: piden Estado de Resultados en C2                                            | Alto    | Alta             | Rechazar con referencia a C3. Si aparece en requisitos, es un nuevo ADR.                                                                                                                         |
+| **R4** | Scope creep: piden Flujo de Efectivo o Estado de Cambios en el Patrimonio en C2          | Alto    | Media            | Balance General (U6) y Estado de Resultados (U7) sí son de C2. Flujo de Efectivo, ECP y notas quedan diferidos (C4+); si aparecen en requisitos, es un nuevo ADR.                                |
 | **R5** | Rendimiento de JOINs con cuentas, terceros, centros de costo en reportes paginados       | Bajo    | Media            | Los JOINs son sobre FKs indexadas. No hay riesgo significativo hasta >100K registros por página.                                                                                                 |
 | **R6** | `numero` de comprobante es NULL en BORRADOR, lo que puede romper ordenamientos           | Bajo    | Media            | Solo incluir `estado = 'CONTABILIZADO'` por defecto en diario y mayor. Incluir borradores solo bajo flag explícito `incluirBorradores=true` con ordenamiento alternativo por `fecha, createdAt`. |
 

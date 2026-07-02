@@ -166,12 +166,14 @@ Cada fase es mergeable de forma independiente, al estilo de las cadenas N2D / N3
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
 | **C0 — Catálogos**               | `CuentaContable` (seed PUC), `Tercero`, `PeriodoContable`, `TipoComprobante`, `CentroCosto`. CRUD + seed.                                                                                         | —          |
 | **C1 — Motor de asientos**       | `ComprobanteContable` + `MovimientoContable`; estados; balance (I1); numeración (I7); control de período (I3); inmutabilidad (I2); idempotencia de origen (I8). Nota contable manual. **Núcleo.** | C0         |
-| **C2 — Reportes núcleo**         | Primitiva `saldos()` → libro diario, mayor, balance de prueba.                                                                                                                                    | C1         |
-| **C3 — Estados financieros**     | Balance general, estado de resultados, cierre mensual y anual.                                                                                                                                    | C2         |
+| **C2 — Reportes núcleo**         | Primitiva `saldos()` → libro diario, mayor, balance de prueba, **Balance General, Estado de Resultados**.                                                                                         | C1         |
+| **C3 — Cierre contable**         | Cierre mensual y anual. Consume Balance General y Estado de Resultados de C2 para validar y ejecutar el cierre; no los implementa.                                                                | C2         |
 | **C4 — Integración Facturación** | Puerto + mapper de factura + `CuentaSistemaMap`. Factura `ACEPTADA` → comprobante de venta.                                                                                                       | C1         |
 | **C5 — Integración Nómina**      | Mapper de nómina. Cierre de período → causación y provisiones.                                                                                                                                    | C1         |
 | **C6 — Cartera + Tesorería**     | Subledgers/vistas: open items sobre CxC, recaudos/pagos, conciliación.                                                                                                                            | C3, C4     |
 | **C7+ — Escala**                 | `SaldoCuentaPeriodo`, plantillas de causación configurables, multimoneda, exógena, presupuesto.                                                                                                   | A demanda  |
+
+**Bounded context de reporting:** Balance General y Estado de Resultados son responsabilidad de **C2** (mismo bounded context que diario, mayor y balance de prueba: toda lectura deriva de `saldos()`). **C3** los consume por lectura únicamente para validar el cierre mensual y calcular el neto del cierre anual; C3 no implementa reportes ni calcula saldos.
 
 **C0–C3 entregan un motor contable manual completo y reportable** sin tocar nómina ni facturación. C4–C5 conectan los módulos existentes. C6 en adelante es expansión.
 
