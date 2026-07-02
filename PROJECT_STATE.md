@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: C1.1 Ledger Core completado (2026-07-01)
+## Última actualización: C3 Fase 2 — U3 ReabrirPeriodo completado (2026-07-02)
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -1455,13 +1455,62 @@ Implementado:
 
 Estado:
 
-⏳ Pendiente
+✅ COMPLETADA
 
-Alcance previsto:
+Implementado:
 
-- Primitiva `saldos()` → libro diario, mayor, balance de prueba.
+- `ReportingService` — capa de solo-lectura sobre `movimientos_contables`, sin escrituras.
+- Libro diario, libro mayor, balance de prueba, auxiliares (libro subsidiario) vía la primitiva `saldos()`.
+- Commits: `0777576` (balance de prueba), `35c1111` (diario), `3869472` (mayor), `7fbf177` (auxiliares), `8839454` (orden determinístico), `b2e39ae` (type safety).
 
-## C3 — Financial Statements
+## C3 — Accounting Closure (Cierre Contable)
+
+Estado:
+
+🟡 En progreso
+
+Documento:
+
+`docs/adr/C3-accounting-closure.md` — Estado: Propuesto. Reasigna Balance General y Estado de Resultados a C2 (proyecciones de `saldos()`); C3 queda como cierre puro (no hace reporting, no calcula saldos — C3-I10).
+
+Casos de uso (§5 del ADR): U1 `ValidarCierrePeriodo`, U2 `CerrarPeriodo`, U3 `ReabrirPeriodo`, U4 `CerrarAnioFiscal`.
+
+### Fase 1 — Cierre mensual (U1 + U2)
+
+Estado:
+
+✅ COMPLETADA
+
+Commits:
+
+- `6d6a5cb` — U1 `ValidarCierrePeriodo` (sin borradores, cierre cronológico, cuadre leído de C2).
+- `876d154` — U2 `CerrarPeriodo` (transición `ABIERTO → CERRADO`, idempotente, auditada).
+
+### Fase 2 — Reapertura (U3)
+
+Estado:
+
+✅ COMPLETADA (2026-07-02) — Rama `feat/accounting-c3-reopen-period` (mergeada — PR #35, commit `64552b8`)
+
+Implementado:
+
+- `ClosureService.reabrirPeriodo(tenantId, periodoId, userId, motivo)` — transición `CERRADO → ABIERTO`.
+- Reapertura **LIFO** (C3-I4): solo procede sobre el período `CERRADO` más reciente del tenant.
+- Bloqueo por **cierre anual posteado** (C3-I12): si existe comprobante `origenTipo='CIERRE_ANUAL'` no anulado en el período, exige reverso previo por `LedgerService.anular`; C3 nunca borra el asiento.
+- Limpieza de `cerradoAt`/`cerradoPorId` a `null` al reabrir; evidencia del cierre permanece en `AuditLog`.
+- Idempotencia y concurrencia optimista: mismo patrón `updateMany` + guarda de estado que `cerrarPeriodo`.
+- Auditoría `PERIODO_CONTABLE_REABIERTO` (`{ motivo }`), fire-and-forget, solo cuando la reapertura ocurre realmente.
+- Sin `rol` en el contrato del servicio — la autorización ADMIN queda delegada al borde (controller/guard), pendiente de transporte.
+- Contrato de bloqueos centralizado: `ClosureBloqueo` (constantes) + `ORIGEN_CIERRE_ANUAL`, fuente única reutilizable por U1–U4. Los literales previos de U1/U2 se migraron a las constantes (refactor de comportamiento neutro, verificado).
+- 26 unit tests en `closure.service.spec.ts`; suite completa 400/400.
+
+Sin cambios de schema, sin migración, sin transporte HTTP (controller/DTO), sin tocar C1/C2.
+
+**Deuda técnica identificada (no bloqueante, diferida a fase de transporte/hardening):**
+
+- **M1 — TOCTOU reapertura↔cierre:** las validaciones (existencia, LIFO, cierre anual) corren fuera de la `$transaction`; el guard `updateMany` protege la fila propia pero no el invariante entre períodos adyacentes. Una reapertura del período _n-1_ concurrente con un cierre del período _n_ puede dejar un hueco cronológico (viola C3-I2). Hoy no es alcanzable (U3 no tiene transporte HTTP); debe resolverse antes de exponer U3 con acceso admin concurrente (locking de fila o isolation `Serializable`, junto con `cerrarPeriodo`).
+
+### Fase 3 — Cierre anual (U4)
 
 Estado:
 
@@ -1469,7 +1518,9 @@ Estado:
 
 Alcance previsto:
 
-- Balance general, estado de resultados, cierre mensual y anual.
+- `CerrarAnioFiscal`: comprobante que cancela clases de resultado (4/5/6/7) contra patrimonio, vía `LedgerService.registrarComprobante`, seguido de `CerrarPeriodo(diciembre)`.
+- Debe reutilizar `ORIGEN_CIERRE_ANUAL` (definida en `closure.service.ts`) como `origenTipo`, sin redefinir el literal.
+- Requiere seed del rol `RESULTADO_EJERCICIO` en `CuentaSistemaMap`.
 
 ---
 
