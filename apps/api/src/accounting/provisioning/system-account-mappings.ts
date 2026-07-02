@@ -86,10 +86,32 @@ export const DEFAULT_SYSTEM_ACCOUNT_MAPPINGS: SystemAccountMapping[] = [
     descripcion: 'Gasto de aportes sociales y parafiscales',
   },
   // Cierre / ajustes
+  //
+  // Roles de patrimonio de resultado — tres responsabilidades distintas,
+  // NUNCA intercambiables:
+  //
+  //   UTILIDAD_EJERCICIO       → Reporting. C2 lo usa para presentar el neto
+  //                              del período en el Estado de Resultados (U7).
+  //                              NO es destino de asientos automáticos.
+  //
+  //   RESULTADO_EJERCICIO      → Cierre anual. C3 lo usa como cuenta DESTINO del
+  //                              asiento de cierre anual (U4). Es la cuenta de
+  //                              patrimonio que recibe el neto cancelado de las
+  //                              clases 4/5/6/7. NUNCA se usa para reporting.
+  //
+  //   RESULTADOS_ANTERIORES    → Patrimonio acumulado. Recibe el traslado del
+  //                              resultado de ejercicios anteriores (manual o vía
+  //                              asiento de distribución posterior al cierre).
   {
     rol: 'UTILIDAD_EJERCICIO',
     codigo: '360505',
-    descripcion: 'Utilidad del ejercicio',
+    descripcion: 'Utilidad del ejercicio — uso exclusivo de reporting (C2)',
+  },
+  {
+    rol: 'RESULTADO_EJERCICIO',
+    codigo: '360505',
+    descripcion:
+      'Resultado del ejercicio — cuenta destino del cierre anual (C3)',
   },
   {
     rol: 'RESULTADOS_ANTERIORES',
