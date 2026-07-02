@@ -590,6 +590,14 @@ describe('ReportingService', () => {
                 comprobante: expect.objectContaining({
                   fecha: new Date('2026-06-15'),
                   numero: 10,
+                  id: { lt: 'comp-010' },
+                }),
+              }),
+              expect.objectContaining({
+                comprobante: expect.objectContaining({
+                  fecha: new Date('2026-06-15'),
+                  numero: 10,
+                  id: 'comp-010',
                 }),
                 linea: { lt: 1 },
               }),
@@ -648,6 +656,7 @@ describe('ReportingService', () => {
           orderBy: [
             { comprobante: { fecha: 'asc' } },
             { comprobante: { numero: 'asc' } },
+            { comprobante: { id: 'asc' } },
             { linea: 'asc' },
           ],
         }),

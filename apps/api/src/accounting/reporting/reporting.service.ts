@@ -201,7 +201,12 @@ export class ReportingService {
     cuentaId: string,
     options?: {
       fechaDesde?: Date;
-      hasta?: { fecha: Date; numero: number; linea: number };
+      hasta?: {
+        fecha: Date;
+        numero: number;
+        comprobanteId: string;
+        linea: number;
+      };
       terceroId?: string;
       centroCostoId?: string;
     },
@@ -229,7 +234,7 @@ export class ReportingService {
     }
 
     if (options?.hasta) {
-      const { fecha, numero, linea } = options.hasta;
+      const { fecha, numero, comprobanteId, linea } = options.hasta;
       where.OR = [
         { comprobante: { fecha: { lt: fecha } } },
         {
@@ -242,6 +247,14 @@ export class ReportingService {
           comprobante: {
             fecha,
             numero,
+            id: { lt: comprobanteId },
+          },
+        },
+        {
+          comprobante: {
+            fecha,
+            numero,
+            id: comprobanteId,
           },
           linea: { lt: linea },
         },
@@ -250,7 +263,7 @@ export class ReportingService {
 
     const rows = await this.prisma.movimientoContable.groupBy({
       by: ['cuentaId'],
-      where: where,
+      where: where as Prisma.MovimientoContableWhereInput,
       _sum: { debito: true, credito: true },
     });
 
@@ -300,6 +313,7 @@ export class ReportingService {
     const orderBy: any[] = [
       { comprobante: { fecha: 'asc' } },
       { comprobante: { numero: 'asc' } },
+      { comprobante: { id: 'asc' } },
       { linea: 'asc' },
     ];
 
@@ -330,11 +344,14 @@ export class ReportingService {
     const primero: any = movimientos[0];
     const primeroNumero = primero.comprobante.numero;
 
-    const hasta: { fecha: Date; numero: number; linea: number } | undefined =
+    const hasta:
+      | { fecha: Date; numero: number; comprobanteId: string; linea: number }
+      | undefined =
       primeroNumero !== null
         ? {
             fecha: primero.comprobante.fecha,
             numero: primeroNumero,
+            comprobanteId: primero.comprobante.id,
             linea: primero.linea,
           }
         : undefined;
