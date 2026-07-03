@@ -4,6 +4,8 @@ import { Prisma } from '@prisma/client';
 import {
   SaldosFilters,
   SaldoCuenta,
+  SaldosDimensionadosFilters,
+  SaldoDimensionadoItem,
   BalancePruebaItem,
   LibroDiarioFilters,
   LibroDiarioItem,
@@ -16,6 +18,16 @@ import {
   AuxiliarCentroCostoMovimiento,
   MovimientoEnMayor,
 } from './reporting.types';
+
+// Orden total con nulos al final: dos no-nulos comparan lexicográficamente;
+// un nulo va después de cualquier no-nulo; dos nulos son iguales. Da un
+// desempate determinista a la lectura dimensionada (C3 §8.2).
+function compararNuloAlFinal(a: string | null, b: string | null): number {
+  if (a === b) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return a.localeCompare(b);
+}
 
 @Injectable()
 export class ReportingService {
@@ -117,6 +129,116 @@ export class ReportingService {
         };
       })
       .sort((a, b) => a.codigo.localeCompare(b.codigo));
+  }
+
+  // ==========================================================================
+  // obtenerSaldosDimensionados — saldo por (cuenta, tercero, centro de costo).
+  // ==========================================================================
+  // Misma naturaleza de solo-lectura que obtenerBalancePrueba, pero SIN colapsar
+  // las dimensiones: agrupa por la tupla completa. Es la superficie que el
+  // cierre anual (C3-U4) consume para construir un asiento que cancele las
+  // cuentas de resultado respetando requiereTercero/requiereCentroCosto (I6) y
+  // dejando los auxiliares por dimensión en cero.
+  //
+  // El orden de salida es TOTAL y determinista — (codigo, terceroId,
+  // centroCostoId) con nulos al final — impuesto explícitamente en memoria; no
+  // se depende del orden arbitrario del groupBy. Ese determinismo es requisito
+  // del particionado por lotes del cierre (C3 §8.2/§8.3).
+  async obtenerSaldosDimensionados(
+    tenantId: string,
+    filters: SaldosDimensionadosFilters,
+  ): Promise<SaldoDimensionadoItem[]> {
+    const comprobanteFilter: Record<string, unknown> = {
+      estado: 'CONTABILIZADO',
+    };
+
+    if (filters.fechaInicio || filters.fechaFin) {
+      const fechaFilter: Record<string, Date> = {};
+      if (filters.fechaInicio) fechaFilter.gte = filters.fechaInicio;
+      if (filters.fechaFin) fechaFilter.lte = filters.fechaFin;
+      comprobanteFilter.fecha = fechaFilter;
+    }
+
+    // Exclusión de origen (p. ej. los propios comprobantes de cierre del año):
+    // deja fuera los movimientos cuyo comprobante tiene EXACTAMENTE ese
+    // (origenTipo, origenId). Estabiliza el plan de lotes del cierre (C3 §8.3).
+    if (filters.excluirOrigenTipo && filters.excluirOrigenId) {
+      comprobanteFilter.NOT = {
+        origenTipo: filters.excluirOrigenTipo,
+        origenId: filters.excluirOrigenId,
+      };
+    }
+
+    const where: Record<string, unknown> = {
+      tenantId,
+      comprobante: comprobanteFilter,
+    };
+
+    if (
+      filters.cuentaDesde ||
+      filters.cuentaHasta ||
+      filters.nivel !== undefined
+    ) {
+      const cuentaFilter: Record<string, unknown> = {};
+
+      if (filters.cuentaDesde || filters.cuentaHasta) {
+        const codigoFilter: Record<string, string> = {};
+        if (filters.cuentaDesde) codigoFilter.gte = filters.cuentaDesde;
+        if (filters.cuentaHasta) codigoFilter.lte = filters.cuentaHasta;
+        cuentaFilter.codigo = codigoFilter;
+      }
+
+      if (filters.nivel !== undefined) {
+        cuentaFilter.nivel = filters.nivel;
+      }
+
+      where.cuenta = cuentaFilter;
+    }
+
+    const rows = await this.prisma.movimientoContable.groupBy({
+      by: ['cuentaId', 'terceroId', 'centroCostoId'],
+      where: where,
+      _sum: {
+        debito: true,
+        credito: true,
+      },
+    });
+
+    if (rows.length === 0) {
+      return [];
+    }
+
+    const cuentaIds = [...new Set(rows.map((r) => r.cuentaId))];
+    const cuentas = await this.prisma.cuentaContable.findMany({
+      where: { id: { in: cuentaIds } },
+      select: { id: true, codigo: true, nombre: true },
+    });
+    const cuentaMap = new Map(cuentas.map((c) => [c.id, c]));
+
+    const CERO = new Prisma.Decimal(0);
+
+    return rows
+      .map((row): SaldoDimensionadoItem => {
+        const totalDebito = row._sum.debito ?? CERO;
+        const totalCredito = row._sum.credito ?? CERO;
+        const cuenta = cuentaMap.get(row.cuentaId);
+        return {
+          cuentaId: row.cuentaId,
+          codigo: cuenta?.codigo ?? 'N/A',
+          nombre: cuenta?.nombre ?? 'Cuenta no encontrada',
+          terceroId: row.terceroId,
+          centroCostoId: row.centroCostoId,
+          totalDebito,
+          totalCredito,
+          saldo: totalDebito.minus(totalCredito),
+        };
+      })
+      .sort(
+        (a, b) =>
+          a.codigo.localeCompare(b.codigo) ||
+          compararNuloAlFinal(a.terceroId, b.terceroId) ||
+          compararNuloAlFinal(a.centroCostoId, b.centroCostoId),
+      );
   }
 
   async obtenerLibroDiario(

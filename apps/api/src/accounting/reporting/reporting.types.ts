@@ -15,6 +15,29 @@ export interface SaldoCuenta {
   saldo: Prisma.Decimal;
 }
 
+// Filtros de la lectura dimensionada. Extiende SaldosFilters con la exclusión
+// de un origen concreto — necesaria para que el cierre anual (C3-U4) lea el
+// resultado del ejercicio SIN incluir sus propios comprobantes de cierre, y
+// así su plan de lotes sea estable entre invocaciones (idempotencia, C3 §8.3).
+export interface SaldosDimensionadosFilters extends SaldosFilters {
+  excluirOrigenTipo?: string;
+  excluirOrigenId?: string;
+}
+
+// Saldo desglosado por dimensión (cuenta, tercero, centro de costo). A
+// diferencia de BalancePruebaItem (que agrega por cuenta), aquí cada fila es
+// una tupla de dimensión distinta con saldo ≠ 0 agregado sobre ella.
+export interface SaldoDimensionadoItem {
+  cuentaId: string;
+  codigo: string;
+  nombre: string;
+  terceroId: string | null;
+  centroCostoId: string | null;
+  totalDebito: Prisma.Decimal;
+  totalCredito: Prisma.Decimal;
+  saldo: Prisma.Decimal;
+}
+
 export interface BalancePruebaItem {
   cuentaId: string;
   codigo: string;

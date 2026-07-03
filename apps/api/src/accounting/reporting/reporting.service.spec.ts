@@ -298,6 +298,130 @@ describe('ReportingService', () => {
     });
   });
 
+  // ===========================================================================
+  // obtenerSaldosDimensionados
+  // ===========================================================================
+
+  describe('obtenerSaldosDimensionados', () => {
+    function grupoDim(
+      cuentaId: string,
+      terceroId: string | null,
+      centroCostoId: string | null,
+      debito: number,
+      credito: number,
+    ): any {
+      return {
+        cuentaId,
+        terceroId,
+        centroCostoId,
+        _sum: {
+          debito: new Prisma.Decimal(debito),
+          credito: new Prisma.Decimal(credito),
+        },
+      };
+    }
+
+    it('agrupa por la tupla (cuenta, tercero, centro de costo) y no colapsa dimensiones', async () => {
+      const { service, mocks } = build();
+
+      mocks.movimientosGroupBy.mockResolvedValue([
+        grupoDim('c1', 't1', null, 0, 300),
+        grupoDim('c1', 't2', null, 0, 200),
+      ]);
+      mocks.cuentasFindMany.mockResolvedValue([
+        cuentaRow('c1', '413505', 'Ingresos'),
+      ]);
+
+      const result = await service.obtenerSaldosDimensionados(TENANT_ID, {});
+
+      expect(mocks.movimientosGroupBy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          by: ['cuentaId', 'terceroId', 'centroCostoId'],
+        }),
+      );
+      expect(result).toHaveLength(2);
+      expect(result[0]).toMatchObject({ cuentaId: 'c1', terceroId: 't1' });
+      expect(result[0].saldo.toString()).toBe('-300');
+      expect(result[1]).toMatchObject({ cuentaId: 'c1', terceroId: 't2' });
+    });
+
+    it('ordena de forma total y determinista por (codigo, terceroId, centroCostoId) con nulos al final', async () => {
+      const { service, mocks } = build();
+
+      // Entregadas en orden arbitrario por el groupBy.
+      mocks.movimientosGroupBy.mockResolvedValue([
+        grupoDim('c2', 't2', null, 100, 0),
+        grupoDim('c1', null, null, 100, 0), // tercero nulo → al final dentro de su código
+        grupoDim('c2', 't1', 'cc1', 100, 0),
+        grupoDim('c1', 't1', null, 100, 0),
+      ]);
+      mocks.cuentasFindMany.mockResolvedValue([
+        cuentaRow('c1', '510506', 'Gasto'),
+        cuentaRow('c2', '510569', 'Gasto B'),
+      ]);
+
+      const result = await service.obtenerSaldosDimensionados(TENANT_ID, {});
+
+      expect(
+        result.map((r) => [r.codigo, r.terceroId, r.centroCostoId]),
+      ).toEqual([
+        ['510506', 't1', null],
+        ['510506', null, null],
+        ['510569', 't1', 'cc1'],
+        ['510569', 't2', null],
+      ]);
+    });
+
+    it('devuelve array vacío si no hay movimientos', async () => {
+      const { service, mocks } = build();
+      mocks.movimientosGroupBy.mockResolvedValue([]);
+
+      const result = await service.obtenerSaldosDimensionados(TENANT_ID, {});
+
+      expect(result).toEqual([]);
+      // Sin filas no hace la segunda consulta de catálogo.
+      expect(mocks.cuentasFindMany).not.toHaveBeenCalled();
+    });
+
+    it('excluye el origen indicado (excluirOrigenTipo/excluirOrigenId) vía NOT', async () => {
+      const { service, mocks } = build();
+      mocks.movimientosGroupBy.mockResolvedValue([]);
+
+      await service.obtenerSaldosDimensionados(TENANT_ID, {
+        cuentaDesde: '4',
+        cuentaHasta: '7999999999',
+        excluirOrigenTipo: 'CIERRE_ANUAL',
+        excluirOrigenId: '2026',
+      });
+
+      expect(mocks.movimientosGroupBy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            comprobante: expect.objectContaining({
+              estado: 'CONTABILIZADO',
+              NOT: { origenTipo: 'CIERRE_ANUAL', origenId: '2026' },
+            }),
+            cuenta: expect.objectContaining({
+              codigo: expect.objectContaining({ gte: '4', lte: '7999999999' }),
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('no añade NOT cuando solo se pasa uno de los dos campos de exclusión', async () => {
+      const { service, mocks } = build();
+      mocks.movimientosGroupBy.mockResolvedValue([]);
+
+      await service.obtenerSaldosDimensionados(TENANT_ID, {
+        excluirOrigenTipo: 'CIERRE_ANUAL',
+      });
+
+      const arg = mocks.movimientosGroupBy.mock.calls[0][0];
+      expect(arg.where.comprobante.NOT).toBeUndefined();
+    });
+  });
+
   describe('obtenerLibroDiario', () => {
     it('devuelve comprobantes con movimientos anidados', async () => {
       const { service, mocks } = build();

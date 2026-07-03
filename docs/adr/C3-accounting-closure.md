@@ -43,7 +43,9 @@ C3 **consume** esas capacidades — no las implementa — con un único fin: **v
 C3 introduce exactamente **dos escrituras**, y ninguna rompe el modelo append-only del ADR-001:
 
 - **Transición de estado de período** (`ABIERTO ↔ CERRADO`): es la única mutación _nueva_ que C3 posee de forma directa. Actúa sobre `periodos_contables`, no sobre libros; no toca comprobantes ni movimientos.
-- **Comprobante de cierre anual**: se genera **a través del puerto único `LedgerService.registrarComprobante`**, exactamente igual que cualquier módulo fuente. C3 construye un borrador balanceado que cancela las clases de resultado contra patrimonio y lo entrega al puerto. **C3 nunca inserta comprobantes ni movimientos directamente.**
+- **Comprobante(s) de cierre anual**: se generan **a través del puerto único `LedgerService.registrarComprobante`**, exactamente igual que cualquier módulo fuente. C3 construye uno o varios borradores balanceados que cancelan las clases de resultado contra patrimonio y los entrega al puerto. Un cierre anual puede materializarse en **más de un comprobante** cuando el detalle por dimensión supera el límite de líneas del puerto (`MAX_LINEAS`); ver §8.2. **C3 nunca inserta comprobantes ni movimientos directamente.**
+
+> **Terminología (obligatoria).** _"Cierre anual"_ = el **acto de negocio** (uno por año). _"Comprobante(s) de cierre anual"_ = el/los **artefacto(s) contable(s)** que lo materializan (uno o varios). Un cierre anual es un conjunto de comprobantes que comparten `(origenTipo='CIERRE_ANUAL', origenId=anio)`; el UNIQUE parcial de C1 solo garantiza unicidad **por lote** `(…, origenEvento)`, nunca "un comprobante por año".
 
 ### 2.3 Principios no negociables
 
@@ -174,38 +176,74 @@ El cierre anual (U4) añade una precondición: **todos los meses del año (1–1
 
 Extienden el registro global I1–I9 del ADR-001. Su violación es un defecto bloqueante.
 
-| #      | Invariante                                                                                                                                                                                                                                                                 | Punto de aplicación |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| C3-I1  | Un período solo pasa a `CERRADO` si supera **todas** las validaciones de §6 (sin borradores, cierre cronológico, cuadre).                                                                                                                                                  | `CerrarPeriodo`     |
-| C3-I2  | El cierre es **cronológico**: no se cierra el mes _n_ si el mes _n-1_ del mismo tenant sigue `ABIERTO` (decisión §2.4).                                                                                                                                                    | `CerrarPeriodo`     |
-| C3-I3  | Cerrar un período ya `CERRADO` es **idempotente / no-op auditado**, nunca un error de corrupción.                                                                                                                                                                          | `CerrarPeriodo`     |
-| C3-I4  | La **reapertura** solo la ejecuta ADMIN, con motivo, y solo sobre el período `CERRADO` **más reciente** (LIFO, decisión §2.4), para no dejar huecos de estado.                                                                                                             | `ReabrirPeriodo`    |
-| C3-I5  | Toda transición de período (cierre, reapertura) y todo cierre anual queda en `AuditLog` (quién, cuándo, motivo) — reafirma I9.                                                                                                                                             | Auditoría           |
-| C3-I6  | El **asiento de cierre anual se postea exclusivamente por `LedgerService`** y por tanto cumple I1–I8. C3 no inserta comprobantes ni movimientos directamente.                                                                                                              | `CerrarAnioFiscal`  |
-| C3-I7  | El asiento de cierre **cancela a cero** los saldos de las clases 4, 5, 6, 7 y traslada el neto a la cuenta de patrimonio de resultado (rol `CuentaSistemaMap`).                                                                                                            | `CerrarAnioFiscal`  |
-| C3-I8  | El cierre anual es **idempotente por origen** (I8): clave `(tenant, origenTipo='CIERRE_ANUAL', origenId=anio, origenEvento='CIERRE')`. No se cierra dos veces el mismo año.                                                                                                | `CerrarAnioFiscal`  |
-| C3-I9  | **No hay asiento de apertura.** Las cuentas de balance (1, 2, 3) arrastran saldo por el libro perpetuo; C3 no genera comprobante de apertura del año siguiente.                                                                                                            | Diseño              |
-| C3-I10 | **C3 nunca calcula saldos contables.** Toda la información financiera utilizada durante el cierre (cuadre, resultado del ejercicio, saldos de clases 4–7) proviene de C2 (`saldos()` / estados financieros). C3 no reimplementa agregación ni deriva saldos por su cuenta. | Todo el módulo      |
-| C3-I11 | El neto que el asiento de cierre traslada a patrimonio **coincide con el Estado de Resultados que entrega C2** para el ejercicio. C3 lo consume, no lo recalcula (corolario de C3-I10).                                                                                    | `CerrarAnioFiscal`  |
-| C3-I12 | Reabrir un período con cierre anual ya posteado exige **reversar primero** ese comprobante por el puerto (`LedgerService.anular`); C3 no borra el asiento.                                                                                                                 | `ReabrirPeriodo`    |
+| #      | Invariante                                                                                                                                                                                                                                                                                                                                                                                             | Punto de aplicación |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------- |
+| C3-I1  | Un período solo pasa a `CERRADO` si supera **todas** las validaciones de §6 (sin borradores, cierre cronológico, cuadre).                                                                                                                                                                                                                                                                              | `CerrarPeriodo`     |
+| C3-I2  | El cierre es **cronológico**: no se cierra el mes _n_ si el mes _n-1_ del mismo tenant sigue `ABIERTO` (decisión §2.4).                                                                                                                                                                                                                                                                                | `CerrarPeriodo`     |
+| C3-I3  | Cerrar un período ya `CERRADO` es **idempotente / no-op auditado**, nunca un error de corrupción.                                                                                                                                                                                                                                                                                                      | `CerrarPeriodo`     |
+| C3-I4  | La **reapertura** solo la ejecuta ADMIN, con motivo, y solo sobre el período `CERRADO` **más reciente** (LIFO, decisión §2.4), para no dejar huecos de estado.                                                                                                                                                                                                                                         | `ReabrirPeriodo`    |
+| C3-I5  | Toda transición de período (cierre, reapertura) y todo cierre anual queda en `AuditLog` (quién, cuándo, motivo) — reafirma I9.                                                                                                                                                                                                                                                                         | Auditoría           |
+| C3-I6  | El **asiento de cierre anual se postea exclusivamente por `LedgerService`** y por tanto cumple I1–I8. C3 no inserta comprobantes ni movimientos directamente.                                                                                                                                                                                                                                          | `CerrarAnioFiscal`  |
+| C3-I7  | El **conjunto** de comprobantes de cierre **cancela a cero** (en agregado) los saldos de las clases 4, 5, 6, 7 y traslada el neto del ejercicio a la cuenta de patrimonio de resultado (rol `CuentaSistemaMap`). Cada comprobante del conjunto cuadra por sí mismo (I1) llevando el neto de **su propio lote** a patrimonio.                                                                           | `CerrarAnioFiscal`  |
+| C3-I8  | El cierre anual es **idempotente por origen** (I8). Clave **por lote**: `(tenant, origenTipo='CIERRE_ANUAL', origenId=anio, origenEvento)`, con `origenEvento='CIERRE'` para un único comprobante o `'CIERRE#NN'` para cada lote cuando hay varios. El año está cerrado solo cuando el **conjunto completo** de lotes está presente (§8.3). No se cierra dos veces el mismo año ni se duplica un lote. | `CerrarAnioFiscal`  |
+| C3-I9  | **No hay asiento de apertura.** Las cuentas de balance (1, 2, 3) arrastran saldo por el libro perpetuo; C3 no genera comprobante de apertura del año siguiente.                                                                                                                                                                                                                                        | Diseño              |
+| C3-I10 | **C3 nunca calcula saldos contables.** Toda la información financiera utilizada durante el cierre (cuadre, resultado del ejercicio, saldos de clases 4–7) proviene de C2 (`saldos()` / estados financieros). C3 no reimplementa agregación ni deriva saldos por su cuenta.                                                                                                                             | Todo el módulo      |
+| C3-I11 | La suma de los netos que el **conjunto** de comprobantes de cierre traslada a patrimonio **coincide con el Estado de Resultados que entrega C2** para el ejercicio. C3 lo consume, no lo recalcula (corolario de C3-I10).                                                                                                                                                                              | `CerrarAnioFiscal`  |
+| C3-I12 | Reabrir un período con cierre anual ya posteado exige **reversar primero** por el puerto (`LedgerService.anular`) **todos** los comprobantes del conjunto; C3 no borra los asientos. El bloqueo de reapertura persiste mientras quede ≥1 comprobante del conjunto sin anular.                                                                                                                          | `ReabrirPeriodo`    |
 
 ---
 
 ## 8. Mecánica del cierre anual (U4)
 
+### 8.1 Flujo general
+
 Diseño deliberadamente mínimo, sin período 13 ni entidad nueva:
 
 1. **Precondición:** meses 1–11 `CERRADO`; diciembre `ABIERTO`.
-2. **Cálculo (lectura de C2):** se obtienen de **C2** los saldos de las clases 4, 5, 6, 7 al 31 de diciembre (`saldos()` / Estado de Resultados). C3 no calcula estos saldos (C3-I10).
-3. **Construcción del borrador (C3):** un comprobante tipo `CC` (cierre) fechado 31-dic que:
-   - Debita cada cuenta de resultado con saldo crédito (clase 4, ingresos) por su saldo.
-   - Acredita cada cuenta de resultado con saldo débito (clases 5, 6, 7) por su saldo.
-   - Lleva el **neto** (utilidad o pérdida) a la cuenta de patrimonio resuelta por `CuentaSistemaMap` (rol `RESULTADO_EJERCICIO`).
-   - Cuadra por construcción (I1).
-4. **Posteo (puerto C1):** el borrador se entrega a `LedgerService.registrarComprobante` con clave de origen idempotente (C3-I8). El puerto numera, valida y persiste.
-5. **Cierre de diciembre:** tras postear, C3 ejecuta `CerrarPeriodo(diciembre)`.
+2. **Cálculo (lectura dimensionada de C2):** se obtiene de **C2** el saldo de las clases 4, 5, 6, 7 al 31 de diciembre **desglosado por dimensión** `(cuenta, tercero, centro de costo)` — la superficie `obtenerSaldosDimensionados` (§8.2). C3 no calcula estos saldos (C3-I10).
+3. **Construcción del/los borrador(es) (C3):** uno o varios comprobantes tipo `CC` (cierre) fechados 31-dic que, en agregado:
+   - Debitan cada tupla de resultado con saldo crédito (clase 4, ingresos) por su saldo.
+   - Acreditan cada tupla de resultado con saldo débito (clases 5, 6, 7) por su saldo.
+   - Cada línea de resultado arrastra su **tercero/centro de costo** — imprescindible para que el puerto acepte cuentas con `requiereTercero`/`requiereCentroCosto` (I6) y para que los auxiliares por dimensión queden en cero.
+   - Llevan el **neto del ejercicio** (utilidad o pérdida) a la cuenta de patrimonio resuelta por `CuentaSistemaMap` (rol `RESULTADO_EJERCICIO`).
+   - Cada comprobante cuadra por construcción (I1) llevando el neto de **su propio lote** a patrimonio.
+4. **Posteo (puerto C1):** cada borrador se entrega a `LedgerService.registrarComprobante` con clave de origen idempotente por lote (C3-I8). El puerto numera, valida y persiste. C3 nunca inserta directamente (C3-I6).
+5. **Cierre de diciembre:** tras postear el conjunto completo, C3 ejecuta `CerrarPeriodo(diciembre)`.
 
-El asiento queda en el período de diciembre. Las clases de resultado quedan en cero al iniciar el ejercicio siguiente; las de balance arrastran su saldo sin intervención (C3-I9).
+Los asientos quedan en el período de diciembre. Las clases de resultado quedan en cero (agregado y por dimensión) al iniciar el ejercicio siguiente; las de balance arrastran su saldo sin intervención (C3-I9).
+
+### 8.2 Partición por lotes (límite del puerto)
+
+El puerto impone `MAX_LINEAS` por comprobante. El detalle por dimensión de un cierre puede superarlo (p. ej. una cuenta de gasto con cientos de terceros). El cierre se **particiona**:
+
+- Las tuplas de resultado con saldo ≠ 0 se **ordenan de forma total y determinista** por `(cuenta.codigo, terceroId, centroCostoId)` (nulos al final).
+- Se cortan en lotes contiguos de **`≤ MAX_LINEAS − 1`** líneas de resultado; se reserva 1 línea para la pata de patrimonio del lote.
+- `N` = número de lotes. `origenEvento` = `'CIERRE'` si `N = 1`; `'CIERRE#NN'` (índice 1-based) si `N ≥ 2`.
+- **C1 no cambia:** la partición vive en C3; el puerto sigue viendo comprobantes normales dentro del límite.
+
+### 8.3 Contrato de idempotencia y reanudación
+
+El posteo del conjunto **no es atómico** (N transacciones del puerto). U4 es por tanto **idempotente y reanudable**. Existen tres estados legítimos y un guardián:
+
+| Estado       | Condición (conjuntos de `origenEvento`)                                                                         |
+| ------------ | --------------------------------------------------------------------------------------------------------------- |
+| **NONE**     | `posted = ∅`                                                                                                    |
+| **PARTIAL**  | `∅ ⊊ posted ⊊ expected`                                                                                         |
+| **COMPLETE** | `posted = expected`                                                                                             |
+| **ANOMALÍA** | `posted ⊄ expected` (lote fuera del plan / origen ajeno) → fail-secure: no postea, no cierra diciembre, bloquea |
+
+- **`expected`** = conjunto de `origenEvento` del **plan**, función pura de la lectura dimensionada de C2. Esa lectura **excluye los propios comprobantes de cierre del año** (`origenTipo='CIERRE_ANUAL', origenId=anio`), de modo que el plan es estable aunque ya haya lotes posteados (si no se excluyeran, las cancelaciones netearían su propia entrada a cero). Es una propiedad obligatoria de la superficie de C2.
+- **`posted`** = `origenEvento` de los comprobantes de cierre **efectivos** del año en el libro (`estado ≠ ANULADO`), leídos con `findMany` (no `findFirst`).
+- **Detección de completitud** = construir el plan y comparar conjuntos; no se almacena `N` en ningún lado.
+- **Reanudación** = postear únicamente `expected \ posted`; nunca un lote ya presente. Si el puerto lanza `ConflictException` por un lote ∈ `expected` (carrera), se confirma su presencia y se continúa; si el conflicto es por un evento ∉ `expected`, es **ANOMALÍA**.
+- **`yaEstabaPosteado = true` ⟺ al entrar `posted = expected`** (conjunto completo ya presente). Nunca en PARTIAL.
+- **`posteado = true` ⟺ esta invocación posteó ≥ 1 lote** (NONE o PARTIAL).
+- El resultado expone **`comprobanteIds[]`** (el conjunto), no un id único. Diciembre se cierra (y se audita `CIERRE_ANUAL_EJECUTADO` una sola vez, con `comprobanteIds`) al alcanzar `AñoCerrado`.
+- **Predicado formal:** `AñoCerrado ⟺ posted = expected ∧ diciembre.estado = CERRADO`. Bajo la exclusión anterior, `expected` es invariante entre invocaciones y `posted` crece monótonamente hacia él.
+
+> **Frontera.** El predicado "efectivo" (`estado ≠ ANULADO`) es el mismo que gobierna el bloqueo de reapertura en U3 (C3-I12). La reconciliación tras una reapertura/reverso pertenece a §10 y C3-I12, fuera de este contrato de posteo.
+>
+> **Estado actual (deuda técnica, no bloqueante para U4).** El filtro `estado ≠ ANULADO` es correcto por diseño, pero hoy ningún flujo del sistema deja un comprobante de cierre anual en `ANULADO`: `LedgerService.anular` no tiene llamador en producción, y aun invocado, sobre un período `CERRADO` emite un comprobante de `REVERSO` nuevo sin transicionar el original a `ANULADO`. El ciclo reapertura→reverso→re-cierre que describe §10.2 no tiene hoy un camino funcional completo; queda como deuda técnica de U3/C1 a resolver aparte (ver auditoría C3-U4, hallazgo M-1). No afecta la corrección del flujo de posteo hacia adelante de U4 descrito en este contrato.
 
 ---
 
@@ -224,6 +262,7 @@ Asiento de cierre (vía LedgerService):
 
 Lectura financiera (consumida de C2, no implementada en C3):
   saldos() / Estado de Resultados / Balance de prueba       (SELECT, propiedad de C2)
+  obtenerSaldosDimensionados (cuenta,tercero,centro)         (SELECT dimensionado, propiedad de C2; insumo del cierre §8.2)
 ```
 
 La única dependencia de datos nueva es **un registro en `CuentaSistemaMap`** (`rol='RESULTADO_EJERCICIO'` → cuenta de patrimonio 3605/59xx según PUC del tenant). Es configuración por tenant, coherente con el contrato inmutable de `CuentaSistemaMap`. Su ausencia bloquea U4 con un error claro, no un asiento incorrecto.
