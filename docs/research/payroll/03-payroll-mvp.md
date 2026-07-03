@@ -40,9 +40,9 @@ Un error de nómina tiene consecuencias legales, financieras y de confianza. La 
 | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | **Retención en la fuente**                                                  | Compleja (UVT, depuración) y afecta a pocos empleados de un colegio; en v1 se maneja como deducción manual. |
 | **Pago de prima y de cesantías**                                            | En v1 se provisionan mensualmente; el desembolso semestral/anual puede ser una corrida posterior.           |
-| **Liquidación definitiva por retiro**                                       | Cálculo delicado (cesantías, vacaciones, indemnización); bajo volumen, alto riesgo.                         |
+| **Finiquito**                                                               | Cálculo delicado (cesantías, vacaciones, indemnización); bajo volumen, alto riesgo.                         |
 | **Módulo de vacaciones (ciclo completo)**                                   | En v1 es novedad + provisión; el ciclo de solicitud/disfrute/compensación es un producto en sí.             |
-| **Fondo de Solidaridad Pensional y salario integral**                       | Casos de borde en el segmento; se posponen con salvaguarda de validación.                                   |
+| **Salario integral**                                                        | Caso de borde en el segmento; se pospone con salvaguarda de validación.                                     |
 | **Frecuencia quincenal, libranzas con amortización, aprobación multinivel** | Mejoras que no bloquean el caso central.                                                                    |
 | **Exportación PILA y formatos bancarios específicos**                       | v1 entrega los valores; los archivos por operador/banco se priorizan con clientes reales.                   |
 
@@ -80,7 +80,7 @@ El período termina en estado **Cerrado**: hecho histórico inmutable, reproduci
 
 ## 3. Contrato conceptual con Accounting (resumen)
 
-Regla inviolable: **Payroll nunca escribe en el Ledger.** Payroll es autoridad de la corrección laboral y emite un resultado de negocio agregable (por empleado, concepto y centro de costo). Accounting es dueño del Ledger append-only, del plan de cuentas y del mapeo concepto→cuenta, y traduce el resultado en asientos balanceados. La causación es idempotente; las correcciones se hacen por reliquidación (ajuste), nunca por edición. La provisión (causación) y el pago (Tesorería) son dos momentos distintos del mismo hecho. _(Detalle conceptual completo en el documento 02.)_
+Regla inviolable: **Payroll nunca escribe en el Ledger.** Payroll es autoridad de la corrección laboral y emite un resultado de negocio agregable (por empleado, concepto y centro de costo). La capa de integración de Payroll traduce ese resultado a un comprobante balanceado; el núcleo contable no conoce los conceptos de nómina y recibe por su puerto único solo un comprobante ya balanceado (ver ADR-002 §11). La causación es idempotente; las correcciones se hacen por reliquidación (ajuste), nunca por edición. La provisión (causación) y el pago (Tesorería) son dos momentos distintos del mismo hecho. _(Detalle conceptual completo en el documento 02.)_
 
 ---
 
@@ -96,7 +96,7 @@ Regla inviolable: **Payroll nunca escribe en el Ledger.** Payroll es autoridad d
 
 **A posponer**
 
-- Retención en la fuente, FSP, liquidación definitiva, pago de prima/cesantías/vacaciones, incapacidad con cálculo legal completo, módulo de vacaciones, formatos bancarios y de PILA específicos, autoservicio del empleado.
+- Retención en la fuente, Finiquito, pago de prima/cesantías/vacaciones, incapacidad con cálculo legal completo, módulo de vacaciones, formatos bancarios y de PILA específicos, autoservicio del empleado.
 
 **Decisiones a aplazar hasta tener clientes reales**
 

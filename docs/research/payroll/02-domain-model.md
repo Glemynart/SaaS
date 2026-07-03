@@ -115,7 +115,7 @@ Employees es dueño de las personas, contratos, cargos y afiliaciones. Payroll l
 
 ### Con **Accounting Core**
 
-Payroll produce un **resultado de negocio aprobado** (hechos económicos en lenguaje de nómina: devengos, deducciones, aportes, provisiones, neto por empleado y agregados por centro de costo). Accounting es dueño del Ledger append-only, del plan de cuentas y del mapeo concepto→cuenta, y traduce ese resultado en asientos balanceados. **Payroll nunca escribe en el Ledger.** La frontera es un resultado de negocio, no una instrucción contable. La causación es idempotente: una nómina aprobada se contabiliza una vez; las correcciones generan reliquidaciones que producen su propio ajuste.
+Payroll produce un **resultado de negocio aprobado** (hechos económicos en lenguaje de nómina: devengos, deducciones, aportes, provisiones, neto por empleado y agregados por centro de costo). La capa de integración de Payroll traduce ese resultado a un comprobante balanceado mediante el mapper concepto→cuenta; el núcleo contable no conoce los conceptos de nómina y recibe por su puerto único solo un comprobante ya balanceado (ver ADR-002 §11). **Payroll nunca escribe en el Ledger.** La frontera es un resultado de negocio, no una instrucción contable. La causación es idempotente: una nómina aprobada se contabiliza una vez; las correcciones generan reliquidaciones que producen su propio ajuste.
 
 ### Con **Tesorería**
 

@@ -257,7 +257,7 @@
 - **Parámetros configurables:** sí (tasa).
 - **Naturaleza:** legal.
 
-### R-APO-04 — Fondo de Solidaridad Pensional `[v2]`
+### R-APO-04 — Fondo de Solidaridad Pensional `[v1]`
 
 - **Descripción:** aporte adicional escalonado (desde 1 %) para IBC ≥ 4 SMMLV.
 - **Entradas:** IBC, SMMLV.
@@ -437,7 +437,7 @@
 - **Entradas:** resultado de nómina aprobado.
 - **Resultado esperado:** causación en el Ledger a cargo de Accounting.
 - **Dependencias:** R-APR-02.
-- **Parámetros configurables:** el mapeo concepto→cuenta vive en Accounting.
+- **Parámetros configurables:** el mapeo concepto→cuenta pertenece a la capa de integración de Payroll (ADR-002 §11).
 
 ### R-CTB-02 — Causación idempotente `[v1]`
 
