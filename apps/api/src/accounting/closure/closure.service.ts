@@ -53,7 +53,7 @@ export const EVENTO_CIERRE_ANUAL = 'CIERRE';
 // Rango lexicográfico de código PUC que cubre exactamente las clases de
 // resultado 4 (ingresos), 5 (gastos), 6 (costos de ventas) y 7 (costos de
 // producción) — nunca 1/2/3 (balance) ni 8/9 (cuentas de orden). Comparación
-// de string vía obtenerBalancePrueba (C2); C3 no reimplementa el filtro.
+// de string vía obtenerSaldosDimensionados (C2); C3 no reimplementa el filtro.
 const CUENTA_DESDE_RESULTADO = '4';
 const CUENTA_HASTA_RESULTADO = '7999999999';
 
