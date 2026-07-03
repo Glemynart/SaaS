@@ -11,6 +11,7 @@ export default tseslint.config(
       '**/.turbo/**',
       '**/.agents/**',
       '**/.impeccable/**',
+      '.claude/**',
       'apps/**',
       'packages/**',
     ],
