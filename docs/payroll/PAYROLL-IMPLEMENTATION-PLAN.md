@@ -88,17 +88,29 @@ Arquitectura congelada. Dominio congelado. Solo ejecución.
 
 ---
 
-## P4 — PILA y Nómina Electrónica
+## P4 — PILA
 
-**Objetivo:** Generar archivos PILA y documento soporte DIAN a partir del resultado de nómina.
+**Objetivo:** Generar archivo PILA a partir del resultado de nómina.
 
-**Dependencias:** P2 completo. P3 no bloquea (son módulos independientes).
+**Dependencias:** P2 completo. P3 no bloquea.
 
 **Criterio de finalización:**
 
 - Generación de archivo PILA (formato operador)
-- Documento soporte de nómina electrónica (DIAN)
-- Validación de estructura contra esquemas oficiales
+- Validación de estructura contra esquema oficial
+
+---
+
+## P5 — Nómina Electrónica
+
+**Objetivo:** Generar documento soporte de nómina electrónica (DIAN).
+
+**Dependencias:** P2 completo. P3 y P4 no bloquean.
+
+**Criterio de finalización:**
+
+- Documento soporte de nómina electrónica según resolución DIAN vigente
+- Validación de estructura contra esquema oficial
 
 ---
 
@@ -118,21 +130,23 @@ Arquitectura congelada. Dominio congelado. Solo ejecución.
 
 ## P1 — Núcleo de Liquidación
 
-| ID     | Unidad                                | Descripción                                                                                                                                                                                          | Tamaño            |
-| ------ | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | --------- | ----------- | -------- | ------- | ------ | ------------------------------------------------- | --- |
-| P1-U1  | Renombrar `Liquidation` → `Finiquito` | Renombrar modelo, servicio, controller y DTOs. Feature-flag en módulo (no expuesto en API v1).                                                                                                       | S                 |
-| P1-U2  | Máquina de estados `ProcesoNómina`    | Migrar `PayrollPeriodStatus` de `DRAFT                                                                                                                                                               | CLOSED`→`BORRADOR | CALCULADA | EN_REVISION | APROBADA | CAUSADA | PAGADA | CERRADA`. Service de transiciones con validación. | M   |
-| P1-U3  | Auditoría de transiciones             | `AuditLog` en cada transición de estado (quién, cuándo, desde, hacia, motivo). Bloquear transición si no se audita.                                                                                  | S                 |
-| P1-U4  | Snapshot inmutable de `Liquidación`   | Tabla `payroll_liquidacion_snapshots` con copia de: parámetros legales usados, código de concepto aplicado, insumos (salario base, contrato tipo, clase ARL, exoneración). Append-only, no editable. | M                 |
-| P1-U5  | Congelamiento al aprobar              | Al transitar a `APROBADA`: escribir snapshot (U4), marcar `Liquidación` como inmutable. Bloquear edición post-aprobación.                                                                            | M                 |
-| P1-U6  | Salvaguarda fail-secure               | Convertir warnings actuales en bloqueos: salario integral, sin contrato vigente, clase ARL inválida, contrato no soportado, divergencia salario empleado/contrato. Operar por empleado.              | M                 |
-| P1-U7  | Reliquidación no destructiva          | Sustituir `delete+recreate` por `nueva versión`. `ProcesoNómina.version` autoincremental. Previas versiones inmutables. Diferencia calculable.                                                       | M                 |
-| P1-U8  | Centros de costo en `Liquidación`     | Añadir `centroCostoId` a `Liquidación`. Poblar desde el contrato del empleado. Agregar al resultado de negocio.                                                                                      | S                 |
-| P1-U9  | Flujo de revisión/aprobación          | Endpoints: `submitForReview`, `approve`, `reject`. Validar segregación (revisor ≠ aprobador). Registrar actores.                                                                                     | M                 |
-| P1-U10 | Desprendible de pago                  | Servicio que deriva colilla desde `Liquidación` aprobada. Template de colilla (PDF o HTML).                                                                                                          | M                 |
-| P1-U11 | Reporte de resumen de nómina          | Endpoint de reporting: totales por concepto, por empleado, por centro de costo. Filtrable por período.                                                                                               | M                 |
-| P1-U12 | Refactor `PayrollRun` → `Liquidación` | Renombrar modelo, migrar FK `payrollRunId` → `liquidacionId`, actualizar todo el código. Este es el cambio más grande de P1.                                                                         | L                 |
-| P1-U13 | Test de aceptación — Excel vs sistema | Cargar el Excel del research como datos de prueba. Ejecutar liquidación. Comparar neto por empleado. Documentar diferencias.                                                                         | M                 |
+| ID     | Unidad                                | Descripción                                                                                                                                                                                          | Tamaño |
+| ------ | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| P1-U1  | Renombrar `Liquidation` → `Finiquito` | Renombrar modelo, servicio, controller y DTOs. Feature-flag en módulo (no expuesto en API v1).                                                                                                       | S      |
+| P1-U2  | Máquina de estados `ProcesoNómina`    | Migrar `PayrollPeriodStatus` de `DRAFT\|CLOSED` → `BORRADOR\|CALCULADA\|EN_REVISION\|APROBADA\|CAUSADA\|PAGADA\|CERRADA`. Service de transiciones con validación.                                    | M      |
+| P1-U3  | Auditoría de transiciones             | `AuditLog` en cada transición de estado (quién, cuándo, desde, hacia, motivo). Bloquear transición si no se audita.                                                                                  | S      |
+| P1-U4  | Snapshot inmutable de `Liquidación`   | Tabla `payroll_liquidacion_snapshots` con copia de: parámetros legales usados, código de concepto aplicado, insumos (salario base, contrato tipo, clase ARL, exoneración). Append-only, no editable. | M      |
+| P1-U5  | Congelamiento al aprobar              | Al transitar a `APROBADA`: escribir snapshot (U4), marcar `Liquidación` como inmutable. Bloquear edición post-aprobación.                                                                            | M      |
+| P1-U6  | Salvaguarda fail-secure               | Convertir warnings actuales en bloqueos: salario integral, sin contrato vigente, clase ARL inválida, contrato no soportado, divergencia salario empleado/contrato. Operar por empleado.              | M      |
+| P1-U7  | Reliquidación no destructiva          | Sustituir `delete+recreate` por `nueva versión`. `ProcesoNómina.version` autoincremental. Previas versiones inmutables. Diferencia calculable.                                                       | M      |
+| P1-U8  | Centros de costo en `Liquidación`     | Añadir `centroCostoId` a `Liquidación`. Poblar desde el contrato del empleado. Agregar al resultado de negocio.                                                                                      | S      |
+| P1-U9  | Flujo de revisión/aprobación          | Endpoints: `submitForReview`, `approve`, `reject`. Validar segregación (revisor ≠ aprobador). Registrar actores.                                                                                     | M      |
+| P1-U10 | Desprendible de pago                  | Servicio que deriva colilla desde `Liquidación` aprobada. Template de colilla (PDF o HTML).                                                                                                          | M      |
+| P1-U11 | Reporte de resumen de nómina          | Endpoint de reporting: totales por concepto, por empleado, por centro de costo. Filtrable por período.                                                                                               | M      |
+| P1-U12 | Refactor `PayrollRun` → `Liquidación` | Renombrar modelo, migrar FK `payrollRunId` → `liquidacionId`, actualizar todo el código. Este es el cambio más grande de P1.                                                                         | L      |
+| P1-U13 | Test de aceptación — Excel vs sistema | Cargar el Excel del research como datos de prueba. Ejecutar liquidación. Comparar neto por empleado. Documentar diferencias.                                                                         | M      |
+
+> **Nota sobre importación desde Excel:** la importación inicial de datos desde Excel forma parte del alcance funcional de v1 (ADR-002 §13, MVP §1). Su implementación reutilizará o extenderá el módulo `employee-import` ya existente. Por ese motivo no se descompone como unidad independiente dentro del roadmap del núcleo Payroll.
 
 ---
 
@@ -159,12 +173,19 @@ Arquitectura congelada. Dominio congelado. Solo ejecución.
 
 ---
 
-## P4 — PILA y Nómina Electrónica
+## P4 — PILA
 
-| ID    | Unidad                 | Descripción                                                                                         | Tamaño |
-| ----- | ---------------------- | --------------------------------------------------------------------------------------------------- | ------ |
-| P4-U1 | Generación PILA        | Archivo ASCII/XML por operador PILA: empleados, IBC, aportes, novedades. Validación contra esquema. | L      |
-| P4-U2 | Documento soporte DIAN | XML de nómina electrónica según resolución DIAN vigente. Validación.                                | L      |
+| ID    | Unidad          | Descripción                                                                                         | Tamaño |
+| ----- | --------------- | --------------------------------------------------------------------------------------------------- | ------ |
+| P4-U1 | Generación PILA | Archivo ASCII/XML por operador PILA: empleados, IBC, aportes, novedades. Validación contra esquema. | L      |
+
+---
+
+## P5 — Nómina Electrónica
+
+| ID    | Unidad                 | Descripción                                                          | Tamaño |
+| ----- | ---------------------- | -------------------------------------------------------------------- | ------ |
+| P5-U1 | Documento soporte DIAN | XML de nómina electrónica según resolución DIAN vigente. Validación. | L      |
 
 ---
 
@@ -231,10 +252,10 @@ P1-U12 (PayrollRun → Liquidación)  ← el rename grande, habilita todo lo dem
                      P3-U3 (Obligaciones terceros)
                            │
                            ▼
-                     P4-U1 (PILA)
-                           │
-                           ▼
-                     P4-U2 (Nómina electrónica)
+                      P4-U1 (PILA)
+                            │
+                            ▼
+                      P5-U1 (Nómina electrónica)
 ```
 
 ---
@@ -293,7 +314,12 @@ P1-U12 (PayrollRun → Liquidación)  ← el rename grande, habilita todo lo dem
 | Unidad | Depende de  | Desbloquea |
 | ------ | ----------- | ---------- |
 | P4-U1  | P2 completo | —          |
-| P4-U2  | P2 completo | —          |
+
+## P5
+
+| Unidad | Depende de  | Desbloquea |
+| ------ | ----------- | ---------- |
+| P5-U1  | P2 completo | —          |
 
 ---
 
@@ -333,10 +359,17 @@ P1-U12 (PayrollRun → Liquidación)  ← el rename grande, habilita todo lo dem
 
 ## P4 — PILA
 
-| Riesgo                                    | Tipo      | Mitigación                                                                  |
-| ----------------------------------------- | --------- | --------------------------------------------------------------------------- |
-| Cambio regulatorio en formato PILA o DIAN | Funcional | P4 se aísla en módulo separado. Cambios de formato no afectan P0-P3.        |
-| Complejidad de schemas oficiales          | Técnico   | Validación automatizada contra XSD/schema. No construir sin especificación. |
+| Riesgo                             | Tipo      | Mitigación                                                                  |
+| ---------------------------------- | --------- | --------------------------------------------------------------------------- |
+| Cambio regulatorio en formato PILA | Funcional | P4 se aísla en módulo separado. Cambios de formato no afectan P0-P3.        |
+| Complejidad del esquema oficial    | Técnico   | Validación automatizada contra XSD/schema. No construir sin especificación. |
+
+## P5 — Nómina Electrónica
+
+| Riesgo                             | Tipo      | Mitigación                                                                  |
+| ---------------------------------- | --------- | --------------------------------------------------------------------------- |
+| Cambio regulatorio en formato DIAN | Funcional | P5 se aísla en módulo separado. Cambios de formato no afectan P0-P4.        |
+| Complejidad del esquema oficial    | Técnico   | Validación automatizada contra XSD/schema. No construir sin especificación. |
 
 ---
 
@@ -350,9 +383,10 @@ main ←── feat/payroll-p0-catalogos
    ←── feat/payroll-p2-accounting       (depende de p1 mergeado)
    ←── feat/payroll-p3-treasury         (depende de p2 mergeado)
    ←── feat/payroll-p4-pila             (depende de p2 mergeado)
+   ←── feat/payroll-p5-nomina-electronica (depende de p2 mergeado)
 ```
 
-**Regla:** una rama por fase (P0, P1, P2, P3, P4). No una rama por unidad.
+**Regla:** una rama por fase (P0, P1, P2, P3, P4, P5). No una rama por unidad.
 
 ## Tamaño de PR
 
@@ -402,7 +436,6 @@ Cada prompt está diseñado para ser ejecutado en una sesión independiente, con
 | Prompt                         | Alcance                                                                                                  |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------- |
 | `P1-U1-rename-finiquito`       | Renombrar modelo `Liquidation` y todo su ecosistema a `Finiquito`. Feature-flag.                         |
-| `P1-U12-rename-liquidacion`    | Renombrar `PayrollRun` a `Liquidacion`. Actualizar modelo, migración, servicios, controller, tests.      |
 | `P1-U2-maquina-estados`        | Migrar `PayrollPeriodStatus` al enum completo. Service de transiciones. Tests de estados ilegales.       |
 | `P1-U3-auditoria-transiciones` | `AuditLog` en cada transición de estado. Fail-secure: si no audita, no transiciona.                      |
 | `P1-U4-snapshot-inmutable`     | Crear tabla `LiquidacionSnapshot`. Service que escribe copia de params + conceptos + insumos al aprobar. |
@@ -413,6 +446,7 @@ Cada prompt está diseñado para ser ejecutado en una sesión independiente, con
 | `P1-U9-flujo-aprobacion`       | Endpoints `submitForReview`, `approve`, `reject`. Validación revisor ≠ aprobador.                        |
 | `P1-U10-desprendible`          | Service de colilla. Template PDF/HTML. Endpoint de descarga.                                             |
 | `P1-U11-reporte-resumen`       | Endpoint de reporting agregado por concepto, empleado, centro de costo.                                  |
+| `P1-U12-rename-liquidacion`    | Renombrar `PayrollRun` a `Liquidacion`. Actualizar modelo, migración, servicios, controller, tests.      |
 | `P1-U13-test-excel`            | Datos de prueba desde el Excel del research. Comparación de netos.                                       |
 
 ## P2
@@ -436,10 +470,15 @@ Cada prompt está diseñado para ser ejecutado en una sesión independiente, con
 
 ## P4
 
+| Prompt       | Alcance                    |
+| ------------ | -------------------------- |
+| `P4-U1-pila` | Generación de archivo PILA |
+
+## P5
+
 | Prompt                     | Alcance                              |
 | -------------------------- | ------------------------------------ |
-| `P4-U1-pila`               | Generación de archivo PILA           |
-| `P4-U2-nomina-electronica` | Generación de documento soporte DIAN |
+| `P5-U1-nomina-electronica` | Generación de documento soporte DIAN |
 
 ---
 
@@ -484,25 +523,29 @@ Cada prompt está diseñado para ser ejecutado en una sesión independiente, con
 - [ ] P3-U2 — Hitos de pago
 - [ ] P3-U3 — Obligaciones a terceros
 
-## P4 — PILA y Nómina Electrónica
+## P4 — PILA
 
 - [ ] P4-U1 — Generación PILA
-- [ ] P4-U2 — Documento soporte DIAN
+
+## P5 — Nómina Electrónica
+
+- [ ] P5-U1 — Documento soporte DIAN
 
 ---
 
 ## Estado del módulo Payroll
 
-| Fase                   | Estado           | Fecha      |
-| ---------------------- | ---------------- | ---------- |
-| Research               | Completado       | 2026-06    |
-| ADR-002 rev. 2         | Completado       | 2026-07-03 |
-| Plan de implementación | Completado       | 2026-07-03 |
-| P0 — Catálogos         | ~70% — pendiente | —          |
-| P1 — Núcleo            | Pendiente        | —          |
-| P2 — Accounting        | Pendiente        | —          |
-| P3 — Treasury          | Pendiente        | —          |
-| P4 — PILA              | Pendiente        | —          |
+| Fase                    | Estado           | Fecha      |
+| ----------------------- | ---------------- | ---------- |
+| Research                | Completado       | 2026-06    |
+| ADR-002 rev. 2          | Completado       | 2026-07-03 |
+| Plan de implementación  | Completado       | 2026-07-03 |
+| P0 — Catálogos          | ~70% — pendiente | —          |
+| P1 — Núcleo             | Pendiente        | —          |
+| P2 — Accounting         | Pendiente        | —          |
+| P3 — Treasury           | Pendiente        | —          |
+| P4 — PILA               | Pendiente        | —          |
+| P5 — Nómina Electrónica | Pendiente        | —          |
 
 ---
 
