@@ -15,7 +15,11 @@ import {
 // =============================================================================
 // LÍMITE POR COMPROBANTE — previene picos accidentales de memoria/red.
 // =============================================================================
-const MAX_LINEAS = 200;
+// Exportado (sin cambio de comportamiento) para que los orígenes que puedan
+// generar asientos grandes — p. ej. el cierre anual de C3 — particionen ANTES
+// de llegar al puerto, en vez de toparse con el rechazo. El puerto sigue siendo
+// la autoridad: valida el límite igual que siempre.
+export const MAX_LINEAS = 200;
 
 // =============================================================================
 // LedgerService · ADR-001 §6 — Puerto único de entrada al libro mayor.
