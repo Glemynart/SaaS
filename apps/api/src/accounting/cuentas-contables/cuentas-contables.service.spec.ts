@@ -36,7 +36,7 @@ describe('CuentasContablesService.update — protección esCuentaSistema', () =>
   ])('rechaza modificar "%s" en una cuenta de sistema', async (campo) => {
     const { service, prisma } = build(cuentaSistema);
     await expect(
-      service.update('t1', 'u1', 'c1', { [campo]: true } as never),
+      service.update('t1', 'u1', 'c1', { [campo]: true }),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.cuentaContable.update).not.toHaveBeenCalled();
   });
