@@ -71,14 +71,14 @@ export class EmailService implements OnModuleInit {
     const { type, to, payload, auditContext } = params;
 
     const subject = this.resolveSubject(type);
-    const html = this.buildHtml(type, payload as EmailPayloadMap[EmailType]);
+    const html = this.buildHtml(type, payload);
 
     if (this.degraded || !this.resend) {
       this.logger.log(
         `[EMAIL DEGRADADO] type=${type} to=${to} subject="${subject}"`,
       );
       if (type === 'password-reset') {
-        const p = payload as PasswordResetPayload;
+        const p = payload;
         this.logger.log(`[EMAIL DEGRADADO] resetUrl=${p.resetUrl}`);
       }
       return;
@@ -123,7 +123,7 @@ export class EmailService implements OnModuleInit {
     payload: EmailPayloadMap[EmailType],
   ): string {
     if (type === 'password-reset') {
-      const p = payload as PasswordResetPayload;
+      const p = payload;
       return passwordResetTemplate({
         userName: p.userName,
         resetUrl: p.resetUrl,

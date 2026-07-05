@@ -98,7 +98,7 @@ export class LotesService {
         sedeId: dto.sedeId ?? null,
         estado: LoteEstado.PENDIENTE,
         total: empleadoIds.length,
-        configuracion: configuracion as unknown as Prisma.InputJsonValue,
+        configuracion: configuracion,
       },
     });
 

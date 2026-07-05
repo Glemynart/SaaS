@@ -365,7 +365,7 @@ describe('LiquidationCalculator — caso 7: invariantes de totales', () => {
   it.each(cases.map((c, i) => [i + 1, c]))(
     'invariante %i: totalLiquidacion = totalPrestaciones + totalSalarioPendiente',
     (_i, input) => {
-      const r = calculate(input as LiquidationInput);
+      const r = calculate(input);
       expect(r.totalLiquidacion).toBe(
         r.totalPrestaciones + r.totalSalarioPendiente,
       );
