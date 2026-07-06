@@ -24,18 +24,15 @@ export function LandingFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="bg-foreground text-primary-foreground/50" aria-label="Pie de página">
+    <footer className="bg-foreground text-primary-foreground/60" aria-label="Pie de página">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        {/* Main grid */}
-        <div className="grid gap-10 border-b border-primary-foreground/10 py-14 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Main grid — se funde con el CTA final (mismo lienzo de tinta) */}
+        <div className="grid gap-10 border-y border-primary-foreground/10 py-14 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand column */}
           <div className="sm:col-span-2 lg:col-span-1">
             <div className="flex items-center gap-3">
-              <div
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary-foreground/15 bg-primary-foreground/10 text-sm font-semibold text-primary-foreground"
-                aria-hidden="true"
-              >
-                1
+              <div className="brand-mark brand-mark-compact" aria-hidden="true">
+                <span>1</span>
               </div>
               <span className="text-sm font-semibold text-primary-foreground">
                 La Oficina Nítida
@@ -49,7 +46,7 @@ export function LandingFooter() {
 
           {/* Product links */}
           <div>
-            <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-primary-foreground/30">
+            <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-primary-foreground/50">
               Producto
             </h3>
             <ul className="space-y-2.5" role="list">
@@ -68,7 +65,7 @@ export function LandingFooter() {
 
           {/* Company links */}
           <div>
-            <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-primary-foreground/30">
+            <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-primary-foreground/50">
               Empresa
             </h3>
             <ul className="space-y-2.5" role="list">
@@ -87,7 +84,7 @@ export function LandingFooter() {
 
           {/* Legal links */}
           <div>
-            <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-primary-foreground/30">
+            <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-primary-foreground/50">
               Legal
             </h3>
             <ul className="space-y-2.5" role="list">

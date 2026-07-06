@@ -64,73 +64,79 @@ export function ComparisonSection({ onDemoOpen }: ComparisonSectionProps) {
       className="bg-background py-20 sm:py-28"
       aria-labelledby="comparison-heading"
     >
-      <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        <div className="mx-auto max-w-2xl text-center">
+      <div className="mx-auto max-w-6xl px-5 sm:px-8">
+        <div className="max-w-2xl">
           <h2
             id="comparison-heading"
             className="text-3xl font-semibold tracking-[-0.025em] text-foreground sm:text-4xl"
           >
             ¿Cómo lo hacía antes?
           </h2>
-          <p className="mt-4 text-base leading-7 text-muted-foreground">
+          <p className="mt-5 text-base leading-7 text-muted-foreground">
             Compare el tiempo, el riesgo y el control que tiene hoy frente a lo que puede tener
             desde mañana.
           </p>
         </div>
 
-        <div className="mt-12 landing-comparison-wrap">
-          <table className="landing-comparison-table" aria-label="Comparación de opciones">
-            <thead>
-              <tr>
-                <th scope="col" className="w-[16%]">
-                  Criterio
-                </th>
-                <th scope="col">Excel + Word</th>
-                <th scope="col">Carpetas físicas</th>
-                <th scope="col">ERP tradicional</th>
-                <th scope="col" className="col-highlight">
-                  La Oficina Nítida ✓
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.label}>
-                  <td className="row-label">{row.label}</td>
-                  <td>
-                    {row.excel ? (
-                      row.excel
-                    ) : (
-                      <span className="landing-cross-icon" aria-label="No disponible">
-                        <Minus className="size-4" />
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    {row.carpetas ? (
-                      row.carpetas
-                    ) : (
-                      <span className="landing-cross-icon" aria-label="No disponible">
-                        <Minus className="size-4" />
-                      </span>
-                    )}
-                  </td>
-                  <td>{row.erp}</td>
-                  <td className="col-highlight">
-                    <span className="flex items-center gap-2">
-                      <span className="landing-check-icon" aria-hidden="true">
-                        <Check className="size-3" strokeWidth={2.5} />
-                      </span>
-                      {row.platform}
-                    </span>
-                  </td>
+        <div className="relative mt-14">
+          <div
+            className="absolute inset-0 translate-x-4 translate-y-4 rounded-[14px] border border-border-soft bg-[color-mix(in_oklch,var(--surface)_60%,var(--canvas))]"
+            aria-hidden="true"
+          />
+          <div className="landing-comparison-wrap relative bg-surface shadow-(--shadow-inset-hi)">
+            <table className="landing-comparison-table" aria-label="Comparación de opciones">
+              <thead>
+                <tr>
+                  <th scope="col" className="w-[16%]">
+                    Criterio
+                  </th>
+                  <th scope="col">Excel + Word</th>
+                  <th scope="col">Carpetas físicas</th>
+                  <th scope="col">ERP tradicional</th>
+                  <th scope="col" className="col-highlight">
+                    La Oficina Nítida ✓
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.label}>
+                    <td className="row-label">{row.label}</td>
+                    <td>
+                      {row.excel ? (
+                        row.excel
+                      ) : (
+                        <span className="landing-cross-icon" aria-label="No disponible">
+                          <Minus className="size-4" />
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {row.carpetas ? (
+                        row.carpetas
+                      ) : (
+                        <span className="landing-cross-icon" aria-label="No disponible">
+                          <Minus className="size-4" />
+                        </span>
+                      )}
+                    </td>
+                    <td>{row.erp}</td>
+                    <td className="col-highlight">
+                      <span className="flex items-center gap-2">
+                        <span className="landing-check-icon" aria-hidden="true">
+                          <Check className="size-3" strokeWidth={2.5} />
+                        </span>
+                        {row.platform}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        <p className="mt-8 text-center text-sm text-muted-foreground">
+        <p className="mt-10 text-center text-sm text-muted-foreground">
           No reemplazamos a su software contable ni a su asesor de nómina. Resolvemos lo que ellos
           no resuelven: la gestión documental y contractual del día a día.
         </p>

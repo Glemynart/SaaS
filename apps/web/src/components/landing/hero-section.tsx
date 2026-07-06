@@ -1,153 +1,202 @@
-import { ArrowRight, Check } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowRight,
+  BellRing,
+  Building2,
+  FileStack,
+  FileText,
+  Layers,
+  Zap,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface HeroSectionProps {
   onDemoOpen: () => void;
 }
 
-const contractRows = [
-  { name: 'María González', role: 'Docente de primaria', done: true },
-  { name: 'Juan Carlos Pérez', role: 'Instructor técnico', done: true },
-  { name: 'Ana Sofía Martínez', role: 'Docente secundaria', done: true },
-  { name: 'Carlos Andrés López', role: 'Coordinador académico', done: true },
+const capabilities = [
+  { icon: FileStack, label: 'Hasta 500 contratos por lote' },
+  { icon: BellRing, label: 'Alertas a 30, 15 y 7 días' },
+  { icon: Building2, label: 'Multiempresa incluido' },
+  { icon: Zap, label: 'Operativo el mismo día' },
 ];
 
 export function HeroSection({ onDemoOpen }: HeroSectionProps) {
   return (
-    <section className="landing-hero" aria-labelledby="hero-heading">
-      <div className="mx-auto max-w-7xl px-5 pb-20 pt-32 sm:px-8 sm:pt-36 lg:grid lg:grid-cols-2 lg:items-center lg:gap-16 lg:pb-28 lg:pt-40">
-        {/* Text column */}
-        <div className="max-w-2xl">
-          {/* Badge */}
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-3.5 py-1.5">
-            <span
-              className="h-1.5 w-1.5 rounded-full bg-primary-foreground/60"
-              aria-hidden="true"
-            />
-            <span className="text-xs font-medium text-primary-foreground/80">
-              Para operadores educativos colombianos
-            </span>
-          </div>
-
-          {/* Headline */}
-          <h1
-            id="hero-heading"
-            className="text-balance text-4xl font-semibold leading-[1.06] tracking-[-0.03em] text-primary-foreground sm:text-5xl"
-          >
-            Gestione su planta de personal, sus contratos y su expediente sin depender del Excel.
-          </h1>
-
-          {/* Subheadline */}
-          <p className="mt-5 max-w-xl text-pretty text-base leading-7 text-primary-foreground/65 sm:text-lg sm:leading-8">
-            Centralice la gestión laboral de su organización en una sola plataforma. Genere
-            contratos masivos en minutos, mantenga el expediente digital de cada persona y reciba
-            alertas antes de que venzan los contratos.
-          </p>
-
-          {/* CTAs */}
-          <div className="mt-8 flex flex-wrap items-center gap-3 sm:gap-4">
-            <Button
-              size="lg"
-              onClick={onDemoOpen}
-              className="bg-primary-foreground text-primary hover:bg-primary-foreground/92 active:scale-[0.98] h-11 px-6 text-sm font-semibold ring-1 ring-primary-foreground/20"
-            >
-              Solicitar demo gratuita
-            </Button>
-            <a
-              href="#como-funciona"
-              className="inline-flex h-11 items-center gap-1.5 text-sm font-medium text-primary-foreground/70 transition-colors hover:text-primary-foreground"
-            >
-              Ver cómo funciona
-              <ArrowRight className="size-4" aria-hidden="true" />
-            </a>
-          </div>
-
-          {/* Trust signal */}
-          <p className="mt-5 text-xs text-primary-foreground/40">
-            Sin tarjeta de crédito · Sin contrato de implementación · Sin instalación
-          </p>
-        </div>
-
-        {/* Visual column — contract batch mockup */}
-        <div className="mt-14 lg:mt-0" aria-hidden="true">
-          <div className="landing-contract-card mx-auto max-w-md p-1">
-            {/* Window chrome */}
-            <div className="flex items-center gap-1.5 border-b border-primary-foreground/10 px-4 py-3">
-              <span className="h-2.5 w-2.5 rounded-full bg-primary-foreground/20" />
-              <span className="h-2.5 w-2.5 rounded-full bg-primary-foreground/15" />
-              <span className="h-2.5 w-2.5 rounded-full bg-primary-foreground/10" />
-              <span className="ml-3 text-xs font-medium text-primary-foreground/40">
-                Contratos masivos · Lote Enero 2026
+    <section className="entry-canvas border-b border-border" aria-labelledby="hero-heading">
+      <div className="mx-auto max-w-7xl px-5 pb-16 pt-28 sm:px-8 sm:pt-32 lg:pb-24 lg:pt-36">
+        <div className="lg:grid lg:grid-cols-12 lg:items-center lg:gap-12">
+          {/* Text column */}
+          <div className="max-w-2xl lg:col-span-7">
+            {/* Badge */}
+            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 shadow-(--shadow-inset-hi)">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary/60" aria-hidden="true" />
+              <span className="text-xs font-medium text-muted-foreground">
+                Para operadores educativos colombianos
               </span>
             </div>
 
-            {/* Progress bar */}
-            <div className="px-4 pt-4 pb-2">
-              <div className="flex items-center justify-between text-xs text-primary-foreground/50 mb-1.5">
-                <span>Generando contratos…</span>
-                <span className="font-medium text-primary-foreground/70">200 / 200</span>
-              </div>
-              <div className="h-1.5 w-full rounded-full bg-primary-foreground/10">
-                <div
-                  className="h-full rounded-full bg-primary-foreground/50"
-                  style={{ width: '100%' }}
+            {/* Headline */}
+            <h1
+              id="hero-heading"
+              className="mt-7 text-balance text-4xl font-semibold leading-[1.05] tracking-[-0.035em] text-foreground sm:text-5xl lg:text-6xl"
+            >
+              Gestione su planta de personal, sus contratos y su expediente sin depender del Excel.
+            </h1>
+
+            {/* Subheadline */}
+            <p className="mt-6 max-w-xl text-pretty text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
+              Centralice la gestión laboral de su organización en una sola plataforma. Genere
+              contratos masivos en minutos, mantenga el expediente digital de cada persona y reciba
+              alertas antes de que venzan los contratos.
+            </p>
+
+            {/* CTAs */}
+            <div className="mt-9 flex flex-wrap items-center gap-4">
+              <Button size="lg" onClick={onDemoOpen} className="h-11 px-6 text-sm font-semibold">
+                Solicitar demo gratuita
+              </Button>
+              <a
+                href="#como-funciona"
+                className="inline-flex h-11 items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Ver cómo funciona
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </a>
+            </div>
+
+            {/* Trust signal */}
+            <p className="mt-5 text-xs text-muted-foreground">
+              Sin tarjeta de crédito · Sin contrato de implementación · Sin instalación
+            </p>
+          </div>
+
+          {/* Visual column — captura de la Bandeja del día */}
+          <div className="mt-16 lg:col-span-5 lg:mt-0" aria-hidden="true">
+            <div className="relative mx-auto max-w-md lg:max-w-none">
+              {/* Profundidad de folios */}
+              <div className="absolute inset-0 translate-x-6 translate-y-6 rounded-(--radius-panel) border border-border-soft bg-[color-mix(in_oklch,var(--surface)_48%,var(--canvas))]" />
+              <div className="absolute inset-0 translate-x-3 translate-y-3 rounded-(--radius-panel) border border-border-soft bg-[color-mix(in_oklch,var(--surface)_72%,var(--canvas))]" />
+
+              <div className="product-frame relative">
+                {/* Encabezado de página del producto */}
+                <div className="border-b border-border-soft px-4 py-3.5">
+                  <p className="text-sm font-semibold tracking-[-0.018em] text-foreground">
+                    Inicio
+                  </p>
+                  <p className="mt-0.5 text-2xs text-muted-foreground">
+                    Hola, Laura. Tienes 4 asuntos por atender hoy.
+                  </p>
+                </div>
+
+                {/* Banda: requiere acción */}
+                <p className="px-4 pb-1 pt-3 text-2xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  Requiere acción · 2
+                </p>
+                <BandejaMockRow
+                  icon={FileText}
+                  asunto="El contrato de María Pérez venció"
+                  chip={{ tone: 'danger', label: 'Vencido' }}
+                  meta="hace 2 días · María Pérez"
+                  accion="Ver empleado"
                 />
-              </div>
-            </div>
+                <BandejaMockRow
+                  icon={AlertCircle}
+                  asunto="Faltan documentos en el expediente de Juan Gómez"
+                  chip={{ tone: 'danger', label: 'Crítica' }}
+                  meta="desde ayer · Juan Gómez"
+                  accion="Resolver"
+                />
 
-            {/* Contract list */}
-            <div className="pb-2">
-              {contractRows.map((row) => (
-                <div key={row.name} className="landing-contract-row">
-                  <div className="landing-contract-check" aria-hidden="true">
-                    <Check className="size-3" strokeWidth={2.5} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <span className="block truncate font-medium text-primary-foreground/80">
-                      {row.name}
-                    </span>
-                    <span className="block truncate text-xs text-primary-foreground/40">
-                      {row.role}
-                    </span>
-                  </div>
-                  <span className="text-xs text-primary-foreground/35">PDF listo</span>
-                </div>
-              ))}
-              <div className="landing-contract-row text-primary-foreground/35">
-                <div className="w-5" />
-                <span>— 196 contratos más —</span>
-              </div>
-            </div>
-
-            {/* Footer action */}
-            <div className="border-t border-primary-foreground/10 px-4 py-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="landing-contract-check" aria-hidden="true">
-                    <Check className="size-3" strokeWidth={2.5} />
-                  </div>
-                  <span className="text-xs font-medium text-primary-foreground/70">
-                    200 contratos listos · ZIP disponible
-                  </span>
-                </div>
-                <div className="flex h-7 items-center rounded-md bg-primary-foreground/10 px-3 text-xs font-medium text-primary-foreground/70">
-                  Descargar ZIP
-                </div>
+                {/* Banda: esta semana */}
+                <p className="px-4 pb-1 pt-3 text-2xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  Esta semana · 2
+                </p>
+                <BandejaMockRow
+                  icon={FileText}
+                  asunto="El contrato de Ana Martínez vence pronto"
+                  chip={{ tone: 'warning', label: 'Atención' }}
+                  meta="vence en 5 días"
+                  accion="Ver empleado"
+                />
+                <BandejaMockRow
+                  icon={Layers}
+                  asunto="El lote «Contratos enero» está en proceso"
+                  chip={{ tone: 'info', label: 'En proceso' }}
+                  meta="128 de 200 generados"
+                  accion="Ver lote"
+                  last
+                />
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Bottom fade */}
-      <div
-        className="pointer-events-none absolute bottom-0 inset-x-0 h-24"
-        style={{
-          background:
-            'linear-gradient(to bottom, transparent, color-mix(in oklch, var(--background) 100%, transparent))',
-        }}
-        aria-hidden="true"
-      />
+        {/* Capacidades de la plataforma (integradas al hero) */}
+        <ul
+          className="mt-16 flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-border-soft pt-6 lg:mt-20"
+          aria-label="Capacidades de la plataforma"
+          role="list"
+        >
+          {capabilities.map(({ icon: Icon, label }) => (
+            <li
+              key={label}
+              className="flex items-center gap-2 text-2xs font-medium uppercase tracking-[0.08em] text-muted-foreground"
+            >
+              <Icon className="size-3.5 flex-shrink-0 text-primary/60" aria-hidden="true" />
+              {label}
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
+  );
+}
+
+/* Fila calcada de la anatomía real de BandejaRow (features/dashboard). Decorativa. */
+function BandejaMockRow({
+  icon: Icon,
+  asunto,
+  chip,
+  meta,
+  accion,
+  last,
+}: {
+  icon: typeof FileText;
+  asunto: string;
+  chip: { tone: 'danger' | 'warning' | 'info'; label: string };
+  meta: string;
+  accion: string;
+  last?: boolean;
+}) {
+  const chipClass =
+    chip.tone === 'danger'
+      ? 'border-destructive/25 bg-destructive/8 text-destructive'
+      : chip.tone === 'warning'
+        ? 'border-warning/25 bg-warning/8 text-warning'
+        : 'border-info/25 bg-info/8 text-info';
+
+  return (
+    <div
+      className={`flex items-center gap-3 border-t border-border-soft px-4 py-3 ${last ? 'pb-4' : ''}`}
+    >
+      <span className="grid size-8 shrink-0 place-items-center rounded-(--radius-control) border border-border bg-surface">
+        <Icon className="size-4 text-muted-foreground" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-foreground">{asunto}</p>
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted-foreground">
+          <span
+            className={`inline-flex items-center rounded-full border px-2 py-px font-medium ${chipClass}`}
+          >
+            {chip.label}
+          </span>
+          <span>{meta}</span>
+        </p>
+      </div>
+      <span className="hidden h-8 shrink-0 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium text-foreground sm:inline-flex">
+        {accion}
+      </span>
+    </div>
   );
 }

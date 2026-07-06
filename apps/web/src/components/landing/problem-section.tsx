@@ -32,49 +32,55 @@ export function ProblemSection() {
   return (
     <section
       id="problema"
-      className="bg-background py-20 sm:py-28"
+      className="bg-background py-24 sm:py-32"
       aria-labelledby="problem-heading"
     >
-      <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        <div className="mx-auto max-w-2xl text-center">
-          <h2
-            id="problem-heading"
-            className="text-3xl font-semibold tracking-[-0.025em] text-foreground sm:text-4xl"
+      <div className="mx-auto max-w-6xl px-5 sm:px-8">
+        <div className="lg:grid lg:grid-cols-12 lg:gap-16">
+          {/* Encabezado editorial (izquierda, fijo al hacer scroll) */}
+          <div className="lg:col-span-5">
+            <div className="lg:sticky lg:top-28">
+              <h2
+                id="problem-heading"
+                className="text-balance text-3xl font-semibold tracking-[-0.025em] text-foreground sm:text-4xl"
+              >
+                ¿Le suena familiar?
+              </h2>
+              <p className="mt-5 text-pretty text-base leading-7 text-muted-foreground sm:text-lg">
+                Cada inicio de año escolar, el equipo administrativo de un operador educativo
+                enfrenta el mismo ciclo. Cientos de contratos para generar, expedientes que buscar,
+                fechas que no hay que olvidar y herramientas que no se hablan entre sí.
+              </p>
+            </div>
+          </div>
+
+          {/* Lista editorial (derecha) */}
+          <ul
+            className="mt-12 lg:col-span-7 lg:mt-0"
+            role="list"
+            aria-label="Problemas que resolvemos"
           >
-            ¿Le suena familiar?
-          </h2>
-          <p className="mt-4 text-base leading-7 text-muted-foreground sm:text-lg">
-            Cada inicio de año escolar, el equipo administrativo de un operador educativo enfrenta
-            el mismo ciclo. Cientos de contratos para generar, expedientes que buscar, fechas que no
-            hay que olvidar y herramientas que no se hablan entre sí.
-          </p>
+            {problems.map(({ icon: Icon, title, body }) => (
+              <li
+                key={title}
+                className="flex gap-5 border-t border-border-soft py-7 first:border-t-0 first:pt-0 last:pb-0"
+              >
+                <div className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-lg border border-border bg-surface shadow-(--shadow-inset-hi)">
+                  <Icon className="size-5 text-muted-foreground" aria-hidden="true" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-foreground">{title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{body}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
 
-        <ul
-          className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-          role="list"
-          aria-label="Problemas que resolvemos"
-        >
-          {problems.map(({ icon: Icon, title, body }) => (
-            <li
-              key={title}
-              className="rounded-xl border border-border bg-surface p-6 shadow-[--shadow-inset-hi]"
-            >
-              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-background">
-                <Icon className="size-5 text-muted-foreground" aria-hidden="true" />
-              </div>
-              <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-              <p className="mt-2.5 text-sm leading-6 text-muted-foreground">{body}</p>
-            </li>
-          ))}
-
-          {/* Transition card */}
-          <li className="flex items-center justify-center rounded-xl border border-primary/20 bg-[color-mix(in_oklch,var(--primary)_5%,var(--surface))] p-6 shadow-[--shadow-inset-hi] sm:col-span-2 lg:col-span-1">
-            <p className="text-center text-lg font-semibold tracking-[-0.02em] text-foreground">
-              Existe una forma más limpia de operar.
-            </p>
-          </li>
-        </ul>
+        {/* Cierre tipográfico */}
+        <p className="mt-20 border-t border-border pt-14 text-center text-2xl font-semibold tracking-[-0.022em] text-foreground sm:text-3xl">
+          Existe una forma más limpia de operar.
+        </p>
       </div>
     </section>
   );

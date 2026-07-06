@@ -92,7 +92,7 @@ export function DemoSheet({ open, onOpenChange }: DemoSheetProps) {
   return (
     <>
       <div
-        className="fixed inset-0 z-[--z-overlay] bg-[--overlay] backdrop-blur-sm"
+        className="fixed inset-0 z-(--z-overlay) bg-(--overlay) backdrop-blur-sm"
         onClick={handleClose}
         aria-hidden="true"
       />
@@ -100,7 +100,7 @@ export function DemoSheet({ open, onOpenChange }: DemoSheetProps) {
         role="dialog"
         aria-modal="true"
         aria-label="Solicitar demo gratuita"
-        className="fixed inset-y-0 right-0 z-[--z-overlay] flex w-full max-w-lg flex-col border-l border-border bg-surface shadow-[--shadow-overlay]"
+        className="fixed inset-y-0 right-0 z-(--z-overlay) flex w-full max-w-lg flex-col border-l border-border bg-surface shadow-(--shadow-overlay)"
       >
         <div className="flex items-start justify-between border-b border-border px-6 py-5">
           <div>

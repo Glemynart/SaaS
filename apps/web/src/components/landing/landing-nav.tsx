@@ -4,23 +4,13 @@ import * as React from 'react';
 import Link from 'next/link';
 import { Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 
 interface LandingNavProps {
   onDemoOpen: () => void;
 }
 
 export function LandingNav({ onDemoOpen }: LandingNavProps) {
-  const [scrolled, setScrolled] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
-
-  React.useEffect(() => {
-    function onScroll() {
-      setScrolled(window.scrollY > 72);
-    }
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
 
   React.useEffect(() => {
     if (mobileOpen) {
@@ -40,14 +30,7 @@ export function LandingNav({ onDemoOpen }: LandingNavProps) {
 
   return (
     <>
-      <header
-        className={cn(
-          'fixed inset-x-0 top-0 z-40 transition-[background-color,border-color,backdrop-filter] duration-200',
-          scrolled
-            ? 'border-b border-border bg-surface/95 backdrop-blur-md'
-            : 'border-b border-transparent bg-transparent',
-        )}
-      >
+      <header className="fixed inset-x-0 top-0 z-(--z-sticky) border-b border-border bg-surface/95 backdrop-blur-md">
         <nav
           className="mx-auto flex h-[4.25rem] max-w-7xl items-center justify-between px-5 sm:px-8"
           aria-label="Navegación principal"
@@ -55,91 +38,46 @@ export function LandingNav({ onDemoOpen }: LandingNavProps) {
           {/* Logo */}
           <Link
             href="/"
-            className="flex items-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md"
+            className="flex items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             aria-label="La Oficina Nítida — Inicio"
           >
-            <div
-              className={cn(
-                'brand-mark brand-mark-compact',
-                !scrolled &&
-                  'border-primary-foreground/20 bg-primary-foreground/10 text-primary-foreground shadow-none',
-              )}
-              aria-hidden="true"
-            >
+            <div className="brand-mark brand-mark-compact" aria-hidden="true">
               <span>1</span>
             </div>
-            <span
-              className={cn(
-                'hidden text-sm font-semibold tracking-[-0.01em] sm:block transition-colors duration-200',
-                scrolled ? 'text-foreground' : 'text-primary-foreground',
-              )}
-            >
+            <span className="hidden text-sm font-semibold tracking-[-0.01em] text-foreground sm:block">
               La Oficina Nítida
             </span>
           </Link>
 
           {/* Desktop links */}
           <div className="hidden items-center gap-6 lg:flex" aria-label="Secciones">
-            <NavAnchor href="#funcionalidades" scrolled={scrolled}>
-              Producto
-            </NavAnchor>
-            <NavAnchor href="#colombia" scrolled={scrolled}>
-              Para Colombia
-            </NavAnchor>
-            <NavAnchor href="#roadmap" scrolled={scrolled}>
-              Hoja de ruta
-            </NavAnchor>
-            <NavAnchor href="#faq" scrolled={scrolled}>
-              FAQ
-            </NavAnchor>
+            <NavAnchor href="#funcionalidades">Producto</NavAnchor>
+            <NavAnchor href="#colombia">Para Colombia</NavAnchor>
+            <NavAnchor href="#roadmap">Hoja de ruta</NavAnchor>
+            <NavAnchor href="#faq">FAQ</NavAnchor>
           </div>
 
           {/* Desktop CTAs */}
           <div className="hidden items-center gap-3 lg:flex">
             <Link
               href="/login"
-              className={cn(
-                'landing-nav-link text-sm font-medium transition-colors duration-150',
-                scrolled
-                  ? 'text-muted-foreground hover:text-foreground'
-                  : 'text-primary-foreground/70 hover:text-primary-foreground',
-              )}
+              className="text-sm font-medium text-muted-foreground transition-colors duration-150 hover:text-foreground"
             >
               Iniciar sesión
             </Link>
-            <Button
-              size="sm"
-              onClick={onDemoOpen}
-              className={cn(
-                'transition-all duration-150',
-                !scrolled &&
-                  'bg-primary-foreground text-primary hover:bg-primary-foreground/92 ring-1 ring-primary-foreground/20',
-              )}
-            >
+            <Button size="sm" onClick={onDemoOpen}>
               Solicitar demo
             </Button>
           </div>
 
           {/* Mobile: demo + hamburger */}
           <div className="flex items-center gap-2 lg:hidden">
-            <Button
-              size="sm"
-              onClick={onDemoOpen}
-              className={cn(
-                'transition-all duration-150',
-                !scrolled && 'bg-primary-foreground text-primary hover:bg-primary-foreground/92',
-              )}
-            >
+            <Button size="sm" onClick={onDemoOpen}>
               Demo
             </Button>
             <button
               onClick={() => setMobileOpen(true)}
-              className={cn(
-                'flex h-10 w-10 items-center justify-center rounded-md transition-colors',
-                scrolled
-                  ? 'text-foreground hover:bg-muted'
-                  : 'text-primary-foreground hover:bg-primary-foreground/10',
-              )}
+              className="flex h-10 w-10 items-center justify-center rounded-md text-foreground transition-colors hover:bg-muted"
               aria-label="Abrir menú"
               aria-expanded={mobileOpen}
             >
@@ -153,7 +91,7 @@ export function LandingNav({ onDemoOpen }: LandingNavProps) {
       {mobileOpen && (
         <>
           <div
-            className="fixed inset-0 z-[--z-overlay] bg-[--overlay] backdrop-blur-sm"
+            className="fixed inset-0 z-(--z-overlay) bg-(--overlay) backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
             aria-hidden="true"
           />
@@ -161,7 +99,7 @@ export function LandingNav({ onDemoOpen }: LandingNavProps) {
             role="dialog"
             aria-modal="true"
             aria-label="Menú de navegación"
-            className="fixed inset-y-0 right-0 z-[--z-overlay] flex w-full max-w-sm flex-col border-l border-border bg-surface"
+            className="fixed inset-y-0 right-0 z-(--z-overlay) flex w-full max-w-sm flex-col border-l border-border bg-surface"
           >
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div className="flex items-center gap-2.5">
@@ -172,7 +110,7 @@ export function LandingNav({ onDemoOpen }: LandingNavProps) {
               </div>
               <button
                 onClick={() => setMobileOpen(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 aria-label="Cerrar menú"
               >
                 <X className="size-4" />
@@ -200,7 +138,7 @@ export function LandingNav({ onDemoOpen }: LandingNavProps) {
               </MobileNavLink>
             </nav>
 
-            <div className="mt-auto border-t border-border p-4 space-y-3">
+            <div className="mt-auto space-y-3 border-t border-border p-4">
               <Button className="w-full" onClick={handleDemoClick}>
                 Solicitar demo gratuita
               </Button>
@@ -219,24 +157,11 @@ export function LandingNav({ onDemoOpen }: LandingNavProps) {
   );
 }
 
-function NavAnchor({
-  href,
-  scrolled,
-  children,
-}: {
-  href: string;
-  scrolled: boolean;
-  children: React.ReactNode;
-}) {
+function NavAnchor({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <a
       href={href}
-      className={cn(
-        'text-sm font-medium transition-colors duration-150',
-        scrolled
-          ? 'text-muted-foreground hover:text-foreground'
-          : 'text-primary-foreground/70 hover:text-primary-foreground',
-      )}
+      className="text-sm font-medium text-muted-foreground transition-colors duration-150 hover:text-foreground"
     >
       {children}
     </a>
@@ -256,7 +181,7 @@ function MobileNavLink({
     <a
       href={href}
       onClick={onClick}
-      className="flex h-11 items-center rounded-md px-3 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+      className="flex h-11 items-center rounded-md px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
     >
       {children}
     </a>

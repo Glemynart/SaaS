@@ -22,46 +22,32 @@ export function ColombiaSection() {
   return (
     <section
       id="colombia"
-      className="bg-background py-20 sm:py-28"
+      className="entry-canvas border-y border-border py-24 sm:py-32"
       aria-labelledby="colombia-heading"
     >
-      <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        <div className="mx-auto max-w-2xl text-center">
+      <div className="mx-auto max-w-6xl px-5 sm:px-8">
+        <div className="max-w-2xl">
           <h2
             id="colombia-heading"
             className="text-3xl font-semibold tracking-[-0.025em] text-foreground sm:text-4xl"
           >
             Construido para Colombia.
           </h2>
-          <p className="mt-4 text-base leading-7 text-muted-foreground">
+          <p className="mt-5 text-pretty text-base leading-7 text-muted-foreground">
             No es la traducción de un software europeo. Fue diseñado para las realidades operativas
             de las organizaciones colombianas que contratan personal a escala, cada año, bajo las
             reglas del mercado laboral local.
           </p>
         </div>
 
-        <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-16 grid gap-10 md:grid-cols-3 md:gap-0 md:divide-x md:divide-border-soft">
           {blocks.map(({ icon: Icon, title, body }) => (
-            <div
-              key={title}
-              className="rounded-xl border border-border bg-surface p-6 shadow-[--shadow-inset-hi]"
-            >
-              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-background">
-                <Icon className="size-5 text-primary/70" aria-hidden="true" />
-              </div>
-              <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+            <div key={title} className="md:px-8 md:first:pl-0 md:last:pr-0">
+              <Icon className="size-5 text-primary/70" aria-hidden="true" />
+              <h3 className="mt-4 text-base font-semibold text-foreground">{title}</h3>
               <p className="mt-2.5 text-sm leading-6 text-muted-foreground">{body}</p>
             </div>
           ))}
-        </div>
-
-        {/* Roadmap teaser */}
-        <div className="mt-10 rounded-xl border border-border bg-canvas px-6 py-5">
-          <p className="text-sm leading-6 text-muted-foreground">
-            <strong className="font-medium text-foreground">En nuestra hoja de ruta:</strong>{' '}
-            Facturación Electrónica válida ante la DIAN y Nómina Electrónica según el Decreto 1601
-            de 2020, para completar el ciclo administrativo de su organización.
-          </p>
         </div>
       </div>
     </section>
