@@ -44,8 +44,7 @@ export function ColombiaSection() {
           {blocks.map(({ icon: Icon, title, body }) => (
             <div
               key={title}
-              className="rounded-xl border border-border bg-surface p-6"
-              style={{ boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 0.72)' }}
+              className="rounded-xl border border-border bg-surface p-6 shadow-[--shadow-inset-hi]"
             >
               <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-background">
                 <Icon className="size-5 text-primary/70" aria-hidden="true" />

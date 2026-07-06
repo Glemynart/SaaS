@@ -58,8 +58,7 @@ export function ProblemSection() {
           {problems.map(({ icon: Icon, title, body }) => (
             <li
               key={title}
-              className="rounded-xl border border-border bg-surface p-6"
-              style={{ boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 0.72)' }}
+              className="rounded-xl border border-border bg-surface p-6 shadow-[--shadow-inset-hi]"
             >
               <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-background">
                 <Icon className="size-5 text-muted-foreground" aria-hidden="true" />
@@ -70,10 +69,7 @@ export function ProblemSection() {
           ))}
 
           {/* Transition card */}
-          <li
-            className="flex items-center justify-center rounded-xl border border-primary/20 bg-[color-mix(in_oklch,var(--primary)_5%,var(--surface))] p-6 sm:col-span-2 lg:col-span-1"
-            style={{ boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 0.72)' }}
-          >
+          <li className="flex items-center justify-center rounded-xl border border-primary/20 bg-[color-mix(in_oklch,var(--primary)_5%,var(--surface))] p-6 shadow-[--shadow-inset-hi] sm:col-span-2 lg:col-span-1">
             <p className="text-center text-lg font-semibold tracking-[-0.02em] text-foreground">
               Existe una forma más limpia de operar.
             </p>

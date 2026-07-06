@@ -61,7 +61,8 @@ export function LandingNav({ onDemoOpen }: LandingNavProps) {
             <div
               className={cn(
                 'brand-mark brand-mark-compact',
-                !scrolled && 'border-white/20 bg-white/10 text-white shadow-none',
+                !scrolled &&
+                  'border-primary-foreground/20 bg-primary-foreground/10 text-primary-foreground shadow-none',
               )}
               aria-hidden="true"
             >
@@ -70,7 +71,7 @@ export function LandingNav({ onDemoOpen }: LandingNavProps) {
             <span
               className={cn(
                 'hidden text-sm font-semibold tracking-[-0.01em] sm:block transition-colors duration-200',
-                scrolled ? 'text-foreground' : 'text-white',
+                scrolled ? 'text-foreground' : 'text-primary-foreground',
               )}
             >
               La Oficina Nítida
@@ -101,7 +102,7 @@ export function LandingNav({ onDemoOpen }: LandingNavProps) {
                 'landing-nav-link text-sm font-medium transition-colors duration-150',
                 scrolled
                   ? 'text-muted-foreground hover:text-foreground'
-                  : 'text-white/70 hover:text-white',
+                  : 'text-primary-foreground/70 hover:text-primary-foreground',
               )}
             >
               Iniciar sesión
@@ -112,7 +113,7 @@ export function LandingNav({ onDemoOpen }: LandingNavProps) {
               className={cn(
                 'transition-all duration-150',
                 !scrolled &&
-                  'bg-white text-primary hover:bg-white/92 shadow-[0_0_0_1px_rgba(255,255,255,0.2)]',
+                  'bg-primary-foreground text-primary hover:bg-primary-foreground/92 ring-1 ring-primary-foreground/20',
               )}
             >
               Solicitar demo
@@ -126,7 +127,7 @@ export function LandingNav({ onDemoOpen }: LandingNavProps) {
               onClick={onDemoOpen}
               className={cn(
                 'transition-all duration-150',
-                !scrolled && 'bg-white text-primary hover:bg-white/92',
+                !scrolled && 'bg-primary-foreground text-primary hover:bg-primary-foreground/92',
               )}
             >
               Demo
@@ -135,7 +136,9 @@ export function LandingNav({ onDemoOpen }: LandingNavProps) {
               onClick={() => setMobileOpen(true)}
               className={cn(
                 'flex h-10 w-10 items-center justify-center rounded-md transition-colors',
-                scrolled ? 'text-foreground hover:bg-muted' : 'text-white hover:bg-white/10',
+                scrolled
+                  ? 'text-foreground hover:bg-muted'
+                  : 'text-primary-foreground hover:bg-primary-foreground/10',
               )}
               aria-label="Abrir menú"
               aria-expanded={mobileOpen}
@@ -150,7 +153,7 @@ export function LandingNav({ onDemoOpen }: LandingNavProps) {
       {mobileOpen && (
         <>
           <div
-            className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm"
+            className="fixed inset-0 z-[--z-overlay] bg-[--overlay] backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
             aria-hidden="true"
           />
@@ -158,8 +161,7 @@ export function LandingNav({ onDemoOpen }: LandingNavProps) {
             role="dialog"
             aria-modal="true"
             aria-label="Menú de navegación"
-            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col bg-surface"
-            style={{ boxShadow: '-1px 0 0 var(--border)' }}
+            className="fixed inset-y-0 right-0 z-[--z-overlay] flex w-full max-w-sm flex-col border-l border-border bg-surface"
           >
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div className="flex items-center gap-2.5">
@@ -231,7 +233,9 @@ function NavAnchor({
       href={href}
       className={cn(
         'text-sm font-medium transition-colors duration-150',
-        scrolled ? 'text-muted-foreground hover:text-foreground' : 'text-white/70 hover:text-white',
+        scrolled
+          ? 'text-muted-foreground hover:text-foreground'
+          : 'text-primary-foreground/70 hover:text-primary-foreground',
       )}
     >
       {children}

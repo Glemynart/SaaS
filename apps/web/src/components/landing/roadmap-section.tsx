@@ -55,10 +55,7 @@ export function RoadmapSection({ onDemoOpen }: RoadmapSectionProps) {
 
         <div className="mt-14 grid gap-6 lg:grid-cols-2">
           {/* Done column */}
-          <div
-            className="rounded-xl border border-border bg-surface p-6"
-            style={{ boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 0.72)' }}
-          >
+          <div className="rounded-xl border border-border bg-surface p-6 shadow-[--shadow-inset-hi]">
             <h3 className="mb-5 text-sm font-semibold text-foreground">Disponible hoy</h3>
             <ul className="space-y-3" role="list">
               {done.map((item) => (
@@ -73,10 +70,7 @@ export function RoadmapSection({ onDemoOpen }: RoadmapSectionProps) {
           </div>
 
           {/* WIP column */}
-          <div
-            className="rounded-xl border border-border bg-surface p-6"
-            style={{ boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 0.72)' }}
-          >
+          <div className="rounded-xl border border-border bg-surface p-6 shadow-[--shadow-inset-hi]">
             <h3 className="mb-5 text-sm font-semibold text-foreground">En desarrollo</h3>
             <ul className="space-y-5" role="list">
               {wip.map((item) => (

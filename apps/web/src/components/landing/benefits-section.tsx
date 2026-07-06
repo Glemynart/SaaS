@@ -27,7 +27,7 @@ export function BenefitsSection() {
         <div className="mx-auto max-w-2xl text-center">
           <h2
             id="benefits-heading"
-            className="text-3xl font-semibold tracking-[-0.025em] text-white sm:text-4xl"
+            className="text-3xl font-semibold tracking-[-0.025em] text-primary-foreground sm:text-4xl"
           >
             Lo que cambia cuando su equipo opera así.
           </h2>
@@ -37,19 +37,15 @@ export function BenefitsSection() {
           {benefits.map(({ kicker, title, body }) => (
             <div
               key={kicker}
-              className="rounded-xl p-6"
-              style={{
-                border: '1px solid color-mix(in oklch, white 12%, transparent)',
-                background: 'color-mix(in oklch, white 4%, transparent)',
-              }}
+              className="rounded-xl border border-primary-foreground/12 bg-primary-foreground/4 p-6"
             >
-              <span className="text-xs font-semibold uppercase tracking-widest text-white/35">
+              <span className="text-xs font-semibold uppercase tracking-widest text-primary-foreground/35">
                 {kicker}
               </span>
-              <h3 className="mt-3 whitespace-pre-line text-2xl font-semibold leading-[1.15] tracking-[-0.022em] text-white">
+              <h3 className="mt-3 whitespace-pre-line text-2xl font-semibold leading-[1.15] tracking-[-0.022em] text-primary-foreground">
                 {title}
               </h3>
-              <p className="mt-4 text-sm leading-6 text-white/55">{body}</p>
+              <p className="mt-4 text-sm leading-6 text-primary-foreground/55">{body}</p>
             </div>
           ))}
         </div>
