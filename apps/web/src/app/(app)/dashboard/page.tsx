@@ -1,5 +1,5 @@
-import { DashboardHome } from '@/features/dashboard/components/dashboard-home';
+import { DashboardBandeja } from '@/features/dashboard/components/dashboard-bandeja';
 
 export default function DashboardPage() {
-  return <DashboardHome />;
+  return <DashboardBandeja />;
 }
