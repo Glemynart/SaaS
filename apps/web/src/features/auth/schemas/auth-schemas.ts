@@ -8,14 +8,14 @@ export const loginSchema = z.object({
 
 export const registerSchema = z.object({
   nombreTenant: z.string().min(2, 'Ingresa el nombre comercial.'),
-  nit: z.string().min(5, 'Ingresa el NIT sin digito de verificacion.'),
-  digitoVerif: z.string().min(1, 'Ingresa el digito.').max(2, 'Revisa el digito.'),
-  razonSocial: z.string().min(3, 'Ingresa la razon social.'),
-  email: z.string().email('Ingresa un correo valido.'),
+  nit: z.string().min(5, 'Ingresa el NIT sin dígito de verificación.'),
+  digitoVerif: z.string().min(1, 'Ingresa el dígito.').max(2, 'Revisa el dígito.'),
+  razonSocial: z.string().min(3, 'Ingresa la razón social.'),
+  email: z.string().email('Ingresa un correo válido.'),
   passwordPlain: z
     .string()
-    .min(8, 'La contrasena debe tener al menos 8 caracteres.')
-    .max(100, 'La contrasena no puede superar 100 caracteres.'),
+    .min(8, 'La contraseña debe tener al menos 8 caracteres.')
+    .max(100, 'La contraseña no puede superar 100 caracteres.'),
   nombre: z.string().min(2, 'Ingresa el nombre del administrador.'),
   apellido: z.string().min(2, 'Ingresa el apellido del administrador.'),
 });
