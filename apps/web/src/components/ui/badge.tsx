@@ -6,8 +6,11 @@ import { cn } from '@/lib/utils';
 // tint background at /8, tinted border at /25, text at full token opacity.
 // `neutral` is the pre-existing look (unchanged) and stays the default so
 // every current consumer renders identically without passing a variant.
+// Base intentionally matches the pre-U3 single-class default (no `gap`): every
+// existing consumer renders byte-identically. The icon gap is opted into by
+// StatusBadge, the only piece that renders an icon alongside the label.
 const badgeVariants = cva(
-  'inline-flex h-6 items-center gap-1 rounded-full border px-2.5 text-xs font-medium',
+  'inline-flex h-6 items-center rounded-full border px-2.5 text-xs font-medium',
   {
     variants: {
       variant: {

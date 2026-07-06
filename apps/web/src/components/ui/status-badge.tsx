@@ -83,7 +83,7 @@ export function StatusBadge<D extends StatusDomain>({
   const Icon = SEMANTIC_ICON[entry.semantic];
 
   return (
-    <Badge variant={entry.semantic} className={cn(className)}>
+    <Badge variant={entry.semantic} className={cn('gap-1', className)}>
       <Icon className="size-3.5" aria-hidden="true" />
       {entry.label}
     </Badge>
