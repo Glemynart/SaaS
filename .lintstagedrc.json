@@ -1,4 +1,8 @@
 {
-  "*.{js,jsx,ts,tsx,mjs}": ["prettier --write", "eslint --fix"],
+  "*.{js,jsx,ts,tsx,mjs}": [
+    "prettier --write",
+    "eslint --fix",
+    "eslint --no-config-lookup --no-warn-ignored --config eslint.design-tokens.mjs"
+  ],
   "*.{json,md,css,html}": ["prettier --write"]
 }
