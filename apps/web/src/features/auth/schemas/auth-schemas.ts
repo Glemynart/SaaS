@@ -2,8 +2,8 @@ import { z } from 'zod';
 
 export const loginSchema = z.object({
   tenantNit: z.string().min(5, 'Ingresa el NIT de la empresa.'),
-  email: z.string().email('Ingresa un correo valido.'),
-  passwordPlain: z.string().min(1, 'Ingresa tu contrasena.'),
+  email: z.string().email('Ingresa un correo válido.'),
+  passwordPlain: z.string().min(1, 'Ingresa tu contraseña.'),
 });
 
 export const registerSchema = z.object({

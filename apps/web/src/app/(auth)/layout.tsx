@@ -1,5 +1,23 @@
 import type { ReactNode } from 'react';
-import { Check, FileText, LockKeyhole, Rows3, ShieldCheck } from 'lucide-react';
+import { FileText, LockKeyhole, Rows3, ShieldCheck } from 'lucide-react';
+
+const signals = [
+  {
+    icon: ShieldCheck,
+    title: 'Cada empresa, su propia oficina',
+    detail: 'Tus datos nunca se mezclan con otros.',
+  },
+  {
+    icon: LockKeyhole,
+    title: 'Sesión protegida',
+    detail: 'Se renueva sola mientras trabajas y se cierra por seguridad al dejar de usarla.',
+  },
+  {
+    icon: Rows3,
+    title: 'Acceso por permisos',
+    detail: 'Cada persona ve solo lo que le corresponde.',
+  },
+];
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
@@ -18,12 +36,12 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
             </div>
 
             <div className="max-w-[30rem] space-y-5">
-              <p className="text-[2.65rem] font-semibold leading-[1.02] tracking-[-0.035em] text-foreground text-balance">
+              <p className="text-4xl font-semibold leading-[1.05] tracking-[-0.035em] text-foreground text-balance">
                 Cada empresa entra a una oficina separada, clara y verificable.
               </p>
               <p className="max-w-[34rem] text-sm leading-6 text-muted-foreground text-pretty">
-                La sesion empieza con el NIT, confirma el usuario y mantiene el trabajo dentro del
-                tenant correcto. Sin menus contables, sin ruido operativo.
+                Entra con el NIT de tu empresa y tu correo. Todo lo que hagas queda dentro de tu
+                oficina: tus empleados, tus contratos y tus documentos.
               </p>
             </div>
 
@@ -48,28 +66,19 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          <div className="grid gap-3 text-sm text-muted-foreground">
-            <div className="auth-signal">
-              <span className="flex items-center gap-2">
-                <ShieldCheck className="size-4" aria-hidden="true" />
-                Tenant
-              </span>
-              <strong>Separado por NIT</strong>
-            </div>
-            <div className="auth-signal">
-              <span className="flex items-center gap-2">
-                <LockKeyhole className="size-4" aria-hidden="true" />
-                Sesión
-              </span>
-              <strong>Refresh protegido</strong>
-            </div>
-            <div className="auth-signal">
-              <span className="flex items-center gap-2">
-                <Rows3 className="size-4" aria-hidden="true" />
-                Roles
-              </span>
-              <strong>ADMIN y OPERADOR</strong>
-            </div>
+          <div className="grid gap-3">
+            {signals.map(({ icon: Icon, title, detail }) => (
+              <div
+                key={title}
+                className="rounded-[10px] border border-border bg-surface p-3.5 shadow-[--shadow-inset-hi]"
+              >
+                <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
+                  {title}
+                </p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -88,21 +97,6 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex flex-1 items-center justify-center">{children}</div>
-
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              <Check className="size-3.5 text-success" aria-hidden="true" />
-              Cookie HTTP-only
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Check className="size-3.5 text-success" aria-hidden="true" />
-              Roles activos
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Check className="size-3.5 text-success" aria-hidden="true" />
-              Tenant aislado
-            </span>
-          </div>
         </section>
       </div>
     </main>
