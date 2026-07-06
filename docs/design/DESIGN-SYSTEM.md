@@ -277,9 +277,10 @@ Patrón 3 (token fantasma):
 /\b(?:ring|border|bg|text)-accent\b/
 
 Patrón 4 (arbitrarios de tipografía, sombra y z):
-/\btext-\[[^\]]+\]/   /\bshadow-\[[^\]]+\]/   /\bz-\[[^\]]+\]/
+/\btext-\[[^\]]+\]/   /\bshadow-\[(?!--|var\(--)[^\]]+\]/   /\bz-\[(?!--|var\(--)[^\]]+\]/
 ```
 
+- **Excepción de consumo de token (Patrón 4 — sombra y z):** los arbitrarios de sombra y z-index admiten referencias a variables CSS — `shadow-[--shadow-card]`, `z-[--z-shell]` y la forma `[var(--…)]` — porque así es como se consumen los tokens de infraestructura de §3.5 (que viven en `:root`, no en `@theme`, y por tanto no son utilidades nombradas). El lookahead `(?!--|var\(--)` bloquea únicamente valores **hardcodeados**. `text-[…]` **no** lleva excepción: la tipografía se consume por rol (`text-2xs`, §3.4), nunca por `text-[--…]`. Fiel al espíritu de DS-I1: prohibir hardcodeados, no el consumo de tokens.
 - Mensaje de error de cada patrón: indicar el token sustituto (mapa de §4.1).
 - **Excepciones:** se declaran inline con `eslint-disable-next-line` + comentario del motivo + ID de deuda. Sin ID, la revisión la rechaza. Los dos usos legítimos de `display` (§3.4) se reescriben como clases de rol para no necesitar excepción.
 - **Política de adopción:** la regla entra como `error` para **archivos nuevos y modificados** (lint-staged sobre el diff) y el stock de 225 violaciones existentes se quema módulo a módulo en F2 (§11). No se hace un big-bang de reescritura.
