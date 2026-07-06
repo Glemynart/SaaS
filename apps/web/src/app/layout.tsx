@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
+import { ToastProvider } from '@/components/providers/toast-provider';
 import { QueryProvider } from '@/lib/query-client';
 import './globals.css';
 
@@ -30,6 +31,7 @@ export default function RootLayout({
     <html lang="es">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <QueryProvider>{children}</QueryProvider>
+        <ToastProvider />
       </body>
     </html>
   );
