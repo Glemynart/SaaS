@@ -76,7 +76,6 @@ export function LoginForm() {
             inputMode="numeric"
             placeholder="900123456…"
             autoFocus
-            aria-describedby="tenantNit-hint"
             {...form.register('tenantNit')}
           />
         </AuthField>

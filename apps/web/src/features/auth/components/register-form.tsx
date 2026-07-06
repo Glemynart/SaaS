@@ -88,7 +88,6 @@ export function RegisterForm() {
                 inputMode="numeric"
                 placeholder="900123456…"
                 autoFocus
-                aria-describedby="nit-hint"
                 {...form.register('nit')}
               />
             </AuthField>
@@ -119,7 +118,6 @@ export function RegisterForm() {
             <Input
               id="nombreTenant"
               placeholder="Colegio Norte SAS…"
-              aria-describedby="nombreTenant-hint"
               {...form.register('nombreTenant')}
             />
           </AuthField>
@@ -133,7 +131,6 @@ export function RegisterForm() {
             <Input
               id="razonSocial"
               placeholder="Colegio Norte S.A.S…"
-              aria-describedby="razonSocial-hint"
               {...form.register('razonSocial')}
             />
           </AuthField>
@@ -181,7 +178,6 @@ export function RegisterForm() {
               autoComplete="email"
               placeholder="admin@empresa.com…"
               spellCheck={false}
-              aria-describedby="email-hint"
               {...form.register('email')}
             />
           </AuthField>
@@ -196,7 +192,6 @@ export function RegisterForm() {
               id="passwordPlain"
               autoComplete="new-password"
               placeholder="Mínimo 8 caracteres…"
-              aria-describedby="passwordPlain-hint"
               {...form.register('passwordPlain')}
             />
           </AuthField>

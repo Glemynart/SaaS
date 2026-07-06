@@ -59,6 +59,9 @@ export function mapLoginError(error: unknown): string {
   if (/usuario está inactivo/i.test(raw)) return authErrors.userDisabled;
   if (/empresa está inactiva/i.test(raw)) return authErrors.tenantSuspended;
   if (/too many requests|throttler/i.test(raw)) return authErrors.tooManyAttempts;
+  if (/problema inesperado|internal server|no se pudo completar/i.test(raw)) {
+    return authErrors.service;
+  }
 
   return authErrors.invalidCredentials;
 }
