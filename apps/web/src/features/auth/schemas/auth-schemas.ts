@@ -20,5 +20,19 @@ export const registerSchema = z.object({
   apellido: z.string().min(2, 'Ingresa el apellido del administrador.'),
 });
 
+export const recoverSchema = z.object({
+  tenantNit: z.string().min(5, 'Ingresa el NIT de la empresa.'),
+  email: z.string().email('Ingresa un correo válido.'),
+});
+
+export const resetSchema = z.object({
+  newPassword: z
+    .string()
+    .min(8, 'La contraseña debe tener al menos 8 caracteres.')
+    .max(100, 'La contraseña no puede superar 100 caracteres.'),
+});
+
 export type LoginFormValues = z.infer<typeof loginSchema>;
 export type RegisterFormValues = z.infer<typeof registerSchema>;
+export type RecoverFormValues = z.infer<typeof recoverSchema>;
+export type ResetFormValues = z.infer<typeof resetSchema>;

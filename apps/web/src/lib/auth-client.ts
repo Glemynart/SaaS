@@ -1,4 +1,12 @@
-import type { AuthUser, LoginPayload, RegisterPayload, RegisterResponse } from '@/types/auth';
+import type {
+  AuthUser,
+  ForgotPasswordPayload,
+  LoginPayload,
+  MessageResponse,
+  RegisterPayload,
+  RegisterResponse,
+  ResetPasswordPayload,
+} from '@/types/auth';
 
 type ApiEnvelope<T> = T & {
   message?: string;
@@ -38,4 +46,14 @@ export const authClient = {
       method: 'POST',
     }),
   me: () => request<{ user: AuthUser }>('/api/auth/me'),
+  forgotPassword: (payload: ForgotPasswordPayload) =>
+    request<MessageResponse>('/api/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  resetPassword: (payload: ResetPasswordPayload) =>
+    request<MessageResponse>('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 };
