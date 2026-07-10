@@ -3,11 +3,10 @@
 import { useState, type ReactNode } from 'react';
 import { type Employee } from '../services/employees-api';
 import { formatNombreCompleto } from '@saas/types';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
-import { StatusBadge, type StatusOf } from '@/components/ui/status-badge';
+import { EmployeeStatusBadge } from './employee-status-badge';
 
 interface EmployeesTableProps {
   employees: Employee[];
@@ -15,12 +14,6 @@ interface EmployeesTableProps {
   onEdit: (employee: Employee) => void;
   onDelete: (id: string) => void;
   empty?: ReactNode;
-}
-
-const EMPLOYEE_ESTADOS = ['ACTIVO', 'INACTIVO', 'SUSPENDIDO', 'RETIRADO'] as const;
-
-function isEmployeeEstado(value: string): value is StatusOf<'empleado'> {
-  return (EMPLOYEE_ESTADOS as readonly string[]).includes(value);
 }
 
 export function EmployeesTable({
@@ -72,12 +65,7 @@ export function EmployeesTable({
     {
       key: 'estado',
       header: 'Estado',
-      render: (emp) =>
-        isEmployeeEstado(emp.estado) ? (
-          <StatusBadge domain="empleado" estado={emp.estado} />
-        ) : (
-          <Badge>{emp.estado}</Badge>
-        ),
+      render: (emp) => <EmployeeStatusBadge estado={emp.estado} />,
     },
     {
       key: 'acciones',
