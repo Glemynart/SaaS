@@ -1,12 +1,17 @@
-import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+'use client';
+
+import { useEffect, type ReactNode } from 'react';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Loader2 } from 'lucide-react';
 import { employeeSchema, type EmployeeFormData } from '../schemas/employee-schemas';
 import { type Employee } from '../services/employees-api';
 import { useSedes } from '@/features/sedes/hooks/use-sedes';
+import { Button } from '@/components/ui/button';
+import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 
 interface EmployeeFormProps {
   initialData?: Employee;
@@ -14,7 +19,14 @@ interface EmployeeFormProps {
   isLoading?: boolean;
 }
 
-import { type Resolver } from 'react-hook-form';
+function FormSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <fieldset className="space-y-4">
+      <legend className="text-sm font-semibold text-foreground">{title}</legend>
+      <div className="grid gap-4 sm:grid-cols-2">{children}</div>
+    </fieldset>
+  );
+}
 
 export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormProps) {
   const { data: sedes } = useSedes({ activo: true });
@@ -93,15 +105,10 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
   }, [initialData, reset]);
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="tipoDocumento">Tipo Documento</Label>
-          <select
-            id="tipoDocumento"
-            {...register('tipoDocumento')}
-            className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-950 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+      <FormSection title="Identidad">
+        <FormField label="Tipo de documento" required error={errors.tipoDocumento?.message}>
+          <Select {...register('tipoDocumento')}>
             <option value="CC">Cédula de Ciudadanía</option>
             <option value="CE">Cédula de Extranjería</option>
             <option value="TI">Tarjeta de Identidad</option>
@@ -109,164 +116,132 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
             <option value="NIT">NIT</option>
             <option value="PEP">Permiso Especial de Permanencia</option>
             <option value="PPT">Permiso por Protección Temporal</option>
-          </select>
-          {errors.tipoDocumento && (
-            <span className="text-xs text-red-500">{errors.tipoDocumento.message}</span>
-          )}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="cedula">Número Documento</Label>
-          <Input id="cedula" {...register('cedula')} />
-          {errors.cedula && <span className="text-xs text-red-500">{errors.cedula.message}</span>}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="primerNombre">Primer nombre</Label>
-          <Input id="primerNombre" {...register('primerNombre')} />
-          {errors.primerNombre && (
-            <span className="text-xs text-red-500">{errors.primerNombre.message}</span>
-          )}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="segundoNombre">Segundo nombre</Label>
-          <Input id="segundoNombre" {...register('segundoNombre')} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="primerApellido">Primer apellido</Label>
-          <Input id="primerApellido" {...register('primerApellido')} />
-          {errors.primerApellido && (
-            <span className="text-xs text-red-500">{errors.primerApellido.message}</span>
-          )}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="segundoApellido">Segundo apellido</Label>
-          <Input id="segundoApellido" {...register('segundoApellido')} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="email">Correo Electrónico</Label>
-          <Input id="email" type="email" {...register('email')} />
-          {errors.email && <span className="text-xs text-red-500">{errors.email.message}</span>}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="telefono">Teléfono</Label>
-          <Input id="telefono" {...register('telefono')} />
-          {errors.telefono && (
-            <span className="text-xs text-red-500">{errors.telefono.message}</span>
-          )}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="cargo">Cargo</Label>
-          <Input id="cargo" {...register('cargo')} />
-          {errors.cargo && <span className="text-xs text-red-500">{errors.cargo.message}</span>}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="sedeId">Sede</Label>
-          <select
-            id="sedeId"
-            {...register('sedeId')}
-            className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-950 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          </Select>
+        </FormField>
+        <FormField label="Número de documento" required error={errors.cedula?.message}>
+          <Input inputMode="numeric" placeholder="1023456789…" {...register('cedula')} />
+        </FormField>
+        <FormField label="Primer nombre" required error={errors.primerNombre?.message}>
+          <Input autoComplete="given-name" {...register('primerNombre')} />
+        </FormField>
+        <FormField label="Segundo nombre" error={errors.segundoNombre?.message}>
+          <Input {...register('segundoNombre')} />
+        </FormField>
+        <FormField label="Primer apellido" required error={errors.primerApellido?.message}>
+          <Input autoComplete="family-name" {...register('primerApellido')} />
+        </FormField>
+        <FormField label="Segundo apellido" error={errors.segundoApellido?.message}>
+          <Input {...register('segundoApellido')} />
+        </FormField>
+      </FormSection>
+
+      <FormSection title="Contacto">
+        <FormField label="Correo electrónico" error={errors.email?.message}>
+          <Input
+            type="email"
+            autoComplete="email"
+            spellCheck={false}
+            placeholder="nombre@empresa.com…"
+            {...register('email')}
+          />
+        </FormField>
+        <FormField label="Teléfono" error={errors.telefono?.message}>
+          <Input type="tel" inputMode="tel" placeholder="300 123 4567…" {...register('telefono')} />
+        </FormField>
+      </FormSection>
+
+      <FormSection title="Información laboral">
+        <FormField label="Cargo" required error={errors.cargo?.message}>
+          <Input placeholder="Docente de primaria…" {...register('cargo')} />
+        </FormField>
+        <FormField
+          label="Sede"
+          error={errors.sedeId?.message}
+          hint="Puedes asignarla o cambiarla más adelante."
+        >
+          <Select {...register('sedeId')}>
             <option value="">Sin sede asignada</option>
             {(sedes ?? []).map((sede) => (
               <option key={sede.id} value={sede.id}>
                 {sede.nombre}
               </option>
             ))}
-          </select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="salario">Salario (Requerido)</Label>
-          <Input id="salario" type="number" step="0.01" {...register('salario')} />
-          {errors.salario && <span className="text-xs text-red-500">{errors.salario.message}</span>}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="tipoContrato">Tipo Contrato</Label>
-          <select
-            id="tipoContrato"
-            {...register('tipoContrato')}
-            className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-950 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <option value="TERMINO_FIJO">Término Fijo</option>
-            <option value="TERMINO_INDEFINIDO">Término Indefinido</option>
-            <option value="OBRA_LABOR">Obra o Labor</option>
+          </Select>
+        </FormField>
+        <FormField
+          label="Salario"
+          required
+          error={errors.salario?.message}
+          hint="Valor mensual en pesos colombianos."
+        >
+          <Input type="number" step="0.01" min="0" {...register('salario')} />
+        </FormField>
+        <FormField label="Tipo de contrato" required error={errors.tipoContrato?.message}>
+          <Select {...register('tipoContrato')}>
+            <option value="TERMINO_FIJO">Término fijo</option>
+            <option value="TERMINO_INDEFINIDO">Término indefinido</option>
+            <option value="OBRA_LABOR">Obra o labor</option>
             <option value="APRENDIZAJE">Aprendizaje</option>
-            <option value="PRESTACION_SERVICIOS">Prestación de Servicios</option>
-          </select>
-          {errors.tipoContrato && (
-            <span className="text-xs text-red-500">{errors.tipoContrato.message}</span>
-          )}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="fechaIngreso">Fecha de Ingreso</Label>
-          <Input id="fechaIngreso" type="date" {...register('fechaIngreso')} />
-          {errors.fechaIngreso && (
-            <span className="text-xs text-red-500">{errors.fechaIngreso.message}</span>
-          )}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="jornadaLaboral">Jornada Laboral</Label>
-          <select
-            id="jornadaLaboral"
-            {...register('jornadaLaboral')}
-            className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-950 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+            <option value="PRESTACION_SERVICIOS">Prestación de servicios</option>
+          </Select>
+        </FormField>
+        <FormField label="Fecha de ingreso" required error={errors.fechaIngreso?.message}>
+          <Input type="date" {...register('fechaIngreso')} />
+        </FormField>
+        <FormField label="Jornada laboral" error={errors.jornadaLaboral?.message}>
+          <Select {...register('jornadaLaboral')}>
             <option value="">Sin especificar</option>
-            <option value="COMPLETA">Jornada Completa</option>
-            <option value="MEDIA">Media Jornada</option>
-            <option value="POR_HORAS">Por Horas</option>
-          </select>
-        </div>
-        <div className="flex items-center space-x-3 pt-2">
+            <option value="COMPLETA">Jornada completa</option>
+            <option value="MEDIA">Media jornada</option>
+            <option value="POR_HORAS">Por horas</option>
+          </Select>
+        </FormField>
+        <div className="flex items-center gap-3 pt-1 sm:col-span-2">
           <input
             id="salarioIntegral"
             type="checkbox"
             {...register('salarioIntegral')}
-            className="h-4 w-4 rounded border-gray-300"
+            className="size-4 rounded border-input accent-primary"
           />
-          <Label htmlFor="salarioIntegral">Salario Integral</Label>
+          <Label htmlFor="salarioIntegral">Salario integral</Label>
         </div>
-        {initialData && (
-          <>
-            <div className="space-y-2">
-              <Label htmlFor="fechaRetiro">Fecha de Retiro</Label>
-              <Input id="fechaRetiro" type="date" {...register('fechaRetiro')} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="motivoRetiro">Motivo de Retiro</Label>
-              <select
-                id="motivoRetiro"
-                {...register('motivoRetiro')}
-                className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-950 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">Sin especificar</option>
-                <option value="RENUNCIA">Renuncia</option>
-                <option value="TERMINACION_CONTRATO">Terminación de Contrato</option>
-                <option value="MUTUO_ACUERDO">Mutuo Acuerdo</option>
-                <option value="JUSTA_CAUSA">Justa Causa</option>
-                <option value="FALLECIMIENTO">Fallecimiento</option>
-                <option value="OTRO">Otro</option>
-              </select>
-            </div>
-          </>
-        )}
-        {initialData && (
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="estado">Estado</Label>
-            <select
-              id="estado"
-              {...register('estado')}
-              className="flex h-10 w-full max-w-sm rounded-md border border-gray-200 bg-white px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-950 disabled:cursor-not-allowed disabled:opacity-50"
-            >
+      </FormSection>
+
+      {initialData && (
+        <FormSection title="Estado y retiro">
+          <FormField
+            label="Estado"
+            error={errors.estado?.message}
+            hint="Un empleado inactivo deja de aparecer en los listados activos."
+          >
+            <Select {...register('estado')}>
               <option value="ACTIVO">Activo</option>
               <option value="INACTIVO">Inactivo</option>
               <option value="SUSPENDIDO">Suspendido</option>
               <option value="RETIRADO">Retirado</option>
-            </select>
-          </div>
-        )}
-      </div>
-      <div className="flex justify-end border-t border-gray-100 pt-6">
+            </Select>
+          </FormField>
+          <FormField label="Fecha de retiro" error={errors.fechaRetiro?.message}>
+            <Input type="date" {...register('fechaRetiro')} />
+          </FormField>
+          <FormField label="Motivo de retiro" error={errors.motivoRetiro?.message}>
+            <Select {...register('motivoRetiro')}>
+              <option value="">Sin especificar</option>
+              <option value="RENUNCIA">Renuncia</option>
+              <option value="TERMINACION_CONTRATO">Terminación de contrato</option>
+              <option value="MUTUO_ACUERDO">Mutuo acuerdo</option>
+              <option value="JUSTA_CAUSA">Justa causa</option>
+              <option value="FALLECIMIENTO">Fallecimiento</option>
+              <option value="OTRO">Otro</option>
+            </Select>
+          </FormField>
+        </FormSection>
+      )}
+
+      <div className="flex justify-end border-t border-border-soft pt-6">
         <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
-          {isLoading ? 'Guardando...' : initialData ? 'Guardar Cambios' : 'Crear Empleado'}
+          {isLoading && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+          {initialData ? 'Guardar cambios' : 'Crear empleado'}
         </Button>
       </div>
     </form>
