@@ -94,7 +94,7 @@ export function LoginForm() {
 
         <div className="product-frame relative p-6 sm:p-8">
           <form
-            className="space-y-4"
+            className="space-y-5"
             onSubmit={form.handleSubmit((values) => login.mutate(values))}
           >
             <AuthField
@@ -141,7 +141,7 @@ export function LoginForm() {
               />
             </AuthField>
 
-            <Button className="w-full" type="submit" disabled={login.isPending}>
+            <Button className="w-full" size="lg" type="submit" disabled={login.isPending}>
               {login.isPending ? (
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />
               ) : null}
@@ -153,7 +153,7 @@ export function LoginForm() {
       </div>
 
       {/* Señales de confianza */}
-      <div className="mt-12 grid w-full max-w-2xl gap-6 sm:grid-cols-3 sm:gap-8">
+      <div className="mt-16 grid w-full max-w-2xl gap-6 sm:grid-cols-3 sm:gap-8">
         {signals.map(({ icon: Icon, title, detail }) => (
           <div key={title}>
             <p className="flex items-center gap-2 text-sm font-medium text-foreground">

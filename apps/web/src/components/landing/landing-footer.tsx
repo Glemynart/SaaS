@@ -25,7 +25,7 @@ export function LandingFooter() {
 
   return (
     <footer className="bg-foreground text-primary-foreground/60" aria-label="Pie de página">
-      <div className="mx-auto max-w-7xl px-5 sm:px-8">
+      <div className="mx-auto max-w-6xl px-5 sm:px-8">
         {/* Main grid — se funde con el CTA final (mismo lienzo de tinta) */}
         <div className="grid gap-10 border-y border-primary-foreground/10 py-14 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand column */}

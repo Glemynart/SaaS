@@ -54,7 +54,7 @@ export function RoadmapSection({ onDemoOpen }: RoadmapSectionProps) {
         </div>
 
         {/* Un solo folio dividido en dos páginas */}
-        <div className="relative mt-14">
+        <div className="relative mt-16">
           <div
             className="absolute inset-0 translate-x-4 translate-y-4 rounded-(--radius-panel) border border-border-soft bg-[color-mix(in_oklch,var(--surface)_60%,var(--canvas))]"
             aria-hidden="true"

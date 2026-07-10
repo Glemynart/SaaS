@@ -45,7 +45,7 @@ export function RegisterForm() {
       </p>
 
       {registerError ? (
-        <div className="mt-6 w-full max-w-2xl">
+        <div className="mt-6 w-full max-w-3xl">
           <Alert variant="destructive">
             {registerError.message}
             {registerError.nitTaken ? (
@@ -81,7 +81,7 @@ export function RegisterForm() {
           onSubmit={form.handleSubmit((values) => register.mutate(values))}
         >
           <div className="grid md:grid-cols-2 md:divide-x md:divide-border-soft">
-            <div role="group" aria-labelledby="grupo-empresa" className="space-y-4 p-6 sm:p-8">
+            <div role="group" aria-labelledby="grupo-empresa" className="space-y-5 p-6 sm:p-8">
               <h2 id="grupo-empresa" className="pb-1 text-base font-semibold text-foreground">
                 {authCopy.registerGroupCompany}
               </h2>
@@ -115,7 +115,7 @@ export function RegisterForm() {
                   />
                 </AuthField>
               </div>
-              <p id="digitoVerif-hint" className="-mt-2 text-xs text-muted-foreground">
+              <p id="digitoVerif-hint" className="-mt-3 text-xs text-muted-foreground">
                 {authCopy.registerDigitHint}
               </p>
 
@@ -149,7 +149,7 @@ export function RegisterForm() {
             <div
               role="group"
               aria-labelledby="grupo-administrador"
-              className="space-y-4 border-t border-border-soft p-6 sm:p-8 md:border-t-0"
+              className="space-y-5 border-t border-border-soft p-6 sm:p-8 md:border-t-0"
             >
               <h2 id="grupo-administrador" className="pb-1 text-base font-semibold text-foreground">
                 {authCopy.registerGroupAdmin}
@@ -216,7 +216,7 @@ export function RegisterForm() {
 
           {/* Pie del folio: la firma de fundación */}
           <div className="border-t border-border-soft p-6 sm:px-8">
-            <Button className="w-full" type="submit" disabled={register.isPending}>
+            <Button className="w-full" size="lg" type="submit" disabled={register.isPending}>
               {register.isPending ? (
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />
               ) : null}
@@ -227,7 +227,7 @@ export function RegisterForm() {
         </form>
       </div>
 
-      <p className="mt-12 text-sm text-muted-foreground">
+      <p className="mt-16 text-sm text-muted-foreground">
         {authCopy.registerToLoginPrompt}{' '}
         <Link
           className="font-medium text-foreground underline-offset-4 hover:underline"

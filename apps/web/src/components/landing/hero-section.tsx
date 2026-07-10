@@ -24,7 +24,7 @@ const capabilities = [
 export function HeroSection({ onDemoOpen }: HeroSectionProps) {
   return (
     <section className="entry-canvas border-b border-border" aria-labelledby="hero-heading">
-      <div className="mx-auto max-w-7xl px-5 pb-16 pt-28 sm:px-8 sm:pt-32 lg:pb-24 lg:pt-36">
+      <div className="mx-auto max-w-6xl px-5 pb-16 pt-28 sm:px-8 sm:pt-32 lg:pb-24 lg:pt-36">
         <div className="lg:grid lg:grid-cols-12 lg:items-center lg:gap-12">
           {/* Text column */}
           <div className="max-w-2xl lg:col-span-7">
@@ -39,7 +39,7 @@ export function HeroSection({ onDemoOpen }: HeroSectionProps) {
             {/* Headline */}
             <h1
               id="hero-heading"
-              className="mt-7 text-balance text-4xl font-semibold leading-[1.05] tracking-[-0.035em] text-foreground sm:text-5xl lg:text-6xl"
+              className="mt-6 text-balance text-4xl font-semibold leading-[1.12] tracking-[-0.035em] text-foreground sm:text-5xl sm:leading-[1.07] lg:text-6xl lg:leading-[1.03]"
             >
               Gestione su planta de personal, sus contratos y su expediente sin depender del Excel.
             </h1>
@@ -75,8 +75,8 @@ export function HeroSection({ onDemoOpen }: HeroSectionProps) {
           <div className="mt-16 lg:col-span-5 lg:mt-0" aria-hidden="true">
             <div className="relative mx-auto max-w-md lg:max-w-none">
               {/* Profundidad de folios */}
-              <div className="absolute inset-0 translate-x-6 translate-y-6 rounded-(--radius-panel) border border-border-soft bg-[color-mix(in_oklch,var(--surface)_48%,var(--canvas))]" />
-              <div className="absolute inset-0 translate-x-3 translate-y-3 rounded-(--radius-panel) border border-border-soft bg-[color-mix(in_oklch,var(--surface)_72%,var(--canvas))]" />
+              <div className="absolute inset-0 translate-x-5 translate-y-5 rounded-(--radius-panel) border border-border-soft bg-[color-mix(in_oklch,var(--surface)_48%,var(--canvas))]" />
+              <div className="absolute inset-0 translate-x-2.5 translate-y-2.5 rounded-(--radius-panel) border border-border-soft bg-[color-mix(in_oklch,var(--surface)_72%,var(--canvas))]" />
 
               <div className="product-frame relative">
                 {/* Encabezado de página del producto */}
@@ -143,7 +143,7 @@ export function HeroSection({ onDemoOpen }: HeroSectionProps) {
               key={label}
               className="flex items-center gap-2 text-2xs font-medium uppercase tracking-[0.08em] text-muted-foreground"
             >
-              <Icon className="size-3.5 flex-shrink-0 text-primary/60" aria-hidden="true" />
+              <Icon className="size-3.5 flex-shrink-0 text-primary/70" aria-hidden="true" />
               {label}
             </li>
           ))}

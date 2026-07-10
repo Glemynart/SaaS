@@ -32,7 +32,7 @@ export function LandingNav({ onDemoOpen }: LandingNavProps) {
     <>
       <header className="fixed inset-x-0 top-0 z-(--z-sticky) border-b border-border bg-surface/95 backdrop-blur-md">
         <nav
-          className="mx-auto flex h-[4.25rem] max-w-7xl items-center justify-between px-5 sm:px-8"
+          className="mx-auto flex h-[4.25rem] max-w-6xl items-center justify-between px-5 sm:px-8"
           aria-label="Navegación principal"
         >
           {/* Logo */}

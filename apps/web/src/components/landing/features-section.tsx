@@ -128,12 +128,12 @@ export function FeaturesSection({ onDemoOpen }: FeaturesSectionProps) {
           >
             Todo lo que su organización necesita para gestionar su personal, en un solo lugar.
           </h2>
-          <p className="mt-4 text-base leading-7 text-muted-foreground">
+          <p className="mt-5 text-base leading-7 text-muted-foreground">
             Disponible hoy. Sin lista de espera.
           </p>
         </div>
 
-        <div className="mt-20 space-y-28">
+        <div className="mt-16 space-y-28">
           {features.map((feature, index) => {
             const Icon = feature.icon;
             const isEven = index % 2 === 1;

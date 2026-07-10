@@ -61,7 +61,7 @@ export function ComparisonSection({ onDemoOpen }: ComparisonSectionProps) {
   return (
     <section
       id="comparacion"
-      className="bg-background py-20 sm:py-28"
+      className="bg-background py-24 sm:py-32"
       aria-labelledby="comparison-heading"
     >
       <div className="mx-auto max-w-6xl px-5 sm:px-8">
@@ -78,9 +78,9 @@ export function ComparisonSection({ onDemoOpen }: ComparisonSectionProps) {
           </p>
         </div>
 
-        <div className="relative mt-14">
+        <div className="relative mt-16">
           <div
-            className="absolute inset-0 translate-x-4 translate-y-4 rounded-[14px] border border-border-soft bg-[color-mix(in_oklch,var(--surface)_60%,var(--canvas))]"
+            className="absolute inset-0 translate-x-4 translate-y-4 rounded-(--radius-panel) border border-border-soft bg-[color-mix(in_oklch,var(--surface)_60%,var(--canvas))]"
             aria-hidden="true"
           />
           <div className="landing-comparison-wrap relative bg-surface shadow-(--shadow-inset-hi)">
@@ -136,7 +136,7 @@ export function ComparisonSection({ onDemoOpen }: ComparisonSectionProps) {
           </div>
         </div>
 
-        <p className="mt-10 text-center text-sm text-muted-foreground">
+        <p className="mt-12 text-center text-sm text-muted-foreground">
           No reemplazamos a su software contable ni a su asesor de nómina. Resolvemos lo que ellos
           no resuelven: la gestión documental y contractual del día a día.
         </p>

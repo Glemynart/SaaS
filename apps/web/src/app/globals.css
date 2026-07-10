@@ -354,7 +354,7 @@ input {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--radius-panel);
 }
 
 .landing-comparison-table {

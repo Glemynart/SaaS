@@ -78,7 +78,7 @@ export function ProblemSection() {
         </div>
 
         {/* Cierre tipográfico */}
-        <p className="mt-20 border-t border-border pt-14 text-center text-2xl font-semibold tracking-[-0.022em] text-foreground sm:text-3xl">
+        <p className="mt-20 border-t border-border-soft pt-14 text-center text-2xl font-semibold tracking-[-0.022em] text-foreground sm:text-3xl">
           Existe una forma más limpia de operar.
         </p>
       </div>

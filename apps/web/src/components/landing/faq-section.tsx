@@ -73,7 +73,7 @@ export function FaqSection() {
           </div>
         </div>
 
-        <div className="mt-10 lg:col-span-8 lg:mt-0" role="list" aria-label="Preguntas frecuentes">
+        <div className="mt-12 lg:col-span-8 lg:mt-0" role="list" aria-label="Preguntas frecuentes">
           {faqs.map((faq, index) => {
             const isOpen = openIndex === index;
             const itemId = `faq-item-${index}`;
@@ -109,7 +109,7 @@ export function FaqSection() {
             <p className="text-sm text-muted-foreground">¿Tiene otra pregunta?</p>
             <a
               href="mailto:hola@laoficinanitida.com"
-              className="inline-flex h-10 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              className="inline-flex h-10 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-foreground shadow-(--shadow-inset-hi) transition-colors hover:bg-muted"
             >
               Hablar con el equipo →
             </a>
