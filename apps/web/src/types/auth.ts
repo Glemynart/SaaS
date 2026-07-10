@@ -16,6 +16,20 @@ export type LoginPayload = {
   passwordPlain: string;
 };
 
+export type ForgotPasswordPayload = {
+  tenantNit: string;
+  email: string;
+};
+
+export type ResetPasswordPayload = {
+  token: string;
+  newPassword: string;
+};
+
+export type MessageResponse = {
+  message: string;
+};
+
 export type RegisterPayload = {
   nombreTenant: string;
   nit: string;

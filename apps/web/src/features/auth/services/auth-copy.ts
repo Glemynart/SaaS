@@ -10,6 +10,24 @@ export const authCopy = {
   loginToRegisterPrompt: '¿Aún no tienes empresa?',
   loginToRegisterAction: 'Crear cuenta',
   loginRegisteredNotice: 'Tu empresa quedó registrada. Inicia sesión para entrar a tu oficina.',
+  loginResetNotice: 'Tu contraseña se actualizó. Inicia sesión con la nueva contraseña.',
+  loginForgotPassword: '¿Olvidaste tu contraseña?',
+
+  recoverTitle: 'Recupera tu acceso',
+  recoverDescription: 'Te enviaremos un enlace a tu correo para definir una contraseña nueva.',
+  recoverAction: 'Enviar enlace de recuperación',
+  recoverBackToLogin: 'Volver a iniciar sesión',
+  recoverConfirmTitle: 'Revisa tu correo',
+  recoverRetry: '¿Datos incorrectos? Intentar de nuevo',
+
+  resetTitle: 'Define tu nueva contraseña',
+  resetNotice: 'Por seguridad, se cerrarán las sesiones abiertas en otros dispositivos.',
+  resetAction: 'Guardar y continuar',
+  resetBackToLogin: 'Volver a iniciar sesión',
+
+  linkExpiredTitle: 'Este enlace ya no es válido',
+  linkExpiredBody: 'Los enlaces vencen después de 1 hora o al usarse una vez.',
+  linkExpiredAction: 'Solicitar un enlace nuevo',
 
   registerTitle: 'Registra tu empresa',
   registerDescription: 'Crea el espacio de tu empresa y la cuenta del administrador.',
@@ -81,4 +99,38 @@ export function mapRegisterError(error: unknown): { message: string; nitTaken: b
     return { message: authErrors.tooManyAttempts, nitTaken: false };
   }
   return { message: authErrors.service, nitTaken: false };
+}
+
+/**
+ * Confirmación genérica de recuperación (AX-D7). Idéntica exista o no la cuenta;
+ * nunca afirma que el correo salió — solo "si los datos corresponden" (§9.3).
+ */
+export function recoverConfirmationBody(email: string): string {
+  return `Si los datos corresponden a una cuenta activa, enviamos un enlace a ${email}. El enlace vence en 1 hora y solo puede usarse una vez. Si no lo encuentras, revisa la carpeta de spam.`;
+}
+
+/** Mapeo de errores de recuperación (§7.0/§7.7): sin estado "cuenta no encontrada". */
+export function mapForgotError(error: unknown): string {
+  if (error instanceof TypeError) return authErrors.network;
+  const raw = error instanceof Error ? error.message : '';
+  if (/too many requests|throttler/i.test(raw)) return authErrors.tooManyAttempts;
+  return authErrors.service;
+}
+
+/**
+ * Mapeo de errores de restablecimiento (§7.3/§7.7). `invalidToken` conmuta a la
+ * pantalla terminal de enlace vencido; el resto son avisos inline del formulario.
+ */
+export function mapResetError(error: unknown): { message: string; invalidToken: boolean } {
+  if (error instanceof TypeError) {
+    return { message: authErrors.network, invalidToken: false };
+  }
+  const raw = error instanceof Error ? error.message : '';
+  if (/too many requests|throttler/i.test(raw)) {
+    return { message: authErrors.tooManyAttempts, invalidToken: false };
+  }
+  if (/inválid|invalid|expirad|token/i.test(raw)) {
+    return { message: '', invalidToken: true };
+  }
+  return { message: authErrors.service, invalidToken: false };
 }

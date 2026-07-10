@@ -70,10 +70,14 @@ export function LoginForm() {
         {authCopy.loginDescription}
       </p>
 
-      {/* Zona de avisos (una sola; error > éxito) */}
+      {/* Zona de avisos (una sola; error > éxitos) */}
       {login.error ? (
         <div className="mt-6 w-full max-w-md">
           <Alert variant="destructive">{mapLoginError(login.error)}</Alert>
+        </div>
+      ) : searchParams.get('reset') ? (
+        <div className="mt-6 w-full max-w-md">
+          <Alert variant="success">{authCopy.loginResetNotice}</Alert>
         </div>
       ) : searchParams.get('registered') ? (
         <div className="mt-6 w-full max-w-md">
@@ -140,6 +144,17 @@ export function LoginForm() {
                 }}
               />
             </AuthField>
+
+            {/* Recuperación (AX-D4): junto al campo de contraseña, en el orden de
+                teclado entre el campo y el envío (§11). */}
+            <div className="flex justify-end">
+              <Link
+                href="/recuperar"
+                className="rounded-md text-xs font-medium text-muted-foreground underline-offset-4 transition-colors duration-150 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                {authCopy.loginForgotPassword}
+              </Link>
+            </div>
 
             <Button className="w-full" size="lg" type="submit" disabled={login.isPending}>
               {login.isPending ? (
