@@ -101,49 +101,6 @@ input {
   color: var(--foreground);
 }
 
-.auth-brand-panel {
-  position: relative;
-  overflow: hidden;
-  background:
-    linear-gradient(180deg, color-mix(in oklch, var(--canvas) 88%, white), var(--canvas)),
-    var(--canvas);
-}
-
-.auth-brand-panel::before {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  content: '';
-  background-image:
-    linear-gradient(
-      to right,
-      color-mix(in oklch, var(--border) 42%, transparent) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      to bottom,
-      color-mix(in oklch, var(--border) 42%, transparent) 1px,
-      transparent 1px
-    );
-  background-size: 44px 44px;
-  mask-image: linear-gradient(180deg, black 0%, transparent 74%);
-  opacity: 0.34;
-}
-
-.auth-brand-panel > * {
-  position: relative;
-}
-
-.auth-form-stage {
-  background:
-    radial-gradient(
-      circle at 50% 0%,
-      color-mix(in oklch, var(--canvas) 65%, white),
-      transparent 34rem
-    ),
-    var(--background);
-}
-
 .brand-mark {
   position: relative;
   display: grid;
@@ -186,162 +143,6 @@ input {
   width: 2.25rem;
   height: 2.25rem;
   border-radius: 0.5rem;
-}
-
-.auth-panel {
-  width: 100%;
-  max-width: 432px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background:
-    linear-gradient(180deg, color-mix(in oklch, var(--surface) 98%, var(--canvas)), var(--surface)),
-    var(--surface);
-  padding: 30px;
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.78),
-    0 1px 2px rgb(15 23 42 / 0.04);
-}
-
-.auth-panel-wide {
-  max-width: 584px;
-}
-
-.auth-panel-brandline {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 1.25rem;
-  color: var(--foreground);
-  font-size: 0.8125rem;
-  font-weight: 600;
-}
-
-.auth-panel-mark {
-  display: grid;
-  width: 1.45rem;
-  height: 1.45rem;
-  place-items: center;
-  border: 1px solid var(--border);
-  border-radius: 0.4rem;
-  background: var(--background);
-  font-size: 0.75rem;
-  line-height: 1;
-}
-
-.auth-kicker {
-  display: inline-flex;
-  width: fit-content;
-  align-items: center;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--background);
-  padding: 0.25rem 0.625rem;
-  color: var(--muted-foreground);
-  font-size: 0.75rem;
-  font-weight: 500;
-  line-height: 1.25rem;
-}
-
-.auth-signal {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: color-mix(in oklch, var(--surface) 76%, var(--canvas));
-  padding: 12px 14px;
-}
-
-.auth-signal strong {
-  color: var(--foreground);
-  font-size: 0.8125rem;
-  font-weight: 600;
-}
-
-.folio-stack {
-  position: relative;
-  height: 15rem;
-  max-width: 25rem;
-  margin-top: 1.5rem;
-}
-
-.folio {
-  position: absolute;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--surface);
-}
-
-.folio-main {
-  inset: 0 1.5rem 1.1rem 0;
-  z-index: 3;
-  padding: 1.15rem;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.8);
-}
-
-.folio-back {
-  inset: 1.2rem 0 0 1.6rem;
-  z-index: 2;
-  background: color-mix(in oklch, var(--surface) 80%, var(--canvas));
-}
-
-.folio-shadow {
-  inset: 2.25rem 0.75rem -0.55rem 2.7rem;
-  z-index: 1;
-  background: color-mix(in oklch, var(--surface) 50%, var(--canvas));
-}
-
-.folio-topline {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.folio-topline span {
-  display: block;
-  height: 0.55rem;
-  border-radius: 999px;
-  background: var(--muted);
-}
-
-.folio-topline span:first-child {
-  width: 6.5rem;
-}
-
-.folio-topline span:last-child {
-  width: 3rem;
-}
-
-.folio-row {
-  height: 0.7rem;
-  margin-top: 1.05rem;
-  border-radius: 999px;
-  background: color-mix(in oklch, var(--muted) 86%, var(--surface));
-}
-
-.folio-row.strong {
-  width: 72%;
-  height: 0.85rem;
-  background: color-mix(in oklch, var(--primary) 16%, var(--muted));
-}
-
-.folio-row.short {
-  width: 48%;
-}
-
-.folio-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.55rem;
-  margin-top: 1.25rem;
-}
-
-.folio-grid span {
-  height: 3.35rem;
-  border: 1px solid var(--border-soft);
-  border-radius: 10px;
-  background: var(--background);
 }
 
 /* Recetas del dashboard v1 (dashboard-hero, session-*, info-panel, module-*)
@@ -447,11 +248,6 @@ input {
 }
 
 @media (max-width: 520px) {
-  .auth-panel {
-    border-radius: 12px;
-    padding: 22px;
-  }
-
   .module-board-header,
   .module-row,
   .profile-board-header,
@@ -488,85 +284,54 @@ input {
   }
 }
 
-/* ── Landing page ─────────────────────────────────── */
+/* ── Experiencia pública «Papel sobre lienzo» ─────────
+   Dos recetas consolidadas (migración D-10: sustituyen a
+   landing-hero, landing-dark, landing-contract-* y
+   landing-feature-visual/dot, eliminadas). */
 
-.landing-hero {
+.entry-canvas {
   position: relative;
   overflow: hidden;
-  background: var(--primary);
+  background:
+    radial-gradient(
+      circle at 50% -12%,
+      color-mix(in oklch, var(--canvas) 55%, white),
+      transparent 42rem
+    ),
+    var(--canvas);
 }
 
-.landing-hero::before {
+.entry-canvas::before {
   position: absolute;
   inset: 0;
   pointer-events: none;
   content: '';
   background-image:
-    linear-gradient(to right, color-mix(in oklch, white 9%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in oklch, white 9%, transparent) 1px, transparent 1px);
-  background-size: 44px 44px;
-  mask-image: linear-gradient(180deg, black 0%, transparent 82%);
-}
-
-.landing-hero > * {
-  position: relative;
-}
-
-.landing-dark {
-  position: relative;
-  overflow: hidden;
-  background: var(--foreground);
-}
-
-.landing-dark::before {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  content: '';
-  background-image:
-    linear-gradient(to right, color-mix(in oklch, white 4%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in oklch, white 4%, transparent) 1px, transparent 1px);
+    linear-gradient(
+      to right,
+      color-mix(in oklch, var(--border) 42%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in oklch, var(--border) 42%, transparent) 1px,
+      transparent 1px
+    );
   background-size: 44px 44px;
   mask-image: linear-gradient(180deg, black 0%, transparent 78%);
+  opacity: 0.4;
 }
 
-.landing-dark > * {
+.entry-canvas > * {
   position: relative;
 }
 
-.landing-contract-card {
-  border: 1px solid color-mix(in oklch, white 14%, transparent);
-  border-radius: 14px;
-  background: color-mix(in oklch, var(--primary) 72%, black);
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklch, white 12%, transparent),
-    0 32px 64px color-mix(in oklch, black 40%, transparent),
-    0 0 0 1px color-mix(in oklch, white 6%, transparent);
-}
-
-.landing-contract-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  border-top: 1px solid color-mix(in oklch, white 8%, transparent);
-  padding: 0.625rem 1rem;
-  font-size: 0.8125rem;
-  color: color-mix(in oklch, white 72%, transparent);
-}
-
-.landing-contract-row:first-child {
-  border-top: none;
-}
-
-.landing-contract-check {
-  display: grid;
-  width: 1.25rem;
-  height: 1.25rem;
-  flex-shrink: 0;
-  place-items: center;
-  border-radius: 50%;
-  background: color-mix(in oklch, var(--success) 22%, transparent);
-  color: var(--success);
+.product-frame {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-inset-hi), var(--shadow-card);
 }
 
 .landing-step-number {
@@ -585,55 +350,11 @@ input {
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.72);
 }
 
-.landing-feature-visual {
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background:
-    radial-gradient(
-      circle at 0% 0%,
-      color-mix(in oklch, var(--primary) 5%, transparent),
-      transparent 18rem
-    ),
-    var(--surface);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.72);
-  overflow: hidden;
-}
-
-.landing-feature-row {
-  display: flex;
-  align-items: center;
-  gap: 0.875rem;
-  border-top: 1px solid var(--border-soft);
-  padding: 0.75rem 1rem;
-}
-
-.landing-feature-row:first-child {
-  border-top: none;
-  padding-top: 1rem;
-}
-
-.landing-feature-row:last-child {
-  padding-bottom: 1rem;
-}
-
-.landing-feature-dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--primary);
-  opacity: 0.5;
-}
-
-.landing-feature-dot.active {
-  opacity: 1;
-}
-
 .landing-comparison-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--radius-panel);
 }
 
 .landing-comparison-table {
@@ -776,21 +497,6 @@ input {
   background: color-mix(in oklch, var(--primary) 8%, transparent);
   color: color-mix(in oklch, var(--primary) 72%, var(--muted-foreground));
   border: 1px dashed var(--border);
-}
-
-.landing-nav-link {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--muted-foreground);
-  transition: color 150ms ease-out;
-}
-
-.landing-nav-link:hover {
-  color: var(--foreground);
-}
-
-.landing-nav-link.active {
-  color: var(--foreground);
 }
 
 /* Tiptap editor styles */

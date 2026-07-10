@@ -20,36 +20,28 @@ export function BenefitsSection() {
   return (
     <section
       id="beneficios"
-      className="landing-dark py-20 sm:py-28"
+      className="bg-background py-24 sm:py-32"
       aria-labelledby="benefits-heading"
     >
-      <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        <div className="mx-auto max-w-2xl text-center">
-          <h2
-            id="benefits-heading"
-            className="text-3xl font-semibold tracking-[-0.025em] text-white sm:text-4xl"
-          >
-            Lo que cambia cuando su equipo opera así.
-          </h2>
-        </div>
+      <div className="mx-auto max-w-6xl px-5 sm:px-8">
+        <h2
+          id="benefits-heading"
+          className="max-w-2xl text-3xl font-semibold tracking-[-0.025em] text-foreground sm:text-4xl"
+        >
+          Lo que cambia cuando su equipo opera así.
+        </h2>
 
-        <div className="mt-14 grid gap-6 sm:grid-cols-3">
+        {/* Tríptico tipográfico, sin cajas */}
+        <div className="mt-16 grid gap-12 md:grid-cols-3 md:gap-0 md:divide-x md:divide-border-soft">
           {benefits.map(({ kicker, title, body }) => (
-            <div
-              key={kicker}
-              className="rounded-xl p-6"
-              style={{
-                border: '1px solid color-mix(in oklch, white 12%, transparent)',
-                background: 'color-mix(in oklch, white 4%, transparent)',
-              }}
-            >
-              <span className="text-xs font-semibold uppercase tracking-widest text-white/35">
+            <div key={kicker} className="md:px-10 md:first:pl-0 md:last:pr-0">
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                 {kicker}
-              </span>
-              <h3 className="mt-3 whitespace-pre-line text-2xl font-semibold leading-[1.15] tracking-[-0.022em] text-white">
+              </p>
+              <h3 className="mt-4 whitespace-pre-line text-2xl font-semibold leading-[1.15] tracking-[-0.022em] text-foreground sm:text-3xl">
                 {title}
               </h3>
-              <p className="mt-4 text-sm leading-6 text-white/55">{body}</p>
+              <p className="mt-5 text-sm leading-6 text-muted-foreground">{body}</p>
             </div>
           ))}
         </div>

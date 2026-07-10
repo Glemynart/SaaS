@@ -47,18 +47,33 @@ export function FaqSection() {
   }
 
   return (
-    <section id="faq" className="bg-canvas py-20 sm:py-28" aria-labelledby="faq-heading">
-      <div className="mx-auto max-w-3xl px-5 sm:px-8">
-        <div className="text-center">
-          <h2
-            id="faq-heading"
-            className="text-3xl font-semibold tracking-[-0.025em] text-foreground sm:text-4xl"
-          >
-            Preguntas frecuentes
-          </h2>
+    <section
+      id="faq"
+      className="border-t border-border bg-canvas py-24 sm:py-32"
+      aria-labelledby="faq-heading"
+    >
+      <div className="mx-auto max-w-6xl px-5 sm:px-8 lg:grid lg:grid-cols-12 lg:gap-16">
+        <div className="lg:col-span-4">
+          <div className="lg:sticky lg:top-28">
+            <h2
+              id="faq-heading"
+              className="text-3xl font-semibold tracking-[-0.025em] text-foreground sm:text-4xl"
+            >
+              Preguntas frecuentes
+            </h2>
+            <div className="mt-8 hidden flex-col items-start gap-3 lg:flex">
+              <p className="text-sm text-muted-foreground">¿Tiene otra pregunta?</p>
+              <a
+                href="mailto:hola@laoficinanitida.com"
+                className="inline-flex h-10 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-foreground shadow-(--shadow-inset-hi) transition-colors hover:bg-muted"
+              >
+                Hablar con el equipo →
+              </a>
+            </div>
+          </div>
         </div>
 
-        <div className="mt-12" role="list" aria-label="Preguntas frecuentes">
+        <div className="mt-12 lg:col-span-8 lg:mt-0" role="list" aria-label="Preguntas frecuentes">
           {faqs.map((faq, index) => {
             const isOpen = openIndex === index;
             const itemId = `faq-item-${index}`;
@@ -90,16 +105,15 @@ export function FaqSection() {
               </div>
             );
           })}
-        </div>
-
-        <div className="mt-10 flex flex-col items-center gap-3 text-center">
-          <p className="text-sm text-muted-foreground">¿Tiene otra pregunta?</p>
-          <a
-            href="mailto:hola@laoficinanitida.com"
-            className="inline-flex h-10 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-          >
-            Hablar con el equipo →
-          </a>
+          <div className="mt-10 flex flex-col items-center gap-3 text-center lg:hidden">
+            <p className="text-sm text-muted-foreground">¿Tiene otra pregunta?</p>
+            <a
+              href="mailto:hola@laoficinanitida.com"
+              className="inline-flex h-10 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-foreground shadow-(--shadow-inset-hi) transition-colors hover:bg-muted"
+            >
+              Hablar con el equipo →
+            </a>
+          </div>
         </div>
       </div>
     </section>

@@ -24,24 +24,19 @@ export function LandingFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="bg-foreground text-white/50" aria-label="Pie de página">
-      <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        {/* Main grid */}
-        <div className="grid gap-10 border-b border-white/10 py-14 sm:grid-cols-2 lg:grid-cols-4">
+    <footer className="bg-foreground text-primary-foreground/60" aria-label="Pie de página">
+      <div className="mx-auto max-w-6xl px-5 sm:px-8">
+        {/* Main grid — se funde con el CTA final (mismo lienzo de tinta) */}
+        <div className="grid gap-10 border-y border-primary-foreground/10 py-14 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand column */}
           <div className="sm:col-span-2 lg:col-span-1">
             <div className="flex items-center gap-3">
-              <div
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-sm font-semibold text-white"
-                style={{
-                  border: '1px solid rgba(255,255,255,0.14)',
-                  background: 'rgba(255,255,255,0.08)',
-                }}
-                aria-hidden="true"
-              >
-                1
+              <div className="brand-mark brand-mark-compact" aria-hidden="true">
+                <span>1</span>
               </div>
-              <span className="text-sm font-semibold text-white">La Oficina Nítida</span>
+              <span className="text-sm font-semibold text-primary-foreground">
+                La Oficina Nítida
+              </span>
             </div>
             <p className="mt-4 text-sm leading-6">
               Gestión laboral para operadores educativos colombianos.
@@ -51,13 +46,16 @@ export function LandingFooter() {
 
           {/* Product links */}
           <div>
-            <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-white/30">
+            <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-primary-foreground/50">
               Producto
             </h3>
             <ul className="space-y-2.5" role="list">
               {productLinks.map(({ label, href }) => (
                 <li key={label}>
-                  <a href={href} className="text-sm transition-colors hover:text-white/80">
+                  <a
+                    href={href}
+                    className="text-sm transition-colors hover:text-primary-foreground/80"
+                  >
                     {label}
                   </a>
                 </li>
@@ -67,13 +65,16 @@ export function LandingFooter() {
 
           {/* Company links */}
           <div>
-            <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-white/30">
+            <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-primary-foreground/50">
               Empresa
             </h3>
             <ul className="space-y-2.5" role="list">
               {companyLinks.map(({ label, href }) => (
                 <li key={label}>
-                  <a href={href} className="text-sm transition-colors hover:text-white/80">
+                  <a
+                    href={href}
+                    className="text-sm transition-colors hover:text-primary-foreground/80"
+                  >
                     {label}
                   </a>
                 </li>
@@ -83,13 +84,16 @@ export function LandingFooter() {
 
           {/* Legal links */}
           <div>
-            <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-white/30">
+            <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-primary-foreground/50">
               Legal
             </h3>
             <ul className="space-y-2.5" role="list">
               {legalLinks.map(({ label, href }) => (
                 <li key={label}>
-                  <a href={href} className="text-sm transition-colors hover:text-white/80">
+                  <a
+                    href={href}
+                    className="text-sm transition-colors hover:text-primary-foreground/80"
+                  >
                     {label}
                   </a>
                 </li>
@@ -101,7 +105,10 @@ export function LandingFooter() {
         {/* Bottom band */}
         <div className="flex flex-wrap items-center justify-between gap-4 py-6">
           <p className="text-xs">© {year} La Oficina Nítida. Todos los derechos reservados.</p>
-          <Link href="/login" className="text-xs transition-colors hover:text-white/80">
+          <Link
+            href="/login"
+            className="text-xs transition-colors hover:text-primary-foreground/80"
+          >
             Iniciar sesión →
           </Link>
         </div>

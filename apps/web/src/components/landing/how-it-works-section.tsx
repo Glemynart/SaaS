@@ -27,56 +27,72 @@ const steps = [
 
 export function HowItWorksSection({ onDemoOpen }: HowItWorksSectionProps) {
   return (
-    <section id="como-funciona" className="bg-canvas py-20 sm:py-28" aria-labelledby="how-heading">
-      <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        <div className="mx-auto max-w-2xl text-center">
-          <h2
-            id="how-heading"
-            className="text-3xl font-semibold tracking-[-0.025em] text-foreground sm:text-4xl"
+    <section
+      id="como-funciona"
+      className="bg-background py-24 sm:py-32"
+      aria-labelledby="how-heading"
+    >
+      <div className="mx-auto max-w-6xl px-5 sm:px-8">
+        <div className="lg:grid lg:grid-cols-12 lg:gap-16">
+          {/* Encabezado editorial */}
+          <div className="lg:col-span-5">
+            <div className="lg:sticky lg:top-28">
+              <h2
+                id="how-heading"
+                className="text-3xl font-semibold tracking-[-0.025em] text-foreground sm:text-4xl"
+              >
+                Cómo funciona
+              </h2>
+              <p className="mt-5 text-base leading-7 text-muted-foreground">
+                Tres pasos. Sin consultoría de implementación. Sin capacitación de días.
+              </p>
+              <div className="mt-8 hidden lg:block">
+                <Button size="lg" onClick={onDemoOpen} className="h-11 px-6">
+                  Solicitar demo gratuita
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Secuencia vertical */}
+          <ol
+            className="mt-12 lg:col-span-7 lg:mt-0"
+            role="list"
+            aria-label="Pasos de implementación"
           >
-            Cómo funciona
-          </h2>
-          <p className="mt-4 text-base leading-7 text-muted-foreground">
-            Tres pasos. Sin consultoría de implementación. Sin capacitación de días.
-          </p>
-        </div>
+            {steps.map((step, index) => (
+              <li key={step.number} className="relative flex gap-6 pb-12 last:pb-0">
+                {/* Línea conectora vertical */}
+                {index < steps.length - 1 && (
+                  <div
+                    className="absolute bottom-0 left-[1.125rem] top-12 w-px bg-border"
+                    aria-hidden="true"
+                  />
+                )}
 
-        <ol
-          className="mt-14 grid gap-8 sm:grid-cols-3"
-          role="list"
-          aria-label="Pasos de implementación"
-        >
-          {steps.map((step, index) => (
-            <li key={step.number} className="relative flex flex-col">
-              {/* Connector line (desktop only) */}
-              {index < steps.length - 1 && (
-                <div
-                  className="absolute left-[calc(2.25rem/2)] top-[1.125rem] hidden h-px w-[calc(100%+2rem)] bg-border sm:block"
-                  style={{ left: 'calc(1.125rem + 1px)', width: 'calc(100% - 1.125rem + 2rem)' }}
-                  aria-hidden="true"
-                />
-              )}
-
-              <div className="flex flex-col gap-4">
-                <div className="relative z-10 w-fit">
+                <div className="relative z-10 flex-shrink-0">
                   <div className="landing-step-number" aria-hidden="true">
                     {step.number}
                   </div>
                 </div>
 
-                <div>
-                  <h3 className="text-base font-semibold text-foreground">{step.title}</h3>
-                  <p className="mt-2.5 text-sm leading-6 text-muted-foreground">{step.body}</p>
-                  <div className="mt-4 inline-flex items-center rounded-full border border-border bg-surface px-3 py-1">
-                    <span className="text-xs font-medium text-muted-foreground">{step.time}</span>
-                  </div>
+                <div className="pt-1.5">
+                  <h3 className="text-lg font-semibold tracking-[-0.018em] text-foreground">
+                    {step.title}
+                  </h3>
+                  <p className="mt-2.5 max-w-xl text-sm leading-6 text-muted-foreground">
+                    {step.body}
+                  </p>
+                  <p className="mt-3 text-xs font-medium tabular-nums text-muted-foreground">
+                    {step.time}
+                  </p>
                 </div>
-              </div>
-            </li>
-          ))}
-        </ol>
+              </li>
+            ))}
+          </ol>
+        </div>
 
-        <div className="mt-14 flex justify-center">
+        <div className="mt-14 flex justify-center lg:hidden">
           <Button size="lg" onClick={onDemoOpen} className="h-11 px-6">
             Solicitar demo gratuita
           </Button>

@@ -3,11 +3,10 @@
 import * as React from 'react';
 import { LandingNav } from './landing-nav';
 import { HeroSection } from './hero-section';
-import { SocialProofBar } from './social-proof-bar';
 import { ProblemSection } from './problem-section';
 import { FeaturesSection } from './features-section';
-import { ColombiaSection } from './colombia-section';
 import { HowItWorksSection } from './how-it-works-section';
+import { ColombiaSection } from './colombia-section';
 import { ComparisonSection } from './comparison-section';
 import { BenefitsSection } from './benefits-section';
 import { RoadmapSection } from './roadmap-section';
@@ -28,11 +27,10 @@ export function LandingClient() {
       <LandingNav onDemoOpen={openDemo} />
       <main id="main-content">
         <HeroSection onDemoOpen={openDemo} />
-        <SocialProofBar />
         <ProblemSection />
         <FeaturesSection onDemoOpen={openDemo} />
-        <ColombiaSection />
         <HowItWorksSection onDemoOpen={openDemo} />
+        <ColombiaSection />
         <ComparisonSection onDemoOpen={openDemo} />
         <BenefitsSection />
         <RoadmapSection onDemoOpen={openDemo} />
