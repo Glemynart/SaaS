@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: FASE 7C — Password Reset Frontend (F3) completado (2026-07-10)
+## Última actualización: Payroll P0 completado — factores de provisión externalizados a ParametroLegalNomina (2026-07-11)
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -1609,18 +1609,32 @@ Decisiones clave:
 
 Estado:
 
-⏳ Pendiente
+🟡 En progreso — **P0 COMPLETADO**; siguiente iniciativa: **P1 — ProcesoNómina**.
 
 Roadmap aprobado:
 
 ```
-P0 — Payroll Catalogs       (parámetros legales, conceptos, escalas, calendarios)
-P1 — Payroll Core            (empleados, contratos, novedades, liquidación, estados, congelamiento)
+P0 — Payroll Catalogs       ✅ COMPLETADO (parámetros legales, conceptos, escalas, calendarios)
+P1 — Payroll Core            ⏭️ SIGUIENTE (ProcesoNómina: estados, liquidación, snapshot, fail-secure)
 P2 — Accounting Integration  (mapper concepto → cuenta, causación al aprobar)
 P3 — Treasury Integration    (resultado de dispersión, hitos de pago)
 P4 — PILA                    (Planilla Integrada de Liquidación de Aportes)
 P5 — Nómina Electrónica      (Documento soporte DIAN)
 ```
+
+### P0 — Payroll Catalogs
+
+Estado:
+
+✅ COMPLETADO (2026-07-11)
+
+Cierre del remanente de P0: **externalización de los factores de provisión** (prima, cesantías, intereses, vacaciones) desde constantes hardcoded del `PayrollCalculator` hacia `ParametroLegalNomina`, versionados por vigencia (ADR-002 §9, D3). Rama `feat/payroll-p0-legal-parameters` (mergeada — PR #56, merge commit `9b75bd2`).
+
+- Migración aditiva `add → backfill → NOT NULL` (`20260711000000_payroll_p0_provision_factors`); backfill con los valores legales previos → comportamiento del motor idéntico. Sin `@default` (parámetros legales versionados, no constantes del esquema).
+- Cero constantes de provisión en el motor; resolución por la ruta existente `resolveLegalParams → toSnapshot → LegalParamsSnapshot`.
+- Verificación acotada a Payroll: `tsc --noEmit` 0 errores; `jest src/payroll` 175/175.
+
+**Deuda documentada para P1 (no corregida en P0):** el comentario de `ParametroLegalNomina.parametroLegalId` (schema) atribuye la reproducibilidad al FK; ADR-002 rev2 §8/D15 establece que el FK es solo trazabilidad y la reproducibilidad real la da la copia inmutable de P1 (snapshot §8).
 
 Ramas antiguas de Payroll (pre-ADR-002):
 
