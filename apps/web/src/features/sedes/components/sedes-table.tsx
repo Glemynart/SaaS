@@ -1,121 +1,128 @@
+'use client';
+
+import { useState, type ReactNode } from 'react';
 import { type Sede } from '../services/sedes-api';
 import { useUpdateSede } from '../hooks/use-sedes';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { toast } from '@/components/ui/toast';
 
 interface SedesTableProps {
   sedes: Sede[];
   isLoading: boolean;
   onEdit: (sede: Sede) => void;
+  empty?: ReactNode;
 }
 
-export function SedesTable({ sedes, isLoading, onEdit }: SedesTableProps) {
+export function SedesTable({ sedes, isLoading, onEdit, empty }: SedesTableProps) {
   const updateMutation = useUpdateSede();
+  const [pendingDeactivate, setPendingDeactivate] = useState<Sede | null>(null);
 
-  const handleToggle = (sede: Sede) => {
-    if (sede.activo) {
-      if (confirm('¿Desactivar esta sede?')) {
-        updateMutation.mutate({ id: sede.id, data: { activo: false } });
-      }
-    } else {
-      updateMutation.mutate({ id: sede.id, data: { activo: true } });
-    }
+  const setActivo = (sede: Sede, activo: boolean) => {
+    updateMutation.mutate(
+      { id: sede.id, data: { activo } },
+      {
+        onSuccess: () => toast.success(activo ? 'Sede activada.' : 'Sede desactivada.'),
+        onError: () => toast.error('No se pudo actualizar la sede. Inténtalo de nuevo.'),
+      },
+    );
   };
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        {[...Array(5)].map((_, i) => (
-          <Skeleton key={i} className="h-16 w-full" />
-        ))}
-      </div>
-    );
-  }
-
-  if (sedes.length === 0) {
-    return (
-      <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/50">
-        <p className="text-sm text-gray-500">No se encontraron sedes.</p>
-      </div>
-    );
-  }
+  const columns: DataTableColumn<Sede>[] = [
+    {
+      key: 'nombre',
+      header: 'Nombre',
+      render: (sede) => <p className="font-medium text-foreground">{sede.nombre}</p>,
+    },
+    {
+      key: 'municipio',
+      header: 'Municipio',
+      render: (sede) =>
+        sede.municipio ? (
+          <div className="min-w-0">
+            <p className="text-foreground">{sede.municipio.nombre}</p>
+            <p className="truncate text-xs text-muted-foreground">{sede.municipio.departamento}</p>
+          </div>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
+      key: 'direccion',
+      header: 'Dirección',
+      render: (sede) => <span className="text-muted-foreground">{sede.direccion || '—'}</span>,
+    },
+    {
+      key: 'estado',
+      header: 'Estado',
+      render: (sede) => <StatusBadge domain="sede" estado={sede.activo ? 'ACTIVA' : 'INACTIVA'} />,
+    },
+    {
+      key: 'acciones',
+      header: 'Acciones',
+      headerClassName: 'text-right',
+      cellClassName: 'text-right',
+      render: (sede) => (
+        <div className="flex items-center justify-end gap-1">
+          <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => onEdit(sede)}>
+            Editar
+          </Button>
+          {sede.activo ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-destructive hover:bg-destructive/8 hover:text-destructive"
+              disabled={updateMutation.isPending}
+              onClick={() => setPendingDeactivate(sede)}
+            >
+              Desactivar
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-success hover:bg-success/8 hover:text-success"
+              disabled={updateMutation.isPending}
+              onClick={() => setActivo(sede, true)}
+            >
+              Activar
+            </Button>
+          )}
+        </div>
+      ),
+    },
+  ];
 
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-      <table className="w-full text-left text-sm">
-        <thead className="border-b border-gray-100 bg-gray-50/50 text-gray-500">
-          <tr>
-            <th className="px-6 py-4 font-medium">Nombre</th>
-            <th className="px-6 py-4 font-medium">Municipio</th>
-            <th className="px-6 py-4 font-medium">Dirección</th>
-            <th className="px-6 py-4 font-medium">Estado</th>
-            <th className="px-6 py-4 text-right font-medium">Acciones</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-50">
-          {sedes.map((sede) => (
-            <tr key={sede.id} className="group transition-colors hover:bg-gray-50/50">
-              <td className="px-6 py-4">
-                <div className="font-medium text-gray-900">{sede.nombre}</div>
-              </td>
-              <td className="px-6 py-4 text-gray-600">
-                {sede.municipio ? (
-                  <>
-                    {sede.municipio.nombre}
-                    <span className="block text-xs text-gray-400">
-                      {sede.municipio.departamento}
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-gray-400">—</span>
-                )}
-              </td>
-              <td className="px-6 py-4 text-gray-600">
-                {sede.direccion || <span className="text-gray-400">—</span>}
-              </td>
-              <td className="px-6 py-4">
-                <Badge className={sede.activo ? 'border-green-200 bg-green-50 text-green-700' : ''}>
-                  {sede.activo ? 'Activa' : 'Inactiva'}
-                </Badge>
-              </td>
-              <td className="px-6 py-4 text-right">
-                <div className="flex items-center justify-end gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onEdit(sede)}
-                    className="h-8 px-2 text-gray-500 hover:text-gray-900"
-                  >
-                    Editar
-                  </Button>
-                  {sede.activo ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={updateMutation.isPending}
-                      onClick={() => handleToggle(sede)}
-                      className="h-8 px-2 text-red-500 hover:bg-red-50 hover:text-red-600"
-                    >
-                      Desactivar
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={updateMutation.isPending}
-                      onClick={() => handleToggle(sede)}
-                      className="h-8 px-2 text-green-600 hover:bg-green-50 hover:text-green-700"
-                    >
-                      Activar
-                    </Button>
-                  )}
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <DataTable
+        columns={columns}
+        data={sedes}
+        rowKey={(sede) => sede.id}
+        isLoading={isLoading}
+        empty={empty}
+      />
+
+      <ConfirmDialog
+        level={1}
+        open={pendingDeactivate !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDeactivate(null);
+        }}
+        title="Desactivar sede"
+        description={
+          pendingDeactivate
+            ? `${pendingDeactivate.nombre} dejará de aparecer entre las sedes activas. Podrás reactivarla desde este listado.`
+            : ''
+        }
+        confirmLabel="Desactivar sede"
+        onConfirm={() => {
+          if (pendingDeactivate) setActivo(pendingDeactivate, false);
+          setPendingDeactivate(null);
+        }}
+      />
+    </>
   );
 }
