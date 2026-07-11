@@ -1633,29 +1633,54 @@ Decisiones clave:
 - Separación Proceso / Liquidación en agregados distintos.
 - Resultado de negocio como frontera Payroll ↔ Accounting.
 - Ciclo de estados: Borrador → Calculada → Revisión → Aprobada → Causada → Pagada → Cerrada.
-- v1 = nómina mensual ordinaria completa.
-- Explícitamente fuera de v1: retención en la fuente, FSP, salario integral, PILA, nómina electrónica, motor de reglas configurable.
+- v1 = nómina mensual ordinaria completa (v1 = MVP = P0–P2).
+- Explícitamente fuera de v1: retención en la fuente, salario integral, pago de prima/cesantías/vacaciones, Finiquito (retiro), PILA, nómina electrónica, motor de reglas configurable.
+- El FSP (Fondo de Solidaridad Pensional) **sí entra en v1** (rev.2 §13): ya está implementado por tramos progresivos y se conserva.
+- ADR-002 rev.2 gobierna la **evolución** de la base N2 existente, no un desarrollo desde cero (D13).
 
 ## Implementación
 
 Estado:
 
-⏳ Pendiente
+🟡 En progreso — existe base N2 mergeada; P0 ≈ 70%, P1 aún sin arrancar.
 
-Roadmap aprobado:
+**Reconciliación de estado (auditoría de solo lectura, 2026-07-11).** El ADR-002 rev.2 audita el código N2 existente y decide **evolucionarlo** (D13). Mapeo de nomenclatura (§5, D14): `PayrollRun` → **Liquidación** (mensual, v1); `PayrollPeriod` → **ProcesoNómina** (v1); `Liquidation`/carpeta `liquidation/` → **Finiquito** (retiro), **fuera de v1**.
+
+### Mergeado en `main` (base N2)
+
+- Motor de cálculo puro (`calculator/`): devengos, IBC (integral 70 %, piso/techo), auxilio, deducciones (salud, pensión, **FSP progresivo**), aportes patronales (salud, pensión, ARL por clase, caja, ICBF, SENA), exoneración Art. 114-1, provisiones. Determinístico y probado.
+- `payroll-mapper.ts`, `payroll-warnings.ts`, catálogo de conceptos cerrado (`ConceptCodigo`).
+- `ParametroLegalNomina` (modelo + seed + resolución por vigencia, override tenant → global).
+- Modelos `PayrollPeriod` / `PayrollRun` / `PayrollNovelty` / `PayrollConcept`; `PayrollService` (create/generate/recalculate/close/novelties/dashboard), `PayrollController`, RBAC y auditoría.
+- **Track Finiquito (retiro) completo y mergeado** (carpeta `liquidation/`, modelos `Liquidation`/`LiquidationConcept`, API `/liquidations`). ⚠️ El ADR lo pone **fuera de v1** y ordena dejarlo **feature-flagged** (D14, §13); hoy está activo en `PayrollModule`, sin flag. Decisión pendiente.
+
+### Estado por fase del roadmap
 
 ```
-P0 — Payroll Catalogs       (parámetros legales, conceptos, escalas, calendarios)
-P1 — Payroll Core            (empleados, contratos, novedades, liquidación, estados, congelamiento)
-P2 — Accounting Integration  (mapper concepto → cuenta, causación al aprobar)
-P3 — Treasury Integration    (resultado de dispersión, hitos de pago)
-P4 — PILA                    (Planilla Integrada de Liquidación de Aportes)
-P5 — Nómina Electrónica      (Documento soporte DIAN)
+P0 — Catálogos (~70%)     ParametroLegalNomina ✅ · conceptos (ConceptCodigo) ✅
+                          FALTA: factores de provisión (FACTOR_PROV_* hardcoded en el
+                          calculator) → mover a ParametroLegalNomina (§9/§16, prerrequisito P1);
+                          formalizar calendario de períodos.
+P1 — Payroll Core         ❌ Sin arrancar. Nada de la arquitectura objetivo está implementado:
+                          máquina de estados ProcesoNómina (hoy solo DRAFT|CLOSED),
+                          snapshot inmutable por copia (hoy FK apuntador — patrón rechazado X13),
+                          dimensión centro de costo en la Liquidación (PN-I7),
+                          fail-secure (hoy "advierte y liquida" — contradice §10),
+                          reliquidación no destructiva (hoy delete/recreate — contradice §11).
+P2 — Accounting Integ.    ❌ Pendiente (mapper concepto→cuenta, causación al aprobar). Roles de
+                          nómina ya sembrados en CuentaSistemaMap. Habilitado por Accounting C3.
+P3 — Treasury Integ.      ❌ Pendiente.
+P4 — PILA                 ❌ Futuro (v2).
+P5 — Nómina Electrónica   ❌ Futuro.
 ```
 
-Ramas antiguas de Payroll (pre-ADR-002):
+### Primera unidad funcional pendiente
 
-Las 12 ramas `feat/payroll-*` existentes fueron creadas antes de la investigación completa y del ADR-002. **No reflejan la arquitectura actualmente aprobada.** Se conservan únicamente como referencia histórica. La utilidad pura `dias-causados.ts` (rama `feat/payroll-n2c-novelties`, PR #7 cerrada) se reutilizará en P1.
+Según el ADR §17 y el estado real del repo: **remanente de P0 — trasladar los factores de provisión (`FACTOR_PROV_*`) de constantes hardcoded en el calculator a `ParametroLegalNomina`** (campo + seed + lectura desde el snapshot). Es el prerrequisito que el propio ADR nombra para arrancar P1; inmediatamente después, la primera pieza de P1 es la **máquina de estados del ProcesoNómina** (§6).
+
+### Ramas antiguas de Payroll (pre/durante ADR-002)
+
+Las ramas `feat/payroll-*` (n1, n1a, n2-architecture, n2-calculator-design, n2a, n2b, n2c, rbac, n2d\*) son **históricas**; su contenido sustantivo ya está mergeado en `main`. El único artefacto identificable que quedó **solo en rama** es la utilidad pura `dias-causados.ts` (`feat/payroll-n2c-novelties`, commit `0275ca6`) — **no está en `main`** y se reutilizará en P1.
 
 ---
 
