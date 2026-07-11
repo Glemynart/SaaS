@@ -1517,6 +1517,19 @@ model ParametroLegalNomina {
   arlClaseIV  Decimal @db.Decimal(8, 6) // 0.04350
   arlClaseV   Decimal @db.Decimal(8, 6) // 0.06960
 
+  // Factores de provisión prestacional mensual (fracción). Base = salario (+ auxilio
+  // en prima/cesantías/intereses; sin auxilio en vacaciones). Versionados por vigencia
+  // como el resto de parámetros legales (ADR-002 §9, D3): antes eran constantes en el
+  // calculator. Aproximaciones legales colombianas:
+  //   Prima de servicios (CST Art. 306): 30/360 ≈ 8.33% mensual.
+  //   Cesantías (CST Art. 249): 30/360 ≈ 8.33% mensual.
+  //   Intereses sobre cesantías (Ley 52/1975): 12% anual ≈ 1% mensual de la base.
+  //   Vacaciones (CST Art. 186): 15/360 ≈ 4.17% mensual.
+  factorProvPrima        Decimal @db.Decimal(8, 6) // 0.083300
+  factorProvCesantias    Decimal @db.Decimal(8, 6) // 0.083300
+  factorProvIntCesantias Decimal @db.Decimal(8, 6) // 0.010000
+  factorProvVacaciones   Decimal @db.Decimal(8, 6) // 0.041700
+
   // FSP — escala progresiva por tramos (Ley 100 Art. 27, Ley 797/2003)
   // Shape: [{ desdeSmmlv: number, hastaSmmlv: number | null, pct: number }]
   // Ejemplo: [{ desdeSmmlv: 4, hastaSmmlv: 16, pct: 0.01 }, { desdeSmmlv: 16, hastaSmmlv: 17, pct: 0.012 }, ...]

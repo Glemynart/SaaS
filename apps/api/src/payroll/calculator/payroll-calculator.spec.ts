@@ -33,6 +33,10 @@ function baseParams(): LegalParamsSnapshot {
       4: 0.0435,
       5: 0.0696,
     },
+    factorProvPrima: 0.0833,
+    factorProvCesantias: 0.0833,
+    factorProvIntCesantias: 0.01,
+    factorProvVacaciones: 0.0417,
     fspTramos: [
       { desdeSmmlv: 0, hastaSmmlv: 4, pct: 0 },
       { desdeSmmlv: 4, hastaSmmlv: 16, pct: 0.01 },

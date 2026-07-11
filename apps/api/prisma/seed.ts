@@ -140,6 +140,13 @@ async function seedParametrosLegales2026() {
     arlClaseIV: 0.0435, // 4.35%  — riesgo alto
     arlClaseV: 0.0696, // 6.96%  — riesgo máximo
 
+    // Factores de provisión prestacional mensual (fracción) — antes hardcoded
+    // en el PayrollCalculator; externalizados a parámetro legal versionado (P0).
+    factorProvPrima: 0.0833, // Prima de servicios (CST Art. 306): 30/360 ≈ 8.33%
+    factorProvCesantias: 0.0833, // Cesantías (CST Art. 249): 30/360 ≈ 8.33%
+    factorProvIntCesantias: 0.01, // Intereses sobre cesantías (Ley 52/1975): ≈ 1% mensual
+    factorProvVacaciones: 0.0417, // Vacaciones (CST Art. 186): 15/360 ≈ 4.17%
+
     fspTramos,
 
     fuente:
