@@ -7,9 +7,17 @@ import {
   IsNumber,
 } from 'class-validator';
 
+/** Espejo del enum Prisma PayrollPeriodStatus (ver schema.prisma para la máquina de estados P1/U1). */
 export enum PayrollPeriodStatus {
+  // Legado — sin uso en código nuevo desde P1/U1.
   DRAFT = 'DRAFT',
   CLOSED = 'CLOSED',
+  // Máquina de estados del ProcesoNómina (ADR-002 §6).
+  BORRADOR = 'BORRADOR',
+  CALCULADA = 'CALCULADA',
+  EN_REVISION = 'EN_REVISION',
+  APROBADA = 'APROBADA',
+  CERRADA = 'CERRADA',
 }
 
 export class CreatePayrollPeriodDto {
