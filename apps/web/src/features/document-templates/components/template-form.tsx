@@ -1,12 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Eye, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { SideSheet } from '@/components/ui/side-sheet';
 import { RichTextEditor } from './rich-text-editor';
 import {
@@ -14,8 +17,7 @@ import {
   type DocumentTemplateFormValues,
   DOCUMENT_TEMPLATE_TYPE_LABELS,
 } from '../schemas/document-template-schemas';
-import type { DocumentTemplate, DocumentTemplateType } from '../services/document-templates-api';
-import { Eye, Loader2 } from 'lucide-react';
+import type { DocumentTemplate } from '../services/document-templates-api';
 
 function renderHtmlWithVariables(html: string) {
   if (!html) return '<span class="text-muted">Sin contenido</span>';
@@ -48,6 +50,7 @@ export function TemplateForm({
     control,
     setValue,
     watch,
+    reset,
     formState: { errors },
   } = useForm<DocumentTemplateFormValues>({
     resolver: zodResolver(documentTemplateSchema),
@@ -59,6 +62,19 @@ export function TemplateForm({
     },
   });
 
+  // Al abrir, sincroniza el formulario con la plantilla en edición (o lo
+  // limpia para crear) — mismo patrón reset-on-open de Empleados/Sedes.
+  useEffect(() => {
+    if (!open) return;
+    setShowPreview(false);
+    reset({
+      nombre: defaultValues?.nombre ?? '',
+      descripcion: defaultValues?.descripcion ?? '',
+      tipo: defaultValues?.tipo ?? 'CONTRACT',
+      contenido: defaultValues?.contenido ?? '',
+    });
+  }, [open, defaultValues, reset]);
+
   const contenido = watch('contenido');
   const isEditing = !!defaultValues;
 
@@ -67,55 +83,31 @@ export function TemplateForm({
       open={open}
       onOpenChange={onOpenChange}
       title={isEditing ? 'Editar plantilla' : 'Nueva plantilla'}
-      description="Usá el editor enriquecido e insertá variables dinámicas"
+      description="Usa el editor enriquecido e inserta variables dinámicas."
     >
       <form onSubmit={handleSubmit(onSubmit)} className="flex h-full flex-col">
         <div className="flex-1 space-y-5">
-          <div className="space-y-1.5">
-            <Label htmlFor="nombre">Nombre</Label>
-            <Input
-              id="nombre"
-              placeholder="Ej: Contrato laboral estándar"
-              {...register('nombre')}
-            />
-            {errors.nombre && <p className="text-xs text-destructive">{errors.nombre.message}</p>}
-          </div>
+          <FormField label="Nombre" required error={errors.nombre?.message}>
+            <Input placeholder="Contrato laboral estándar…" {...register('nombre')} />
+          </FormField>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="descripcion">Descripción</Label>
-            <Input
-              id="descripcion"
-              placeholder="Describe brevemente esta plantilla"
-              {...register('descripcion')}
-            />
-          </div>
+          <FormField
+            label="Descripción"
+            error={errors.descripcion?.message}
+            hint="Opcional. Ayuda a identificar la plantilla en el listado."
+          >
+            <Input placeholder="Describe brevemente esta plantilla…" {...register('descripcion')} />
+          </FormField>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="tipo">Tipo de documento</Label>
-            <Controller
-              name="tipo"
-              control={control}
-              render={({ field }) => (
-                <select
-                  id="tipo"
-                  value={field.value}
-                  onChange={field.onChange}
-                  className="flex h-10 w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground transition-colors focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                >
-                  {(
-                    Object.entries(DOCUMENT_TEMPLATE_TYPE_LABELS) as [
-                      DocumentTemplateType,
-                      string,
-                    ][]
-                  ).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              )}
-            />
-          </div>
+          <FormField label="Tipo de documento" required error={errors.tipo?.message}>
+            <Select {...register('tipo')}>
+              {Object.entries(DOCUMENT_TEMPLATE_TYPE_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+          </FormField>
 
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -127,20 +119,20 @@ export function TemplateForm({
                 onClick={() => setShowPreview(!showPreview)}
                 className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
               >
-                <Eye className="size-3" />
+                <Eye className="size-3" aria-hidden="true" />
                 {showPreview ? 'Editar' : 'Vista previa'}
               </Button>
             </div>
 
             {showPreview ? (
-              <div className="document-preview min-h-[16rem] rounded-lg border border-border bg-white p-6 shadow-sm">
+              <div className="document-preview min-h-[16rem] rounded-[--radius-card] border border-border bg-surface p-6 shadow-[--shadow-card]">
                 {contenido ? (
                   <div
                     className="text-sm leading-relaxed text-foreground"
                     dangerouslySetInnerHTML={{ __html: renderHtmlWithVariables(contenido) }}
                   />
                 ) : (
-                  <span className="text-sm italic text-muted-foreground/50">Sin contenido</span>
+                  <span className="text-sm italic text-muted-foreground">Sin contenido</span>
                 )}
               </div>
             ) : (
@@ -151,7 +143,7 @@ export function TemplateForm({
                   <RichTextEditor
                     content={field.value}
                     onChange={(html) => setValue('contenido', html, { shouldDirty: true })}
-                    placeholder="Escribí el contenido del documento... Usá el selector + Variable para insertar datos dinámicos."
+                    placeholder="Escribe el contenido del documento… Usa el selector + Variable para insertar datos dinámicos."
                   />
                 )}
               />
@@ -172,7 +164,7 @@ export function TemplateForm({
             Cancelar
           </Button>
           <Button type="submit" className="flex-1" disabled={isSubmitting}>
-            {isSubmitting && <Loader2 className="mr-2 size-4 animate-spin" />}
+            {isSubmitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
             {isEditing ? 'Guardar cambios' : 'Crear plantilla'}
           </Button>
         </div>

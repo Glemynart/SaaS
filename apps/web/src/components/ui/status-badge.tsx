@@ -39,6 +39,16 @@ const STATUS_MAP = {
     ACTIVA: { semantic: 'success', label: 'Activa' },
     INACTIVA: { semantic: 'neutral', label: 'Inactiva' },
   },
+  // Plantilla persiste `activo: boolean`; el consumidor lo traduce a esta clave.
+  plantilla: {
+    ACTIVA: { semantic: 'success', label: 'Activa' },
+    INACTIVA: { semantic: 'neutral', label: 'Inactiva' },
+  },
+  // Documento generado: derivado de `pdfUrl` (con/sin PDF renderizado).
+  documentoGenerado: {
+    PDF_DISPONIBLE: { semantic: 'success', label: 'PDF disponible' },
+    SIN_PDF: { semantic: 'neutral', label: 'Sin PDF' },
+  },
   contrato: {
     VIGENTE: { semantic: 'success', label: 'Vigente' },
     VENCIDO: { semantic: 'danger', label: 'Vencido' },
