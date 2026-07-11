@@ -74,6 +74,12 @@ export interface LegalParamsSnapshot {
   /** Tarifa ARL indexada por clase de riesgo (1–5). */
   arlPorClase: Record<ArlClase, number>;
 
+  /** Factores de provisión prestacional mensual (fracción). Versionados por vigencia. */
+  factorProvPrima: number;
+  factorProvCesantias: number;
+  factorProvIntCesantias: number;
+  factorProvVacaciones: number;
+
   fspTramos: FspTramo[];
 }
 

@@ -86,6 +86,10 @@ export function toSnapshot(p: ParamLegalForPayroll): LegalParamsSnapshot {
       4: Number(p.arlClaseIV),
       5: Number(p.arlClaseV),
     },
+    factorProvPrima: Number(p.factorProvPrima),
+    factorProvCesantias: Number(p.factorProvCesantias),
+    factorProvIntCesantias: Number(p.factorProvIntCesantias),
+    factorProvVacaciones: Number(p.factorProvVacaciones),
     fspTramos: p.fspTramos as unknown as FspTramo[],
   };
 }
