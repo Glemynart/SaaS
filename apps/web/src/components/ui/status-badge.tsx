@@ -33,6 +33,12 @@ const STATUS_MAP = {
     SUSPENDIDO: { semantic: 'warning', label: 'Suspendido' },
     RETIRADO: { semantic: 'neutral', label: 'Retirado' },
   },
+  // Sede persiste `activo: boolean`; el consumidor lo traduce a esta clave.
+  // Misma semántica que Empleado ACTIVO/INACTIVO (§7: vigente / inactivo).
+  sede: {
+    ACTIVA: { semantic: 'success', label: 'Activa' },
+    INACTIVA: { semantic: 'neutral', label: 'Inactiva' },
+  },
   contrato: {
     VIGENTE: { semantic: 'success', label: 'Vigente' },
     VENCIDO: { semantic: 'danger', label: 'Vencido' },

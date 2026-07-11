@@ -1,17 +1,30 @@
-import { useEffect } from 'react';
+'use client';
+
+import { useEffect, type ReactNode } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Loader2 } from 'lucide-react';
 import { sedeSchema, type SedeFormData } from '../schemas/sede-schemas';
 import { type Sede } from '../services/sedes-api';
 import { useMunicipios } from '../hooks/use-municipios';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 
 interface SedeFormProps {
   initialData?: Sede;
   onSubmit: (data: SedeFormData) => void;
   isLoading?: boolean;
+}
+
+function FormSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <fieldset className="space-y-4">
+      <legend className="text-sm font-semibold text-foreground">{title}</legend>
+      <div className="grid gap-4 sm:grid-cols-2">{children}</div>
+    </fieldset>
+  );
 }
 
 export function SedeForm({ initialData, onSubmit, isLoading }: SedeFormProps) {
@@ -51,45 +64,45 @@ export function SedeForm({ initialData, onSubmit, isLoading }: SedeFormProps) {
   }, [initialData, reset]);
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="nombre">Nombre</Label>
-          <Input id="nombre" {...register('nombre')} />
-          {errors.nombre && <span className="text-xs text-red-500">{errors.nombre.message}</span>}
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="municipioId">Municipio</Label>
-          <select
-            id="municipioId"
-            {...register('municipioId')}
-            disabled={isLoadingMunicipios}
-            className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-950 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+      <FormSection title="Identificación">
+        <FormField label="Nombre" required error={errors.nombre?.message} className="sm:col-span-2">
+          <Input placeholder="Sede principal…" {...register('nombre')} />
+        </FormField>
+      </FormSection>
+
+      <FormSection title="Ubicación">
+        <FormField
+          label="Municipio"
+          required
+          error={errors.municipioId?.message}
+          className="sm:col-span-2"
+        >
+          <Select {...register('municipioId')} disabled={isLoadingMunicipios}>
             <option value="">
-              {isLoadingMunicipios ? 'Cargando municipios...' : 'Selecciona un municipio'}
+              {isLoadingMunicipios ? 'Cargando municipios…' : 'Selecciona un municipio'}
             </option>
             {municipios?.map((municipio) => (
               <option key={municipio.id} value={municipio.id}>
                 {municipio.nombre} — {municipio.departamento}
               </option>
             ))}
-          </select>
-          {errors.municipioId && (
-            <span className="text-xs text-red-500">{errors.municipioId.message}</span>
-          )}
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="direccion">Dirección</Label>
-          <Input id="direccion" {...register('direccion')} />
-          {errors.direccion && (
-            <span className="text-xs text-red-500">{errors.direccion.message}</span>
-          )}
-        </div>
-      </div>
-      <div className="flex justify-end border-t border-gray-100 pt-6">
+          </Select>
+        </FormField>
+        <FormField
+          label="Dirección"
+          error={errors.direccion?.message}
+          hint="Opcional. Ayuda a ubicar la sede en documentos y reportes."
+          className="sm:col-span-2"
+        >
+          <Input placeholder="Cra. 10 # 20-30…" {...register('direccion')} />
+        </FormField>
+      </FormSection>
+
+      <div className="flex justify-end border-t border-border-soft pt-6">
         <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
-          {isLoading ? 'Guardando...' : initialData ? 'Guardar Cambios' : 'Crear Sede'}
+          {isLoading && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+          {initialData ? 'Guardar cambios' : 'Crear sede'}
         </Button>
       </div>
     </form>
