@@ -1555,13 +1555,44 @@ Sin cambios de schema, sin migración, sin transporte HTTP (controller/DTO), sin
 
 Estado:
 
-⏳ Pendiente
+✅ COMPLETADA (2026-07-03) — mergeada a `main`.
 
-Alcance previsto:
+Rama:
 
-- `CerrarAnioFiscal`: comprobante que cancela clases de resultado (4/5/6/7) contra patrimonio, vía `LedgerService.registrarComprobante`, seguido de `CerrarPeriodo(diciembre)`.
-- Debe reutilizar `ORIGEN_CIERRE_ANUAL` (definida en `closure.service.ts`) como `origenTipo`, sin redefinir el literal.
-- Requiere seed del rol `RESULTADO_EJERCICIO` en `CuentaSistemaMap`.
+`feat/accounting-c3-annual-close` (los commits ya están en `main`; la rama no tiene commits por delante).
+
+Commits principales:
+
+- `749d626` — implementación de U4 `CerrarAnioFiscal` + superficie C2 `obtenerSaldosDimensionados` + tests.
+- `ee95484` — fix de seguimiento.
+
+Objetivo:
+
+Generar el/los comprobante(s) que cancelan las clases de resultado (4/5/6/7) contra patrimonio vía `LedgerService.registrarComprobante`, seguido del cierre de diciembre. Cierra el ciclo contable manual completo (C0–C3) sin tablas ni columnas nuevas.
+
+Componentes implementados:
+
+- `ClosureService.cerrarAnioFiscal(tenantId, anio, userId)` — orquesta el cierre anual con contrato de idempotencia y reanudación (estados NONE / PARTIAL / COMPLETE / ANOMALÍA, C3 §8.3).
+- Lectura dimensionada de C2: `ReportingService.obtenerSaldosDimensionados` (con `excluirOrigenTipo`/`excluirOrigenId` para estabilidad del plan). C3 nunca calcula saldos (C3-I10).
+- Construcción de asiento saldo-dirigida por dimensión (`construirLineasLote`), arrastrando tercero/centro de costo (I6) y trasladando el neto a patrimonio (C3-I7).
+- Partición por lotes respetando `MAX_LINEAS` del puerto, con `origenEvento` determinista (`CIERRE` / `CIERRE#NN`, C3 §8.2).
+- Reutilización de `ORIGEN_CIERRE_ANUAL` como `origenTipo`; posteo exclusivo por el puerto de C1 (C3-I6).
+- Rol `RESULTADO_EJERCICIO` sembrado en `CuentaSistemaMap` (`system-account-mappings.ts`).
+- Transición de diciembre reutilizando `CerrarPeriodo` (Fase 1).
+- Auditoría `CIERRE_ANUAL_EJECUTADO` con el conjunto de `comprobanteIds` (C3-I5).
+
+Validaciones relevantes:
+
+- Precondiciones: diciembre `ABIERTO`, meses 1–11 `CERRADO`, tipo `CC` activo, rol `RESULTADO_EJERCICIO` mapeado (RF2: falla explícita si falta).
+- Idempotencia por conjunto de lotes (C3-I8); guardián fail-secure `CIERRE_ANUAL_INCONSISTENTE` ante `posted ⊄ expected`.
+- Manejo de carrera (`ConflictException`) con confirmación de lote; propagación fail-secure de orígenes ajenos.
+- 18 tests dedicados a `cerrarAnioFiscal` (suite de closure: 47 tests) + tests de la superficie C2.
+
+Deuda técnica vigente:
+
+- **M-1 (U3/C1):** `LedgerService.anular()` no tiene llamador en producción y, sobre período `CERRADO`, emite un `REVERSO` nuevo sin transicionar el original a `ANULADO`. El ciclo reapertura → reverso → re-cierre (§10.2 del ADR) no tiene hoy un camino funcional completo. No afecta la corrección del posteo hacia adelante de U4.
+- **M1 (U3):** TOCTOU entre `reabrirPeriodo` y `cerrarPeriodo` en períodos adyacentes concurrentes; inalcanzable hoy (C3 sin transporte HTTP).
+- **Transporte:** C3 (U1–U4) no expone controllers/DTOs/guards HTTP — por diseño; queda pendiente para la fase de transporte.
 
 ---
 
