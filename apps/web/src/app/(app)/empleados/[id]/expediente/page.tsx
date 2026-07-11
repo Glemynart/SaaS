@@ -1,19 +1,27 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, FileText, FolderOpen, Trash2, Download, File } from 'lucide-react';
+import { Download, FolderOpen, SearchX, Trash2 } from 'lucide-react';
 import { useEmployee } from '@/features/employees/hooks/use-employees';
 import {
   useExpedienteDocs,
   useDeleteExpedienteDoc,
 } from '@/features/expediente-docs/hooks/use-expediente-docs';
+import type { ExpedienteDoc } from '@/features/expediente-docs/services/expediente-docs-api';
 import { generatedDocumentsApi } from '@/features/generated-documents/services/generated-documents-api';
 import { formatNombreCompleto } from '@saas/types';
 import { DOCUMENT_TEMPLATE_TYPE_LABELS } from '@/features/document-templates/schemas/document-template-schemas';
+import { ArrowLeft } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import { EmptyState } from '@/components/ui/empty-state';
+import { PageHeader } from '@/components/ui/page-header';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from '@/components/ui/toast';
+import { cn } from '@/lib/utils';
 
 const CATEGORY_LABELS: Record<string, string> = {
   CONTRATO: 'Contrato',
@@ -25,19 +33,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   OTRO: 'Otro',
 };
 
-function categoryBadge(cat: string) {
-  const map: Record<string, string> = {
-    CONTRATO: 'bg-blue-50 text-blue-700 border-blue-200',
-    CERTIFICADO: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    AFILIACION: 'bg-cyan-50 text-cyan-700 border-cyan-200',
-    DOCUMENTO_PERSONAL: 'bg-violet-50 text-violet-700 border-violet-200',
-    PREAVISO: 'bg-amber-50 text-amber-700 border-amber-200',
-    TERMINACION: 'bg-red-50 text-red-700 border-red-200',
-    OTRO: 'bg-gray-50 text-gray-600 border-gray-200',
-  };
-  return map[cat] ?? map.OTRO;
-}
-
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('es-CO', {
     year: 'numeric',
@@ -47,10 +42,35 @@ function formatDate(dateStr: string): string {
 }
 
 function formatSize(bytes: number | null): string {
-  if (!bytes) return '-';
+  if (!bytes) return '—';
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function StatTile({
+  label,
+  value,
+  size = 'lg',
+}: {
+  label: string;
+  value: string | number;
+  /** 'sm' para valores largos (fechas) que no caben en cifra grande. */
+  size?: 'lg' | 'sm';
+}) {
+  return (
+    <div className="rounded-[--radius-card] border border-border bg-surface p-4 shadow-[--shadow-card]">
+      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          'font-semibold text-foreground',
+          size === 'lg' ? 'mt-1 text-2xl' : 'mt-2.5 text-sm',
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  );
 }
 
 export default function ExpedientePage({ params }: { params: Promise<{ id: string }> }) {
@@ -58,164 +78,192 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
   const { data: employee, isLoading: empLoading } = useEmployee(id);
   const { data: docsData, isLoading: docsLoading } = useExpedienteDocs(id);
   const deleteMutation = useDeleteExpedienteDoc();
+  const [pendingDelete, setPendingDelete] = useState<ExpedienteDoc | null>(null);
 
   const isLoading = empLoading || docsLoading;
   const docs = docsData?.docs ?? [];
   const stats = docsData?.stats;
 
+  const backLink = (
+    <Link
+      href={`/empleados/${id}`}
+      className="mb-6 inline-flex items-center gap-2 rounded-md text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+    >
+      <ArrowLeft className="size-4" aria-hidden="true" />
+      Volver al empleado
+    </Link>
+  );
+
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-4xl space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-6 w-32" />
-        <Skeleton className="h-64 w-full rounded-xl" />
+      <div className="mx-auto max-w-4xl">
+        {backLink}
+        <div className="mb-8 space-y-2">
+          <Skeleton className="h-7 w-64" />
+          <Skeleton className="h-4 w-40" />
+        </div>
+        <div className="mb-6 grid gap-4 sm:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-20 w-full" />
+          ))}
+        </div>
+        <Skeleton className="h-64 w-full" />
       </div>
     );
   }
 
   if (!employee) {
     return (
-      <div className="py-10 text-center">
-        <p className="text-muted-foreground">Empleado no encontrado.</p>
+      <div className="mx-auto max-w-4xl">
+        <Link
+          href="/empleados"
+          className="mb-6 inline-flex items-center gap-2 rounded-md text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+          <ArrowLeft className="size-4" aria-hidden="true" />
+          Volver a empleados
+        </Link>
+        <EmptyState
+          icon={SearchX}
+          title="Empleado no encontrado."
+          description="El empleado que buscas no existe o no tienes acceso."
+          action={
+            <Link
+              href="/empleados"
+              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
+            >
+              Volver a empleados
+            </Link>
+          }
+        />
       </div>
     );
   }
 
+  const columns: DataTableColumn<ExpedienteDoc>[] = [
+    {
+      key: 'documento',
+      header: 'Documento',
+      render: (doc) => (
+        <div className="min-w-0">
+          <p className="font-medium text-foreground">{doc.nombre}</p>
+          {doc.generatedDocument && (
+            <p className="truncate text-xs text-muted-foreground">
+              {DOCUMENT_TEMPLATE_TYPE_LABELS[doc.generatedDocument.tipo] ??
+                doc.generatedDocument.tipo}
+            </p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'categoria',
+      header: 'Categoría',
+      render: (doc) => <Badge>{CATEGORY_LABELS[doc.categoria] ?? doc.categoria}</Badge>,
+    },
+    {
+      key: 'tamano',
+      header: 'Tamaño',
+      render: (doc) => <span className="text-muted-foreground">{formatSize(doc.tamanoBytes)}</span>,
+    },
+    {
+      key: 'agregado',
+      header: 'Agregado',
+      render: (doc) => <span className="text-muted-foreground">{formatDate(doc.createdAt)}</span>,
+    },
+    {
+      key: 'acciones',
+      header: 'Acciones',
+      headerClassName: 'text-right',
+      cellClassName: 'text-right',
+      render: (doc) => (
+        <div className="flex items-center justify-end gap-1">
+          {doc.generatedDocumentId && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-muted-foreground hover:text-foreground"
+              onClick={() =>
+                window.open(generatedDocumentsApi.getPdfUrl(doc.generatedDocumentId!), '_blank')
+              }
+            >
+              <Download className="size-3.5" aria-hidden="true" />
+              <span className="sr-only">Descargar {doc.nombre}</span>
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-destructive hover:bg-destructive/8 hover:text-destructive"
+            onClick={() => setPendingDelete(doc)}
+          >
+            <Trash2 className="size-3.5" aria-hidden="true" />
+            <span className="sr-only">Quitar {doc.nombre} del expediente</span>
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="mx-auto max-w-4xl">
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link
-            href={`/empleados/${id}`}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" />
-            <span className="sr-only">Volver</span>
-          </Link>
-          <FileText className="size-5 text-muted-foreground" />
-          <div>
-            <h1 className="text-lg font-semibold tracking-[-0.018em] text-foreground">
-              Expediente digital
-            </h1>
-            <p className="text-sm text-muted-foreground">{formatNombreCompleto(employee)}</p>
-          </div>
-        </div>
-      </div>
+      {backLink}
 
-      {stats && (
-        <div className="mb-6 grid gap-4 sm:grid-cols-4">
-          <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
-            <p className="text-[0.68rem] font-medium uppercase tracking-wider text-muted-foreground">
-              Documentos
-            </p>
-            <p className="mt-1 text-2xl font-semibold text-foreground">{stats.total}</p>
+      <PageHeader
+        title="Expediente digital"
+        description={formatNombreCompleto(employee)}
+        width="standard"
+        className="max-w-none"
+      >
+        {stats && (
+          <div className="mb-6 grid gap-4 sm:grid-cols-4">
+            <StatTile label="Documentos" value={stats.total} />
+            <StatTile label="Contratos" value={stats.byCategory.CONTRATO ?? 0} />
+            <StatTile label="Certificaciones" value={stats.byCategory.CERTIFICADO ?? 0} />
+            <StatTile
+              label="Último"
+              size="sm"
+              value={stats.ultimoDocumento ? formatDate(stats.ultimoDocumento) : '—'}
+            />
           </div>
-          <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
-            <p className="text-[0.68rem] font-medium uppercase tracking-wider text-muted-foreground">
-              Contratos
-            </p>
-            <p className="mt-1 text-2xl font-semibold text-blue-600">
-              {stats.byCategory.CONTRATO ?? 0}
-            </p>
-          </div>
-          <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
-            <p className="text-[0.68rem] font-medium uppercase tracking-wider text-muted-foreground">
-              Certificaciones
-            </p>
-            <p className="mt-1 text-2xl font-semibold text-emerald-600">
-              {stats.byCategory.CERTIFICADO ?? 0}
-            </p>
-          </div>
-          <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
-            <p className="text-[0.68rem] font-medium uppercase tracking-wider text-muted-foreground">
-              Último
-            </p>
-            <p className="mt-1 text-xs font-medium text-foreground">
-              {stats.ultimoDocumento ? formatDate(stats.ultimoDocumento) : 'N/A'}
-            </p>
-          </div>
-        </div>
-      )}
+        )}
 
-      {docs.length === 0 ? (
-        <div className="flex h-72 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/30">
-          <FolderOpen className="mb-3 size-8 text-muted-foreground/40" />
-          <p className="text-sm font-medium text-muted-foreground">Expediente vacío</p>
-          <p className="mt-1 text-xs text-muted-foreground/70">
-            Generá documentos desde la ficha del empleado. Se agregarán automáticamente al
-            expediente.
-          </p>
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-xl border border-border bg-white">
-          <div className="divide-y divide-border">
-            {docs.map((doc) => (
-              <div
-                key={doc.id}
-                className="group flex items-center justify-between px-5 py-3.5 transition-colors hover:bg-muted/40"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-muted-foreground">
-                    <File className="size-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">{doc.nombre}</p>
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <Badge className={categoryBadge(doc.categoria)}>
-                        {CATEGORY_LABELS[doc.categoria] ?? doc.categoria}
-                      </Badge>
-                      {doc.generatedDocument && (
-                        <span className="text-[0.65rem] text-muted-foreground/60">
-                          {DOCUMENT_TEMPLATE_TYPE_LABELS[doc.generatedDocument.tipo] ??
-                            doc.generatedDocument.tipo}
-                        </span>
-                      )}
-                      <span className="text-[0.68rem] text-muted-foreground/60">
-                        {formatSize(doc.tamanoBytes)}
-                      </span>
-                      <span className="text-[0.68rem] text-muted-foreground/60">
-                        {formatDate(doc.createdAt)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+        <DataTable
+          columns={columns}
+          data={docs}
+          rowKey={(doc) => doc.id}
+          empty={
+            <EmptyState
+              icon={FolderOpen}
+              title="Expediente vacío."
+              description="Genera documentos desde la ficha del empleado; se agregarán automáticamente al expediente."
+            />
+          }
+        />
+      </PageHeader>
 
-                <div className="ml-4 flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                  {doc.generatedDocumentId && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2 text-muted-foreground hover:text-foreground"
-                      onClick={() =>
-                        window.open(
-                          generatedDocumentsApi.getPdfUrl(doc.generatedDocumentId!),
-                          '_blank',
-                        )
-                      }
-                    >
-                      <Download className="size-3.5" />
-                      <span className="sr-only">Descargar</span>
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2 text-muted-foreground hover:text-destructive"
-                    onClick={() => {
-                      if (confirm('¿Quitar este documento del expediente?')) {
-                        deleteMutation.mutate(doc.id);
-                      }
-                    }}
-                  >
-                    <Trash2 className="size-3.5" />
-                    <span className="sr-only">Eliminar</span>
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        level={1}
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+        title="Quitar documento del expediente"
+        description={
+          pendingDelete
+            ? `"${pendingDelete.nombre}" dejará de aparecer en el expediente del empleado.`
+            : ''
+        }
+        confirmLabel="Quitar documento"
+        onConfirm={() => {
+          if (pendingDelete) {
+            deleteMutation.mutate(pendingDelete.id, {
+              onSuccess: () => toast.success('Documento quitado del expediente.'),
+              onError: () => toast.error('No se pudo quitar el documento. Inténtalo de nuevo.'),
+            });
+          }
+          setPendingDelete(null);
+        }}
+      />
     </div>
   );
 }

@@ -1,31 +1,23 @@
-import {
-  type DocumentTemplate,
-  type DocumentTemplateType,
-} from '../services/document-templates-api';
+'use client';
+
+import { useState, type ReactNode } from 'react';
+import { Copy, Pencil, Power, PowerOff, Trash2 } from 'lucide-react';
+import { type DocumentTemplate } from '../services/document-templates-api';
 import { DOCUMENT_TEMPLATE_TYPE_LABELS } from '../schemas/document-template-schemas';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { FileText, Pencil, Trash2, Copy, Power, PowerOff } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import { StatusBadge } from '@/components/ui/status-badge';
 
 interface TemplatesTableProps {
   templates: DocumentTemplate[];
   isLoading: boolean;
   onEdit: (template: DocumentTemplate) => void;
   onDelete: (id: string) => void;
-  onView: (id: string) => void;
   onDuplicate: (id: string) => void;
   onToggleActive: (id: string) => void;
-}
-
-function typeBadgeClass(tipo: DocumentTemplateType): string {
-  const map: Record<DocumentTemplateType, string> = {
-    CONTRACT: 'bg-blue-50 text-blue-700 border-blue-200',
-    CERTIFICATION: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    LETTER: 'bg-violet-50 text-violet-700 border-violet-200',
-    MEMO: 'bg-amber-50 text-amber-700 border-amber-200',
-  };
-  return map[tipo] ?? '';
+  empty?: ReactNode;
 }
 
 function formatDate(dateStr: string): string {
@@ -41,122 +33,126 @@ export function TemplatesTable({
   isLoading,
   onEdit,
   onDelete,
-  onView,
   onDuplicate,
   onToggleActive,
+  empty,
 }: TemplatesTableProps) {
-  if (isLoading) {
-    return (
-      <div className="space-y-3">
-        {[...Array(5)].map((_, i) => (
-          <Skeleton key={i} className="h-[4.5rem] w-full rounded-lg" />
-        ))}
-      </div>
-    );
-  }
+  const [pendingDelete, setPendingDelete] = useState<DocumentTemplate | null>(null);
 
-  if (templates.length === 0) {
-    return (
-      <div className="flex h-72 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/30">
-        <FileText className="mb-3 size-8 text-muted-foreground/40" aria-hidden="true" />
-        <p className="text-sm font-medium text-muted-foreground">No hay plantillas todavía</p>
-        <p className="mt-1 text-xs text-muted-foreground/70">
-          Creá tu primera plantilla o usá las plantillas base sugeridas
-        </p>
-      </div>
-    );
-  }
+  const columns: DataTableColumn<DocumentTemplate>[] = [
+    {
+      key: 'plantilla',
+      header: 'Plantilla',
+      render: (tpl) => (
+        <div className="min-w-0">
+          <p className="font-medium text-foreground">{tpl.nombre}</p>
+          {tpl.descripcion && (
+            <p className="truncate text-xs text-muted-foreground">{tpl.descripcion}</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'tipo',
+      header: 'Tipo',
+      render: (tpl) => <Badge>{DOCUMENT_TEMPLATE_TYPE_LABELS[tpl.tipo] ?? tpl.tipo}</Badge>,
+    },
+    {
+      key: 'estado',
+      header: 'Estado',
+      render: (tpl) => (
+        <StatusBadge domain="plantilla" estado={tpl.activo ? 'ACTIVA' : 'INACTIVA'} />
+      ),
+    },
+    {
+      key: 'actualizada',
+      header: 'Actualizada',
+      render: (tpl) => <span className="text-muted-foreground">{formatDate(tpl.updatedAt)}</span>,
+    },
+    {
+      key: 'acciones',
+      header: 'Acciones',
+      headerClassName: 'text-right',
+      cellClassName: 'text-right',
+      render: (tpl) => (
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-muted-foreground hover:text-foreground"
+            onClick={() => onToggleActive(tpl.id)}
+          >
+            {tpl.activo ? (
+              <PowerOff className="size-3.5" aria-hidden="true" />
+            ) : (
+              <Power className="size-3.5" aria-hidden="true" />
+            )}
+            <span className="sr-only">
+              {tpl.activo ? `Desactivar ${tpl.nombre}` : `Activar ${tpl.nombre}`}
+            </span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-muted-foreground hover:text-foreground"
+            onClick={() => onDuplicate(tpl.id)}
+          >
+            <Copy className="size-3.5" aria-hidden="true" />
+            <span className="sr-only">Duplicar {tpl.nombre}</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-muted-foreground hover:text-foreground"
+            onClick={() => onEdit(tpl)}
+          >
+            <Pencil className="size-3.5" aria-hidden="true" />
+            <span className="sr-only">Editar {tpl.nombre}</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-destructive hover:bg-destructive/8 hover:text-destructive"
+            onClick={() => setPendingDelete(tpl)}
+          >
+            <Trash2 className="size-3.5" aria-hidden="true" />
+            <span className="sr-only">Eliminar {tpl.nombre}</span>
+          </Button>
+        </div>
+      ),
+    },
+  ];
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-white">
-      <div className="divide-y divide-border">
-        {templates.map((tpl) => (
-          <div
-            key={tpl.id}
-            className={`group flex items-center justify-between px-5 py-4 transition-colors hover:bg-muted/40 ${
-              !tpl.activo ? 'opacity-60' : ''
-            }`}
-          >
-            <button type="button" className="flex-1 text-left" onClick={() => onView(tpl.id)}>
-              <div className="flex items-start gap-3">
-                <div
-                  className={`mt-1 flex size-8 shrink-0 items-center justify-center rounded-md border ${
-                    tpl.activo ? 'border-border bg-surface' : 'border-border/50 bg-muted/30'
-                  } text-muted-foreground`}
-                >
-                  <FileText className="size-4" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-foreground">{tpl.nombre}</p>
-                    {!tpl.activo && (
-                      <span className="text-[0.65rem] text-muted-foreground/60">Inactiva</span>
-                    )}
-                  </div>
-                  {tpl.descripcion && (
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {tpl.descripcion}
-                    </p>
-                  )}
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <Badge className={typeBadgeClass(tpl.tipo)}>
-                      {DOCUMENT_TEMPLATE_TYPE_LABELS[tpl.tipo] ?? tpl.tipo}
-                    </Badge>
-                    <span className="text-[0.68rem] text-muted-foreground/60">
-                      {formatDate(tpl.updatedAt)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </button>
+    <>
+      <DataTable
+        columns={columns}
+        data={templates}
+        rowKey={(tpl) => tpl.id}
+        isLoading={isLoading}
+        rowHref={(tpl) => `/documentos/plantillas/${tpl.id}`}
+        rowHrefLabel={(tpl) => `Ver plantilla ${tpl.nombre}`}
+        empty={empty}
+      />
 
-            <div className="ml-4 flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onToggleActive(tpl.id)}
-                className="h-8 px-2 text-muted-foreground hover:text-foreground"
-                title={tpl.activo ? 'Desactivar' : 'Activar'}
-              >
-                {tpl.activo ? <PowerOff className="size-3.5" /> : <Power className="size-3.5" />}
-                <span className="sr-only">{tpl.activo ? 'Desactivar' : 'Activar'}</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onDuplicate(tpl.id)}
-                className="h-8 px-2 text-muted-foreground hover:text-foreground"
-                title="Duplicar"
-              >
-                <Copy className="size-3.5" />
-                <span className="sr-only">Duplicar</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onEdit(tpl)}
-                className="h-8 px-2 text-muted-foreground hover:text-foreground"
-              >
-                <Pencil className="size-3.5" />
-                <span className="sr-only">Editar</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  if (confirm('¿Eliminar esta plantilla?')) {
-                    onDelete(tpl.id);
-                  }
-                }}
-                className="h-8 px-2 text-muted-foreground hover:text-destructive"
-              >
-                <Trash2 className="size-3.5" />
-                <span className="sr-only">Eliminar</span>
-              </Button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+      <ConfirmDialog
+        level={1}
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+        title="Eliminar plantilla"
+        description={
+          pendingDelete
+            ? `"${pendingDelete.nombre}" dejará de estar disponible para generar documentos. Los documentos ya generados con ella no se ven afectados.`
+            : ''
+        }
+        confirmLabel="Eliminar plantilla"
+        onConfirm={() => {
+          if (pendingDelete) onDelete(pendingDelete.id);
+          setPendingDelete(null);
+        }}
+      />
+    </>
   );
 }

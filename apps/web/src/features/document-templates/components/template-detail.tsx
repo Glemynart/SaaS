@@ -2,25 +2,19 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { ArrowLeft, SearchX, Variable } from 'lucide-react';
 import { useDocumentTemplate } from '../hooks/use-document-templates';
 import {
   DOCUMENT_TEMPLATE_TYPE_LABELS,
   AVAILABLE_VARIABLES,
 } from '../schemas/document-template-schemas';
 import { Badge } from '@/components/ui/badge';
+import { buttonVariants } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
+import { PageHeader } from '@/components/ui/page-header';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { DocumentTemplateType } from '../services/document-templates-api';
-import { ArrowLeft, FileText, Variable } from 'lucide-react';
-
-function typeBadgeClass(tipo: DocumentTemplateType): string {
-  const map: Record<DocumentTemplateType, string> = {
-    CONTRACT: 'bg-blue-50 text-blue-700 border-blue-200',
-    CERTIFICATION: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    LETTER: 'bg-violet-50 text-violet-700 border-violet-200',
-    MEMO: 'bg-amber-50 text-amber-700 border-amber-200',
-  };
-  return map[tipo] ?? '';
-}
+import { StatusBadge } from '@/components/ui/status-badge';
+import { cn } from '@/lib/utils';
 
 function highlightVariables(html: string): string {
   return html.replace(
@@ -33,117 +27,128 @@ function isHtml(str: string): boolean {
   return /<(p|h[1-3]|ul|ol|li|blockquote|hr|br|strong|em|div|table)[\s>]/.test(str);
 }
 
+const backLink = (
+  <Link
+    href="/documentos/plantillas"
+    className="mb-6 inline-flex items-center gap-2 rounded-md text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+  >
+    <ArrowLeft className="size-4" aria-hidden="true" />
+    Volver a plantillas
+  </Link>
+);
+
 export function TemplateDetail() {
   const { id } = useParams<{ id: string }>();
   const { data: template, isLoading } = useDocumentTemplate(id);
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-6 w-48" />
-        <Skeleton className="h-[32rem] w-full rounded-xl" />
+      <div className="mx-auto max-w-3xl">
+        {backLink}
+        <div className="mb-8 space-y-2">
+          <Skeleton className="h-7 w-64" />
+          <Skeleton className="h-4 w-40" />
+        </div>
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="mt-4 h-[28rem] w-full" />
       </div>
     );
   }
 
   if (!template) {
     return (
-      <div className="mx-auto max-w-3xl text-center">
-        <p className="text-muted-foreground">Plantilla no encontrada.</p>
-        <Link
-          href="/documentos/plantillas"
-          className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-border bg-surface px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-        >
-          Volver a plantillas
-        </Link>
+      <div className="mx-auto max-w-3xl">
+        {backLink}
+        <EmptyState
+          icon={SearchX}
+          title="Plantilla no encontrada."
+          description="La plantilla que buscas no existe o no tienes acceso."
+          action={
+            <Link
+              href="/documentos/plantillas"
+              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
+            >
+              Volver a plantillas
+            </Link>
+          }
+        />
       </div>
     );
   }
 
   const html = isHtml(template.contenido);
+  const usedVariables = AVAILABLE_VARIABLES.filter((v) =>
+    template.contenido.includes(`{{${v.key}}}`),
+  );
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="mb-6 flex items-center gap-3">
-        <Link
-          href="/documentos/plantillas"
-          className="inline-flex h-8 w-8 items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" />
-          <span className="sr-only">Volver</span>
-        </Link>
-        <FileText className="size-5 text-muted-foreground" aria-hidden="true" />
-        <h1 className="text-lg font-semibold tracking-[-0.018em] text-foreground">
-          {template.nombre}
-        </h1>
-      </div>
+      {backLink}
 
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <Badge className={typeBadgeClass(template.tipo)}>
-          {DOCUMENT_TEMPLATE_TYPE_LABELS[template.tipo] ?? template.tipo}
-        </Badge>
-        {template.descripcion && (
-          <p className="text-sm text-muted-foreground">{template.descripcion}</p>
-        )}
-        <span className="text-xs text-muted-foreground/60">
-          {template.activo ? 'Activa' : 'Inactiva'}
-        </span>
-      </div>
-
-      <div className="mb-6 rounded-lg border border-border bg-surface/50 p-4">
-        <div className="mb-3 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <Variable className="size-3.5" aria-hidden="true" />
-          Variables utilizadas en esta plantilla
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {AVAILABLE_VARIABLES.filter((v) => template.contenido.includes(`{{${v.key}}}`)).map(
-            (v) => (
+      <PageHeader
+        title={template.nombre}
+        description={template.descripcion ?? undefined}
+        width="detail"
+        className="max-w-none"
+        actions={
+          <>
+            <Badge>{DOCUMENT_TEMPLATE_TYPE_LABELS[template.tipo] ?? template.tipo}</Badge>
+            <StatusBadge domain="plantilla" estado={template.activo ? 'ACTIVA' : 'INACTIVA'} />
+          </>
+        }
+      >
+        <section className="rounded-[--radius-card] border border-border bg-surface p-5 shadow-[--shadow-card]">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <Variable className="size-4 text-muted-foreground" aria-hidden="true" />
+            Variables utilizadas en esta plantilla
+          </h2>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {usedVariables.map((v) => (
               <span
                 key={v.key}
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-white px-2 py-0.5 font-mono text-[0.68rem] text-muted-foreground"
+                className="inline-flex items-center rounded-md border border-border bg-canvas px-2 py-0.5 font-mono text-xs text-muted-foreground"
               >
                 {`{{${v.key}}}`}
               </span>
-            ),
-          )}
-          {AVAILABLE_VARIABLES.filter((v) => template.contenido.includes(`{{${v.key}}}`)).length ===
-            0 && (
-            <span className="text-xs text-muted-foreground/50">
-              No se detectaron variables en el contenido.
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div className="document-preview rounded-xl border border-border bg-white p-8 shadow-sm">
-        {html ? (
-          <div
-            className="text-sm leading-relaxed text-foreground"
-            dangerouslySetInnerHTML={{ __html: highlightVariables(template.contenido) }}
-          />
-        ) : (
-          <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-            {template.contenido.split(/(\{\{[A-Z_]+\}\})/g).map((part, i) => {
-              if (part.match(/^\{\{[A-Z_]+\}\}$/)) {
-                return (
-                  <span
-                    key={i}
-                    className="inline-block rounded bg-accent/10 px-1.5 font-mono text-xs font-medium text-accent"
-                  >
-                    {part}
-                  </span>
-                );
-              }
-              return <span key={i}>{part}</span>;
-            })}
+            ))}
+            {usedVariables.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No se detectaron variables en el contenido.
+              </p>
+            )}
           </div>
-        )}
-      </div>
+        </section>
 
-      <div className="mt-4 text-center text-xs text-muted-foreground/60">
-        Vista previa — Las variables se reemplazarán al generar el documento desde un empleado.
-      </div>
+        <section className="document-preview mt-4 rounded-[--radius-card] border border-border bg-surface p-8 shadow-[--shadow-card]">
+          <h2 className="sr-only">Contenido de la plantilla</h2>
+          {html ? (
+            <div
+              className="text-sm leading-relaxed text-foreground"
+              dangerouslySetInnerHTML={{ __html: highlightVariables(template.contenido) }}
+            />
+          ) : (
+            <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+              {template.contenido.split(/(\{\{[A-Z_]+\}\})/g).map((part, i) => {
+                if (part.match(/^\{\{[A-Z_]+\}\}$/)) {
+                  return (
+                    <span
+                      key={i}
+                      className="inline-block rounded bg-muted px-1.5 font-mono text-xs font-medium text-primary"
+                    >
+                      {part}
+                    </span>
+                  );
+                }
+                return <span key={i}>{part}</span>;
+              })}
+            </div>
+          )}
+        </section>
+
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          Vista previa — las variables se reemplazarán al generar el documento desde un empleado.
+        </p>
+      </PageHeader>
     </div>
   );
 }
