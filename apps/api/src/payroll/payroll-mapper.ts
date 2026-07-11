@@ -54,6 +54,10 @@ export interface ParamLegalForPayroll {
   arlClaseIII: Prisma.Decimal;
   arlClaseIV: Prisma.Decimal;
   arlClaseV: Prisma.Decimal;
+  factorProvPrima: Prisma.Decimal;
+  factorProvCesantias: Prisma.Decimal;
+  factorProvIntCesantias: Prisma.Decimal;
+  factorProvVacaciones: Prisma.Decimal;
   fspTramos: Prisma.JsonValue;
 }
 
