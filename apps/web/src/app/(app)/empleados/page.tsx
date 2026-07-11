@@ -1,10 +1,14 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { Plus, Upload, Download, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Plus, Upload, Download, Loader2, AlertTriangle, CheckCircle2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
+import { PageHeader } from '@/components/ui/page-header';
+import { Pagination } from '@/components/ui/pagination';
 import { SideSheet } from '@/components/ui/side-sheet';
 import { Alert } from '@/components/ui/alert';
+import { toast } from '@/components/ui/toast';
 import { EmployeesTable } from '@/features/employees/components/employees-table';
 import { EmployeesFilters } from '@/features/employees/components/employees-filters';
 import { EmployeeForm } from '@/features/employees/components/employee-form';
@@ -23,7 +27,7 @@ import {
 import { type EmployeeFormData } from '@/features/employees/schemas/employee-schemas';
 
 export default function EmpleadosPage() {
-  const [page] = useState(1);
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [estado, setEstado] = useState('');
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -37,11 +41,24 @@ export default function EmpleadosPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const { data, isLoading } = useEmployees({ page, limit: 20, search, estado });
+  const { data, isLoading, isError, refetch } = useEmployees({ page, limit: 20, search, estado });
   const createMutation = useCreateEmployee();
   const updateMutation = useUpdateEmployee();
   const deleteMutation = useDeleteEmployee();
   const importMutation = useImportEmployees();
+
+  const hasFilters = search !== '' || estado !== '';
+
+  // Cambiar un filtro regresa a la primera página (la colección cambia).
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value);
+    setPage(1);
+  }, []);
+
+  const handleStatusChange = useCallback((value: string) => {
+    setEstado(value);
+    setPage(1);
+  }, []);
 
   const handleOpenCreate = () => {
     setSelectedEmployee(undefined);
@@ -58,17 +75,30 @@ export default function EmpleadosPage() {
     if (selectedEmployee) {
       updateMutation.mutate(
         { id: selectedEmployee.id, data: cleaned },
-        { onSuccess: () => setIsSheetOpen(false) },
+        {
+          onSuccess: () => {
+            setIsSheetOpen(false);
+            toast.success('Cambios guardados.');
+          },
+          onError: () => toast.error('No se pudieron guardar los cambios. Inténtalo de nuevo.'),
+        },
       );
     } else {
       createMutation.mutate(cleaned, {
-        onSuccess: () => setIsSheetOpen(false),
+        onSuccess: () => {
+          setIsSheetOpen(false);
+          toast.success('Empleado creado.');
+        },
+        onError: () => toast.error('No se pudo crear el empleado. Inténtalo de nuevo.'),
       });
     }
   };
 
   const handleDelete = (id: string) => {
-    deleteMutation.mutate(id);
+    deleteMutation.mutate(id, {
+      onSuccess: () => toast.success('Empleado desactivado.'),
+      onError: () => toast.error('No se pudo desactivar el empleado. Inténtalo de nuevo.'),
+    });
   };
 
   const handleOpenImport = () => {
@@ -110,41 +140,82 @@ export default function EmpleadosPage() {
   }, []);
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-gray-900">Empleados</h1>
-          <p className="text-sm text-gray-500">
-            Gestiona la nómina, contratos e información laboral.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleOpenImport} className="gap-1.5">
-            <Upload className="h-4 w-4" />
-            Importar empleados
+    <PageHeader
+      title="Empleados"
+      description="Gestiona la información personal y laboral de tu equipo."
+      width="wide"
+      actions={
+        <>
+          <Button variant="outline" size="sm" onClick={handleOpenImport}>
+            <Upload className="size-4" aria-hidden="true" />
+            Importar
           </Button>
-          <Button onClick={handleOpenCreate} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Nuevo Empleado
+          <Button size="sm" onClick={handleOpenCreate}>
+            <Plus className="size-4" aria-hidden="true" />
+            Nuevo empleado
           </Button>
-        </div>
-      </div>
+        </>
+      }
+    >
+      <EmployeesFilters onSearchChange={handleSearchChange} onStatusChange={handleStatusChange} />
 
-      <EmployeesFilters onSearchChange={setSearch} onStatusChange={setEstado} />
-
-      <div className="flex-1">
-        <EmployeesTable
-          employees={data?.data || []}
-          isLoading={isLoading}
-          onEdit={handleOpenEdit}
-          onDelete={handleDelete}
+      {isError ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title="No pudimos cargar los empleados."
+          description="Revisa tu conexión e inténtalo de nuevo."
+          action={
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              Reintentar
+            </Button>
+          }
         />
-      </div>
+      ) : (
+        <>
+          <EmployeesTable
+            employees={data?.data || []}
+            isLoading={isLoading}
+            onEdit={handleOpenEdit}
+            onDelete={handleDelete}
+            empty={
+              hasFilters ? (
+                <EmptyState
+                  title="Sin resultados para esta búsqueda."
+                  description="Ajusta la búsqueda o el filtro de estado para ver más empleados."
+                />
+              ) : (
+                <EmptyState
+                  icon={Users}
+                  title="Aún no hay empleados registrados."
+                  description="Crea el primero o importa tu planta desde Excel."
+                  action={
+                    <Button size="sm" onClick={handleOpenCreate}>
+                      <Plus className="size-4" aria-hidden="true" />
+                      Nuevo empleado
+                    </Button>
+                  }
+                />
+              )
+            }
+          />
+
+          {data?.meta && (
+            <Pagination
+              className="mt-4"
+              page={page}
+              totalPages={data.meta.totalPages}
+              total={data.meta.total}
+              itemLabel="empleados"
+              onPageChange={setPage}
+            />
+          )}
+        </>
+      )}
 
       <SideSheet
         open={isSheetOpen}
         onOpenChange={setIsSheetOpen}
-        title={selectedEmployee ? 'Editar Empleado' : 'Nuevo Empleado'}
+        title={selectedEmployee ? 'Editar empleado' : 'Nuevo empleado'}
         description={
           selectedEmployee
             ? 'Modifica los datos laborales o personales del empleado.'
@@ -166,17 +237,12 @@ export default function EmpleadosPage() {
       >
         <div className="flex h-full flex-col">
           <div className="flex-1 space-y-5">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDownloadTemplate}
-              className="gap-1.5 w-full"
-            >
-              <Download className="h-4 w-4" />
+            <Button variant="outline" size="sm" onClick={handleDownloadTemplate} className="w-full">
+              <Download className="size-4" aria-hidden="true" />
               Descargar plantilla Excel
             </Button>
 
-            <div className="rounded-lg border border-dashed border-border p-6 text-center">
+            <div className="rounded-[--radius-card] border border-dashed border-border bg-canvas p-6 text-center">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -184,7 +250,7 @@ export default function EmpleadosPage() {
                 onChange={handleFileChange}
                 className="hidden"
               />
-              <Upload className="mx-auto h-8 w-8 text-muted-foreground/40" />
+              <Upload className="mx-auto size-8 text-muted-foreground" aria-hidden="true" />
               <p className="mt-2 text-sm text-muted-foreground">
                 {selectedFile ? selectedFile.name : 'Selecciona un archivo .xlsx'}
               </p>
@@ -201,14 +267,14 @@ export default function EmpleadosPage() {
             {importResult?.errors && importResult.errors.length > 0 && (
               <Alert variant="destructive">
                 <div className="flex items-start gap-2">
-                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm">Errores de validación</p>
-                    <div className="mt-2 max-h-56 overflow-y-auto space-y-2">
+                    <p className="text-sm font-medium">Errores de validación</p>
+                    <div className="mt-2 max-h-56 space-y-2 overflow-y-auto">
                       {importResult.errors.map((err, i) => (
                         <div
                           key={i}
-                          className="rounded border border-destructive/20 bg-destructive/5 px-2 py-1 text-xs"
+                          className="rounded-md border border-destructive/25 bg-destructive/8 px-2 py-1 text-xs"
                         >
                           <span className="font-medium">Fila {err.fila}</span>
                           {err.campo !== '*' && (
@@ -226,7 +292,7 @@ export default function EmpleadosPage() {
             {importResult?.imported !== undefined && importResult.imported >= 0 && (
               <Alert variant="success">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-success" />
+                  <CheckCircle2 className="size-4" aria-hidden="true" />
                   <p className="text-sm">{importResult.message}</p>
                 </div>
               </Alert>
@@ -243,13 +309,15 @@ export default function EmpleadosPage() {
                 disabled={!selectedFile || importMutation.isPending}
                 className="flex-1"
               >
-                {importMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {importMutation.isPending && (
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                )}
                 Importar
               </Button>
             )}
           </div>
         </div>
       </SideSheet>
-    </div>
+    </PageHeader>
   );
 }

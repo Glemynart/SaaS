@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: C3 Fase 2 — U3 ReabrirPeriodo completado (2026-07-02)
+## Última actualización: FASE 7C — Password Reset Frontend (F3) completado (2026-07-10)
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -1194,6 +1194,47 @@ Commit:
 - `nest build`: OK.
 - `next build`: OK — 52 páginas, 0 errores (2 warnings pre-existentes de `<img>` en `/configuracion/identidad`, fuera de scope).
 - Confirmado: `alertas/page.tsx` maneja `expedienteDocId = null` con `??` sin crash.
+
+---
+
+# FASE 7C — Password Reset Frontend (F3 · AUTH-EXPERIENCE M2)
+
+Estado:
+
+✅ COMPLETADA
+
+Rama:
+
+feat/f3-password-recovery (mergeada — PR #51, merge commit e700e0c)
+
+Objetivo:
+
+Implementar la experiencia de recuperación (`/recuperar`) y restablecimiento (`/restablecer`) de contraseña sobre el backend 7A existente, cerrando el vacío de frontend (no había ruta ni enlace desde el login). Alcance limitado a `apps/web`; cero endpoints backend nuevos.
+
+Implementado:
+
+- Ruta `/recuperar` (`RecoverForm`): estados por defecto · enviando · confirmación (AX-D7) · error de red. Confirmación genérica idéntica exista o no la cuenta (anti-enumeración §9.3), anunciada con `role=status`.
+- Ruta `/restablecer` (`ResetForm`): estados por defecto · enviando · éxito → `/login?reset=1` · enlace vencido (§7.3) · error de red. Aviso permanente de revocación de sesiones (§7.0b, token `--info`).
+- Alias `/reset-password` → `/restablecer` preservando el token (el correo de 7A enlaza a `/reset-password`; ruta canónica del documento es `/restablecer`). Sin tocar el backend.
+- Proxies BFF `/api/auth/forgot-password` y `/api/auth/reset-password` (patrón de `register/route.ts`).
+- `auth-client` (`forgotPassword`/`resetPassword`), hooks (`useForgotPassword`/`useResetPassword`), esquemas zod, tipos y microcopy §10 centralizado.
+- Login (aditivo, sin cambio de comportamiento): enlace «¿Olvidaste tu contraseña?» (AX-D4) + aviso de éxito `?reset=1` (§5.3).
+- Reutilización total de primitivas existentes; cero componentes nuevos de Design System.
+
+Decisiones aprobadas:
+
+- Rutas canónicas del documento (`/recuperar`, `/restablecer`) + alias `/reset-password` para compatibilidad con el enlace que emite el correo del backend.
+- Enlace AX-D4 y aviso `?reset=1` en login incluidos (aditivos) para cumplir el criterio de aceptación #1 de AUTH-EXPERIENCE.
+
+Limitación conocida:
+
+- El backend actual no expone un endpoint para validar el token antes de mostrar el formulario. Un token ausente muestra el estado terminal de inmediato; un token vencido/usado/corrupto se detecta al enviar la nueva contraseña, momento en que la pantalla conmuta al estado de enlace no válido (§7.3). No se implementó workaround.
+
+Verificación:
+
+- `tsc --noEmit` Web: 0 errores.
+- `next build`: OK — rutas `/recuperar`, `/restablecer`, `/reset-password` compilan y renderizan.
+- Lint DS §5 verde vía lint-staged en cada commit; `code-quality-review` sin hallazgos críticos/altos.
 
 ---
 

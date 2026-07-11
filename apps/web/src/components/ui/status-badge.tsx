@@ -30,6 +30,8 @@ const STATUS_MAP = {
   empleado: {
     ACTIVO: { semantic: 'success', label: 'Activo' },
     INACTIVO: { semantic: 'neutral', label: 'Inactivo' },
+    SUSPENDIDO: { semantic: 'warning', label: 'Suspendido' },
+    RETIRADO: { semantic: 'neutral', label: 'Retirado' },
   },
   contrato: {
     VIGENTE: { semantic: 'success', label: 'Vigente' },
