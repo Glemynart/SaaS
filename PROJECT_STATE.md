@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: Payroll P0 completado — factores de provisión externalizados a ParametroLegalNomina (2026-07-11)
+## Última actualización: Payroll P1 · U1 completada — máquina de estados del ProcesoNómina (2026-07-12)
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -1609,18 +1609,52 @@ Decisiones clave:
 
 Estado:
 
-🟡 En progreso — **P0 COMPLETADO**; siguiente iniciativa: **P1 — ProcesoNómina**.
+🟡 En progreso — P0 ✅; **P1 en curso** (U1 completada; siguiente unidad: U2 — Centro de costo).
 
 Roadmap aprobado:
 
 ```
 P0 — Payroll Catalogs       ✅ COMPLETADO (parámetros legales, conceptos, escalas, calendarios)
-P1 — Payroll Core            ⏭️ SIGUIENTE (ProcesoNómina: estados, liquidación, snapshot, fail-secure)
-P2 — Accounting Integration  (mapper concepto → cuenta, causación al aprobar)
+P1 — Payroll Core            🟡 EN CURSO (ProcesoNómina: estados, liquidación, snapshot, fail-secure)
+P2 — Accounting Integration  (mapper concepto → cuenta, causación EXPLÍCITA — ver decisión abajo)
 P3 — Treasury Integration    (resultado de dispersión, hitos de pago)
 P4 — PILA                    (Planilla Integrada de Liquidación de Aportes)
 P5 — Nómina Electrónica      (Documento soporte DIAN)
 ```
+
+### P1 — descomposición en unidades (auditoría aprobada 2026-07-11)
+
+```
+U1 — Máquina de estados del ProcesoNómina   ✅ COMPLETADO (PR #57)
+U2 — Centro de costo                         ⏭️ SIGUIENTE
+U3 — Snapshot inmutable                      ⏳ pendiente
+U4 — Fail-secure                             ⏳ pendiente
+U5 — Reliquidación no destructiva            ⏳ pendiente
+```
+
+Fuera de P1 (iniciativas independientes diferidas): rename + feature-flag del módulo Finiquito (`Liquidation`); deduplicación de `generatePayroll`/`recalculatePayroll`.
+
+### Decisión de arquitectura — causación contable de nómina (2026-07-12)
+
+La causación **no** ocurre automáticamente al aprobar. Es un **caso de uso explícito ("Contabilizar nómina")** que transiciona `APROBADA → CAUSADA` (modelo tipo Siigo). La transición a `CAUSADA` y el `registrarComprobante` en el Ledger se ejecutan en **una única `$transaction`** (ADR-001 principio 6, origen síncrono). Se aborda en **P2** (integración Payroll ↔ Accounting), no antes. Preserva la separación aprobación administrativa / causación contable / pago / nómina electrónica. Pendiente doc: aclarar la redacción de ADR-002 D6 ("misma transacción que la causación", no "que la aprobación").
+
+### P1 · U1 — Máquina de estados del ProcesoNómina
+
+Estado:
+
+✅ COMPLETADO (2026-07-12)
+
+Rama `feat/payroll-p1-payroll-process` (mergeada — PR #57, merge commit `3113e78`).
+
+- `PayrollPeriodStatus` pasa de `{DRAFT, CLOSED}` a la máquina de estados de ADR-002 §6: `BORRADOR → CALCULADA → EN_REVISION → APROBADA` (+ `CERRADA` terminal). `DRAFT/CLOSED` quedan legados e inertes; backfill migró todas las filas (`DRAFT→BORRADOR`, `CLOSED→CERRADA`). `CAUSADA` (P2) y `PAGADA` (P3) se añadirán de forma aditiva, sin rename.
+- Transiciones (`enviarARevision`/`aprobar`/`rechazar`/`reabrir`) con `updateMany` optimista + auditoría **transaccional fail-secure** (§6): si el audit falla, la transición revierte. `AuditService.log(params, tx?)` extendido de forma mínima y aditiva.
+- `generatePayroll`/`recalculatePayroll` transicionan a `CALCULADA` al cierre de su transacción. `closePeriod` reescrito como **alias legado `@deprecated`** (`CALCULADA→APROBADA` directo) para no romper la UI viva; auditado con acción propia.
+- Migración de enum en dos archivos (restricción Postgres `ADD VALUE`). Verificada con `prisma migrate deploy` sobre DB nueva (44/44 migraciones).
+- Verificación acotada a Payroll: `tsc --noEmit` 0 errores; `jest src/payroll` 205/205.
+
+**Deuda diferida a U5 / integración posterior:** M2 (TOCTOU: la transición a `CALCULADA` no lleva guarda optimista de origen) y M3 (los eventos `PAYROLL_GENERATED/RECALCULATED` siguen fire-and-forget, a diferencia de las transiciones formales).
+
+**Seguimiento de frontend (fuera de P1 backend):** `bandeja.ts` y la página de detalle de período comparan los literales `DRAFT`/`CLOSED`; deben adaptarse a los estados nuevos cuando la UI adopte el flujo.
 
 ### P0 — Payroll Catalogs
 
