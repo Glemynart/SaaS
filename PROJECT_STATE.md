@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: Payroll P1 · U1 completada — máquina de estados del ProcesoNómina (2026-07-12)
+## Última actualización: Payroll P1 · U3 completada — Snapshot inmutable (2026-07-12)
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -1609,7 +1609,7 @@ Decisiones clave:
 
 Estado:
 
-🟡 En progreso — P0 ✅; **P1 en curso** (U1 completada; siguiente unidad: U2 — Centro de costo).
+🟡 En progreso — P0 ✅; **P1 en curso** (U1–U3 completadas; siguiente unidad: U4 — Fail-secure).
 
 Roadmap aprobado:
 
@@ -1626,9 +1626,9 @@ P5 — Nómina Electrónica      (Documento soporte DIAN)
 
 ```
 U1 — Máquina de estados del ProcesoNómina   ✅ COMPLETADO (PR #57)
-U2 — Centro de costo                         ⏭️ SIGUIENTE
-U3 — Snapshot inmutable                      ⏳ pendiente
-U4 — Fail-secure                             ⏳ pendiente
+U2 — Centro de costo                         ✅ COMPLETADO (PR #58)
+U3 — Snapshot inmutable                      ✅ COMPLETADO (PR #59)
+U4 — Fail-secure                             ⏭️ SIGUIENTE
 U5 — Reliquidación no destructiva            ⏳ pendiente
 ```
 
@@ -1655,6 +1655,33 @@ Rama `feat/payroll-p1-payroll-process` (mergeada — PR #57, merge commit `3113e
 **Deuda diferida a U5 / integración posterior:** M2 (TOCTOU: la transición a `CALCULADA` no lleva guarda optimista de origen) y M3 (los eventos `PAYROLL_GENERATED/RECALCULATED` siguen fire-and-forget, a diferencia de las transiciones formales).
 
 **Seguimiento de frontend (fuera de P1 backend):** `bandeja.ts` y la página de detalle de período comparan los literales `DRAFT`/`CLOSED`; deben adaptarse a los estados nuevos cuando la UI adopte el flujo.
+
+### P1 · U2 — Centro de costo
+
+Estado:
+
+✅ COMPLETADO (2026-07-12)
+
+Rama `feat/payroll-p1-u2-cost-center` (mergeada — PR #58, merge commit `2cb3b36`).
+
+- `PayrollRun` conserva `centroCostoId` nullable con FK hacia `CentroCosto`.
+- La generación y el recálculo de nómina resuelven el centro de costo exclusivamente desde `Contrato.sedeId → CentroCosto.sedeId → PayrollRun.centroCostoId`.
+- La lectura de períodos de nómina expone `centroCosto` en los runs sin cambiar contratos de escritura.
+- Sin backfill, sin índices nuevos, sin cambios en Accounting, sin mapper contable y sin adelantar U3/U4/U5.
+
+### P1 · U3 — Snapshot inmutable
+
+Estado:
+
+✅ COMPLETADO (2026-07-12)
+
+Rama `feat/payroll-p1-u3-immutable-snapshot` (mergeada — PR #59, merge commit `62fcbc9`).
+
+- `PayrollSnapshot` queda como entidad independiente 1:1 por `PayrollRun`, con metadatos relacionales mínimos y payload inmutable.
+- `PayrollRun` conserva `calculationTrace` como huella técnica de los insumos normalizados usados durante el cálculo.
+- La aprobación a `APROBADA` genera snapshots dentro de la misma transacción y `closePeriod()` reutiliza el mismo flujo.
+- El Snapshot se construye exclusivamente desde `PayrollRun`, `PayrollConcept` y `calculationTrace`, sin volver a consultar entidades mutables durante la aprobación.
+- Migración aditiva, sin backfill, sin cambios en Accounting, sin fail-secure y sin adelantar U5.
 
 ### P0 — Payroll Catalogs
 
