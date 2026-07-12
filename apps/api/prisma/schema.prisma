@@ -260,6 +260,7 @@ model Tenant {
   alerts             Alert[]
   payrollPeriods     PayrollPeriod[]
   payrollRuns        PayrollRun[]
+  payrollSnapshots   PayrollSnapshot[]
   payrollNovelties   PayrollNovelty[]
   customers          Customer[]
   productServices    ProductService[]
@@ -313,12 +314,13 @@ model User {
   activo       Boolean  @default(true)
 
   // Control de sesión
-  lastLoginAt             DateTime?
-  refreshTokens           RefreshToken[]
-  passwordResetTokens     PasswordResetToken[]
-  lotesCreados            LoteContrato[]
+  lastLoginAt              DateTime?
+  refreshTokens            RefreshToken[]
+  passwordResetTokens      PasswordResetToken[]
+  lotesCreados             LoteContrato[]
   // Actor de aprobación de ProcesoNómina (P1/U1)
-  periodosNominaAprobados PayrollPeriod[]      @relation("PayrollPeriodAprobadoPor")
+  periodosNominaAprobados  PayrollPeriod[]      @relation("PayrollPeriodAprobadoPor")
+  snapshotsNominaAprobados PayrollSnapshot[]    @relation("PayrollSnapshotAprobadoPor")
 
   @@unique([tenantId, email]) // Un email es único por empresa, no globalmente
   @@index([tenantId, activo])
@@ -436,6 +438,7 @@ model Empleado {
   generatedDocuments GeneratedDocument[]
   alerts             Alert[]
   payrollRuns        PayrollRun[]
+  payrollSnapshots   PayrollSnapshot[]
   payrollNovelties   PayrollNovelty[]
   expediente         ExpedienteDoc[]
   alertas            Alerta[]
@@ -733,6 +736,7 @@ model PayrollPeriod {
   aprobadoEn    DateTime?
 
   runs      PayrollRun[]
+  snapshots PayrollSnapshot[]
   novelties PayrollNovelty[]
 
   @@index([tenantId])
@@ -775,9 +779,13 @@ model PayrollRun {
   // N2B — snapshot de provisiones prestacionales (nullable: runs N1/N2A quedan en NULL)
   totalProvisiones Decimal? @db.Decimal(14, 2) // Σ PROVISION (prima, cesantías, intereses, vacaciones)
 
+  // U3 — huella técnica de los insumos normalizados usados por el cálculo.
+  calculationTrace Json?
+
   parametroLegal ParametroLegalNomina? @relation(fields: [parametroLegalId], references: [id], onDelete: Restrict)
 
   concepts PayrollConcept[]
+  snapshot PayrollSnapshot?
 
   @@unique([tenantId, payrollPeriodId, employeeId])
   @@index([tenantId])
@@ -809,6 +817,52 @@ model PayrollConcept {
 
   @@index([payrollRunId])
   @@map("payroll_concepts")
+}
+
+// =============================================================================
+// PAYROLL SNAPSHOT — Evidencia inmutable de una liquidación aprobada
+// =============================================================================
+
+model PayrollSnapshot {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  payrollRunId String     @unique
+  payrollRun   PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
+
+  payrollPeriodId String
+  payrollPeriod   PayrollPeriod @relation(fields: [payrollPeriodId], references: [id], onDelete: Restrict)
+
+  employeeId String
+  employee   Empleado @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  contratoId String?
+  contrato   Contrato? @relation(fields: [contratoId], references: [id], onDelete: Restrict)
+
+  parametroLegalId String?
+  parametroLegal   ParametroLegalNomina? @relation(fields: [parametroLegalId], references: [id], onDelete: Restrict)
+
+  centroCostoId String?
+  centroCosto   CentroCosto? @relation(fields: [centroCostoId], references: [id], onDelete: Restrict)
+
+  aprobadoPorId String?
+  aprobadoPor   User?   @relation("PayrollSnapshotAprobadoPor", fields: [aprobadoPorId], references: [id], onDelete: SetNull)
+
+  estadoPeriodo  PayrollPeriodStatus
+  origen         String
+  payloadVersion Int                 @default(1)
+  payload        Json
+
+  @@index([tenantId])
+  @@index([tenantId, payrollPeriodId])
+  @@index([tenantId, employeeId])
+  @@index([tenantId, createdAt])
+  @@index([parametroLegalId])
+  @@index([centroCostoId])
+  @@map("payroll_snapshots")
 }
 
 // =============================================================================
@@ -1156,6 +1210,7 @@ model Contrato {
   alertas            Alerta[]
   expedienteDocs     ExpedienteDoc[]
   generatedDocuments GeneratedDocument[]
+  payrollSnapshots   PayrollSnapshot[]
 
   @@index([tenantId, estado])
   @@index([tenantId, empleadoId])
@@ -1572,7 +1627,8 @@ model ParametroLegalNomina {
   notas  String?
 
   // Inversa de PayrollRun.parametroLegalId (añadida en N2A.2)
-  runs PayrollRun[]
+  runs      PayrollRun[]
+  snapshots PayrollSnapshot[]
 
   @@unique([tenantId, vigenciaDesde])
   @@index([tenantId, vigenciaDesde, vigenciaHasta])
@@ -1769,8 +1825,9 @@ model CentroCosto {
   activo Boolean @default(true)
 
   // Inversas
-  movimientos MovimientoContable[]
-  payrollRuns PayrollRun[]
+  movimientos      MovimientoContable[]
+  payrollRuns      PayrollRun[]
+  payrollSnapshots PayrollSnapshot[]
 
   @@unique([tenantId, codigo])
   @@index([tenantId, activo])

@@ -33,6 +33,7 @@ const mockEmpleadoFindMany = jest.fn();
 const mockPayrollNoveltyFindMany = jest.fn();
 const mockContratoFindMany = jest.fn();
 const mockCentroCostoFindMany = jest.fn();
+const mockPayrollSnapshotCreate = jest.fn();
 
 const mockPrisma = {
   payrollPeriod: {
@@ -53,6 +54,7 @@ const mockPrisma = {
   payrollNovelty: { findMany: mockPayrollNoveltyFindMany },
   contrato: { findMany: mockContratoFindMany },
   centroCosto: { findMany: mockCentroCostoFindMany },
+  payrollSnapshot: { create: mockPayrollSnapshotCreate },
   $transaction: jest.fn(),
 };
 
@@ -80,8 +82,13 @@ function makePeriod(status: string, overrides: Record<string, unknown> = {}) {
 function makeLegalParam() {
   return {
     id: 'param-1',
+    tenantId: null,
+    vigenciaDesde: new Date('2026-01-01'),
+    vigenciaHasta: null,
+    anio: 2026,
     smmlv: 1_423_500,
     auxilioTransporte: 202_897,
+    uvt: 49_799,
     topeIbcMinSmmlv: 1,
     topeIbcMaxSmmlv: 25,
     umbralAuxilioSmmlv: 2,
@@ -103,13 +110,141 @@ function makeLegalParam() {
     factorProvIntCesantias: 0.01,
     factorProvVacaciones: 0.0417,
     fspTramos: [],
+    fuente: 'Decreto test',
+    notas: null,
+  };
+}
+
+function makeCalculationTrace(overrides: Record<string, unknown> = {}) {
+  return {
+    traceVersion: 1,
+    period: {
+      nombre: 'Enero 2026',
+      fechaInicio: new Date('2026-01-01').toISOString(),
+      fechaFin: new Date('2026-01-31').toISOString(),
+    },
+    employee: {
+      salarioIntegralUsado: false,
+    },
+    contract: {
+      contratoId: 'contrato-1',
+      estado: 'VIGENTE',
+      fechaInicio: new Date('2025-01-01').toISOString(),
+      fechaFin: null,
+      salarioContrato: 2_000_000,
+      sedeId: 'sede-1',
+      claseRiesgoArlOriginal: 1,
+      claseRiesgoArlUsada: 1,
+      fallbackUsado: false,
+    },
+    costCenter: {
+      codigo: 'SEDE-1',
+      nombre: 'Sede norte',
+      sedeId: 'sede-1',
+    },
+    companyPolicy: { aportesExonerados: false },
+    legalParameters: {
+      tenantId: null,
+      vigenciaDesde: new Date('2026-01-01').toISOString(),
+      vigenciaHasta: null,
+      anio: 2026,
+      smmlv: 1_423_500,
+      auxilioTransporte: 202_897,
+      uvt: 49_799,
+      topes: {
+        topeIbcMinSmmlv: 1,
+        topeIbcMaxSmmlv: 25,
+        umbralAuxilioSmmlv: 2,
+        umbralExoneracionSmmlv: 10,
+      },
+      tarifasEmpleado: {
+        pctSaludEmpleado: 0.04,
+        pctPensionEmpleado: 0.04,
+      },
+      tarifasEmpleador: {
+        pctSaludEmpleador: 0.085,
+        pctPensionEmpleador: 0.12,
+        pctCaja: 0.04,
+        pctIcbf: 0.03,
+        pctSena: 0.02,
+      },
+      tarifasArl: {
+        arlClaseI: 0.00522,
+        arlClaseII: 0.01044,
+        arlClaseIII: 0.02436,
+        arlClaseIV: 0.0435,
+        arlClaseV: 0.0696,
+      },
+      factoresProvision: {
+        factorProvPrima: 0.0833,
+        factorProvCesantias: 0.0833,
+        factorProvIntCesantias: 0.01,
+        factorProvVacaciones: 0.0417,
+      },
+      fspTramos: [],
+      fuente: 'Decreto test',
+      notas: null,
+    },
+    novelties: [],
+    calculationEvidence: { politicaRedondeoAplicada: 'PESO_ENTERO' },
+    ...overrides,
+  };
+}
+
+function makeRunForSnapshot() {
+  return {
+    id: 'run-1',
+    tenantId: TENANT,
+    payrollPeriodId: PERIOD_ID,
+    employeeId: 'emp-1',
+    centroCostoId: 'cc-1',
+    parametroLegalId: 'param-1',
+    totalDevengos: 2_202_897,
+    totalDeducciones: 160_000,
+    netoPagar: 2_042_897,
+    salarioBaseSnapshot: 2_000_000,
+    ibc: 2_000_000,
+    auxilioTransporte: 202_897,
+    totalAportesPatronales: 589_440,
+    totalProvisiones: 436_640,
+    costoTotalEmpleador: 2_792_337,
+    calculationTrace: makeCalculationTrace(),
+    concepts: [
+      {
+        id: 'concept-1',
+        createdAt: new Date('2026-01-01'),
+        payrollRunId: 'run-1',
+        tipo: 'EARNING',
+        nombre: 'Salario base',
+        valor: 2_000_000,
+        codigo: 'SALARIO_BASE',
+        base: null,
+        factor: null,
+      },
+      {
+        id: 'concept-2',
+        createdAt: new Date('2026-01-01'),
+        payrollRunId: 'run-1',
+        tipo: 'DEDUCTION',
+        nombre: 'Salud (4%)',
+        valor: 80_000,
+        codigo: 'SALUD_EMP',
+        base: 2_000_000,
+        factor: 0.04,
+      },
+    ],
   };
 }
 
 function setupPayrollGeneration(
   overrides: {
     contratoSedeId?: string | null;
-    centrosCosto?: Array<{ id: string; sedeId: string | null }>;
+    centrosCosto?: Array<{
+      id: string;
+      codigo: string;
+      nombre: string;
+      sedeId: string | null;
+    }>;
   } = {},
 ) {
   mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('BORRADOR'));
@@ -136,7 +271,14 @@ function setupPayrollGeneration(
     },
   ]);
   mockCentroCostoFindMany.mockResolvedValue(
-    overrides.centrosCosto ?? [{ id: 'cc-1', sedeId: 'sede-1' }],
+    overrides.centrosCosto ?? [
+      {
+        id: 'cc-1',
+        codigo: 'SEDE-1',
+        nombre: 'Sede norte',
+        sedeId: 'sede-1',
+      },
+    ],
   );
   mockPayrollRunFindFirst.mockResolvedValue(null);
   mockPayrollRunCreate.mockImplementation(async ({ data }) => ({
@@ -157,6 +299,11 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
     mockPayrollPeriodFindFirstOrThrow.mockImplementation(async () =>
       makePeriod('APROBADA'),
     );
+    mockPayrollRunFindMany.mockResolvedValue([]);
+    mockPayrollNoveltyFindMany.mockResolvedValue([]);
+    mockContratoFindMany.mockResolvedValue([]);
+    mockTenantFindUnique.mockResolvedValue({ aportesExonerados: false });
+    mockPayrollSnapshotCreate.mockResolvedValue({});
 
     const module = await Test.createTestingModule({
       providers: [
@@ -295,6 +442,288 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
   });
 
   // ── rechazar: EN_REVISION → CALCULADA ────────────────────────────────────────
+
+  describe('snapshot inmutable U3', () => {
+    it('crea snapshot inmutable al pasar a APROBADA', async () => {
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('EN_REVISION'));
+      mockPayrollPeriodUpdateMany.mockResolvedValue({ count: 1 });
+      mockPayrollRunFindMany.mockResolvedValue([makeRunForSnapshot()]);
+      mockPayrollNoveltyFindMany.mockResolvedValue([
+        {
+          id: 'novelty-1',
+          tenantId: TENANT,
+          payrollPeriodId: PERIOD_ID,
+          employeeId: 'emp-1',
+          tipo: 'BONUS',
+          descripcion: 'Bono',
+          fecha: new Date('2026-01-15'),
+          valor: 100_000,
+        },
+      ]);
+      mockContratoFindMany.mockResolvedValue([
+        {
+          id: 'contrato-1',
+          empleadoId: 'emp-1',
+          estado: 'VIGENTE',
+          fechaInicio: new Date('2025-01-01'),
+          fechaFin: null,
+          sedeId: 'sede-1',
+          salario: 2_000_000,
+          claseRiesgoArl: 1,
+        },
+      ]);
+
+      await service.aprobar(TENANT, USER, PERIOD_ID);
+
+      expect(mockPayrollSnapshotCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          tenantId: TENANT,
+          payrollRunId: 'run-1',
+          payrollPeriodId: PERIOD_ID,
+          employeeId: 'emp-1',
+          contratoId: 'contrato-1',
+          parametroLegalId: 'param-1',
+          centroCostoId: 'cc-1',
+          aprobadoPorId: USER,
+          estadoPeriodo: 'APROBADA',
+          origen: 'APPROVE',
+          payloadVersion: 1,
+        }),
+      });
+    });
+
+    it('congela parametros, insumos, conceptos y totales en el payload', async () => {
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('EN_REVISION'));
+      mockPayrollPeriodUpdateMany.mockResolvedValue({ count: 1 });
+      mockPayrollRunFindMany.mockResolvedValue([makeRunForSnapshot()]);
+      mockPayrollNoveltyFindMany.mockResolvedValue([]);
+      mockContratoFindMany.mockResolvedValue([
+        {
+          id: 'contrato-1',
+          empleadoId: 'emp-1',
+          estado: 'VIGENTE',
+          fechaInicio: new Date('2025-01-01'),
+          fechaFin: null,
+          sedeId: 'sede-1',
+          salario: 2_000_000,
+          claseRiesgoArl: 1,
+        },
+      ]);
+
+      await service.aprobar(TENANT, USER, PERIOD_ID);
+
+      const payload = mockPayrollSnapshotCreate.mock.calls[0][0].data.payload;
+      expect(payload.employee).toMatchObject({
+        employeeId: 'emp-1',
+        salarioBaseUsado: 2_000_000,
+        salarioIntegralUsado: false,
+      });
+      expect(payload.contract).toMatchObject({
+        contratoId: 'contrato-1',
+        sedeId: 'sede-1',
+        claseRiesgoArlUsada: 1,
+      });
+      expect(payload.legalParameters).toMatchObject({
+        parametroLegalId: 'param-1',
+        smmlv: 1_423_500,
+        factoresProvision: expect.objectContaining({
+          factorProvPrima: 0.0833,
+        }),
+      });
+      expect(payload.concepts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            codigo: 'SALUD_EMP',
+            base: 2_000_000,
+            factor: 0.04,
+            valor: 80_000,
+          }),
+        ]),
+      );
+      expect(payload.totals).toMatchObject({
+        totalDevengos: 2_202_897,
+        totalDeducciones: 160_000,
+        netoPagar: 2_042_897,
+      });
+    });
+
+    it('usa la huella calculada aunque cambien datos mutables antes de aprobar', async () => {
+      setupPayrollGeneration();
+      mockPayrollNoveltyFindMany.mockResolvedValue([
+        {
+          id: 'novelty-calculated',
+          tenantId: TENANT,
+          payrollPeriodId: PERIOD_ID,
+          employeeId: 'emp-1',
+          tipo: 'BONUS',
+          descripcion: 'Bono calculado',
+          fecha: new Date('2026-01-10'),
+          valor: 100_000,
+        },
+      ]);
+
+      await service.generatePayroll(TENANT, USER, PERIOD_ID);
+
+      const createdData = mockPayrollRunCreate.mock.calls[0][0].data;
+      const { concepts, ...runData } = createdData;
+      mockPayrollRunFindMany.mockResolvedValue([
+        {
+          id: 'run-1',
+          ...runData,
+          concepts: concepts.create.map((concept: Record<string, unknown>) => ({
+            id: `concept-${String(concept.codigo)}`,
+            createdAt: new Date('2026-01-01'),
+            payrollRunId: 'run-1',
+            ...concept,
+          })),
+        },
+      ]);
+
+      mockTenantFindUnique.mockClear();
+      mockEmpleadoFindMany.mockClear();
+      mockContratoFindMany.mockClear();
+      mockPayrollNoveltyFindMany.mockClear();
+      mockParametroLegalFindFirst.mockClear();
+
+      mockTenantFindUnique.mockResolvedValue({ aportesExonerados: true });
+      mockEmpleadoFindMany.mockResolvedValue([
+        { id: 'emp-1', salario: 9_000_000, salarioIntegral: true },
+      ]);
+      mockContratoFindMany.mockResolvedValue([
+        {
+          id: 'contrato-mutado',
+          empleadoId: 'emp-1',
+          estado: 'VIGENTE',
+          fechaInicio: new Date('2026-01-01'),
+          fechaFin: null,
+          sedeId: 'sede-mutada',
+          salario: 9_000_000,
+          claseRiesgoArl: 5,
+        },
+      ]);
+      mockPayrollNoveltyFindMany.mockResolvedValue([
+        {
+          id: 'novelty-mutated',
+          tenantId: TENANT,
+          payrollPeriodId: PERIOD_ID,
+          employeeId: 'emp-1',
+          tipo: 'OVERTIME',
+          descripcion: 'Novedad mutada',
+          fecha: new Date('2026-01-20'),
+          valor: 900_000,
+        },
+      ]);
+      mockParametroLegalFindFirst.mockResolvedValue({
+        ...makeLegalParam(),
+        id: 'param-mutado',
+        smmlv: 9_999_999,
+      });
+
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('EN_REVISION'));
+      mockPayrollPeriodFindFirstOrThrow.mockResolvedValue(
+        makePeriod('APROBADA', {
+          nombre: 'Periodo mutado',
+          fechaInicio: new Date('2026-02-01'),
+          fechaFin: new Date('2026-02-28'),
+        }),
+      );
+      mockPayrollPeriodUpdateMany.mockResolvedValue({ count: 1 });
+
+      await service.aprobar(TENANT, USER, PERIOD_ID);
+
+      const payload = mockPayrollSnapshotCreate.mock.calls[0][0].data.payload;
+      expect(payload.period).toMatchObject({
+        nombre: 'Enero 2026',
+        fechaInicio: new Date('2026-01-01').toISOString(),
+        fechaFin: new Date('2026-01-31').toISOString(),
+      });
+      expect(payload.employee).toMatchObject({
+        salarioBaseUsado: 2_000_000,
+        salarioIntegralUsado: false,
+      });
+      expect(payload.contract).toMatchObject({
+        contratoId: 'contrato-1',
+        salarioContrato: 2_000_000,
+        sedeId: 'sede-1',
+        claseRiesgoArlUsada: 1,
+      });
+      expect(payload.companyPolicy).toEqual({ aportesExonerados: false });
+      expect(payload.legalParameters).toMatchObject({
+        parametroLegalId: 'param-1',
+        smmlv: 1_423_500,
+      });
+      expect(payload.novelties).toEqual([
+        {
+          noveltyId: 'novelty-calculated',
+          tipo: 'BONUS',
+          descripcion: 'Bono calculado',
+          fecha: new Date('2026-01-10').toISOString(),
+          valor: 100_000,
+        },
+      ]);
+      expect(mockTenantFindUnique).not.toHaveBeenCalled();
+      expect(mockEmpleadoFindMany).not.toHaveBeenCalled();
+      expect(mockContratoFindMany).not.toHaveBeenCalled();
+      expect(mockPayrollNoveltyFindMany).not.toHaveBeenCalled();
+      expect(mockParametroLegalFindFirst).not.toHaveBeenCalled();
+    });
+
+    it('no crea snapshot antes de aprobar', async () => {
+      setupPayrollGeneration();
+
+      await service.generatePayroll(TENANT, USER, PERIOD_ID);
+
+      expect(mockPayrollSnapshotCreate).not.toHaveBeenCalled();
+    });
+
+    it('si falla la creacion del snapshot, no registra auditoria de aprobacion', async () => {
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('EN_REVISION'));
+      mockPayrollPeriodUpdateMany.mockResolvedValue({ count: 1 });
+      mockPayrollRunFindMany.mockResolvedValue([makeRunForSnapshot()]);
+      mockPayrollSnapshotCreate.mockRejectedValueOnce(
+        new Error('snapshot down'),
+      );
+
+      await expect(service.aprobar(TENANT, USER, PERIOD_ID)).rejects.toThrow(
+        'snapshot down',
+      );
+      expect(mockAudit.log).not.toHaveBeenCalled();
+    });
+
+    it('closePeriod produce snapshot con el mismo flujo compartido', async () => {
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CALCULADA'));
+      mockPayrollPeriodUpdateMany.mockResolvedValue({ count: 1 });
+      mockPayrollRunFindMany.mockResolvedValue([makeRunForSnapshot()]);
+      mockContratoFindMany.mockResolvedValue([
+        {
+          id: 'contrato-1',
+          empleadoId: 'emp-1',
+          estado: 'VIGENTE',
+          fechaInicio: new Date('2025-01-01'),
+          fechaFin: null,
+          sedeId: 'sede-1',
+          salario: 2_000_000,
+          claseRiesgoArl: 1,
+        },
+      ]);
+
+      await service.closePeriod(TENANT, USER, PERIOD_ID);
+
+      expect(mockPayrollSnapshotCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          payrollRunId: 'run-1',
+          origen: 'LEGACY_CLOSE',
+          estadoPeriodo: 'APROBADA',
+        }),
+      });
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PAYROLL_PERIOD_APPROVED_LEGACY_CLOSE',
+        }),
+        mockPrisma,
+      );
+    });
+  });
 
   describe('rechazar', () => {
     it('EN_REVISION → CALCULADA: transición válida', async () => {
@@ -489,7 +918,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           activo: true,
           deletedAt: null,
         },
-        select: { id: true, sedeId: true },
+        select: { id: true, codigo: true, nombre: true, sedeId: true },
         orderBy: { createdAt: 'asc' },
       });
       expect(mockPayrollRunCreate).toHaveBeenCalledWith({
