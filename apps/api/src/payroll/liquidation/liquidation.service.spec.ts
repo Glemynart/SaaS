@@ -136,9 +136,11 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
   let service: LiquidationService;
 
   // Retiro a mitad del período de diciembre: 15 días comerciales trabajados.
+  // status base = BORRADOR: no procesado bajo la máquina de estados P1/U1
+  // (ver PERIODOS_PROCESADOS en liquidation.service.ts).
   const PERIODO_DIC = {
     id: 'per-dic',
-    status: 'DRAFT' as const,
+    status: 'BORRADOR' as const,
     fechaInicio: new Date('2023-12-01'),
     fechaFin: new Date('2023-12-31'),
   };
@@ -186,10 +188,10 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
     service = module.get(LiquidationService);
   });
 
-  it('período CLOSED con PayrollRun del empleado → NO emite salario pendiente', async () => {
+  it('período APROBADA con PayrollRun del empleado → NO emite salario pendiente', async () => {
     mockPayrollPeriodFindFirst.mockResolvedValue({
       ...PERIODO_DIC,
-      status: 'CLOSED',
+      status: 'APROBADA',
     });
     mockPayrollRunFindFirst.mockResolvedValue({ id: 'run-1' });
 
@@ -199,10 +201,10 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
     expect(mockPayrollRunFindFirst).toHaveBeenCalled();
   });
 
-  it('período CLOSED pero SIN PayrollRun del empleado → emite días trabajados', async () => {
+  it('período APROBADA pero SIN PayrollRun del empleado → emite días trabajados', async () => {
     mockPayrollPeriodFindFirst.mockResolvedValue({
       ...PERIODO_DIC,
-      status: 'CLOSED',
+      status: 'APROBADA',
     });
     mockPayrollRunFindFirst.mockResolvedValue(null);
 
@@ -214,7 +216,23 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
     expect(concept!.factor).toBeCloseTo(15 / 30, 6);
   });
 
-  it('período DRAFT (no CLOSED) → emite días trabajados sin consultar runs', async () => {
+  it('período CERRADA (legado, backfill de CLOSED) con PayrollRun → NO emite salario pendiente', async () => {
+    // Regresión H1: antes de la corrección, esta rama nunca se ejecutaba
+    // porque ningún PayrollPeriod vuelve a estar en CLOSED tras el backfill
+    // de U1 — los períodos legados quedan en CERRADA, no en APROBADA.
+    mockPayrollPeriodFindFirst.mockResolvedValue({
+      ...PERIODO_DIC,
+      status: 'CERRADA',
+    });
+    mockPayrollRunFindFirst.mockResolvedValue({ id: 'run-1' });
+
+    const data = await runAndCaptureCreateData();
+
+    expect(salarioPendienteConcept(data)).toBeUndefined();
+    expect(mockPayrollRunFindFirst).toHaveBeenCalled();
+  });
+
+  it('período BORRADOR (no procesado) → emite días trabajados sin consultar runs', async () => {
     mockPayrollPeriodFindFirst.mockResolvedValue(PERIODO_DIC);
 
     const data = await runAndCaptureCreateData();
@@ -222,7 +240,7 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
     const concept = salarioPendienteConcept(data);
     expect(concept).toBeDefined();
     expect(concept!.factor).toBeCloseTo(15 / 30, 6);
-    // En período DRAFT no se consulta PayrollRun.
+    // En período no procesado no se consulta PayrollRun.
     expect(mockPayrollRunFindFirst).not.toHaveBeenCalled();
   });
 
