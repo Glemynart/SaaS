@@ -12,7 +12,10 @@ import {
   CreatePayrollNoveltyDto,
 } from './dto/create-payroll.dto';
 import { calculate } from './calculator/payroll-calculator';
-import { PayrollCalculationResult } from './calculator/payroll-types';
+import {
+  PayrollCalculationInput,
+  PayrollCalculationResult,
+} from './calculator/payroll-types';
 import {
   EmpForPayroll,
   ContratoForPayroll,
@@ -31,6 +34,66 @@ const GENERATE_ALLOWED_STATUSES: PayrollPeriodStatus[] = [
 /** Idéntico rango que generate: recalcular es libre hasta APROBADA (§6). */
 const RECALCULATE_ALLOWED_STATUSES: PayrollPeriodStatus[] =
   GENERATE_ALLOWED_STATUSES;
+
+const SNAPSHOT_PAYLOAD_VERSION = 1;
+const CALCULATION_TRACE_VERSION = 1;
+
+type CostCenterForPayrollTrace = {
+  id: string;
+  codigo: string;
+  nombre: string;
+  sedeId: string | null;
+};
+
+type NoveltyForPayrollTrace = {
+  id: string;
+  tipo: string;
+  descripcion: string | null;
+  fecha: Date;
+  valor: Prisma.Decimal | null;
+};
+
+type PayrollCalculationTrace = {
+  traceVersion: number;
+  period: {
+    nombre: string;
+    fechaInicio: string | null;
+    fechaFin: string | null;
+  };
+  employee: {
+    salarioIntegralUsado: boolean;
+  };
+  contract: {
+    contratoId: string;
+    estado: string;
+    fechaInicio: string | null;
+    fechaFin: string | null;
+    salarioContrato: number;
+    sedeId: string | null;
+    claseRiesgoArlOriginal: number | null;
+    claseRiesgoArlUsada: number;
+    fallbackUsado: boolean;
+  } | null;
+  costCenter: {
+    codigo: string;
+    nombre: string;
+    sedeId: string | null;
+  } | null;
+  companyPolicy: {
+    aportesExonerados: boolean;
+  };
+  legalParameters: Record<string, unknown>;
+  novelties: Array<{
+    noveltyId: string;
+    tipo: string;
+    descripcion: string | null;
+    fecha: string | null;
+    valor: number | null;
+  }>;
+  calculationEvidence: {
+    politicaRedondeoAplicada: string;
+  };
+};
 
 @Injectable()
 export class PayrollService {
@@ -135,53 +198,15 @@ export class PayrollService {
    * @deprecated Eliminar cuando el frontend adopte el flujo de revisión.
    */
   async closePeriod(tenantId: string, userId: string, id: string) {
-    const { period, runs, totals } = await this.findOnePeriod(tenantId, id);
-    if (period.status !== PayrollPeriodStatus.CALCULADA) {
-      throw new BadRequestException(
-        `Solo se puede aprobar (alias legado "close") un período en estado ` +
-          `CALCULADA; estado actual: ${period.status}`,
-      );
-    }
-
-    return this.prisma.$transaction(async (tx) => {
-      const result = await tx.payrollPeriod.updateMany({
-        where: { id, tenantId, status: PayrollPeriodStatus.CALCULADA },
-        data: {
-          status: PayrollPeriodStatus.APROBADA,
-          aprobadoPorId: userId,
-          aprobadoEn: new Date(),
-        },
-      });
-      if (result.count === 0) {
-        throw new ConflictException(
-          'El período fue modificado por otra operación concurrente',
-        );
-      }
-
-      await this.auditService.log(
-        {
-          tenantId,
-          userId,
-          action: 'PAYROLL_PERIOD_APPROVED_LEGACY_CLOSE',
-          entityType: 'PayrollPeriod',
-          entityId: id,
-          metadata: {
-            periodName: period.nombre,
-            payrollPeriodId: id,
-            totalRuns: runs.length,
-            totalNeto: totals.totalNeto,
-            from: PayrollPeriodStatus.CALCULADA,
-            to: PayrollPeriodStatus.APROBADA,
-          },
-        },
-        tx,
-      );
-
-      return tx.payrollPeriod.findFirstOrThrow({ where: { id, tenantId } });
-    });
+    return this.approvePeriod(
+      tenantId,
+      userId,
+      id,
+      PayrollPeriodStatus.CALCULADA,
+      'PAYROLL_PERIOD_APPROVED_LEGACY_CLOSE',
+      'LEGACY_CLOSE',
+    );
   }
-
-  /** CALCULADA → EN_REVISION (ADR-002 §6). */
   async enviarARevision(tenantId: string, userId: string, id: string) {
     return this.transitionPeriod(
       tenantId,
@@ -195,14 +220,13 @@ export class PayrollService {
 
   /** EN_REVISION → APROBADA (ADR-002 §6). Terminal en P1. */
   async aprobar(tenantId: string, userId: string, id: string) {
-    return this.transitionPeriod(
+    return this.approvePeriod(
       tenantId,
       userId,
       id,
       PayrollPeriodStatus.EN_REVISION,
-      PayrollPeriodStatus.APROBADA,
       'PAYROLL_PERIOD_APPROVED',
-      { data: { aprobadoPorId: userId, aprobadoEn: new Date() } },
+      'APPROVE',
     );
   }
 
@@ -234,6 +258,76 @@ export class PayrollService {
       PayrollPeriodStatus.BORRADOR,
       'PAYROLL_PERIOD_REOPENED',
     );
+  }
+
+  private async approvePeriod(
+    tenantId: string,
+    userId: string,
+    periodId: string,
+    from: PayrollPeriodStatus,
+    action: string,
+    origin: string,
+  ) {
+    if (from !== PayrollPeriodStatus.CALCULADA) {
+      assertTransition(from, PayrollPeriodStatus.APROBADA);
+    }
+
+    const period = await this.prisma.payrollPeriod.findFirst({
+      where: { id: periodId, tenantId },
+    });
+    if (!period) throw new NotFoundException('PerÃ­odo no encontrado');
+    if (period.status !== from) {
+      throw new BadRequestException(
+        `TransiciÃ³n de estado no permitida: ${period.status} â†’ ${PayrollPeriodStatus.APROBADA} (se requiere ${from})`,
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const result = await tx.payrollPeriod.updateMany({
+        where: { id: periodId, tenantId, status: from },
+        data: {
+          status: PayrollPeriodStatus.APROBADA,
+          aprobadoPorId: userId,
+          aprobadoEn: new Date(),
+        },
+      });
+      if (result.count === 0) {
+        throw new ConflictException(
+          'El perÃ­odo fue modificado por otra operaciÃ³n concurrente',
+        );
+      }
+
+      const approvedPeriod = await tx.payrollPeriod.findFirstOrThrow({
+        where: { id: periodId, tenantId },
+      });
+      const snapshotsCreated = await this.createApprovedSnapshots(
+        tx,
+        tenantId,
+        userId,
+        approvedPeriod,
+        origin,
+      );
+
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action,
+          entityType: 'PayrollPeriod',
+          entityId: periodId,
+          metadata: {
+            periodName: period.nombre,
+            payrollPeriodId: periodId,
+            snapshotsCreated,
+            from: period.status,
+            to: PayrollPeriodStatus.APROBADA,
+          },
+        },
+        tx,
+      );
+
+      return approvedPeriod;
+    });
   }
 
   /**
@@ -400,7 +494,7 @@ export class PayrollService {
               period.fechaInicio,
               runWarnings,
             );
-            const centroCostoId = this.resolveCentroCostoId(
+            const centroCosto = this.resolveCentroCosto(
               calculation.contrato,
               centroCostoBySede,
             );
@@ -410,9 +504,12 @@ export class PayrollService {
                 emp,
                 calculation.result,
                 legalParam.id,
-                periodId,
+                period,
                 tenantId,
-                centroCostoId,
+                centroCosto,
+                calculation,
+                this.serializeLegalParams(legalParam),
+                noveltiesByEmployee.get(emp.id) ?? [],
               ),
             });
             created.push(run);
@@ -564,7 +661,7 @@ export class PayrollService {
               period.fechaInicio,
               runWarnings,
             );
-            const centroCostoId = this.resolveCentroCostoId(
+            const centroCosto = this.resolveCentroCosto(
               calculation.contrato,
               centroCostoBySede,
             );
@@ -574,9 +671,12 @@ export class PayrollService {
                 emp,
                 calculation.result,
                 legalParam.id,
-                periodId,
+                period,
                 tenantId,
-                centroCostoId,
+                centroCosto,
+                calculation,
+                this.serializeLegalParams(legalParam),
+                noveltiesByEmployee.get(emp.id) ?? [],
               ),
             });
           }
@@ -768,6 +868,222 @@ export class PayrollService {
    * Extrae la lógica de resolución de contrato + ARL + calculator para reutilizar
    * en generatePayroll y recalculatePayroll sin duplicar código.
    */
+  private async createApprovedSnapshots(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    userId: string,
+    period: {
+      id: string;
+      tenantId: string;
+      nombre: string;
+      fechaInicio: Date;
+      fechaFin: Date;
+      status: PayrollPeriodStatus;
+    },
+    origin: string,
+  ) {
+    const runs = await tx.payrollRun.findMany({
+      where: { tenantId, payrollPeriodId: period.id },
+      include: {
+        concepts: { orderBy: { createdAt: 'asc' } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (runs.length === 0) return 0;
+
+    for (const run of runs) {
+      const trace = this.getCalculationTrace(run.id, run.calculationTrace);
+      if (!run.parametroLegalId) {
+        throw new BadRequestException(
+          `La liquidaciÃ³n ${run.id} no tiene parÃ¡metro legal para congelar`,
+        );
+      }
+
+      const payload = {
+        metadata: {
+          payloadVersion: SNAPSHOT_PAYLOAD_VERSION,
+          generatedAt: new Date().toISOString(),
+          generatedInStatus: PayrollPeriodStatus.APROBADA,
+          origin,
+          approvedById: userId,
+        },
+        period: {
+          payrollPeriodId: run.payrollPeriodId,
+          nombre: trace.period.nombre,
+          fechaInicio: trace.period.fechaInicio,
+          fechaFin: trace.period.fechaFin,
+          status: PayrollPeriodStatus.APROBADA,
+        },
+        employee: {
+          employeeId: run.employeeId,
+          salarioBaseUsado: this.toNumber(run.salarioBaseSnapshot),
+          salarioIntegralUsado: trace.employee.salarioIntegralUsado,
+        },
+        contract: trace.contract
+          ? {
+              contratoId: trace.contract.contratoId,
+              estado: trace.contract.estado,
+              fechaInicio: trace.contract.fechaInicio,
+              fechaFin: trace.contract.fechaFin,
+              salarioContrato: trace.contract.salarioContrato,
+              sedeId: trace.contract.sedeId,
+              claseRiesgoArlUsada: trace.contract.claseRiesgoArlUsada,
+            }
+          : null,
+        costCenter: trace.costCenter
+          ? {
+              centroCostoId: run.centroCostoId,
+              codigo: trace.costCenter.codigo,
+              nombre: trace.costCenter.nombre,
+              sedeId: trace.costCenter.sedeId,
+            }
+          : { centroCostoId: run.centroCostoId },
+        companyPolicy: trace.companyPolicy,
+        legalParameters: {
+          parametroLegalId: run.parametroLegalId,
+          ...trace.legalParameters,
+        },
+        novelties: trace.novelties,
+        concepts: run.concepts.map((concept) => ({
+          conceptId: concept.id,
+          codigo: concept.codigo,
+          tipo: concept.tipo,
+          nombre: concept.nombre,
+          base: this.toNumber(concept.base),
+          factor: this.toNumber(concept.factor),
+          valor: this.toNumber(concept.valor),
+        })),
+        totals: {
+          totalDevengos: this.toNumber(run.totalDevengos),
+          totalDeducciones: this.toNumber(run.totalDeducciones),
+          netoPagar: this.toNumber(run.netoPagar),
+          ibc: this.toNumber(run.ibc),
+          auxilioTransporte: this.toNumber(run.auxilioTransporte),
+          totalAportesPatronales: this.toNumber(run.totalAportesPatronales),
+          totalProvisiones: this.toNumber(run.totalProvisiones),
+          costoTotalEmpleador: this.toNumber(run.costoTotalEmpleador),
+        },
+        calculationEvidence: trace.calculationEvidence,
+      };
+
+      await tx.payrollSnapshot.create({
+        data: {
+          tenantId,
+          payrollRunId: run.id,
+          payrollPeriodId: period.id,
+          employeeId: run.employeeId,
+          contratoId: trace.contract?.contratoId ?? null,
+          parametroLegalId: run.parametroLegalId,
+          centroCostoId: run.centroCostoId,
+          aprobadoPorId: userId,
+          estadoPeriodo: PayrollPeriodStatus.APROBADA,
+          origen: origin,
+          payloadVersion: SNAPSHOT_PAYLOAD_VERSION,
+          payload: payload as Prisma.InputJsonValue,
+        },
+      });
+    }
+
+    return runs.length;
+  }
+
+  private getCalculationTrace(
+    runId: string,
+    value: Prisma.JsonValue,
+  ): PayrollCalculationTrace {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new BadRequestException(
+        `La liquidación ${runId} no tiene huella técnica de cálculo para congelar`,
+      );
+    }
+    return value as unknown as PayrollCalculationTrace;
+  }
+
+  private serializeLegalParams(p: {
+    id: string;
+    tenantId: string | null;
+    vigenciaDesde: Date;
+    vigenciaHasta: Date | null;
+    anio: number;
+    smmlv: unknown;
+    auxilioTransporte: unknown;
+    uvt: unknown;
+    topeIbcMinSmmlv: number;
+    topeIbcMaxSmmlv: number;
+    umbralAuxilioSmmlv: unknown;
+    umbralExoneracionSmmlv: number;
+    pctSaludEmpleado: unknown;
+    pctPensionEmpleado: unknown;
+    pctSaludEmpleador: unknown;
+    pctPensionEmpleador: unknown;
+    pctCaja: unknown;
+    pctIcbf: unknown;
+    pctSena: unknown;
+    arlClaseI: unknown;
+    arlClaseII: unknown;
+    arlClaseIII: unknown;
+    arlClaseIV: unknown;
+    arlClaseV: unknown;
+    factorProvPrima: unknown;
+    factorProvCesantias: unknown;
+    factorProvIntCesantias: unknown;
+    factorProvVacaciones: unknown;
+    fspTramos: Prisma.JsonValue;
+    fuente: string | null;
+    notas: string | null;
+  }) {
+    return {
+      tenantId: p.tenantId,
+      vigenciaDesde: this.toIsoDate(p.vigenciaDesde),
+      vigenciaHasta: this.toIsoDate(p.vigenciaHasta),
+      anio: p.anio,
+      smmlv: this.toNumber(p.smmlv),
+      auxilioTransporte: this.toNumber(p.auxilioTransporte),
+      uvt: this.toNumber(p.uvt),
+      topes: {
+        topeIbcMinSmmlv: p.topeIbcMinSmmlv,
+        topeIbcMaxSmmlv: p.topeIbcMaxSmmlv,
+        umbralAuxilioSmmlv: this.toNumber(p.umbralAuxilioSmmlv),
+        umbralExoneracionSmmlv: p.umbralExoneracionSmmlv,
+      },
+      tarifasEmpleado: {
+        pctSaludEmpleado: this.toNumber(p.pctSaludEmpleado),
+        pctPensionEmpleado: this.toNumber(p.pctPensionEmpleado),
+      },
+      tarifasEmpleador: {
+        pctSaludEmpleador: this.toNumber(p.pctSaludEmpleador),
+        pctPensionEmpleador: this.toNumber(p.pctPensionEmpleador),
+        pctCaja: this.toNumber(p.pctCaja),
+        pctIcbf: this.toNumber(p.pctIcbf),
+        pctSena: this.toNumber(p.pctSena),
+      },
+      tarifasArl: {
+        arlClaseI: this.toNumber(p.arlClaseI),
+        arlClaseII: this.toNumber(p.arlClaseII),
+        arlClaseIII: this.toNumber(p.arlClaseIII),
+        arlClaseIV: this.toNumber(p.arlClaseIV),
+        arlClaseV: this.toNumber(p.arlClaseV),
+      },
+      factoresProvision: {
+        factorProvPrima: this.toNumber(p.factorProvPrima),
+        factorProvCesantias: this.toNumber(p.factorProvCesantias),
+        factorProvIntCesantias: this.toNumber(p.factorProvIntCesantias),
+        factorProvVacaciones: this.toNumber(p.factorProvVacaciones),
+      },
+      fspTramos: p.fspTramos,
+      fuente: p.fuente,
+      notas: p.notas,
+    };
+  }
+
+  private toNumber(value: unknown) {
+    return value === null || value === undefined ? null : Number(value);
+  }
+
+  private toIsoDate(value: Date | null) {
+    return value ? value.toISOString() : null;
+  }
+
   private calculateAndCollectWarnings(
     emp: EmpForPayroll,
     empContracts: Array<{
@@ -785,7 +1101,12 @@ export class PayrollService {
     legalSnapshot: ReturnType<typeof toSnapshot>,
     periodStart: Date,
     warningsMap: Record<string, string[]>,
-  ): { result: PayrollCalculationResult; contrato: ContratoForPayroll | null } {
+  ): {
+    result: PayrollCalculationResult;
+    contrato: ContratoForPayroll | null;
+    contratoFallback: boolean;
+    input: PayrollCalculationInput;
+  } {
     const { contrato, fallback } = resolveContrato(empContracts, periodStart);
 
     const { input, serviceWarnings } = buildCalculationInput(
@@ -811,23 +1132,98 @@ export class PayrollService {
       warningsMap[emp.id] = allWarnings;
     }
 
-    return { result, contrato };
+    return { result, contrato, contratoFallback: fallback, input };
+  }
+
+  private buildCalculationTrace(
+    emp: EmpForPayroll,
+    period: {
+      nombre: string;
+      fechaInicio: Date;
+      fechaFin: Date;
+    },
+    centroCosto: CostCenterForPayrollTrace | null,
+    calculation: {
+      contrato: ContratoForPayroll | null;
+      contratoFallback: boolean;
+      input: PayrollCalculationInput;
+    },
+    legalParameters: Record<string, unknown>,
+    novelties: NoveltyForPayrollTrace[],
+  ): PayrollCalculationTrace {
+    const { contrato, contratoFallback, input } = calculation;
+
+    return {
+      traceVersion: CALCULATION_TRACE_VERSION,
+      period: {
+        nombre: period.nombre,
+        fechaInicio: this.toIsoDate(period.fechaInicio),
+        fechaFin: this.toIsoDate(period.fechaFin),
+      },
+      employee: {
+        salarioIntegralUsado: emp.salarioIntegral,
+      },
+      contract: contrato
+        ? {
+            contratoId: contrato.id,
+            estado: contrato.estado,
+            fechaInicio: this.toIsoDate(contrato.fechaInicio),
+            fechaFin: this.toIsoDate(contrato.fechaFin),
+            salarioContrato: Number(contrato.salario),
+            sedeId: contrato.sedeId,
+            claseRiesgoArlOriginal: contrato.claseRiesgoArl,
+            claseRiesgoArlUsada: input.claseRiesgoArl,
+            fallbackUsado: contratoFallback,
+          }
+        : null,
+      costCenter: centroCosto
+        ? {
+            codigo: centroCosto.codigo,
+            nombre: centroCosto.nombre,
+            sedeId: centroCosto.sedeId,
+          }
+        : null,
+      companyPolicy: {
+        aportesExonerados: input.aportesExonerados,
+      },
+      legalParameters,
+      novelties: novelties.map((n) => ({
+        noveltyId: n.id,
+        tipo: n.tipo,
+        descripcion: n.descripcion,
+        fecha: this.toIsoDate(n.fecha),
+        valor: this.toNumber(n.valor),
+      })),
+      calculationEvidence: { politicaRedondeoAplicada: 'PESO_ENTERO' },
+    };
   }
 
   /** Construye el payload de creación de PayrollRun con campos N2A completos. */
   private buildRunCreateData(
-    emp: { id: string; salario: Prisma.Decimal },
+    emp: EmpForPayroll,
     result: PayrollCalculationResult,
     parametroLegalId: string,
-    periodId: string,
+    period: {
+      id: string;
+      nombre: string;
+      fechaInicio: Date;
+      fechaFin: Date;
+    },
     tenantId: string,
-    centroCostoId: string | null,
+    centroCosto: CostCenterForPayrollTrace | null,
+    calculation: {
+      contrato: ContratoForPayroll | null;
+      contratoFallback: boolean;
+      input: PayrollCalculationInput;
+    },
+    legalParameters: Record<string, unknown>,
+    novelties: NoveltyForPayrollTrace[],
   ) {
     return {
       tenantId,
-      payrollPeriodId: periodId,
+      payrollPeriodId: period.id,
       employeeId: emp.id,
-      centroCostoId,
+      centroCostoId: centroCosto?.id ?? null,
       totalDevengos: result.totalDevengos,
       totalDeducciones: result.totalDeducciones,
       netoPagar: result.netoPagar,
@@ -840,6 +1236,14 @@ export class PayrollService {
       // N2B — snapshot de provisiones prestacionales
       totalProvisiones: result.totalProvisiones,
       parametroLegalId,
+      calculationTrace: this.buildCalculationTrace(
+        emp,
+        period,
+        centroCosto,
+        calculation,
+        legalParameters,
+        novelties,
+      ) as Prisma.InputJsonValue,
       // Conceptos (mapeo genérico): incluye PROVISION con codigo/base/factor.
       concepts: {
         create: result.concepts.map((c) => ({
@@ -865,7 +1269,8 @@ export class PayrollService {
           .filter((sedeId): sedeId is string => Boolean(sedeId)),
       ),
     ];
-    if (sedeIds.length === 0) return new Map<string, string>();
+    if (sedeIds.length === 0)
+      return new Map<string, CostCenterForPayrollTrace>();
 
     const centros = await this.prisma.centroCosto.findMany({
       where: {
@@ -874,22 +1279,22 @@ export class PayrollService {
         activo: true,
         deletedAt: null,
       },
-      select: { id: true, sedeId: true },
+      select: { id: true, codigo: true, nombre: true, sedeId: true },
       orderBy: { createdAt: 'asc' },
     });
 
-    const bySede = new Map<string, string>();
+    const bySede = new Map<string, CostCenterForPayrollTrace>();
     for (const centro of centros) {
       if (centro.sedeId && !bySede.has(centro.sedeId)) {
-        bySede.set(centro.sedeId, centro.id);
+        bySede.set(centro.sedeId, centro);
       }
     }
     return bySede;
   }
 
-  private resolveCentroCostoId(
+  private resolveCentroCosto(
     contrato: ContratoForPayroll | null,
-    centroCostoBySede: Map<string, string>,
+    centroCostoBySede: Map<string, CostCenterForPayrollTrace>,
   ) {
     if (!contrato?.sedeId) return null;
     return centroCostoBySede.get(contrato.sedeId) ?? null;
