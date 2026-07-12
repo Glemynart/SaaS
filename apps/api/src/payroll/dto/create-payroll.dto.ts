@@ -6,19 +6,14 @@ import {
   IsDateString,
   IsNumber,
 } from 'class-validator';
+import { PayrollPeriodStatus } from '@prisma/client';
 
-/** Espejo del enum Prisma PayrollPeriodStatus (ver schema.prisma para la máquina de estados P1/U1). */
-export enum PayrollPeriodStatus {
-  // Legado — sin uso en código nuevo desde P1/U1.
-  DRAFT = 'DRAFT',
-  CLOSED = 'CLOSED',
-  // Máquina de estados del ProcesoNómina (ADR-002 §6).
-  BORRADOR = 'BORRADOR',
-  CALCULADA = 'CALCULADA',
-  EN_REVISION = 'EN_REVISION',
-  APROBADA = 'APROBADA',
-  CERRADA = 'CERRADA',
-}
+/**
+ * Re-exportado desde @prisma/client: fuente única de verdad. No duplicar
+ * la máquina de estados aquí (ver schema.prisma, enum PayrollPeriodStatus,
+ * para la definición y ADR-002 §6 para la semántica de P1/U1).
+ */
+export { PayrollPeriodStatus };
 
 export class CreatePayrollPeriodDto {
   @IsString()
