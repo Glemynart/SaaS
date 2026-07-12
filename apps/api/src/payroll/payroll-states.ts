@@ -15,6 +15,16 @@
  * El alias legado `closePeriod` (CALCULADA → APROBADA directo) NO se valida
  * contra este mapa a propósito: es un atajo temporal fuera del flujo
  * oficial, con su propia guarda en payroll.service.ts.
+ *
+ * `assertTransition` valida el par (from, to) declarado por cada acción
+ * contra el grafo — es una verificación ESTÁTICA de que ese par es un edge
+ * válido, no el gate en tiempo de ejecución. CALCULADA es alcanzable desde
+ * dos orígenes distintos (BORRADOR vía "calcular"; EN_REVISION vía
+ * "rechazar"): si `rechazar` solo comprobara "¿puede el estado real llegar
+ * a CALCULADA según el grafo?" aceptaría también un período en BORRADOR,
+ * que no es su precondición real. Por eso `transitionPeriod` en
+ * payroll.service.ts compara el estado real leído contra el `from`
+ * explícito de cada acción — no solo la membresía en este mapa.
  */
 import { BadRequestException } from '@nestjs/common';
 import { PayrollPeriodStatus } from '@prisma/client';

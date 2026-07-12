@@ -233,12 +233,25 @@ export class PayrollService {
   }
 
   /**
-   * Transición genérica y transaccional del ProcesoNómina (ADR-002 §6):
-   * valida contra `VALID_TRANSITIONS`, aplica un `updateMany` optimista
-   * (falla con `ConflictException` si el período no está exactamente en
-   * `from` — ya sea por no existir o por haber cambiado de estado
-   * concurrentemente) y audita dentro de la misma transacción: si la
-   * auditoría falla, la transición completa revierte (fail-secure, §6).
+   * Transición genérica y transaccional del ProcesoNómina (ADR-002 §6).
+   *
+   * Recibe `from` explícito por método (no se deriva del grafo): en
+   * `VALID_TRANSITIONS`, CALCULADA es alcanzable tanto desde BORRADOR
+   * ("calcular", fuera de este helper — ver generatePayroll) como desde
+   * EN_REVISION ("rechazar"). Si `rechazar` solo validara "¿puede el
+   * estado real llegar a CALCULADA según el grafo?" aceptaría también un
+   * período en BORRADOR, que no es su precondición real. Por eso la
+   * precondición de cada acción es explícita y se compara contra el
+   * estado leído; `assertTransition(from, to)` queda como verificación
+   * estática de que el par declarado es en efecto un edge válido del
+   * grafo (documental/defensivo), no como el gate en tiempo de ejecución.
+   *
+   * Flujo: lee el estado real (404 si no existe) → compara contra `from`
+   * (400 si no coincide: transición no aplicable) → `updateMany`
+   * optimista con el estado leído en el WHERE (409 si cambió entre la
+   * lectura y el commit — TOCTOU) → audita dentro de la misma
+   * transacción (si falla, la transición completa revierte — fail-secure,
+   * §6).
    */
   private async transitionPeriod(
     tenantId: string,
@@ -254,6 +267,17 @@ export class PayrollService {
   ) {
     assertTransition(from, to);
 
+    const period = await this.prisma.payrollPeriod.findFirst({
+      where: { id: periodId, tenantId },
+      select: { status: true },
+    });
+    if (!period) throw new NotFoundException('Período no encontrado');
+    if (period.status !== from) {
+      throw new BadRequestException(
+        `Transición de estado no permitida: ${period.status} → ${to} (se requiere ${from})`,
+      );
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const result = await tx.payrollPeriod.updateMany({
         where: { id: periodId, tenantId, status: from },
@@ -261,7 +285,7 @@ export class PayrollService {
       });
       if (result.count === 0) {
         throw new ConflictException(
-          `El período no está en estado ${from} o fue modificado por otra operación`,
+          'El período fue modificado por otra operación concurrente',
         );
       }
 
@@ -272,7 +296,7 @@ export class PayrollService {
           action,
           entityType: 'PayrollPeriod',
           entityId: periodId,
-          metadata: { from, to, ...options?.metadata },
+          metadata: { from: period.status, to, ...options?.metadata },
         },
         tx,
       );
