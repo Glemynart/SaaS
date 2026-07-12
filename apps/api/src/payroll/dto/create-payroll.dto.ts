@@ -29,6 +29,13 @@ export class CreatePayrollPeriodDto {
   fechaFin: string;
 }
 
+/** Body opcional de POST payroll/periods/:id/rechazar (ADR-002 §6). */
+export class RejectPayrollPeriodDto {
+  @IsString()
+  @IsOptional()
+  motivo?: string;
+}
+
 export enum PayrollNoveltyType {
   VACATION = 'VACATION',
   SICKNESS = 'SICKNESS',
