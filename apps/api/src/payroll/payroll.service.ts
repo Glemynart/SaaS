@@ -379,6 +379,17 @@ export class PayrollService {
             });
             created.push(run);
           }
+
+          // "El cálculo terminó correctamente" (ADR-002 §6): al final de esta
+          // misma transacción, tras persistir los runs, el período pasa a
+          // CALCULADA. Sin `where: status` de origen: es válido tanto desde
+          // BORRADOR como desde CALCULADA (recalcular no debe retroceder).
+          // Efecto natural del evento de cálculo, no una transición formal
+          // separada — no pasa por assertTransition/transitionPeriod.
+          await tx.payrollPeriod.updateMany({
+            where: { id: periodId, tenantId },
+            data: { status: PayrollPeriodStatus.CALCULADA },
+          });
         },
         { timeout: 30000 },
       );
@@ -522,6 +533,13 @@ export class PayrollService {
             });
           }
           summary.runsCreated = employees.length;
+
+          // La reliquidación mantiene CALCULADA (nunca retrocede a BORRADOR).
+          // Mismo evento de negocio que en generatePayroll: ver comentario ahí.
+          await tx.payrollPeriod.updateMany({
+            where: { id: periodId, tenantId },
+            data: { status: PayrollPeriodStatus.CALCULADA },
+          });
         },
         { timeout: 30000 },
       );
