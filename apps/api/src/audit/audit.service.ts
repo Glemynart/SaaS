@@ -6,16 +6,19 @@ import { Prisma } from '@prisma/client';
 export class AuditService {
   constructor(private prisma: PrismaService) {}
 
-  async log(params: {
-    tenantId: string;
-    userId: string;
-    action: string;
-    entityType: string;
-    entityId?: string;
-    metadata?: Record<string, unknown>;
-  }) {
+  async log(
+    params: {
+      tenantId: string;
+      userId: string;
+      action: string;
+      entityType: string;
+      entityId?: string;
+      metadata?: Record<string, unknown>;
+    },
+    tx?: Prisma.TransactionClient,
+  ) {
     const metadataInput = (params.metadata ?? {}) as Prisma.InputJsonValue;
-    return this.prisma.auditLog.create({
+    return (tx ?? this.prisma).auditLog.create({
       data: {
         tenantId: params.tenantId,
         userId: params.userId,

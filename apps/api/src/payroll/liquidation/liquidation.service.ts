@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { LiquidationStatus, Prisma } from '@prisma/client';
+import { LiquidationStatus, PayrollPeriodStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { calculate, diasComerciales } from './liquidation-calculator';
@@ -21,6 +21,18 @@ const VALID_TRANSITIONS: Record<LiquidationStatus, LiquidationStatus[]> = {
   PAID: [],
   VOIDED: [],
 };
+
+/**
+ * Estados de PayrollPeriod que indican "el mes ya se procesó" (resolveDias-
+ * SalarioPendiente los usa como proxy temporal de PAID; ver ese método).
+ * Antes de U1 el único estado terminal era CLOSED; U1 lo reemplazó por
+ * APROBADA (P1) y migró los períodos legados CLOSED → CERRADA (backfill).
+ * Ningún código nuevo escribe CLOSED — ver payroll-states.ts.
+ */
+const PERIODOS_PROCESADOS: PayrollPeriodStatus[] = [
+  PayrollPeriodStatus.APROBADA,
+  PayrollPeriodStatus.CERRADA,
+];
 
 @Injectable()
 export class LiquidationService {
@@ -172,9 +184,10 @@ export class LiquidationService {
    *
    * Política (decisión funcional cerrada):
    *  1. Buscar el PayrollPeriod que contiene fechaRetiro (último día trabajado).
-   *  2. Si existe un PayrollRun del empleado en ese período y el período está
-   *     CLOSED → 0 (el salario del mes ya se pagó; CLOSED es proxy temporal de
-   *     PAID).
+   *  2. Si existe un PayrollRun del empleado en ese período y el período ya
+   *     fue procesado (APROBADA o, legado, CERRADA — ver PERIODOS_PROCESADOS)
+   *     → 0 (el salario del mes ya se pagó; el estado "procesado" es proxy
+   *     temporal de PAID).
    *  3. En caso contrario → días comerciales (30/360) trabajados dentro del
    *     período de retiro.
    *
@@ -211,8 +224,8 @@ export class LiquidationService {
       return dias > 0 ? dias : 0;
     }
 
-    // 2. ¿Existe un PayrollRun CLOSED del empleado para ese período?
-    if (periodo.status === 'CLOSED') {
+    // 2. ¿Existe un PayrollRun del empleado en un período ya procesado?
+    if (PERIODOS_PROCESADOS.includes(periodo.status)) {
       const run = await this.prisma.payrollRun.findFirst({
         where: {
           tenantId,

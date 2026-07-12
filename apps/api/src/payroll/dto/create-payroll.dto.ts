@@ -6,11 +6,14 @@ import {
   IsDateString,
   IsNumber,
 } from 'class-validator';
+import { PayrollPeriodStatus } from '@prisma/client';
 
-export enum PayrollPeriodStatus {
-  DRAFT = 'DRAFT',
-  CLOSED = 'CLOSED',
-}
+/**
+ * Re-exportado desde @prisma/client: fuente única de verdad. No duplicar
+ * la máquina de estados aquí (ver schema.prisma, enum PayrollPeriodStatus,
+ * para la definición y ADR-002 §6 para la semántica de P1/U1).
+ */
+export { PayrollPeriodStatus };
 
 export class CreatePayrollPeriodDto {
   @IsString()
@@ -24,6 +27,13 @@ export class CreatePayrollPeriodDto {
   @IsDateString()
   @IsNotEmpty()
   fechaFin: string;
+}
+
+/** Body opcional de POST payroll/periods/:id/rechazar (ADR-002 §6). */
+export class RejectPayrollPeriodDto {
+  @IsString()
+  @IsOptional()
+  motivo?: string;
 }
 
 export enum PayrollNoveltyType {

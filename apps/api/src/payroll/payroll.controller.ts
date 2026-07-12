@@ -12,6 +12,7 @@ import { PayrollService } from './payroll.service';
 import {
   CreatePayrollPeriodDto,
   CreatePayrollNoveltyDto,
+  RejectPayrollPeriodDto,
 } from './dto/create-payroll.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
@@ -53,6 +54,13 @@ export class PayrollController {
     return this.service.findOnePeriod(user.tenantId, id);
   }
 
+  /**
+   * Alias legado de aprobación directa (CALCULADA → APROBADA, sin pasar
+   * por EN_REVISION). Existe solo mientras el frontend no adopte
+   * enviar-revision/aprobar/rechazar (ver payroll.service.ts).
+   *
+   * @deprecated Eliminar cuando el frontend adopte el flujo de revisión.
+   */
   @Roles(UserRole.ADMIN)
   @Patch('payroll/periods/:id/close')
   closePeriod(
@@ -60,6 +68,37 @@ export class PayrollController {
     @Param('id') id: string,
   ) {
     return this.service.closePeriod(user.tenantId, user.userId, id);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Post('payroll/periods/:id/enviar-revision')
+  enviarARevision(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+  ) {
+    return this.service.enviarARevision(user.tenantId, user.userId, id);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Post('payroll/periods/:id/aprobar')
+  aprobar(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    return this.service.aprobar(user.tenantId, user.userId, id);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Post('payroll/periods/:id/rechazar')
+  rechazar(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() dto?: RejectPayrollPeriodDto,
+  ) {
+    return this.service.rechazar(user.tenantId, user.userId, id, dto?.motivo);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Post('payroll/periods/:id/reabrir')
+  reabrir(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    return this.service.reabrir(user.tenantId, user.userId, id);
   }
 
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)

@@ -313,10 +313,12 @@ model User {
   activo       Boolean  @default(true)
 
   // Control de sesión
-  lastLoginAt         DateTime?
-  refreshTokens       RefreshToken[]
-  passwordResetTokens PasswordResetToken[]
-  lotesCreados        LoteContrato[]
+  lastLoginAt             DateTime?
+  refreshTokens           RefreshToken[]
+  passwordResetTokens     PasswordResetToken[]
+  lotesCreados            LoteContrato[]
+  // Actor de aprobación de ProcesoNómina (P1/U1)
+  periodosNominaAprobados PayrollPeriod[]      @relation("PayrollPeriodAprobadoPor")
 
   @@unique([tenantId, email]) // Un email es único por empresa, no globalmente
   @@index([tenantId, activo])
@@ -640,8 +642,27 @@ model Alert {
 // =============================================================================
 
 enum PayrollPeriodStatus {
+  // ── Legado (P0/N2) — sin uso en código nuevo desde P1/U1 ───────────────────
+  // Postgres no permite eliminar valores de un enum sin recrear el tipo;
+  // se preservan inertes. Backfill en U1: DRAFT → BORRADOR, CLOSED → CERRADA.
   DRAFT
   CLOSED
+
+  // ── Máquina de estados del ProcesoNómina (ADR-002 §6, P1/U1) ───────────────
+  // BORRADOR ─calcular→ CALCULADA ─enviar a revisión→ EN_REVISION ─aprobar→ APROBADA
+  // CALCULADA ─reabrir→ BORRADOR · EN_REVISION ─rechazar→ CALCULADA
+  // APROBADA es terminal en P1; P2 añadirá CAUSADA de forma aditiva (sin rename).
+  BORRADOR
+  CALCULADA
+  EN_REVISION
+  APROBADA
+  // CERRADA en U1/P1 es EXCLUSIVAMENTE legado: solo lo puebla el backfill de
+  // la migración (CLOSED → CERRADA). Ningún flujo nuevo de U1 transiciona
+  // hacia CERRADA — no aparece como destino en VALID_TRANSITIONS
+  // (payroll-states.ts). La transición funcional real PAGADA → CERRADA la
+  // añade P3; hasta entonces, un período llega aquí solo si ya estaba
+  // CLOSED antes de U1.
+  CERRADA
 }
 
 // =============================================================================
@@ -702,7 +723,14 @@ model PayrollPeriod {
   nombre      String
   fechaInicio DateTime
   fechaFin    DateTime
-  status      PayrollPeriodStatus @default(DRAFT)
+  status      PayrollPeriodStatus @default(BORRADOR)
+
+  // Actor de la transición a APROBADA (P1/U1): vía flujo de revisión o el
+  // alias legado `close` (CALCULADA → APROBADA directo). Nullable: no aplica
+  // a estados previos a APROBADA ni a períodos legados backfilleados.
+  aprobadoPorId String?
+  aprobadoPor   User?     @relation("PayrollPeriodAprobadoPor", fields: [aprobadoPorId], references: [id], onDelete: SetNull)
+  aprobadoEn    DateTime?
 
   runs      PayrollRun[]
   novelties PayrollNovelty[]

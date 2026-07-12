@@ -4,7 +4,7 @@ import {
   BadRequestException,
   ConflictException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, PayrollPeriodStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import {
@@ -19,6 +19,17 @@ import {
   resolveContrato,
   toSnapshot,
 } from './payroll-mapper';
+import { assertTransition } from './payroll-states';
+
+/** Estados en los que el motor de cálculo puede ejecutarse (ADR-002 §6). */
+const GENERATE_ALLOWED_STATUSES: PayrollPeriodStatus[] = [
+  PayrollPeriodStatus.BORRADOR,
+  PayrollPeriodStatus.CALCULADA,
+];
+
+/** Idéntico rango que generate: recalcular es libre hasta APROBADA (§6). */
+const RECALCULATE_ALLOWED_STATUSES: PayrollPeriodStatus[] =
+  GENERATE_ALLOWED_STATUSES;
 
 @Injectable()
 export class PayrollService {
@@ -38,6 +49,9 @@ export class PayrollService {
         fechaInicio: new Date(dto.fechaInicio),
         fechaFin: new Date(dto.fechaFin),
         tenantId,
+        // Explícito: no depender del @default de la DB (red de seguridad,
+        // no fuente de verdad). Ver ADR-002 §6 / U1 Fase 1.
+        status: PayrollPeriodStatus.BORRADOR,
       },
     });
     this.auditService
@@ -105,30 +119,192 @@ export class PayrollService {
     };
   }
 
+  /**
+   * Alias legado de aprobación directa (P0/N2): transiciona
+   * CALCULADA → APROBADA sin pasar por EN_REVISION. Existe solo mientras
+   * el frontend no adopte el flujo de revisión (`enviarARevision` /
+   * `aprobar` / `rechazar`); no se valida contra `VALID_TRANSITIONS`
+   * a propósito (evita introducir un atajo en el flujo oficial del §6 del
+   * ADR-002) y se audita con una acción distinta de `aprobar` para
+   * mantener ambas rutas trazables por separado.
+   *
+   * @deprecated Eliminar cuando el frontend adopte el flujo de revisión.
+   */
   async closePeriod(tenantId: string, userId: string, id: string) {
     const { period, runs, totals } = await this.findOnePeriod(tenantId, id);
-    if (period.status === 'CLOSED')
-      throw new BadRequestException('El período ya está cerrado');
-    const updated = await this.prisma.payrollPeriod.update({
-      where: { id },
-      data: { status: 'CLOSED' },
-    });
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'PAYROLL_PERIOD_CLOSED',
-        entityType: 'PayrollPeriod',
-        entityId: id,
-        metadata: {
-          periodName: period.nombre,
-          payrollPeriodId: id,
-          totalRuns: runs.length,
-          totalNeto: totals.totalNeto,
+    if (period.status !== PayrollPeriodStatus.CALCULADA) {
+      throw new BadRequestException(
+        `Solo se puede aprobar (alias legado "close") un período en estado ` +
+          `CALCULADA; estado actual: ${period.status}`,
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const result = await tx.payrollPeriod.updateMany({
+        where: { id, tenantId, status: PayrollPeriodStatus.CALCULADA },
+        data: {
+          status: PayrollPeriodStatus.APROBADA,
+          aprobadoPorId: userId,
+          aprobadoEn: new Date(),
         },
-      })
-      .catch(() => {});
-    return updated;
+      });
+      if (result.count === 0) {
+        throw new ConflictException(
+          'El período fue modificado por otra operación concurrente',
+        );
+      }
+
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'PAYROLL_PERIOD_APPROVED_LEGACY_CLOSE',
+          entityType: 'PayrollPeriod',
+          entityId: id,
+          metadata: {
+            periodName: period.nombre,
+            payrollPeriodId: id,
+            totalRuns: runs.length,
+            totalNeto: totals.totalNeto,
+            from: PayrollPeriodStatus.CALCULADA,
+            to: PayrollPeriodStatus.APROBADA,
+          },
+        },
+        tx,
+      );
+
+      return tx.payrollPeriod.findFirstOrThrow({ where: { id, tenantId } });
+    });
+  }
+
+  /** CALCULADA → EN_REVISION (ADR-002 §6). */
+  async enviarARevision(tenantId: string, userId: string, id: string) {
+    return this.transitionPeriod(
+      tenantId,
+      userId,
+      id,
+      PayrollPeriodStatus.CALCULADA,
+      PayrollPeriodStatus.EN_REVISION,
+      'PAYROLL_PERIOD_SENT_TO_REVIEW',
+    );
+  }
+
+  /** EN_REVISION → APROBADA (ADR-002 §6). Terminal en P1. */
+  async aprobar(tenantId: string, userId: string, id: string) {
+    return this.transitionPeriod(
+      tenantId,
+      userId,
+      id,
+      PayrollPeriodStatus.EN_REVISION,
+      PayrollPeriodStatus.APROBADA,
+      'PAYROLL_PERIOD_APPROVED',
+      { data: { aprobadoPorId: userId, aprobadoEn: new Date() } },
+    );
+  }
+
+  /** EN_REVISION → CALCULADA: devuelve el período a recálculo. */
+  async rechazar(
+    tenantId: string,
+    userId: string,
+    id: string,
+    motivo?: string,
+  ) {
+    return this.transitionPeriod(
+      tenantId,
+      userId,
+      id,
+      PayrollPeriodStatus.EN_REVISION,
+      PayrollPeriodStatus.CALCULADA,
+      'PAYROLL_PERIOD_REJECTED',
+      motivo ? { metadata: { motivo } } : undefined,
+    );
+  }
+
+  /** CALCULADA → BORRADOR: deshace el cálculo para modificar insumos. */
+  async reabrir(tenantId: string, userId: string, id: string) {
+    return this.transitionPeriod(
+      tenantId,
+      userId,
+      id,
+      PayrollPeriodStatus.CALCULADA,
+      PayrollPeriodStatus.BORRADOR,
+      'PAYROLL_PERIOD_REOPENED',
+    );
+  }
+
+  /**
+   * Transición genérica y transaccional del ProcesoNómina (ADR-002 §6).
+   *
+   * Recibe `from` explícito por método (no se deriva del grafo): en
+   * `VALID_TRANSITIONS`, CALCULADA es alcanzable tanto desde BORRADOR
+   * ("calcular", fuera de este helper — ver generatePayroll) como desde
+   * EN_REVISION ("rechazar"). Si `rechazar` solo validara "¿puede el
+   * estado real llegar a CALCULADA según el grafo?" aceptaría también un
+   * período en BORRADOR, que no es su precondición real. Por eso la
+   * precondición de cada acción es explícita y se compara contra el
+   * estado leído; `assertTransition(from, to)` queda como verificación
+   * estática de que el par declarado es en efecto un edge válido del
+   * grafo (documental/defensivo), no como el gate en tiempo de ejecución.
+   *
+   * Flujo: lee el estado real (404 si no existe) → compara contra `from`
+   * (400 si no coincide: transición no aplicable) → `updateMany`
+   * optimista con el estado leído en el WHERE (409 si cambió entre la
+   * lectura y el commit — TOCTOU) → audita dentro de la misma
+   * transacción (si falla, la transición completa revierte — fail-secure,
+   * §6).
+   */
+  private async transitionPeriod(
+    tenantId: string,
+    userId: string,
+    periodId: string,
+    from: PayrollPeriodStatus,
+    to: PayrollPeriodStatus,
+    action: string,
+    options?: {
+      data?: Prisma.PayrollPeriodUncheckedUpdateManyInput;
+      metadata?: Record<string, unknown>;
+    },
+  ) {
+    assertTransition(from, to);
+
+    const period = await this.prisma.payrollPeriod.findFirst({
+      where: { id: periodId, tenantId },
+      select: { status: true },
+    });
+    if (!period) throw new NotFoundException('Período no encontrado');
+    if (period.status !== from) {
+      throw new BadRequestException(
+        `Transición de estado no permitida: ${period.status} → ${to} (se requiere ${from})`,
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const result = await tx.payrollPeriod.updateMany({
+        where: { id: periodId, tenantId, status: from },
+        data: { status: to, ...options?.data },
+      });
+      if (result.count === 0) {
+        throw new ConflictException(
+          'El período fue modificado por otra operación concurrente',
+        );
+      }
+
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action,
+          entityType: 'PayrollPeriod',
+          entityId: periodId,
+          metadata: { from: period.status, to, ...options?.metadata },
+        },
+        tx,
+      );
+
+      return tx.payrollPeriod.findFirstOrThrow({
+        where: { id: periodId, tenantId },
+      });
+    });
   }
 
   async generatePayroll(tenantId: string, userId: string, periodId: string) {
@@ -136,10 +312,11 @@ export class PayrollService {
       where: { id: periodId, tenantId },
     });
     if (!period) throw new NotFoundException('Período no encontrado');
-    if (period.status === 'CLOSED')
+    if (!GENERATE_ALLOWED_STATUSES.includes(period.status)) {
       throw new BadRequestException(
-        'No se puede generar nómina en un período cerrado',
+        `No se puede generar nómina en un período en estado ${period.status}`,
       );
+    }
 
     // ── Datos compartidos: resolver antes de la transacción ─────────────────
     const [legalParam, tenant] = await Promise.all([
@@ -226,6 +403,17 @@ export class PayrollService {
             });
             created.push(run);
           }
+
+          // "El cálculo terminó correctamente" (ADR-002 §6): al final de esta
+          // misma transacción, tras persistir los runs, el período pasa a
+          // CALCULADA. Sin `where: status` de origen: es válido tanto desde
+          // BORRADOR como desde CALCULADA (recalcular no debe retroceder).
+          // Efecto natural del evento de cálculo, no una transición formal
+          // separada — no pasa por assertTransition/transitionPeriod.
+          await tx.payrollPeriod.updateMany({
+            where: { id: periodId, tenantId },
+            data: { status: PayrollPeriodStatus.CALCULADA },
+          });
         },
         { timeout: 30000 },
       );
@@ -271,8 +459,11 @@ export class PayrollService {
       where: { id: periodId, tenantId },
     });
     if (!period) throw new NotFoundException('Período no encontrado');
-    if (period.status === 'CLOSED')
-      throw new ConflictException('No se puede recalcular un período cerrado');
+    if (!RECALCULATE_ALLOWED_STATUSES.includes(period.status)) {
+      throw new ConflictException(
+        `No se puede recalcular un período en estado ${period.status}`,
+      );
+    }
 
     // ── Datos compartidos: resolver antes de la transacción ─────────────────
     const [legalParam, tenant] = await Promise.all([
@@ -366,6 +557,13 @@ export class PayrollService {
             });
           }
           summary.runsCreated = employees.length;
+
+          // La reliquidación mantiene CALCULADA (nunca retrocede a BORRADOR).
+          // Mismo evento de negocio que en generatePayroll: ver comentario ahí.
+          await tx.payrollPeriod.updateMany({
+            where: { id: periodId, tenantId },
+            data: { status: PayrollPeriodStatus.CALCULADA },
+          });
         },
         { timeout: 30000 },
       );
