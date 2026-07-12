@@ -23,11 +23,16 @@ const mockPayrollPeriodFindFirst = jest.fn();
 const mockPayrollPeriodUpdateMany = jest.fn();
 const mockPayrollPeriodFindFirstOrThrow = jest.fn();
 const mockPayrollRunFindMany = jest.fn();
+const mockPayrollRunFindFirst = jest.fn();
+const mockPayrollRunCreate = jest.fn();
+const mockPayrollRunDeleteMany = jest.fn();
+const mockPayrollConceptDeleteMany = jest.fn();
 const mockParametroLegalFindFirst = jest.fn();
 const mockTenantFindUnique = jest.fn();
 const mockEmpleadoFindMany = jest.fn();
 const mockPayrollNoveltyFindMany = jest.fn();
 const mockContratoFindMany = jest.fn();
+const mockCentroCostoFindMany = jest.fn();
 
 const mockPrisma = {
   payrollPeriod: {
@@ -35,12 +40,19 @@ const mockPrisma = {
     updateMany: mockPayrollPeriodUpdateMany,
     findFirstOrThrow: mockPayrollPeriodFindFirstOrThrow,
   },
-  payrollRun: { findMany: mockPayrollRunFindMany },
+  payrollRun: {
+    findMany: mockPayrollRunFindMany,
+    findFirst: mockPayrollRunFindFirst,
+    create: mockPayrollRunCreate,
+    deleteMany: mockPayrollRunDeleteMany,
+  },
+  payrollConcept: { deleteMany: mockPayrollConceptDeleteMany },
   parametroLegalNomina: { findFirst: mockParametroLegalFindFirst },
   tenant: { findUnique: mockTenantFindUnique },
   empleado: { findMany: mockEmpleadoFindMany },
   payrollNovelty: { findMany: mockPayrollNoveltyFindMany },
   contrato: { findMany: mockContratoFindMany },
+  centroCosto: { findMany: mockCentroCostoFindMany },
   $transaction: jest.fn(),
 };
 
@@ -86,8 +98,52 @@ function makeLegalParam() {
     arlClaseIII: 0.02436,
     arlClaseIV: 0.0435,
     arlClaseV: 0.0696,
+    factorProvPrima: 0.0833,
+    factorProvCesantias: 0.0833,
+    factorProvIntCesantias: 0.01,
+    factorProvVacaciones: 0.0417,
     fspTramos: [],
   };
+}
+
+function setupPayrollGeneration(
+  overrides: {
+    contratoSedeId?: string | null;
+    centrosCosto?: Array<{ id: string; sedeId: string | null }>;
+  } = {},
+) {
+  mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('BORRADOR'));
+  mockParametroLegalFindFirst.mockResolvedValue(makeLegalParam());
+  mockTenantFindUnique.mockResolvedValue({ aportesExonerados: false });
+  mockEmpleadoFindMany.mockResolvedValue([
+    {
+      id: 'emp-1',
+      salario: 2_000_000,
+      salarioIntegral: false,
+    },
+  ]);
+  mockPayrollNoveltyFindMany.mockResolvedValue([]);
+  mockContratoFindMany.mockResolvedValue([
+    {
+      id: 'contrato-1',
+      empleadoId: 'emp-1',
+      estado: 'VIGENTE',
+      fechaInicio: new Date('2025-01-01'),
+      fechaFin: null,
+      sedeId: overrides.contratoSedeId ?? 'sede-1',
+      salario: 2_000_000,
+      claseRiesgoArl: 1,
+    },
+  ]);
+  mockCentroCostoFindMany.mockResolvedValue(
+    overrides.centrosCosto ?? [{ id: 'cc-1', sedeId: 'sede-1' }],
+  );
+  mockPayrollRunFindFirst.mockResolvedValue(null);
+  mockPayrollRunCreate.mockImplementation(async ({ data }) => ({
+    id: 'run-1',
+    ...data,
+  }));
+  mockPayrollPeriodUpdateMany.mockResolvedValue({ count: 1 });
 }
 
 describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () => {
@@ -420,6 +476,36 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         data: { status: 'CALCULADA' },
       });
     });
+
+    it('persiste centroCostoId resuelto desde Contrato.sedeId -> CentroCosto.sedeId', async () => {
+      setupPayrollGeneration();
+
+      await service.generatePayroll(TENANT, USER, PERIOD_ID);
+
+      expect(mockCentroCostoFindMany).toHaveBeenCalledWith({
+        where: {
+          tenantId: TENANT,
+          sedeId: { in: ['sede-1'] },
+          activo: true,
+          deletedAt: null,
+        },
+        select: { id: true, sedeId: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      expect(mockPayrollRunCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({ centroCostoId: 'cc-1' }),
+      });
+    });
+
+    it('persiste centroCostoId null cuando el contrato no tiene centro asociado', async () => {
+      setupPayrollGeneration({ centrosCosto: [] });
+
+      await service.generatePayroll(TENANT, USER, PERIOD_ID);
+
+      expect(mockPayrollRunCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({ centroCostoId: null }),
+      });
+    });
   });
 
   describe('recalculatePayroll — guardas de estado', () => {
@@ -455,6 +541,37 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         where: { id: PERIOD_ID, tenantId: TENANT },
         data: { status: 'CALCULADA' },
       });
+    });
+
+    it('persiste centroCostoId al recrear runs durante el recálculo', async () => {
+      setupPayrollGeneration();
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CALCULADA'));
+      mockPayrollRunFindMany.mockResolvedValue([]);
+
+      await service.recalculatePayroll(TENANT, USER, PERIOD_ID);
+
+      expect(mockPayrollRunCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({ centroCostoId: 'cc-1' }),
+      });
+    });
+  });
+
+  describe('findOnePeriod — lectura de centro de costo', () => {
+    it('incluye centroCosto en la consulta de runs del período', async () => {
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CALCULADA'));
+      mockPayrollRunFindMany.mockResolvedValue([]);
+
+      await service.findOnePeriod(TENANT, PERIOD_ID);
+
+      expect(mockPayrollRunFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            centroCosto: {
+              select: { id: true, codigo: true, nombre: true, sedeId: true },
+            },
+          }),
+        }),
+      );
     });
   });
 

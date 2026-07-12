@@ -29,6 +29,7 @@ export interface ContratoForPayroll {
   estado: string;
   fechaInicio: Date;
   fechaFin: Date | null;
+  sedeId: string | null;
   salario: Prisma.Decimal;
   claseRiesgoArl: number | null;
 }
