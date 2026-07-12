@@ -15,6 +15,7 @@ import { calculate } from './calculator/payroll-calculator';
 import { PayrollCalculationResult } from './calculator/payroll-types';
 import {
   EmpForPayroll,
+  ContratoForPayroll,
   buildCalculationInput,
   resolveContrato,
   toSnapshot,
@@ -99,6 +100,9 @@ export class PayrollService {
             cedula: true,
             cargo: true,
           },
+        },
+        centroCosto: {
+          select: { id: true, codigo: true, nombre: true, sedeId: true },
         },
         concepts: true,
       },
@@ -353,11 +357,16 @@ export class PayrollService {
         estado: true,
         fechaInicio: true,
         fechaFin: true,
+        sedeId: true,
         salario: true,
         claseRiesgoArl: true,
       },
       orderBy: { fechaInicio: 'desc' },
     });
+    const centroCostoBySede = await this.resolveCentrosCostoBySede(
+      tenantId,
+      allContracts,
+    );
     const contractsByEmployee = new Map<string, typeof allContracts>();
     for (const c of allContracts) {
       const list = contractsByEmployee.get(c.empleadoId) ?? [];
@@ -382,7 +391,7 @@ export class PayrollService {
             });
             if (existing) continue;
 
-            const empWarnings = this.calculateAndCollectWarnings(
+            const calculation = this.calculateAndCollectWarnings(
               emp,
               contractsByEmployee.get(emp.id) ?? [],
               noveltiesByEmployee.get(emp.id) ?? [],
@@ -391,14 +400,19 @@ export class PayrollService {
               period.fechaInicio,
               runWarnings,
             );
+            const centroCostoId = this.resolveCentroCostoId(
+              calculation.contrato,
+              centroCostoBySede,
+            );
 
             const run = await tx.payrollRun.create({
               data: this.buildRunCreateData(
                 emp,
-                empWarnings.result,
+                calculation.result,
                 legalParam.id,
                 periodId,
                 tenantId,
+                centroCostoId,
               ),
             });
             created.push(run);
@@ -500,11 +514,16 @@ export class PayrollService {
         estado: true,
         fechaInicio: true,
         fechaFin: true,
+        sedeId: true,
         salario: true,
         claseRiesgoArl: true,
       },
       orderBy: { fechaInicio: 'desc' },
     });
+    const centroCostoBySede = await this.resolveCentrosCostoBySede(
+      tenantId,
+      allContracts,
+    );
     const contractsByEmployee = new Map<string, typeof allContracts>();
     for (const c of allContracts) {
       const list = contractsByEmployee.get(c.empleadoId) ?? [];
@@ -536,7 +555,7 @@ export class PayrollService {
           }
 
           for (const emp of employees) {
-            const empWarnings = this.calculateAndCollectWarnings(
+            const calculation = this.calculateAndCollectWarnings(
               emp,
               contractsByEmployee.get(emp.id) ?? [],
               noveltiesByEmployee.get(emp.id) ?? [],
@@ -545,14 +564,19 @@ export class PayrollService {
               period.fechaInicio,
               runWarnings,
             );
+            const centroCostoId = this.resolveCentroCostoId(
+              calculation.contrato,
+              centroCostoBySede,
+            );
 
             await tx.payrollRun.create({
               data: this.buildRunCreateData(
                 emp,
-                empWarnings.result,
+                calculation.result,
                 legalParam.id,
                 periodId,
                 tenantId,
+                centroCostoId,
               ),
             });
           }
@@ -753,6 +777,7 @@ export class PayrollService {
       fechaInicio: Date;
       fechaFin: Date | null;
       salario: Prisma.Decimal;
+      sedeId: string | null;
       claseRiesgoArl: number | null;
     }>,
     empNovelties: Array<{ tipo: string; valor: Prisma.Decimal | null }>,
@@ -760,7 +785,7 @@ export class PayrollService {
     legalSnapshot: ReturnType<typeof toSnapshot>,
     periodStart: Date,
     warningsMap: Record<string, string[]>,
-  ): { result: PayrollCalculationResult } {
+  ): { result: PayrollCalculationResult; contrato: ContratoForPayroll | null } {
     const { contrato, fallback } = resolveContrato(empContracts, periodStart);
 
     const { input, serviceWarnings } = buildCalculationInput(
@@ -786,7 +811,7 @@ export class PayrollService {
       warningsMap[emp.id] = allWarnings;
     }
 
-    return { result };
+    return { result, contrato };
   }
 
   /** Construye el payload de creación de PayrollRun con campos N2A completos. */
@@ -796,11 +821,13 @@ export class PayrollService {
     parametroLegalId: string,
     periodId: string,
     tenantId: string,
+    centroCostoId: string | null,
   ) {
     return {
       tenantId,
       payrollPeriodId: periodId,
       employeeId: emp.id,
+      centroCostoId,
       totalDevengos: result.totalDevengos,
       totalDeducciones: result.totalDeducciones,
       netoPagar: result.netoPagar,
@@ -825,5 +852,46 @@ export class PayrollService {
         })),
       },
     };
+  }
+
+  private async resolveCentrosCostoBySede(
+    tenantId: string,
+    contracts: Array<{ sedeId: string | null }>,
+  ) {
+    const sedeIds = [
+      ...new Set(
+        contracts
+          .map((c) => c.sedeId)
+          .filter((sedeId): sedeId is string => Boolean(sedeId)),
+      ),
+    ];
+    if (sedeIds.length === 0) return new Map<string, string>();
+
+    const centros = await this.prisma.centroCosto.findMany({
+      where: {
+        tenantId,
+        sedeId: { in: sedeIds },
+        activo: true,
+        deletedAt: null,
+      },
+      select: { id: true, sedeId: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const bySede = new Map<string, string>();
+    for (const centro of centros) {
+      if (centro.sedeId && !bySede.has(centro.sedeId)) {
+        bySede.set(centro.sedeId, centro.id);
+      }
+    }
+    return bySede;
+  }
+
+  private resolveCentroCostoId(
+    contrato: ContratoForPayroll | null,
+    centroCostoBySede: Map<string, string>,
+  ) {
+    if (!contrato?.sedeId) return null;
+    return centroCostoBySede.get(contrato.sedeId) ?? null;
   }
 }

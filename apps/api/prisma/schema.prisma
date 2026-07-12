@@ -757,6 +757,9 @@ model PayrollRun {
   employeeId String
   employee   Empleado @relation(fields: [employeeId], references: [id])
 
+  centroCostoId String?
+  centroCosto   CentroCosto? @relation(fields: [centroCostoId], references: [id])
+
   totalDevengos       Decimal  @db.Decimal(12, 2)
   totalDeducciones    Decimal  @db.Decimal(12, 2)
   netoPagar           Decimal  @db.Decimal(12, 2)
@@ -1767,6 +1770,7 @@ model CentroCosto {
 
   // Inversas
   movimientos MovimientoContable[]
+  payrollRuns PayrollRun[]
 
   @@unique([tenantId, codigo])
   @@index([tenantId, activo])

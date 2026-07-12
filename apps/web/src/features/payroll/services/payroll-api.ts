@@ -12,9 +12,16 @@ export interface PayrollPeriod {
 export interface PayrollRun {
   id: string;
   employeeId: string;
+  centroCostoId: string | null;
   totalDevengos: number;
   totalDeducciones: number;
   netoPagar: number;
+  centroCosto: {
+    id: string;
+    codigo: string;
+    nombre: string;
+    sedeId: string | null;
+  } | null;
   employee: {
     id: string;
     primerNombre: string;
