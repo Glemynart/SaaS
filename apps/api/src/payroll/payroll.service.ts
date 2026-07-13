@@ -235,11 +235,11 @@ export class PayrollService {
   }
 
   async findPeriodCorrections(tenantId: string, periodId: string) {
-    const period = await this.prisma.payrollPeriod.findFirst({
-      where: { id: periodId, tenantId },
-      select: { id: true },
-    });
-    if (!period) throw new NotFoundException('Período no encontrado');
+    await this.requireApprovedPeriodForCorrections(
+      tenantId,
+      periodId,
+      'Solo se pueden consultar correcciones sobre un período aprobado',
+    );
 
     return this.prisma.payrollCorrection.findMany({
       where: { tenantId, payrollPeriodId: periodId },
@@ -260,16 +260,11 @@ export class PayrollService {
       );
     }
 
-    const period = await this.prisma.payrollPeriod.findFirst({
-      where: { id: periodId, tenantId },
-      select: { id: true, nombre: true, status: true },
-    });
-    if (!period) throw new NotFoundException('Período no encontrado');
-    if (period.status !== PayrollPeriodStatus.APROBADA) {
-      throw new BadRequestException(
-        'Solo se pueden registrar correcciones sobre un período aprobado',
-      );
-    }
+    const period = await this.requireApprovedPeriodForCorrections(
+      tenantId,
+      periodId,
+      'Solo se pueden registrar correcciones sobre un período aprobado',
+    );
 
     return this.prisma.$transaction(async (tx) => {
       const correction = await tx.payrollCorrection.create({
@@ -669,6 +664,13 @@ export class PayrollService {
       select: { status: true, payrollPeriodId: true },
     });
     if (!correction) throw new NotFoundException('Corrección no encontrada');
+
+    const period = await this.requireApprovedPeriodForCorrections(
+      tenantId,
+      correction.payrollPeriodId,
+      'Solo se pueden operar correcciones sobre un período aprobado',
+    );
+
     if (correction.status !== from) {
       throw new BadRequestException(
         `Transición de corrección no permitida: ${correction.status} → ${to} (se requiere ${from})`,
@@ -677,7 +679,12 @@ export class PayrollService {
 
     return this.prisma.$transaction(async (tx) => {
       const result = await tx.payrollCorrection.updateMany({
-        where: { id: correctionId, tenantId, status: from },
+        where: {
+          id: correctionId,
+          tenantId,
+          payrollPeriodId: period.id,
+          status: from,
+        },
         data: { status: to },
       });
       if (result.count === 0) {
@@ -707,6 +714,36 @@ export class PayrollService {
         where: { id: correctionId, tenantId },
       });
     });
+  }
+
+  private async requireApprovedPeriodForCorrections(
+    tenantId: string,
+    periodId: string,
+    notApprovedMessage: string,
+  ) {
+    const period = await this.prisma.payrollPeriod.findFirst({
+      where: { id: periodId, tenantId },
+      select: {
+        id: true,
+        nombre: true,
+        status: true,
+        aprobadoPorId: true,
+        aprobadoEn: true,
+      },
+    });
+    if (!period) throw new NotFoundException('Período no encontrado');
+
+    if (period.status !== PayrollPeriodStatus.APROBADA) {
+      throw new BadRequestException(notApprovedMessage);
+    }
+
+    if (!period.aprobadoPorId || !period.aprobadoEn) {
+      throw new ConflictException(
+        'El período aprobado no tiene una aprobación original auditable',
+      );
+    }
+
+    return period;
   }
 
   async generatePayroll(tenantId: string, userId: string, periodId: string) {

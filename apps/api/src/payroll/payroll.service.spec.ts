@@ -88,6 +88,17 @@ const USER = 'user-1';
 const PERIOD_ID = 'period-1';
 
 function makePeriod(status: string, overrides: Record<string, unknown> = {}) {
+  const approvalMetadata =
+    status === 'APROBADA'
+      ? {
+          aprobadoPorId: 'approver-1',
+          aprobadoEn: new Date('2026-02-01T10:00:00.000Z'),
+        }
+      : {
+          aprobadoPorId: null,
+          aprobadoEn: null,
+        };
+
   return {
     id: PERIOD_ID,
     tenantId: TENANT,
@@ -95,8 +106,7 @@ function makePeriod(status: string, overrides: Record<string, unknown> = {}) {
     fechaInicio: new Date('2026-01-01'),
     fechaFin: new Date('2026-01-31'),
     status,
-    aprobadoPorId: null,
-    aprobadoEn: null,
+    ...approvalMetadata,
     ...overrides,
   };
 }
@@ -320,6 +330,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
     mockPrisma.$transaction.mockImplementation(
       (fn: (tx: typeof mockPrisma) => unknown) => fn(mockPrisma),
     );
+    mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('APROBADA'));
     mockPayrollPeriodFindFirstOrThrow.mockImplementation(async () =>
       makePeriod('APROBADA'),
     );
@@ -559,6 +570,23 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       expect(mockAudit.log).not.toHaveBeenCalled();
     });
 
+    it('rechaza crear correcciones si falta la aprobacion original auditable', async () => {
+      mockPayrollPeriodFindFirst.mockResolvedValue(
+        makePeriod('APROBADA', {
+          aprobadoPorId: null,
+          aprobadoEn: null,
+        }),
+      );
+
+      await expect(
+        service.createCorrection(TENANT, USER, PERIOD_ID, {
+          descripcion: 'Ajuste solicitado',
+        }),
+      ).rejects.toThrow(ConflictException);
+      expect(mockPayrollCorrectionCreate).not.toHaveBeenCalled();
+      expect(mockAudit.log).not.toHaveBeenCalled();
+    });
+
     it('rechaza descripcion vacia tras trim', async () => {
       await expect(
         service.createCorrection(TENANT, USER, PERIOD_ID, {
@@ -605,6 +633,20 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       ).rejects.toThrow(NotFoundException);
       expect(mockPayrollCorrectionFindMany).not.toHaveBeenCalled();
     });
+
+    it('rechaza listar correcciones si el periodo no conserva una aprobacion auditable', async () => {
+      mockPayrollPeriodFindFirst.mockResolvedValue(
+        makePeriod('APROBADA', {
+          aprobadoPorId: null,
+          aprobadoEn: null,
+        }),
+      );
+
+      await expect(
+        service.findPeriodCorrections(TENANT, PERIOD_ID),
+      ).rejects.toThrow(ConflictException);
+      expect(mockPayrollCorrectionFindMany).not.toHaveBeenCalled();
+    });
   });
 
   describe('correcciones post-aprobacion — Unidad B', () => {
@@ -643,6 +685,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         where: {
           id: 'corr-1',
           tenantId: TENANT,
+          payrollPeriodId: PERIOD_ID,
           status: PayrollCorrectionStatus.BORRADOR,
         },
         data: { status: PayrollCorrectionStatus.EN_REVISION },
@@ -727,6 +770,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         where: {
           id: 'corr-1',
           tenantId: TENANT,
+          payrollPeriodId: PERIOD_ID,
           status: PayrollCorrectionStatus.BORRADOR,
         },
         data: { status: PayrollCorrectionStatus.CANCELADA },
@@ -754,6 +798,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         where: {
           id: 'corr-1',
           tenantId: TENANT,
+          payrollPeriodId: PERIOD_ID,
           status: PayrollCorrectionStatus.EN_REVISION,
         },
         data: { status: PayrollCorrectionStatus.CANCELADA },
@@ -800,6 +845,24 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       await expect(
         service.aprobarCorrection(TENANT, USER, 'corr-1'),
       ).rejects.toThrow(ConflictException);
+      expect(mockAudit.log).not.toHaveBeenCalled();
+    });
+
+    it('rechaza transiciones si el periodo vinculado pierde la aprobacion original auditable', async () => {
+      mockPayrollCorrectionFindFirst.mockResolvedValue(
+        makeCorrection(PayrollCorrectionStatus.EN_REVISION),
+      );
+      mockPayrollPeriodFindFirst.mockResolvedValue(
+        makePeriod('APROBADA', {
+          aprobadoPorId: null,
+          aprobadoEn: null,
+        }),
+      );
+
+      await expect(
+        service.aprobarCorrection(TENANT, USER, 'corr-1'),
+      ).rejects.toThrow(ConflictException);
+      expect(mockPayrollCorrectionUpdateMany).not.toHaveBeenCalled();
       expect(mockAudit.log).not.toHaveBeenCalled();
     });
 
