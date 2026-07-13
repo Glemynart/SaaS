@@ -277,7 +277,7 @@ Payroll: proceso aprobado ──► contabilizar nómina ──► capa de integ
 
 **Reliquidación como ajuste:** el código N2 recalcula de forma **destructiva** (borra y recrea los runs). Eso es aceptable solo antes de aprobar. Una vez el proceso está aprobado/causado, la corrección es una **nueva versión** cuya diferencia se contabiliza como ajuste, preservando el congelamiento (§8) y el append-only del Ledger.
 
-**Corrección post-aprobación.** Payroll P1 no incluye correcciones posteriores a la aprobación. Esa capacidad queda separada como **Payroll P1.5**: reversión controlada + nueva versión del ProcesoNómina, preservando la versión aprobada previa como **inmutable** (PN-I2) y auditada. En P2, esa misma corrección añade además el comprobante de ajuste idempotente (punto 3 de esta sección).
+**Corrección post-aprobación.** Payroll P1 no incluye correcciones posteriores a la aprobación. Esa capacidad queda separada como **Payroll P1.5**: acto explícito de corrección, con ciclo de vida propio e invariantes sobre la aprobación original, preservando el período aprobado previo como **inmutable** (PN-I2) y auditado. La materialización de sus efectos queda fuera de este alcance y se definirá como iniciativa posterior. En P2, cualquier efecto contable derivado de esa materialización seguirá el principio de ajuste idempotente (punto 3 de esta sección).
 
 ---
 
@@ -450,7 +450,8 @@ P0  — Catálogos de Payroll  (~70% hecho) Parámetros legales (existe) + facto
 P1  — Payroll Core                       ProcesoNómina (estados), Liquidación válida, snapshot inmutable,
         │                                centro de costo, salvaguarda fail-secure, PayrollBlock, contrato público
         │
-P1.5 — Corrección post-aprobación         Reliquidación no destructiva y reversión controlada (U5)
+P1.5 — Corrección post-aprobación         Acto explícito, ciclo propio e invariantes sobre aprobación original
+Futuro — Materialización de correcciones  Fuera de P1.5
         │
 P2  — Integración con Accounting         Mapper concepto → cuenta, contabilizar nómina (misma tx), ajustes idempotentes
         │
@@ -484,7 +485,7 @@ P5  — Nómina Electrónica                 Documento soporte DIAN (futuro)
 
 1. **¿Hay datos de nómina en producción?** Define si las siguientes fases requieren backfill o saneamiento limpio de datos históricos.
 2. **Finiquito:** ¿se mantiene operativo detrás de flag o se congela hasta v2?
-3. **Payroll P1.5 / reliquidación no destructiva:** prerequisito para habilitar correcciones post-aprobación y ajustes contables sobre nóminas ya causadas.
+3. **Materialización de correcciones:** iniciativa posterior a P1.5 para definir y habilitar los efectos materiales y sus ajustes contables sobre nóminas ya causadas.
 
 ---
 
