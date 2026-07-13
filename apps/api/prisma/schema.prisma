@@ -261,6 +261,7 @@ model Tenant {
   payrollPeriods     PayrollPeriod[]
   payrollRuns        PayrollRun[]
   payrollSnapshots   PayrollSnapshot[]
+  payrollCorrections PayrollCorrection[]
   payrollNovelties   PayrollNovelty[]
   payrollBlocks      PayrollBlock[]
   customers          Customer[]
@@ -706,6 +707,18 @@ enum PayrollBlockStatus {
 }
 
 // =============================================================================
+// PAYROLL CORRECTION STATUS — Ciclo de vida de la corrección post-aprobación
+// =============================================================================
+
+enum PayrollCorrectionStatus {
+  BORRADOR
+  EN_REVISION
+  APROBADA
+  RECHAZADA
+  CANCELADA
+}
+
+// =============================================================================
 // LIQUIDATION STATUS — Estado de la liquidación laboral
 // =============================================================================
 
@@ -750,6 +763,7 @@ model PayrollPeriod {
 
   runs      PayrollRun[]
   snapshots PayrollSnapshot[]
+  corrections PayrollCorrection[]
   novelties PayrollNovelty[]
   blocks    PayrollBlock[]
 
@@ -877,6 +891,30 @@ model PayrollSnapshot {
   @@index([parametroLegalId])
   @@index([centroCostoId])
   @@map("payroll_snapshots")
+}
+
+// =============================================================================
+// PAYROLL CORRECTION — Acto de corrección post-aprobación sobre un período
+// =============================================================================
+
+model PayrollCorrection {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  payrollPeriodId String
+  payrollPeriod   PayrollPeriod @relation(fields: [payrollPeriodId], references: [id], onDelete: Restrict)
+
+  status      PayrollCorrectionStatus @default(BORRADOR)
+  descripcion String
+
+  @@index([tenantId])
+  @@index([tenantId, payrollPeriodId])
+  @@index([tenantId, payrollPeriodId, status])
+  @@map("payroll_corrections")
 }
 
 // =============================================================================

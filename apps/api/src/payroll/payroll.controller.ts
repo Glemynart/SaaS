@@ -15,6 +15,7 @@ import {
   RejectPayrollPeriodDto,
   ExcludePayrollBlockDto,
 } from './dto/create-payroll.dto';
+import { CreatePayrollCorrectionDto } from './dto/payroll-correction.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -61,6 +62,24 @@ export class PayrollController {
     @Param('id') id: string,
   ) {
     return this.service.findPeriodBlocks(user.tenantId, id);
+  }
+
+  @Get('payroll/periods/:id/corrections')
+  findPeriodCorrections(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+  ) {
+    return this.service.findPeriodCorrections(user.tenantId, id);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Post('payroll/periods/:id/corrections')
+  createCorrection(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() dto: CreatePayrollCorrectionDto,
+  ) {
+    return this.service.createCorrection(user.tenantId, user.userId, id, dto);
   }
 
   @Roles(UserRole.ADMIN)

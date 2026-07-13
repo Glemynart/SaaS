@@ -7,6 +7,7 @@ import {
 import {
   Prisma,
   PayrollBlockStatus,
+  PayrollCorrectionStatus,
   PayrollPeriodStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -15,6 +16,7 @@ import {
   CreatePayrollPeriodDto,
   CreatePayrollNoveltyDto,
 } from './dto/create-payroll.dto';
+import { CreatePayrollCorrectionDto } from './dto/payroll-correction.dto';
 import { calculate } from './calculator/payroll-calculator';
 import {
   PayrollCalculationInput,
@@ -228,6 +230,73 @@ export class PayrollService {
         },
       },
       orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  async findPeriodCorrections(tenantId: string, periodId: string) {
+    const period = await this.prisma.payrollPeriod.findFirst({
+      where: { id: periodId, tenantId },
+      select: { id: true },
+    });
+    if (!period) throw new NotFoundException('Período no encontrado');
+
+    return this.prisma.payrollCorrection.findMany({
+      where: { tenantId, payrollPeriodId: periodId },
+      orderBy: [{ createdAt: 'desc' }],
+    });
+  }
+
+  async createCorrection(
+    tenantId: string,
+    userId: string,
+    periodId: string,
+    dto: CreatePayrollCorrectionDto,
+  ) {
+    const descripcion = dto.descripcion.trim();
+    if (descripcion.length === 0) {
+      throw new BadRequestException(
+        'La descripción de la corrección es obligatoria',
+      );
+    }
+
+    const period = await this.prisma.payrollPeriod.findFirst({
+      where: { id: periodId, tenantId },
+      select: { id: true, nombre: true, status: true },
+    });
+    if (!period) throw new NotFoundException('Período no encontrado');
+    if (period.status !== PayrollPeriodStatus.APROBADA) {
+      throw new BadRequestException(
+        'Solo se pueden registrar correcciones sobre un período aprobado',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const correction = await tx.payrollCorrection.create({
+        data: {
+          tenantId,
+          payrollPeriodId: period.id,
+          status: PayrollCorrectionStatus.BORRADOR,
+          descripcion,
+        },
+      });
+
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'PAYROLL_CORRECTION_CREATED',
+          entityType: 'PayrollCorrection',
+          entityId: correction.id,
+          metadata: {
+            payrollPeriodId: period.id,
+            periodName: period.nombre,
+            status: PayrollCorrectionStatus.BORRADOR,
+          },
+        },
+        tx,
+      );
+
+      return correction;
     });
   }
 
