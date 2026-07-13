@@ -13,6 +13,7 @@ import {
   CreatePayrollPeriodDto,
   CreatePayrollNoveltyDto,
   RejectPayrollPeriodDto,
+  ExcludePayrollBlockDto,
 } from './dto/create-payroll.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
@@ -52,6 +53,29 @@ export class PayrollController {
     @Param('id') id: string,
   ) {
     return this.service.findOnePeriod(user.tenantId, id);
+  }
+
+  @Get('payroll/periods/:id/blocks')
+  findPeriodBlocks(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+  ) {
+    return this.service.findPeriodBlocks(user.tenantId, id);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Patch('payroll/blocks/:blockId/exclude')
+  excludeBlock(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('blockId') blockId: string,
+    @Body() dto?: ExcludePayrollBlockDto,
+  ) {
+    return this.service.excludeBlock(
+      user.tenantId,
+      user.userId,
+      blockId,
+      dto?.motivo,
+    );
   }
 
   /**

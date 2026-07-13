@@ -30,7 +30,7 @@ export type BandejaBadge =
   | { domain: 'contrato'; estado: 'VENCIDO' }
   | { domain: 'alertaSeverity'; estado: 'INFO' | 'WARNING' | 'CRITICAL' }
   | { domain: 'lote'; estado: LoteEstado }
-  | { domain: 'nominaN2'; estado: 'DRAFT' }
+  | { domain: 'nominaN2'; estado: 'BORRADOR' }
   | { domain: 'factura'; estado: 'BORRADOR' };
 
 export interface BandejaItem {
@@ -216,14 +216,14 @@ export function buildLoteItems(lotes: LoteSummary[], hoy: Date): BandejaItem[] {
 
 export function buildNominaItems(periods: PayrollPeriod[], hoy: Date): BandejaItem[] {
   return periods
-    .filter((period) => period.status === 'DRAFT')
+    .filter((period) => period.status === 'BORRADOR' || period.status === 'DRAFT')
     .map((period): BandejaItem => {
       const createdAt = new Date(period.createdAt);
       return {
         id: `nomina-${period.id}`,
         tipo: 'nomina',
         asunto: `La nómina «${period.nombre}» sigue en borrador`,
-        badge: { domain: 'nominaN2', estado: 'DRAFT' },
+        badge: { domain: 'nominaN2', estado: 'BORRADOR' },
         fraseTemporal: fraseDesde(createdAt, hoy),
         href: `/nomina/periodos/${period.id}`,
         accionLabel: 'Ver período',

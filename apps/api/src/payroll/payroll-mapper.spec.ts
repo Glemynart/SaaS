@@ -1,5 +1,12 @@
 import { Prisma } from '@prisma/client';
-import { toSnapshot, ParamLegalForPayroll } from './payroll-mapper';
+import {
+  buildCalculationInput,
+  ContratoForPayroll,
+  EmpForPayroll,
+  toSnapshot,
+  ParamLegalForPayroll,
+} from './payroll-mapper';
+import { PayrollBlockCode, PayrollEvaluationKind } from './payroll-evaluation';
 
 /**
  * Fila mínima de ParametroLegalNomina con Decimals, espejo del seed 2026.
@@ -69,5 +76,92 @@ describe('toSnapshot — factores de provisión (P0)', () => {
     );
 
     expect(snap.factorProvPrima).toBe(0.09);
+  });
+});
+
+describe('buildCalculationInput - clasificacion funcional (U4)', () => {
+  const baseEmp = (over: Partial<EmpForPayroll> = {}): EmpForPayroll => ({
+    id: 'emp-1',
+    salario: new Prisma.Decimal('2000000'),
+    salarioIntegral: false,
+    ...over,
+  });
+
+  const baseContrato = (
+    over: Partial<ContratoForPayroll> = {},
+  ): ContratoForPayroll => ({
+    id: 'contrato-1',
+    empleadoId: 'emp-1',
+    estado: 'VIGENTE',
+    fechaInicio: new Date('2026-01-01'),
+    fechaFin: null,
+    sedeId: 'sede-1',
+    salario: new Prisma.Decimal('2000000'),
+    claseRiesgoArl: 1,
+    ...over,
+  });
+
+  it('marca salario integral como bloqueo funcional', () => {
+    const result = buildCalculationInput(
+      baseEmp({ salarioIntegral: true }),
+      baseContrato(),
+      [],
+      false,
+      toSnapshot(paramRow()),
+    );
+
+    expect(result.blocks).toEqual([
+      expect.objectContaining({
+        kind: PayrollEvaluationKind.BLOCK,
+        code: PayrollBlockCode.UNSUPPORTED_INTEGRAL_SALARY,
+      }),
+    ]);
+  });
+
+  it('marca clase ARL invalida como bloqueo funcional', () => {
+    const result = buildCalculationInput(
+      baseEmp(),
+      baseContrato({ claseRiesgoArl: 9 }),
+      [],
+      false,
+      toSnapshot(paramRow()),
+    );
+
+    expect(result.blocks).toEqual([
+      expect.objectContaining({
+        kind: PayrollEvaluationKind.BLOCK,
+        code: PayrollBlockCode.INVALID_ARL_CLASS,
+      }),
+    ]);
+  });
+
+  it('marca divergencia salarial como bloqueo funcional', () => {
+    const result = buildCalculationInput(
+      baseEmp(),
+      baseContrato({ salario: new Prisma.Decimal('2500000') }),
+      [],
+      false,
+      toSnapshot(paramRow()),
+    );
+
+    expect(result.blocks).toEqual([
+      expect.objectContaining({
+        kind: PayrollEvaluationKind.BLOCK,
+        code: PayrollBlockCode.MATERIAL_SALARY_MISMATCH,
+      }),
+    ]);
+  });
+
+  it('mantiene una evaluacion limpia cuando no hay bloqueo funcional', () => {
+    const result = buildCalculationInput(
+      baseEmp(),
+      baseContrato(),
+      [],
+      false,
+      toSnapshot(paramRow()),
+    );
+
+    expect(result.evaluations).toEqual([]);
+    expect(result.blocks).toEqual([]);
   });
 });

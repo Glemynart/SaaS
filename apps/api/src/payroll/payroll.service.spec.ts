@@ -34,6 +34,10 @@ const mockPayrollNoveltyFindMany = jest.fn();
 const mockContratoFindMany = jest.fn();
 const mockCentroCostoFindMany = jest.fn();
 const mockPayrollSnapshotCreate = jest.fn();
+const mockPayrollBlockFindMany = jest.fn();
+const mockPayrollBlockFindFirst = jest.fn();
+const mockPayrollBlockCreate = jest.fn();
+const mockPayrollBlockUpdate = jest.fn();
 
 const mockPrisma = {
   payrollPeriod: {
@@ -55,6 +59,12 @@ const mockPrisma = {
   contrato: { findMany: mockContratoFindMany },
   centroCosto: { findMany: mockCentroCostoFindMany },
   payrollSnapshot: { create: mockPayrollSnapshotCreate },
+  payrollBlock: {
+    findMany: mockPayrollBlockFindMany,
+    findFirst: mockPayrollBlockFindFirst,
+    create: mockPayrollBlockCreate,
+    update: mockPayrollBlockUpdate,
+  },
   $transaction: jest.fn(),
 };
 
@@ -302,8 +312,14 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
     mockPayrollRunFindMany.mockResolvedValue([]);
     mockPayrollNoveltyFindMany.mockResolvedValue([]);
     mockContratoFindMany.mockResolvedValue([]);
+    mockEmpleadoFindMany.mockResolvedValue([]);
+    mockParametroLegalFindFirst.mockResolvedValue(makeLegalParam());
     mockTenantFindUnique.mockResolvedValue({ aportesExonerados: false });
     mockPayrollSnapshotCreate.mockResolvedValue({});
+    mockPayrollBlockFindMany.mockResolvedValue([]);
+    mockPayrollBlockFindFirst.mockResolvedValue(null);
+    mockPayrollBlockCreate.mockResolvedValue({});
+    mockPayrollBlockUpdate.mockResolvedValue({});
 
     const module = await Test.createTestingModule({
       providers: [
@@ -314,6 +330,156 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
     }).compile();
 
     service = module.get(PayrollService);
+  });
+
+  describe('bloqueos persistidos', () => {
+    it('lista los bloqueos de un período con estado y trazabilidad de exclusión', async () => {
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CALCULADA'));
+      mockPayrollBlockFindMany.mockResolvedValue([
+        {
+          id: 'block-1',
+          status: 'ACTIVE',
+          code: 'UNSUPPORTED_INTEGRAL_SALARY',
+          employeeId: 'emp-1',
+        },
+      ]);
+
+      const result = await service.findPeriodBlocks(TENANT, PERIOD_ID);
+
+      expect(result).toEqual([
+        {
+          id: 'block-1',
+          status: 'ACTIVE',
+          code: 'UNSUPPORTED_INTEGRAL_SALARY',
+          employeeId: 'emp-1',
+        },
+      ]);
+      expect(mockPayrollBlockFindMany).toHaveBeenCalledWith({
+        where: { tenantId: TENANT, payrollPeriodId: PERIOD_ID },
+        include: {
+          employee: {
+            select: {
+              id: true,
+              primerNombre: true,
+              segundoNombre: true,
+              primerApellido: true,
+              segundoApellido: true,
+              cedula: true,
+              cargo: true,
+            },
+          },
+          excludedBy: {
+            select: {
+              id: true,
+              nombre: true,
+              apellido: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
+      });
+    });
+
+    it('rechaza listar bloqueos de un período inexistente', async () => {
+      mockPayrollPeriodFindFirst.mockResolvedValue(null);
+
+      await expect(service.findPeriodBlocks(TENANT, PERIOD_ID)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockPayrollBlockFindMany).not.toHaveBeenCalled();
+    });
+
+    it('excluye un bloqueo activo con actor, fecha y motivo', async () => {
+      const block = {
+        id: 'block-1',
+        tenantId: TENANT,
+        payrollPeriodId: PERIOD_ID,
+        employeeId: 'emp-1',
+        code: 'UNSUPPORTED_INTEGRAL_SALARY',
+        message: 'Salario integral fuera de v1',
+        status: 'ACTIVE',
+      };
+      mockPayrollBlockFindFirst.mockResolvedValue(block);
+      mockPayrollBlockUpdate.mockResolvedValue({
+        ...block,
+        status: 'EXCLUDED',
+        excludedById: USER,
+      });
+
+      const result = await service.excludeBlock(
+        TENANT,
+        USER,
+        'block-1',
+        'Revisado manualmente',
+      );
+
+      expect(result).toMatchObject({
+        id: 'block-1',
+        status: 'EXCLUDED',
+        excludedById: USER,
+      });
+      expect(mockPayrollBlockUpdate).toHaveBeenCalledWith({
+        where: { id: 'block-1' },
+        data: {
+          status: 'EXCLUDED',
+          excludedAt: expect.any(Date),
+          excludedById: USER,
+          exclusionReason: 'Revisado manualmente',
+        },
+      });
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PAYROLL_BLOCK_EXCLUDED',
+          entityType: 'PayrollBlock',
+          entityId: 'block-1',
+          metadata: expect.objectContaining({
+            payrollPeriodId: PERIOD_ID,
+            employeeId: 'emp-1',
+            code: 'UNSUPPORTED_INTEGRAL_SALARY',
+            motivo: 'Revisado manualmente',
+          }),
+        }),
+        mockPrisma,
+      );
+    });
+
+    it('no excluye un bloqueo ya resuelto', async () => {
+      mockPayrollBlockFindFirst.mockResolvedValue({
+        id: 'block-1',
+        tenantId: TENANT,
+        payrollPeriodId: PERIOD_ID,
+        employeeId: 'emp-1',
+        code: 'UNSUPPORTED_INTEGRAL_SALARY',
+        message: 'Salario integral fuera de v1',
+        status: 'RESOLVED',
+      });
+
+      await expect(
+        service.excludeBlock(TENANT, USER, 'block-1'),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPayrollBlockUpdate).not.toHaveBeenCalled();
+      expect(mockAudit.log).not.toHaveBeenCalled();
+    });
+
+    it('mantiene idempotente la exclusión cuando el bloqueo ya estaba excluido', async () => {
+      const block = {
+        id: 'block-1',
+        tenantId: TENANT,
+        payrollPeriodId: PERIOD_ID,
+        employeeId: 'emp-1',
+        code: 'UNSUPPORTED_INTEGRAL_SALARY',
+        message: 'Salario integral fuera de v1',
+        status: 'EXCLUDED',
+      };
+      mockPayrollBlockFindFirst.mockResolvedValue(block);
+
+      await expect(
+        service.excludeBlock(TENANT, USER, 'block-1'),
+      ).resolves.toEqual(block);
+      expect(mockPayrollBlockUpdate).not.toHaveBeenCalled();
+      expect(mockAudit.log).not.toHaveBeenCalled();
+    });
   });
 
   // ── enviarARevision: CALCULADA → EN_REVISION ────────────────────────────────
@@ -396,7 +562,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
 
   describe('aprobar', () => {
     it('EN_REVISION → APROBADA: fija aprobadoPorId/aprobadoEn', async () => {
-      mockPayrollPeriodFindFirst.mockResolvedValue({ status: 'EN_REVISION' });
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('EN_REVISION'));
       mockPayrollPeriodUpdateMany.mockResolvedValue({ count: 1 });
 
       await service.aprobar(TENANT, USER, PERIOD_ID);
@@ -412,7 +578,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
     });
 
     it('registra auditoría PAYROLL_PERIOD_APPROVED', async () => {
-      mockPayrollPeriodFindFirst.mockResolvedValue({ status: 'EN_REVISION' });
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('EN_REVISION'));
       mockPayrollPeriodUpdateMany.mockResolvedValue({ count: 1 });
 
       await service.aprobar(TENANT, USER, PERIOD_ID);
@@ -438,6 +604,91 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       await expect(service.aprobar(TENANT, USER, PERIOD_ID)).rejects.toThrow(
         BadRequestException,
       );
+    });
+
+    it('bloqueos funcionales activos impiden aprobar antes de cambiar estado', async () => {
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('EN_REVISION'));
+      mockPayrollBlockFindMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ employeeId: 'emp-1' }]);
+      mockEmpleadoFindMany.mockResolvedValue([
+        { id: 'emp-1', salario: 15_000_000, salarioIntegral: true },
+      ]);
+      mockContratoFindMany.mockResolvedValue([
+        {
+          id: 'contrato-1',
+          empleadoId: 'emp-1',
+          estado: 'VIGENTE',
+          fechaInicio: new Date('2025-01-01'),
+          fechaFin: null,
+          sedeId: 'sede-1',
+          salario: 15_000_000,
+          claseRiesgoArl: 1,
+        },
+      ]);
+
+      await expect(service.aprobar(TENANT, USER, PERIOD_ID)).rejects.toThrow(
+        'bloqueos funcionales activos',
+      );
+      expect(mockPayrollBlockCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          tenantId: TENANT,
+          payrollPeriodId: PERIOD_ID,
+          employeeId: 'emp-1',
+          code: 'UNSUPPORTED_INTEGRAL_SALARY',
+          status: 'ACTIVE',
+        }),
+      });
+      expect(mockPayrollPeriodUpdateMany).not.toHaveBeenCalled();
+      expect(mockPayrollSnapshotCreate).not.toHaveBeenCalled();
+      expect(mockAudit.log).not.toHaveBeenCalled();
+    });
+
+    it('bloqueos excluidos no se reactivan durante la validación de aprobación', async () => {
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('EN_REVISION'));
+      mockPayrollPeriodUpdateMany.mockResolvedValue({ count: 1 });
+      mockPayrollBlockFindMany
+        .mockResolvedValueOnce([
+          {
+            id: 'block-1',
+            employeeId: 'emp-1',
+            code: 'UNSUPPORTED_INTEGRAL_SALARY',
+            status: 'EXCLUDED',
+          },
+        ])
+        .mockResolvedValueOnce([]);
+      mockEmpleadoFindMany.mockResolvedValue([
+        { id: 'emp-1', salario: 15_000_000, salarioIntegral: true },
+      ]);
+      mockContratoFindMany.mockResolvedValue([
+        {
+          id: 'contrato-1',
+          empleadoId: 'emp-1',
+          estado: 'VIGENTE',
+          fechaInicio: new Date('2025-01-01'),
+          fechaFin: null,
+          sedeId: 'sede-1',
+          salario: 15_000_000,
+          claseRiesgoArl: 1,
+        },
+      ]);
+
+      await service.aprobar(TENANT, USER, PERIOD_ID);
+
+      expect(mockPayrollBlockUpdate).toHaveBeenCalledWith({
+        where: { id: 'block-1' },
+        data: {
+          message: expect.stringContaining('Salario integral fuera de v1'),
+        },
+      });
+      expect(mockPayrollPeriodUpdateMany).toHaveBeenCalledWith({
+        where: { id: PERIOD_ID, tenantId: TENANT, status: 'EN_REVISION' },
+        data: {
+          status: 'APROBADA',
+          aprobadoPorId: USER,
+          aprobadoEn: expect.any(Date),
+        },
+      });
     });
   });
 
@@ -587,7 +838,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
 
       mockTenantFindUnique.mockResolvedValue({ aportesExonerados: true });
       mockEmpleadoFindMany.mockResolvedValue([
-        { id: 'emp-1', salario: 9_000_000, salarioIntegral: true },
+        { id: 'emp-1', salario: 2_000_000, salarioIntegral: false },
       ]);
       mockContratoFindMany.mockResolvedValue([
         {
@@ -597,7 +848,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           fechaInicio: new Date('2026-01-01'),
           fechaFin: null,
           sedeId: 'sede-mutada',
-          salario: 9_000_000,
+          salario: 2_000_000,
           claseRiesgoArl: 5,
         },
       ]);
@@ -661,11 +912,6 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           valor: 100_000,
         },
       ]);
-      expect(mockTenantFindUnique).not.toHaveBeenCalled();
-      expect(mockEmpleadoFindMany).not.toHaveBeenCalled();
-      expect(mockContratoFindMany).not.toHaveBeenCalled();
-      expect(mockPayrollNoveltyFindMany).not.toHaveBeenCalled();
-      expect(mockParametroLegalFindFirst).not.toHaveBeenCalled();
     });
 
     it('no crea snapshot antes de aprobar', async () => {
@@ -867,6 +1113,35 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         service.closePeriod(TENANT, USER, PERIOD_ID),
       ).rejects.toThrow(ConflictException);
     });
+
+    it('bloqueos funcionales activos impiden el alias legado closePeriod', async () => {
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CALCULADA'));
+      mockPayrollBlockFindMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ employeeId: 'emp-1' }]);
+      mockEmpleadoFindMany.mockResolvedValue([
+        { id: 'emp-1', salario: 15_000_000, salarioIntegral: true },
+      ]);
+      mockContratoFindMany.mockResolvedValue([
+        {
+          id: 'contrato-1',
+          empleadoId: 'emp-1',
+          estado: 'VIGENTE',
+          fechaInicio: new Date('2025-01-01'),
+          fechaFin: null,
+          sedeId: 'sede-1',
+          salario: 15_000_000,
+          claseRiesgoArl: 1,
+        },
+      ]);
+
+      await expect(
+        service.closePeriod(TENANT, USER, PERIOD_ID),
+      ).rejects.toThrow('bloqueos funcionales activos');
+      expect(mockPayrollPeriodUpdateMany).not.toHaveBeenCalled();
+      expect(mockPayrollSnapshotCreate).not.toHaveBeenCalled();
+      expect(mockAudit.log).not.toHaveBeenCalled();
+    });
   });
 
   // ── Guardas de estado en generate/recalculate ───────────────────────────────
@@ -933,6 +1208,71 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
 
       expect(mockPayrollRunCreate).toHaveBeenCalledWith({
         data: expect.objectContaining({ centroCostoId: null }),
+      });
+    });
+
+    it('clasifica salario integral como bloqueo y no crea PayrollRun', async () => {
+      setupPayrollGeneration();
+      mockEmpleadoFindMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          salario: 15_000_000,
+          salarioIntegral: true,
+        },
+      ]);
+      mockContratoFindMany.mockResolvedValue([
+        {
+          id: 'contrato-1',
+          empleadoId: 'emp-1',
+          estado: 'VIGENTE',
+          fechaInicio: new Date('2025-01-01'),
+          fechaFin: null,
+          sedeId: 'sede-1',
+          salario: 15_000_000,
+          claseRiesgoArl: 1,
+        },
+      ]);
+
+      const result = await service.generatePayroll(TENANT, USER, PERIOD_ID);
+
+      expect(mockPayrollRunCreate).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        created: 0,
+        blocks: {
+          'emp-1': [expect.stringContaining('Salario integral fuera de v1')],
+        },
+      });
+      expect(mockPayrollBlockCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          tenantId: TENANT,
+          payrollPeriodId: PERIOD_ID,
+          employeeId: 'emp-1',
+          code: 'UNSUPPORTED_INTEGRAL_SALARY',
+          message: expect.stringContaining('Salario integral fuera de v1'),
+          status: 'ACTIVE',
+        }),
+      });
+    });
+
+    it('marca como resuelto un bloqueo activo que ya no aparece al calcular', async () => {
+      setupPayrollGeneration();
+      mockPayrollBlockFindMany.mockResolvedValue([
+        {
+          id: 'block-1',
+          employeeId: 'emp-1',
+          code: 'UNSUPPORTED_INTEGRAL_SALARY',
+          status: 'ACTIVE',
+        },
+      ]);
+
+      await service.generatePayroll(TENANT, USER, PERIOD_ID);
+
+      expect(mockPayrollBlockUpdate).toHaveBeenCalledWith({
+        where: { id: 'block-1' },
+        data: {
+          status: 'RESOLVED',
+          resolvedAt: expect.any(Date),
+        },
       });
     });
   });

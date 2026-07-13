@@ -262,6 +262,7 @@ model Tenant {
   payrollRuns        PayrollRun[]
   payrollSnapshots   PayrollSnapshot[]
   payrollNovelties   PayrollNovelty[]
+  payrollBlocks      PayrollBlock[]
   customers          Customer[]
   productServices    ProductService[]
   invoices           Invoice[]
@@ -321,6 +322,7 @@ model User {
   // Actor de aprobación de ProcesoNómina (P1/U1)
   periodosNominaAprobados  PayrollPeriod[]      @relation("PayrollPeriodAprobadoPor")
   snapshotsNominaAprobados PayrollSnapshot[]    @relation("PayrollSnapshotAprobadoPor")
+  bloqueosNominaExcluidos  PayrollBlock[]       @relation("PayrollBlockExcludedBy")
 
   @@unique([tenantId, email]) // Un email es único por empresa, no globalmente
   @@index([tenantId, activo])
@@ -440,6 +442,7 @@ model Empleado {
   payrollRuns        PayrollRun[]
   payrollSnapshots   PayrollSnapshot[]
   payrollNovelties   PayrollNovelty[]
+  payrollBlocks      PayrollBlock[]
   expediente         ExpedienteDoc[]
   alertas            Alerta[]
   liquidations       Liquidation[]
@@ -693,6 +696,16 @@ enum PayrollNoveltyType {
 }
 
 // =============================================================================
+// PAYROLL BLOCK STATUS — Ciclo de vida de bloqueos fail-secure
+// =============================================================================
+
+enum PayrollBlockStatus {
+  ACTIVE
+  RESOLVED
+  EXCLUDED
+}
+
+// =============================================================================
 // LIQUIDATION STATUS — Estado de la liquidación laboral
 // =============================================================================
 
@@ -738,6 +751,7 @@ model PayrollPeriod {
   runs      PayrollRun[]
   snapshots PayrollSnapshot[]
   novelties PayrollNovelty[]
+  blocks    PayrollBlock[]
 
   @@index([tenantId])
   @@index([tenantId, status])
@@ -863,6 +877,45 @@ model PayrollSnapshot {
   @@index([parametroLegalId])
   @@index([centroCostoId])
   @@map("payroll_snapshots")
+}
+
+// =============================================================================
+// PAYROLL BLOCK — Bloqueo funcional de liquidación para empleado/período
+// =============================================================================
+
+model PayrollBlock {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  payrollPeriodId String
+  payrollPeriod   PayrollPeriod @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Empleado @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  code    String
+  message String
+  status  PayrollBlockStatus @default(ACTIVE)
+
+  detectedAt DateTime  @default(now())
+  resolvedAt DateTime?
+  excludedAt DateTime?
+
+  excludedById    String?
+  excludedBy      User?   @relation("PayrollBlockExcludedBy", fields: [excludedById], references: [id], onDelete: SetNull)
+  exclusionReason String?
+
+  @@unique([tenantId, payrollPeriodId, employeeId, code])
+  @@index([tenantId])
+  @@index([tenantId, payrollPeriodId])
+  @@index([tenantId, payrollPeriodId, status])
+  @@index([tenantId, employeeId])
+  @@index([excludedById])
+  @@map("payroll_blocks")
 }
 
 // =============================================================================
