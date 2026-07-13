@@ -6,6 +6,7 @@ import {
   PayrollCalculationInput,
 } from './payroll-types';
 import { WarningCode } from './payroll-warnings';
+import { PayrollEvaluationKind } from '../payroll-evaluation';
 
 // Parámetros legales vigencia 2026 (espejo del seed N2A.1).
 const SMMLV = 1_423_500;
@@ -122,6 +123,9 @@ describe('PayrollCalculator — casos obligatorios N2A', () => {
 
     expect(r.ibc).toBe(SMMLV * 25); // 35_587_500
     expect(r.warnings.map((w) => w.code)).toContain(WarningCode.IBC_CAPPED);
+    expect(r.warnings.map((w) => w.kind)).toContain(
+      PayrollEvaluationKind.WARNING,
+    );
     expect(byCodigo(r.concepts, 'SALUD_EMP')!.valor).toBe(1_423_500); // 4% del tope
   });
 

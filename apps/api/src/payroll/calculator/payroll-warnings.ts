@@ -1,19 +1,21 @@
+import {
+  informativeWarning,
+  PayrollInformativeWarning,
+} from '../payroll-evaluation';
+
 /**
  * Advertencias tipadas del PayrollCalculator.
  *
  * No usamos string[]: cada advertencia tiene un `code` estable (para que el
- * servicio/UI pueda reaccionar programáticamente) y un `message` legible.
+ * servicio/UI pueda reaccionar programaticamente) y un `message` legible.
  *
- * El calculator puro solo emite advertencias que descubre por construcción
- * (topes de IBC). Las advertencias de resolución de datos (clase ARL por
- * defecto, contrato faltante, divergencia de salario) las emite el SERVICIO
- * en la frontera, no el calculator.
+ * El calculator puro solo emite advertencias informativas que descubre por
+ * construccion (topes de IBC). Las condiciones que impiden liquidar con
+ * correccion garantizada se clasifican como bloqueos funcionales en la
+ * frontera de Payroll, no dentro del calculator.
  */
 
-export interface PayrollWarning {
-  code: string;
-  message: string;
-}
+export type PayrollWarning = PayrollInformativeWarning;
 
 export const WarningCode = {
   IBC_FLOORED: 'IBC_FLOORED',
@@ -22,18 +24,18 @@ export const WarningCode = {
 
 export type WarningCode = (typeof WarningCode)[keyof typeof WarningCode];
 
-/** El IBC calculado quedó por debajo del piso legal (1 SMMLV) y se ajustó. */
+/** El IBC calculado quedo por debajo del piso legal (1 SMMLV) y se ajusto. */
 export function ibcFloored(ibcRaw: number, piso: number): PayrollWarning {
-  return {
-    code: WarningCode.IBC_FLOORED,
-    message: `IBC calculado (${ibcRaw}) inferior al piso legal; ajustado a ${piso} (1 SMMLV).`,
-  };
+  return informativeWarning(
+    WarningCode.IBC_FLOORED,
+    `IBC calculado (${ibcRaw}) inferior al piso legal; ajustado a ${piso} (1 SMMLV).`,
+  );
 }
 
-/** El IBC calculado superó el techo legal (25 SMMLV) y se ajustó. */
+/** El IBC calculado supero el techo legal (25 SMMLV) y se ajusto. */
 export function ibcCapped(ibcRaw: number, techo: number): PayrollWarning {
-  return {
-    code: WarningCode.IBC_CAPPED,
-    message: `IBC calculado (${ibcRaw}) superior al techo legal; ajustado a ${techo} (25 SMMLV).`,
-  };
+  return informativeWarning(
+    WarningCode.IBC_CAPPED,
+    `IBC calculado (${ibcRaw}) superior al techo legal; ajustado a ${techo} (25 SMMLV).`,
+  );
 }

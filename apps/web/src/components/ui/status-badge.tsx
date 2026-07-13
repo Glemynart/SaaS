@@ -78,7 +78,17 @@ const STATUS_MAP = {
   },
   nominaN2: {
     DRAFT: { semantic: 'neutral', label: 'Borrador' },
+    BORRADOR: { semantic: 'neutral', label: 'Borrador' },
+    CALCULADA: { semantic: 'info', label: 'Calculada' },
+    EN_REVISION: { semantic: 'warning', label: 'En revisión' },
+    APROBADA: { semantic: 'success', label: 'Aprobada' },
     CLOSED: { semantic: 'neutral', label: 'Cerrado' },
+    CERRADA: { semantic: 'neutral', label: 'Cerrada' },
+  },
+  payrollBlock: {
+    ACTIVE: { semantic: 'danger', label: 'Activo' },
+    RESOLVED: { semantic: 'success', label: 'Resuelto' },
+    EXCLUDED: { semantic: 'neutral', label: 'Excluido' },
   },
 } as const satisfies Record<string, Record<string, StatusEntry>>;
 

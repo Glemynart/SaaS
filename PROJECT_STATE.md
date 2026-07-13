@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: Payroll P1 · U3 completada — Snapshot inmutable (2026-07-12)
+## Última actualización: Payroll P1 · U4 completada + contrato público alineado (2026-07-13)
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -1603,20 +1603,23 @@ Decisiones clave:
 - Resultado de negocio como frontera Payroll ↔ Accounting.
 - Ciclo de estados: Borrador → Calculada → Revisión → Aprobada → Causada → Pagada → Cerrada.
 - v1 = nómina mensual ordinaria completa.
-- Explícitamente fuera de v1: retención en la fuente, FSP, salario integral, PILA, nómina electrónica, motor de reglas configurable.
+- U4: Fail Secure con `PayrollBlock`, pipeline único, `blocks` como fuente funcional y `PayrollRun` solo para resultados válidos.
+- `PayrollSnapshot` representa únicamente evidencia histórica aprobada.
+- Explícitamente fuera de v1: retención en la fuente, salario integral, PILA, nómina electrónica, motor de reglas configurable.
 
 ## Implementación
 
 Estado:
 
-🟡 En progreso — P0 ✅; **P1 en curso** (U1–U3 completadas; siguiente unidad: U4 — Fail-secure).
+🟡 En cierre — P0 ✅; **P1 Core U1–U4 completado**. Contrato público frontend/BFF alineado. Las correcciones post-aprobación quedan fuera de P1 y pasan a Payroll P1.5.
 
 Roadmap aprobado:
 
 ```
 P0 — Payroll Catalogs       ✅ COMPLETADO (parámetros legales, conceptos, escalas, calendarios)
-P1 — Payroll Core            🟡 EN CURSO (ProcesoNómina: estados, liquidación, snapshot, fail-secure)
-P2 — Accounting Integration  (mapper concepto → cuenta, causación EXPLÍCITA — ver decisión abajo)
+P1 — Payroll Core            ✅ CORE COMPLETADO (ProcesoNómina: estados, liquidación válida, snapshot, fail-secure, PayrollBlock, contrato público)
+P1.5 — Corrección post-aprobación ⏳ SEPARADO DE P1 (reliquidación no destructiva y reversión controlada)
+P2 — Accounting Integration  (mapper concepto → cuenta, contabilización EXPLÍCITA — ver decisión abajo)
 P3 — Treasury Integration    (resultado de dispersión, hitos de pago)
 P4 — PILA                    (Planilla Integrada de Liquidación de Aportes)
 P5 — Nómina Electrónica      (Documento soporte DIAN)
@@ -1628,15 +1631,65 @@ P5 — Nómina Electrónica      (Documento soporte DIAN)
 U1 — Máquina de estados del ProcesoNómina   ✅ COMPLETADO (PR #57)
 U2 — Centro de costo                         ✅ COMPLETADO (PR #58)
 U3 — Snapshot inmutable                      ✅ COMPLETADO (PR #59)
-U4 — Fail-secure                             ⏭️ SIGUIENTE
-U5 — Reliquidación no destructiva            ⏳ pendiente
+U4 — Fail-secure                             ✅ COMPLETADO (rama actual, pendiente de commit/merge)
+U5 — Reliquidación no destructiva            ↪️ FUERA DE P1; pasa a Payroll P1.5
 ```
 
 Fuera de P1 (iniciativas independientes diferidas): rename + feature-flag del módulo Finiquito (`Liquidation`); deduplicación de `generatePayroll`/`recalculatePayroll`.
 
 ### Decisión de arquitectura — causación contable de nómina (2026-07-12)
 
-La causación **no** ocurre automáticamente al aprobar. Es un **caso de uso explícito ("Contabilizar nómina")** que transiciona `APROBADA → CAUSADA` (modelo tipo Siigo). La transición a `CAUSADA` y el `registrarComprobante` en el Ledger se ejecutan en **una única `$transaction`** (ADR-001 principio 6, origen síncrono). Se aborda en **P2** (integración Payroll ↔ Accounting), no antes. Preserva la separación aprobación administrativa / causación contable / pago / nómina electrónica. Pendiente doc: aclarar la redacción de ADR-002 D6 ("misma transacción que la causación", no "que la aprobación").
+La causación **no** ocurre automáticamente al aprobar. Es un **caso de uso explícito ("Contabilizar nómina")** que transiciona `APROBADA → CAUSADA` (modelo tipo Siigo). La transición a `CAUSADA` y el `registrarComprobante` en el Ledger se ejecutan en **una única `$transaction`** (ADR-001 principio 6, origen síncrono). Se aborda en **P2** (integración Payroll ↔ Accounting), no antes. Preserva la separación aprobación administrativa / causación contable / pago / nómina electrónica. ADR-002 rev. 3 ya aclara que la transacción conjunta pertenece a la causación explícita, no a la aprobación administrativa.
+
+### P1 · U4 — Fail Secure
+
+Estado:
+
+✅ COMPLETADO funcionalmente (2026-07-13, rama `feat/payroll-p1-u4-fail-secure`; pendiente de commit/merge).
+
+- Clasificación funcional de evaluación: resultado válido, warning informativo y bloqueo funcional.
+- `PayrollRun` queda reservado para resultados válidos; un empleado bloqueado no produce resultado de liquidación válido para el período.
+- `blocks` es la única fuente funcional para decidir fail-secure. `serviceWarnings` permanece solo como compatibilidad temporal, no como fuente de decisión de dominio.
+- Cálculo y aprobación reutilizan el mismo pipeline de evaluación; no existe una segunda implementación de reglas de bloqueo.
+- Aprobación bloqueada cuando existan bloqueos `ACTIVE` no resueltos o no excluidos explícitamente.
+- `PayrollBlock` persistente con ciclo de vida `ACTIVE | RESOLVED | EXCLUDED`.
+- Correlación estable por PayrollPeriod + empleado + código funcional del bloqueo; no depende del texto del mensaje.
+- Gestión manual de bloqueos persistidos: consulta por período, exclusión explícita y trazabilidad de exclusión.
+- Política aprobada: un bloqueo `EXCLUDED` no se reactiva automáticamente si la misma causa vuelve a aparecer durante el mismo PayrollPeriod.
+
+### Contrato público Payroll P1
+
+Estado:
+
+✅ ALINEADO (2026-07-13, rama `feat/payroll-p1-u4-fail-secure`; pendiente de commit/merge).
+
+- Servicios, BFF y tipos públicos reflejan el flujo oficial: generar, recalcular, enviar a revisión, aprobar, rechazar, reabrir, consultar bloqueos y excluir bloqueos.
+- Respuestas públicas exponen `blocks` cuando corresponde y mantienen `serviceWarnings` solo cuando es necesario para compatibilidad temporal.
+- La UI deja de depender del alias legado `closePeriod`; el backend conserva el alias únicamente como compatibilidad transitoria.
+- El contrato público refleja estados oficiales de Payroll P1 y visualización de bloqueos sin cambiar reglas de negocio.
+
+### Commits importantes registrados
+
+- P0 — Payroll Catalogs: PR #56, merge commit `9b75bd2`.
+- U1 — Máquina de estados: PR #57, merge commit `3113e78`.
+- U2 — Centro de costo: PR #58, merge commit `2cb3b36`.
+- U3 — Snapshot inmutable: PR #59, merge commit `62fcbc9`.
+- U4 — Fail Secure: pendiente de commit/merge en `feat/payroll-p1-u4-fail-secure`.
+- Contrato público Payroll P1: pendiente de commit/merge en `feat/payroll-p1-u4-fail-secure`.
+
+### Decisión de alcance — Payroll P1.5
+
+Decisión:
+
+Payroll P1 comprende el flujo completo de generación, revisión y aprobación segura de una nómina ordinaria. Las capacidades de corrección posteriores a la aprobación dejan de formar parte de P1 y pasan a **Payroll P1.5 — Corrección post-aprobación**.
+
+Justificación:
+
+- ADR-002 y el estado actual ya cubren el objetivo funcional de P1 Core: liquidar, revisar y aprobar una nómina ordinaria con snapshots aprobados, centro de costo y fail-secure.
+- ADR-001 no exige reliquidación no destructiva para que Accounting P2 pueda construir la causación inicial de un período aprobado; exige origen estable, trazabilidad, idempotencia y no escribir directamente desde Payroll al Ledger.
+- Payroll P1.5 sí es necesaria antes de habilitar correcciones post-aprobación, reversión controlada y ajustes contables sobre nóminas ya causadas.
+- La separación reduce riesgo: P2 puede iniciar sobre el contrato de resultado aprobado, mientras P1.5 queda como prerequisito explícito para flujos de ajuste/reliquidación.
+- Esta separación no cambia U1, U2, U3 ni U4; solo clasifica el alcance pendiente.
 
 ### P1 · U1 — Máquina de estados del ProcesoNómina
 
@@ -1652,9 +1705,9 @@ Rama `feat/payroll-p1-payroll-process` (mergeada — PR #57, merge commit `3113e
 - Migración de enum en dos archivos (restricción Postgres `ADD VALUE`). Verificada con `prisma migrate deploy` sobre DB nueva (44/44 migraciones).
 - Verificación acotada a Payroll: `tsc --noEmit` 0 errores; `jest src/payroll` 205/205.
 
-**Deuda diferida a U5 / integración posterior:** M2 (TOCTOU: la transición a `CALCULADA` no lleva guarda optimista de origen) y M3 (los eventos `PAYROLL_GENERATED/RECALCULATED` siguen fire-and-forget, a diferencia de las transiciones formales).
+**Deuda a clasificar antes del cierre final de P1/P1.5:** M2 (TOCTOU: la transición a `CALCULADA` no lleva guarda optimista de origen) y M3 (los eventos `PAYROLL_GENERATED/RECALCULATED` siguen fire-and-forget, a diferencia de las transiciones formales). No se consideran bloqueantes por defecto: si afectan solo mantenibilidad, observabilidad o robustez interna, quedan como deuda planificada; si comprometen garantías funcionales esenciales, deben resolverse antes del cierre definitivo.
 
-**Seguimiento de frontend (fuera de P1 backend):** `bandeja.ts` y la página de detalle de período comparan los literales `DRAFT`/`CLOSED`; deben adaptarse a los estados nuevos cuando la UI adopte el flujo.
+**Seguimiento de frontend:** contrato público y BFF ya alineados al flujo oficial de Payroll P1 en la rama `feat/payroll-p1-u4-fail-secure`.
 
 ### P1 · U2 — Centro de costo
 
@@ -1679,8 +1732,8 @@ Rama `feat/payroll-p1-u3-immutable-snapshot` (mergeada — PR #59, merge commit 
 
 - `PayrollSnapshot` queda como entidad independiente 1:1 por `PayrollRun`, con metadatos relacionales mínimos y payload inmutable.
 - `PayrollRun` conserva `calculationTrace` como huella técnica de los insumos normalizados usados durante el cálculo.
-- La aprobación a `APROBADA` genera snapshots dentro de la misma transacción y `closePeriod()` reutiliza el mismo flujo.
-- El Snapshot se construye exclusivamente desde `PayrollRun`, `PayrollConcept` y `calculationTrace`, sin volver a consultar entidades mutables durante la aprobación.
+- La aprobación a `APROBADA` genera snapshots dentro de la misma transacción y `closePeriod()` reutiliza el mismo flujo legado.
+- El payload del Snapshot se construye exclusivamente desde `PayrollRun`, `PayrollConcept` y `calculationTrace`; la evaluación fail-secure de U4 puede ejecutarse antes de aprobar, pero el snapshot no consulta entidades mutables para reproducir el resultado.
 - Migración aditiva, sin backfill, sin cambios en Accounting, sin fail-secure y sin adelantar U5.
 
 ### P0 — Payroll Catalogs

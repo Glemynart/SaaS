@@ -36,6 +36,13 @@ export class RejectPayrollPeriodDto {
   motivo?: string;
 }
 
+/** Body opcional de PATCH payroll/blocks/:blockId/exclude. */
+export class ExcludePayrollBlockDto {
+  @IsString()
+  @IsOptional()
+  motivo?: string;
+}
+
 export enum PayrollNoveltyType {
   VACATION = 'VACATION',
   SICKNESS = 'SICKNESS',

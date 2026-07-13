@@ -4,7 +4,11 @@ import {
   BadRequestException,
   ConflictException,
 } from '@nestjs/common';
-import { Prisma, PayrollPeriodStatus } from '@prisma/client';
+import {
+  Prisma,
+  PayrollBlockStatus,
+  PayrollPeriodStatus,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import {
@@ -24,6 +28,11 @@ import {
   toSnapshot,
 } from './payroll-mapper';
 import { assertTransition } from './payroll-states';
+import {
+  functionalBlock,
+  PayrollBlockCode,
+  PayrollFunctionalBlock,
+} from './payroll-evaluation';
 
 /** Estados en los que el motor de cálculo puede ejecutarse (ADR-002 §6). */
 const GENERATE_ALLOWED_STATUSES: PayrollPeriodStatus[] = [
@@ -94,6 +103,8 @@ type PayrollCalculationTrace = {
     politicaRedondeoAplicada: string;
   };
 };
+
+type PayrollBlockMap = Record<string, PayrollFunctionalBlock[]>;
 
 @Injectable()
 export class PayrollService {
@@ -184,6 +195,93 @@ export class PayrollService {
       runs,
       totals: { totalDevengos, totalDeducciones, totalNeto },
     };
+  }
+
+  async findPeriodBlocks(tenantId: string, periodId: string) {
+    const period = await this.prisma.payrollPeriod.findFirst({
+      where: { id: periodId, tenantId },
+      select: { id: true },
+    });
+    if (!period) throw new NotFoundException('PerÃ­odo no encontrado');
+
+    return this.prisma.payrollBlock.findMany({
+      where: { tenantId, payrollPeriodId: periodId },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            primerNombre: true,
+            segundoNombre: true,
+            primerApellido: true,
+            segundoApellido: true,
+            cedula: true,
+            cargo: true,
+          },
+        },
+        excludedBy: {
+          select: {
+            id: true,
+            nombre: true,
+            apellido: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  async excludeBlock(
+    tenantId: string,
+    userId: string,
+    blockId: string,
+    motivo?: string,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const block = await tx.payrollBlock.findFirst({
+        where: { id: blockId, tenantId },
+      });
+      if (!block) throw new NotFoundException('Bloqueo no encontrado');
+
+      if (block.status === PayrollBlockStatus.RESOLVED) {
+        throw new BadRequestException(
+          'No se puede excluir un bloqueo que ya esta resuelto',
+        );
+      }
+
+      if (block.status === PayrollBlockStatus.EXCLUDED) {
+        return block;
+      }
+
+      const updated = await tx.payrollBlock.update({
+        where: { id: block.id },
+        data: {
+          status: PayrollBlockStatus.EXCLUDED,
+          excludedAt: new Date(),
+          excludedById: userId,
+          exclusionReason: motivo?.trim() || null,
+        },
+      });
+
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'PAYROLL_BLOCK_EXCLUDED',
+          entityType: 'PayrollBlock',
+          entityId: block.id,
+          metadata: {
+            payrollPeriodId: block.payrollPeriodId,
+            employeeId: block.employeeId,
+            code: block.code,
+            motivo: motivo ?? null,
+          },
+        },
+        tx,
+      );
+
+      return updated;
+    });
   }
 
   /**
@@ -283,6 +381,8 @@ export class PayrollService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      await this.assertNoFunctionalBlocksForApproval(tx, tenantId, period);
+
       const result = await tx.payrollPeriod.updateMany({
         where: { id: periodId, tenantId, status: from },
         data: {
@@ -471,11 +571,24 @@ export class PayrollService {
     // ── Transacción ──────────────────────────────────────────────────────────
     const created: unknown[] = [];
     const runWarnings: Record<string, string[]> = {};
+    const runBlocks: PayrollBlockMap = {};
 
     try {
       await this.prisma.$transaction(
         async (tx) => {
           for (const emp of employees) {
+            const calculation = this.calculateAndCollectWarnings(
+              emp,
+              contractsByEmployee.get(emp.id) ?? [],
+              noveltiesByEmployee.get(emp.id) ?? [],
+              aportesExonerados,
+              legalSnapshot,
+              period.fechaInicio,
+              runWarnings,
+              runBlocks,
+            );
+            if (runBlocks[emp.id]?.length) continue;
+
             const existing = await tx.payrollRun.findFirst({
               where: {
                 tenantId,
@@ -485,15 +598,6 @@ export class PayrollService {
             });
             if (existing) continue;
 
-            const calculation = this.calculateAndCollectWarnings(
-              emp,
-              contractsByEmployee.get(emp.id) ?? [],
-              noveltiesByEmployee.get(emp.id) ?? [],
-              aportesExonerados,
-              legalSnapshot,
-              period.fechaInicio,
-              runWarnings,
-            );
             const centroCosto = this.resolveCentroCosto(
               calculation.contrato,
               centroCostoBySede,
@@ -514,6 +618,13 @@ export class PayrollService {
             });
             created.push(run);
           }
+
+          await this.syncFunctionalBlocksForPeriod(
+            tx,
+            tenantId,
+            periodId,
+            runBlocks,
+          );
 
           // "El cálculo terminó correctamente" (ADR-002 §6): al final de esta
           // misma transacción, tras persistir los runs, el período pasa a
@@ -554,6 +665,7 @@ export class PayrollService {
           runsCreated: created.length,
           skipped: employees.length - created.length,
           warningsCount: Object.keys(runWarnings).length,
+          blocksCount: Object.keys(runBlocks).length,
         },
       })
       .catch(() => {});
@@ -562,6 +674,9 @@ export class PayrollService {
       created: created.length,
       message: `${created.length} empleados liquidados`,
       ...(Object.keys(runWarnings).length > 0 && { warnings: runWarnings }),
+      ...(Object.keys(runBlocks).length > 0 && {
+        blocks: this.blockMessages(runBlocks),
+      }),
     };
   }
 
@@ -630,6 +745,7 @@ export class PayrollService {
 
     // ── Transacción ──────────────────────────────────────────────────────────
     const runWarnings: Record<string, string[]> = {};
+    const runBlocks: PayrollBlockMap = {};
     const summary = { runsDeleted: 0, runsCreated: 0 };
 
     try {
@@ -660,7 +776,10 @@ export class PayrollService {
               legalSnapshot,
               period.fechaInicio,
               runWarnings,
+              runBlocks,
             );
+            if (runBlocks[emp.id]?.length) continue;
+
             const centroCosto = this.resolveCentroCosto(
               calculation.contrato,
               centroCostoBySede,
@@ -679,8 +798,15 @@ export class PayrollService {
                 noveltiesByEmployee.get(emp.id) ?? [],
               ),
             });
+            summary.runsCreated += 1;
           }
-          summary.runsCreated = employees.length;
+
+          await this.syncFunctionalBlocksForPeriod(
+            tx,
+            tenantId,
+            periodId,
+            runBlocks,
+          );
 
           // La reliquidación mantiene CALCULADA (nunca retrocede a BORRADOR).
           // Mismo evento de negocio que en generatePayroll: ver comentario ahí.
@@ -715,6 +841,7 @@ export class PayrollService {
           runsDeleted: summary.runsDeleted,
           runsCreated: summary.runsCreated,
           warningsCount: Object.keys(runWarnings).length,
+          blocksCount: Object.keys(runBlocks).length,
         },
       })
       .catch(() => {});
@@ -723,6 +850,9 @@ export class PayrollService {
       recalculated: employees.length,
       message: `${employees.length} empleados reliquidados`,
       ...(Object.keys(runWarnings).length > 0 && { warnings: runWarnings }),
+      ...(Object.keys(runBlocks).length > 0 && {
+        blocks: this.blockMessages(runBlocks),
+      }),
     };
   }
 
@@ -821,12 +951,218 @@ export class PayrollService {
 
   // ── Helpers privados ───────────────────────────────────────────────────────
 
+  private async assertNoFunctionalBlocksForApproval(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    period: {
+      id: string;
+      fechaInicio: Date;
+    },
+  ) {
+    const blocks = await this.collectFunctionalBlocksForPeriod(
+      tx,
+      tenantId,
+      period,
+    );
+    await this.syncFunctionalBlocksForPeriod(tx, tenantId, period.id, blocks);
+
+    const activeBlocks = await tx.payrollBlock.findMany({
+      where: {
+        tenantId,
+        payrollPeriodId: period.id,
+        status: PayrollBlockStatus.ACTIVE,
+      },
+      select: { employeeId: true },
+    });
+    const blockedEmployees = new Set(
+      activeBlocks.map((block) => block.employeeId),
+    );
+
+    if (blockedEmployees.size > 0) {
+      throw new BadRequestException(
+        `No se puede aprobar la nomina: existen ${blockedEmployees.size} empleado(s) con bloqueos funcionales activos`,
+      );
+    }
+  }
+
+  private async collectFunctionalBlocksForPeriod(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    period: {
+      id: string;
+      fechaInicio: Date;
+    },
+  ): Promise<PayrollBlockMap> {
+    const [legalParam, tenant] = await Promise.all([
+      this.resolveLegalParams(tenantId, period.fechaInicio, tx),
+      tx.tenant.findUnique({
+        where: { id: tenantId },
+        select: { aportesExonerados: true },
+      }),
+    ]);
+    const legalSnapshot = toSnapshot(legalParam);
+    const aportesExonerados = tenant!.aportesExonerados;
+
+    const employees = await tx.empleado.findMany({
+      where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
+      select: { id: true, salario: true, salarioIntegral: true },
+    });
+
+    const allNovelties = await tx.payrollNovelty.findMany({
+      where: { tenantId, payrollPeriodId: period.id },
+    });
+    const noveltiesByEmployee = new Map<string, typeof allNovelties>();
+    for (const novelty of allNovelties) {
+      const list = noveltiesByEmployee.get(novelty.employeeId) ?? [];
+      list.push(novelty);
+      noveltiesByEmployee.set(novelty.employeeId, list);
+    }
+
+    const employeeIds = employees.map((employee) => employee.id);
+    const allContracts = await tx.contrato.findMany({
+      where: { tenantId, empleadoId: { in: employeeIds } },
+      select: {
+        id: true,
+        empleadoId: true,
+        estado: true,
+        fechaInicio: true,
+        fechaFin: true,
+        sedeId: true,
+        salario: true,
+        claseRiesgoArl: true,
+      },
+      orderBy: { fechaInicio: 'desc' },
+    });
+    const contractsByEmployee = new Map<string, typeof allContracts>();
+    for (const contract of allContracts) {
+      const list = contractsByEmployee.get(contract.empleadoId) ?? [];
+      list.push(contract);
+      contractsByEmployee.set(contract.empleadoId, list);
+    }
+
+    const warnings: Record<string, string[]> = {};
+    const blocks: PayrollBlockMap = {};
+    for (const employee of employees) {
+      this.calculateAndCollectWarnings(
+        employee,
+        contractsByEmployee.get(employee.id) ?? [],
+        noveltiesByEmployee.get(employee.id) ?? [],
+        aportesExonerados,
+        legalSnapshot,
+        period.fechaInicio,
+        warnings,
+        blocks,
+      );
+    }
+
+    return blocks;
+  }
+
+  private async syncFunctionalBlocksForPeriod(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    payrollPeriodId: string,
+    detectedBlocks: PayrollBlockMap,
+  ) {
+    const existingBlocks = await tx.payrollBlock.findMany({
+      where: { tenantId, payrollPeriodId },
+      select: {
+        id: true,
+        employeeId: true,
+        code: true,
+        status: true,
+      },
+    });
+    const existingByKey = new Map(
+      existingBlocks.map((block) => [
+        this.blockKey(block.employeeId, block.code),
+        block,
+      ]),
+    );
+
+    const detectedKeys = new Set<string>();
+    for (const [employeeId, blocks] of Object.entries(detectedBlocks)) {
+      for (const block of blocks) {
+        const key = this.blockKey(employeeId, block.code);
+        detectedKeys.add(key);
+        const existing = existingByKey.get(key);
+
+        if (!existing) {
+          await tx.payrollBlock.create({
+            data: {
+              tenantId,
+              payrollPeriodId,
+              employeeId,
+              code: block.code,
+              message: block.message,
+              status: PayrollBlockStatus.ACTIVE,
+            },
+          });
+          continue;
+        }
+
+        if (existing.status === PayrollBlockStatus.EXCLUDED) {
+          await tx.payrollBlock.update({
+            where: { id: existing.id },
+            data: { message: block.message },
+          });
+          continue;
+        }
+
+        await tx.payrollBlock.update({
+          where: { id: existing.id },
+          data: {
+            message: block.message,
+            status: PayrollBlockStatus.ACTIVE,
+            resolvedAt: null,
+          },
+        });
+      }
+    }
+
+    const now = new Date();
+    for (const block of existingBlocks) {
+      const key = this.blockKey(block.employeeId, block.code);
+      if (
+        detectedKeys.has(key) ||
+        block.status === PayrollBlockStatus.RESOLVED
+      ) {
+        continue;
+      }
+
+      await tx.payrollBlock.update({
+        where: { id: block.id },
+        data: {
+          status: PayrollBlockStatus.RESOLVED,
+          resolvedAt: now,
+        },
+      });
+    }
+  }
+
+  private blockKey(employeeId: string, code: string) {
+    return `${employeeId}:${code}`;
+  }
+
+  private blockMessages(blocks: PayrollBlockMap): Record<string, string[]> {
+    return Object.fromEntries(
+      Object.entries(blocks).map(([employeeId, employeeBlocks]) => [
+        employeeId,
+        employeeBlocks.map((block) => block.message),
+      ]),
+    );
+  }
+
   /**
    * Resuelve el ParametroLegalNomina vigente para una fecha de inicio de período.
    * Prioridad: override de tenant → global de plataforma.
    * Lanza NotFoundException si no existe ninguna vigencia aplicable.
    */
-  private async resolveLegalParams(tenantId: string, periodStart: Date) {
+  private async resolveLegalParams(
+    tenantId: string,
+    periodStart: Date,
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
     // Normalizar a fecha UTC pura (sin componente horario) para comparar con @db.Date
     const d = periodStart;
     const periodDate = new Date(
@@ -834,7 +1170,7 @@ export class PayrollService {
     );
 
     // 1. Override específico del tenant
-    const tenantParam = await this.prisma.parametroLegalNomina.findFirst({
+    const tenantParam = await db.parametroLegalNomina.findFirst({
       where: {
         tenantId,
         vigenciaDesde: { lte: periodDate },
@@ -845,7 +1181,7 @@ export class PayrollService {
     if (tenantParam) return tenantParam;
 
     // 2. Global de plataforma (tenantId IS NULL)
-    const globalParam = await this.prisma.parametroLegalNomina.findFirst({
+    const globalParam = await db.parametroLegalNomina.findFirst({
       where: {
         tenantId: null,
         vigenciaDesde: { lte: periodDate },
@@ -1101,6 +1437,7 @@ export class PayrollService {
     legalSnapshot: ReturnType<typeof toSnapshot>,
     periodStart: Date,
     warningsMap: Record<string, string[]>,
+    blocksMap: PayrollBlockMap,
   ): {
     result: PayrollCalculationResult;
     contrato: ContratoForPayroll | null;
@@ -1109,7 +1446,7 @@ export class PayrollService {
   } {
     const { contrato, fallback } = resolveContrato(empContracts, periodStart);
 
-    const { input, serviceWarnings } = buildCalculationInput(
+    const { input, blocks: inputBlocks } = buildCalculationInput(
       emp,
       contrato,
       empNovelties,
@@ -1118,18 +1455,41 @@ export class PayrollService {
     );
 
     const allWarnings: string[] = [];
+    const blocks: PayrollFunctionalBlock[] = [];
     if (fallback) {
       allWarnings.push(
         `Contrato: sin VIGENTE para el período; usando fallback (${contrato?.estado ?? 'sin contrato'})`,
       );
     }
-    allWarnings.push(...serviceWarnings);
+    if (fallback) {
+      blocks.push(
+        functionalBlock(
+          PayrollBlockCode.MISSING_ACTIVE_CONTRACT,
+          `Contrato: sin VIGENTE para el periodo (${contrato?.estado ?? 'sin contrato'}); no se puede liquidar con correccion garantizada`,
+        ),
+      );
+    }
+    if (!contrato) {
+      blocks.push(
+        functionalBlock(
+          PayrollBlockCode.MISSING_ACTIVE_CONTRACT,
+          'Contrato: no existe contrato para el empleado; no se puede liquidar con correccion garantizada',
+        ),
+      );
+    }
+    blocks.push(...inputBlocks);
 
     const result = calculate(input);
     allWarnings.push(...result.warnings.map((w) => w.message));
 
-    if (allWarnings.length > 0) {
-      warningsMap[emp.id] = allWarnings;
+    const informativeWarnings = allWarnings.filter(
+      (warning) => !warning.startsWith('Contrato: sin VIGENTE'),
+    );
+    if (informativeWarnings.length > 0) {
+      warningsMap[emp.id] = informativeWarnings;
+    }
+    if (blocks.length > 0) {
+      blocksMap[emp.id] = blocks;
     }
 
     return { result, contrato, contratoFallback: fallback, input };

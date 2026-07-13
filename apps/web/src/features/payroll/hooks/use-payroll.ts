@@ -6,6 +6,7 @@ export const payrollKeys = {
   dashboard: () => [...payrollKeys.all, 'dashboard'],
   periods: () => [...payrollKeys.all, 'periods'],
   period: (id: string) => [...payrollKeys.periods(), id],
+  blocks: (periodId: string) => [...payrollKeys.period(periodId), 'blocks'],
   novelties: () => [...payrollKeys.all, 'novelties'],
 };
 
@@ -28,6 +29,13 @@ export function usePayrollNovelties(employeeId?: string) {
     queryFn: () => payrollApi.getNovelties(employeeId),
   });
 }
+export function usePayrollBlocks(periodId: string) {
+  return useQuery({
+    queryKey: payrollKeys.blocks(periodId),
+    queryFn: () => payrollApi.getBlocks(periodId),
+    enabled: !!periodId,
+  });
+}
 
 export function useCreatePeriod() {
   const qc = useQueryClient();
@@ -36,10 +44,39 @@ export function useCreatePeriod() {
     onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.periods() }),
   });
 }
-export function useClosePeriod() {
+export function useRecalculatePayroll() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: payrollApi.closePeriod,
+    mutationFn: payrollApi.recalculatePayroll,
+    onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.all }),
+  });
+}
+export function useEnviarARevision() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: payrollApi.enviarARevision,
+    onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.all }),
+  });
+}
+export function useAprobarPayrollPeriod() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: payrollApi.aprobar,
+    onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.all }),
+  });
+}
+export function useRechazarPayrollPeriod() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, motivo }: { id: string; motivo?: string }) =>
+      payrollApi.rechazar(id, motivo),
+    onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.all }),
+  });
+}
+export function useReabrirPayrollPeriod() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: payrollApi.reabrir,
     onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.all }),
   });
 }
@@ -47,6 +84,14 @@ export function useGeneratePayroll() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: payrollApi.generatePayroll,
+    onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.all }),
+  });
+}
+export function useExcludePayrollBlock() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ blockId, motivo }: { blockId: string; motivo?: string }) =>
+      payrollApi.excludeBlock(blockId, motivo),
     onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.all }),
   });
 }

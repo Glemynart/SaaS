@@ -13,6 +13,13 @@ import {
   NoveltyInput,
   PayrollCalculationInput,
 } from './calculator/payroll-types';
+import {
+  functionalBlock,
+  isFunctionalBlock,
+  PayrollBlockCode,
+  PayrollEvaluationResult,
+  PayrollFunctionalBlock,
+} from './payroll-evaluation';
 
 // ── Tipos mínimos de entidades Prisma que necesita el mapper ─────────────────
 
@@ -161,6 +168,8 @@ export function resolveClaseArl(rawClase: number | null): ArlResolution {
 export interface BuildInputResult {
   input: PayrollCalculationInput;
   /** Advertencias generadas en la resolución de datos (no son del calculator). */
+  evaluations: PayrollEvaluationResult[];
+  blocks: PayrollFunctionalBlock[];
   serviceWarnings: string[];
 }
 
@@ -177,12 +186,13 @@ export function buildCalculationInput(
   aportesExonerados: boolean,
   legalParams: LegalParamsSnapshot,
 ): BuildInputResult {
+  const evaluations: PayrollEvaluationResult[] = [];
   const serviceWarnings: string[] = [];
 
   const { clase: claseRiesgoArl, warned: arlWarned } = resolveClaseArl(
     contrato?.claseRiesgoArl ?? null,
   );
-  if (arlWarned) {
+  if (contrato && arlWarned) {
     const raw = contrato?.claseRiesgoArl ?? null;
     const context =
       contrato === null
@@ -193,10 +203,39 @@ export function buildCalculationInput(
     serviceWarnings.push(`Clase ARL inválida (${context}): asignando clase I`);
   }
 
+  if (contrato && arlWarned) {
+    const raw = contrato.claseRiesgoArl;
+    const context =
+      raw === null
+        ? 'clase no especificada en contrato'
+        : `valor invalido: ${raw}`;
+    evaluations.push(
+      functionalBlock(
+        PayrollBlockCode.INVALID_ARL_CLASS,
+        `Clase ARL invalida (${context}): no se puede liquidar con correccion garantizada`,
+      ),
+    );
+  }
+
+  if (emp.salarioIntegral) {
+    evaluations.push(
+      functionalBlock(
+        PayrollBlockCode.UNSUPPORTED_INTEGRAL_SALARY,
+        'Salario integral fuera de v1: no se puede liquidar con correccion garantizada',
+      ),
+    );
+  }
+
   if (contrato) {
     const empSalario = Number(emp.salario);
     const contratoSalario = Number(contrato.salario);
     if (Math.abs(empSalario - contratoSalario) > 1) {
+      evaluations.push(
+        functionalBlock(
+          PayrollBlockCode.MATERIAL_SALARY_MISMATCH,
+          `Divergencia salarial: empleado=${empSalario} vs contrato=${contratoSalario}; no se puede liquidar con correccion garantizada`,
+        ),
+      );
       serviceWarnings.push(
         `Divergencia salarial: empleado=${empSalario} vs contrato=${contratoSalario}; usando empleado.salario`,
       );
@@ -214,5 +253,7 @@ export function buildCalculationInput(
     ),
   };
 
-  return { input, serviceWarnings };
+  const blocks = evaluations.filter(isFunctionalBlock);
+
+  return { input, evaluations, blocks, serviceWarnings };
 }
