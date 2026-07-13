@@ -1631,7 +1631,7 @@ P5 — Nómina Electrónica      (Documento soporte DIAN)
 U1 — Máquina de estados del ProcesoNómina   ✅ COMPLETADO (PR #57)
 U2 — Centro de costo                         ✅ COMPLETADO (PR #58)
 U3 — Snapshot inmutable                      ✅ COMPLETADO (PR #59)
-U4 — Fail-secure                             ✅ COMPLETADO (rama actual, pendiente de commit/merge)
+U4 — Fail-secure                             ✅ COMPLETADO (PR #60)
 U5 — Reliquidación no destructiva            ↪️ FUERA DE P1; pasa a Payroll P1.5
 ```
 
@@ -1645,7 +1645,7 @@ La causación **no** ocurre automáticamente al aprobar. Es un **caso de uso exp
 
 Estado:
 
-✅ COMPLETADO funcionalmente (2026-07-13, rama `feat/payroll-p1-u4-fail-secure`; pendiente de commit/merge).
+✅ COMPLETADO (2026-07-13, PR #60, merge commit `2ebdb75`).
 
 - Clasificación funcional de evaluación: resultado válido, warning informativo y bloqueo funcional.
 - `PayrollRun` queda reservado para resultados válidos; un empleado bloqueado no produce resultado de liquidación válido para el período.
@@ -1674,8 +1674,8 @@ Estado:
 - U1 — Máquina de estados: PR #57, merge commit `3113e78`.
 - U2 — Centro de costo: PR #58, merge commit `2cb3b36`.
 - U3 — Snapshot inmutable: PR #59, merge commit `62fcbc9`.
-- U4 — Fail Secure: pendiente de commit/merge en `feat/payroll-p1-u4-fail-secure`.
-- Contrato público Payroll P1: pendiente de commit/merge en `feat/payroll-p1-u4-fail-secure`.
+- U4 — Fail Secure: PR #60, merge commit `2ebdb75`.
+- Contrato público Payroll P1: PR #60, merge commit `2ebdb75`.
 
 ### Decisión de alcance — Payroll P1.5
 
