@@ -1611,18 +1611,19 @@ Decisiones clave:
 
 Estado:
 
-🟡 En cierre — P0 ✅; **P1 Core U1–U4 completado**. Contrato público frontend/BFF alineado. Las correcciones post-aprobación quedan fuera de P1 y pasan a Payroll P1.5.
+✅ CERRADO — P0 ✅; **P1 Core U1–U4 completado**. Contrato público frontend/BFF alineado. **Payroll P1.5 completado** como capacidad de corrección post-aprobación sin efectos materiales.
 
 Roadmap aprobado:
 
 ```
 P0 — Payroll Catalogs       ✅ COMPLETADO (parámetros legales, conceptos, escalas, calendarios)
-P1 — Payroll Core            ✅ CORE COMPLETADO (ProcesoNómina: estados, liquidación válida, snapshot, fail-secure, PayrollBlock, contrato público)
-P1.5 — Corrección post-aprobación ⏳ SEPARADO DE P1 (reliquidación no destructiva y reversión controlada)
-P2 — Accounting Integration  (mapper concepto → cuenta, contabilización EXPLÍCITA — ver decisión abajo)
-P3 — Treasury Integration    (resultado de dispersión, hitos de pago)
-P4 — PILA                    (Planilla Integrada de Liquidación de Aportes)
-P5 — Nómina Electrónica      (Documento soporte DIAN)
+P1 — Payroll Core           ✅ COMPLETADO (ProcesoNómina: estados, liquidación válida, snapshot, fail-secure, PayrollBlock, contrato público)
+P1.5 — Corrección post-aprobación ✅ COMPLETADO (acto explícito, ciclo propio, invariantes sobre aprobación original)
+Futuro — Materialización de correcciones (fuera de P1.5)
+P2 — Accounting Integration (mapper concepto → cuenta, contabilización EXPLÍCITA — ver decisión abajo)
+P3 — Treasury Integration   (resultado de dispersión, hitos de pago)
+P4 — PILA                   (Planilla Integrada de Liquidación de Aportes)
+P5 — Nómina Electrónica     (Documento soporte DIAN)
 ```
 
 ### P1 — descomposición en unidades (auditoría aprobada 2026-07-11)
@@ -1690,6 +1691,18 @@ Justificación:
 - Payroll P1.5 sí es necesaria antes de habilitar correcciones post-aprobación, reversión controlada y ajustes contables sobre nóminas ya causadas.
 - La separación reduce riesgo: P2 puede iniciar sobre el contrato de resultado aprobado, mientras P1.5 queda como prerequisito explícito para flujos de ajuste/reliquidación.
 - Esta separación no cambia U1, U2, U3 ni U4; solo clasifica el alcance pendiente.
+
+### Payroll P1.5 — cierre de alcance
+
+Estado:
+
+✅ COMPLETADO (2026-07-13)
+
+- Unidad A: acto explícito de Corrección de Nómina sobre `PayrollPeriod` aprobado.
+- Unidad B: ciclo de vida propio de la corrección (`BORRADOR → EN_REVISION → APROBADA`, con ramas terminales `RECHAZADA` y `CANCELADA`).
+- Unidad C: invariantes entre la aprobación original y la corrección; la corrección no modifica `PayrollPeriod`, `PayrollRun`, `PayrollSnapshot` ni el historial de aprobación.
+- La corrección aprobada agrega una decisión posterior auditada, pero **no produce todavía efectos materiales**.
+- La **materialización de correcciones** queda como iniciativa futura separada y no forma parte de Payroll P1.5.
 
 ### P1 · U1 — Máquina de estados del ProcesoNómina
 

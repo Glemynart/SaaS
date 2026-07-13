@@ -7,6 +7,7 @@ import {
 import {
   Prisma,
   PayrollBlockStatus,
+  PayrollCorrectionStatus,
   PayrollPeriodStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -15,6 +16,7 @@ import {
   CreatePayrollPeriodDto,
   CreatePayrollNoveltyDto,
 } from './dto/create-payroll.dto';
+import { CreatePayrollCorrectionDto } from './dto/payroll-correction.dto';
 import { calculate } from './calculator/payroll-calculator';
 import {
   PayrollCalculationInput,
@@ -28,6 +30,7 @@ import {
   toSnapshot,
 } from './payroll-mapper';
 import { assertTransition } from './payroll-states';
+import { assertCorrectionTransition } from './payroll-correction-states';
 import {
   functionalBlock,
   PayrollBlockCode,
@@ -229,6 +232,146 @@ export class PayrollService {
       },
       orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
     });
+  }
+
+  async findPeriodCorrections(tenantId: string, periodId: string) {
+    await this.requireApprovedPeriodForCorrections(
+      tenantId,
+      periodId,
+      'Solo se pueden consultar correcciones sobre un período aprobado',
+    );
+
+    return this.prisma.payrollCorrection.findMany({
+      where: { tenantId, payrollPeriodId: periodId },
+      orderBy: [{ createdAt: 'desc' }],
+    });
+  }
+
+  async createCorrection(
+    tenantId: string,
+    userId: string,
+    periodId: string,
+    dto: CreatePayrollCorrectionDto,
+  ) {
+    const descripcion = dto.descripcion.trim();
+    if (descripcion.length === 0) {
+      throw new BadRequestException(
+        'La descripción de la corrección es obligatoria',
+      );
+    }
+
+    const period = await this.requireApprovedPeriodForCorrections(
+      tenantId,
+      periodId,
+      'Solo se pueden registrar correcciones sobre un período aprobado',
+    );
+
+    return this.prisma.$transaction(async (tx) => {
+      const correction = await tx.payrollCorrection.create({
+        data: {
+          tenantId,
+          payrollPeriodId: period.id,
+          status: PayrollCorrectionStatus.BORRADOR,
+          descripcion,
+        },
+      });
+
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'PAYROLL_CORRECTION_CREATED',
+          entityType: 'PayrollCorrection',
+          entityId: correction.id,
+          metadata: {
+            payrollPeriodId: period.id,
+            periodName: period.nombre,
+            status: PayrollCorrectionStatus.BORRADOR,
+          },
+        },
+        tx,
+      );
+
+      return correction;
+    });
+  }
+
+  async enviarCorrectionARevision(
+    tenantId: string,
+    userId: string,
+    correctionId: string,
+  ) {
+    return this.transitionCorrection(
+      tenantId,
+      userId,
+      correctionId,
+      PayrollCorrectionStatus.BORRADOR,
+      PayrollCorrectionStatus.EN_REVISION,
+      'PAYROLL_CORRECTION_SENT_TO_REVIEW',
+    );
+  }
+
+  async aprobarCorrection(
+    tenantId: string,
+    userId: string,
+    correctionId: string,
+  ) {
+    return this.transitionCorrection(
+      tenantId,
+      userId,
+      correctionId,
+      PayrollCorrectionStatus.EN_REVISION,
+      PayrollCorrectionStatus.APROBADA,
+      'PAYROLL_CORRECTION_APPROVED',
+    );
+  }
+
+  async rechazarCorrection(
+    tenantId: string,
+    userId: string,
+    correctionId: string,
+    motivo?: string,
+  ) {
+    return this.transitionCorrection(
+      tenantId,
+      userId,
+      correctionId,
+      PayrollCorrectionStatus.EN_REVISION,
+      PayrollCorrectionStatus.RECHAZADA,
+      'PAYROLL_CORRECTION_REJECTED',
+      motivo ? { motivo } : undefined,
+    );
+  }
+
+  async cancelarCorrection(
+    tenantId: string,
+    userId: string,
+    correctionId: string,
+    motivo?: string,
+  ) {
+    const correction = await this.prisma.payrollCorrection.findFirst({
+      where: { id: correctionId, tenantId },
+      select: { status: true },
+    });
+    if (!correction) throw new NotFoundException('Corrección no encontrada');
+    if (
+      correction.status !== PayrollCorrectionStatus.BORRADOR &&
+      correction.status !== PayrollCorrectionStatus.EN_REVISION
+    ) {
+      throw new BadRequestException(
+        `Transición de corrección no permitida: ${correction.status} → ${PayrollCorrectionStatus.CANCELADA}`,
+      );
+    }
+
+    return this.transitionCorrection(
+      tenantId,
+      userId,
+      correctionId,
+      correction.status,
+      PayrollCorrectionStatus.CANCELADA,
+      'PAYROLL_CORRECTION_CANCELED',
+      motivo ? { motivo } : undefined,
+    );
   }
 
   async excludeBlock(
@@ -503,6 +646,104 @@ export class PayrollService {
         where: { id: periodId, tenantId },
       });
     });
+  }
+
+  private async transitionCorrection(
+    tenantId: string,
+    userId: string,
+    correctionId: string,
+    from: PayrollCorrectionStatus,
+    to: PayrollCorrectionStatus,
+    action: string,
+    metadata?: Record<string, unknown>,
+  ) {
+    assertCorrectionTransition(from, to);
+
+    const correction = await this.prisma.payrollCorrection.findFirst({
+      where: { id: correctionId, tenantId },
+      select: { status: true, payrollPeriodId: true },
+    });
+    if (!correction) throw new NotFoundException('Corrección no encontrada');
+
+    const period = await this.requireApprovedPeriodForCorrections(
+      tenantId,
+      correction.payrollPeriodId,
+      'Solo se pueden operar correcciones sobre un período aprobado',
+    );
+
+    if (correction.status !== from) {
+      throw new BadRequestException(
+        `Transición de corrección no permitida: ${correction.status} → ${to} (se requiere ${from})`,
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const result = await tx.payrollCorrection.updateMany({
+        where: {
+          id: correctionId,
+          tenantId,
+          payrollPeriodId: period.id,
+          status: from,
+        },
+        data: { status: to },
+      });
+      if (result.count === 0) {
+        throw new ConflictException(
+          'La corrección fue modificada por otra operación concurrente',
+        );
+      }
+
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action,
+          entityType: 'PayrollCorrection',
+          entityId: correctionId,
+          metadata: {
+            payrollPeriodId: correction.payrollPeriodId,
+            from: correction.status,
+            to,
+            ...metadata,
+          },
+        },
+        tx,
+      );
+
+      return tx.payrollCorrection.findFirstOrThrow({
+        where: { id: correctionId, tenantId },
+      });
+    });
+  }
+
+  private async requireApprovedPeriodForCorrections(
+    tenantId: string,
+    periodId: string,
+    notApprovedMessage: string,
+  ) {
+    const period = await this.prisma.payrollPeriod.findFirst({
+      where: { id: periodId, tenantId },
+      select: {
+        id: true,
+        nombre: true,
+        status: true,
+        aprobadoPorId: true,
+        aprobadoEn: true,
+      },
+    });
+    if (!period) throw new NotFoundException('Período no encontrado');
+
+    if (period.status !== PayrollPeriodStatus.APROBADA) {
+      throw new BadRequestException(notApprovedMessage);
+    }
+
+    if (!period.aprobadoPorId || !period.aprobadoEn) {
+      throw new ConflictException(
+        'El período aprobado no tiene una aprobación original auditable',
+      );
+    }
+
+    return period;
   }
 
   async generatePayroll(tenantId: string, userId: string, periodId: string) {
