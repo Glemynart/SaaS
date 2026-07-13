@@ -37,6 +37,9 @@ const mockCentroCostoFindMany = jest.fn();
 const mockPayrollSnapshotCreate = jest.fn();
 const mockPayrollCorrectionCreate = jest.fn();
 const mockPayrollCorrectionFindMany = jest.fn();
+const mockPayrollCorrectionFindFirst = jest.fn();
+const mockPayrollCorrectionFindFirstOrThrow = jest.fn();
+const mockPayrollCorrectionUpdateMany = jest.fn();
 const mockPayrollBlockFindMany = jest.fn();
 const mockPayrollBlockFindFirst = jest.fn();
 const mockPayrollBlockCreate = jest.fn();
@@ -65,6 +68,9 @@ const mockPrisma = {
   payrollCorrection: {
     create: mockPayrollCorrectionCreate,
     findMany: mockPayrollCorrectionFindMany,
+    findFirst: mockPayrollCorrectionFindFirst,
+    findFirstOrThrow: mockPayrollCorrectionFindFirstOrThrow,
+    updateMany: mockPayrollCorrectionUpdateMany,
   },
   payrollBlock: {
     findMany: mockPayrollBlockFindMany,
@@ -310,6 +316,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockAudit.log.mockResolvedValue(undefined);
     mockPrisma.$transaction.mockImplementation(
       (fn: (tx: typeof mockPrisma) => unknown) => fn(mockPrisma),
     );
@@ -325,6 +332,9 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
     mockPayrollSnapshotCreate.mockResolvedValue({});
     mockPayrollCorrectionCreate.mockResolvedValue({});
     mockPayrollCorrectionFindMany.mockResolvedValue([]);
+    mockPayrollCorrectionFindFirst.mockResolvedValue(null);
+    mockPayrollCorrectionFindFirstOrThrow.mockResolvedValue({});
+    mockPayrollCorrectionUpdateMany.mockResolvedValue({ count: 1 });
     mockPayrollBlockFindMany.mockResolvedValue([]);
     mockPayrollBlockFindFirst.mockResolvedValue(null);
     mockPayrollBlockCreate.mockResolvedValue({});
@@ -594,6 +604,217 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         service.findPeriodCorrections(TENANT, PERIOD_ID),
       ).rejects.toThrow(NotFoundException);
       expect(mockPayrollCorrectionFindMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('correcciones post-aprobacion — Unidad B', () => {
+    function makeCorrection(
+      status: PayrollCorrectionStatus,
+      overrides: Record<string, unknown> = {},
+    ) {
+      return {
+        id: 'corr-1',
+        tenantId: TENANT,
+        payrollPeriodId: PERIOD_ID,
+        status,
+        descripcion: 'Falta novedad del periodo',
+        ...overrides,
+      };
+    }
+
+    it('BORRADOR → EN_REVISION: transición válida y auditada', async () => {
+      mockPayrollCorrectionFindFirst.mockResolvedValueOnce(
+        makeCorrection(PayrollCorrectionStatus.BORRADOR),
+      );
+      mockPayrollCorrectionFindFirstOrThrow.mockResolvedValueOnce(
+        makeCorrection(PayrollCorrectionStatus.EN_REVISION),
+      );
+
+      const result = await service.enviarCorrectionARevision(
+        TENANT,
+        USER,
+        'corr-1',
+      );
+
+      expect(result).toMatchObject({
+        status: PayrollCorrectionStatus.EN_REVISION,
+      });
+      expect(mockPayrollCorrectionUpdateMany).toHaveBeenCalledWith({
+        where: {
+          id: 'corr-1',
+          tenantId: TENANT,
+          status: PayrollCorrectionStatus.BORRADOR,
+        },
+        data: { status: PayrollCorrectionStatus.EN_REVISION },
+      });
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PAYROLL_CORRECTION_SENT_TO_REVIEW',
+          entityType: 'PayrollCorrection',
+          entityId: 'corr-1',
+          metadata: expect.objectContaining({
+            payrollPeriodId: PERIOD_ID,
+            from: PayrollCorrectionStatus.BORRADOR,
+            to: PayrollCorrectionStatus.EN_REVISION,
+          }),
+        }),
+        mockPrisma,
+      );
+    });
+
+    it('EN_REVISION → APROBADA: transición válida y no toca runs ni snapshots', async () => {
+      mockPayrollCorrectionFindFirst.mockResolvedValueOnce(
+        makeCorrection(PayrollCorrectionStatus.EN_REVISION),
+      );
+      mockPayrollCorrectionFindFirstOrThrow.mockResolvedValueOnce(
+        makeCorrection(PayrollCorrectionStatus.APROBADA),
+      );
+
+      const result = await service.aprobarCorrection(TENANT, USER, 'corr-1');
+
+      expect(result).toMatchObject({
+        status: PayrollCorrectionStatus.APROBADA,
+      });
+      expect(mockPayrollRunCreate).not.toHaveBeenCalled();
+      expect(mockPayrollSnapshotCreate).not.toHaveBeenCalled();
+      expect(mockPayrollPeriodUpdateMany).not.toHaveBeenCalled();
+    });
+
+    it('EN_REVISION → RECHAZADA: transición válida con motivo opcional', async () => {
+      mockPayrollCorrectionFindFirst.mockResolvedValueOnce(
+        makeCorrection(PayrollCorrectionStatus.EN_REVISION),
+      );
+      mockPayrollCorrectionFindFirstOrThrow.mockResolvedValueOnce(
+        makeCorrection(PayrollCorrectionStatus.RECHAZADA),
+      );
+
+      await service.rechazarCorrection(
+        TENANT,
+        USER,
+        'corr-1',
+        'No procede la solicitud',
+      );
+
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PAYROLL_CORRECTION_REJECTED',
+          metadata: expect.objectContaining({
+            from: PayrollCorrectionStatus.EN_REVISION,
+            to: PayrollCorrectionStatus.RECHAZADA,
+            motivo: 'No procede la solicitud',
+          }),
+        }),
+        mockPrisma,
+      );
+    });
+
+    it('BORRADOR → CANCELADA: transición válida', async () => {
+      mockPayrollCorrectionFindFirst
+        .mockResolvedValueOnce(makeCorrection(PayrollCorrectionStatus.BORRADOR))
+        .mockResolvedValueOnce(
+          makeCorrection(PayrollCorrectionStatus.BORRADOR),
+        );
+      mockPayrollCorrectionFindFirstOrThrow.mockResolvedValueOnce(
+        makeCorrection(PayrollCorrectionStatus.CANCELADA),
+      );
+
+      const result = await service.cancelarCorrection(TENANT, USER, 'corr-1');
+
+      expect(result).toMatchObject({
+        status: PayrollCorrectionStatus.CANCELADA,
+      });
+      expect(mockPayrollCorrectionUpdateMany).toHaveBeenCalledWith({
+        where: {
+          id: 'corr-1',
+          tenantId: TENANT,
+          status: PayrollCorrectionStatus.BORRADOR,
+        },
+        data: { status: PayrollCorrectionStatus.CANCELADA },
+      });
+    });
+
+    it('EN_REVISION → CANCELADA: transición válida', async () => {
+      mockPayrollCorrectionFindFirst
+        .mockResolvedValueOnce(
+          makeCorrection(PayrollCorrectionStatus.EN_REVISION),
+        )
+        .mockResolvedValueOnce(
+          makeCorrection(PayrollCorrectionStatus.EN_REVISION),
+        );
+      mockPayrollCorrectionFindFirstOrThrow.mockResolvedValueOnce(
+        makeCorrection(PayrollCorrectionStatus.CANCELADA),
+      );
+
+      const result = await service.cancelarCorrection(TENANT, USER, 'corr-1');
+
+      expect(result).toMatchObject({
+        status: PayrollCorrectionStatus.CANCELADA,
+      });
+      expect(mockPayrollCorrectionUpdateMany).toHaveBeenCalledWith({
+        where: {
+          id: 'corr-1',
+          tenantId: TENANT,
+          status: PayrollCorrectionStatus.EN_REVISION,
+        },
+        data: { status: PayrollCorrectionStatus.CANCELADA },
+      });
+    });
+
+    it('BORRADOR → APROBADA: transición inválida', async () => {
+      mockPayrollCorrectionFindFirst.mockResolvedValue(
+        makeCorrection(PayrollCorrectionStatus.BORRADOR),
+      );
+
+      await expect(
+        service.aprobarCorrection(TENANT, USER, 'corr-1'),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPayrollCorrectionUpdateMany).not.toHaveBeenCalled();
+    });
+
+    it('APROBADA es terminal: no puede cancelarse', async () => {
+      mockPayrollCorrectionFindFirst.mockResolvedValue(
+        makeCorrection(PayrollCorrectionStatus.APROBADA),
+      );
+
+      await expect(
+        service.cancelarCorrection(TENANT, USER, 'corr-1'),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPayrollCorrectionUpdateMany).not.toHaveBeenCalled();
+    });
+
+    it('corrección inexistente → NotFoundException', async () => {
+      mockPayrollCorrectionFindFirst.mockResolvedValue(null);
+
+      await expect(
+        service.enviarCorrectionARevision(TENANT, USER, 'corr-1'),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockPayrollCorrectionUpdateMany).not.toHaveBeenCalled();
+    });
+
+    it('count === 0 en updateMany → ConflictException', async () => {
+      mockPayrollCorrectionFindFirst.mockResolvedValue(
+        makeCorrection(PayrollCorrectionStatus.EN_REVISION),
+      );
+      mockPayrollCorrectionUpdateMany.mockResolvedValueOnce({ count: 0 });
+
+      await expect(
+        service.aprobarCorrection(TENANT, USER, 'corr-1'),
+      ).rejects.toThrow(ConflictException);
+      expect(mockAudit.log).not.toHaveBeenCalled();
+    });
+
+    it('fail-secure: si la auditoría falla, la transición no se considera exitosa', async () => {
+      mockPayrollCorrectionFindFirst.mockResolvedValueOnce(
+        makeCorrection(PayrollCorrectionStatus.EN_REVISION),
+      );
+      mockPayrollCorrectionFindFirstOrThrow.mockResolvedValueOnce(
+        makeCorrection(PayrollCorrectionStatus.APROBADA),
+      );
+      mockAudit.log.mockRejectedValueOnce(new Error('audit down'));
+
+      await expect(
+        service.aprobarCorrection(TENANT, USER, 'corr-1'),
+      ).rejects.toThrow('audit down');
     });
   });
 

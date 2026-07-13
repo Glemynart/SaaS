@@ -30,6 +30,7 @@ import {
   toSnapshot,
 } from './payroll-mapper';
 import { assertTransition } from './payroll-states';
+import { assertCorrectionTransition } from './payroll-correction-states';
 import {
   functionalBlock,
   PayrollBlockCode,
@@ -298,6 +299,84 @@ export class PayrollService {
 
       return correction;
     });
+  }
+
+  async enviarCorrectionARevision(
+    tenantId: string,
+    userId: string,
+    correctionId: string,
+  ) {
+    return this.transitionCorrection(
+      tenantId,
+      userId,
+      correctionId,
+      PayrollCorrectionStatus.BORRADOR,
+      PayrollCorrectionStatus.EN_REVISION,
+      'PAYROLL_CORRECTION_SENT_TO_REVIEW',
+    );
+  }
+
+  async aprobarCorrection(
+    tenantId: string,
+    userId: string,
+    correctionId: string,
+  ) {
+    return this.transitionCorrection(
+      tenantId,
+      userId,
+      correctionId,
+      PayrollCorrectionStatus.EN_REVISION,
+      PayrollCorrectionStatus.APROBADA,
+      'PAYROLL_CORRECTION_APPROVED',
+    );
+  }
+
+  async rechazarCorrection(
+    tenantId: string,
+    userId: string,
+    correctionId: string,
+    motivo?: string,
+  ) {
+    return this.transitionCorrection(
+      tenantId,
+      userId,
+      correctionId,
+      PayrollCorrectionStatus.EN_REVISION,
+      PayrollCorrectionStatus.RECHAZADA,
+      'PAYROLL_CORRECTION_REJECTED',
+      motivo ? { motivo } : undefined,
+    );
+  }
+
+  async cancelarCorrection(
+    tenantId: string,
+    userId: string,
+    correctionId: string,
+    motivo?: string,
+  ) {
+    const correction = await this.prisma.payrollCorrection.findFirst({
+      where: { id: correctionId, tenantId },
+      select: { status: true },
+    });
+    if (!correction) throw new NotFoundException('Corrección no encontrada');
+    if (
+      correction.status !== PayrollCorrectionStatus.BORRADOR &&
+      correction.status !== PayrollCorrectionStatus.EN_REVISION
+    ) {
+      throw new BadRequestException(
+        `Transición de corrección no permitida: ${correction.status} → ${PayrollCorrectionStatus.CANCELADA}`,
+      );
+    }
+
+    return this.transitionCorrection(
+      tenantId,
+      userId,
+      correctionId,
+      correction.status,
+      PayrollCorrectionStatus.CANCELADA,
+      'PAYROLL_CORRECTION_CANCELED',
+      motivo ? { motivo } : undefined,
+    );
   }
 
   async excludeBlock(
@@ -570,6 +649,62 @@ export class PayrollService {
 
       return tx.payrollPeriod.findFirstOrThrow({
         where: { id: periodId, tenantId },
+      });
+    });
+  }
+
+  private async transitionCorrection(
+    tenantId: string,
+    userId: string,
+    correctionId: string,
+    from: PayrollCorrectionStatus,
+    to: PayrollCorrectionStatus,
+    action: string,
+    metadata?: Record<string, unknown>,
+  ) {
+    assertCorrectionTransition(from, to);
+
+    const correction = await this.prisma.payrollCorrection.findFirst({
+      where: { id: correctionId, tenantId },
+      select: { status: true, payrollPeriodId: true },
+    });
+    if (!correction) throw new NotFoundException('Corrección no encontrada');
+    if (correction.status !== from) {
+      throw new BadRequestException(
+        `Transición de corrección no permitida: ${correction.status} → ${to} (se requiere ${from})`,
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const result = await tx.payrollCorrection.updateMany({
+        where: { id: correctionId, tenantId, status: from },
+        data: { status: to },
+      });
+      if (result.count === 0) {
+        throw new ConflictException(
+          'La corrección fue modificada por otra operación concurrente',
+        );
+      }
+
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action,
+          entityType: 'PayrollCorrection',
+          entityId: correctionId,
+          metadata: {
+            payrollPeriodId: correction.payrollPeriodId,
+            from: correction.status,
+            to,
+            ...metadata,
+          },
+        },
+        tx,
+      );
+
+      return tx.payrollCorrection.findFirstOrThrow({
+        where: { id: correctionId, tenantId },
       });
     });
   }

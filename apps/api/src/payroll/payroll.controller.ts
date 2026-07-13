@@ -15,7 +15,10 @@ import {
   RejectPayrollPeriodDto,
   ExcludePayrollBlockDto,
 } from './dto/create-payroll.dto';
-import { CreatePayrollCorrectionDto } from './dto/payroll-correction.dto';
+import {
+  CreatePayrollCorrectionDto,
+  TransitionPayrollCorrectionDto,
+} from './dto/payroll-correction.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -80,6 +83,58 @@ export class PayrollController {
     @Body() dto: CreatePayrollCorrectionDto,
   ) {
     return this.service.createCorrection(user.tenantId, user.userId, id, dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Post('payroll/corrections/:id/enviar-revision')
+  enviarCorrectionARevision(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+  ) {
+    return this.service.enviarCorrectionARevision(
+      user.tenantId,
+      user.userId,
+      id,
+    );
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Post('payroll/corrections/:id/aprobar')
+  aprobarCorrection(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+  ) {
+    return this.service.aprobarCorrection(user.tenantId, user.userId, id);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Post('payroll/corrections/:id/rechazar')
+  rechazarCorrection(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() dto?: TransitionPayrollCorrectionDto,
+  ) {
+    return this.service.rechazarCorrection(
+      user.tenantId,
+      user.userId,
+      id,
+      dto?.motivo,
+    );
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Post('payroll/corrections/:id/cancelar')
+  cancelarCorrection(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() dto?: TransitionPayrollCorrectionDto,
+  ) {
+    return this.service.cancelarCorrection(
+      user.tenantId,
+      user.userId,
+      id,
+      dto?.motivo,
+    );
   }
 
   @Roles(UserRole.ADMIN)
