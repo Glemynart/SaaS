@@ -23,6 +23,10 @@ import type { CurrentUserPayload } from './decorators/current-user.decorator';
 import type { Request } from 'express';
 import { ThrottlerGuard, Throttle, SkipThrottle } from '@nestjs/throttler';
 import { AuditService } from '../audit/audit.service';
+import {
+  Authenticated,
+  Unauthenticated,
+} from './authorization/authorization-policy';
 
 @Controller('auth')
 export class AuthController {
@@ -32,6 +36,7 @@ export class AuthController {
     private auditService: AuditService,
   ) {}
 
+  @Unauthenticated()
   @Post('register')
   @UseGuards(ThrottlerGuard)
   @Throttle({ register: { limit: 3, ttl: 60000 } })
@@ -39,6 +44,7 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
+  @Unauthenticated()
   @Post('login')
   @UseGuards(ThrottlerGuard)
   @Throttle({ login: { limit: 5, ttl: 60000 } })
@@ -64,6 +70,7 @@ export class AuthController {
     return result;
   }
 
+  @Unauthenticated()
   @Post('refresh')
   @UseGuards(ThrottlerGuard)
   @Throttle({ refresh: { limit: 10, ttl: 60000 } })
@@ -77,6 +84,7 @@ export class AuthController {
     return this.authService.refresh(dto.refreshToken, userAgent, ip);
   }
 
+  @Unauthenticated()
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   async logout(@Body() dto: RefreshDto) {
@@ -84,12 +92,14 @@ export class AuthController {
     return { message: 'Sesión cerrada exitosamente.' };
   }
 
+  @Authenticated()
   @UseGuards(JwtAuthGuard, ActiveTenantGuard)
   @Get('me')
   getMe(@CurrentUser() user: CurrentUserPayload) {
     return user;
   }
 
+  @Unauthenticated()
   @Post('forgot-password')
   @UseGuards(ThrottlerGuard)
   @Throttle({ forgotPassword: { limit: 3, ttl: 3600000 } })
@@ -114,6 +124,7 @@ export class AuthController {
     });
   }
 
+  @Unauthenticated()
   @Post('reset-password')
   @UseGuards(ThrottlerGuard)
   @Throttle({ resetPassword: { limit: 5, ttl: 900000 } })
