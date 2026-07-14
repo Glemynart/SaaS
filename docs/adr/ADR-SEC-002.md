@@ -2,7 +2,7 @@
 
 | Campo             | Valor                                                                                                        |
 | ----------------- | ------------------------------------------------------------------------------------------------------------ |
-| **Estado**        | Propuesto                                                                                                    |
+| **Estado**        | Aceptado                                                                                                     |
 | **Fecha**         | 2026-07-02                                                                                                   |
 | **Decisores**     | Arquitectura · Seguridad                                                                                     |
 | **Ámbito**        | SaaS multiempresa "La Oficina Nítida" — `apps/api` (NestJS · Prisma · PostgreSQL)                            |
@@ -16,7 +16,7 @@
 
 La plataforma opera como SaaS multiempresa con datos financieros, de nómina y personales (empleados, terceros). El modelo de amenazas es el de una aplicación web multi-tenant expuesta a internet con usuarios autenticados de distintos roles y tenants.
 
-Actualmente existen mecanismos de seguridad implementados de forma orgánica durante el desarrollo, pero **no existe un documento arquitectónico que los unifique, establezca principios rectores y trace la hoja de ruta de hardening**. Este ADR llena ese vacío.
+Actualmente existen mecanismos de seguridad implementados de forma orgánica durante el desarrollo, pero **no existe un documento arquitectónico que los unifique, establezca principios rectores y trace la hoja de ruta de hardening**. Este ADR llena ese vacío y se mantiene como referencia del estado implementado frente al rector ADR-SEC-001.
 
 El inventario de seguridad actual incluye:
 
@@ -283,9 +283,30 @@ app.useGlobalPipes(
 
 Cada fase es independiente, mergeable y desplegable por sí misma. El orden refleja prioridad de riesgo, no dependencia técnica.
 
-### Fase 1 — Security headers + Rate limiting global
+### Fase completada — SEC-02 Authorization (Deny by Default)
 
-**Rama:** `feat/sec-01-headers-throttling`
+**Estado:** ✅ Completada (2026-07-14)  
+**Rama:** `initiative/security-hardening-v1`
+
+**Alcance implementado:**
+
+- Clasificación completa de la superficie HTTP de `apps/api`.
+- Migración de toda la superficie a políticas explícitas.
+- Precondición objetiva de activación mediante `assertEligible()`.
+- Enforcement runtime de `Deny by Default`.
+
+**Resultado validado:**
+
+- 125 operaciones HTTP clasificadas.
+- 0 operaciones `LEGACY_INFERRED`.
+- 0 operaciones ambiguas.
+- 0 operaciones sin política.
+- Una operación sin política válida queda denegada.
+- `RBAC`, `AUTHENTICATED` y `UNAUTHENTICATED` conservan su comportamiento previo.
+
+### Fase siguiente — Security headers + Rate limiting global
+
+**Estado:** Pendiente
 
 **Alcance:**
 
@@ -295,9 +316,9 @@ Cada fase es independiente, mergeable y desplegable por sí misma. El orden refl
 
 **Validación:** headers de seguridad presentes en todas las respuestas; rate limiting activo en endpoints de datos.
 
-### Fase 2 — Tests de seguridad
+### Fase siguiente — Tests de seguridad
 
-**Rama:** `feat/sec-02-guard-tests`
+**Estado:** Pendiente
 
 **Alcance:**
 
@@ -307,9 +328,9 @@ Cada fase es independiente, mergeable y desplegable por sí misma. El orden refl
 
 **Validación:** cobertura de guards > 90%; tests de aislamiento para todo servicio con datos multi-tenant.
 
-### Fase 3 — Row-Level Security (RLS)
+### Fase siguiente — Row-Level Security (RLS)
 
-**Rama:** `feat/sec-03-rls`
+**Estado:** Diferida
 
 **Alcance:**
 
@@ -319,9 +340,9 @@ Cada fase es independiente, mergeable y desplegable por sí misma. El orden refl
 
 **Validación:** un usuario del tenant A no puede leer filas del tenant B incluso con una consulta raw sin `tenantId`.
 
-### Fase 4 — Granularidad de permisos
+### Fase siguiente — Granularidad de permisos
 
-**Rama:** `feat/sec-04-granular-permissions`
+**Estado:** Diferida
 
 **Alcance:**
 
