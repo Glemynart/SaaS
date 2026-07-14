@@ -13,15 +13,17 @@ import {
 import { ActiveTenantGuard } from '../guards/active-tenant.guard';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
-import { ROLES_KEY } from '../decorators/roles.decorator';
 import {
   AUTHORIZATION_PENDING_KEY,
-  AUTHORIZATION_POLICY_KEY,
   AuthorizationClassificationSource,
   AuthorizationClassificationStatus,
   AuthorizationOperationClassification,
   AuthorizationPolicyKind,
 } from './authorization-policy';
+import {
+  getOverrideMetadata,
+  resolveAuthorizationPolicy,
+} from './authorization-policy.resolver';
 
 type ModuleReference =
   | Type<unknown>
@@ -73,7 +75,7 @@ export class AuthorizationSurfaceClassifier {
     handlerName: string,
     handler: object,
   ): AuthorizationOperationClassification {
-    const pendingReason = this.getOverrideMetadata<string>(
+    const pendingReason = getOverrideMetadata<string>(
       AUTHORIZATION_PENDING_KEY,
       controller,
       handler,
@@ -114,20 +116,13 @@ export class AuthorizationSurfaceClassifier {
     const hasJwtGuard = this.hasGuard(guards, JwtAuthGuard);
     const hasActiveTenantGuard = this.hasGuard(guards, ActiveTenantGuard);
     const hasRolesGuard = this.hasGuard(guards, RolesGuard);
-    const roles = this.getOverrideMetadata<string[]>(
-      ROLES_KEY,
-      controller,
-      handler,
-    );
-    const explicitPolicy = this.getOverrideMetadata<AuthorizationPolicyKind>(
-      AUTHORIZATION_POLICY_KEY,
-      controller,
-      handler,
-    );
+    const resolution = resolveAuthorizationPolicy(controller, handler);
+    const roles = resolution.roles;
+    const explicitPolicy = resolution.policy;
     const reasons: string[] = [];
 
     let legacyPolicy: AuthorizationPolicyKind;
-    if (roles !== undefined) {
+    if (resolution.rolesDeclared) {
       legacyPolicy = AuthorizationPolicyKind.RBAC;
       if (roles.length === 0) {
         reasons.push('La política RBAC no declara ningún rol.');
@@ -150,23 +145,26 @@ export class AuthorizationSurfaceClassifier {
     if (hasRolesGuard && !hasJwtGuard) {
       reasons.push('RolesGuard existe sin JwtAuthGuard efectivo.');
     }
+    if (resolution.invalidPolicy !== undefined) {
+      reasons.push('La política explícita declarada no es válida.');
+    }
     if (explicitPolicy && explicitPolicy !== legacyPolicy) {
       reasons.push(
         `La política explícita ${explicitPolicy} contradice el comportamiento actual ${legacyPolicy}.`,
       );
     }
 
-    const policy = explicitPolicy ?? legacyPolicy;
-    const source = explicitPolicy
-      ? AuthorizationClassificationSource.EXPLICIT
-      : roles !== undefined
-        ? AuthorizationClassificationSource.EXISTING_RBAC
-        : AuthorizationClassificationSource.LEGACY_INFERRED;
+    const policy =
+      resolution.invalidPolicy !== undefined
+        ? undefined
+        : (explicitPolicy ?? legacyPolicy);
+    const source =
+      resolution.source ?? AuthorizationClassificationSource.LEGACY_INFERRED;
 
     return {
       policy,
       source,
-      roles: roles ?? [],
+      roles,
       hasJwtGuard,
       hasActiveTenantGuard,
       hasRolesGuard,
@@ -261,17 +259,6 @@ export class AuthorizationSurfaceClassifier {
       (guard) =>
         guard === expectedGuard ||
         (typeof guard === 'object' && guard.constructor === expectedGuard),
-    );
-  }
-
-  private getOverrideMetadata<T>(
-    key: string,
-    controller: Type<unknown>,
-    handler: object,
-  ): T | undefined {
-    const handlerValue = Reflect.getMetadata(key, handler) as T | undefined;
-    return (
-      handlerValue ?? (Reflect.getMetadata(key, controller) as T | undefined)
     );
   }
 

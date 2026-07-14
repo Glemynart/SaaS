@@ -38,10 +38,15 @@ describe('AuthorizationSurfaceClassifier', () => {
       [AuthorizationPolicyKind.RBAC]: 71,
     });
     expect(countBy(operations, 'source')).toEqual({
-      [AuthorizationClassificationSource.EXPLICIT]: 8,
+      [AuthorizationClassificationSource.EXPLICIT]: 54,
       [AuthorizationClassificationSource.EXISTING_RBAC]: 71,
-      [AuthorizationClassificationSource.LEGACY_INFERRED]: 46,
     });
+    expect(
+      operations.filter(
+        ({ source }) =>
+          source === AuthorizationClassificationSource.LEGACY_INFERRED,
+      ),
+    ).toEqual([]);
   });
 
   it('detects a declaration that contradicts the effective legacy policy', () => {
