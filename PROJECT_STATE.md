@@ -1804,6 +1804,28 @@ Siguiente frente de hardening:
 
 ---
 
+# Security Hardening v2 — Security Headers + Global Rate Limiting
+
+Estado de la Epic:
+
+- ✅ `SHV2-01` — Security Headers completada (2026-07-15).
+- ✅ `SHV2-02` — Caracterización Operacional del Global Rate Limiting completada (2026-07-15).
+- ⛔ `SHV2-03` — Activación del Global Rate Limiting bloqueada por prerrequisitos operativos de infraestructura.
+
+Decisión de cierre:
+
+- La Epic queda cerrada con `SHV2-01` y `SHV2-02` completadas; no se activa un Rate Limiting global sin evidencia operacional suficiente.
+- `SHV2-03` no puede iniciar hasta que Operaciones documente y demuestre la cadena de proxies confiables, la identificación no falsificable del cliente, el alcance coherente de los contadores según las instancias reales y las métricas que justifiquen límite y ventana.
+- La evidencia y checklist de desbloqueo se conservan en `docs/security/SHV2-02-GLOBAL-RATE-LIMITING-CHARACTERIZATION.md`.
+
+Alcance preservado:
+
+- Auth mantiene sus cinco políticas estrictas existentes.
+- No existe guard global, throttler global ni respuestas HTTP `429` nuevas.
+- No se modificaron JWT, Authorization, RBAC, Frontend, dominio ni RLS.
+
+---
+
 # <a name="roadmap-futuro"></a>Roadmap Futuro
 
 Módulos planificados:

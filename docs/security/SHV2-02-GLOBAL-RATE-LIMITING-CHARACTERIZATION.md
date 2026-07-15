@@ -2,7 +2,9 @@
 
 ## Estado
 
-Caracterización completada. **SHV2-03 no es elegible para activación con la evidencia versionada actual.**
+Caracterización completada. **SHV2-03 está bloqueada por prerrequisitos operativos de infraestructura y no es elegible para activación con la evidencia versionada actual.**
+
+El bloqueo se levanta únicamente con evidencia del despliegue real que complete los criterios de elegibilidad de este documento: cadena de proxies confiables, identificación no falsificable del cliente, estrategia de contadores coherente con las instancias y métricas suficientes para justificar límite y ventana.
 
 Esta unidad no instala un guard global, no incorpora un throttler global y no modifica el comportamiento HTTP.
 
