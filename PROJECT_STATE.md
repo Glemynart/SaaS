@@ -1769,6 +1769,41 @@ Las 12 ramas `feat/payroll-*` existentes fueron creadas antes de la investigaci�
 
 ---
 
+# Security Hardening v1
+
+Estado:
+
+✅ SEC-02 completada (2026-07-14)
+
+Implementado en la rama `initiative/security-hardening-v1`:
+
+- `SEC-02.1` — inventario y clasificación completa de la superficie HTTP.
+- `SEC-02.2` — migración total de la superficie a políticas explícitas.
+- `SEC-02.3.1` — elegibilidad objetiva de activación (`assertEligible()`).
+- `SEC-02.3.2` — activación runtime de `Deny by Default`.
+
+Resultado actual:
+
+- 125 operaciones HTTP clasificadas.
+- 0 operaciones `LEGACY_INFERRED`.
+- 0 operaciones ambiguas.
+- 0 operaciones sin política.
+- Toda operación nueva sin política válida queda denegada por runtime.
+- Las operaciones existentes conservan el comportamiento observable previo.
+
+Alcance cerrado en SEC-02:
+
+- No se introdujeron permisos granulares.
+- No se modificó RBAC.
+- No se implementó RLS.
+- No se modificaron reglas de negocio de Payroll ni Accounting.
+
+Siguiente frente de hardening:
+
+- Continuar con las Epics posteriores del roadmap aprobado de `Security Hardening v1` sobre la base ya endurecida de autorización.
+
+---
+
 # <a name="roadmap-futuro"></a>Roadmap Futuro
 
 Módulos planificados:

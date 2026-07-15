@@ -3,9 +3,12 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
+import { activateDenyByDefault } from './auth/authorization/deny-by-default.activation';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  activateDenyByDefault(app, AppModule);
 
   app.useGlobalPipes(
     new ValidationPipe({
