@@ -9,6 +9,7 @@ import { CreateSedeDto } from './dto/create-sede.dto';
 import { UpdateSedeDto } from './dto/update-sede.dto';
 import { SedeQueryDto } from './dto/sede-query.dto';
 import { Prisma } from '@prisma/client';
+import { TenantContextBoundary } from '../tenant-context/tenant-context.boundary';
 
 const municipioSelect = {
   select: { id: true, nombre: true, departamento: true },
@@ -19,9 +20,11 @@ export class SedesService {
   constructor(
     private prisma: PrismaService,
     private auditService: AuditService,
+    private tenantContext: TenantContextBoundary,
   ) {}
 
-  async create(tenantId: string, userId: string, dto: CreateSedeDto) {
+  async create(userId: string, dto: CreateSedeDto) {
+    const tenantId = this.tenantContext.require().tenantId;
     await this.ensureMunicipioExists(dto.municipioId);
 
     const willBeActive = dto.activo ?? true;
@@ -54,7 +57,8 @@ export class SedesService {
     return sede;
   }
 
-  async findAll(tenantId: string, query: SedeQueryDto) {
+  async findAll(query: SedeQueryDto) {
+    const tenantId = this.tenantContext.require().tenantId;
     const where: Prisma.SedeWhereInput = {
       tenantId,
       ...(query.activo !== undefined && { activo: query.activo }),
@@ -71,7 +75,8 @@ export class SedesService {
     });
   }
 
-  async findOne(tenantId: string, id: string) {
+  async findOne(id: string) {
+    const tenantId = this.tenantContext.require().tenantId;
     const sede = await this.prisma.sede.findFirst({
       where: { id, tenantId },
       include: { municipio: municipioSelect },
@@ -84,8 +89,9 @@ export class SedesService {
     return sede;
   }
 
-  async update(tenantId: string, id: string, dto: UpdateSedeDto) {
-    const current = await this.findOne(tenantId, id);
+  async update(id: string, dto: UpdateSedeDto) {
+    const tenantId = this.tenantContext.require().tenantId;
+    const current = await this.findOne(id);
 
     if (dto.municipioId) {
       await this.ensureMunicipioExists(dto.municipioId);

@@ -9,15 +9,18 @@ import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeeQueryDto } from './dto/employee-query.dto';
 import { Prisma } from '@prisma/client';
+import { TenantContextBoundary } from '../tenant-context/tenant-context.boundary';
 
 @Injectable()
 export class EmployeesService {
   constructor(
     private prisma: PrismaService,
     private auditService: AuditService,
+    private tenantContext: TenantContextBoundary,
   ) {}
 
-  async create(tenantId: string, userId: string, createDto: CreateEmployeeDto) {
+  async create(userId: string, createDto: CreateEmployeeDto) {
+    const tenantId = this.tenantContext.require().tenantId;
     const existing = await this.prisma.empleado.findUnique({
       where: {
         tenantId_cedula: {
@@ -60,7 +63,8 @@ export class EmployeesService {
     return employee;
   }
 
-  async findAll(tenantId: string, query: EmployeeQueryDto) {
+  async findAll(query: EmployeeQueryDto) {
+    const tenantId = this.tenantContext.require().tenantId;
     const { page = 1, limit = 10, search, estado } = query;
     const skip = (page - 1) * limit;
 
@@ -105,7 +109,8 @@ export class EmployeesService {
     };
   }
 
-  async findOne(tenantId: string, id: string) {
+  async findOne(id: string) {
+    const tenantId = this.tenantContext.require().tenantId;
     const employee = await this.prisma.empleado.findFirst({
       where: {
         id,
@@ -124,9 +129,10 @@ export class EmployeesService {
     return employee;
   }
 
-  async update(tenantId: string, id: string, updateDto: UpdateEmployeeDto) {
+  async update(id: string, updateDto: UpdateEmployeeDto) {
+    const tenantId = this.tenantContext.require().tenantId;
     // Verificar si existe y pertenece al tenant
-    await this.findOne(tenantId, id);
+    await this.findOne(id);
 
     if (updateDto.cedula) {
       const existing = await this.prisma.empleado.findUnique({
@@ -159,8 +165,9 @@ export class EmployeesService {
     });
   }
 
-  async remove(tenantId: string, id: string) {
-    await this.findOne(tenantId, id);
+  async remove(id: string) {
+    const tenantId = this.tenantContext.require().tenantId;
+    await this.findOne(id);
 
     return this.prisma.empleado.update({
       where: { id, tenantId },

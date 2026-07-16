@@ -32,35 +32,28 @@ export class EmployeesController {
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: CreateEmployeeDto,
   ) {
-    return this.employeesService.create(user.tenantId, user.userId, dto);
+    return this.employeesService.create(user.userId, dto);
   }
 
   @Get()
-  findAll(
-    @CurrentUser() user: CurrentUserPayload,
-    @Query() query: EmployeeQueryDto,
-  ) {
-    return this.employeesService.findAll(user.tenantId, query);
+  findAll(@Query() query: EmployeeQueryDto) {
+    return this.employeesService.findAll(query);
   }
 
   @Get(':id')
-  findOne(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
-    return this.employeesService.findOne(user.tenantId, id);
+  findOne(@Param('id') id: string) {
+    return this.employeesService.findOne(id);
   }
 
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Patch(':id')
-  update(
-    @CurrentUser() user: CurrentUserPayload,
-    @Param('id') id: string,
-    @Body() dto: UpdateEmployeeDto,
-  ) {
-    return this.employeesService.update(user.tenantId, id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateEmployeeDto) {
+    return this.employeesService.update(id, dto);
   }
 
   @Roles(UserRole.ADMIN)
   @Delete(':id')
-  remove(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
-    return this.employeesService.remove(user.tenantId, id);
+  remove(@Param('id') id: string) {
+    return this.employeesService.remove(id);
   }
 }

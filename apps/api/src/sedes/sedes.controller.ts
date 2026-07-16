@@ -28,29 +28,22 @@ export class SedesController {
   @Roles(UserRole.ADMIN)
   @Post()
   create(@CurrentUser() user: CurrentUserPayload, @Body() dto: CreateSedeDto) {
-    return this.sedesService.create(user.tenantId, user.userId, dto);
+    return this.sedesService.create(user.userId, dto);
   }
 
   @Get()
-  findAll(
-    @CurrentUser() user: CurrentUserPayload,
-    @Query() query: SedeQueryDto,
-  ) {
-    return this.sedesService.findAll(user.tenantId, query);
+  findAll(@Query() query: SedeQueryDto) {
+    return this.sedesService.findAll(query);
   }
 
   @Get(':id')
-  findOne(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
-    return this.sedesService.findOne(user.tenantId, id);
+  findOne(@Param('id') id: string) {
+    return this.sedesService.findOne(id);
   }
 
   @Roles(UserRole.ADMIN)
   @Patch(':id')
-  update(
-    @CurrentUser() user: CurrentUserPayload,
-    @Param('id') id: string,
-    @Body() dto: UpdateSedeDto,
-  ) {
-    return this.sedesService.update(user.tenantId, id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateSedeDto) {
+    return this.sedesService.update(id, dto);
   }
 }

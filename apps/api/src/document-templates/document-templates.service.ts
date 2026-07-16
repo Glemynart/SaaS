@@ -5,6 +5,7 @@ import { UpdateDocumentTemplateDto } from './dto/update-document-template.dto';
 import { DocumentTemplateQueryDto } from './dto/document-template-query.dto';
 import { DuplicateDocumentTemplateDto } from './dto/duplicate-document-template.dto';
 import { Prisma } from '@prisma/client';
+import { TenantContextBoundary } from '../tenant-context/tenant-context.boundary';
 
 const DEFAULT_TEMPLATES = [
   {
@@ -37,15 +38,20 @@ const DEFAULT_TEMPLATES = [
 
 @Injectable()
 export class DocumentTemplatesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private tenantContext: TenantContextBoundary,
+  ) {}
 
-  async create(tenantId: string, dto: CreateDocumentTemplateDto) {
+  async create(dto: CreateDocumentTemplateDto) {
+    const tenantId = this.tenantContext.require().tenantId;
     return this.prisma.documentTemplate.create({
       data: { ...dto, tenantId },
     });
   }
 
-  async findAll(tenantId: string, query: DocumentTemplateQueryDto) {
+  async findAll(query: DocumentTemplateQueryDto) {
+    const tenantId = this.tenantContext.require().tenantId;
     const { page = 1, limit = 10, search, tipo } = query;
     const skip = (page - 1) * limit;
 
@@ -78,7 +84,8 @@ export class DocumentTemplatesService {
     };
   }
 
-  async findOne(tenantId: string, id: string) {
+  async findOne(id: string) {
+    const tenantId = this.tenantContext.require().tenantId;
     const template = await this.prisma.documentTemplate.findFirst({
       where: { id, tenantId, deletedAt: null },
     });
@@ -86,25 +93,22 @@ export class DocumentTemplatesService {
     return template;
   }
 
-  async update(tenantId: string, id: string, dto: UpdateDocumentTemplateDto) {
-    await this.findOne(tenantId, id);
+  async update(id: string, dto: UpdateDocumentTemplateDto) {
+    await this.findOne(id);
     return this.prisma.documentTemplate.update({ where: { id }, data: dto });
   }
 
-  async remove(tenantId: string, id: string) {
-    await this.findOne(tenantId, id);
+  async remove(id: string) {
+    await this.findOne(id);
     return this.prisma.documentTemplate.update({
       where: { id },
       data: { deletedAt: new Date(), activo: false },
     });
   }
 
-  async duplicate(
-    tenantId: string,
-    id: string,
-    dto: DuplicateDocumentTemplateDto,
-  ) {
-    const original = await this.findOne(tenantId, id);
+  async duplicate(id: string, dto: DuplicateDocumentTemplateDto) {
+    const tenantId = this.tenantContext.require().tenantId;
+    const original = await this.findOne(id);
     const nombre = dto.nombre ?? `${original.nombre} (copia)`;
 
     return this.prisma.documentTemplate.create({
@@ -119,15 +123,16 @@ export class DocumentTemplatesService {
     });
   }
 
-  async toggleActive(tenantId: string, id: string) {
-    const template = await this.findOne(tenantId, id);
+  async toggleActive(id: string) {
+    const template = await this.findOne(id);
     return this.prisma.documentTemplate.update({
       where: { id },
       data: { activo: !template.activo },
     });
   }
 
-  async seedDefaultTemplates(tenantId: string) {
+  async seedDefaultTemplates() {
+    const tenantId = this.tenantContext.require().tenantId;
     const created: unknown[] = [];
     for (const tpl of DEFAULT_TEMPLATES) {
       const existing = await this.prisma.documentTemplate.findFirst({
