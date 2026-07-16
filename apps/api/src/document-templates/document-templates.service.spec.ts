@@ -1,6 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { TenantContextBoundary } from '../tenant-context/tenant-context.boundary';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { DocumentTemplatesService } from './document-templates.service';
 
 const TENANT_ID = 'tenant-from-context';
@@ -8,37 +7,45 @@ const TENANT_ID = 'tenant-from-context';
 describe('DocumentTemplatesService tenant context integration', () => {
   const findMany = jest.fn();
   const count = jest.fn();
-  const require = jest.fn();
-  const service = new DocumentTemplatesService(
-    { documentTemplate: { findMany, count } } as unknown as PrismaService,
-    { require } as unknown as TenantContextBoundary,
-  );
+  const execute = jest.fn();
+  const service = new DocumentTemplatesService({
+    execute,
+  } as unknown as TenantPrismaService);
 
   beforeEach(() => {
     jest.clearAllMocks();
     findMany.mockResolvedValue([]);
     count.mockResolvedValue(0);
-    require.mockReturnValue({ tenantId: TENANT_ID });
+    execute.mockImplementation(
+      (work: (client: unknown, context: { tenantId: string }) => unknown) =>
+        work(
+          { documentTemplate: { findMany, count } },
+          { tenantId: TENANT_ID },
+        ),
+    );
   });
 
   it('uses TenantContext as the only tenant source when listing templates', async () => {
     await service.findAll({});
+    const tenantWhere: unknown = expect.objectContaining({
+      tenantId: TENANT_ID,
+    });
 
-    expect(require).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(1);
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ tenantId: TENANT_ID }),
+        where: tenantWhere,
       }),
     );
     expect(count).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ tenantId: TENANT_ID }),
+        where: tenantWhere,
       }),
     );
   });
 
   it('does not query when TenantContext is unavailable', async () => {
-    require.mockImplementation(() => {
+    execute.mockImplementation(() => {
       throw new ForbiddenException();
     });
 

@@ -1,8 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { TenantContextBoundary } from '../tenant-context/tenant-context.boundary';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { EmployeesService } from './employees.service';
 
 const mockEmpleadoFindUnique = jest.fn();
@@ -12,7 +11,7 @@ const mockEmpleadoCount = jest.fn();
 const mockEmpleadoUpdate = jest.fn();
 const mockSedeFindFirst = jest.fn();
 const mockAuditLog = jest.fn();
-const mockRequireTenantContext = jest.fn();
+const mockTenantPrismaExecute = jest.fn();
 
 const TENANT_A = 'tenant-a';
 const TENANT_B_EMPLOYEE = 'employee-from-tenant-b';
@@ -25,14 +24,10 @@ describe('EmployeesService tenant isolation contracts', () => {
     mockEmpleadoFindMany.mockResolvedValue([]);
     mockEmpleadoCount.mockResolvedValue(0);
     mockAuditLog.mockResolvedValue(undefined);
-    mockRequireTenantContext.mockReturnValue({ tenantId: TENANT_A });
-
-    const moduleRef = await Test.createTestingModule({
-      providers: [
-        EmployeesService,
-        {
-          provide: PrismaService,
-          useValue: {
+    mockTenantPrismaExecute.mockImplementation(
+      (work: (client: unknown, context: { tenantId: string }) => unknown) =>
+        work(
+          {
             empleado: {
               findUnique: mockEmpleadoFindUnique,
               findFirst: mockEmpleadoFindFirst,
@@ -42,12 +37,20 @@ describe('EmployeesService tenant isolation contracts', () => {
             },
             sede: { findFirst: mockSedeFindFirst },
           },
+          { tenantId: TENANT_A },
+        ),
+    );
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        EmployeesService,
+        {
+          provide: TenantPrismaService,
+          useValue: {
+            execute: mockTenantPrismaExecute,
+          },
         },
         { provide: AuditService, useValue: { log: mockAuditLog } },
-        {
-          provide: TenantContextBoundary,
-          useValue: { require: mockRequireTenantContext },
-        },
       ],
     }).compile();
 
@@ -62,7 +65,7 @@ describe('EmployeesService tenant isolation contracts', () => {
       expect.objectContaining({ where: expectedWhere }),
     );
     expect(mockEmpleadoCount).toHaveBeenCalledWith({ where: expectedWhere });
-    expect(mockRequireTenantContext).toHaveBeenCalled();
+    expect(mockTenantPrismaExecute).toHaveBeenCalledTimes(1);
   });
 
   it('does not read an employee belonging to another tenant', async () => {
