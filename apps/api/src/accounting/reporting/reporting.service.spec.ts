@@ -383,7 +383,7 @@ describe('ReportingService', () => {
       expect(mocks.cuentasFindMany).not.toHaveBeenCalled();
     });
 
-    it('excluye el origen indicado (excluirOrigenTipo/excluirOrigenId) vía NOT', async () => {
+    it('excluye solo el origen indicado y conserva comprobantes sin origen', async () => {
       const { service, mocks } = build();
       mocks.movimientosGroupBy.mockResolvedValue([]);
 
@@ -399,7 +399,16 @@ describe('ReportingService', () => {
           where: expect.objectContaining({
             comprobante: expect.objectContaining({
               estado: 'CONTABILIZADO',
-              NOT: { origenTipo: 'CIERRE_ANUAL', origenId: '2026' },
+              OR: [
+                { origenTipo: null },
+                { origenId: null },
+                {
+                  NOT: {
+                    origenTipo: 'CIERRE_ANUAL',
+                    origenId: '2026',
+                  },
+                },
+              ],
             }),
             cuenta: expect.objectContaining({
               codigo: expect.objectContaining({ gte: '4', lte: '7999999999' }),
@@ -409,7 +418,7 @@ describe('ReportingService', () => {
       );
     });
 
-    it('no añade NOT cuando solo se pasa uno de los dos campos de exclusión', async () => {
+    it('no añade filtro de exclusión cuando solo se pasa uno de sus dos campos', async () => {
       const { service, mocks } = build();
       mocks.movimientosGroupBy.mockResolvedValue([]);
 
@@ -418,7 +427,7 @@ describe('ReportingService', () => {
       });
 
       const arg = mocks.movimientosGroupBy.mock.calls[0][0];
-      expect(arg.where.comprobante.NOT).toBeUndefined();
+      expect(arg.where.comprobante.OR).toBeUndefined();
     });
   });
 

@@ -161,12 +161,21 @@ export class ReportingService {
 
     // Exclusión de origen (p. ej. los propios comprobantes de cierre del año):
     // deja fuera los movimientos cuyo comprobante tiene EXACTAMENTE ese
-    // (origenTipo, origenId). Estabiliza el plan de lotes del cierre (C3 §8.3).
+    // (origenTipo, origenId). Los comprobantes manuales tienen ambos campos en
+    // NULL: se incluyen explícitamente porque NOT (a = x AND b = y) evalúa
+    // NULL en PostgreSQL y los descartaría. Estabiliza el plan de lotes del
+    // cierre (C3 §8.3) sin ocultar movimientos manuales.
     if (filters.excluirOrigenTipo && filters.excluirOrigenId) {
-      comprobanteFilter.NOT = {
-        origenTipo: filters.excluirOrigenTipo,
-        origenId: filters.excluirOrigenId,
-      };
+      comprobanteFilter.OR = [
+        { origenTipo: null },
+        { origenId: null },
+        {
+          NOT: {
+            origenTipo: filters.excluirOrigenTipo,
+            origenId: filters.excluirOrigenId,
+          },
+        },
+      ];
     }
 
     const where: Record<string, unknown> = {

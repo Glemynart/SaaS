@@ -1508,7 +1508,7 @@ Implementado:
 
 Estado:
 
-🟡 En progreso
+✅ COMPLETADA
 
 Documento:
 
@@ -1555,13 +1555,14 @@ Sin cambios de schema, sin migración, sin transporte HTTP (controller/DTO), sin
 
 Estado:
 
-⏳ Pendiente
+✅ COMPLETADA (commit `ee95484`)
 
-Alcance previsto:
+Implementado:
 
-- `CerrarAnioFiscal`: comprobante que cancela clases de resultado (4/5/6/7) contra patrimonio, vía `LedgerService.registrarComprobante`, seguido de `CerrarPeriodo(diciembre)`.
-- Debe reutilizar `ORIGEN_CIERRE_ANUAL` (definida en `closure.service.ts`) como `origenTipo`, sin redefinir el literal.
-- Requiere seed del rol `RESULTADO_EJERCICIO` en `CuentaSistemaMap`.
+- `CerrarAnioFiscal`: cancela las cuentas de resultado (4/5/6/7) contra patrimonio mediante `LedgerService.registrarComprobante` y luego cierra diciembre.
+- Reutiliza `ORIGEN_CIERRE_ANUAL` (definida en `closure.service.ts`) como `origenTipo`, sin redefinir el literal.
+- El provisioning por defecto incluye el rol `RESULTADO_EJERCICIO` en `CuentaSistemaMap`.
+- ACC-01 valida contra PostgreSQL el provisioning, el libro perpetuo, la continuidad de consecutivos y la ausencia de comprobante anual de apertura.
 
 ---
 
