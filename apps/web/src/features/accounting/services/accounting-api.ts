@@ -188,6 +188,53 @@ export interface CentroCostoUpdatePayload {
   activo?: boolean;
 }
 
+export type EstadoPeriodo = 'ABIERTO' | 'CERRADO';
+
+export interface PeriodoContable {
+  id: string;
+  tenantId: string;
+  anio: number;
+  mes: number;
+  fechaInicio: string;
+  fechaFin: string;
+  estado: EstadoPeriodo;
+  cerradoAt: string | null;
+  cerradoPorId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PeriodoContableFilters {
+  anio?: number;
+  estado?: EstadoPeriodo;
+}
+
+export interface ValidacionCierrePeriodo {
+  procede: boolean;
+  bloqueos: string[];
+}
+
+export interface CerrarPeriodoResult {
+  cerrado: boolean;
+  yaEstabaCerrado: boolean;
+  bloqueos?: string[];
+}
+
+export interface ReabrirPeriodoResult {
+  reabierto: boolean;
+  yaEstabaAbierto: boolean;
+  bloqueos?: string[];
+}
+
+export interface CerrarAnioResult {
+  posteado: boolean;
+  yaEstabaPosteado: boolean;
+  sinResultados?: boolean;
+  diciembreCerrado: boolean;
+  comprobanteIds?: string[];
+  bloqueos?: string[];
+}
+
 type ApiEnvelope<T> = T & { message?: string };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -228,6 +275,14 @@ function toCentroCostoQueryString(filters?: CentroCostoFilters) {
   const params = new URLSearchParams();
   if (filters?.search) params.set('search', filters.search);
   if (filters?.activo !== undefined) params.set('activo', String(filters.activo));
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
+function toPeriodoQueryString(filters?: PeriodoContableFilters) {
+  const params = new URLSearchParams();
+  if (filters?.anio !== undefined) params.set('anio', String(filters.anio));
+  if (filters?.estado) params.set('estado', filters.estado);
   const query = params.toString();
   return query ? `?${query}` : '';
 }
@@ -284,5 +339,36 @@ export const accountingApi = {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),
+  },
+  periodos: {
+    getAll: (filters?: PeriodoContableFilters) =>
+      request<PeriodoContable[]>(
+        `/api/accounting/periodos-contables${toPeriodoQueryString(filters)}`,
+      ),
+    create: (data: { anio: number; mes: number }) =>
+      request<PeriodoContable>('/api/accounting/periodos-contables', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    generarAnio: (anio: number) =>
+      request<PeriodoContable[]>('/api/accounting/periodos-contables/generar-anio', {
+        method: 'POST',
+        body: JSON.stringify({ anio }),
+      }),
+  },
+  cierres: {
+    validar: (periodoId: string) =>
+      request<ValidacionCierrePeriodo>(`/api/accounting/cierres/periodos/${periodoId}/validar`),
+    cerrar: (periodoId: string) =>
+      request<CerrarPeriodoResult>(`/api/accounting/cierres/periodos/${periodoId}/cerrar`, {
+        method: 'POST',
+      }),
+    reabrir: ({ periodoId, motivo }: { periodoId: string; motivo: string }) =>
+      request<ReabrirPeriodoResult>(`/api/accounting/cierres/periodos/${periodoId}/reabrir`, {
+        method: 'POST',
+        body: JSON.stringify({ motivo }),
+      }),
+    cerrarAnio: (anio: number) =>
+      request<CerrarAnioResult>(`/api/accounting/cierres/anios/${anio}/cerrar`, { method: 'POST' }),
   },
 };

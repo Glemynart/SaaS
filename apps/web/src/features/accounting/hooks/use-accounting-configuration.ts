@@ -5,6 +5,7 @@ import {
   accountingApi,
   type CentroCostoFilters,
   type CuentaContableFilters,
+  type PeriodoContableFilters,
   type TerceroFilters,
 } from '../services/accounting-api';
 
@@ -20,6 +21,9 @@ export const accountingConfigurationKeys = {
   centrosCosto: () => [...accountingConfigurationKeys.all, 'centros-costo'] as const,
   centroCostoList: (filters: CentroCostoFilters) =>
     [...accountingConfigurationKeys.centrosCosto(), filters] as const,
+  periodos: () => [...accountingConfigurationKeys.all, 'periodos'] as const,
+  periodoList: (filters: PeriodoContableFilters) =>
+    [...accountingConfigurationKeys.periodos(), filters] as const,
 };
 
 export function useCuentasContables(filters: CuentaContableFilters = {}) {
@@ -119,5 +123,61 @@ export function useUpdateCentroCosto() {
     mutationFn: accountingApi.centrosCosto.update,
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: accountingConfigurationKeys.centrosCosto() }),
+  });
+}
+
+export function usePeriodosContables(filters: PeriodoContableFilters = {}) {
+  return useQuery({
+    queryKey: accountingConfigurationKeys.periodoList(filters),
+    queryFn: () => accountingApi.periodos.getAll(filters),
+  });
+}
+
+export function useCreatePeriodoContable() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: accountingApi.periodos.create,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: accountingConfigurationKeys.periodos() }),
+  });
+}
+
+export function useGenerarAnioContable() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: accountingApi.periodos.generarAnio,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: accountingConfigurationKeys.periodos() }),
+  });
+}
+
+export function useValidarCierrePeriodo() {
+  return useMutation({ mutationFn: accountingApi.cierres.validar });
+}
+
+export function useCerrarPeriodo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: accountingApi.cierres.cerrar,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: accountingConfigurationKeys.periodos() }),
+  });
+}
+
+export function useReabrirPeriodo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: accountingApi.cierres.reabrir,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: accountingConfigurationKeys.periodos() }),
+  });
+}
+
+export function useCerrarAnioContable() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: accountingApi.cierres.cerrarAnio,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: accountingConfigurationKeys.periodos() }),
   });
 }

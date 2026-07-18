@@ -1,5 +1,5 @@
-import { AccountingPlaceholder } from '@/features/accounting/components/accounting-placeholder';
+import { PeriodosContablesManagement } from '@/features/accounting/components/periodos-contables-management';
 
 export default function PeriodosPage() {
-  return <AccountingPlaceholder sectionId="periodos" />;
+  return <PeriodosContablesManagement />;
 }
