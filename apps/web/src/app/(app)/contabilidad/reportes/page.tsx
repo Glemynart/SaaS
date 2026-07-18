@@ -1,5 +1,5 @@
-import { AccountingPlaceholder } from '@/features/accounting/components/accounting-placeholder';
+import { ReportsManagement } from '@/features/accounting/components/reports-management';
 
 export default function ReportesPage() {
-  return <AccountingPlaceholder sectionId="reportes" />;
+  return <ReportsManagement />;
 }

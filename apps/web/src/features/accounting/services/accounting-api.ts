@@ -235,6 +235,38 @@ export interface CerrarAnioResult {
   bloqueos?: string[];
 }
 
+export interface TipoComprobante {
+  id: string;
+  codigo: string;
+  nombre: string;
+  activo: boolean;
+}
+export interface ManualJournalLine {
+  cuentaId: string;
+  terceroId?: string;
+  centroCostoId?: string;
+  debito: number;
+  credito: number;
+  baseGravable?: number;
+  descripcion?: string;
+}
+export interface ManualJournalPayload {
+  tipoComprobanteId: string;
+  periodoId: string;
+  fecha: string;
+  concepto: string;
+  lineas: ManualJournalLine[];
+}
+export interface ManualJournalResult {
+  id: string;
+  numero?: number | null;
+  estado?: string;
+  [key: string]: unknown;
+}
+export interface ReportQuery {
+  [key: string]: string | number | boolean | undefined;
+}
+
 type ApiEnvelope<T> = T & { message?: string };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -283,6 +315,15 @@ function toPeriodoQueryString(filters?: PeriodoContableFilters) {
   const params = new URLSearchParams();
   if (filters?.anio !== undefined) params.set('anio', String(filters.anio));
   if (filters?.estado) params.set('estado', filters.estado);
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
+function toReportQueryString(filters?: ReportQuery) {
+  const params = new URLSearchParams();
+  Object.entries(filters ?? {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') params.set(key, String(value));
+  });
   const query = params.toString();
   return query ? `?${query}` : '';
 }
@@ -370,5 +411,24 @@ export const accountingApi = {
       }),
     cerrarAnio: (anio: number) =>
       request<CerrarAnioResult>(`/api/accounting/cierres/anios/${anio}/cerrar`, { method: 'POST' }),
+  },
+  tiposComprobante: {
+    getAll: () => request<TipoComprobante[]>('/api/accounting/tipos-comprobante?activo=true'),
+  },
+  comprobantes: {
+    registrar: (data: ManualJournalPayload) =>
+      request<ManualJournalResult>('/api/accounting/comprobantes', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    anular: ({ id, motivo }: { id: string; motivo: string }) =>
+      request<ManualJournalResult>(`/api/accounting/comprobantes/${id}/anular`, {
+        method: 'POST',
+        body: JSON.stringify({ motivo }),
+      }),
+  },
+  reportes: {
+    get: <T>(path: string, filters?: ReportQuery) =>
+      request<T>(`/api/accounting/reportes/${path}${toReportQueryString(filters)}`),
   },
 };

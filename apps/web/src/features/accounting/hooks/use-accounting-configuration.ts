@@ -22,6 +22,7 @@ export const accountingConfigurationKeys = {
   centroCostoList: (filters: CentroCostoFilters) =>
     [...accountingConfigurationKeys.centrosCosto(), filters] as const,
   periodos: () => [...accountingConfigurationKeys.all, 'periodos'] as const,
+  tiposComprobante: () => [...accountingConfigurationKeys.all, 'tipos-comprobante'] as const,
   periodoList: (filters: PeriodoContableFilters) =>
     [...accountingConfigurationKeys.periodos(), filters] as const,
 };
@@ -180,4 +181,19 @@ export function useCerrarAnioContable() {
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: accountingConfigurationKeys.periodos() }),
   });
+}
+
+export function useTiposComprobante() {
+  return useQuery({
+    queryKey: accountingConfigurationKeys.tiposComprobante(),
+    queryFn: accountingApi.tiposComprobante.getAll,
+  });
+}
+
+export function useRegistrarComprobante() {
+  return useMutation({ mutationFn: accountingApi.comprobantes.registrar });
+}
+
+export function useAnularComprobante() {
+  return useMutation({ mutationFn: accountingApi.comprobantes.anular });
 }
