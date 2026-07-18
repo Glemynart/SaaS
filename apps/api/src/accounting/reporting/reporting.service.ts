@@ -7,6 +7,13 @@ import {
   SaldosDimensionadosFilters,
   SaldoDimensionadoItem,
   BalancePruebaItem,
+  BalanceGeneralFilters,
+  BalanceGeneralReport,
+  EstadoFinancieroGrupo,
+  EstadoFinancieroLinea,
+  EstadoFinancieroSeccion,
+  EstadoResultadosFilters,
+  EstadoResultadosReport,
   LibroDiarioFilters,
   LibroDiarioItem,
   LibroDiarioMovimiento,
@@ -28,6 +35,65 @@ function compararNuloAlFinal(a: string | null, b: string | null): number {
   if (b === null) return -1;
   return a.localeCompare(b);
 }
+
+type NaturalezaSaldo = 'DEBITO' | 'CREDITO';
+
+interface SeccionMeta {
+  codigo: string;
+  claseContable: string;
+  nombre: string;
+  naturaleza: NaturalezaSaldo;
+}
+
+const CERO = new Prisma.Decimal(0);
+
+const BALANCE_GENERAL_SECCIONES: Record<string, SeccionMeta> = {
+  '1': {
+    codigo: '1',
+    claseContable: 'ACTIVO',
+    nombre: 'Activo',
+    naturaleza: 'DEBITO',
+  },
+  '2': {
+    codigo: '2',
+    claseContable: 'PASIVO',
+    nombre: 'Pasivo',
+    naturaleza: 'CREDITO',
+  },
+  '3': {
+    codigo: '3',
+    claseContable: 'PATRIMONIO',
+    nombre: 'Patrimonio',
+    naturaleza: 'CREDITO',
+  },
+};
+
+const ESTADO_RESULTADOS_SECCIONES: Record<string, SeccionMeta> = {
+  '4': {
+    codigo: '4',
+    claseContable: 'INGRESOS',
+    nombre: 'Ingresos',
+    naturaleza: 'CREDITO',
+  },
+  '5': {
+    codigo: '5',
+    claseContable: 'GASTOS',
+    nombre: 'Gastos',
+    naturaleza: 'DEBITO',
+  },
+  '6': {
+    codigo: '6',
+    claseContable: 'COSTOS_VENTAS',
+    nombre: 'Costos de ventas',
+    naturaleza: 'DEBITO',
+  },
+  '7': {
+    codigo: '7',
+    claseContable: 'COSTOS_PRODUCCION',
+    nombre: 'Costos de produccion',
+    naturaleza: 'DEBITO',
+  },
+};
 
 @Injectable()
 export class ReportingService {
@@ -129,6 +195,201 @@ export class ReportingService {
         };
       })
       .sort((a, b) => a.codigo.localeCompare(b.codigo));
+  }
+
+  async obtenerBalanceGeneral(
+    tenantId: string,
+    filters: BalanceGeneralFilters,
+  ): Promise<BalanceGeneralReport> {
+    const cuentas = await this.obtenerBalancePrueba(tenantId, {
+      fechaFin: filters.fechaCorte,
+      cuentaDesde: '1',
+      cuentaHasta: '3999999999',
+    });
+    const nombresPorCodigo = await this.obtenerNombresPorCodigo(
+      tenantId,
+      cuentas,
+    );
+
+    const activo = this.construirSeccionEstadoFinanciero(
+      BALANCE_GENERAL_SECCIONES['1'],
+      cuentas,
+      nombresPorCodigo,
+    );
+    const pasivo = this.construirSeccionEstadoFinanciero(
+      BALANCE_GENERAL_SECCIONES['2'],
+      cuentas,
+      nombresPorCodigo,
+    );
+    const patrimonio = this.construirSeccionEstadoFinanciero(
+      BALANCE_GENERAL_SECCIONES['3'],
+      cuentas,
+      nombresPorCodigo,
+    );
+    const totalPasivoPatrimonio = pasivo.valor.add(patrimonio.valor);
+
+    return {
+      fechaCorte: filters.fechaCorte,
+      activo,
+      pasivo,
+      patrimonio,
+      totalActivo: activo.valor,
+      totalPasivo: pasivo.valor,
+      totalPatrimonio: patrimonio.valor,
+      totalPasivoPatrimonio,
+      diferencia: activo.valor.minus(totalPasivoPatrimonio),
+    };
+  }
+
+  async obtenerEstadoResultados(
+    tenantId: string,
+    filters: EstadoResultadosFilters,
+  ): Promise<EstadoResultadosReport> {
+    const cuentas = await this.obtenerBalancePrueba(tenantId, {
+      fechaInicio: filters.fechaInicio,
+      fechaFin: filters.fechaFin,
+      cuentaDesde: '4',
+      cuentaHasta: '7999999999',
+    });
+    const nombresPorCodigo = await this.obtenerNombresPorCodigo(
+      tenantId,
+      cuentas,
+    );
+
+    const ingresos = this.construirSeccionEstadoFinanciero(
+      ESTADO_RESULTADOS_SECCIONES['4'],
+      cuentas,
+      nombresPorCodigo,
+    );
+    const gastos = this.construirSeccionEstadoFinanciero(
+      ESTADO_RESULTADOS_SECCIONES['5'],
+      cuentas,
+      nombresPorCodigo,
+    );
+    const costosVentas = this.construirSeccionEstadoFinanciero(
+      ESTADO_RESULTADOS_SECCIONES['6'],
+      cuentas,
+      nombresPorCodigo,
+    );
+    const costosProduccion = this.construirSeccionEstadoFinanciero(
+      ESTADO_RESULTADOS_SECCIONES['7'],
+      cuentas,
+      nombresPorCodigo,
+    );
+    const totalCostos = costosVentas.valor.add(costosProduccion.valor);
+
+    return {
+      fechaInicio: filters.fechaInicio,
+      fechaFin: filters.fechaFin,
+      ingresos,
+      gastos,
+      costosVentas,
+      costosProduccion,
+      totalIngresos: ingresos.valor,
+      totalGastos: gastos.valor,
+      totalCostos,
+      resultadoNeto: ingresos.valor.minus(gastos.valor).minus(totalCostos),
+    };
+  }
+
+  private async obtenerNombresPorCodigo(
+    tenantId: string,
+    cuentas: BalancePruebaItem[],
+  ): Promise<Map<string, string>> {
+    const codigos = new Set<string>();
+    for (const cuenta of cuentas) {
+      const clase = cuenta.codigo.slice(0, 1);
+      if (clase) codigos.add(clase);
+      const grupo =
+        cuenta.codigo.length >= 2 ? cuenta.codigo.slice(0, 2) : clase;
+      if (grupo) codigos.add(grupo);
+    }
+
+    if (codigos.size === 0) {
+      return new Map();
+    }
+
+    const rows = await this.prisma.cuentaContable.findMany({
+      where: { tenantId, codigo: { in: [...codigos] } },
+      select: { codigo: true, nombre: true },
+    });
+
+    return new Map(rows.map((row) => [row.codigo, row.nombre]));
+  }
+
+  private construirSeccionEstadoFinanciero(
+    meta: SeccionMeta,
+    cuentas: BalancePruebaItem[],
+    nombresPorCodigo: Map<string, string>,
+  ): EstadoFinancieroSeccion {
+    const cuentasDeSeccion = cuentas.filter((cuenta) =>
+      cuenta.codigo.startsWith(meta.codigo),
+    );
+    const grupos = new Map<string, EstadoFinancieroGrupo>();
+
+    for (const cuenta of cuentasDeSeccion) {
+      const grupoCodigo =
+        cuenta.codigo.length >= 2 ? cuenta.codigo.slice(0, 2) : meta.codigo;
+      const linea: EstadoFinancieroLinea = {
+        cuentaId: cuenta.cuentaId,
+        codigo: cuenta.codigo,
+        nombre: cuenta.nombre,
+        totalDebito: cuenta.totalDebito,
+        totalCredito: cuenta.totalCredito,
+        saldo: cuenta.saldo,
+        valor: this.valorNatural(cuenta.saldo, meta.naturaleza),
+      };
+      const grupo = grupos.get(grupoCodigo) ?? {
+        codigo: grupoCodigo,
+        nombre: nombresPorCodigo.get(grupoCodigo) ?? grupoCodigo,
+        totalDebito: CERO,
+        totalCredito: CERO,
+        saldo: CERO,
+        valor: CERO,
+        cuentas: [],
+      };
+
+      grupo.totalDebito = grupo.totalDebito.add(linea.totalDebito);
+      grupo.totalCredito = grupo.totalCredito.add(linea.totalCredito);
+      grupo.saldo = grupo.saldo.add(linea.saldo);
+      grupo.valor = grupo.valor.add(linea.valor);
+      grupo.cuentas.push(linea);
+      grupos.set(grupoCodigo, grupo);
+    }
+
+    const gruposOrdenados = [...grupos.values()].sort((a, b) =>
+      a.codigo.localeCompare(b.codigo),
+    );
+    const totalDebito = gruposOrdenados.reduce(
+      (total, grupo) => total.add(grupo.totalDebito),
+      CERO,
+    );
+    const totalCredito = gruposOrdenados.reduce(
+      (total, grupo) => total.add(grupo.totalCredito),
+      CERO,
+    );
+    const saldo = gruposOrdenados.reduce(
+      (total, grupo) => total.add(grupo.saldo),
+      CERO,
+    );
+
+    return {
+      codigo: meta.codigo,
+      claseContable: meta.claseContable,
+      nombre: nombresPorCodigo.get(meta.codigo) ?? meta.nombre,
+      totalDebito,
+      totalCredito,
+      saldo,
+      valor: this.valorNatural(saldo, meta.naturaleza),
+      grupos: gruposOrdenados,
+    };
+  }
+
+  private valorNatural(
+    saldo: Prisma.Decimal,
+    naturaleza: NaturalezaSaldo,
+  ): Prisma.Decimal {
+    return naturaleza === 'DEBITO' ? saldo : saldo.negated();
   }
 
   // ==========================================================================

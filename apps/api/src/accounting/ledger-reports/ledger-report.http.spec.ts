@@ -16,6 +16,8 @@ describe('LedgerReportController HTTP', () => {
     libroDiario: jest.fn(),
     libroMayor: jest.fn(),
     balancePrueba: jest.fn(),
+    balanceGeneral: jest.fn(),
+    estadoResultados: jest.fn(),
     auxiliarTercero: jest.fn(),
     auxiliarCentroCosto: jest.fn(),
   };
@@ -132,6 +134,48 @@ describe('LedgerReportController HTTP', () => {
       expect.objectContaining({
         cuentaId: 'cuenta-a',
         centroCostoId: 'centro-a',
+      }),
+    );
+  });
+
+  it('expone Balance General y Estado de Resultados con tenant autenticado', async () => {
+    reports.balanceGeneral.mockResolvedValue({
+      totalActivo: '1000',
+      totalPasivoPatrimonio: '1000',
+      diferencia: '0',
+    });
+    reports.estadoResultados.mockResolvedValue({
+      totalIngresos: '1000',
+      totalGastos: '400',
+      totalCostos: '0',
+      resultadoNeto: '600',
+    });
+    const token = await tokenFor('tenant-a');
+
+    await request(server)
+      .get(
+        '/accounting/reportes/balance-general?fechaCorte=2026-12-31T00:00:00.000Z',
+      )
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    await request(server)
+      .get(
+        '/accounting/reportes/estado-resultados?fechaInicio=2026-01-01T00:00:00.000Z&fechaFin=2026-12-31T00:00:00.000Z',
+      )
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(reports.balanceGeneral).toHaveBeenCalledWith(
+      'tenant-a',
+      expect.objectContaining({
+        fechaCorte: '2026-12-31T00:00:00.000Z',
+      }),
+    );
+    expect(reports.estadoResultados).toHaveBeenCalledWith(
+      'tenant-a',
+      expect.objectContaining({
+        fechaInicio: '2026-01-01T00:00:00.000Z',
+        fechaFin: '2026-12-31T00:00:00.000Z',
       }),
     );
   });

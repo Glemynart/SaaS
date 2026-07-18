@@ -3,7 +3,9 @@ import { ReportingService } from '../reporting/reporting.service';
 import {
   AuxiliarCentroCostoQueryDto,
   AuxiliarTerceroQueryDto,
+  BalanceGeneralQueryDto,
   BalancePruebaQueryDto,
+  EstadoResultadosQueryDto,
   LibroDiarioQueryDto,
   LibroMayorQueryDto,
 } from './dto/ledger-report-query.dto';
@@ -44,6 +46,19 @@ export class LedgerReportService {
       cuentaDesde: query.cuentaDesde,
       cuentaHasta: query.cuentaHasta,
       nivel: query.nivel,
+    });
+  }
+
+  balanceGeneral(tenantId: string, query: BalanceGeneralQueryDto) {
+    return this.reporting.obtenerBalanceGeneral(tenantId, {
+      fechaCorte: this.fecha(query.fechaCorte),
+    });
+  }
+
+  estadoResultados(tenantId: string, query: EstadoResultadosQueryDto) {
+    return this.reporting.obtenerEstadoResultados(tenantId, {
+      fechaInicio: this.fecha(query.fechaInicio),
+      fechaFin: this.fecha(query.fechaFin),
     });
   }
 

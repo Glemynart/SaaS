@@ -12,6 +12,12 @@ function build() {
     comprobanteCount: jest.fn(),
     movimientoFindMany: jest.fn(),
     movimientoCount: jest.fn(),
+    movimientoCreate: jest.fn(),
+    movimientoUpdate: jest.fn(),
+    movimientoDelete: jest.fn(),
+    comprobanteCreate: jest.fn(),
+    comprobanteUpdate: jest.fn(),
+    comprobanteDelete: jest.fn(),
   };
 
   const prisma = {
@@ -19,6 +25,9 @@ function build() {
       groupBy: mocks.movimientosGroupBy,
       findMany: mocks.movimientoFindMany,
       count: mocks.movimientoCount,
+      create: mocks.movimientoCreate,
+      update: mocks.movimientoUpdate,
+      delete: mocks.movimientoDelete,
     },
     cuentaContable: {
       findMany: mocks.cuentasFindMany,
@@ -26,6 +35,9 @@ function build() {
     comprobanteContable: {
       findMany: mocks.comprobanteFindMany,
       count: mocks.comprobanteCount,
+      create: mocks.comprobanteCreate,
+      update: mocks.comprobanteUpdate,
+      delete: mocks.comprobanteDelete,
     },
   };
 
@@ -295,6 +307,154 @@ describe('ReportingService', () => {
 
       expect(result[0].codigo).toBe('N/A');
       expect(result[0].nombre).toBe('Cuenta no encontrada');
+    });
+  });
+
+  describe('obtenerBalanceGeneral', () => {
+    it('agrupa Activo, Pasivo y Patrimonio por clase/grupo con totales consistentes', async () => {
+      const { service, mocks } = build();
+      const fechaCorte = new Date('2026-12-31T00:00:00.000Z');
+
+      mocks.movimientosGroupBy.mockResolvedValue([
+        grupoSaldo('c1', 1000, 0),
+        grupoSaldo('c2', 0, 300),
+        grupoSaldo('c3', 0, 700),
+      ]);
+      mocks.cuentasFindMany
+        .mockResolvedValueOnce([
+          cuentaRow('c1', '110505', 'Caja general'),
+          cuentaRow('c2', '210505', 'Proveedores'),
+          cuentaRow('c3', '360505', 'Resultado del ejercicio'),
+        ])
+        .mockResolvedValueOnce([
+          { codigo: '1', nombre: 'Activo' },
+          { codigo: '11', nombre: 'Disponible' },
+          { codigo: '2', nombre: 'Pasivo' },
+          { codigo: '21', nombre: 'Obligaciones financieras' },
+          { codigo: '3', nombre: 'Patrimonio' },
+          { codigo: '36', nombre: 'Resultados del ejercicio' },
+        ]);
+
+      const result = await service.obtenerBalanceGeneral(TENANT_ID, {
+        fechaCorte,
+      });
+
+      expect(mocks.movimientosGroupBy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tenantId: TENANT_ID,
+            comprobante: expect.objectContaining({
+              estado: 'CONTABILIZADO',
+              fecha: { lte: fechaCorte },
+            }),
+            cuenta: expect.objectContaining({
+              codigo: { gte: '1', lte: '3999999999' },
+            }),
+          }),
+        }),
+      );
+      expect(result.totalActivo.toString()).toBe('1000');
+      expect(result.totalPasivo.toString()).toBe('300');
+      expect(result.totalPatrimonio.toString()).toBe('700');
+      expect(result.totalPasivoPatrimonio.toString()).toBe('1000');
+      expect(result.diferencia.toString()).toBe('0');
+      expect(result.activo.grupos[0]).toMatchObject({
+        codigo: '11',
+        nombre: 'Disponible',
+      });
+      expect(result.pasivo.grupos[0].valor.toString()).toBe('300');
+      expect(result.patrimonio.grupos[0].valor.toString()).toBe('700');
+    });
+
+    it('es solo lectura sobre comprobantes y movimientos', async () => {
+      const { service, mocks } = build();
+
+      mocks.movimientosGroupBy.mockResolvedValue([]);
+
+      await service.obtenerBalanceGeneral(TENANT_ID, {});
+
+      expect(mocks.movimientoCreate).not.toHaveBeenCalled();
+      expect(mocks.movimientoUpdate).not.toHaveBeenCalled();
+      expect(mocks.movimientoDelete).not.toHaveBeenCalled();
+      expect(mocks.comprobanteCreate).not.toHaveBeenCalled();
+      expect(mocks.comprobanteUpdate).not.toHaveBeenCalled();
+      expect(mocks.comprobanteDelete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('obtenerEstadoResultados', () => {
+    it('agrupa Ingresos, Gastos y Costos y calcula resultado neto', async () => {
+      const { service, mocks } = build();
+      const fechaInicio = new Date('2026-01-01T00:00:00.000Z');
+      const fechaFin = new Date('2026-12-31T00:00:00.000Z');
+
+      mocks.movimientosGroupBy.mockResolvedValue([
+        grupoSaldo('c4', 0, 1000),
+        grupoSaldo('c5', 300, 0),
+        grupoSaldo('c6', 100, 0),
+        grupoSaldo('c7', 50, 0),
+      ]);
+      mocks.cuentasFindMany
+        .mockResolvedValueOnce([
+          cuentaRow('c4', '413505', 'Ventas'),
+          cuentaRow('c5', '510506', 'Gastos de personal'),
+          cuentaRow('c6', '613595', 'Costo de ventas'),
+          cuentaRow('c7', '710506', 'Costos de produccion'),
+        ])
+        .mockResolvedValueOnce([
+          { codigo: '4', nombre: 'Ingresos' },
+          { codigo: '41', nombre: 'Operacionales' },
+          { codigo: '5', nombre: 'Gastos' },
+          { codigo: '51', nombre: 'Operacionales de administracion' },
+          { codigo: '6', nombre: 'Costos de ventas' },
+          { codigo: '61', nombre: 'Costo de ventas' },
+          { codigo: '7', nombre: 'Costos de produccion' },
+          { codigo: '71', nombre: 'Materia prima' },
+        ]);
+
+      const result = await service.obtenerEstadoResultados(TENANT_ID, {
+        fechaInicio,
+        fechaFin,
+      });
+
+      expect(mocks.movimientosGroupBy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tenantId: TENANT_ID,
+            comprobante: expect.objectContaining({
+              estado: 'CONTABILIZADO',
+              fecha: { gte: fechaInicio, lte: fechaFin },
+            }),
+            cuenta: expect.objectContaining({
+              codigo: { gte: '4', lte: '7999999999' },
+            }),
+          }),
+        }),
+      );
+      expect(result.totalIngresos.toString()).toBe('1000');
+      expect(result.totalGastos.toString()).toBe('300');
+      expect(result.totalCostos.toString()).toBe('150');
+      expect(result.resultadoNeto.toString()).toBe('550');
+      expect(result.ingresos.grupos[0]).toMatchObject({
+        codigo: '41',
+        nombre: 'Operacionales',
+      });
+      expect(result.costosProduccion.grupos[0].valor.toString()).toBe('50');
+    });
+
+    it('es solo lectura sobre comprobantes y movimientos', async () => {
+      const { service, mocks } = build();
+
+      mocks.movimientosGroupBy.mockResolvedValue([]);
+
+      await service.obtenerEstadoResultados(TENANT_ID, {});
+
+      expect(mocks.movimientoCreate).not.toHaveBeenCalled();
+      expect(mocks.movimientoUpdate).not.toHaveBeenCalled();
+      expect(mocks.movimientoDelete).not.toHaveBeenCalled();
+      expect(mocks.comprobanteCreate).not.toHaveBeenCalled();
+      expect(mocks.comprobanteUpdate).not.toHaveBeenCalled();
+      expect(mocks.comprobanteDelete).not.toHaveBeenCalled();
     });
   });
 

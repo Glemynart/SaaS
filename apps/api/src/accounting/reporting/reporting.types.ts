@@ -47,6 +47,71 @@ export interface BalancePruebaItem {
   saldo: Prisma.Decimal;
 }
 
+export interface BalanceGeneralFilters {
+  fechaCorte?: Date;
+}
+
+export interface EstadoResultadosFilters {
+  fechaInicio?: Date;
+  fechaFin?: Date;
+}
+
+export interface EstadoFinancieroLinea {
+  cuentaId: string;
+  codigo: string;
+  nombre: string;
+  totalDebito: Prisma.Decimal;
+  totalCredito: Prisma.Decimal;
+  saldo: Prisma.Decimal;
+  valor: Prisma.Decimal;
+}
+
+export interface EstadoFinancieroGrupo {
+  codigo: string;
+  nombre: string;
+  totalDebito: Prisma.Decimal;
+  totalCredito: Prisma.Decimal;
+  saldo: Prisma.Decimal;
+  valor: Prisma.Decimal;
+  cuentas: EstadoFinancieroLinea[];
+}
+
+export interface EstadoFinancieroSeccion {
+  codigo: string;
+  claseContable: string;
+  nombre: string;
+  totalDebito: Prisma.Decimal;
+  totalCredito: Prisma.Decimal;
+  saldo: Prisma.Decimal;
+  valor: Prisma.Decimal;
+  grupos: EstadoFinancieroGrupo[];
+}
+
+export interface BalanceGeneralReport {
+  fechaCorte?: Date;
+  activo: EstadoFinancieroSeccion;
+  pasivo: EstadoFinancieroSeccion;
+  patrimonio: EstadoFinancieroSeccion;
+  totalActivo: Prisma.Decimal;
+  totalPasivo: Prisma.Decimal;
+  totalPatrimonio: Prisma.Decimal;
+  totalPasivoPatrimonio: Prisma.Decimal;
+  diferencia: Prisma.Decimal;
+}
+
+export interface EstadoResultadosReport {
+  fechaInicio?: Date;
+  fechaFin?: Date;
+  ingresos: EstadoFinancieroSeccion;
+  gastos: EstadoFinancieroSeccion;
+  costosVentas: EstadoFinancieroSeccion;
+  costosProduccion: EstadoFinancieroSeccion;
+  totalIngresos: Prisma.Decimal;
+  totalGastos: Prisma.Decimal;
+  totalCostos: Prisma.Decimal;
+  resultadoNeto: Prisma.Decimal;
+}
+
 export interface LibroDiarioFilters {
   fechaInicio?: Date;
   fechaFin?: Date;

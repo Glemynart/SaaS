@@ -7,7 +7,9 @@ import { RolesGuard } from '../../auth/guards/roles.guard';
 import {
   AuxiliarCentroCostoQueryDto,
   AuxiliarTerceroQueryDto,
+  BalanceGeneralQueryDto,
   BalancePruebaQueryDto,
+  EstadoResultadosQueryDto,
   LibroDiarioQueryDto,
   LibroMayorQueryDto,
 } from './dto/ledger-report-query.dto';
@@ -40,6 +42,22 @@ export class LedgerReportController {
     @Query() query: BalancePruebaQueryDto,
   ) {
     return this.reports.balancePrueba(user.tenantId, query);
+  }
+
+  @Get('balance-general')
+  balanceGeneral(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query() query: BalanceGeneralQueryDto,
+  ) {
+    return this.reports.balanceGeneral(user.tenantId, query);
+  }
+
+  @Get('estado-resultados')
+  estadoResultados(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query() query: EstadoResultadosQueryDto,
+  ) {
+    return this.reports.estadoResultados(user.tenantId, query);
   }
 
   @Get('auxiliares/tercero')

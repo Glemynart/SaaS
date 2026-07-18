@@ -6,6 +6,8 @@ describe('LedgerReportService', () => {
     obtenerLibroDiario: jest.fn(),
     obtenerLibroMayor: jest.fn(),
     obtenerBalancePrueba: jest.fn(),
+    obtenerBalanceGeneral: jest.fn(),
+    obtenerEstadoResultados: jest.fn(),
     obtenerAuxiliarTercero: jest.fn(),
     obtenerAuxiliarCentroCosto: jest.fn(),
   };
@@ -92,5 +94,23 @@ describe('LedgerReportService', () => {
         limit: 5,
       },
     );
+  });
+
+  it('delega estados financieros sin calcular ni escribir resultados', () => {
+    service.balanceGeneral('tenant-a', {
+      fechaCorte: '2026-12-31T00:00:00.000Z',
+    });
+    service.estadoResultados('tenant-a', {
+      fechaInicio: '2026-01-01T00:00:00.000Z',
+      fechaFin: '2026-12-31T00:00:00.000Z',
+    });
+
+    expect(reporting.obtenerBalanceGeneral).toHaveBeenCalledWith('tenant-a', {
+      fechaCorte: new Date('2026-12-31T00:00:00.000Z'),
+    });
+    expect(reporting.obtenerEstadoResultados).toHaveBeenCalledWith('tenant-a', {
+      fechaInicio: new Date('2026-01-01T00:00:00.000Z'),
+      fechaFin: new Date('2026-12-31T00:00:00.000Z'),
+    });
   });
 });

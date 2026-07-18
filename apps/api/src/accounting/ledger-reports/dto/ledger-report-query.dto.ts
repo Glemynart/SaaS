@@ -66,6 +66,14 @@ export class BalancePruebaQueryDto extends DateRangeQueryDto {
   nivel?: number;
 }
 
+export class BalanceGeneralQueryDto {
+  @IsDateString()
+  @IsOptional()
+  fechaCorte?: string;
+}
+
+export class EstadoResultadosQueryDto extends DateRangeQueryDto {}
+
 export class AuxiliarTerceroQueryDto extends LibroMayorQueryDto {
   @IsString()
   @IsNotEmpty()
