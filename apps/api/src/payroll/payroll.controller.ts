@@ -184,6 +184,23 @@ export class PayrollController {
   }
 
   @Roles(UserRole.ADMIN)
+  @Post('payroll/periods/:id/contabilizar')
+  /**
+   * Causa una nómina aprobada en Accounting.
+   *
+   * Respuestas exitosas (HTTP 200):
+   * - `{ status: 'CAUSADA', comprobanteId: '...' }`: se creó el comprobante.
+   * - `{ status: 'YA_CAUSADA', comprobanteId: '...' }`: la operación fue
+   *   idempotente y se devuelve el comprobante ya asociado al período.
+   */
+  contabilizar(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+  ) {
+    return this.service.contabilizar(user.tenantId, user.userId, id);
+  }
+
+  @Roles(UserRole.ADMIN)
   @Post('payroll/periods/:id/rechazar')
   rechazar(
     @CurrentUser() user: CurrentUserPayload,

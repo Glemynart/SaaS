@@ -17,6 +17,9 @@ import { PayrollService } from './payroll.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { LedgerService } from '../accounting/ledger/ledger.service';
+import { PayrollAccountingPreflightService } from './accounting-preflight/payroll-accounting-preflight.service';
+import { PAYROLL_ACCOUNTING_REQUIRED_ROLES } from './accounting-preflight/payroll-accounting-preflight.service';
 import { Test } from '@nestjs/testing';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -45,6 +48,10 @@ const mockPayrollBlockFindMany = jest.fn();
 const mockPayrollBlockFindFirst = jest.fn();
 const mockPayrollBlockCreate = jest.fn();
 const mockPayrollBlockUpdate = jest.fn();
+const mockComprobanteFindFirst = jest.fn();
+const mockCuentaSistemaMapFindMany = jest.fn();
+const mockPeriodoContableFindFirst = jest.fn();
+const mockTipoComprobanteFindFirst = jest.fn();
 
 const mockPrisma = {
   payrollPeriod: {
@@ -79,6 +86,10 @@ const mockPrisma = {
     create: mockPayrollBlockCreate,
     update: mockPayrollBlockUpdate,
   },
+  comprobanteContable: { findFirst: mockComprobanteFindFirst },
+  cuentaSistemaMap: { findMany: mockCuentaSistemaMapFindMany },
+  periodoContable: { findFirst: mockPeriodoContableFindFirst },
+  tipoComprobante: { findFirst: mockTipoComprobanteFindFirst },
   $transaction: jest.fn(),
 };
 
@@ -88,6 +99,8 @@ const mockTenantPrisma = {
     work(mockPrisma),
   ),
 };
+const mockLedger = { registrarComprobante: jest.fn() };
+const mockPreflight = { validate: jest.fn() };
 
 const TENANT = 'tenant-1';
 const USER = 'user-1';
@@ -356,6 +369,13 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
     mockPayrollBlockFindFirst.mockResolvedValue(null);
     mockPayrollBlockCreate.mockResolvedValue({});
     mockPayrollBlockUpdate.mockResolvedValue({});
+    mockComprobanteFindFirst.mockResolvedValue(null);
+    mockCuentaSistemaMapFindMany.mockResolvedValue([]);
+    mockPeriodoContableFindFirst.mockResolvedValue({ id: 'accounting-period' });
+    mockTipoComprobanteFindFirst.mockResolvedValue({ id: 'nom-type' });
+    mockLedger.registrarComprobante.mockResolvedValue({ id: 'voucher-1' });
+    mockPreflight.validate.mockResolvedValue({ status: 'OK', validations: [] });
+    mockTenantPrisma.execute.mockImplementation((work) => work(mockPrisma));
 
     const module = await Test.createTestingModule({
       providers: [
@@ -363,6 +383,8 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TenantPrismaService, useValue: mockTenantPrisma },
         { provide: AuditService, useValue: mockAudit },
+        { provide: LedgerService, useValue: mockLedger },
+        { provide: PayrollAccountingPreflightService, useValue: mockPreflight },
       ],
     }).compile();
 
@@ -1770,6 +1792,126 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           data: expect.objectContaining({ status: 'BORRADOR' }),
         }),
       );
+    });
+  });
+
+  describe('contabilizar — causación contable (ACC-13)', () => {
+    const accountingRun = {
+      centroCostoId: 'cc-1',
+      totalDevengos: 100,
+      totalDeducciones: 10,
+      netoPagar: 90,
+      totalAportesPatronales: 20,
+      totalProvisiones: 5,
+      concepts: [
+        { codigo: 'SALUD_EMP', valor: 4 },
+        { codigo: 'SALUD_PAT', valor: 8 },
+      ],
+    };
+
+    function configureAccountingInputs() {
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('APROBADA'));
+      mockCuentaSistemaMapFindMany.mockResolvedValue(
+        PAYROLL_ACCOUNTING_REQUIRED_ROLES.map((rol) => ({
+          rol,
+          cuentaId: `account-${rol}`,
+        })),
+      );
+      mockPeriodoContableFindFirst.mockResolvedValue({
+        id: 'accounting-period',
+      });
+      mockTipoComprobanteFindFirst.mockResolvedValue({ id: 'nom-type' });
+      mockPayrollRunFindMany.mockResolvedValue([accountingRun]);
+    }
+
+    it('ejecuta el preflight antes de crear el comprobante', async () => {
+      mockPreflight.validate.mockResolvedValue({
+        status: 'ERROR',
+        validations: [{ code: 'ACCOUNTING_PERIOD_CLOSED' }],
+      });
+
+      const result = await service.contabilizar(TENANT, USER, PERIOD_ID);
+
+      expect(result).toEqual({
+        status: 'PREFLIGHT_ERROR',
+        preflight: expect.objectContaining({ status: 'ERROR' }),
+      });
+      expect(mockTenantPrisma.execute).not.toHaveBeenCalled();
+      expect(mockLedger.registrarComprobante).not.toHaveBeenCalled();
+      expect(mockPayrollPeriodUpdateMany).not.toHaveBeenCalled();
+    });
+
+    it('causa una nómina aprobada a través del Ledger y conserva la relación de origen', async () => {
+      configureAccountingInputs();
+
+      const result = await service.contabilizar(TENANT, USER, PERIOD_ID);
+
+      expect(result).toEqual({
+        status: 'CAUSADA',
+        payrollPeriodId: PERIOD_ID,
+        comprobanteId: 'voucher-1',
+      });
+      expect(mockLedger.registrarComprobante).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenantId: TENANT,
+          origenTipo: 'PAYROLL',
+          origenId: PERIOD_ID,
+          origenEvento: 'CAUSACION',
+        }),
+        mockPrisma,
+      );
+      expect(mockPayrollPeriodUpdateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'CAUSADA' } }),
+      );
+    });
+
+    it('revierte la transacción si Ledger falla antes de la transición de Payroll', async () => {
+      configureAccountingInputs();
+      mockLedger.registrarComprobante.mockRejectedValueOnce(
+        new Error('Ledger failure'),
+      );
+
+      await expect(
+        service.contabilizar(TENANT, USER, PERIOD_ID),
+      ).rejects.toThrow('Ledger failure');
+
+      expect(mockPayrollPeriodUpdateMany).not.toHaveBeenCalled();
+    });
+
+    it('propaga el fallo al persistir Payroll para que el comprobante sea rollback', async () => {
+      configureAccountingInputs();
+      mockPayrollPeriodUpdateMany.mockResolvedValueOnce({ count: 0 });
+
+      await expect(
+        service.contabilizar(TENANT, USER, PERIOD_ID),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(mockLedger.registrarComprobante).toHaveBeenCalledTimes(1);
+    });
+
+    it('es idempotente si el período ya está causado y tiene su comprobante', async () => {
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CAUSADA'));
+      mockComprobanteFindFirst.mockResolvedValue({ id: 'voucher-existing' });
+
+      const result = await service.contabilizar(TENANT, USER, PERIOD_ID);
+
+      expect(result).toEqual({
+        status: 'YA_CAUSADA',
+        payrollPeriodId: PERIOD_ID,
+        comprobanteId: 'voucher-existing',
+      });
+      expect(mockLedger.registrarComprobante).not.toHaveBeenCalled();
+      expect(mockPayrollPeriodUpdateMany).not.toHaveBeenCalled();
+    });
+
+    it('no crea un segundo comprobante en una segunda solicitud', async () => {
+      configureAccountingInputs();
+      await service.contabilizar(TENANT, USER, PERIOD_ID);
+
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CAUSADA'));
+      mockComprobanteFindFirst.mockResolvedValue({ id: 'voucher-1' });
+      await service.contabilizar(TENANT, USER, PERIOD_ID);
+
+      expect(mockLedger.registrarComprobante).toHaveBeenCalledTimes(1);
     });
   });
 });

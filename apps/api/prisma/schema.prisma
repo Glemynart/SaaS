@@ -663,6 +663,7 @@ enum PayrollPeriodStatus {
   CALCULADA
   EN_REVISION
   APROBADA
+  CAUSADA
   // CERRADA en U1/P1 es EXCLUSIVAMENTE legado: solo lo puebla el backfill de
   // la migración (CLOSED → CERRADA). Ningún flujo nuevo de U1 transiciona
   // hacia CERRADA — no aparece como destino en VALID_TRANSITIONS

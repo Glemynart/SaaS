@@ -13,6 +13,17 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
+import { LedgerService } from '../accounting/ledger/ledger.service';
+import {
+  PAYROLL_ACCOUNTING_REQUIRED_ROLES,
+  PayrollAccountingPreflightResult,
+  PayrollAccountingPreflightService,
+} from './accounting-preflight/payroll-accounting-preflight.service';
+import {
+  buildPayrollAccrualLines,
+  PayrollSystemAccounts,
+} from './accounting/payroll-accounting.mapper';
 import {
   CreatePayrollPeriodDto,
   CreatePayrollNoveltyDto,
@@ -116,7 +127,213 @@ export class PayrollService {
     private prisma: PrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private auditService: AuditService,
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly ledger: LedgerService,
+    private readonly accountingPreflight: PayrollAccountingPreflightService,
   ) {}
+
+  async contabilizar(
+    tenantId: string,
+    userId: string,
+    periodId: string,
+  ): Promise<
+    | {
+        status: 'PREFLIGHT_ERROR';
+        preflight: PayrollAccountingPreflightResult;
+      }
+    | {
+        status: 'CAUSADA' | 'YA_CAUSADA';
+        payrollPeriodId: string;
+        comprobanteId: string;
+      }
+  > {
+    const period = await this.prisma.payrollPeriod.findFirst({
+      where: { id: periodId, tenantId },
+      select: { id: true, fechaFin: true },
+    });
+    if (!period) throw new NotFoundException('Período de nómina no encontrado');
+
+    const preflight = await this.accountingPreflight.validate(tenantId, {
+      fechaCausacion: period.fechaFin,
+    });
+    if (preflight.status === 'ERROR') {
+      return { status: 'PREFLIGHT_ERROR', preflight };
+    }
+
+    return this.tenantPrisma.execute(async (tx) => {
+      const current = await tx.payrollPeriod.findFirst({
+        where: { id: periodId, tenantId },
+        select: { id: true, nombre: true, fechaFin: true, status: true },
+      });
+      if (!current)
+        throw new NotFoundException('Período de nómina no encontrado');
+
+      const existing = await tx.comprobanteContable.findFirst({
+        where: {
+          tenantId,
+          origenTipo: 'PAYROLL',
+          origenId: current.id,
+          origenEvento: 'CAUSACION',
+          estado: { not: 'ANULADO' },
+        },
+        select: { id: true },
+      });
+
+      if (current.status === PayrollPeriodStatus.CAUSADA) {
+        if (!existing) {
+          throw new ConflictException(
+            'El período figura como causado sin comprobante de causación asociado.',
+          );
+        }
+        return {
+          status: 'YA_CAUSADA' as const,
+          payrollPeriodId: current.id,
+          comprobanteId: existing.id,
+        };
+      }
+
+      if (current.status !== PayrollPeriodStatus.APROBADA) {
+        throw new BadRequestException(
+          `Solo se puede contabilizar un período APROBADA; estado actual: ${current.status}.`,
+        );
+      }
+      if (existing) {
+        throw new ConflictException(
+          'Ya existe una causación para este período de nómina.',
+        );
+      }
+
+      const [maps, accountingPeriod, voucherType, runs] = await Promise.all([
+        tx.cuentaSistemaMap.findMany({
+          where: {
+            tenantId,
+            activo: true,
+            rol: { in: [...PAYROLL_ACCOUNTING_REQUIRED_ROLES] },
+          },
+          select: { rol: true, cuentaId: true },
+        }),
+        tx.periodoContable.findFirst({
+          where: {
+            tenantId,
+            estado: 'ABIERTO',
+            fechaInicio: { lte: current.fechaFin },
+            fechaFin: { gte: current.fechaFin },
+          },
+          select: { id: true },
+        }),
+        tx.tipoComprobante.findFirst({
+          where: { codigo: 'NOM', activo: true },
+          select: { id: true },
+        }),
+        tx.payrollRun.findMany({
+          where: { tenantId, payrollPeriodId: current.id },
+          select: {
+            centroCostoId: true,
+            totalDevengos: true,
+            totalDeducciones: true,
+            netoPagar: true,
+            totalAportesPatronales: true,
+            totalProvisiones: true,
+            concepts: { select: { codigo: true, valor: true } },
+          },
+        }),
+      ]);
+
+      if (!accountingPeriod || !voucherType) {
+        throw new ConflictException(
+          'La configuración contable cambió después del preflight.',
+        );
+      }
+      if (runs.length === 0) {
+        throw new BadRequestException(
+          'No existen liquidaciones válidas para contabilizar.',
+        );
+      }
+
+      const accountMap = new Map(maps.map((map) => [map.rol, map.cuentaId]));
+      const accounts = Object.fromEntries(
+        PAYROLL_ACCOUNTING_REQUIRED_ROLES.map((role) => {
+          const accountId = accountMap.get(role);
+          if (!accountId) {
+            throw new ConflictException(
+              `El mapeo contable ${role} no está disponible para la causación.`,
+            );
+          }
+          return [role, accountId];
+        }),
+      ) as PayrollSystemAccounts;
+
+      const comprobante = await this.ledger.registrarComprobante(
+        {
+          tenantId,
+          userId,
+          tipoComprobanteId: voucherType.id,
+          periodoId: accountingPeriod.id,
+          fecha: current.fechaFin,
+          concepto: `Causación nómina ${current.nombre}`,
+          lineas: buildPayrollAccrualLines(
+            runs.map((run) => ({
+              centroCostoId: run.centroCostoId,
+              totalDevengos: Number(run.totalDevengos),
+              totalDeducciones: Number(run.totalDeducciones),
+              netoPagar: Number(run.netoPagar),
+              totalAportesPatronales: run.totalAportesPatronales
+                ? Number(run.totalAportesPatronales)
+                : null,
+              totalProvisiones: run.totalProvisiones
+                ? Number(run.totalProvisiones)
+                : null,
+              concepts: run.concepts.map((concept) => ({
+                codigo: concept.codigo,
+                valor: Number(concept.valor),
+              })),
+            })),
+            accounts,
+          ),
+          origenTipo: 'PAYROLL',
+          origenId: current.id,
+          origenEvento: 'CAUSACION',
+        },
+        tx,
+      );
+
+      const transition = await tx.payrollPeriod.updateMany({
+        where: {
+          id: current.id,
+          tenantId,
+          status: PayrollPeriodStatus.APROBADA,
+        },
+        data: { status: PayrollPeriodStatus.CAUSADA },
+      });
+      if (transition.count === 0) {
+        throw new ConflictException(
+          'El período de nómina fue modificado durante la causación.',
+        );
+      }
+
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'PAYROLL_ACCRUED',
+          entityType: 'PayrollPeriod',
+          entityId: current.id,
+          metadata: {
+            comprobanteId: comprobante.id,
+            from: 'APROBADA',
+            to: 'CAUSADA',
+          },
+        },
+        tx,
+      );
+
+      return {
+        status: 'CAUSADA' as const,
+        payrollPeriodId: current.id,
+        comprobanteId: comprobante.id,
+      };
+    });
+  }
 
   async createPeriod(
     tenantId: string,
@@ -1564,7 +1781,7 @@ export class PayrollService {
           estadoPeriodo: PayrollPeriodStatus.APROBADA,
           origen: origin,
           payloadVersion: SNAPSHOT_PAYLOAD_VERSION,
-          payload: payload as Prisma.InputJsonValue,
+          payload,
         },
       });
     }
