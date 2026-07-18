@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { AccountingProvisioningService } from '../src/accounting/provisioning/accounting-provisioning.service';
 import { LedgerService } from '../src/accounting/ledger/ledger.service';
+import { ManualJournalService } from '../src/accounting/manual-journals/manual-journal.service';
 import { ReportingService } from '../src/accounting/reporting/reporting.service';
 import { ClosureService } from '../src/accounting/closure/closure.service';
 import { AuditService } from '../src/audit/audit.service';
@@ -39,6 +40,7 @@ describe('Accounting baseline — C0 a C3 (e2e)', () => {
     audit,
   );
   const ledger = new LedgerService(tenantPrisma, audit);
+  const manualJournals = new ManualJournalService(ledger);
   const reporting = new ReportingService(prisma as unknown as PrismaService);
   const closure = new ClosureService(tenantPrisma, reporting, audit, ledger);
 
@@ -174,12 +176,10 @@ describe('Accounting baseline — C0 a C3 (e2e)', () => {
     expect(segundoProvisioning.status).toBe('already_provisioned');
 
     const ingreso = await runAsTenant(() =>
-      ledger.registrarComprobante({
-        tenantId,
-        userId,
+      manualJournals.registrar(tenantId, userId, {
         tipoComprobanteId: tipoContabilidadId,
         periodoId: periodoDiciembreId,
-        fecha: new Date(Date.UTC(anio, 11, 15)),
+        fecha: new Date(Date.UTC(anio, 11, 15)).toISOString(),
         concepto: 'Ingreso de cierre baseline',
         lineas: [
           { cuentaId: cuentaCajaId, debito: 1000, credito: 0 },
@@ -193,12 +193,10 @@ describe('Accounting baseline — C0 a C3 (e2e)', () => {
       }),
     );
     const gasto = await runAsTenant(() =>
-      ledger.registrarComprobante({
-        tenantId,
-        userId,
+      manualJournals.registrar(tenantId, userId, {
         tipoComprobanteId: tipoContabilidadId,
         periodoId: periodoDiciembreId,
-        fecha: new Date(Date.UTC(anio, 11, 20)),
+        fecha: new Date(Date.UTC(anio, 11, 20)).toISOString(),
         concepto: 'Gasto de cierre baseline',
         lineas: [
           {
