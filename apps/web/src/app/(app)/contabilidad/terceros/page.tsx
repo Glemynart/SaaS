@@ -1,5 +1,5 @@
-import { AccountingPlaceholder } from '@/features/accounting/components/accounting-placeholder';
+import { TercerosManagement } from '@/features/accounting/components/terceros-management';
 
 export default function TercerosPage() {
-  return <AccountingPlaceholder sectionId="terceros" />;
+  return <TercerosManagement />;
 }

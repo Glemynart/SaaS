@@ -7,7 +7,6 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useCuentasContables } from '../hooks/use-accounting-configuration';
 import {
@@ -15,6 +14,7 @@ import {
   type CuentaContableFormData,
 } from '../schemas/accounting-configuration-schemas';
 import type { CuentaContable } from '../services/accounting-api';
+import { AccountingCheckboxField } from './accounting-checkbox-field';
 
 const CLASES = [
   ['ACTIVO', 'Activo'],
@@ -32,28 +32,6 @@ interface CuentaContableFormProps {
   initialData?: CuentaContable;
   onSubmit: (data: CuentaContableFormData) => void;
   isLoading?: boolean;
-}
-
-function BooleanField({
-  id,
-  label,
-  disabled,
-  ...props
-}: React.InputHTMLAttributes<HTMLInputElement> & { id: string; label: string }) {
-  return (
-    <div className="flex items-center gap-3">
-      <Input
-        id={id}
-        type="checkbox"
-        className="size-4 accent-primary"
-        disabled={disabled}
-        {...props}
-      />
-      <Label htmlFor={id} className={disabled ? 'text-muted-foreground' : undefined}>
-        {label}
-      </Label>
-    </div>
-  );
 }
 
 export function CuentaContableForm({ initialData, onSubmit, isLoading }: CuentaContableFormProps) {
@@ -183,31 +161,31 @@ export function CuentaContableForm({ initialData, onSubmit, isLoading }: CuentaC
           </p>
         )}
         <div className="grid gap-3 sm:grid-cols-2">
-          <BooleanField
+          <AccountingCheckboxField
             id="imputable"
             label="Cuenta imputable"
             disabled={isProtected}
             {...register('imputable')}
           />
-          <BooleanField
+          <AccountingCheckboxField
             id="activa"
             label="Cuenta activa"
             disabled={isProtected}
             {...register('activa')}
           />
-          <BooleanField
+          <AccountingCheckboxField
             id="requiereTercero"
             label="Requiere tercero"
             disabled={isProtected}
             {...register('requiereTercero')}
           />
-          <BooleanField
+          <AccountingCheckboxField
             id="requiereCentroCosto"
             label="Requiere centro de costo"
             disabled={isProtected}
             {...register('requiereCentroCosto')}
           />
-          <BooleanField
+          <AccountingCheckboxField
             id="requiereBase"
             label="Requiere base gravable"
             disabled={isProtected}

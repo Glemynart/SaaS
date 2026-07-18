@@ -1,5 +1,5 @@
-import { AccountingPlaceholder } from '@/features/accounting/components/accounting-placeholder';
+import { CentrosCostoManagement } from '@/features/accounting/components/centros-costo-management';
 
 export default function CentrosCostoPage() {
-  return <AccountingPlaceholder sectionId="centros-costo" />;
+  return <CentrosCostoManagement />;
 }

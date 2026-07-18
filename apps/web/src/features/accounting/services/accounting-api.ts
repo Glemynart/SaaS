@@ -86,6 +86,108 @@ export interface CuentaSistemaMapUpdatePayload {
   activo?: boolean;
 }
 
+export type TipoDocumentoTercero = 'CC' | 'CE' | 'TI' | 'PA' | 'NIT' | 'PEP' | 'PPT';
+export type TipoPersona = 'NATURAL' | 'JURIDICA';
+
+export interface Tercero {
+  id: string;
+  tenantId: string;
+  tipoDocumento: TipoDocumentoTercero;
+  numeroDocumento: string;
+  digitoVerificacion: string | null;
+  tipoPersona: TipoPersona;
+  razonSocial: string | null;
+  primerNombre: string | null;
+  segundoNombre: string | null;
+  primerApellido: string | null;
+  segundoApellido: string | null;
+  nombreComercial: string | null;
+  esCliente: boolean;
+  esProveedor: boolean;
+  esEmpleado: boolean;
+  esEntidadGubernamental: boolean;
+  esBanco: boolean;
+  responsabilidadesFiscales: string[];
+  regimenSimple: boolean;
+  granContribuyente: boolean;
+  email: string | null;
+  telefono: string | null;
+  direccion: string | null;
+  municipioId: string | null;
+  activo: boolean;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TerceroFilters {
+  search?: string;
+  esCliente?: boolean;
+  esProveedor?: boolean;
+  activo?: boolean;
+}
+
+export interface TerceroPayload {
+  tipoDocumento: TipoDocumentoTercero;
+  numeroDocumento: string;
+  digitoVerificacion?: string;
+  tipoPersona: TipoPersona;
+  razonSocial?: string;
+  primerNombre?: string;
+  segundoNombre?: string;
+  primerApellido?: string;
+  segundoApellido?: string;
+  nombreComercial?: string;
+  esCliente?: boolean;
+  esProveedor?: boolean;
+  esEmpleado?: boolean;
+  esEntidadGubernamental?: boolean;
+  esBanco?: boolean;
+  responsabilidadesFiscales?: string[];
+  regimenSimple?: boolean;
+  granContribuyente?: boolean;
+  email?: string;
+  telefono?: string;
+  direccion?: string;
+  municipioId?: string;
+  activo?: boolean;
+}
+
+export type TerceroUpdatePayload = Omit<
+  Partial<TerceroPayload>,
+  'tipoDocumento' | 'numeroDocumento'
+>;
+
+export interface CentroCosto {
+  id: string;
+  tenantId: string;
+  codigo: string;
+  nombre: string;
+  sedeId: string | null;
+  activo: boolean;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CentroCostoFilters {
+  search?: string;
+  activo?: boolean;
+}
+
+export interface CentroCostoPayload {
+  codigo: string;
+  nombre: string;
+  sedeId?: string;
+  activo?: boolean;
+}
+
+export interface CentroCostoUpdatePayload {
+  nombre?: string;
+  sedeId?: string;
+  activo?: boolean;
+}
+
 type ApiEnvelope<T> = T & { message?: string };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -108,6 +210,24 @@ function toQueryString(filters?: CuentaContableFilters) {
   if (filters?.claseContable) params.set('claseContable', filters.claseContable);
   if (filters?.imputable !== undefined) params.set('imputable', String(filters.imputable));
   if (filters?.activa !== undefined) params.set('activa', String(filters.activa));
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
+function toTerceroQueryString(filters?: TerceroFilters) {
+  const params = new URLSearchParams();
+  if (filters?.search) params.set('search', filters.search);
+  if (filters?.esCliente !== undefined) params.set('esCliente', String(filters.esCliente));
+  if (filters?.esProveedor !== undefined) params.set('esProveedor', String(filters.esProveedor));
+  if (filters?.activo !== undefined) params.set('activo', String(filters.activo));
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
+function toCentroCostoQueryString(filters?: CentroCostoFilters) {
+  const params = new URLSearchParams();
+  if (filters?.search) params.set('search', filters.search);
+  if (filters?.activo !== undefined) params.set('activo', String(filters.activo));
   const query = params.toString();
   return query ? `?${query}` : '';
 }
@@ -136,6 +256,31 @@ export const accountingApi = {
       }),
     update: ({ id, data }: { id: string; data: CuentaSistemaMapUpdatePayload }) =>
       request<CuentaSistemaMap>(`/api/accounting/cuenta-sistema-map/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+  },
+  terceros: {
+    getAll: (filters?: TerceroFilters) =>
+      request<Tercero[]>(`/api/accounting/terceros${toTerceroQueryString(filters)}`),
+    create: (data: TerceroPayload) =>
+      request<Tercero>('/api/accounting/terceros', { method: 'POST', body: JSON.stringify(data) }),
+    update: ({ id, data }: { id: string; data: TerceroUpdatePayload }) =>
+      request<Tercero>(`/api/accounting/terceros/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+  },
+  centrosCosto: {
+    getAll: (filters?: CentroCostoFilters) =>
+      request<CentroCosto[]>(`/api/accounting/centros-costo${toCentroCostoQueryString(filters)}`),
+    create: (data: CentroCostoPayload) =>
+      request<CentroCosto>('/api/accounting/centros-costo', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    update: ({ id, data }: { id: string; data: CentroCostoUpdatePayload }) =>
+      request<CentroCosto>(`/api/accounting/centros-costo/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),

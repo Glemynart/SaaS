@@ -1,7 +1,12 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { accountingApi, type CuentaContableFilters } from '../services/accounting-api';
+import {
+  accountingApi,
+  type CentroCostoFilters,
+  type CuentaContableFilters,
+  type TerceroFilters,
+} from '../services/accounting-api';
 
 export const accountingConfigurationKeys = {
   all: ['accounting-configuration'] as const,
@@ -9,6 +14,12 @@ export const accountingConfigurationKeys = {
   cuentaList: (filters: CuentaContableFilters) =>
     [...accountingConfigurationKeys.cuentas(), filters] as const,
   mapas: () => [...accountingConfigurationKeys.all, 'mapas'] as const,
+  terceros: () => [...accountingConfigurationKeys.all, 'terceros'] as const,
+  terceroList: (filters: TerceroFilters) =>
+    [...accountingConfigurationKeys.terceros(), filters] as const,
+  centrosCosto: () => [...accountingConfigurationKeys.all, 'centros-costo'] as const,
+  centroCostoList: (filters: CentroCostoFilters) =>
+    [...accountingConfigurationKeys.centrosCosto(), filters] as const,
 };
 
 export function useCuentasContables(filters: CuentaContableFilters = {}) {
@@ -58,5 +69,55 @@ export function useUpdateCuentaSistemaMap() {
     mutationFn: accountingApi.mapas.update,
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: accountingConfigurationKeys.mapas() }),
+  });
+}
+
+export function useTerceros(filters: TerceroFilters = {}) {
+  return useQuery({
+    queryKey: accountingConfigurationKeys.terceroList(filters),
+    queryFn: () => accountingApi.terceros.getAll(filters),
+  });
+}
+
+export function useCreateTercero() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: accountingApi.terceros.create,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: accountingConfigurationKeys.terceros() }),
+  });
+}
+
+export function useUpdateTercero() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: accountingApi.terceros.update,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: accountingConfigurationKeys.terceros() }),
+  });
+}
+
+export function useCentrosCosto(filters: CentroCostoFilters = {}) {
+  return useQuery({
+    queryKey: accountingConfigurationKeys.centroCostoList(filters),
+    queryFn: () => accountingApi.centrosCosto.getAll(filters),
+  });
+}
+
+export function useCreateCentroCosto() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: accountingApi.centrosCosto.create,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: accountingConfigurationKeys.centrosCosto() }),
+  });
+}
+
+export function useUpdateCentroCosto() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: accountingApi.centrosCosto.update,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: accountingConfigurationKeys.centrosCosto() }),
   });
 }
