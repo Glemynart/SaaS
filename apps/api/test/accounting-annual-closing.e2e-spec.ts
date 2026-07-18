@@ -2,6 +2,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { AccountingProvisioningService } from '../src/accounting/provisioning/accounting-provisioning.service';
 import { LedgerService } from '../src/accounting/ledger/ledger.service';
 import { ManualJournalService } from '../src/accounting/manual-journals/manual-journal.service';
+import { PeriodClosureService } from '../src/accounting/period-closures/period-closure.service';
 import { ReportingService } from '../src/accounting/reporting/reporting.service';
 import { ClosureService } from '../src/accounting/closure/closure.service';
 import { AuditService } from '../src/audit/audit.service';
@@ -43,6 +44,7 @@ describe('Accounting baseline — C0 a C3 (e2e)', () => {
   const manualJournals = new ManualJournalService(ledger);
   const reporting = new ReportingService(prisma as unknown as PrismaService);
   const closure = new ClosureService(tenantPrisma, reporting, audit, ledger);
+  const periodClosures = new PeriodClosureService(closure);
 
   const runAsTenant = <T>(work: () => Promise<T>): Promise<T> =>
     tenantContext.run(
@@ -220,7 +222,7 @@ describe('Accounting baseline — C0 a C3 (e2e)', () => {
         throw rollback;
       });
     await expect(
-      runAsTenant(() => closure.cerrarAnioFiscal(tenantId, anio, userId)),
+      runAsTenant(() => periodClosures.cerrarAnio(tenantId, userId, anio)),
     ).rejects.toBe(rollback);
     jest.spyOn(closure, 'cerrarPeriodo').mockRestore();
 
@@ -259,7 +261,7 @@ describe('Accounting baseline — C0 a C3 (e2e)', () => {
     ]);
 
     const cierre = await runAsTenant(() =>
-      closure.cerrarAnioFiscal(tenantId, anio, userId),
+      periodClosures.cerrarAnio(tenantId, userId, anio),
     );
     expect(cierre).toMatchObject({
       posteado: true,
@@ -310,7 +312,7 @@ describe('Accounting baseline — C0 a C3 (e2e)', () => {
     expect(periodoDiciembre.estado).toBe('CERRADO');
 
     const reintento = await runAsTenant(() =>
-      closure.cerrarAnioFiscal(tenantId, anio, userId),
+      periodClosures.cerrarAnio(tenantId, userId, anio),
     );
     expect(reintento).toMatchObject({
       posteado: false,
