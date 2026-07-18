@@ -86,10 +86,10 @@ function build() {
     },
   };
 
-  const prisma = {
+  const client = {
     periodoContable: {
       findFirst: mocks.periodoFindFirst,
-      updateMany: mocks.periodoUpdateMany,
+      updateMany: mocks.txUpdateMany,
     },
     comprobanteContable: {
       count: mocks.comprobanteCount,
@@ -102,9 +102,10 @@ function build() {
     cuentaSistemaMap: {
       findFirst: mocks.cuentaSistemaMapFindFirst,
     },
-    $transaction: jest
-      .fn()
-      .mockImplementation(async (cb: (tx: unknown) => unknown) => cb(tx)),
+  };
+
+  const tenantPrisma = {
+    execute: jest.fn((cb: (tx: unknown) => unknown) => cb(client)),
   };
 
   const reporting = {
@@ -121,13 +122,13 @@ function build() {
   };
 
   const service = new ClosureService(
-    prisma as never,
+    tenantPrisma as never,
     reporting as never,
     audit as never,
     ledger as never,
   );
 
-  return { service, mocks, audit, ledger };
+  return { service, mocks, audit, ledger, tenantPrisma, client };
 }
 
 describe('ClosureService', () => {
@@ -1070,7 +1071,7 @@ describe('ClosureService', () => {
     });
 
     it('postea el asiento de utilidad, cierra diciembre y audita — solo porque esta invocación posteó', async () => {
-      const { service, mocks, ledger, audit } = build();
+      const { service, mocks, ledger, audit, client } = build();
       mockDependenciasOk(mocks);
       mocks.obtenerSaldosDimensionados.mockResolvedValue(balanceUtilidad());
       const capturado = capturarComprobante(mocks);
@@ -1099,7 +1100,9 @@ describe('ClosureService', () => {
           origenId: String(ANIO),
           origenEvento: 'CIERRE',
         }),
+        expect.anything(),
       );
+      expect(mocks.registrarComprobante.mock.calls[0][1]).toBe(client);
 
       const lineas = capturado.input!.lineas;
       expect(lineas).toHaveLength(3);

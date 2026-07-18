@@ -1,8 +1,11 @@
 import { Injectable, ConflictException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from '../../prisma/prisma.service';
 import { ReportingService } from '../reporting/reporting.service';
 import { AuditService } from '../../audit/audit.service';
+import {
+  TenantPrismaClient,
+  TenantPrismaService,
+} from '../../tenant-prisma/tenant-prisma.service';
 import { LedgerService, MAX_LINEAS } from '../ledger/ledger.service';
 import { LineaComprobanteInput } from '../ledger/ledger.types';
 import { SaldoDimensionadoItem } from '../reporting/reporting.types';
@@ -116,7 +119,7 @@ export interface CerrarAnioFiscalResult {
 @Injectable()
 export class ClosureService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly tenantPrisma: TenantPrismaService,
     private readonly reporting: ReportingService,
     private readonly audit: AuditService,
     private readonly ledger: LedgerService,
@@ -129,17 +132,19 @@ export class ClosureService {
     const bloqueos: string[] = [];
 
     // --- 1. El período existe y está ABIERTO ---
-    const periodo = await this.prisma.periodoContable.findFirst({
-      where: { id: periodoId, tenantId },
-      select: {
-        id: true,
-        estado: true,
-        anio: true,
-        mes: true,
-        fechaInicio: true,
-        fechaFin: true,
-      },
-    });
+    const periodo = await this.tenantPrisma.execute((client) =>
+      client.periodoContable.findFirst({
+        where: { id: periodoId, tenantId },
+        select: {
+          id: true,
+          estado: true,
+          anio: true,
+          mes: true,
+          fechaInicio: true,
+          fechaFin: true,
+        },
+      }),
+    );
 
     if (!periodo) {
       bloqueos.push(ClosureBloqueo.PERIODO_NO_ENCONTRADO);
@@ -155,13 +160,15 @@ export class ClosureService {
     }
 
     // --- 2. Sin comprobantes en BORRADOR ---
-    const borradoresCount = await this.prisma.comprobanteContable.count({
-      where: {
-        tenantId,
-        periodoId,
-        estado: 'BORRADOR',
-      },
-    });
+    const borradoresCount = await this.tenantPrisma.execute((client) =>
+      client.comprobanteContable.count({
+        where: {
+          tenantId,
+          periodoId,
+          estado: 'BORRADOR',
+        },
+      }),
+    );
 
     if (borradoresCount > 0) {
       bloqueos.push(ClosureBloqueo.BORRADORES_PENDIENTES);
@@ -172,15 +179,17 @@ export class ClosureService {
     const mesAnterior = mes === 1 ? 12 : mes - 1;
     const anioAnterior = mes === 1 ? anio - 1 : anio;
 
-    const anteriorAbierto = await this.prisma.periodoContable.findFirst({
-      where: {
-        tenantId,
-        anio: anioAnterior,
-        mes: mesAnterior,
-        estado: 'ABIERTO',
-      },
-      select: { id: true },
-    });
+    const anteriorAbierto = await this.tenantPrisma.execute((client) =>
+      client.periodoContable.findFirst({
+        where: {
+          tenantId,
+          anio: anioAnterior,
+          mes: mesAnterior,
+          estado: 'ABIERTO',
+        },
+        select: { id: true },
+      }),
+    );
 
     if (anteriorAbierto) {
       bloqueos.push(ClosureBloqueo.CIERRE_CRONOLOGICO);
@@ -230,7 +239,7 @@ export class ClosureService {
       };
     }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
+    const updated = await this.tenantPrisma.execute(async (tx) => {
       const result = await tx.periodoContable.updateMany({
         where: {
           id: periodoId,
@@ -270,67 +279,67 @@ export class ClosureService {
     userId: string,
     motivo: string,
   ): Promise<ReabrirPeriodoResult> {
-    const bloqueos: string[] = [];
+    return this.tenantPrisma.execute(async (tx) => {
+      const bloqueos: string[] = [];
 
-    if (!motivo || motivo.trim().length === 0) {
-      bloqueos.push(ClosureBloqueo.MOTIVO_REQUERIDO);
-    }
+      if (!motivo || motivo.trim().length === 0) {
+        bloqueos.push(ClosureBloqueo.MOTIVO_REQUERIDO);
+      }
 
-    // --- El período existe ---
-    const periodo = await this.prisma.periodoContable.findFirst({
-      where: { id: periodoId, tenantId },
-      select: { id: true, estado: true, anio: true, mes: true },
-    });
+      // --- El período existe ---
+      const periodo = await tx.periodoContable.findFirst({
+        where: { id: periodoId, tenantId },
+        select: { id: true, estado: true, anio: true, mes: true },
+      });
 
-    if (!periodo) {
-      bloqueos.push(ClosureBloqueo.PERIODO_NO_ENCONTRADO);
-      return { reabierto: false, yaEstabaAbierto: false, bloqueos };
-    }
+      if (!periodo) {
+        bloqueos.push(ClosureBloqueo.PERIODO_NO_ENCONTRADO);
+        return { reabierto: false, yaEstabaAbierto: false, bloqueos };
+      }
 
-    if (bloqueos.length > 0) {
-      return { reabierto: false, yaEstabaAbierto: false, bloqueos };
-    }
+      if (bloqueos.length > 0) {
+        return { reabierto: false, yaEstabaAbierto: false, bloqueos };
+      }
 
-    if (periodo.estado === 'ABIERTO') {
-      return { reabierto: true, yaEstabaAbierto: true };
-    }
+      if (periodo.estado === 'ABIERTO') {
+        return { reabierto: true, yaEstabaAbierto: true };
+      }
 
-    // --- LIFO (C3-I4): no debe existir un período CERRADO posterior ---
-    const { anio, mes } = periodo;
-    const posteriorCerrado = await this.prisma.periodoContable.findFirst({
-      where: {
-        tenantId,
-        estado: 'CERRADO',
-        OR: [{ anio: { gt: anio } }, { anio, mes: { gt: mes } }],
-      },
-      select: { id: true },
-    });
+      // --- LIFO (C3-I4): no debe existir un período CERRADO posterior ---
+      const { anio, mes } = periodo;
+      const posteriorCerrado = await tx.periodoContable.findFirst({
+        where: {
+          tenantId,
+          estado: 'CERRADO',
+          OR: [{ anio: { gt: anio } }, { anio, mes: { gt: mes } }],
+        },
+        select: { id: true },
+      });
 
-    if (posteriorCerrado) {
-      bloqueos.push(ClosureBloqueo.NO_ES_ULTIMO_PERIODO_CERRADO);
-    }
+      if (posteriorCerrado) {
+        bloqueos.push(ClosureBloqueo.NO_ES_ULTIMO_PERIODO_CERRADO);
+      }
 
-    // --- Cierre anual posteado (C3-I12): exige reverso previo por el puerto ---
-    const cierreAnual = await this.prisma.comprobanteContable.findFirst({
-      where: {
-        tenantId,
-        periodoId,
-        origenTipo: ORIGEN_CIERRE_ANUAL,
-        estado: { not: 'ANULADO' },
-      },
-      select: { id: true },
-    });
+      // --- Cierre anual posteado (C3-I12): exige reverso previo por el puerto ---
+      const cierreAnual = await tx.comprobanteContable.findFirst({
+        where: {
+          tenantId,
+          periodoId,
+          origenTipo: ORIGEN_CIERRE_ANUAL,
+          estado: { not: 'ANULADO' },
+        },
+        select: { id: true },
+      });
 
-    if (cierreAnual) {
-      bloqueos.push(ClosureBloqueo.CIERRE_ANUAL_POSTEADO);
-    }
+      if (cierreAnual) {
+        bloqueos.push(ClosureBloqueo.CIERRE_ANUAL_POSTEADO);
+      }
 
-    if (bloqueos.length > 0) {
-      return { reabierto: false, yaEstabaAbierto: false, bloqueos };
-    }
+      if (bloqueos.length > 0) {
+        return { reabierto: false, yaEstabaAbierto: false, bloqueos };
+      }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.periodoContable.updateMany({
+      const updated = await tx.periodoContable.updateMany({
         where: {
           id: periodoId,
           tenantId,
@@ -343,25 +352,23 @@ export class ClosureService {
         },
       });
 
-      return result.count;
+      if (updated.count === 0) {
+        return { reabierto: true, yaEstabaAbierto: true };
+      }
+
+      this.audit
+        .log({
+          tenantId,
+          userId,
+          action: 'PERIODO_CONTABLE_REABIERTO',
+          entityType: 'PeriodoContable',
+          entityId: periodoId,
+          metadata: { motivo },
+        })
+        .catch(() => {});
+
+      return { reabierto: true, yaEstabaAbierto: false };
     });
-
-    if (updated === 0) {
-      return { reabierto: true, yaEstabaAbierto: true };
-    }
-
-    this.audit
-      .log({
-        tenantId,
-        userId,
-        action: 'PERIODO_CONTABLE_REABIERTO',
-        entityType: 'PeriodoContable',
-        entityId: periodoId,
-        metadata: { motivo },
-      })
-      .catch(() => {});
-
-    return { reabierto: true, yaEstabaAbierto: false };
   }
 
   // ============================================================================
@@ -387,206 +394,217 @@ export class ClosureService {
     anio: number,
     userId: string,
   ): Promise<CerrarAnioFiscalResult> {
-    // --- 1. Resolver diciembre (necesario para el rango de lectura y el plan) ---
-    const diciembre = await this.prisma.periodoContable.findFirst({
-      where: { tenantId, anio, mes: 12 },
-      select: { id: true, estado: true, fechaFin: true },
-    });
+    return this.tenantPrisma.execute(async (tx) => {
+      // --- 1. Resolver diciembre (necesario para el rango de lectura y el plan) ---
+      const diciembre = await tx.periodoContable.findFirst({
+        where: { tenantId, anio, mes: 12 },
+        select: { id: true, estado: true, fechaFin: true },
+      });
 
-    if (!diciembre) {
-      return {
-        posteado: false,
-        yaEstabaPosteado: false,
-        diciembreCerrado: false,
-        bloqueos: [ClosureBloqueo.PERIODO_DICIEMBRE_NO_ENCONTRADO],
-      };
-    }
+      if (!diciembre) {
+        return {
+          posteado: false,
+          yaEstabaPosteado: false,
+          diciembreCerrado: false,
+          bloqueos: [ClosureBloqueo.PERIODO_DICIEMBRE_NO_ENCONTRADO],
+        };
+      }
 
-    // --- 2. `posted`: lotes de cierre efectivos del año (findMany, no First) ---
-    const posted = await this.listarCierreAnualVigente(tenantId, anio);
-    const postedMap = new Map(posted.map((p) => [p.origenEvento, p.id]));
+      // --- 2. `posted`: lotes de cierre efectivos del año (findMany, no First) ---
+      const posted = await this.listarCierreAnualVigente(tx, tenantId, anio);
+      const postedMap = new Map(posted.map((p) => [p.origenEvento, p.id]));
 
-    // --- 3. Plan: lectura dimensionada de C2 EXCLUYENDO el propio cierre del
-    //        año (estabilidad del plan, C3 §8.3). No requiere patrimonio aún. ---
-    const balance = await this.reporting.obtenerSaldosDimensionados(tenantId, {
-      fechaInicio: new Date(Date.UTC(anio, 0, 1)),
-      fechaFin: diciembre.fechaFin,
-      cuentaDesde: CUENTA_DESDE_RESULTADO,
-      cuentaHasta: CUENTA_HASTA_RESULTADO,
-      excluirOrigenTipo: ORIGEN_CIERRE_ANUAL,
-      excluirOrigenId: String(anio),
-    });
-
-    const tuplas = balance.filter((item) => !item.saldo.eq(0));
-    const lotesTuplas = particionar(tuplas, MAX_LINEAS_RESULTADO);
-    const total = lotesTuplas.length;
-    const expected = lotesTuplas.map((_, i) => origenEventoLote(i + 1, total));
-    const expectedSet = new Set(expected);
-
-    // --- 4. Guardián ANOMALÍA (posted ⊄ expected): fail-secure (C3 §8.3).
-    //        Un origenEvento nulo nunca pertenece al plan → también es anómalo. ---
-    const hayLoteAjeno = posted.some(
-      (p) => p.origenEvento === null || !expectedSet.has(p.origenEvento),
-    );
-    if (hayLoteAjeno) {
-      return {
-        posteado: false,
-        yaEstabaPosteado: false,
-        diciembreCerrado: false,
-        bloqueos: [ClosureBloqueo.CIERRE_ANUAL_INCONSISTENTE],
-      };
-    }
-
-    // --- 5a. Sin resultados (expected = ∅) → B1: no hay asiento, se cierra
-    //         diciembre en esta invocación si sigue ABIERTO. ---
-    if (expected.length === 0) {
-      const diciembreCerrado = await this.cerrarDiciembreSiAbierto(
+      // --- 3. Plan: lectura dimensionada de C2 EXCLUYENDO el propio cierre del
+      //        año (estabilidad del plan, C3 §8.3). No requiere patrimonio aún. ---
+      const balance = await this.reporting.obtenerSaldosDimensionados(
         tenantId,
-        diciembre.id,
-        diciembre.estado,
-        userId,
+        {
+          fechaInicio: new Date(Date.UTC(anio, 0, 1)),
+          fechaFin: diciembre.fechaFin,
+          cuentaDesde: CUENTA_DESDE_RESULTADO,
+          cuentaHasta: CUENTA_HASTA_RESULTADO,
+          excluirOrigenTipo: ORIGEN_CIERRE_ANUAL,
+          excluirOrigenId: String(anio),
+        },
       );
-      return {
-        posteado: false,
-        yaEstabaPosteado: false,
-        sinResultados: true,
-        diciembreCerrado,
-      };
-    }
 
-    // --- 5b. COMPLETE (posted = expected) → idempotencia por conjunto. Nunca
-    //         re-postea; solo cierra el "rabo" de diciembre si quedó abierto. ---
-    const faltantes = expected.filter((ev) => !postedMap.has(ev));
-    if (faltantes.length === 0) {
-      const comprobanteIds = expected.map((ev) => postedMap.get(ev)!);
-      const diciembreCerrado = await this.cerrarDiciembreSiAbierto(
-        tenantId,
-        diciembre.id,
-        diciembre.estado,
-        userId,
+      const tuplas = balance.filter((item) => !item.saldo.eq(0));
+      const lotesTuplas = particionar(tuplas, MAX_LINEAS_RESULTADO);
+      const total = lotesTuplas.length;
+      const expected = lotesTuplas.map((_, i) =>
+        origenEventoLote(i + 1, total),
       );
+      const expectedSet = new Set(expected);
+
+      // --- 4. Guardián ANOMALÍA (posted ⊄ expected): fail-secure (C3 §8.3).
+      //        Un origenEvento nulo nunca pertenece al plan → también es anómalo. ---
+      const hayLoteAjeno = posted.some(
+        (p) => p.origenEvento === null || !expectedSet.has(p.origenEvento),
+      );
+      if (hayLoteAjeno) {
+        return {
+          posteado: false,
+          yaEstabaPosteado: false,
+          diciembreCerrado: false,
+          bloqueos: [ClosureBloqueo.CIERRE_ANUAL_INCONSISTENTE],
+        };
+      }
+
+      // --- 5a. Sin resultados (expected = ∅) → B1: no hay asiento, se cierra
+      //         diciembre en esta invocación si sigue ABIERTO. ---
+      if (expected.length === 0) {
+        const diciembreCerrado = await this.cerrarDiciembreSiAbierto(
+          tenantId,
+          diciembre.id,
+          diciembre.estado,
+          userId,
+        );
+        return {
+          posteado: false,
+          yaEstabaPosteado: false,
+          sinResultados: true,
+          diciembreCerrado,
+        };
+      }
+
+      // --- 5b. COMPLETE (posted = expected) → idempotencia por conjunto. Nunca
+      //         re-postea; solo cierra el "rabo" de diciembre si quedó abierto. ---
+      const faltantes = expected.filter((ev) => !postedMap.has(ev));
+      if (faltantes.length === 0) {
+        const comprobanteIds = expected.map((ev) => postedMap.get(ev)!);
+        const diciembreCerrado = await this.cerrarDiciembreSiAbierto(
+          tenantId,
+          diciembre.id,
+          diciembre.estado,
+          userId,
+        );
+        return {
+          posteado: false,
+          yaEstabaPosteado: true,
+          diciembreCerrado,
+          comprobanteIds,
+        };
+      }
+
+      // --- 6. NONE o PARTIAL: vamos a postear. Precondiciones de posteo. ---
+      const bloqueos: string[] = [];
+
+      if (diciembre.estado === 'CERRADO') {
+        bloqueos.push(ClosureBloqueo.DICIEMBRE_YA_CERRADO);
+      }
+
+      const mesAnteriorAbierto = await tx.periodoContable.findFirst({
+        where: { tenantId, anio, mes: { gte: 1, lte: 11 }, estado: 'ABIERTO' },
+        select: { id: true },
+      });
+      if (mesAnteriorAbierto) {
+        bloqueos.push(ClosureBloqueo.MESES_ANTERIORES_ABIERTOS);
+      }
+
+      const tipoCC = await tx.tipoComprobante.findFirst({
+        where: { codigo: 'CC', activo: true },
+        select: { id: true },
+      });
+      if (!tipoCC) {
+        bloqueos.push(ClosureBloqueo.TIPO_CC_NO_ENCONTRADO);
+      }
+
+      const mapaResultado = await tx.cuentaSistemaMap.findFirst({
+        where: { tenantId, rol: 'RESULTADO_EJERCICIO', activo: true },
+        select: { cuentaId: true },
+      });
+      if (!mapaResultado) {
+        bloqueos.push(ClosureBloqueo.RESULTADO_EJERCICIO_NO_MAPEADO);
+      }
+
+      if (bloqueos.length > 0) {
+        return {
+          posteado: false,
+          yaEstabaPosteado: false,
+          diciembreCerrado: false,
+          bloqueos,
+        };
+      }
+
+      // --- 7. Postear ÚNICAMENTE los lotes faltantes por el puerto (C3-I6) ---
+      const comprobanteIds: string[] = [];
+      for (let i = 0; i < total; i++) {
+        const origenEvento = expected[i];
+
+        const existenteId = postedMap.get(origenEvento);
+        if (existenteId) {
+          // Ya presente (PARTIAL): jamás se re-postea.
+          comprobanteIds.push(existenteId);
+          continue;
+        }
+
+        const lineas = this.construirLineasLote(
+          lotesTuplas[i],
+          mapaResultado!.cuentaId,
+        );
+
+        try {
+          const comprobante = await this.ledger.registrarComprobante(
+            {
+              tenantId,
+              userId,
+              tipoComprobanteId: tipoCC!.id,
+              periodoId: diciembre.id,
+              fecha: diciembre.fechaFin,
+              concepto: `Cierre anual ejercicio ${anio}`,
+              lineas,
+              origenTipo: ORIGEN_CIERRE_ANUAL,
+              origenId: String(anio),
+              origenEvento,
+            },
+            tx,
+          );
+          comprobanteIds.push(comprobante.id);
+        } catch (err) {
+          if (!(err instanceof ConflictException)) {
+            throw err;
+          }
+
+          // Carrera: otro actor pudo postear ESTE lote (∈ expected). Confirmar su
+          // presencia; si no aparece, el conflicto es de un origen ajeno →
+          // anomalía real que se propaga (fail-secure, C3 §8.3 capa de puerto).
+          const confirmado = await this.buscarLoteCierre(
+            tx,
+            tenantId,
+            anio,
+            origenEvento,
+          );
+          if (!confirmado) {
+            throw err;
+          }
+          comprobanteIds.push(confirmado.id);
+        }
+      }
+
+      // --- 8. Cerrar diciembre — porque ESTA invocación completó el posteo ---
+      const cierre = await this.cerrarPeriodo(tenantId, diciembre.id, userId);
+      const diciembreCerrado = cierre.cerrado && !cierre.yaEstabaCerrado;
+
+      // --- 9. Auditoría funcional única del cierre anual (C3-I5), con el
+      //        CONJUNTO de comprobantes ---
+      this.audit
+        .log({
+          tenantId,
+          userId,
+          action: 'CIERRE_ANUAL_EJECUTADO',
+          entityType: 'PeriodoContable',
+          entityId: diciembre.id,
+          metadata: { anio, comprobanteIds },
+        })
+        .catch(() => {});
+
       return {
-        posteado: false,
-        yaEstabaPosteado: true,
+        posteado: true,
+        yaEstabaPosteado: false,
         diciembreCerrado,
         comprobanteIds,
       };
-    }
-
-    // --- 6. NONE o PARTIAL: vamos a postear. Precondiciones de posteo. ---
-    const bloqueos: string[] = [];
-
-    if (diciembre.estado === 'CERRADO') {
-      bloqueos.push(ClosureBloqueo.DICIEMBRE_YA_CERRADO);
-    }
-
-    const mesAnteriorAbierto = await this.prisma.periodoContable.findFirst({
-      where: { tenantId, anio, mes: { gte: 1, lte: 11 }, estado: 'ABIERTO' },
-      select: { id: true },
     });
-    if (mesAnteriorAbierto) {
-      bloqueos.push(ClosureBloqueo.MESES_ANTERIORES_ABIERTOS);
-    }
-
-    const tipoCC = await this.prisma.tipoComprobante.findFirst({
-      where: { codigo: 'CC', activo: true },
-      select: { id: true },
-    });
-    if (!tipoCC) {
-      bloqueos.push(ClosureBloqueo.TIPO_CC_NO_ENCONTRADO);
-    }
-
-    const mapaResultado = await this.prisma.cuentaSistemaMap.findFirst({
-      where: { tenantId, rol: 'RESULTADO_EJERCICIO', activo: true },
-      select: { cuentaId: true },
-    });
-    if (!mapaResultado) {
-      bloqueos.push(ClosureBloqueo.RESULTADO_EJERCICIO_NO_MAPEADO);
-    }
-
-    if (bloqueos.length > 0) {
-      return {
-        posteado: false,
-        yaEstabaPosteado: false,
-        diciembreCerrado: false,
-        bloqueos,
-      };
-    }
-
-    // --- 7. Postear ÚNICAMENTE los lotes faltantes por el puerto (C3-I6) ---
-    const comprobanteIds: string[] = [];
-    for (let i = 0; i < total; i++) {
-      const origenEvento = expected[i];
-
-      const existenteId = postedMap.get(origenEvento);
-      if (existenteId) {
-        // Ya presente (PARTIAL): jamás se re-postea.
-        comprobanteIds.push(existenteId);
-        continue;
-      }
-
-      const lineas = this.construirLineasLote(
-        lotesTuplas[i],
-        mapaResultado!.cuentaId,
-      );
-
-      try {
-        const comprobante = await this.ledger.registrarComprobante({
-          tenantId,
-          userId,
-          tipoComprobanteId: tipoCC!.id,
-          periodoId: diciembre.id,
-          fecha: diciembre.fechaFin,
-          concepto: `Cierre anual ejercicio ${anio}`,
-          lineas,
-          origenTipo: ORIGEN_CIERRE_ANUAL,
-          origenId: String(anio),
-          origenEvento,
-        });
-        comprobanteIds.push(comprobante.id);
-      } catch (err) {
-        if (!(err instanceof ConflictException)) {
-          throw err;
-        }
-
-        // Carrera: otro actor pudo postear ESTE lote (∈ expected). Confirmar su
-        // presencia; si no aparece, el conflicto es de un origen ajeno →
-        // anomalía real que se propaga (fail-secure, C3 §8.3 capa de puerto).
-        const confirmado = await this.buscarLoteCierre(
-          tenantId,
-          anio,
-          origenEvento,
-        );
-        if (!confirmado) {
-          throw err;
-        }
-        comprobanteIds.push(confirmado.id);
-      }
-    }
-
-    // --- 8. Cerrar diciembre — porque ESTA invocación completó el posteo ---
-    const cierre = await this.cerrarPeriodo(tenantId, diciembre.id, userId);
-    const diciembreCerrado = cierre.cerrado && !cierre.yaEstabaCerrado;
-
-    // --- 9. Auditoría funcional única del cierre anual (C3-I5), con el
-    //        CONJUNTO de comprobantes ---
-    this.audit
-      .log({
-        tenantId,
-        userId,
-        action: 'CIERRE_ANUAL_EJECUTADO',
-        entityType: 'PeriodoContable',
-        entityId: diciembre.id,
-        metadata: { anio, comprobanteIds },
-      })
-      .catch(() => {});
-
-    return {
-      posteado: true,
-      yaEstabaPosteado: false,
-      diciembreCerrado,
-      comprobanteIds,
-    };
   }
 
   // Cierra diciembre solo si sigue ABIERTO; devuelve true únicamente si ESTA
@@ -611,10 +629,11 @@ export class ClosureService {
   // deuda técnica documentada de U3/C1, no una ruta activa hoy — ver auditoría
   // C3-U4 (hallazgo M-1).
   private async listarCierreAnualVigente(
+    tx: TenantPrismaClient,
     tenantId: string,
     anio: number,
   ): Promise<{ id: string; origenEvento: string | null }[]> {
-    return this.prisma.comprobanteContable.findMany({
+    return tx.comprobanteContable.findMany({
       where: {
         tenantId,
         origenTipo: ORIGEN_CIERRE_ANUAL,
@@ -628,11 +647,12 @@ export class ClosureService {
   // Confirma la presencia de UN lote concreto tras un ConflictException del
   // puerto (carrera). Clave completa incluyendo origenEvento del lote.
   private async buscarLoteCierre(
+    tx: TenantPrismaClient,
     tenantId: string,
     anio: number,
     origenEvento: string,
   ): Promise<{ id: string } | null> {
-    return this.prisma.comprobanteContable.findFirst({
+    return tx.comprobanteContable.findFirst({
       where: {
         tenantId,
         origenTipo: ORIGEN_CIERRE_ANUAL,

@@ -131,15 +131,15 @@ function build() {
     },
   };
 
-  const prisma = {
-    $transaction: jest.fn((cb: (tx: unknown) => unknown) => cb(mockTx)),
+  const tenantPrisma = {
+    execute: jest.fn((cb: (tx: unknown) => unknown) => cb(mockTx)),
   };
 
   const audit = { log: jest.fn().mockResolvedValue(undefined) };
 
-  const service = new LedgerService(prisma as never, audit as never);
+  const service = new LedgerService(tenantPrisma as never, audit as never);
 
-  return { service, mocks, prisma, audit, mockTx };
+  return { service, mocks, tenantPrisma, audit, mockTx };
 }
 
 // =============================================================================
@@ -153,7 +153,7 @@ describe('LedgerService', () => {
 
   describe('registrarComprobante()', () => {
     it('crea un comprobante balanceado', async () => {
-      const { service, mocks } = build();
+      const { service, mocks, tenantPrisma, mockTx } = build();
 
       mocks.periodoFindFirst.mockResolvedValue({
         id: PERIODO_ID,
@@ -169,6 +169,10 @@ describe('LedgerService', () => {
       const result = await service.registrarComprobante(comprobanteInput());
 
       expect(result.estado).toBe('CONTABILIZADO');
+      expect(tenantPrisma.execute).toHaveBeenCalledTimes(1);
+      expect(mocks.comprobanteCreate.mock.contexts[0]).toBe(
+        mockTx.comprobanteContable,
+      );
       expect(result.numero).toBe(1);
       expect(mocks.comprobanteCreate).toHaveBeenCalledTimes(1);
     });

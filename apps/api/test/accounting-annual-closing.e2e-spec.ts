@@ -5,9 +5,17 @@ import { ReportingService } from '../src/accounting/reporting/reporting.service'
 import { ClosureService } from '../src/accounting/closure/closure.service';
 import { AuditService } from '../src/audit/audit.service';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { TenantContextBoundary } from '../src/tenant-context/tenant-context.boundary';
+import { TenantContextService } from '../src/tenant-context/tenant-context.service';
+import { TenantPrismaService } from '../src/tenant-prisma/tenant-prisma.service';
 
 describe('Accounting baseline — C0 a C3 (e2e)', () => {
   const prisma = new PrismaClient();
+  const tenantContext = new TenantContextService();
+  const tenantPrisma = new TenantPrismaService(
+    prisma as unknown as PrismaService,
+    new TenantContextBoundary(tenantContext),
+  );
   const uid = () => Math.random().toString(36).slice(2, 10);
   const anio = 2026;
   const userId = 'accounting-baseline-user';
@@ -30,14 +38,20 @@ describe('Accounting baseline — C0 a C3 (e2e)', () => {
     prisma as unknown as PrismaService,
     audit,
   );
-  const ledger = new LedgerService(prisma as unknown as PrismaService, audit);
+  const ledger = new LedgerService(tenantPrisma, audit);
   const reporting = new ReportingService(prisma as unknown as PrismaService);
-  const closure = new ClosureService(
-    prisma as unknown as PrismaService,
-    reporting,
-    audit,
-    ledger,
-  );
+  const closure = new ClosureService(tenantPrisma, reporting, audit, ledger);
+
+  const runAsTenant = <T>(work: () => Promise<T>): Promise<T> =>
+    tenantContext.run(
+      {
+        tenantId,
+        userId,
+        rol: 'ADMIN',
+        email: 'accounting-baseline@test.local',
+      },
+      work,
+    );
 
   beforeAll(async () => {
     const tenant = await prisma.tenant.create({
@@ -159,41 +173,68 @@ describe('Accounting baseline — C0 a C3 (e2e)', () => {
     );
     expect(segundoProvisioning.status).toBe('already_provisioned');
 
-    const ingreso = await ledger.registrarComprobante({
-      tenantId,
-      userId,
-      tipoComprobanteId: tipoContabilidadId,
-      periodoId: periodoDiciembreId,
-      fecha: new Date(Date.UTC(anio, 11, 15)),
-      concepto: 'Ingreso de cierre baseline',
-      lineas: [
-        { cuentaId: cuentaCajaId, debito: 1000, credito: 0 },
-        {
-          cuentaId: cuentaIngresosId,
-          terceroId,
-          debito: 0,
-          credito: 1000,
-        },
-      ],
-    });
-    const gasto = await ledger.registrarComprobante({
-      tenantId,
-      userId,
-      tipoComprobanteId: tipoContabilidadId,
-      periodoId: periodoDiciembreId,
-      fecha: new Date(Date.UTC(anio, 11, 20)),
-      concepto: 'Gasto de cierre baseline',
-      lineas: [
-        {
-          cuentaId: cuentaGastosId,
-          centroCostoId,
-          debito: 400,
-          credito: 0,
-        },
-        { cuentaId: cuentaCajaId, debito: 0, credito: 400 },
-      ],
-    });
+    const ingreso = await runAsTenant(() =>
+      ledger.registrarComprobante({
+        tenantId,
+        userId,
+        tipoComprobanteId: tipoContabilidadId,
+        periodoId: periodoDiciembreId,
+        fecha: new Date(Date.UTC(anio, 11, 15)),
+        concepto: 'Ingreso de cierre baseline',
+        lineas: [
+          { cuentaId: cuentaCajaId, debito: 1000, credito: 0 },
+          {
+            cuentaId: cuentaIngresosId,
+            terceroId,
+            debito: 0,
+            credito: 1000,
+          },
+        ],
+      }),
+    );
+    const gasto = await runAsTenant(() =>
+      ledger.registrarComprobante({
+        tenantId,
+        userId,
+        tipoComprobanteId: tipoContabilidadId,
+        periodoId: periodoDiciembreId,
+        fecha: new Date(Date.UTC(anio, 11, 20)),
+        concepto: 'Gasto de cierre baseline',
+        lineas: [
+          {
+            cuentaId: cuentaGastosId,
+            centroCostoId,
+            debito: 400,
+            credito: 0,
+          },
+          { cuentaId: cuentaCajaId, debito: 0, credito: 400 },
+        ],
+      }),
+    );
     expect([ingreso.numero, gasto.numero]).toEqual([1, 2]);
+
+    const rollback = new Error('forzar rollback del cierre anual');
+    const cerrarPeriodo = closure.cerrarPeriodo.bind(closure);
+    jest
+      .spyOn(closure, 'cerrarPeriodo')
+      .mockImplementationOnce(async (...args) => {
+        await cerrarPeriodo(...args);
+        throw rollback;
+      });
+    await expect(
+      runAsTenant(() => closure.cerrarAnioFiscal(tenantId, anio, userId)),
+    ).rejects.toBe(rollback);
+    jest.spyOn(closure, 'cerrarPeriodo').mockRestore();
+
+    expect(
+      await prisma.comprobanteContable.count({ where: { tenantId } }),
+    ).toBe(2);
+    await expect(
+      prisma.periodoContable.findUniqueOrThrow({
+        where: { id: periodoDiciembreId },
+        select: { estado: true },
+      }),
+    ).resolves.toMatchObject({ estado: 'ABIERTO' });
 
     const antesDelCierre = await reporting.obtenerBalancePrueba(tenantId, {
       fechaInicio: new Date(Date.UTC(anio, 0, 1)),
@@ -219,7 +260,9 @@ describe('Accounting baseline — C0 a C3 (e2e)', () => {
       '510506',
     ]);
 
-    const cierre = await closure.cerrarAnioFiscal(tenantId, anio, userId);
+    const cierre = await runAsTenant(() =>
+      closure.cerrarAnioFiscal(tenantId, anio, userId),
+    );
     expect(cierre).toMatchObject({
       posteado: true,
       yaEstabaPosteado: false,
@@ -268,7 +311,9 @@ describe('Accounting baseline — C0 a C3 (e2e)', () => {
     });
     expect(periodoDiciembre.estado).toBe('CERRADO');
 
-    const reintento = await closure.cerrarAnioFiscal(tenantId, anio, userId);
+    const reintento = await runAsTenant(() =>
+      closure.cerrarAnioFiscal(tenantId, anio, userId),
+    );
     expect(reintento).toMatchObject({
       posteado: false,
       yaEstabaPosteado: true,
