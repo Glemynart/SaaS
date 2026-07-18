@@ -4,10 +4,15 @@ import { LiquidationController } from './liquidation/liquidation.controller';
 import { PayrollService } from './payroll.service';
 import { LiquidationService } from './liquidation/liquidation.service';
 import { TenantsModule } from '../tenants/tenants.module';
+import { PayrollAccountingPreflightService } from './accounting-preflight/payroll-accounting-preflight.service';
 
 @Module({
   imports: [TenantsModule],
   controllers: [PayrollController, LiquidationController],
-  providers: [PayrollService, LiquidationService],
+  providers: [
+    PayrollService,
+    LiquidationService,
+    PayrollAccountingPreflightService,
+  ],
 })
 export class PayrollModule {}
