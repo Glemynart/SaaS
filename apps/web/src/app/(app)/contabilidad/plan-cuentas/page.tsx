@@ -1,5 +1,5 @@
-import { AccountingPlaceholder } from '@/features/accounting/components/accounting-placeholder';
+import { PlanCuentasManagement } from '@/features/accounting/components/plan-cuentas-management';
 
 export default function PlanCuentasPage() {
-  return <AccountingPlaceholder sectionId="plan-cuentas" />;
+  return <PlanCuentasManagement />;
 }
