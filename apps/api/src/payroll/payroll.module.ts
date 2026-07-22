@@ -6,6 +6,7 @@ import { LiquidationService } from './liquidation/liquidation.service';
 import { TenantsModule } from '../tenants/tenants.module';
 import { AccountingModule } from '../accounting/accounting.module';
 import { PayrollAccountingPreflightService } from './accounting-preflight/payroll-accounting-preflight.service';
+import { PayrollCorrectionAccountingService } from './accounting/payroll-correction-accounting.service';
 
 @Module({
   imports: [TenantsModule, AccountingModule],
@@ -14,6 +15,7 @@ import { PayrollAccountingPreflightService } from './accounting-preflight/payrol
     PayrollService,
     LiquidationService,
     PayrollAccountingPreflightService,
+    PayrollCorrectionAccountingService,
   ],
 })
 export class PayrollModule {}

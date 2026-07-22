@@ -26,11 +26,15 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
+import { PayrollCorrectionAccountingService } from './accounting/payroll-correction-accounting.service';
 
 @UseGuards(JwtAuthGuard, ActiveTenantGuard, RolesGuard)
 @Controller()
 export class PayrollController {
-  constructor(private readonly service: PayrollService) {}
+  constructor(
+    private readonly service: PayrollService,
+    private readonly correctionAccounting: PayrollCorrectionAccountingService,
+  ) {}
 
   @Get('payroll/dashboard')
   getDashboard(@CurrentUser() user: CurrentUserPayload) {
@@ -105,6 +109,19 @@ export class PayrollController {
     @Param('id') id: string,
   ) {
     return this.service.aprobarCorrection(user.tenantId, user.userId, id);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Post('payroll/corrections/:id/contabilizar')
+  contabilizarCorrection(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+  ) {
+    return this.correctionAccounting.contabilizar(
+      user.tenantId,
+      user.userId,
+      id,
+    );
   }
 
   @Roles(UserRole.ADMIN)
