@@ -912,6 +912,15 @@ model PayrollCorrection {
   status      PayrollCorrectionStatus @default(BORRADOR)
   descripcion String
 
+  // ACC-14A — Intención tipada y materialización inmutable de la corrección.
+  // Nullable para preservar las correcciones P1.5 existentes: una de ellas sin
+  // intención/materialización no es elegible para ajustes posteriores.
+  intentVersion          Int?
+  intent                 Json?
+  materializationVersion Int?
+  materialization        Json?
+  materializedAt         DateTime?
+
   @@index([tenantId])
   @@index([tenantId, payrollPeriodId])
   @@index([tenantId, payrollPeriodId, status])
