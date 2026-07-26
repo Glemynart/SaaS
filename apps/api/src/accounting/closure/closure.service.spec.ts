@@ -67,6 +67,7 @@ function balanceDescuadrado() {
 function build() {
   const mocks = {
     periodoFindFirst: jest.fn(),
+    periodoFindMany: jest.fn().mockResolvedValue([]),
     comprobanteCount: jest.fn(),
     comprobanteFindFirst: jest.fn(),
     comprobanteFindMany: jest.fn(),
@@ -85,6 +86,7 @@ function build() {
     $executeRaw: mocks.executeRaw,
     periodoContable: {
       findFirst: mocks.periodoFindFirst,
+      findMany: mocks.periodoFindMany,
       updateMany: mocks.txUpdateMany,
     },
     comprobanteContable: {
@@ -311,6 +313,9 @@ describe('ClosureService', () => {
       mocks.comprobanteCount.mockResolvedValue(0);
       mocks.obtenerBalancePrueba.mockResolvedValue(balanceCuadrado());
       mocks.txUpdateMany.mockResolvedValue({ count: 1 });
+      mocks.periodoFindFirst
+        .mockResolvedValueOnce(periodo())
+        .mockResolvedValueOnce(null);
       mocks.auditLog.mockResolvedValue(undefined);
 
       const result = await service.cerrarPeriodo(
@@ -336,6 +341,26 @@ describe('ClosureService', () => {
         entityType: 'PeriodoContable',
         entityId: PERIODO_ID,
       });
+    });
+
+    it('rechaza el cierre si un período anterior se reabrió mientras esperaba el lock', async () => {
+      const { service, mocks } = build();
+      mocks.periodoFindFirst
+        .mockResolvedValueOnce(periodo({ anio: 2026, mes: 2 }))
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(periodo({ anio: 2026, mes: 2 }))
+        .mockResolvedValueOnce({ id: 'p-enero' });
+      mocks.comprobanteCount.mockResolvedValue(0);
+      mocks.obtenerBalancePrueba.mockResolvedValue(balanceCuadrado());
+
+      await expect(
+        service.cerrarPeriodo(TENANT_ID, PERIODO_ID, USER_ID),
+      ).resolves.toEqual({
+        cerrado: false,
+        yaEstabaCerrado: false,
+        bloqueos: ['CIERRE_CRONOLOGICO'],
+      });
+      expect(mocks.txUpdateMany).not.toHaveBeenCalled();
     });
 
     it('devuelve cerrado=false con bloqueos cuando el período no existe', async () => {

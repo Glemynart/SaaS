@@ -13,7 +13,6 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { LedgerService } from '../accounting/ledger/ledger.service';
 import {
   PAYROLL_ACCOUNTING_REQUIRED_ROLES,
@@ -173,7 +172,6 @@ export class PayrollService {
     private prisma: PrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private auditService: AuditService,
-    private readonly tenantPrisma: TenantPrismaService,
     private readonly ledger: LedgerService,
     private readonly accountingPreflight: PayrollAccountingPreflightService,
   ) {}

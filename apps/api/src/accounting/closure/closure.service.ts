@@ -242,6 +242,25 @@ export class ClosureService {
 
     const updated = await this.tenantPrisma.execute(async (tx) => {
       await lockAccountingPeriod(tx, tenantId, periodoId);
+      const periodoActual = await tx.periodoContable.findFirst({
+        where: { id: periodoId, tenantId },
+        select: { anio: true, mes: true },
+      });
+      if (!periodoActual) return { count: 0, cierreCronologico: false };
+
+      const anteriorAbierto = await tx.periodoContable.findFirst({
+        where: {
+          tenantId,
+          estado: 'ABIERTO',
+          OR: [
+            { anio: { lt: periodoActual.anio } },
+            { anio: periodoActual.anio, mes: { lt: periodoActual.mes } },
+          ],
+        },
+        select: { id: true },
+      });
+      if (anteriorAbierto) return { count: 0, cierreCronologico: true };
+
       const result = await tx.periodoContable.updateMany({
         where: {
           id: periodoId,
@@ -255,10 +274,18 @@ export class ClosureService {
         },
       });
 
-      return result.count;
+      return { count: result.count, cierreCronologico: false };
     });
 
-    if (updated === 0) {
+    if (updated.cierreCronologico) {
+      return {
+        cerrado: false,
+        yaEstabaCerrado: false,
+        bloqueos: [ClosureBloqueo.CIERRE_CRONOLOGICO],
+      };
+    }
+
+    if (updated.count === 0) {
       return { cerrado: true, yaEstabaCerrado: true };
     }
 
@@ -308,6 +335,22 @@ export class ClosureService {
       }
 
       // --- LIFO (C3-I4): no debe existir un período CERRADO posterior ---
+      const periodosPosteriores = await tx.periodoContable.findMany({
+        where: {
+          tenantId,
+          OR: [
+            { anio: { gt: periodo.anio } },
+            { anio: periodo.anio, mes: { gt: periodo.mes } },
+          ],
+        },
+        select: { id: true, anio: true, mes: true },
+        orderBy: [{ anio: 'asc' }, { mes: 'asc' }, { id: 'asc' }],
+      });
+
+      for (const periodoParaBloquear of [periodo, ...periodosPosteriores]) {
+        await lockAccountingPeriod(tx, tenantId, periodoParaBloquear.id);
+      }
+
       const { anio, mes } = periodo;
       const posteriorCerrado = await tx.periodoContable.findFirst({
         where: {
