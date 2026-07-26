@@ -8,7 +8,7 @@ const materialization = {
   version: 1,
   generatedAt: '2026-07-22T00:00:00.000Z',
   snapshotIds: ['snapshot-1'],
-  approvedCorrectionIds: [correctionId],
+  approvedCorrectionIds: [],
   entries: [
     {
       snapshotId: 'snapshot-1',
@@ -20,10 +20,39 @@ const materialization = {
   ],
 };
 
+function dependency(id: string) {
+  return {
+    id,
+    materialization: {
+      ...materialization,
+      approvedCorrectionIds: [],
+    },
+    materializedAt: new Date('2026-07-21T00:00:00.000Z'),
+  };
+}
+
+function correctionWithDependencies(ids: string[]) {
+  return {
+    id: correctionId,
+    status: 'APROBADA',
+    descripcion: 'Ajuste salarial',
+    materialization: { ...materialization, approvedCorrectionIds: ids },
+    materializedAt: new Date('2026-07-22T00:00:00.000Z'),
+  };
+}
+
+function lastCallArgument<T>(calls: Array<[T]>): T {
+  const call = calls.at(-1);
+  if (!call) throw new Error('Expected the mock to have been called.');
+  return call[0];
+}
+
 function createService(overrides?: {
   correction?: unknown;
   existing?: { id: string } | null;
   ledgerError?: Error;
+  dependencies?: unknown[];
+  dependencyVouchers?: Array<{ origenId: string | null }>;
 }) {
   const tx = {
     payrollCorrection: {
@@ -38,9 +67,13 @@ function createService(overrides?: {
             }
           : overrides.correction,
       ),
+      findMany: jest.fn().mockResolvedValue(overrides?.dependencies ?? []),
     },
     comprobanteContable: {
       findFirst: jest.fn().mockResolvedValue(overrides?.existing ?? null),
+      findMany: jest
+        .fn()
+        .mockResolvedValue(overrides?.dependencyVouchers ?? []),
     },
     cuentaSistemaMap: {
       findMany: jest.fn().mockResolvedValue([
@@ -60,7 +93,11 @@ function createService(overrides?: {
     },
   };
   const tenantPrisma = {
-    execute: jest.fn().mockImplementation((work) => work(tx)),
+    execute: jest
+      .fn()
+      .mockImplementation((work: (client: typeof tx) => Promise<unknown>) =>
+        work(tx),
+      ),
   };
   const ledger = {
     registrarComprobante: overrides?.ledgerError
@@ -82,7 +119,7 @@ function createService(overrides?: {
 }
 
 describe('PayrollCorrectionAccountingService', () => {
-  it('posts one voucher through LedgerService using the same transaction', async () => {
+  it('posts a correction without dependencies through LedgerService', async () => {
     const { service, tx, ledger } = createService();
 
     await expect(
@@ -101,6 +138,120 @@ describe('PayrollCorrectionAccountingService', () => {
       }),
       tx,
     );
+    expect(tx.payrollCorrection.findMany).not.toHaveBeenCalled();
+  });
+
+  it('accepts a correction whose dependencies are fully accounted', async () => {
+    const { service, ledger } = createService({
+      correction: correctionWithDependencies(['correction-previous']),
+      dependencies: [dependency('correction-previous')],
+      dependencyVouchers: [{ origenId: 'correction-previous' }],
+    });
+
+    await expect(
+      service.contabilizar(tenantId, userId, correctionId),
+    ).resolves.toMatchObject({ status: 'AJUSTADA' });
+    expect(ledger.registrarComprobante).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks a correction when a referenced dependency does not exist', async () => {
+    const { service, ledger, audit } = createService({
+      correction: correctionWithDependencies(['correction-missing']),
+    });
+
+    await expect(
+      service.contabilizar(tenantId, userId, correctionId),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(ledger.registrarComprobante).not.toHaveBeenCalled();
+    const auditCalls = audit.log.mock.calls as unknown as Array<
+      [
+        {
+          action: string;
+          metadata: {
+            pendingCorrectionIds: string[];
+            invalidCorrectionIds: string[];
+          };
+        },
+      ]
+    >;
+    const auditParams = lastCallArgument(auditCalls);
+    expect(auditParams.action).toBe(
+      'PAYROLL_CORRECTION_ACCOUNTING_BLOCKED_DEPENDENCIES',
+    );
+    expect(auditParams.metadata).toMatchObject({
+      pendingCorrectionIds: ['correction-missing'],
+      invalidCorrectionIds: ['correction-missing'],
+    });
+  });
+
+  it('validates several dependencies before invoking LedgerService', async () => {
+    const dependencyIds = ['correction-a', 'correction-b'];
+    const { service, tx, ledger } = createService({
+      correction: correctionWithDependencies(dependencyIds),
+      dependencies: dependencyIds.map(dependency),
+      dependencyVouchers: dependencyIds.map((origenId) => ({ origenId })),
+    });
+
+    await service.contabilizar(tenantId, userId, correctionId);
+
+    const dependencyQueries = tx.payrollCorrection.findMany.mock
+      .calls as unknown as Array<[{ where: Record<string, unknown> }]>;
+    const dependencyQuery = dependencyQueries.at(-1)?.[0];
+    expect(dependencyQuery?.where).toMatchObject({
+      tenantId,
+      id: { in: dependencyIds },
+      status: 'APROBADA',
+    });
+    expect(ledger.registrarComprobante).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not accept a dependency that is unavailable in the current tenant', async () => {
+    const { service, tx, ledger } = createService({
+      correction: correctionWithDependencies(['foreign-correction']),
+      dependencies: [],
+      dependencyVouchers: [],
+    });
+
+    await expect(
+      service.contabilizar(tenantId, userId, correctionId),
+    ).rejects.toBeInstanceOf(ConflictException);
+    const dependencyQueries = tx.payrollCorrection.findMany.mock
+      .calls as unknown as Array<[{ where: Record<string, unknown> }]>;
+    const dependencyQuery = dependencyQueries.at(-1)?.[0];
+    expect(dependencyQuery?.where).toMatchObject({ tenantId });
+    expect(ledger.registrarComprobante).not.toHaveBeenCalled();
+  });
+
+  it('rejects out-of-order accounting when a valid dependency has no voucher', async () => {
+    const { service, ledger, audit } = createService({
+      correction: correctionWithDependencies(['correction-previous']),
+      dependencies: [dependency('correction-previous')],
+      dependencyVouchers: [],
+    });
+
+    await expect(
+      service.contabilizar(tenantId, userId, correctionId),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(ledger.registrarComprobante).not.toHaveBeenCalled();
+    const auditCalls = audit.log.mock.calls as unknown as Array<
+      [
+        {
+          action: string;
+          metadata: {
+            pendingCorrectionIds: string[];
+            invalidCorrectionIds: string[];
+          };
+        },
+      ]
+    >;
+    const auditParams = lastCallArgument(auditCalls);
+    expect(auditParams.action).toBe(
+      'PAYROLL_CORRECTION_ACCOUNTING_BLOCKED_DEPENDENCIES',
+    );
+    expect(auditParams.metadata).toMatchObject({
+      pendingCorrectionIds: ['correction-previous'],
+      invalidCorrectionIds: [],
+    });
   });
 
   it('returns the existing voucher on a safe repeated execution', async () => {

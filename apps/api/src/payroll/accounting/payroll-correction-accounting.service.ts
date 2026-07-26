@@ -7,7 +7,10 @@ import {
 } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
 import { LedgerService } from '../../accounting/ledger/ledger.service';
-import { TenantPrismaService } from '../../tenant-prisma/tenant-prisma.service';
+import {
+  TenantPrismaClient,
+  TenantPrismaService,
+} from '../../tenant-prisma/tenant-prisma.service';
 import { PAYROLL_ACCOUNTING_REQUIRED_ROLES } from '../accounting-preflight/payroll-accounting-preflight.service';
 import { parseCorrectionMaterialization } from '../corrections/payroll-correction.types';
 import {
@@ -25,6 +28,17 @@ const ORIGIN = {
   type: 'PAYROLL_CORRECTION',
   event: 'AJUSTE',
 } as const;
+
+class PendingCorrectionDependenciesException extends ConflictException {
+  constructor(
+    readonly pendingCorrectionIds: string[],
+    readonly invalidCorrectionIds: string[],
+  ) {
+    super(
+      `La corrección tiene dependencias pendientes de contabilización: ${pendingCorrectionIds.join(', ')}.`,
+    );
+  }
+}
 
 @Injectable()
 export class PayrollCorrectionAccountingService {
@@ -96,6 +110,12 @@ export class PayrollCorrectionAccountingService {
             comprobanteId: existing.id,
           };
         }
+
+        await this.validateAccountingDependencies(
+          tx,
+          tenantId,
+          materialization.approvedCorrectionIds,
+        );
 
         await this.audit.log(
           {
@@ -190,8 +210,11 @@ export class PayrollCorrectionAccountingService {
         };
       });
     } catch (error) {
-      const action =
-        error instanceof HttpException
+      const dependencyError =
+        error instanceof PendingCorrectionDependenciesException ? error : null;
+      const action = dependencyError
+        ? 'PAYROLL_CORRECTION_ACCOUNTING_BLOCKED_DEPENDENCIES'
+        : error instanceof HttpException
           ? 'PAYROLL_CORRECTION_ACCOUNTING_REJECTED'
           : 'PAYROLL_CORRECTION_ACCOUNTING_ERROR';
       await this.audit
@@ -203,10 +226,80 @@ export class PayrollCorrectionAccountingService {
           entityId: correctionId,
           metadata: {
             reason: error instanceof Error ? error.message : 'Unknown error',
+            ...(dependencyError
+              ? {
+                  pendingCorrectionIds: dependencyError.pendingCorrectionIds,
+                  invalidCorrectionIds: dependencyError.invalidCorrectionIds,
+                }
+              : {}),
           },
         })
         .catch(() => {});
       throw error;
+    }
+  }
+
+  private async validateAccountingDependencies(
+    tx: TenantPrismaClient,
+    tenantId: string,
+    rawDependencyIds: string[],
+  ): Promise<void> {
+    const dependencyIds = [...new Set(rawDependencyIds)];
+    if (dependencyIds.length === 0) return;
+
+    const [dependencies, vouchers] = await Promise.all([
+      tx.payrollCorrection.findMany({
+        where: {
+          id: { in: dependencyIds },
+          tenantId,
+          status: 'APROBADA',
+        },
+        select: {
+          id: true,
+          materialization: true,
+          materializedAt: true,
+        },
+      }),
+      tx.comprobanteContable.findMany({
+        where: {
+          tenantId,
+          origenTipo: ORIGIN.type,
+          origenId: { in: dependencyIds },
+          origenEvento: ORIGIN.event,
+          estado: { not: 'ANULADO' },
+        },
+        select: { origenId: true },
+      }),
+    ]);
+
+    const validCorrectionIds = new Set<string>();
+    for (const dependency of dependencies) {
+      if (!dependency.materialization || !dependency.materializedAt) continue;
+      try {
+        parseCorrectionMaterialization(dependency.materialization);
+        validCorrectionIds.add(dependency.id);
+      } catch {
+        // Una dependencia inválida se reporta como bloqueada; nunca se repara aquí.
+      }
+    }
+
+    const voucherCorrectionIds = new Set(
+      vouchers
+        .map((voucher) => voucher.origenId)
+        .filter((id): id is string => id !== null),
+    );
+    const invalidCorrectionIds = dependencyIds.filter(
+      (id) => !validCorrectionIds.has(id),
+    );
+    const pendingCorrectionIds = dependencyIds.filter(
+      (id) => !validCorrectionIds.has(id) || !voucherCorrectionIds.has(id),
+    );
+
+    if (pendingCorrectionIds.length > 0) {
+      throw new PendingCorrectionDependenciesException(
+        pendingCorrectionIds,
+        invalidCorrectionIds,
+      );
     }
   }
 }
