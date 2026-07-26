@@ -663,6 +663,7 @@ enum PayrollPeriodStatus {
   CALCULADA
   EN_REVISION
   APROBADA
+  CAUSADA
   // CERRADA en U1/P1 es EXCLUSIVAMENTE legado: solo lo puebla el backfill de
   // la migración (CLOSED → CERRADA). Ningún flujo nuevo de U1 transiciona
   // hacia CERRADA — no aparece como destino en VALID_TRANSITIONS
@@ -910,6 +911,15 @@ model PayrollCorrection {
 
   status      PayrollCorrectionStatus @default(BORRADOR)
   descripcion String
+
+  // ACC-14A — Intención tipada y materialización inmutable de la corrección.
+  // Nullable para preservar las correcciones P1.5 existentes: una de ellas sin
+  // intención/materialización no es elegible para ajustes posteriores.
+  intentVersion          Int?
+  intent                 Json?
+  materializationVersion Int?
+  materialization        Json?
+  materializedAt         DateTime?
 
   @@index([tenantId])
   @@index([tenantId, payrollPeriodId])

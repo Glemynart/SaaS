@@ -1,7 +1,7 @@
 /**
  * Máquina de estados del ProcesoNómina (ADR-002 §6), alcance P1/U1: hasta
- * APROBADA. CAUSADA (P2) y PAGADA (P3) se añadirán aquí de forma aditiva
- * cuando esas fases lleguen — sin renombrar los estados ya definidos.
+ * APROBADA → CAUSADA (P2). PAGADA (P3) se añadirá de forma aditiva cuando
+ * esa fase llegue — sin renombrar los estados ya definidos.
  *
  * DRAFT/CLOSED son legado (ver schema.prisma): el backfill de U1 vació por
  * completo esos valores de la tabla; ningún código nuevo los produce ni los
@@ -38,7 +38,8 @@ export const VALID_TRANSITIONS: Record<
   BORRADOR: [PayrollPeriodStatus.CALCULADA],
   CALCULADA: [PayrollPeriodStatus.EN_REVISION, PayrollPeriodStatus.BORRADOR],
   EN_REVISION: [PayrollPeriodStatus.APROBADA, PayrollPeriodStatus.CALCULADA],
-  APROBADA: [],
+  APROBADA: [PayrollPeriodStatus.CAUSADA],
+  CAUSADA: [],
   CERRADA: [],
 };
 

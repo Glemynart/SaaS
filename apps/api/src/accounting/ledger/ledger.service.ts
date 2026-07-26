@@ -5,8 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
+import { lockAccountingPeriod } from '../accounting-period-lock';
+import { lockPayrollCorrectionDependencies } from '../payroll-correction-dependency-lock';
+import {
+  TenantPrismaClient,
+  TenantPrismaService,
+} from '../../tenant-prisma/tenant-prisma.service';
 import {
   LineaComprobanteInput,
   RegistrarComprobanteInput,
@@ -21,6 +26,11 @@ import {
 // la autoridad: valida el límite igual que siempre.
 export const MAX_LINEAS = 200;
 
+const PAYROLL_CORRECTION_ADJUSTMENT_ORIGIN = {
+  type: 'PAYROLL_CORRECTION',
+  event: 'AJUSTE',
+} as const;
+
 // =============================================================================
 // LedgerService · ADR-001 §6 — Puerto único de entrada al libro mayor.
 // =============================================================================
@@ -32,7 +42,7 @@ export const MAX_LINEAS = 200;
 @Injectable()
 export class LedgerService {
   constructor(
-    private prisma: PrismaService,
+    private readonly tenantPrisma: TenantPrismaService,
     private audit: AuditService,
   ) {}
 
@@ -40,79 +50,81 @@ export class LedgerService {
   // registrarComprobante
   // ============================================================================
 
-  async registrarComprobante(input: RegistrarComprobanteInput) {
+  async registrarComprobante(
+    input: RegistrarComprobanteInput,
+    client?: TenantPrismaClient,
+  ) {
     this.validarLineas(input.lineas);
     this.validarClaveOrigen(input);
 
-    return this.prisma.$transaction(
-      async (tx) => {
-        const periodo = await this.resolvePeriodoAbierto(
-          tx,
-          input.tenantId,
-          input.periodoId,
-        );
+    const registrar = async (tx: TenantPrismaClient) => {
+      const periodo = await this.resolvePeriodoAbierto(
+        tx,
+        input.tenantId,
+        input.periodoId,
+      );
 
-        await this.validarCuentas(tx, input.tenantId, input.lineas);
-        await this.validarIdempotencia(tx, input);
+      await this.validarCuentas(tx, input.tenantId, input.lineas);
+      await this.validarIdempotencia(tx, input);
 
-        const totalDebito = this.sumar(input.lineas, 'debito');
-        const totalCredito = this.sumar(input.lineas, 'credito');
-        this.validarPartidaDoble(totalDebito, totalCredito);
+      const totalDebito = this.sumar(input.lineas, 'debito');
+      const totalCredito = this.sumar(input.lineas, 'credito');
+      this.validarPartidaDoble(totalDebito, totalCredito);
 
-        const numero = await this.asignarConsecutivo(
-          tx,
-          input.tenantId,
-          input.tipoComprobanteId,
-        );
+      const numero = await this.asignarConsecutivo(
+        tx,
+        input.tenantId,
+        input.tipoComprobanteId,
+      );
 
-        const comprobante = await tx.comprobanteContable.create({
-          data: {
-            tenantId: input.tenantId,
-            tipoComprobanteId: input.tipoComprobanteId,
-            periodoId: periodo.id,
-            numero,
-            fecha: input.fecha,
-            concepto: input.concepto,
-            estado: 'CONTABILIZADO',
-            totalDebito,
-            totalCredito,
-            origenTipo: input.origenTipo ?? null,
-            origenId: input.origenId ?? null,
-            origenEvento: input.origenEvento ?? null,
-            usuarioId: input.userId,
-            contabilizadoAt: new Date(),
-            movimientos: {
-              create: input.lineas.map((l, i) => ({
-                tenantId: input.tenantId,
-                linea: i + 1,
-                cuentaId: l.cuentaId,
-                terceroId: l.terceroId ?? null,
-                centroCostoId: l.centroCostoId ?? null,
-                debito: l.debito,
-                credito: l.credito,
-                baseGravable: l.baseGravable ?? null,
-                descripcion: l.descripcion ?? null,
-              })),
-            },
+      const comprobante = await tx.comprobanteContable.create({
+        data: {
+          tenantId: input.tenantId,
+          tipoComprobanteId: input.tipoComprobanteId,
+          periodoId: periodo.id,
+          numero,
+          fecha: input.fecha,
+          concepto: input.concepto,
+          estado: 'CONTABILIZADO',
+          totalDebito,
+          totalCredito,
+          origenTipo: input.origenTipo ?? null,
+          origenId: input.origenId ?? null,
+          origenEvento: input.origenEvento ?? null,
+          usuarioId: input.userId,
+          contabilizadoAt: new Date(),
+          movimientos: {
+            create: input.lineas.map((l, i) => ({
+              tenantId: input.tenantId,
+              linea: i + 1,
+              cuentaId: l.cuentaId,
+              terceroId: l.terceroId ?? null,
+              centroCostoId: l.centroCostoId ?? null,
+              debito: l.debito,
+              credito: l.credito,
+              baseGravable: l.baseGravable ?? null,
+              descripcion: l.descripcion ?? null,
+            })),
           },
-          include: { movimientos: { orderBy: { linea: 'asc' } } },
-        });
+        },
+        include: { movimientos: { orderBy: { linea: 'asc' } } },
+      });
 
-        this.audit
-          .log({
-            tenantId: input.tenantId,
-            userId: input.userId,
-            action: 'COMPROBANTE_CONTABILIZADO',
-            entityType: 'ComprobanteContable',
-            entityId: comprobante.id,
-            metadata: { numero, tipo: input.tipoComprobanteId },
-          })
-          .catch(() => {});
+      this.audit
+        .log({
+          tenantId: input.tenantId,
+          userId: input.userId,
+          action: 'COMPROBANTE_CONTABILIZADO',
+          entityType: 'ComprobanteContable',
+          entityId: comprobante.id,
+          metadata: { numero, tipo: input.tipoComprobanteId },
+        })
+        .catch(() => {});
 
-        return comprobante;
-      },
-      { timeout: 15000 },
-    );
+      return comprobante;
+    };
+
+    return client ? registrar(client) : this.tenantPrisma.execute(registrar);
   }
 
   // ============================================================================
@@ -124,8 +136,9 @@ export class LedgerService {
     userId: string,
     comprobanteId: string,
     motivo: string,
+    client?: TenantPrismaClient,
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    const anular = async (tx: TenantPrismaClient) => {
       const comprobante = await this.findComprobante(
         tx,
         tenantId,
@@ -135,6 +148,19 @@ export class LedgerService {
       if (comprobante.estado === 'ANULADO') {
         return comprobante; // idempotente
       }
+
+      if (
+        comprobante.origenTipo === PAYROLL_CORRECTION_ADJUSTMENT_ORIGIN.type &&
+        comprobante.origenEvento ===
+          PAYROLL_CORRECTION_ADJUSTMENT_ORIGIN.event &&
+        comprobante.origenId
+      ) {
+        await lockPayrollCorrectionDependencies(tx, tenantId, [
+          comprobante.origenId,
+        ]);
+      }
+
+      await lockAccountingPeriod(tx, tenantId, comprobante.periodoId);
 
       if (comprobante.estado === 'BORRADOR') {
         throw new BadRequestException(
@@ -180,7 +206,9 @@ export class LedgerService {
         motivo,
         periodoAbierto.id,
       );
-    });
+    };
+
+    return client ? anular(client) : this.tenantPrisma.execute(anular);
   }
 
   // ============================================================================
@@ -487,6 +515,7 @@ export class LedgerService {
     tenantId: string,
     periodoId: string,
   ) {
+    await lockAccountingPeriod(tx, tenantId, periodoId);
     const periodo = await tx.periodoContable.findFirst({
       where: { id: periodoId, tenantId },
     });
@@ -536,7 +565,18 @@ export class LedgerService {
       );
     }
 
-    return periodo;
+    await lockAccountingPeriod(tx, tenantId, periodo.id);
+    const periodoBloqueado = await tx.periodoContable.findFirst({
+      where: { id: periodo.id, tenantId, estado: 'ABIERTO' },
+    });
+
+    if (!periodoBloqueado) {
+      throw new BadRequestException(
+        'El período abierto seleccionado se cerró durante la anulación. Intente nuevamente.',
+      );
+    }
+
+    return periodoBloqueado;
   }
 
   private async findComprobante(

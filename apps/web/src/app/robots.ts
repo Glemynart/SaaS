@@ -14,6 +14,7 @@ export default function robots(): MetadataRoute.Robots {
         '/alertas/',
         '/nomina/',
         '/facturacion/',
+        '/contabilidad/',
         '/perfil/',
         '/configuracion/',
         '/api/',

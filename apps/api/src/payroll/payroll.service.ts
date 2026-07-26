@@ -13,6 +13,16 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { LedgerService } from '../accounting/ledger/ledger.service';
+import {
+  PAYROLL_ACCOUNTING_REQUIRED_ROLES,
+  PayrollAccountingPreflightResult,
+  PayrollAccountingPreflightService,
+} from './accounting-preflight/payroll-accounting-preflight.service';
+import {
+  buildPayrollAccrualLines,
+  PayrollSystemAccounts,
+} from './accounting/payroll-accounting.mapper';
 import {
   CreatePayrollPeriodDto,
   CreatePayrollNoveltyDto,
@@ -22,6 +32,11 @@ import { calculate } from './calculator/payroll-calculator';
 import {
   PayrollCalculationInput,
   PayrollCalculationResult,
+  ArlClase,
+  ConceptCodigo,
+  FspTramo,
+  LegalParamsSnapshot,
+  PayrollConceptType,
 } from './calculator/payroll-types';
 import {
   EmpForPayroll,
@@ -37,6 +52,17 @@ import {
   PayrollBlockCode,
   PayrollFunctionalBlock,
 } from './payroll-evaluation';
+import {
+  createCorrectionIntentPayload,
+  parseCorrectionIntentPayload,
+  parseCorrectionMaterialization,
+  PayrollCorrectionCalculationInput,
+  PayrollCorrectionDeltaEntry,
+  PayrollCorrectionIntent,
+  PayrollCorrectionIntentKind,
+  PayrollCorrectionMaterialization,
+  PAYROLL_CORRECTION_MATERIALIZATION_VERSION,
+} from './corrections/payroll-correction.types';
 
 /** Estados en los que el motor de cálculo puede ejecutarse (ADR-002 §6). */
 const GENERATE_ALLOWED_STATUSES: PayrollPeriodStatus[] = [
@@ -110,13 +136,248 @@ type PayrollCalculationTrace = {
 
 type PayrollBlockMap = Record<string, PayrollFunctionalBlock[]>;
 
+type CorrectionSnapshot = {
+  id: string;
+  tenantId: string;
+  payrollPeriodId: string;
+  employeeId: string;
+  centroCostoId: string | null;
+  payload: Prisma.JsonValue;
+};
+
+type SnapshotConcept = {
+  codigo: string;
+  tipo: PayrollConceptType;
+  valor: number;
+};
+
+type ParsedCorrectionSnapshot = {
+  id: string;
+  employeeId: string;
+  centroCostoId: string | null;
+  concepts: SnapshotConcept[];
+  calculationInput: PayrollCalculationInput;
+};
+
+type EffectiveConceptAmount = {
+  codigo: string;
+  tipo: PayrollConceptType;
+  centroCostoId: string | null;
+  valor: number;
+};
+
 @Injectable()
 export class PayrollService {
   constructor(
     private prisma: PrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private auditService: AuditService,
+    private readonly ledger: LedgerService,
+    private readonly accountingPreflight: PayrollAccountingPreflightService,
   ) {}
+
+  async contabilizar(
+    tenantId: string,
+    userId: string,
+    periodId: string,
+  ): Promise<
+    | {
+        status: 'PREFLIGHT_ERROR';
+        preflight: PayrollAccountingPreflightResult;
+      }
+    | {
+        status: 'CAUSADA' | 'YA_CAUSADA';
+        payrollPeriodId: string;
+        comprobanteId: string;
+      }
+  > {
+    const period = await this.prisma.payrollPeriod.findFirst({
+      where: { id: periodId, tenantId },
+      select: { id: true, fechaFin: true },
+    });
+    if (!period) throw new NotFoundException('Período de nómina no encontrado');
+
+    const preflight = await this.accountingPreflight.validate(tenantId, {
+      fechaCausacion: period.fechaFin,
+    });
+    if (preflight.status === 'ERROR') {
+      return { status: 'PREFLIGHT_ERROR', preflight };
+    }
+
+    return this.tenantPrisma.execute(async (tx) => {
+      const current = await tx.payrollPeriod.findFirst({
+        where: { id: periodId, tenantId },
+        select: { id: true, nombre: true, fechaFin: true, status: true },
+      });
+      if (!current)
+        throw new NotFoundException('Período de nómina no encontrado');
+
+      const existing = await tx.comprobanteContable.findFirst({
+        where: {
+          tenantId,
+          origenTipo: 'PAYROLL',
+          origenId: current.id,
+          origenEvento: 'CAUSACION',
+          estado: { not: 'ANULADO' },
+        },
+        select: { id: true },
+      });
+
+      if (current.status === PayrollPeriodStatus.CAUSADA) {
+        if (!existing) {
+          throw new ConflictException(
+            'El período figura como causado sin comprobante de causación asociado.',
+          );
+        }
+        return {
+          status: 'YA_CAUSADA' as const,
+          payrollPeriodId: current.id,
+          comprobanteId: existing.id,
+        };
+      }
+
+      if (current.status !== PayrollPeriodStatus.APROBADA) {
+        throw new BadRequestException(
+          `Solo se puede contabilizar un período APROBADA; estado actual: ${current.status}.`,
+        );
+      }
+      if (existing) {
+        throw new ConflictException(
+          'Ya existe una causación para este período de nómina.',
+        );
+      }
+
+      const [maps, accountingPeriod, voucherType, runs] = await Promise.all([
+        tx.cuentaSistemaMap.findMany({
+          where: {
+            tenantId,
+            activo: true,
+            rol: { in: [...PAYROLL_ACCOUNTING_REQUIRED_ROLES] },
+          },
+          select: { rol: true, cuentaId: true },
+        }),
+        tx.periodoContable.findFirst({
+          where: {
+            tenantId,
+            estado: 'ABIERTO',
+            fechaInicio: { lte: current.fechaFin },
+            fechaFin: { gte: current.fechaFin },
+          },
+          select: { id: true },
+        }),
+        tx.tipoComprobante.findFirst({
+          where: { codigo: 'NOM', activo: true },
+          select: { id: true },
+        }),
+        tx.payrollRun.findMany({
+          where: { tenantId, payrollPeriodId: current.id },
+          select: {
+            centroCostoId: true,
+            totalDevengos: true,
+            totalDeducciones: true,
+            netoPagar: true,
+            totalAportesPatronales: true,
+            totalProvisiones: true,
+            concepts: { select: { codigo: true, valor: true } },
+          },
+        }),
+      ]);
+
+      if (!accountingPeriod || !voucherType) {
+        throw new ConflictException(
+          'La configuración contable cambió después del preflight.',
+        );
+      }
+      if (runs.length === 0) {
+        throw new BadRequestException(
+          'No existen liquidaciones válidas para contabilizar.',
+        );
+      }
+
+      const accountMap = new Map(maps.map((map) => [map.rol, map.cuentaId]));
+      const accounts = Object.fromEntries(
+        PAYROLL_ACCOUNTING_REQUIRED_ROLES.map((role) => {
+          const accountId = accountMap.get(role);
+          if (!accountId) {
+            throw new ConflictException(
+              `El mapeo contable ${role} no está disponible para la causación.`,
+            );
+          }
+          return [role, accountId];
+        }),
+      ) as PayrollSystemAccounts;
+
+      const comprobante = await this.ledger.registrarComprobante(
+        {
+          tenantId,
+          userId,
+          tipoComprobanteId: voucherType.id,
+          periodoId: accountingPeriod.id,
+          fecha: current.fechaFin,
+          concepto: `Causación nómina ${current.nombre}`,
+          lineas: buildPayrollAccrualLines(
+            runs.map((run) => ({
+              centroCostoId: run.centroCostoId,
+              totalDevengos: Number(run.totalDevengos),
+              totalDeducciones: Number(run.totalDeducciones),
+              netoPagar: Number(run.netoPagar),
+              totalAportesPatronales: run.totalAportesPatronales
+                ? Number(run.totalAportesPatronales)
+                : null,
+              totalProvisiones: run.totalProvisiones
+                ? Number(run.totalProvisiones)
+                : null,
+              concepts: run.concepts.map((concept) => ({
+                codigo: concept.codigo,
+                valor: Number(concept.valor),
+              })),
+            })),
+            accounts,
+          ),
+          origenTipo: 'PAYROLL',
+          origenId: current.id,
+          origenEvento: 'CAUSACION',
+        },
+        tx,
+      );
+
+      const transition = await tx.payrollPeriod.updateMany({
+        where: {
+          id: current.id,
+          tenantId,
+          status: PayrollPeriodStatus.APROBADA,
+        },
+        data: { status: PayrollPeriodStatus.CAUSADA },
+      });
+      if (transition.count === 0) {
+        throw new ConflictException(
+          'El período de nómina fue modificado durante la causación.',
+        );
+      }
+
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'PAYROLL_ACCRUED',
+          entityType: 'PayrollPeriod',
+          entityId: current.id,
+          metadata: {
+            comprobanteId: comprobante.id,
+            from: 'APROBADA',
+            to: 'CAUSADA',
+          },
+        },
+        tx,
+      );
+
+      return {
+        status: 'CAUSADA' as const,
+        payrollPeriodId: current.id,
+        comprobanteId: comprobante.id,
+      };
+    });
+  }
 
   async createPeriod(
     tenantId: string,
@@ -261,6 +522,7 @@ export class PayrollService {
         'La descripción de la corrección es obligatoria',
       );
     }
+    const intent = createCorrectionIntentPayload(dto.intents);
 
     const period = await this.requireApprovedPeriodForCorrections(
       tenantId,
@@ -269,12 +531,21 @@ export class PayrollService {
     );
 
     return this.prisma.$transaction(async (tx) => {
+      await this.validateCorrectionIntentReferences(
+        tx,
+        tenantId,
+        period.id,
+        intent.intents,
+      );
+
       const correction = await tx.payrollCorrection.create({
         data: {
           tenantId,
           payrollPeriodId: period.id,
           status: PayrollCorrectionStatus.BORRADOR,
           descripcion,
+          intentVersion: intent.version,
+          intent,
         },
       });
 
@@ -289,6 +560,8 @@ export class PayrollService {
             payrollPeriodId: period.id,
             periodName: period.nombre,
             status: PayrollCorrectionStatus.BORRADOR,
+            intentIds: intent.intents.map((item) => item.id),
+            intentKinds: intent.intents.map((item) => item.kind),
           },
         },
         tx,
@@ -318,13 +591,10 @@ export class PayrollService {
     userId: string,
     correctionId: string,
   ) {
-    return this.transitionCorrection(
+    return this.approveCorrectionWithMaterialization(
       tenantId,
       userId,
       correctionId,
-      PayrollCorrectionStatus.EN_REVISION,
-      PayrollCorrectionStatus.APROBADA,
-      'PAYROLL_CORRECTION_APPROVED',
     );
   }
 
@@ -718,6 +988,812 @@ export class PayrollService {
     });
   }
 
+  /**
+   * EN_REVISION → APROBADA con materialización inmutable. La transacción es
+   * serializable para que dos correcciones del mismo período no calculen la
+   * misma línea base de manera concurrente.
+   */
+  private async approveCorrectionWithMaterialization(
+    tenantId: string,
+    userId: string,
+    correctionId: string,
+  ) {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const correction = await tx.payrollCorrection.findFirst({
+          where: { id: correctionId, tenantId },
+          select: {
+            id: true,
+            tenantId: true,
+            payrollPeriodId: true,
+            status: true,
+            intent: true,
+            intentVersion: true,
+            materialization: true,
+          },
+        });
+        if (!correction)
+          throw new NotFoundException('Corrección no encontrada');
+        if (correction.status !== PayrollCorrectionStatus.EN_REVISION) {
+          throw new BadRequestException(
+            `Transición de corrección no permitida: ${correction.status} → ${PayrollCorrectionStatus.APROBADA}`,
+          );
+        }
+        if (
+          correction.materialization !== null &&
+          correction.materialization !== undefined
+        ) {
+          throw new ConflictException(
+            'La corrección ya posee una materialización inmutable.',
+          );
+        }
+
+        const period = await this.requireCorrectablePeriod(
+          tx,
+          tenantId,
+          correction.payrollPeriodId,
+          'Solo se pueden aprobar correcciones sobre un período aprobado o causado',
+        );
+        const intent = parseCorrectionIntentPayload(correction.intent);
+        if (correction.intentVersion !== intent.version) {
+          throw new ConflictException(
+            'La versión de intención de la corrección no es válida.',
+          );
+        }
+
+        const snapshots = await this.validateCorrectionIntentReferences(
+          tx,
+          tenantId,
+          period.id,
+          intent.intents,
+        );
+        const previousCorrections = await tx.payrollCorrection.findMany({
+          where: {
+            tenantId,
+            payrollPeriodId: period.id,
+            status: PayrollCorrectionStatus.APROBADA,
+            id: { not: correction.id },
+          },
+          select: {
+            id: true,
+            materialization: true,
+            materializationVersion: true,
+            materializedAt: true,
+            createdAt: true,
+          },
+          orderBy: [{ materializedAt: 'asc' }, { createdAt: 'asc' }],
+        });
+
+        const previousMaterializations = previousCorrections.map((previous) => {
+          if (
+            previous.materialization === null ||
+            previous.materializationVersion !==
+              PAYROLL_CORRECTION_MATERIALIZATION_VERSION
+          ) {
+            throw new ConflictException(
+              'No puede reconstruirse una línea base con una corrección aprobada sin materialización válida.',
+            );
+          }
+          return {
+            correctionId: previous.id,
+            materialization: parseCorrectionMaterialization(
+              previous.materialization,
+            ),
+          };
+        });
+
+        const materializedAt = new Date();
+        const materialization = this.buildCorrectionMaterialization(
+          snapshots,
+          intent.intents,
+          previousMaterializations,
+          materializedAt,
+        );
+
+        const updated = await tx.payrollCorrection.updateMany({
+          where: {
+            id: correction.id,
+            tenantId,
+            payrollPeriodId: period.id,
+            status: PayrollCorrectionStatus.EN_REVISION,
+            materialization: { equals: Prisma.DbNull },
+          },
+          data: {
+            status: PayrollCorrectionStatus.APROBADA,
+            materializationVersion: materialization.version,
+            materialization,
+            materializedAt,
+          },
+        });
+        if (updated.count === 0) {
+          throw new ConflictException(
+            'La corrección fue modificada por otra operación concurrente.',
+          );
+        }
+
+        await this.auditService.log(
+          {
+            tenantId,
+            userId,
+            action: 'PAYROLL_CORRECTION_APPROVED',
+            entityType: 'PayrollCorrection',
+            entityId: correction.id,
+            metadata: {
+              payrollPeriodId: period.id,
+              from: PayrollCorrectionStatus.EN_REVISION,
+              to: PayrollCorrectionStatus.APROBADA,
+              intentIds: intent.intents.map((item) => item.id),
+              snapshotIds: materialization.snapshotIds,
+              approvedCorrectionIds: materialization.approvedCorrectionIds,
+              materializationVersion: materialization.version,
+            },
+          },
+          tx,
+        );
+
+        return tx.payrollCorrection.findFirstOrThrow({
+          where: { id: correction.id, tenantId },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  private async validateCorrectionIntentReferences(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    payrollPeriodId: string,
+    intents: PayrollCorrectionIntent[],
+  ): Promise<CorrectionSnapshot[]> {
+    const snapshotIds = [
+      ...new Set(intents.map((intent) => intent.snapshotId)),
+    ];
+    const snapshots = await tx.payrollSnapshot.findMany({
+      where: {
+        id: { in: snapshotIds },
+        tenantId,
+        payrollPeriodId,
+      },
+      select: {
+        id: true,
+        tenantId: true,
+        payrollPeriodId: true,
+        employeeId: true,
+        centroCostoId: true,
+        payload: true,
+      },
+    });
+    if (snapshots.length !== snapshotIds.length) {
+      throw new BadRequestException(
+        'La corrección referencia snapshots inexistentes o fuera del tenant/período.',
+      );
+    }
+
+    const targetCostCenterIds = [
+      ...new Set(
+        intents
+          .filter(
+            (
+              intent,
+            ): intent is Extract<
+              PayrollCorrectionIntent,
+              { kind: PayrollCorrectionIntentKind.MOVE_COST_CENTER }
+            > => intent.kind === PayrollCorrectionIntentKind.MOVE_COST_CENTER,
+          )
+          .map((intent) => intent.targetCostCenterId),
+      ),
+    ];
+    if (targetCostCenterIds.length > 0) {
+      const costCenters = await tx.centroCosto.findMany({
+        where: {
+          id: { in: targetCostCenterIds },
+          tenantId,
+          activo: true,
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      if (costCenters.length !== targetCostCenterIds.length) {
+        throw new BadRequestException(
+          'La corrección referencia un centro de costo inexistente o inactivo.',
+        );
+      }
+    }
+
+    return snapshots;
+  }
+
+  private buildCorrectionMaterialization(
+    snapshots: CorrectionSnapshot[],
+    intents: PayrollCorrectionIntent[],
+    previousCorrections: Array<{
+      correctionId: string;
+      materialization: PayrollCorrectionMaterialization;
+    }>,
+    materializedAt: Date,
+  ): PayrollCorrectionMaterialization {
+    const snapshotIds = snapshots.map((snapshot) => snapshot.id).sort();
+    const entries: PayrollCorrectionDeltaEntry[] = [];
+
+    for (const rawSnapshot of snapshots) {
+      const snapshot = this.parseCorrectionSnapshot(rawSnapshot);
+      const previousEntries = previousCorrections.flatMap((previous) => {
+        const materialization = previous.materialization;
+        if (
+          materialization.entries.some(
+            (entry) =>
+              entry.snapshotId === snapshot.id &&
+              !materialization.snapshotIds.includes(snapshot.id),
+          )
+        ) {
+          throw new ConflictException(
+            'La materialización previa tiene referencias inconsistentes.',
+          );
+        }
+        return materialization.entries.filter(
+          (entry) => entry.snapshotId === snapshot.id,
+        );
+      });
+      const baseline = this.buildEffectiveAmounts(snapshot, previousEntries);
+      const currentCenterId = this.resolveEffectiveCostCenter(baseline);
+      const currentInput = this.reconstructCalculationInput(
+        snapshot,
+        baseline,
+        currentCenterId,
+      );
+
+      const currentResult = calculate(currentInput);
+      const recalculatedBaseline = this.resultToAmounts(
+        currentResult,
+        currentCenterId,
+      );
+      if (!this.sameAmounts(baseline, recalculatedBaseline)) {
+        throw new ConflictException(
+          'No puede reconstruirse una línea base consistente para la corrección.',
+        );
+      }
+
+      const snapshotIntents = intents.filter(
+        (intent) => intent.snapshotId === snapshot.id,
+      );
+      const nextInput = {
+        ...currentInput,
+        novelties: [...currentInput.novelties],
+      };
+      let targetCenterId = currentCenterId;
+      for (const intent of snapshotIntents) {
+        if (intent.kind === PayrollCorrectionIntentKind.MOVE_COST_CENTER) {
+          targetCenterId = intent.targetCostCenterId;
+          continue;
+        }
+        if (intent.input === PayrollCorrectionCalculationInput.SALARIO_BASE) {
+          nextInput.salarioBase = intent.targetAmount;
+        } else {
+          const novelty = nextInput.novelties.find(
+            (item) => item.tipo === String(intent.input),
+          );
+          if (novelty) novelty.valor = intent.targetAmount;
+          else
+            nextInput.novelties.push({
+              tipo: intent.input,
+              valor: intent.targetAmount,
+            });
+        }
+      }
+
+      const nextAmounts = this.resultToAmounts(
+        calculate(nextInput),
+        targetCenterId,
+      );
+      entries.push(...this.diffAmounts(snapshot, baseline, nextAmounts));
+    }
+
+    if (entries.length === 0) {
+      throw new BadRequestException(
+        'La corrección no genera cambios materiales.',
+      );
+    }
+
+    return {
+      version: PAYROLL_CORRECTION_MATERIALIZATION_VERSION,
+      generatedAt: materializedAt.toISOString(),
+      snapshotIds,
+      approvedCorrectionIds: previousCorrections.map(
+        (previous) => previous.correctionId,
+      ),
+      entries,
+    };
+  }
+
+  private buildEffectiveAmounts(
+    snapshot: ParsedCorrectionSnapshot,
+    previousEntries: PayrollCorrectionDeltaEntry[],
+  ) {
+    const amounts = new Map<string, EffectiveConceptAmount>();
+    const add = (
+      codigo: string,
+      tipo: PayrollConceptType,
+      centroCostoId: string | null,
+      valor: number,
+    ) => {
+      const key = this.amountKey(codigo, tipo, centroCostoId);
+      const current = amounts.get(key);
+      amounts.set(key, {
+        codigo,
+        tipo,
+        centroCostoId,
+        valor: (current?.valor ?? 0) + valor,
+      });
+    };
+
+    for (const concept of snapshot.concepts) {
+      add(concept.codigo, concept.tipo, snapshot.centroCostoId, concept.valor);
+    }
+    for (const entry of previousEntries) {
+      if (entry.employeeId !== snapshot.employeeId) {
+        throw new ConflictException(
+          'La materialización previa no corresponde al empleado del snapshot.',
+        );
+      }
+      add(
+        entry.concept.codigo,
+        this.asPayrollConceptType(entry.concept.tipo),
+        entry.centroCostoId,
+        entry.delta,
+      );
+    }
+
+    for (const amount of amounts.values()) {
+      if (amount.valor < 0) {
+        throw new ConflictException(
+          'La línea base de la corrección contiene valores negativos.',
+        );
+      }
+    }
+    return [...amounts.values()].filter((amount) => amount.valor !== 0);
+  }
+
+  private resolveEffectiveCostCenter(amounts: EffectiveConceptAmount[]) {
+    const centers = new Set(
+      amounts
+        .filter((amount) => amount.valor !== 0)
+        .map((amount) => amount.centroCostoId),
+    );
+    if (centers.size !== 1) {
+      throw new ConflictException(
+        'La distribución vigente por centro de costo no puede reconstruirse de forma consistente.',
+      );
+    }
+    return [...centers][0] ?? null;
+  }
+
+  private reconstructCalculationInput(
+    snapshot: ParsedCorrectionSnapshot,
+    amounts: EffectiveConceptAmount[],
+    centroCostoId: string | null,
+  ): PayrollCalculationInput {
+    const amountFor = (codigo: string) =>
+      amounts
+        .filter(
+          (amount) =>
+            amount.codigo === codigo && amount.centroCostoId === centroCostoId,
+        )
+        .reduce((total, amount) => total + amount.valor, 0);
+    const salarioBase = amountFor(ConceptCodigo.SALARIO_BASE);
+    if (salarioBase <= 0) {
+      throw new ConflictException(
+        'La línea base no contiene un salario base válido.',
+      );
+    }
+    return {
+      ...snapshot.calculationInput,
+      salarioBase,
+      novelties: [
+        {
+          tipo: PayrollCorrectionCalculationInput.BONUS,
+          valor: amountFor(ConceptCodigo.BONUS),
+        },
+        {
+          tipo: PayrollCorrectionCalculationInput.OVERTIME,
+          valor: amountFor(ConceptCodigo.OVERTIME),
+        },
+      ].filter((novelty) => novelty.valor > 0),
+    };
+  }
+
+  private resultToAmounts(
+    result: PayrollCalculationResult,
+    centroCostoId: string | null,
+  ): EffectiveConceptAmount[] {
+    return result.concepts.map((concept) => ({
+      codigo: concept.codigo,
+      tipo: concept.tipo,
+      centroCostoId,
+      valor: concept.valor,
+    }));
+  }
+
+  private diffAmounts(
+    snapshot: ParsedCorrectionSnapshot,
+    before: EffectiveConceptAmount[],
+    after: EffectiveConceptAmount[],
+  ): PayrollCorrectionDeltaEntry[] {
+    const amounts = new Map<string, EffectiveConceptAmount>();
+    for (const item of before) {
+      amounts.set(this.amountKey(item.codigo, item.tipo, item.centroCostoId), {
+        ...item,
+        valor: -item.valor,
+      });
+    }
+    for (const item of after) {
+      const key = this.amountKey(item.codigo, item.tipo, item.centroCostoId);
+      const current = amounts.get(key);
+      amounts.set(key, { ...item, valor: (current?.valor ?? 0) + item.valor });
+    }
+    return [...amounts.values()]
+      .filter((item) => item.valor !== 0)
+      .sort((a, b) =>
+        this.amountKey(a.codigo, a.tipo, a.centroCostoId).localeCompare(
+          this.amountKey(b.codigo, b.tipo, b.centroCostoId),
+        ),
+      )
+      .map((item) => ({
+        snapshotId: snapshot.id,
+        employeeId: snapshot.employeeId,
+        centroCostoId: item.centroCostoId,
+        concept: { codigo: item.codigo, tipo: item.tipo },
+        delta: item.valor,
+      }));
+  }
+
+  private sameAmounts(
+    left: EffectiveConceptAmount[],
+    right: EffectiveConceptAmount[],
+  ) {
+    const toMap = (values: EffectiveConceptAmount[]) =>
+      new Map(
+        values.map((item) => [
+          this.amountKey(item.codigo, item.tipo, item.centroCostoId),
+          item.valor,
+        ]),
+      );
+    const leftMap = toMap(left);
+    const rightMap = toMap(right);
+    if (leftMap.size !== rightMap.size) return false;
+    return [...leftMap].every(([key, value]) => rightMap.get(key) === value);
+  }
+
+  private amountKey(
+    codigo: string,
+    tipo: string,
+    centroCostoId: string | null,
+  ) {
+    return JSON.stringify([codigo, tipo, centroCostoId]);
+  }
+
+  private asPayrollConceptType(value: string): PayrollConceptType {
+    if (
+      value === 'EARNING' ||
+      value === 'DEDUCTION' ||
+      value === 'EMPLOYER_CONTRIBUTION' ||
+      value === 'PROVISION'
+    ) {
+      return value;
+    }
+    throw new ConflictException(
+      'La materialización contiene un tipo de concepto inválido.',
+    );
+  }
+
+  private parseCorrectionSnapshot(
+    snapshot: CorrectionSnapshot,
+  ): ParsedCorrectionSnapshot {
+    const payload = this.asRecord(
+      snapshot.payload,
+      'El snapshot no tiene un payload válido.',
+    );
+    const employee = this.asRecord(
+      payload.employee,
+      'El snapshot no contiene el empleado original.',
+    );
+    const contract =
+      payload.contract === null
+        ? null
+        : this.asRecord(
+            payload.contract,
+            'El snapshot no contiene el contrato original.',
+          );
+    const policy = this.asRecord(
+      payload.companyPolicy,
+      'El snapshot no contiene la política de empresa.',
+    );
+    const legal = this.asRecord(
+      payload.legalParameters,
+      'El snapshot no contiene los parámetros legales congelados.',
+    );
+    if (!Array.isArray(payload.concepts)) {
+      throw new ConflictException('El snapshot no contiene conceptos válidos.');
+    }
+
+    const concepts = payload.concepts.map((concept) => {
+      const value = this.asRecord(
+        concept,
+        'El snapshot contiene un concepto inválido.',
+      );
+      const codigo = this.asNonEmptyString(
+        value.codigo,
+        'El concepto del snapshot no tiene código.',
+      );
+      return {
+        codigo,
+        tipo: this.asPayrollConceptType(
+          this.asNonEmptyString(
+            value.tipo,
+            'El concepto del snapshot no tiene tipo.',
+          ),
+        ),
+        valor: this.asInteger(
+          value.valor,
+          'El concepto del snapshot no tiene un valor válido.',
+        ),
+      };
+    });
+
+    return {
+      id: snapshot.id,
+      employeeId: snapshot.employeeId,
+      centroCostoId: snapshot.centroCostoId,
+      concepts,
+      calculationInput: {
+        salarioBase: this.asPositiveInteger(
+          employee.salarioBaseUsado,
+          'El snapshot no contiene un salario base válido.',
+        ),
+        salarioIntegral: this.asBoolean(
+          employee.salarioIntegralUsado,
+          'El snapshot no contiene la condición salarial original.',
+        ),
+        claseRiesgoArl: this.asArlClass(contract?.claseRiesgoArlUsada ?? 1),
+        aportesExonerados: this.asBoolean(
+          policy.aportesExonerados,
+          'El snapshot no contiene la política de aportes.',
+        ),
+        legalParams: this.parseFrozenLegalParams(legal),
+        novelties: [],
+      },
+    };
+  }
+
+  private parseFrozenLegalParams(
+    value: Record<string, unknown>,
+  ): LegalParamsSnapshot {
+    const topes = this.asRecord(
+      value.topes,
+      'El snapshot no contiene topes legales válidos.',
+    );
+    const tarifasEmpleado = this.asRecord(
+      value.tarifasEmpleado,
+      'El snapshot no contiene tarifas de empleado válidas.',
+    );
+    const tarifasEmpleador = this.asRecord(
+      value.tarifasEmpleador,
+      'El snapshot no contiene tarifas de empleador válidas.',
+    );
+    const tarifasArl = this.asRecord(
+      value.tarifasArl,
+      'El snapshot no contiene tarifas ARL válidas.',
+    );
+    const factoresProvision = this.asRecord(
+      value.factoresProvision,
+      'El snapshot no contiene factores de provisión válidos.',
+    );
+    if (!Array.isArray(value.fspTramos)) {
+      throw new ConflictException(
+        'El snapshot no contiene tramos FSP válidos.',
+      );
+    }
+    const fspTramos: FspTramo[] = value.fspTramos.map((tramo) => {
+      const item = this.asRecord(
+        tramo,
+        'El snapshot contiene un tramo FSP inválido.',
+      );
+      return {
+        desdeSmmlv: this.asFiniteNumber(
+          item.desdeSmmlv,
+          'El tramo FSP no es válido.',
+        ),
+        hastaSmmlv:
+          item.hastaSmmlv === null
+            ? null
+            : this.asFiniteNumber(
+                item.hastaSmmlv,
+                'El tramo FSP no es válido.',
+              ),
+        pct: this.asFiniteNumber(item.pct, 'El tramo FSP no es válido.'),
+      };
+    });
+    return {
+      smmlv: this.asFiniteNumber(
+        value.smmlv,
+        'El SMMLV congelado no es válido.',
+      ),
+      auxilioTransporte: this.asFiniteNumber(
+        value.auxilioTransporte,
+        'El auxilio de transporte congelado no es válido.',
+      ),
+      topeIbcMinSmmlv: this.asFiniteNumber(
+        topes.topeIbcMinSmmlv,
+        'El tope IBC mínimo no es válido.',
+      ),
+      topeIbcMaxSmmlv: this.asFiniteNumber(
+        topes.topeIbcMaxSmmlv,
+        'El tope IBC máximo no es válido.',
+      ),
+      umbralAuxilioSmmlv: this.asFiniteNumber(
+        topes.umbralAuxilioSmmlv,
+        'El umbral de auxilio no es válido.',
+      ),
+      umbralExoneracionSmmlv: this.asFiniteNumber(
+        topes.umbralExoneracionSmmlv,
+        'El umbral de exoneración no es válido.',
+      ),
+      pctSaludEmpleado: this.asFiniteNumber(
+        tarifasEmpleado.pctSaludEmpleado,
+        'La tarifa de salud empleado no es válida.',
+      ),
+      pctPensionEmpleado: this.asFiniteNumber(
+        tarifasEmpleado.pctPensionEmpleado,
+        'La tarifa de pensión empleado no es válida.',
+      ),
+      pctSaludEmpleador: this.asFiniteNumber(
+        tarifasEmpleador.pctSaludEmpleador,
+        'La tarifa de salud empleador no es válida.',
+      ),
+      pctPensionEmpleador: this.asFiniteNumber(
+        tarifasEmpleador.pctPensionEmpleador,
+        'La tarifa de pensión empleador no es válida.',
+      ),
+      pctCaja: this.asFiniteNumber(
+        tarifasEmpleador.pctCaja,
+        'La tarifa de caja no es válida.',
+      ),
+      pctIcbf: this.asFiniteNumber(
+        tarifasEmpleador.pctIcbf,
+        'La tarifa ICBF no es válida.',
+      ),
+      pctSena: this.asFiniteNumber(
+        tarifasEmpleador.pctSena,
+        'La tarifa SENA no es válida.',
+      ),
+      arlPorClase: {
+        1: this.asFiniteNumber(
+          tarifasArl.arlClaseI,
+          'La tarifa ARL I no es válida.',
+        ),
+        2: this.asFiniteNumber(
+          tarifasArl.arlClaseII,
+          'La tarifa ARL II no es válida.',
+        ),
+        3: this.asFiniteNumber(
+          tarifasArl.arlClaseIII,
+          'La tarifa ARL III no es válida.',
+        ),
+        4: this.asFiniteNumber(
+          tarifasArl.arlClaseIV,
+          'La tarifa ARL IV no es válida.',
+        ),
+        5: this.asFiniteNumber(
+          tarifasArl.arlClaseV,
+          'La tarifa ARL V no es válida.',
+        ),
+      },
+      factorProvPrima: this.asFiniteNumber(
+        factoresProvision.factorProvPrima,
+        'El factor de prima no es válido.',
+      ),
+      factorProvCesantias: this.asFiniteNumber(
+        factoresProvision.factorProvCesantias,
+        'El factor de cesantías no es válido.',
+      ),
+      factorProvIntCesantias: this.asFiniteNumber(
+        factoresProvision.factorProvIntCesantias,
+        'El factor de intereses de cesantías no es válido.',
+      ),
+      factorProvVacaciones: this.asFiniteNumber(
+        factoresProvision.factorProvVacaciones,
+        'El factor de vacaciones no es válido.',
+      ),
+      fspTramos,
+    };
+  }
+
+  private asRecord(value: unknown, message: string): Record<string, unknown> {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      throw new ConflictException(message);
+    }
+    return value as Record<string, unknown>;
+  }
+
+  private asNonEmptyString(value: unknown, message: string) {
+    if (typeof value !== 'string' || value.trim().length === 0) {
+      throw new ConflictException(message);
+    }
+    return value;
+  }
+
+  private asFiniteNumber(value: unknown, message: string) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new ConflictException(message);
+    }
+    return value;
+  }
+
+  private asInteger(value: unknown, message: string) {
+    if (
+      typeof value !== 'number' ||
+      !Number.isSafeInteger(value) ||
+      value < 0
+    ) {
+      throw new ConflictException(message);
+    }
+    return value;
+  }
+
+  private asPositiveInteger(value: unknown, message: string) {
+    const integer = this.asInteger(value, message);
+    if (integer <= 0) throw new ConflictException(message);
+    return integer;
+  }
+
+  private asBoolean(value: unknown, message: string) {
+    if (typeof value !== 'boolean') throw new ConflictException(message);
+    return value;
+  }
+
+  private asArlClass(value: unknown): ArlClase {
+    if (
+      value === 1 ||
+      value === 2 ||
+      value === 3 ||
+      value === 4 ||
+      value === 5
+    ) {
+      return value;
+    }
+    throw new ConflictException('La clase ARL congelada no es válida.');
+  }
+
+  private async requireCorrectablePeriod(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    periodId: string,
+    message: string,
+  ) {
+    const period = await tx.payrollPeriod.findFirst({
+      where: { id: periodId, tenantId },
+      select: {
+        id: true,
+        nombre: true,
+        status: true,
+        aprobadoPorId: true,
+        aprobadoEn: true,
+      },
+    });
+    if (!period) throw new NotFoundException('Período no encontrado');
+    if (
+      period.status !== PayrollPeriodStatus.APROBADA &&
+      period.status !== PayrollPeriodStatus.CAUSADA
+    ) {
+      throw new BadRequestException(message);
+    }
+    if (!period.aprobadoPorId || !period.aprobadoEn) {
+      throw new ConflictException(
+        'El período aprobado no tiene una aprobación original auditable',
+      );
+    }
+    return period;
+  }
+
   private async requireApprovedPeriodForCorrections(
     tenantId: string,
     periodId: string,
@@ -735,7 +1811,10 @@ export class PayrollService {
     });
     if (!period) throw new NotFoundException('Período no encontrado');
 
-    if (period.status !== PayrollPeriodStatus.APROBADA) {
+    if (
+      period.status !== PayrollPeriodStatus.APROBADA &&
+      period.status !== PayrollPeriodStatus.CAUSADA
+    ) {
       throw new BadRequestException(notApprovedMessage);
     }
 
@@ -1564,7 +2643,7 @@ export class PayrollService {
           estadoPeriodo: PayrollPeriodStatus.APROBADA,
           origen: origin,
           payloadVersion: SNAPSHOT_PAYLOAD_VERSION,
-          payload: payload as Prisma.InputJsonValue,
+          payload,
         },
       });
     }

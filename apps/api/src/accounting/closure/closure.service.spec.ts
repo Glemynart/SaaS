@@ -67,6 +67,7 @@ function balanceDescuadrado() {
 function build() {
   const mocks = {
     periodoFindFirst: jest.fn(),
+    periodoFindMany: jest.fn().mockResolvedValue([]),
     comprobanteCount: jest.fn(),
     comprobanteFindFirst: jest.fn(),
     comprobanteFindMany: jest.fn(),
@@ -78,18 +79,15 @@ function build() {
     tipoComprobanteFindFirst: jest.fn(),
     cuentaSistemaMapFindFirst: jest.fn(),
     registrarComprobante: jest.fn(),
+    executeRaw: jest.fn().mockResolvedValue(1),
   };
 
-  const tx = {
-    periodoContable: {
-      updateMany: mocks.txUpdateMany,
-    },
-  };
-
-  const prisma = {
+  const client = {
+    $executeRaw: mocks.executeRaw,
     periodoContable: {
       findFirst: mocks.periodoFindFirst,
-      updateMany: mocks.periodoUpdateMany,
+      findMany: mocks.periodoFindMany,
+      updateMany: mocks.txUpdateMany,
     },
     comprobanteContable: {
       count: mocks.comprobanteCount,
@@ -102,9 +100,10 @@ function build() {
     cuentaSistemaMap: {
       findFirst: mocks.cuentaSistemaMapFindFirst,
     },
-    $transaction: jest
-      .fn()
-      .mockImplementation(async (cb: (tx: unknown) => unknown) => cb(tx)),
+  };
+
+  const tenantPrisma = {
+    execute: jest.fn((cb: (tx: unknown) => unknown) => cb(client)),
   };
 
   const reporting = {
@@ -121,13 +120,13 @@ function build() {
   };
 
   const service = new ClosureService(
-    prisma as never,
+    tenantPrisma as never,
     reporting as never,
     audit as never,
     ledger as never,
   );
 
-  return { service, mocks, audit, ledger };
+  return { service, mocks, audit, ledger, tenantPrisma, client };
 }
 
 describe('ClosureService', () => {
@@ -314,6 +313,9 @@ describe('ClosureService', () => {
       mocks.comprobanteCount.mockResolvedValue(0);
       mocks.obtenerBalancePrueba.mockResolvedValue(balanceCuadrado());
       mocks.txUpdateMany.mockResolvedValue({ count: 1 });
+      mocks.periodoFindFirst
+        .mockResolvedValueOnce(periodo())
+        .mockResolvedValueOnce(null);
       mocks.auditLog.mockResolvedValue(undefined);
 
       const result = await service.cerrarPeriodo(
@@ -331,6 +333,7 @@ describe('ClosureService', () => {
           cerradoPorId: USER_ID,
         },
       });
+      expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
       expect(audit.log).toHaveBeenCalledWith({
         tenantId: TENANT_ID,
         userId: USER_ID,
@@ -338,6 +341,26 @@ describe('ClosureService', () => {
         entityType: 'PeriodoContable',
         entityId: PERIODO_ID,
       });
+    });
+
+    it('rechaza el cierre si un período anterior se reabrió mientras esperaba el lock', async () => {
+      const { service, mocks } = build();
+      mocks.periodoFindFirst
+        .mockResolvedValueOnce(periodo({ anio: 2026, mes: 2 }))
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(periodo({ anio: 2026, mes: 2 }))
+        .mockResolvedValueOnce({ id: 'p-enero' });
+      mocks.comprobanteCount.mockResolvedValue(0);
+      mocks.obtenerBalancePrueba.mockResolvedValue(balanceCuadrado());
+
+      await expect(
+        service.cerrarPeriodo(TENANT_ID, PERIODO_ID, USER_ID),
+      ).resolves.toEqual({
+        cerrado: false,
+        yaEstabaCerrado: false,
+        bloqueos: ['CIERRE_CRONOLOGICO'],
+      });
+      expect(mocks.txUpdateMany).not.toHaveBeenCalled();
     });
 
     it('devuelve cerrado=false con bloqueos cuando el período no existe', async () => {
@@ -1070,7 +1093,7 @@ describe('ClosureService', () => {
     });
 
     it('postea el asiento de utilidad, cierra diciembre y audita — solo porque esta invocación posteó', async () => {
-      const { service, mocks, ledger, audit } = build();
+      const { service, mocks, ledger, audit, client } = build();
       mockDependenciasOk(mocks);
       mocks.obtenerSaldosDimensionados.mockResolvedValue(balanceUtilidad());
       const capturado = capturarComprobante(mocks);
@@ -1099,7 +1122,9 @@ describe('ClosureService', () => {
           origenId: String(ANIO),
           origenEvento: 'CIERRE',
         }),
+        expect.anything(),
       );
+      expect(mocks.registrarComprobante.mock.calls[0][1]).toBe(client);
 
       const lineas = capturado.input!.lineas;
       expect(lineas).toHaveLength(3);

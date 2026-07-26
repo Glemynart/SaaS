@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { ACCESS_COOKIE, REFRESH_COOKIE } from '@/lib/auth-cookies';
 
 const publicRoutes = ['/login', '/registro'];
-const privateRoutes = ['/dashboard', '/perfil'];
+const privateRoutes = ['/dashboard', '/perfil', '/contabilidad'];
 const allowedRoles = new Set(['ADMIN', 'OPERADOR']);
 
 export function middleware(request: NextRequest) {
@@ -30,7 +30,14 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/', '/login', '/registro', '/dashboard/:path*', '/perfil/:path*'],
+  matcher: [
+    '/',
+    '/login',
+    '/registro',
+    '/dashboard/:path*',
+    '/perfil/:path*',
+    '/contabilidad/:path*',
+  ],
 };
 
 function readRole(token: string) {

@@ -18,6 +18,12 @@ import { AccountingProvisioningService } from './provisioning/accounting-provisi
 import { LedgerService } from './ledger/ledger.service';
 import { ReportingService } from './reporting/reporting.service';
 import { ClosureService } from './closure/closure.service';
+import { ManualJournalController } from './manual-journals/manual-journal.controller';
+import { ManualJournalService } from './manual-journals/manual-journal.service';
+import { PeriodClosureController } from './period-closures/period-closure.controller';
+import { PeriodClosureService } from './period-closures/period-closure.service';
+import { LedgerReportController } from './ledger-reports/ledger-report.controller';
+import { LedgerReportService } from './ledger-reports/ledger-report.service';
 
 // Motor contable ADR-001 · Fase C3 — C0 catálogos + C1 Ledger Core + C2 Reporting + C3 Cierre.
 @Module({
@@ -30,6 +36,9 @@ import { ClosureService } from './closure/closure.service';
     CuentaSistemaMapController,
     TiposComprobanteController,
     AccountingProvisioningController,
+    ManualJournalController,
+    PeriodClosureController,
+    LedgerReportController,
   ],
   providers: [
     CuentasContablesService,
@@ -42,6 +51,9 @@ import { ClosureService } from './closure/closure.service';
     LedgerService,
     ReportingService,
     ClosureService,
+    ManualJournalService,
+    PeriodClosureService,
+    LedgerReportService,
   ],
   exports: [AccountingProvisioningService, LedgerService],
 })
