@@ -78,15 +78,11 @@ function build() {
     tipoComprobanteFindFirst: jest.fn(),
     cuentaSistemaMapFindFirst: jest.fn(),
     registrarComprobante: jest.fn(),
-  };
-
-  const tx = {
-    periodoContable: {
-      updateMany: mocks.txUpdateMany,
-    },
+    executeRaw: jest.fn().mockResolvedValue(1),
   };
 
   const client = {
+    $executeRaw: mocks.executeRaw,
     periodoContable: {
       findFirst: mocks.periodoFindFirst,
       updateMany: mocks.txUpdateMany,
@@ -332,6 +328,7 @@ describe('ClosureService', () => {
           cerradoPorId: USER_ID,
         },
       });
+      expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
       expect(audit.log).toHaveBeenCalledWith({
         tenantId: TENANT_ID,
         userId: USER_ID,

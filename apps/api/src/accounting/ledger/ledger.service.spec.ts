@@ -102,9 +102,11 @@ function build() {
     comprobanteUpdate: jest.fn(),
     movimientoFindMany: jest.fn(),
     secuenciaUpsert: jest.fn(),
+    executeRaw: jest.fn().mockResolvedValue(1),
   };
 
   const mockTx = {
+    $executeRaw: mocks.executeRaw,
     cuentaContable: {
       findMany: mocks.cuentaFindMany,
     },
@@ -175,6 +177,7 @@ describe('LedgerService', () => {
       );
       expect(result.numero).toBe(1);
       expect(mocks.comprobanteCreate).toHaveBeenCalledTimes(1);
+      expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
     });
 
     it('rechaza comprobante desbalanceado', async () => {
@@ -612,6 +615,30 @@ describe('LedgerService', () => {
       });
       // No debe crear reverso
       expect(mocks.movimientoFindMany).not.toHaveBeenCalled();
+      expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
+    });
+
+    it('bloquea la corrección antes de anular un ajuste de nómina', async () => {
+      const { service, mocks } = build();
+
+      mocks.comprobanteFindFirst.mockResolvedValue(
+        comprobanteCreado({
+          origenTipo: 'PAYROLL_CORRECTION',
+          origenId: 'correction-a',
+          origenEvento: 'AJUSTE',
+        }),
+      );
+      mocks.periodoFindUniqueOrThrow.mockResolvedValue({
+        id: PERIODO_ID,
+        estado: 'ABIERTO',
+      });
+      mocks.comprobanteUpdate.mockResolvedValue(
+        comprobanteCreado({ estado: 'ANULADO' }),
+      );
+
+      await service.anular(TENANT_ID, USER_ID, 'comp-001', 'error');
+
+      expect(mocks.executeRaw).toHaveBeenCalledTimes(2);
     });
 
     it('crea reverso con período CERRADO (append-only)', async () => {
@@ -678,6 +705,7 @@ describe('LedgerService', () => {
       // Verifica que se creó un nuevo comprobante de reverso
       expect(result.estado).toBe('CONTABILIZADO');
       expect(result.reversaAId).toBe('comp-001');
+      expect(mocks.executeRaw).toHaveBeenCalledTimes(2);
 
       // Verifica débitos y créditos invertidos
       const call = mocks.comprobanteCreate.mock.calls[0][0];
@@ -687,6 +715,28 @@ describe('LedgerService', () => {
       expect(call.data.movimientos.create[0].credito.toString()).toBe('100000');
       expect(call.data.movimientos.create[1].debito.toString()).toBe('100000');
       expect(call.data.movimientos.create[1].credito.toString()).toBe('0');
+    });
+
+    it('no crea reverso si el período destino se cierra mientras espera su lock', async () => {
+      const { service, mocks } = build();
+
+      mocks.comprobanteFindFirst.mockResolvedValue(
+        comprobanteCreado({ estado: 'CONTABILIZADO' }),
+      );
+      mocks.periodoFindUniqueOrThrow.mockResolvedValue({
+        id: PERIODO_ID,
+        estado: 'CERRADO',
+      });
+      mocks.periodoFindFirst
+        .mockResolvedValueOnce({ id: 'periodo-abierto', estado: 'ABIERTO' })
+        .mockResolvedValueOnce(null);
+
+      await expect(
+        service.anular(TENANT_ID, USER_ID, 'comp-001', 'error detectado'),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(mocks.comprobanteCreate).not.toHaveBeenCalled();
+      expect(mocks.executeRaw).toHaveBeenCalledTimes(2);
     });
 
     it('rechaza comprobante inexistente', async () => {

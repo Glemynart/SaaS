@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
 import { LedgerService } from '../../accounting/ledger/ledger.service';
+import { lockPayrollCorrectionDependencies } from '../../accounting/payroll-correction-dependency-lock';
 import {
   TenantPrismaClient,
   TenantPrismaService,
@@ -111,6 +112,11 @@ export class PayrollCorrectionAccountingService {
           };
         }
 
+        await lockPayrollCorrectionDependencies(
+          tx,
+          tenantId,
+          materialization.approvedCorrectionIds,
+        );
         await this.validateAccountingDependencies(
           tx,
           tenantId,

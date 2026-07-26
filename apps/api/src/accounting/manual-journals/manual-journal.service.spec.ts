@@ -33,6 +33,7 @@ describe('ManualJournalService', () => {
     anular: jest.fn(),
   };
   const tx = {
+    $executeRaw: jest.fn().mockResolvedValue(1),
     comprobanteContable: {
       findFirst: jest.fn(),
       findMany: jest.fn(),
@@ -140,6 +141,7 @@ describe('ManualJournalService', () => {
         materializedAt: true,
       },
     });
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
     expect(tx.comprobanteContable.findMany).not.toHaveBeenCalled();
   });
 

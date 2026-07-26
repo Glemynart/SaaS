@@ -2,6 +2,7 @@ import { Injectable, ConflictException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ReportingService } from '../reporting/reporting.service';
 import { AuditService } from '../../audit/audit.service';
+import { lockAccountingPeriod } from '../accounting-period-lock';
 import {
   TenantPrismaClient,
   TenantPrismaService,
@@ -240,6 +241,7 @@ export class ClosureService {
     }
 
     const updated = await this.tenantPrisma.execute(async (tx) => {
+      await lockAccountingPeriod(tx, tenantId, periodoId);
       const result = await tx.periodoContable.updateMany({
         where: {
           id: periodoId,

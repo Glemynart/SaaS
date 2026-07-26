@@ -55,6 +55,7 @@ function createService(overrides?: {
   dependencyVouchers?: Array<{ origenId: string | null }>;
 }) {
   const tx = {
+    $executeRaw: jest.fn().mockResolvedValue(1),
     payrollCorrection: {
       findFirst: jest.fn().mockResolvedValue(
         overrides?.correction === undefined
@@ -142,7 +143,7 @@ describe('PayrollCorrectionAccountingService', () => {
   });
 
   it('accepts a correction whose dependencies are fully accounted', async () => {
-    const { service, ledger } = createService({
+    const { service, ledger, tx } = createService({
       correction: correctionWithDependencies(['correction-previous']),
       dependencies: [dependency('correction-previous')],
       dependencyVouchers: [{ origenId: 'correction-previous' }],
@@ -152,6 +153,7 @@ describe('PayrollCorrectionAccountingService', () => {
       service.contabilizar(tenantId, userId, correctionId),
     ).resolves.toMatchObject({ status: 'AJUSTADA' });
     expect(ledger.registrarComprobante).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
   });
 
   it('blocks a correction when a referenced dependency does not exist', async () => {

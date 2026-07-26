@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AuditService } from '../../audit/audit.service';
+import { lockAccountingPeriod } from '../accounting-period-lock';
+import { lockPayrollCorrectionDependencies } from '../payroll-correction-dependency-lock';
 import {
   TenantPrismaClient,
   TenantPrismaService,
@@ -23,6 +25,11 @@ import {
 // de llegar al puerto, en vez de toparse con el rechazo. El puerto sigue siendo
 // la autoridad: valida el límite igual que siempre.
 export const MAX_LINEAS = 200;
+
+const PAYROLL_CORRECTION_ADJUSTMENT_ORIGIN = {
+  type: 'PAYROLL_CORRECTION',
+  event: 'AJUSTE',
+} as const;
 
 // =============================================================================
 // LedgerService · ADR-001 §6 — Puerto único de entrada al libro mayor.
@@ -141,6 +148,19 @@ export class LedgerService {
       if (comprobante.estado === 'ANULADO') {
         return comprobante; // idempotente
       }
+
+      if (
+        comprobante.origenTipo === PAYROLL_CORRECTION_ADJUSTMENT_ORIGIN.type &&
+        comprobante.origenEvento ===
+          PAYROLL_CORRECTION_ADJUSTMENT_ORIGIN.event &&
+        comprobante.origenId
+      ) {
+        await lockPayrollCorrectionDependencies(tx, tenantId, [
+          comprobante.origenId,
+        ]);
+      }
+
+      await lockAccountingPeriod(tx, tenantId, comprobante.periodoId);
 
       if (comprobante.estado === 'BORRADOR') {
         throw new BadRequestException(
@@ -495,6 +515,7 @@ export class LedgerService {
     tenantId: string,
     periodoId: string,
   ) {
+    await lockAccountingPeriod(tx, tenantId, periodoId);
     const periodo = await tx.periodoContable.findFirst({
       where: { id: periodoId, tenantId },
     });
@@ -544,7 +565,18 @@ export class LedgerService {
       );
     }
 
-    return periodo;
+    await lockAccountingPeriod(tx, tenantId, periodo.id);
+    const periodoBloqueado = await tx.periodoContable.findFirst({
+      where: { id: periodo.id, tenantId, estado: 'ABIERTO' },
+    });
+
+    if (!periodoBloqueado) {
+      throw new BadRequestException(
+        'El período abierto seleccionado se cerró durante la anulación. Intente nuevamente.',
+      );
+    }
+
+    return periodoBloqueado;
   }
 
   private async findComprobante(

@@ -1,5 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
+import { lockPayrollCorrectionDependencies } from '../payroll-correction-dependency-lock';
 import {
   TenantPrismaClient,
   TenantPrismaService,
@@ -74,6 +75,9 @@ export class ManualJournalService {
             PAYROLL_CORRECTION_ADJUSTMENT_ORIGIN.event &&
           comprobante.origenId
         ) {
+          await lockPayrollCorrectionDependencies(tx, tenantId, [
+            comprobante.origenId,
+          ]);
           await this.ensureNoAccountedDependents(
             tx,
             tenantId,
