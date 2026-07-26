@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { LiquidationStatus, PayrollPeriodStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TenantPrismaService } from '../../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { calculate, diasComerciales } from './liquidation-calculator';
 import {
@@ -38,6 +39,7 @@ const PERIODOS_PROCESADOS: PayrollPeriodStatus[] = [
 export class LiquidationService {
   constructor(
     private prisma: PrismaService,
+    private readonly tenantPrisma: TenantPrismaService,
     private audit: AuditService,
   ) {}
 
@@ -63,17 +65,19 @@ export class LiquidationService {
     empleadoId: string,
   ) {
     // ── 1. Cargar empleado ───────────────────────────────────────────────────
-    const emp = await this.prisma.empleado.findFirst({
-      where: { id: empleadoId, tenantId, deletedAt: null },
-      select: {
-        id: true,
-        estado: true,
-        salario: true,
-        salarioIntegral: true,
-        fechaIngreso: true,
-        fechaRetiro: true,
-      },
-    });
+    const emp = await this.tenantPrisma.execute((prisma) =>
+      prisma.empleado.findFirst({
+        where: { id: empleadoId, tenantId, deletedAt: null },
+        select: {
+          id: true,
+          estado: true,
+          salario: true,
+          salarioIntegral: true,
+          fechaIngreso: true,
+          fechaRetiro: true,
+        },
+      }),
+    );
 
     if (!emp) {
       throw new NotFoundException('Empleado no encontrado');

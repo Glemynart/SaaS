@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import { join } from 'path';
 import { GeneratedDocumentsService } from './generated-documents.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
 import { StorageService } from '../storage/storage.service';
@@ -68,6 +69,10 @@ describe('GeneratedDocumentsService.generatePdf', () => {
             tenant: { findUnique: mockTenantFindUnique },
             $transaction: mockTransaction,
           },
+        },
+        {
+          provide: TenantPrismaService,
+          useValue: { execute: jest.fn() },
         },
         {
           provide: ExpedienteDocsService,

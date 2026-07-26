@@ -1804,6 +1804,37 @@ Siguiente frente de hardening:
 
 ---
 
+# Security Hardening v2 — Security Headers, Rate Limiting y RLS
+
+Estado de la Epic:
+
+- ✅ `SHV2-01` — Security Headers completada (2026-07-15).
+- ✅ `SHV2-02` — Caracterización Operacional del Global Rate Limiting completada (2026-07-15).
+- ⛔ `SHV2-03` — Activación del Global Rate Limiting bloqueada por prerrequisitos operativos de infraestructura.
+- ✅ `RLS-07` — Contexto tenant-aware, frontera transaccional Prisma y cohorte piloto completados (2026-07-16).
+- ✅ `RLS-07.5` — Puente `TenantPrismaService` ↔ PostgreSQL validado con configuración local transaccional (2026-07-16).
+- ✅ `RLS-08` — RLS activada únicamente sobre `empleados`, con políticas mínimas de `SELECT`, `INSERT`, `UPDATE` y `DELETE` (2026-07-18).
+
+Decisión de cierre:
+
+- La Epic queda completada en la rama `initiative/security-hardening-v2`; el Global Rate Limiting permanece deliberadamente sin activar hasta contar con evidencia operacional suficiente.
+- `SHV2-03` no puede iniciar hasta que Operaciones documente y demuestre la cadena de proxies confiables, la identificación no falsificable del cliente, el alcance coherente de los contadores según las instancias reales y las métricas que justifiquen límite y ventana.
+- La evidencia y checklist de desbloqueo se conservan en `docs/security/SHV2-02-GLOBAL-RATE-LIMITING-CHARACTERIZATION.md`.
+- RLS queda activa sólo en `empleados`; los filtros `tenantId` de aplicación se preservan como defensa en profundidad.
+
+Expansión futura de RLS:
+
+- La incorporación de RLS a `sedes`, `document_templates` u otras tablas tenant-scoped se hará mediante unidades, migraciones y pruebas independientes; no forma parte de esta epic cerrada.
+- El rol de base de datos de la API deberá ser no-superusuario y no tener `BYPASSRLS` antes de desplegar RLS en producción. Ver `docs/security/RLS-DEPLOYMENT-REQUIREMENTS.md`.
+
+Alcance preservado:
+
+- Auth mantiene sus cinco políticas estrictas existentes.
+- No existe guard global, throttler global ni respuestas HTTP `429` nuevas.
+- No se modificaron JWT, Authorization, RBAC, Frontend ni reglas de dominio.
+
+---
+
 # <a name="roadmap-futuro"></a>Roadmap Futuro
 
 Módulos planificados:

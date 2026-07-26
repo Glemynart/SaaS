@@ -26,6 +26,8 @@ import { StorageModule } from './storage/storage.module';
 import { PdfRenderModule } from './pdf-render/pdf-render.module';
 import { AccountingModule } from './accounting/accounting.module';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { TenantContextModule } from './tenant-context/tenant-context.module';
+import { TenantPrismaModule } from './tenant-prisma/tenant-prisma.module';
 
 @Module({
   imports: [
@@ -53,6 +55,8 @@ import { ThrottlerModule } from '@nestjs/throttler';
     StorageModule,
     PdfRenderModule,
     AccountingModule,
+    TenantContextModule,
+    TenantPrismaModule,
     ThrottlerModule.forRoot([
       {
         name: 'login',

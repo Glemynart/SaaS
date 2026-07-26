@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { LoteEngineService } from './lote-engine.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { ContractsService } from '../contracts/contracts.service';
 import { GeneratedDocumentsService } from '../generated-documents/generated-documents.service';
 import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
@@ -30,6 +31,11 @@ const mockPrisma = {
   empleado: { findFirst: mockEmpleadoFindFirst },
   generatedDocument: { findFirst: mockGeneratedDocumentFindFirst },
   expedienteDoc: { findFirst: mockExpedienteDocFindFirst },
+};
+const mockTenantPrisma = {
+  execute: jest.fn((work: (client: typeof mockPrisma) => unknown) =>
+    work(mockPrisma),
+  ),
 };
 
 const mockContractsCreate = jest.fn();
@@ -97,6 +103,7 @@ describe('LoteEngineService', () => {
       providers: [
         LoteEngineService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: TenantPrismaService, useValue: mockTenantPrisma },
         { provide: ContractsService, useValue: mockContractsService },
         { provide: GeneratedDocumentsService, useValue: mockGenDocsService },
         { provide: ExpedienteDocsService, useValue: mockExpedienteService },

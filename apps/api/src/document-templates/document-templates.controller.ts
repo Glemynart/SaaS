@@ -17,8 +17,6 @@ import { DuplicateDocumentTemplateDto } from './dto/duplicate-document-template.
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
 
@@ -30,64 +28,50 @@ export class DocumentTemplatesController {
 
   @Roles(UserRole.ADMIN)
   @Post('seed')
-  seedDefault(@CurrentUser() user: CurrentUserPayload) {
-    return this.service.seedDefaultTemplates(user.tenantId);
+  seedDefault() {
+    return this.service.seedDefaultTemplates();
   }
 
   @Roles(UserRole.ADMIN)
   @Post()
-  create(
-    @CurrentUser() user: CurrentUserPayload,
-    @Body() dto: CreateDocumentTemplateDto,
-  ) {
-    return this.service.create(user.tenantId, dto);
+  create(@Body() dto: CreateDocumentTemplateDto) {
+    return this.service.create(dto);
   }
 
   @Get()
-  findAll(
-    @CurrentUser() user: CurrentUserPayload,
-    @Query() query: DocumentTemplateQueryDto,
-  ) {
-    return this.service.findAll(user.tenantId, query);
+  findAll(@Query() query: DocumentTemplateQueryDto) {
+    return this.service.findAll(query);
   }
 
   @Get(':id')
-  findOne(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
-    return this.service.findOne(user.tenantId, id);
+  findOne(@Param('id') id: string) {
+    return this.service.findOne(id);
   }
 
   @Roles(UserRole.ADMIN)
   @Patch(':id')
-  update(
-    @CurrentUser() user: CurrentUserPayload,
-    @Param('id') id: string,
-    @Body() dto: UpdateDocumentTemplateDto,
-  ) {
-    return this.service.update(user.tenantId, id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateDocumentTemplateDto) {
+    return this.service.update(id, dto);
   }
 
   @Roles(UserRole.ADMIN)
   @Delete(':id')
-  remove(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
-    return this.service.remove(user.tenantId, id);
+  remove(@Param('id') id: string) {
+    return this.service.remove(id);
   }
 
   @Roles(UserRole.ADMIN)
   @Post(':id/duplicate')
   duplicate(
-    @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
     @Body() dto: DuplicateDocumentTemplateDto,
   ) {
-    return this.service.duplicate(user.tenantId, id, dto);
+    return this.service.duplicate(id, dto);
   }
 
   @Roles(UserRole.ADMIN)
   @Patch(':id/toggle')
-  toggleActive(
-    @CurrentUser() user: CurrentUserPayload,
-    @Param('id') id: string,
-  ) {
-    return this.service.toggleActive(user.tenantId, id);
+  toggleActive(@Param('id') id: string) {
+    return this.service.toggleActive(id);
   }
 }

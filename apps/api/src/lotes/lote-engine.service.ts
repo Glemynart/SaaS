@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Contrato, LoteContrato, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { ContractsService } from '../contracts/contracts.service';
 import { GeneratedDocumentsService } from '../generated-documents/generated-documents.service';
 import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
@@ -45,6 +46,7 @@ export class LoteEngineService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly tenantPrisma: TenantPrismaService,
     private readonly contractsService: ContractsService,
     private readonly generatedDocumentsService: GeneratedDocumentsService,
     private readonly expedienteDocsService: ExpedienteDocsService,
@@ -157,15 +159,17 @@ export class LoteEngineService {
       return existing;
     }
 
-    const empleado = await this.prisma.empleado.findFirst({
-      where: { id: empleadoId, tenantId, deletedAt: null },
-      select: {
-        cargo: true,
-        salario: true,
-        tipoContrato: true,
-        fechaIngreso: true,
-      },
-    });
+    const empleado = await this.tenantPrisma.execute((prisma) =>
+      prisma.empleado.findFirst({
+        where: { id: empleadoId, tenantId, deletedAt: null },
+        select: {
+          cargo: true,
+          salario: true,
+          tipoContrato: true,
+          fechaIngreso: true,
+        },
+      }),
+    );
     if (!empleado) {
       throw new NotFoundException(
         `Empleado ${empleadoId} no existe o no pertenece a la empresa`,
@@ -319,11 +323,13 @@ export class LoteEngineService {
     tenantId: string,
     empleadoId: string,
   ): Promise<string | null> {
-    const empleado = await this.prisma.empleado
-      .findFirst({
-        where: { id: empleadoId, tenantId },
-        select: { cedula: true },
-      })
+    const empleado = await this.tenantPrisma
+      .execute((prisma) =>
+        prisma.empleado.findFirst({
+          where: { id: empleadoId, tenantId },
+          select: { cedula: true },
+        }),
+      )
       .catch(() => null);
     return empleado?.cedula ?? null;
   }

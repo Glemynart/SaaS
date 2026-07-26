@@ -1,10 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
 import { CreateDocumentTemplateDto } from './dto/create-document-template.dto';
 import { UpdateDocumentTemplateDto } from './dto/update-document-template.dto';
 import { DocumentTemplateQueryDto } from './dto/document-template-query.dto';
 import { DuplicateDocumentTemplateDto } from './dto/duplicate-document-template.dto';
 import { Prisma } from '@prisma/client';
+import {
+  TenantPrismaClient,
+  TenantPrismaService,
+} from '../tenant-prisma/tenant-prisma.service';
 
 const DEFAULT_TEMPLATES = [
   {
@@ -37,112 +40,136 @@ const DEFAULT_TEMPLATES = [
 
 @Injectable()
 export class DocumentTemplatesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly tenantPrisma: TenantPrismaService) {}
 
-  async create(tenantId: string, dto: CreateDocumentTemplateDto) {
-    return this.prisma.documentTemplate.create({
-      data: { ...dto, tenantId },
+  async create(dto: CreateDocumentTemplateDto) {
+    return this.tenantPrisma.execute((prisma, context) =>
+      prisma.documentTemplate.create({
+        data: { ...dto, tenantId: context.tenantId },
+      }),
+    );
+  }
+
+  async findAll(query: DocumentTemplateQueryDto) {
+    return this.tenantPrisma.execute(async (prisma, context) => {
+      const { page = 1, limit = 10, search, tipo } = query;
+      const skip = (page - 1) * limit;
+
+      const where: Prisma.DocumentTemplateWhereInput = {
+        tenantId: context.tenantId,
+        deletedAt: null,
+        ...(tipo && { tipo }),
+      };
+
+      if (search) {
+        where.OR = [
+          { nombre: { contains: search, mode: 'insensitive' } },
+          { descripcion: { contains: search, mode: 'insensitive' } },
+        ];
+      }
+
+      const [data, total] = await Promise.all([
+        prisma.documentTemplate.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { updatedAt: 'desc' },
+        }),
+        prisma.documentTemplate.count({ where }),
+      ]);
+
+      return {
+        data,
+        meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      };
     });
   }
 
-  async findAll(tenantId: string, query: DocumentTemplateQueryDto) {
-    const { page = 1, limit = 10, search, tipo } = query;
-    const skip = (page - 1) * limit;
-
-    const where: Prisma.DocumentTemplateWhereInput = {
-      tenantId,
-      deletedAt: null,
-      ...(tipo && { tipo }),
-    };
-
-    if (search) {
-      where.OR = [
-        { nombre: { contains: search, mode: 'insensitive' } },
-        { descripcion: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-
-    const [data, total] = await Promise.all([
-      this.prisma.documentTemplate.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { updatedAt: 'desc' },
-      }),
-      this.prisma.documentTemplate.count({ where }),
-    ]);
-
-    return {
-      data,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
-    };
+  async findOne(id: string) {
+    return this.tenantPrisma.execute((prisma, context) =>
+      this.findOneInTenant(prisma, context.tenantId, id),
+    );
   }
 
-  async findOne(tenantId: string, id: string) {
-    const template = await this.prisma.documentTemplate.findFirst({
+  async update(id: string, dto: UpdateDocumentTemplateDto) {
+    return this.tenantPrisma.execute(async (prisma, context) => {
+      await this.findOneInTenant(prisma, context.tenantId, id);
+      return prisma.documentTemplate.update({ where: { id }, data: dto });
+    });
+  }
+
+  async remove(id: string) {
+    return this.tenantPrisma.execute(async (prisma, context) => {
+      await this.findOneInTenant(prisma, context.tenantId, id);
+      return prisma.documentTemplate.update({
+        where: { id },
+        data: { deletedAt: new Date(), activo: false },
+      });
+    });
+  }
+
+  async duplicate(id: string, dto: DuplicateDocumentTemplateDto) {
+    return this.tenantPrisma.execute(async (prisma, context) => {
+      const original = await this.findOneInTenant(prisma, context.tenantId, id);
+      const nombre = dto.nombre ?? `${original.nombre} (copia)`;
+
+      return prisma.documentTemplate.create({
+        data: {
+          tenantId: context.tenantId,
+          nombre,
+          descripcion: original.descripcion,
+          tipo: original.tipo,
+          contenido: original.contenido,
+          activo: true,
+        },
+      });
+    });
+  }
+
+  async toggleActive(id: string) {
+    return this.tenantPrisma.execute(async (prisma, context) => {
+      const template = await this.findOneInTenant(prisma, context.tenantId, id);
+      return prisma.documentTemplate.update({
+        where: { id },
+        data: { activo: !template.activo },
+      });
+    });
+  }
+
+  async seedDefaultTemplates() {
+    return this.tenantPrisma.execute(async (prisma, context) => {
+      const created: unknown[] = [];
+      for (const tpl of DEFAULT_TEMPLATES) {
+        const existing = await prisma.documentTemplate.findFirst({
+          where: {
+            tenantId: context.tenantId,
+            nombre: tpl.nombre,
+            deletedAt: null,
+          },
+        });
+        if (!existing) {
+          const doc = await prisma.documentTemplate.create({
+            data: { ...tpl, tenantId: context.tenantId },
+          });
+          created.push(doc);
+        }
+      }
+      return {
+        created: created.length,
+        message: `${created.length} plantillas base creadas`,
+      };
+    });
+  }
+
+  private async findOneInTenant(
+    prisma: TenantPrismaClient,
+    tenantId: string,
+    id: string,
+  ) {
+    const template = await prisma.documentTemplate.findFirst({
       where: { id, tenantId, deletedAt: null },
     });
     if (!template) throw new NotFoundException('Plantilla no encontrada');
     return template;
-  }
-
-  async update(tenantId: string, id: string, dto: UpdateDocumentTemplateDto) {
-    await this.findOne(tenantId, id);
-    return this.prisma.documentTemplate.update({ where: { id }, data: dto });
-  }
-
-  async remove(tenantId: string, id: string) {
-    await this.findOne(tenantId, id);
-    return this.prisma.documentTemplate.update({
-      where: { id },
-      data: { deletedAt: new Date(), activo: false },
-    });
-  }
-
-  async duplicate(
-    tenantId: string,
-    id: string,
-    dto: DuplicateDocumentTemplateDto,
-  ) {
-    const original = await this.findOne(tenantId, id);
-    const nombre = dto.nombre ?? `${original.nombre} (copia)`;
-
-    return this.prisma.documentTemplate.create({
-      data: {
-        tenantId,
-        nombre,
-        descripcion: original.descripcion,
-        tipo: original.tipo,
-        contenido: original.contenido,
-        activo: true,
-      },
-    });
-  }
-
-  async toggleActive(tenantId: string, id: string) {
-    const template = await this.findOne(tenantId, id);
-    return this.prisma.documentTemplate.update({
-      where: { id },
-      data: { activo: !template.activo },
-    });
-  }
-
-  async seedDefaultTemplates(tenantId: string) {
-    const created: unknown[] = [];
-    for (const tpl of DEFAULT_TEMPLATES) {
-      const existing = await this.prisma.documentTemplate.findFirst({
-        where: { tenantId, nombre: tpl.nombre, deletedAt: null },
-      });
-      if (!existing) {
-        const doc = await this.prisma.documentTemplate.create({
-          data: { ...tpl, tenantId },
-        });
-        created.push(doc);
-      }
-    }
-    return {
-      created: created.length,
-      message: `${created.length} plantillas base creadas`,
-    };
   }
 }

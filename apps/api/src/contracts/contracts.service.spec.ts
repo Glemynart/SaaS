@@ -10,9 +10,11 @@ import {
   ContractVariablesSnapshot,
 } from './contracts.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { GeneratedDocumentsService } from '../generated-documents/generated-documents.service';
 import { ContratoTipo } from './dto/create-contract.dto';
+import { ContratoEstado } from './dto/update-contract-status.dto';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -50,6 +52,11 @@ const mockPrisma = {
     create: mockGeneratedDocumentCreate,
     delete: mockGeneratedDocumentDelete,
   },
+};
+const mockTenantPrisma = {
+  execute: jest.fn((work: (client: typeof mockPrisma) => unknown) =>
+    work(mockPrisma),
+  ),
 };
 
 const mockAudit = { log: jest.fn().mockResolvedValue(undefined) };
@@ -140,12 +147,59 @@ describe('ContractsService', () => {
       providers: [
         ContractsService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: TenantPrismaService, useValue: mockTenantPrisma },
         { provide: AuditService, useValue: mockAudit },
         { provide: GeneratedDocumentsService, useValue: mockGenDocsService },
       ],
     }).compile();
 
     service = module.get(ContractsService);
+  });
+
+  describe('tenant isolation contracts', () => {
+    it('always applies the tenant filter when listing contracts', async () => {
+      mockContratoFindMany.mockResolvedValue([]);
+      mockContratoCount.mockResolvedValue(0);
+
+      await service.findAll(TENANT_ID, { page: 1, limit: 10 });
+
+      const expectedWhere = { tenantId: TENANT_ID };
+      expect(mockContratoFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere }),
+      );
+      expect(mockContratoCount).toHaveBeenCalledWith({ where: expectedWhere });
+    });
+
+    it('does not read a contract belonging to another tenant', async () => {
+      mockContratoFindFirst.mockResolvedValue(null);
+
+      await expect(
+        service.findOne('other-tenant', 'contract-001'),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(mockContratoFindFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'contract-001', tenantId: 'other-tenant' },
+        }),
+      );
+    });
+
+    it('rejects a cross-tenant status update before issuing a write', async () => {
+      mockContratoFindFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updateStatus('other-tenant', USER_ID, 'contract-001', {
+          estado: ContratoEstado.TERMINADO,
+        }),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(mockContratoFindFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'contract-001', tenantId: 'other-tenant' },
+        }),
+      );
+      expect(mockContratoUpdate).not.toHaveBeenCalled();
+    });
   });
 
   // ── Snapshot: estructura ──────────────────────────────────────────────────
