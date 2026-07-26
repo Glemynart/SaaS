@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ExpedienteCategoria, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 
 const TIPO_TO_CATEGORIA: Record<string, ExpedienteCategoria> = {
   CONTRACT: ExpedienteCategoria.CONTRATO,
@@ -13,12 +14,17 @@ const TIPO_TO_CATEGORIA: Record<string, ExpedienteCategoria> = {
 export class ExpedienteDocsService {
   private readonly logger = new Logger(ExpedienteDocsService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly tenantPrisma: TenantPrismaService,
+  ) {}
 
   async findByEmployee(tenantId: string, employeeId: string) {
-    const employee = await this.prisma.empleado.findFirst({
-      where: { id: employeeId, tenantId, deletedAt: null },
-    });
+    const employee = await this.tenantPrisma.execute((prisma) =>
+      prisma.empleado.findFirst({
+        where: { id: employeeId, tenantId, deletedAt: null },
+      }),
+    );
     if (!employee) throw new NotFoundException('Empleado no encontrado');
 
     const docs = await this.prisma.expedienteDoc.findMany({
@@ -35,21 +41,23 @@ export class ExpedienteDocsService {
   }
 
   async findOne(tenantId: string, id: string) {
-    const doc = await this.prisma.expedienteDoc.findFirst({
-      where: { id, tenantId },
-      include: {
-        empleado: {
-          select: {
-            id: true,
-            primerNombre: true,
-            segundoNombre: true,
-            primerApellido: true,
-            segundoApellido: true,
+    const doc = await this.tenantPrisma.execute((prisma) =>
+      prisma.expedienteDoc.findFirst({
+        where: { id, tenantId },
+        include: {
+          empleado: {
+            select: {
+              id: true,
+              primerNombre: true,
+              segundoNombre: true,
+              primerApellido: true,
+              segundoApellido: true,
+            },
           },
+          generatedDocument: { select: { id: true, nombre: true, tipo: true } },
         },
-        generatedDocument: { select: { id: true, nombre: true, tipo: true } },
-      },
-    });
+      }),
+    );
     if (!doc)
       throw new NotFoundException('Documento no encontrado en el expediente');
     return doc;

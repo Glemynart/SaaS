@@ -15,6 +15,7 @@ import {
 import { PayrollCorrectionStatus } from '@prisma/client';
 import { PayrollService } from './payroll.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { Test } from '@nestjs/testing';
 
@@ -82,6 +83,11 @@ const mockPrisma = {
 };
 
 const mockAudit = { log: jest.fn().mockResolvedValue(undefined) };
+const mockTenantPrisma = {
+  execute: jest.fn((work: (client: typeof mockPrisma) => unknown) =>
+    work(mockPrisma),
+  ),
+};
 
 const TENANT = 'tenant-1';
 const USER = 'user-1';
@@ -355,6 +361,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       providers: [
         PayrollService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: TenantPrismaService, useValue: mockTenantPrisma },
         { provide: AuditService, useValue: mockAudit },
       ],
     }).compile();

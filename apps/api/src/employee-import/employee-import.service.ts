@@ -4,6 +4,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import * as XLSX from 'xlsx';
 
@@ -155,6 +156,7 @@ const TEMPLATE_HINTS = [
 export class EmployeeImportService {
   constructor(
     private prisma: PrismaService,
+    private readonly tenantPrisma: TenantPrismaService,
     private auditService: AuditService,
   ) {}
 
@@ -543,14 +545,16 @@ export class EmployeeImportService {
 
     // Check cedulas against DB (batch, only if no earlier errors to avoid noise)
     if (errors.length === 0 && cedulasToCheck.length > 0) {
-      const existing = await this.prisma.empleado.findMany({
-        where: {
-          tenantId,
-          cedula: { in: cedulasToCheck },
-          deletedAt: null,
-        },
-        select: { cedula: true },
-      });
+      const existing = await this.tenantPrisma.execute((prisma) =>
+        prisma.empleado.findMany({
+          where: {
+            tenantId,
+            cedula: { in: cedulasToCheck },
+            deletedAt: null,
+          },
+          select: { cedula: true },
+        }),
+      );
 
       for (const emp of existing) {
         const fila = cedulasInFile.get(emp.cedula);
@@ -567,9 +571,11 @@ export class EmployeeImportService {
     }
 
     // Atomic import
-    await this.prisma.$transaction(
-      validatedRows.map((data) => this.prisma.empleado.create({ data })),
-    );
+    await this.tenantPrisma.execute(async (prisma) => {
+      for (const data of validatedRows) {
+        await prisma.empleado.create({ data });
+      }
+    });
 
     this.auditService
       .log({

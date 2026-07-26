@@ -10,6 +10,7 @@ import {
   ContractVariablesSnapshot,
 } from './contracts.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { GeneratedDocumentsService } from '../generated-documents/generated-documents.service';
 import { ContratoTipo } from './dto/create-contract.dto';
@@ -51,6 +52,11 @@ const mockPrisma = {
     create: mockGeneratedDocumentCreate,
     delete: mockGeneratedDocumentDelete,
   },
+};
+const mockTenantPrisma = {
+  execute: jest.fn((work: (client: typeof mockPrisma) => unknown) =>
+    work(mockPrisma),
+  ),
 };
 
 const mockAudit = { log: jest.fn().mockResolvedValue(undefined) };
@@ -141,6 +147,7 @@ describe('ContractsService', () => {
       providers: [
         ContractsService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: TenantPrismaService, useValue: mockTenantPrisma },
         { provide: AuditService, useValue: mockAudit },
         { provide: GeneratedDocumentsService, useValue: mockGenDocsService },
       ],

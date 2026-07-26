@@ -1,12 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AlertQueryDto } from './dto/alert-query.dto';
 import { Prisma } from '@prisma/client';
 import { formatNombreCompleto } from '@saas/types';
 
 @Injectable()
 export class AlertsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly tenantPrisma: TenantPrismaService,
+  ) {}
 
   async findAll(tenantId: string, query: AlertQueryDto) {
     const { page = 1, limit = 20, status, severity } = query;
@@ -94,30 +98,32 @@ export class AlertsService {
     const lookahead = new Date(now);
     lookahead.setDate(lookahead.getDate() + 30);
 
-    const contratos = await this.prisma.contrato.findMany({
-      where: {
-        tenantId,
-        estado: { in: ['VIGENTE', 'RENOVADO'] },
-        fechaFin: { gte: now, lte: lookahead },
-      },
-      include: {
-        empleado: {
-          select: {
-            id: true,
-            primerNombre: true,
-            segundoNombre: true,
-            primerApellido: true,
-            segundoApellido: true,
+    const contratos = await this.tenantPrisma.execute((prisma) =>
+      prisma.contrato.findMany({
+        where: {
+          tenantId,
+          estado: { in: ['VIGENTE', 'RENOVADO'] },
+          fechaFin: { gte: now, lte: lookahead },
+        },
+        include: {
+          empleado: {
+            select: {
+              id: true,
+              primerNombre: true,
+              segundoNombre: true,
+              primerApellido: true,
+              segundoApellido: true,
+            },
+          },
+          expedienteDocs: {
+            where: { categoria: 'CONTRATO' },
+            orderBy: { version: 'desc' },
+            select: { id: true },
+            take: 1,
           },
         },
-        expedienteDocs: {
-          where: { categoria: 'CONTRATO' },
-          orderBy: { version: 'desc' },
-          select: { id: true },
-          take: 1,
-        },
-      },
-    });
+      }),
+    );
 
     for (const contrato of contratos) {
       const diasRestantes = Math.floor(
@@ -170,16 +176,18 @@ export class AlertsService {
   }
 
   async generateMissingDocAlerts(tenantId: string) {
-    const employees = await this.prisma.empleado.findMany({
-      where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
-      select: {
-        id: true,
-        primerNombre: true,
-        segundoNombre: true,
-        primerApellido: true,
-        segundoApellido: true,
-      },
-    });
+    const employees = await this.tenantPrisma.execute((prisma) =>
+      prisma.empleado.findMany({
+        where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
+        select: {
+          id: true,
+          primerNombre: true,
+          segundoNombre: true,
+          primerApellido: true,
+          segundoApellido: true,
+        },
+      }),
+    );
 
     let created = 0;
     for (const emp of employees) {

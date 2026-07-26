@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { CreateGeneratedDocumentDto } from './dto/create-generated-document.dto';
 import { GeneratedDocumentQueryDto } from './dto/generated-document-query.dto';
 import { Prisma } from '@prisma/client';
@@ -35,6 +36,7 @@ export class GeneratedDocumentsService {
 
   constructor(
     private prisma: PrismaService,
+    private readonly tenantPrisma: TenantPrismaService,
     private expedienteDocsService: ExpedienteDocsService,
     private auditService: AuditService,
     private storage: StorageService,
@@ -42,10 +44,12 @@ export class GeneratedDocumentsService {
   ) {}
 
   async generate(tenantId: string, dto: CreateGeneratedDocumentDto) {
-    const employee = await this.prisma.empleado.findFirst({
-      where: { id: dto.employeeId, tenantId, deletedAt: null },
-      include: { sedeRef: { select: { nombre: true } } },
-    });
+    const employee = await this.tenantPrisma.execute((prisma) =>
+      prisma.empleado.findFirst({
+        where: { id: dto.employeeId, tenantId, deletedAt: null },
+        include: { sedeRef: { select: { nombre: true } } },
+      }),
+    );
     if (!employee) {
       throw new NotFoundException('Empleado no encontrado');
     }

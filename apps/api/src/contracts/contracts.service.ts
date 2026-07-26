@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { GeneratedDocumentsService } from '../generated-documents/generated-documents.service';
 import { ContractQueryDto } from './dto/contract-query.dto';
@@ -55,6 +56,7 @@ export class ContractsService {
 
   constructor(
     private prisma: PrismaService,
+    private readonly tenantPrisma: TenantPrismaService,
     private auditService: AuditService,
     private generatedDocumentsService: GeneratedDocumentsService,
   ) {}
@@ -84,12 +86,42 @@ export class ContractsService {
       ];
     }
 
-    const [data, total] = await Promise.all([
-      this.prisma.contrato.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
+    return this.tenantPrisma.execute(async (prisma) => {
+      const [data, total] = await Promise.all([
+        prisma.contrato.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            empleado: {
+              select: {
+                id: true,
+                primerNombre: true,
+                segundoNombre: true,
+                primerApellido: true,
+                segundoApellido: true,
+                cedula: true,
+                cargo: true,
+              },
+            },
+            sede: { select: { id: true, nombre: true } },
+          },
+        }),
+        prisma.contrato.count({ where }),
+      ]);
+
+      return {
+        data,
+        meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      };
+    });
+  }
+
+  async findOne(tenantId: string, id: string) {
+    const contract = await this.tenantPrisma.execute((prisma) =>
+      prisma.contrato.findFirst({
+        where: { id, tenantId },
         include: {
           empleado: {
             select: {
@@ -100,41 +132,15 @@ export class ContractsService {
               segundoApellido: true,
               cedula: true,
               cargo: true,
+              tipoDocumento: true,
             },
           },
           sede: { select: { id: true, nombre: true } },
+          plantilla: { select: { id: true, nombre: true } },
+          lote: { select: { id: true, estado: true } },
         },
       }),
-      this.prisma.contrato.count({ where }),
-    ]);
-
-    return {
-      data,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
-    };
-  }
-
-  async findOne(tenantId: string, id: string) {
-    const contract = await this.prisma.contrato.findFirst({
-      where: { id, tenantId },
-      include: {
-        empleado: {
-          select: {
-            id: true,
-            primerNombre: true,
-            segundoNombre: true,
-            primerApellido: true,
-            segundoApellido: true,
-            cedula: true,
-            cargo: true,
-            tipoDocumento: true,
-          },
-        },
-        sede: { select: { id: true, nombre: true } },
-        plantilla: { select: { id: true, nombre: true } },
-        lote: { select: { id: true, estado: true } },
-      },
-    });
+    );
 
     if (!contract) throw new NotFoundException('Contrato no encontrado');
     return contract;
@@ -225,20 +231,22 @@ export class ContractsService {
       variablesSnapshot: snapshot as unknown as Prisma.JsonValue,
     } as Prisma.ContratoUncheckedCreateInput;
 
-    const contract = await this.prisma.contrato.create({
-      data,
-      include: {
-        empleado: {
-          select: {
-            id: true,
-            primerNombre: true,
-            primerApellido: true,
-            cedula: true,
+    const contract = await this.tenantPrisma.execute((prisma) =>
+      prisma.contrato.create({
+        data,
+        include: {
+          empleado: {
+            select: {
+              id: true,
+              primerNombre: true,
+              primerApellido: true,
+              cedula: true,
+            },
           },
+          sede: { select: { id: true, nombre: true } },
         },
-        sede: { select: { id: true, nombre: true } },
-      },
-    });
+      }),
+    );
 
     this.auditService
       .log({
@@ -305,9 +313,11 @@ export class ContractsService {
   }
 
   async findByEmployee(tenantId: string, employeeId: string) {
-    const employee = await this.prisma.empleado.findFirst({
-      where: { id: employeeId, tenantId, deletedAt: null },
-    });
+    const employee = await this.tenantPrisma.execute((prisma) =>
+      prisma.empleado.findFirst({
+        where: { id: employeeId, tenantId, deletedAt: null },
+      }),
+    );
     if (!employee) throw new NotFoundException('Empleado no encontrado.');
 
     return this.prisma.contrato.findMany({
@@ -516,18 +526,20 @@ export class ContractsService {
   }
 
   private async validateEmployee(tenantId: string, employeeId: string) {
-    const emp = await this.prisma.empleado.findFirst({
-      where: { id: employeeId, tenantId, deletedAt: null },
-      select: {
-        id: true,
-        primerNombre: true,
-        segundoNombre: true,
-        primerApellido: true,
-        segundoApellido: true,
-        tipoDocumento: true,
-        cedula: true,
-      },
-    });
+    const emp = await this.tenantPrisma.execute((prisma) =>
+      prisma.empleado.findFirst({
+        where: { id: employeeId, tenantId, deletedAt: null },
+        select: {
+          id: true,
+          primerNombre: true,
+          segundoNombre: true,
+          primerApellido: true,
+          segundoApellido: true,
+          tipoDocumento: true,
+          cedula: true,
+        },
+      }),
+    );
     if (!emp)
       throw new BadRequestException(
         'El empleado no existe o no pertenece a esta empresa.',

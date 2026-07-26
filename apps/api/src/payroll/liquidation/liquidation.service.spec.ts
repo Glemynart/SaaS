@@ -7,6 +7,7 @@ import { Prisma } from '@prisma/client';
 import { Test } from '@nestjs/testing';
 import { LiquidationService } from './liquidation.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TenantPrismaService } from '../../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../../audit/audit.service';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -35,6 +36,11 @@ const mockPrisma = {
 };
 
 const mockAudit = { log: jest.fn().mockResolvedValue(undefined) };
+const mockTenantPrisma = {
+  execute: jest.fn((work: (client: typeof mockPrisma) => unknown) =>
+    work(mockPrisma),
+  ),
+};
 
 // ── Fixture de empleado ───────────────────────────────────────────────────────
 
@@ -62,6 +68,7 @@ describe('LiquidationService — validaciones de dominio', () => {
       providers: [
         LiquidationService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: TenantPrismaService, useValue: mockTenantPrisma },
         { provide: AuditService, useValue: mockAudit },
       ],
     }).compile();
@@ -181,6 +188,7 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
       providers: [
         LiquidationService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: TenantPrismaService, useValue: mockTenantPrisma },
         { provide: AuditService, useValue: mockAudit },
       ],
     }).compile();
@@ -363,6 +371,7 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
       providers: [
         LiquidationService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: TenantPrismaService, useValue: mockTenantPrisma },
         { provide: AuditService, useValue: mockAudit },
       ],
     }).compile();
@@ -721,6 +730,7 @@ describe('LiquidationService — concurrencia y lectura (N2D.6)', () => {
       providers: [
         LiquidationService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: TenantPrismaService, useValue: mockTenantPrisma },
         { provide: AuditService, useValue: mockAudit },
       ],
     }).compile();

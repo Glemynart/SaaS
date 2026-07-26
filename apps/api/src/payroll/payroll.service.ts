@@ -11,6 +11,7 @@ import {
   PayrollPeriodStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import {
   CreatePayrollPeriodDto,
@@ -113,6 +114,7 @@ type PayrollBlockMap = Record<string, PayrollFunctionalBlock[]>;
 export class PayrollService {
   constructor(
     private prisma: PrismaService,
+    private readonly tenantPrisma: TenantPrismaService,
     private auditService: AuditService,
   ) {}
 
@@ -523,7 +525,7 @@ export class PayrollService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.tenantPrisma.execute(async (tx) => {
       await this.assertNoFunctionalBlocksForApproval(tx, tenantId, period);
 
       const result = await tx.payrollPeriod.updateMany({
@@ -768,10 +770,12 @@ export class PayrollService {
     const legalSnapshot = toSnapshot(legalParam);
     const aportesExonerados = tenant!.aportesExonerados;
 
-    const employees = await this.prisma.empleado.findMany({
-      where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
-      select: { id: true, salario: true, salarioIntegral: true },
-    });
+    const employees = await this.tenantPrisma.execute((prisma) =>
+      prisma.empleado.findMany({
+        where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
+        select: { id: true, salario: true, salarioIntegral: true },
+      }),
+    );
 
     const allNovelties = await this.prisma.payrollNovelty.findMany({
       where: { tenantId, payrollPeriodId: periodId },
@@ -943,10 +947,12 @@ export class PayrollService {
     const legalSnapshot = toSnapshot(legalParam);
     const aportesExonerados = tenant!.aportesExonerados;
 
-    const employees = await this.prisma.empleado.findMany({
-      where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
-      select: { id: true, salario: true, salarioIntegral: true },
-    });
+    const employees = await this.tenantPrisma.execute((prisma) =>
+      prisma.empleado.findMany({
+        where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
+        select: { id: true, salario: true, salarioIntegral: true },
+      }),
+    );
 
     const allNovelties = await this.prisma.payrollNovelty.findMany({
       where: { tenantId, payrollPeriodId: periodId },
@@ -1103,9 +1109,11 @@ export class PayrollService {
     dto: CreatePayrollNoveltyDto,
   ) {
     const [emp, period] = await Promise.all([
-      this.prisma.empleado.findFirst({
-        where: { id: dto.employeeId, tenantId, deletedAt: null },
-      }),
+      this.tenantPrisma.execute((prisma) =>
+        prisma.empleado.findFirst({
+          where: { id: dto.employeeId, tenantId, deletedAt: null },
+        }),
+      ),
       this.prisma.payrollPeriod.findFirst({
         where: { id: dto.payrollPeriodId, tenantId },
       }),
