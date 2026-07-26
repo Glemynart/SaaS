@@ -7,6 +7,8 @@ import {
   Body,
   Query,
   UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { PayrollService } from './payroll.service';
 import {
@@ -202,6 +204,7 @@ export class PayrollController {
 
   @Roles(UserRole.ADMIN)
   @Post('payroll/periods/:id/contabilizar')
+  @HttpCode(HttpStatus.OK)
   /**
    * Causa una nómina aprobada en Accounting.
    *
