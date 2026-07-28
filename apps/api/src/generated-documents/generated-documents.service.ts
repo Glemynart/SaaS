@@ -52,7 +52,11 @@ export class GeneratedDocumentsService {
     private pdfRender: PdfRenderService,
   ) {}
 
-  async generate(tenantId: string, dto: CreateGeneratedDocumentDto) {
+  async generate(
+    tenantId: string,
+    userId: string,
+    dto: CreateGeneratedDocumentDto,
+  ) {
     const employee = await this.tenantPrisma.execute((prisma) =>
       prisma.empleado.findFirst({
         where: { id: dto.employeeId, tenantId, deletedAt: null },
@@ -125,15 +129,38 @@ export class GeneratedDocumentsService {
 
     const contenidoFinal = this.replaceVariables(template.contenido, context);
 
-    return this.prisma.generatedDocument.create({
-      data: {
-        tenantId,
-        employeeId: dto.employeeId,
-        templateId: dto.templateId,
-        nombre: dto.nombre,
-        contenidoFinal,
-        tipo: template.tipo,
-      },
+    const data = {
+      tenantId,
+      employeeId: dto.employeeId,
+      templateId: dto.templateId,
+      nombre: dto.nombre,
+      contenidoFinal,
+      tipo: template.tipo,
+    };
+
+    if (template.tipo !== 'CERTIFICATION') {
+      return this.prisma.generatedDocument.create({ data });
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const document = await tx.generatedDocument.create({ data });
+
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'CERTIFICATION_ISSUED',
+          entityType: 'GeneratedDocument',
+          entityId: document.id,
+          metadata: {
+            employeeId: dto.employeeId,
+            templateId: dto.templateId,
+          },
+        },
+        tx,
+      );
+
+      return document;
     });
   }
 
