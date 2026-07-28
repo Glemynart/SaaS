@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: Security Hardening v2 y Accounting v1 completados y fusionados a `main` (2026-07-26)
+## Última actualización: Security Hardening v2, Accounting v1, Contratos Documentales (Fase 6C) y Certificaciones Laborales (Fase 7) completados y fusionados a `main` (2026-07-28)
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -83,6 +83,17 @@ Servicios:
 ---
 
 # <a name="estado-general-del-proyecto"></a>Estado General del Proyecto
+
+Estado actual:
+
+✅ Plataforma operativa con gestión de empleados, contratos, expediente digital, pipeline documental canónico, seguridad endurecida y contabilidad v1.
+
+Hitos recientes fusionados a `main`:
+
+- ✅ Security Hardening v2 — PR #64.
+- ✅ Accounting v1.
+- ✅ Fase 6C — Contratos Documentales — PR #65.
+- ✅ Fase 7 — Certificaciones Laborales — PR #67.
 
 ## <a name="landing-saas"></a>Landing SaaS
 
@@ -882,6 +893,54 @@ Tenant
 → Contrato
 → ExpedienteDoc
 → Gestión documental futura
+
+---
+
+# FASE 7 — Certificaciones Laborales
+
+Estado:
+
+✅ COMPLETADA
+
+Referencia:
+
+- PR #67 — merge commit `e745c19` (2026-07-28).
+- Rama de implementación: `initiative/labor-certificates` (eliminada tras el merge).
+
+## Objetivo
+
+Permitir la emisión, publicación, consulta y descarga de certificaciones laborales sin crear un agregado de dominio adicional ni un pipeline documental paralelo.
+
+## Arquitectura aprobada
+
+Flujo único:
+
+Empleado → DocumentTemplate (`CERTIFICATION`) → GeneratedDocument → PDF canónico → ExpedienteDoc
+
+- `GeneratedDocument` es la identidad de cada emisión.
+- `contenidoFinal` es el único snapshot canónico; no existe snapshot estructurado paralelo.
+- Cada solicitud explícita crea un nuevo `GeneratedDocument`.
+- Un reintento técnico reutiliza el mismo documento y el mismo PDF lógico.
+- `ExpedienteDoc` actúa exclusivamente como índice del PDF publicado, con categoría `CERTIFICADO`.
+
+## Resultado
+
+Implementado:
+
+- Infraestructura `CERTIFICATION` compatible con `CONTRACT`.
+- Emisión auditada con resolución completa de variables antes de persistir.
+- Materialización PDF canónica e idempotente desde `contenidoFinal`.
+- Publicación transaccional e idempotente en `ExpedienteDoc`.
+- Inmutabilidad de certificaciones ya publicadas.
+- UI integrada en la ficha del empleado, documentos generados y expediente digital.
+- Consulta y descarga mediante las superficies documentales existentes.
+
+Validación de cierre:
+
+- API: 62 suites y 712 pruebas PASS.
+- Typecheck API y frontend PASS.
+- Prisma validate PASS.
+- Auditoría de aceptación Fase 7: APPROVE.
 
 ---
 
