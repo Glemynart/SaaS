@@ -184,6 +184,41 @@ describe('ContractsService', () => {
       );
     });
 
+    it('expone la única referencia documental contractual desde la consulta existente', async () => {
+      mockContratoFindFirst.mockResolvedValue(
+        makeContract({
+          generatedDocuments: [
+            {
+              id: 'gendoc-001',
+              nombre: 'Contrato — María García',
+              pdfUrl: '/uploads/pdfs/tenant-001-gendoc-001.pdf',
+              expedienteDocs: [{ id: 'expediente-001' }],
+            },
+          ],
+        }),
+      );
+
+      const result = await service.findOne(TENANT_ID, 'contract-001');
+
+      expect(result.generatedDocument).toEqual({
+        id: 'gendoc-001',
+        nombre: 'Contrato — María García',
+        pdfUrl: '/uploads/pdfs/tenant-001-gendoc-001.pdf',
+        expedienteDocId: 'expediente-001',
+      });
+      expect(mockContratoFindFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'contract-001', tenantId: TENANT_ID },
+          include: expect.objectContaining({
+            generatedDocuments: expect.objectContaining({
+              where: { tenantId: TENANT_ID, tipo: 'CONTRACT' },
+              take: 1,
+            }),
+          }),
+        }),
+      );
+    });
+
     it('rejects a cross-tenant status update before issuing a write', async () => {
       mockContratoFindFirst.mockResolvedValue(null);
 

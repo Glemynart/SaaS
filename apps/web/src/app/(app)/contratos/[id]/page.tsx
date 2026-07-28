@@ -2,12 +2,13 @@
 
 import { use, useCallback } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, FileText } from 'lucide-react';
+import { ArrowLeft, Download, FileText } from 'lucide-react';
 import { useContract, useUpdateContractStatus } from '@/features/contracts/hooks/use-contracts';
+import { generatedDocumentsApi } from '@/features/generated-documents/services/generated-documents-api';
 import { formatNombreCompleto } from '@saas/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { StatusBadge } from '@/components/ui/status-badge';
 
 const TIPO_LABELS: Record<string, string> = {
   TERMINO_FIJO: 'Término Fijo',
@@ -16,16 +17,6 @@ const TIPO_LABELS: Record<string, string> = {
   APRENDIZAJE: 'Aprendizaje',
   PRESTACION_SERVICIOS: 'Prestación Servicios',
 };
-
-function estadoBadge(estado: string) {
-  const m: Record<string, string> = {
-    VIGENTE: 'bg-emerald-50 text-emerald-700',
-    VENCIDO: 'bg-red-50 text-red-700',
-    TERMINADO: 'bg-gray-100 text-gray-600',
-    RENOVADO: 'bg-blue-50 text-blue-700',
-  };
-  return m[estado] ?? '';
-}
 
 const VALID_TRANSITIONS: Record<string, { label: string; estado: string }[]> = {
   VIGENTE: [
@@ -88,7 +79,10 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
           </Link>
           <FileText className="size-5 text-muted-foreground" />
           <h1 className="text-lg font-semibold">Contrato</h1>
-          <Badge className={estadoBadge(contract.estado)}>{contract.estado}</Badge>
+          <StatusBadge
+            domain="contrato"
+            estado={contract.estado as 'VIGENTE' | 'VENCIDO' | 'TERMINADO' | 'RENOVADO'}
+          />
         </div>
         {transitions.length > 0 && (
           <div className="flex gap-1">
@@ -123,7 +117,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-white p-6 shadow-sm">
+      <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid grid-cols-2 gap-2 text-sm">
             <dt className="text-muted-foreground">Tipo</dt>
@@ -150,6 +144,37 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
               <span className="text-xs text-muted-foreground">Creado</span>
               <p className="text-sm">{formatDate(contract.createdAt)}</p>
             </div>
+            {contract.generatedDocument && (
+              <div>
+                <span className="text-xs text-muted-foreground">Documento contractual</span>
+                <p className="truncate text-sm">{contract.generatedDocument.nombre}</p>
+                <div className="mt-1 flex gap-2">
+                  {contract.generatedDocument.pdfUrl && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        window.open(
+                          generatedDocumentsApi.getPdfUrl(contract.generatedDocument!.id),
+                          '_blank',
+                        )
+                      }
+                    >
+                      <Download className="size-3.5" aria-hidden="true" />
+                      PDF
+                    </Button>
+                  )}
+                  {contract.generatedDocument.expedienteDocId && (
+                    <Link
+                      href={`/empleados/${contract.empleado.id}/expediente`}
+                      className="inline-flex h-8 items-center px-2 text-sm text-muted-foreground hover:text-foreground"
+                    >
+                      Ver en expediente
+                    </Link>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

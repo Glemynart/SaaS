@@ -143,12 +143,40 @@ export class ContractsService {
           sede: { select: { id: true, nombre: true } },
           plantilla: { select: { id: true, nombre: true } },
           lote: { select: { id: true, estado: true } },
+          generatedDocuments: {
+            where: { tenantId, tipo: 'CONTRACT' },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: {
+              id: true,
+              nombre: true,
+              pdfUrl: true,
+              expedienteDocs: {
+                where: { tenantId },
+                take: 1,
+                select: { id: true },
+              },
+            },
+          },
         },
       }),
     );
 
     if (!contract) throw new NotFoundException('Contrato no encontrado');
-    return contract;
+    const { generatedDocuments, ...contractDetail } = contract;
+    const generatedDocument = generatedDocuments?.[0];
+
+    return {
+      ...contractDetail,
+      generatedDocument: generatedDocument
+        ? {
+            id: generatedDocument.id,
+            nombre: generatedDocument.nombre,
+            pdfUrl: generatedDocument.pdfUrl,
+            expedienteDocId: generatedDocument.expedienteDocs[0]?.id ?? null,
+          }
+        : null,
+    };
   }
 
   async create(

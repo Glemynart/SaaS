@@ -14,6 +14,13 @@ export interface ContractSede {
   nombre: string;
 }
 
+export interface ContractGeneratedDocument {
+  id: string;
+  nombre: string;
+  pdfUrl: string | null;
+  expedienteDocId: string | null;
+}
+
 export interface Contract {
   id: string;
   tenantId: string;
@@ -30,6 +37,7 @@ export interface Contract {
   sede: ContractSede | null;
   plantilla: { id: string; nombre: string } | null;
   lote: { id: string; estado: string } | null;
+  generatedDocument?: ContractGeneratedDocument | null;
 }
 
 export interface GetContractsParams {
