@@ -5,7 +5,7 @@ import {
   BadRequestException,
   ConflictException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { DocumentTemplate, GeneratedDocument, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -48,6 +48,11 @@ export interface ContractVariablesSnapshot {
     generatedAt: string;
     version: number;
   };
+}
+
+export interface EnsureGeneratedDocumentResult {
+  outcome: 'CREATED' | 'EXISTING';
+  document: GeneratedDocument;
 }
 
 @Injectable()
@@ -336,6 +341,61 @@ export class ContractsService {
     });
   }
 
+  /**
+   * Orquesta la identidad documental contractual sin materializar archivos.
+   * Reintentar devuelve el documento existente del contrato, sin crear otra
+   * versión ni invocar el motor PDF.
+   */
+  async ensureGeneratedDocument(
+    tenantId: string,
+    contratoId: string,
+    templateId?: string,
+  ): Promise<EnsureGeneratedDocumentResult> {
+    const contract = await this.prisma.contrato.findFirst({
+      where: { id: contratoId, tenantId },
+      include: { empleado: { select: { deletedAt: true } } },
+    });
+    if (!contract) {
+      throw new NotFoundException('Contrato no encontrado');
+    }
+
+    this.assertDocumentEligibility(contract);
+
+    const existing = await this.prisma.generatedDocument.findFirst({
+      where: { contratoId: contract.id, tenantId },
+    });
+    if (existing) {
+      return { outcome: 'EXISTING', document: existing };
+    }
+
+    const template = await this.resolveTemplate(tenantId, templateId);
+
+    try {
+      return {
+        outcome: 'CREATED',
+        document: await this.createGeneratedDocument(
+          tenantId,
+          contract,
+          template,
+        ),
+      };
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const concurrentDocument =
+          await this.prisma.generatedDocument.findFirst({
+            where: { contratoId: contract.id, tenantId },
+          });
+        if (concurrentDocument) {
+          return { outcome: 'EXISTING', document: concurrentDocument };
+        }
+      }
+      throw error;
+    }
+  }
+
   async generateDocument(
     tenantId: string,
     userId: string,
@@ -365,27 +425,9 @@ export class ContractsService {
       );
     }
 
-    const snapshot = contract.variablesSnapshot;
-    this.validateSnapshot(snapshot, contract.id);
-    const validSnapshot = snapshot as unknown as ContractVariablesSnapshot;
-    const contenidoFinal = this.buildContentFromSnapshot(
-      template.contenido,
-      validSnapshot,
-    );
-
     let genDoc: { id: string };
     try {
-      genDoc = await this.prisma.generatedDocument.create({
-        data: {
-          tenantId,
-          employeeId: contract.empleadoId,
-          templateId: template.id,
-          contratoId: contract.id,
-          nombre: `Contrato — ${validSnapshot.empleado.nombreCompleto}`,
-          contenidoFinal,
-          tipo: template.tipo,
-        },
-      });
+      genDoc = await this.createGeneratedDocument(tenantId, contract, template);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -451,6 +493,52 @@ export class ContractsService {
       );
     }
     return templates[0];
+  }
+
+  private async createGeneratedDocument(
+    tenantId: string,
+    contract: {
+      id: string;
+      empleadoId: string;
+      variablesSnapshot: Prisma.JsonValue;
+    },
+    template: Pick<DocumentTemplate, 'id' | 'tipo' | 'contenido'>,
+  ): Promise<GeneratedDocument> {
+    this.validateSnapshot(contract.variablesSnapshot, contract.id);
+    const snapshot =
+      contract.variablesSnapshot as unknown as ContractVariablesSnapshot;
+
+    return this.prisma.generatedDocument.create({
+      data: {
+        tenantId,
+        employeeId: contract.empleadoId,
+        templateId: template.id,
+        contratoId: contract.id,
+        nombre: `Contrato — ${snapshot.empleado.nombreCompleto}`,
+        contenidoFinal: this.buildContentFromSnapshot(
+          template.contenido,
+          snapshot,
+        ),
+        tipo: template.tipo,
+      },
+    });
+  }
+
+  private assertDocumentEligibility(contract: {
+    estado: string;
+    empleado: { deletedAt: Date | null };
+  }): void {
+    if (contract.estado !== 'VIGENTE') {
+      throw new BadRequestException(
+        'Solo se puede generar el documento de un contrato VIGENTE.',
+      );
+    }
+
+    if (contract.empleado.deletedAt !== null) {
+      throw new BadRequestException(
+        'No se puede generar un documento para un empleado eliminado.',
+      );
+    }
   }
 
   private buildContentFromSnapshot(

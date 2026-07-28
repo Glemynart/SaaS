@@ -502,6 +502,141 @@ describe('ContractsService', () => {
 
   // ── generateDocument ────────────────────────────────────────────────────
 
+  describe('ensureGeneratedDocument', () => {
+    const SNAPSHOT: ContractVariablesSnapshot = {
+      empleado: {
+        nombreCompleto: 'María Elena García López',
+        primerNombre: 'María',
+        segundoNombre: 'Elena',
+        primerApellido: 'García',
+        segundoApellido: 'López',
+        tipoDocumento: 'CC',
+        cedula: '1234567890',
+      },
+      contrato: {
+        cargo: 'Docente de Matemáticas',
+        salario: '3500000',
+        tipo: 'TERMINO_FIJO',
+        fechaInicio: '2026-02-01',
+        fechaFin: '2026-12-15',
+      },
+      empresa: {
+        nombre: 'Colegio ABC',
+        razonSocial: 'Colegio ABC S.A.S.',
+        nit: '900123456',
+        representanteLegal: 'Juan Pérez',
+      },
+      sede: { nombre: 'Sede Norte' },
+      metadata: { generatedAt: '2026-02-01T00:00:00.000Z', version: 1 },
+    };
+
+    function makeDocumentContract(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'contract-001',
+        tenantId: TENANT_ID,
+        empleadoId: 'emp-001',
+        estado: 'VIGENTE',
+        variablesSnapshot: SNAPSHOT,
+        empleado: { deletedAt: null },
+        ...overrides,
+      };
+    }
+
+    function makeTemplate(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'template-001',
+        tenantId: TENANT_ID,
+        nombre: 'Contrato Laboral',
+        tipo: 'CONTRACT',
+        contenido: '<p>{{NOMBRE_COMPLETO}} — {{CARGO}}</p>',
+        activo: true,
+        deletedAt: null,
+        createdAt: new Date(),
+        ...overrides,
+      };
+    }
+
+    it('crea la identidad documental desde el snapshot sin invocar PDF', async () => {
+      mockContratoFindFirst.mockResolvedValue(makeDocumentContract());
+      mockGeneratedDocumentFindFirst.mockResolvedValue(null);
+      mockDocumentTemplateFindMany.mockResolvedValue([makeTemplate()]);
+      mockGeneratedDocumentCreate.mockResolvedValue({ id: 'gendoc-001' });
+
+      const result = await service.ensureGeneratedDocument(
+        TENANT_ID,
+        'contract-001',
+      );
+
+      expect(result).toEqual({
+        outcome: 'CREATED',
+        document: { id: 'gendoc-001' },
+      });
+      expect(mockGeneratedDocumentCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          contratoId: 'contract-001',
+          contenidoFinal:
+            '<p>María Elena García López — Docente de Matemáticas</p>',
+        }),
+      });
+      expect(mockGeneratePdf).not.toHaveBeenCalled();
+    });
+
+    it('devuelve el documento existente sin validar nuevamente la plantilla', async () => {
+      const existing = { id: 'gendoc-existing', contratoId: 'contract-001' };
+      mockContratoFindFirst.mockResolvedValue(makeDocumentContract());
+      mockGeneratedDocumentFindFirst.mockResolvedValue(existing);
+
+      await expect(
+        service.ensureGeneratedDocument(TENANT_ID, 'contract-001'),
+      ).resolves.toEqual({ outcome: 'EXISTING', document: existing });
+
+      expect(mockDocumentTemplateFindMany).not.toHaveBeenCalled();
+      expect(mockGeneratedDocumentCreate).not.toHaveBeenCalled();
+    });
+
+    it('rechaza un contrato no vigente antes de crear un documento', async () => {
+      mockContratoFindFirst.mockResolvedValue(
+        makeDocumentContract({ estado: 'VENCIDO' }),
+      );
+
+      await expect(
+        service.ensureGeneratedDocument(TENANT_ID, 'contract-001'),
+      ).rejects.toThrow('contrato VIGENTE');
+
+      expect(mockGeneratedDocumentFindFirst).not.toHaveBeenCalled();
+    });
+
+    it('rechaza un empleado eliminado', async () => {
+      mockContratoFindFirst.mockResolvedValue(
+        makeDocumentContract({ empleado: { deletedAt: new Date() } }),
+      );
+
+      await expect(
+        service.ensureGeneratedDocument(TENANT_ID, 'contract-001'),
+      ).rejects.toThrow('empleado eliminado');
+    });
+
+    it('relee y devuelve el documento ganador ante una carrera de creación', async () => {
+      const existing = { id: 'gendoc-concurrent', contratoId: 'contract-001' };
+      mockContratoFindFirst.mockResolvedValue(makeDocumentContract());
+      mockGeneratedDocumentFindFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(existing);
+      mockDocumentTemplateFindMany.mockResolvedValue([makeTemplate()]);
+      mockGeneratedDocumentCreate.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: '5.0.0',
+          meta: { target: ['contratoId'] },
+        }),
+      );
+
+      await expect(
+        service.ensureGeneratedDocument(TENANT_ID, 'contract-001'),
+      ).resolves.toEqual({ outcome: 'EXISTING', document: existing });
+    });
+  });
+
   describe('generateDocument', () => {
     const SNAPSHOT: ContractVariablesSnapshot = {
       empleado: {
