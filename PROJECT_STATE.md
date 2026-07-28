@@ -815,19 +815,28 @@ Empleado
 
 Estado:
 
-⏳ Pendiente
+✅ Completada
+
+Auditoría final:
+
+APPROVE
 
 Objetivo:
 
 Incorporar generación documental asociada a contratos.
 
-Alcance previsto:
+Implementado:
 
-- PDF de contratos.
-- Integración con plantillas.
-- Asociación documental con expediente.
+- Pipeline único CONTRACT.
+- Snapshot contractual.
+- Publicación idempotente.
+- Materialización PDF canónica.
+- `ExpedienteDoc` como índice.
+- Protección de concurrencia.
+- Inmutabilidad CONTRACT.
+- Renderer endurecido.
 
-No incluye aún:
+Fuera de alcance:
 
 - DOCX.
 - R2.
