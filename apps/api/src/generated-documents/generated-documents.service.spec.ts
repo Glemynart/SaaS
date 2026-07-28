@@ -16,9 +16,12 @@ describe('GeneratedDocumentsService.generatePdf', () => {
   const mockTenantFindUnique = jest.fn();
   const mockTransaction = jest.fn();
   const mockTxUpdate = jest.fn();
+  const mockGeneratedDocumentUpdate = jest.fn();
   const mockCreateFromGeneratedDoc = jest.fn();
   const mockAuditLog = jest.fn();
   const mockPutObject = jest.fn();
+  const mockObjectExists = jest.fn();
+  const mockGetObject = jest.fn();
   const mockRenderPdf = jest.fn();
 
   beforeEach(async () => {
@@ -57,7 +60,10 @@ describe('GeneratedDocumentsService.generatePdf', () => {
     mockCreateFromGeneratedDoc.mockReset().mockResolvedValue(undefined);
     mockAuditLog.mockReset().mockResolvedValue(undefined);
     mockPutObject.mockReset().mockResolvedValue({ key: 'k', size: 5 });
+    mockObjectExists.mockReset().mockResolvedValue(false);
+    mockGetObject.mockReset();
     mockRenderPdf.mockReset().mockResolvedValue(Buffer.from('PDF-BYTES'));
+    mockGeneratedDocumentUpdate.mockReset();
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -65,7 +71,10 @@ describe('GeneratedDocumentsService.generatePdf', () => {
         {
           provide: PrismaService,
           useValue: {
-            generatedDocument: { findFirst: mockFindFirst },
+            generatedDocument: {
+              findFirst: mockFindFirst,
+              update: mockGeneratedDocumentUpdate,
+            },
             tenant: { findUnique: mockTenantFindUnique },
             $transaction: mockTransaction,
           },
@@ -79,7 +88,14 @@ describe('GeneratedDocumentsService.generatePdf', () => {
           useValue: { createFromGeneratedDoc: mockCreateFromGeneratedDoc },
         },
         { provide: AuditService, useValue: { log: mockAuditLog } },
-        { provide: StorageService, useValue: { putObject: mockPutObject } },
+        {
+          provide: StorageService,
+          useValue: {
+            putObject: mockPutObject,
+            objectExists: mockObjectExists,
+            getObject: mockGetObject,
+          },
+        },
         { provide: PdfRenderService, useValue: { renderPdf: mockRenderPdf } },
       ],
     }).compile();
@@ -109,6 +125,94 @@ describe('GeneratedDocumentsService.generatePdf', () => {
     expect(mockAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'PDF_GENERATE' }),
     );
+  });
+
+  describe('materializePdf', () => {
+    it('renderiza únicamente contenidoFinal y persiste la identidad canónica', async () => {
+      mockFindFirst.mockResolvedValue({
+        id: 'd1',
+        tenantId: 't1',
+        contenidoFinal: '<p>Contrato inmutable</p>',
+        pdfStorageKey: null,
+        pdfSizeBytes: null,
+        pdfUrl: null,
+      });
+      mockPutObject.mockResolvedValue({ key: 'pdfs/t1-d1.pdf', size: 9 });
+
+      const result = await service.materializePdf('t1', 'd1');
+
+      expect(mockTenantFindUnique).not.toHaveBeenCalled();
+      expect(mockRenderPdf).toHaveBeenCalledWith(
+        expect.stringContaining('<p>Contrato inmutable</p>'),
+      );
+      expect(mockRenderPdf).not.toHaveBeenCalledWith(
+        expect.stringContaining('Ana'),
+      );
+      expect(mockPutObject).toHaveBeenCalledWith(
+        expect.objectContaining({
+          key: 'pdfs/t1-d1.pdf',
+          contentType: 'application/pdf',
+        }),
+      );
+      expect(mockGeneratedDocumentUpdate).toHaveBeenCalledWith({
+        where: { id: 'd1' },
+        data: {
+          pdfStorageKey: 'pdfs/t1-d1.pdf',
+          pdfSizeBytes: 9,
+          pdfUrl: '/uploads/pdfs/t1-d1.pdf',
+        },
+      });
+      expect(result).toEqual({
+        id: 'd1',
+        pdfStorageKey: 'pdfs/t1-d1.pdf',
+        pdfSizeBytes: 9,
+        pdfUrl: '/uploads/pdfs/t1-d1.pdf',
+        materialized: true,
+      });
+      expect(mockCreateFromGeneratedDoc).not.toHaveBeenCalled();
+      expect(mockAuditLog).not.toHaveBeenCalled();
+    });
+
+    it('recupera metadata de un PDF físico existente sin volver a renderizar', async () => {
+      mockFindFirst.mockResolvedValue({
+        id: 'd1',
+        tenantId: 't1',
+        contenidoFinal: '<p>Contrato inmutable</p>',
+        pdfStorageKey: null,
+        pdfSizeBytes: null,
+        pdfUrl: null,
+      });
+      mockObjectExists.mockResolvedValue(true);
+      mockGetObject.mockResolvedValue(Buffer.from('PDF existente'));
+
+      const result = await service.materializePdf('t1', 'd1');
+
+      expect(mockRenderPdf).not.toHaveBeenCalled();
+      expect(mockPutObject).not.toHaveBeenCalled();
+      expect(mockGetObject).toHaveBeenCalledWith('pdfs/t1-d1.pdf');
+      expect(result).toMatchObject({
+        pdfSizeBytes: Buffer.byteLength('PDF existente'),
+        materialized: false,
+      });
+    });
+
+    it('no escribe metadata cuando el documento y el artefacto ya están sincronizados', async () => {
+      mockFindFirst.mockResolvedValue({
+        id: 'd1',
+        tenantId: 't1',
+        contenidoFinal: '<p>Contrato inmutable</p>',
+        pdfStorageKey: 'pdfs/t1-d1.pdf',
+        pdfSizeBytes: Buffer.byteLength('PDF existente'),
+        pdfUrl: '/uploads/pdfs/t1-d1.pdf',
+      });
+      mockObjectExists.mockResolvedValue(true);
+      mockGetObject.mockResolvedValue(Buffer.from('PDF existente'));
+
+      await service.materializePdf('t1', 'd1');
+
+      expect(mockGeneratedDocumentUpdate).not.toHaveBeenCalled();
+      expect(mockRenderPdf).not.toHaveBeenCalled();
+    });
   });
 
   it('el código fuente no contiene Puppeteer ni escrituras directas a fs', () => {

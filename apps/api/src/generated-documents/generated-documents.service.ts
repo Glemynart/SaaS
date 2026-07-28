@@ -30,6 +30,14 @@ interface ReplacementContext {
   FIRMA_REPRESENTANTE: string;
 }
 
+export interface PdfMaterializationResult {
+  id: string;
+  pdfStorageKey: string;
+  pdfSizeBytes: number;
+  pdfUrl: string;
+  materialized: boolean;
+}
+
 @Injectable()
 export class GeneratedDocumentsService {
   private readonly logger = new Logger(GeneratedDocumentsService.name);
@@ -212,6 +220,66 @@ export class GeneratedDocumentsService {
     return this.prisma.generatedDocument.delete({ where: { id } });
   }
 
+  /**
+   * Materializa el snapshot textual ya generado sin consultar empleado,
+   * plantilla ni tenant. Es idempotente sobre la clave canónica del documento.
+   */
+  async materializePdf(
+    tenantId: string,
+    id: string,
+  ): Promise<PdfMaterializationResult> {
+    const doc = await this.prisma.generatedDocument.findFirst({
+      where: { id, tenantId },
+      select: {
+        id: true,
+        tenantId: true,
+        contenidoFinal: true,
+        pdfStorageKey: true,
+        pdfSizeBytes: true,
+        pdfUrl: true,
+      },
+    });
+    if (!doc) {
+      throw new NotFoundException('Documento generado no encontrado');
+    }
+
+    const storageKey = this.getCanonicalPdfStorageKey(doc.tenantId, doc.id);
+    const pdfUrl = this.getPdfUrl(storageKey);
+    let pdfSizeBytes: number;
+    let materialized = false;
+
+    if (await this.storage.objectExists(storageKey)) {
+      pdfSizeBytes = (await this.storage.getObject(storageKey)).length;
+    } else {
+      const stored = await this.renderAndStorePdf(
+        doc.tenantId,
+        doc.id,
+        this.buildCanonicalPdfHtml(doc.contenidoFinal),
+      );
+      pdfSizeBytes = stored.size;
+      materialized = true;
+    }
+
+    if (
+      doc.pdfStorageKey !== storageKey ||
+      doc.pdfSizeBytes !== pdfSizeBytes ||
+      doc.pdfUrl !== pdfUrl
+    ) {
+      await this.prisma.generatedDocument.update({
+        where: { id: doc.id },
+        data: { pdfStorageKey: storageKey, pdfSizeBytes, pdfUrl },
+      });
+    }
+
+    return {
+      id: doc.id,
+      pdfStorageKey: storageKey,
+      pdfSizeBytes,
+      pdfUrl,
+      materialized,
+    };
+  }
+
   async generatePdf(tenantId: string, userId: string, id: string) {
     const doc = await this.findOne(tenantId, id);
     if (!doc) throw new NotFoundException('Documento no encontrado');
@@ -223,17 +291,7 @@ export class GeneratedDocumentsService {
 
     const html = this.buildPdfHtml(doc.contenidoFinal, tenant, doc.employee);
 
-    const pdfFilename = `${tenantId}-${id}.pdf`;
-    const storageKey = `pdfs/${pdfFilename}`;
-    const pdfUrl = `/uploads/${storageKey}`;
-
-    const pdfBuffer = await this.pdfRender.renderPdf(html);
-
-    await this.storage.putObject({
-      key: storageKey,
-      body: Buffer.from(pdfBuffer),
-      contentType: 'application/pdf',
-    });
+    const { pdfUrl } = await this.renderAndStorePdf(tenantId, id, html);
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.generatedDocument.update({
@@ -336,6 +394,58 @@ export class GeneratedDocumentsService {
   </div>
 </body>
 </html>`;
+  }
+
+  private buildCanonicalPdfHtml(content: string): string {
+    return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 12pt; line-height: 1.7; color: #1a1a1a; }
+  h2 { font-size: 14pt; font-weight: 700; margin: 24px 0 8px 0; }
+  h3 { font-size: 12pt; font-weight: 600; margin: 16px 0 6px 0; }
+  p { margin: 4px 0; }
+  ul, ol { padding-left: 24px; margin: 8px 0; }
+  li { margin: 3px 0; }
+  blockquote { border-left: 3px solid #e5e7eb; padding-left: 16px; margin: 12px 0; color: #666; font-style: italic; }
+  hr { border: none; border-top: 1px solid #e5e7eb; margin: 16px 0; }
+  strong { font-weight: 600; }
+  img { max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+  ${content}
+</body>
+</html>`;
+  }
+
+  private async renderAndStorePdf(
+    tenantId: string,
+    documentId: string,
+    html: string,
+  ) {
+    const storageKey = this.getCanonicalPdfStorageKey(tenantId, documentId);
+    const pdfBuffer = await this.pdfRender.renderPdf(html);
+    const stored = await this.storage.putObject({
+      key: storageKey,
+      body: Buffer.from(pdfBuffer),
+      contentType: 'application/pdf',
+    });
+
+    return { ...stored, storageKey, pdfUrl: this.getPdfUrl(storageKey) };
+  }
+
+  private getCanonicalPdfStorageKey(
+    tenantId: string,
+    documentId: string,
+  ): string {
+    return `pdfs/${tenantId}-${documentId}.pdf`;
+  }
+
+  private getPdfUrl(storageKey: string): string {
+    return `/uploads/${storageKey}`;
   }
 
   private replaceVariables(
