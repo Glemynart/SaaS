@@ -571,7 +571,12 @@ model GeneratedDocument {
 
   nombre         String // Nombre del documento generado
   contenidoFinal String // Contenido con variables ya reemplazadas (snapshot inmutable)
-  pdfUrl         String? // URL del PDF generado (R2-ready)
+  // `pdfStorageKey` identifica el artefacto PDF canónico en el proveedor de
+  // almacenamiento. `pdfUrl` se preserva como locator de presentación para
+  // compatibilidad con los consumidores actuales.
+  pdfStorageKey String?
+  pdfSizeBytes  Int?
+  pdfUrl        String?
   tipo           DocumentTemplateType
 
   // Relaciones
