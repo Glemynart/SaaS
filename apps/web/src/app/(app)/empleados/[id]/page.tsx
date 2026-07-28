@@ -3,9 +3,12 @@
 import { use, useState, useCallback, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, FileText, FolderOpen, SearchX } from 'lucide-react';
+import { ArrowLeft, Award, FileText, FolderOpen, SearchX } from 'lucide-react';
 import { useEmployee } from '@/features/employees/hooks/use-employees';
-import { useGenerateDocument } from '@/features/generated-documents/hooks/use-generated-documents';
+import {
+  useGenerateDocument,
+  useGeneratePdf,
+} from '@/features/generated-documents/hooks/use-generated-documents';
 import { GenerateDocumentForm } from '@/features/generated-documents/components/generate-document-form';
 import type { GenerateDocumentFormValues } from '@/features/generated-documents/schemas/generated-document-schemas';
 import { EmployeeStatusBadge } from '@/features/employees/components/employee-status-badge';
@@ -13,6 +16,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from '@/components/ui/toast';
 import { formatNombreCompleto } from '@saas/types';
 import { cn } from '@/lib/utils';
 
@@ -80,19 +84,45 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
   const router = useRouter();
   const { data: employee, isLoading, error } = useEmployee(id);
   const generateMutation = useGenerateDocument();
+  const generatePdfMutation = useGeneratePdf();
   const [generateOpen, setGenerateOpen] = useState(false);
+  const [generationMode, setGenerationMode] = useState<'DOCUMENT' | 'CERTIFICATION'>('DOCUMENT');
 
   const handleGenerate = useCallback(
     (formData: GenerateDocumentFormValues) => {
       generateMutation.mutate(formData, {
         onSuccess: (doc) => {
-          setGenerateOpen(false);
-          router.push(`/documentos/generados/${doc.id}`);
+          if (generationMode !== 'CERTIFICATION') {
+            setGenerateOpen(false);
+            router.push(`/documentos/generados/${doc.id}`);
+            return;
+          }
+
+          generatePdfMutation.mutate(doc.id, {
+            onSuccess: () => {
+              toast.success('Certificación emitida y publicada en el expediente.');
+              setGenerateOpen(false);
+              router.push(`/documentos/generados/${doc.id}`);
+            },
+            onError: () => {
+              toast.error(
+                'La certificación fue creada, pero no se pudo publicar. Ábrela y reintenta la publicación.',
+              );
+              setGenerateOpen(false);
+              router.push(`/documentos/generados/${doc.id}`);
+            },
+          });
         },
+        onError: () => toast.error('No se pudo emitir la certificación. Inténtalo de nuevo.'),
       });
     },
-    [generateMutation, router],
+    [generateMutation, generatePdfMutation, generationMode, router],
   );
+
+  const openGeneration = useCallback((mode: 'DOCUMENT' | 'CERTIFICATION') => {
+    setGenerationMode(mode);
+    setGenerateOpen(true);
+  }, []);
 
   const backLink = (
     <Link
@@ -163,9 +193,13 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
               <FolderOpen className="size-4" aria-hidden="true" />
               Expediente
             </Link>
-            <Button onClick={() => setGenerateOpen(true)} size="sm">
+            <Button onClick={() => openGeneration('DOCUMENT')} size="sm" variant="outline">
               <FileText className="size-4" aria-hidden="true" />
               Generar documento
+            </Button>
+            <Button onClick={() => openGeneration('CERTIFICATION')} size="sm">
+              <Award className="size-4" aria-hidden="true" />
+              Emitir certificación
             </Button>
           </>
         }
@@ -237,11 +271,13 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
       {employee && (
         <GenerateDocumentForm
+          key={generationMode}
           open={generateOpen}
           onOpenChange={setGenerateOpen}
           employee={employee}
           onSubmit={handleGenerate}
-          isSubmitting={generateMutation.isPending}
+          isSubmitting={generateMutation.isPending || generatePdfMutation.isPending}
+          templateType={generationMode === 'CERTIFICATION' ? 'CERTIFICATION' : undefined}
         />
       )}
     </div>

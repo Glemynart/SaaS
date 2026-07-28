@@ -99,7 +99,7 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
     service = moduleRef.get(ExpedienteDocsService);
   });
 
-  it('impide eliminar un ExpedienteDoc asociado a CONTRACT', async () => {
+  it('impide eliminar un ExpedienteDoc asociado a CONTRACT publicado', async () => {
     mockExpedienteDocFindFirst.mockResolvedValue({
       id: 'expediente-001',
       generatedDocument: { id: generatedDocumentId, tipo: 'CONTRACT' },
@@ -112,10 +112,23 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
     expect(mockExpedienteDocDelete).not.toHaveBeenCalled();
   });
 
-  it('mantiene la eliminación para ExpedienteDoc no contractual', async () => {
+  it('impide eliminar un ExpedienteDoc asociado a CERTIFICATION publicado', async () => {
     mockExpedienteDocFindFirst.mockResolvedValue({
       id: 'expediente-001',
       generatedDocument: { id: generatedDocumentId, tipo: 'CERTIFICATION' },
+    });
+
+    await expect(service.remove(tenantId, 'expediente-001')).rejects.toThrow(
+      'Los documentos CERTIFICATION publicados son inmutables',
+    );
+
+    expect(mockExpedienteDocDelete).not.toHaveBeenCalled();
+  });
+
+  it('mantiene la eliminación para ExpedienteDoc no publicado', async () => {
+    mockExpedienteDocFindFirst.mockResolvedValue({
+      id: 'expediente-001',
+      generatedDocument: { id: generatedDocumentId, tipo: 'LETTER' },
     });
     mockExpedienteDocDelete.mockResolvedValue({ id: 'expediente-001' });
 
@@ -168,6 +181,82 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
       expedienteDocId: 'expediente-001',
       generatedDocumentId,
     });
+  });
+
+  it('publica CERTIFICATION con categoría CERTIFICADO sin requerir contrato', async () => {
+    mockGeneratedDocumentFindFirst.mockResolvedValue(
+      makeGeneratedDocument({
+        contratoId: null,
+        nombre: 'Certificación — María García',
+        tipo: 'CERTIFICATION',
+      }),
+    );
+
+    await expect(
+      service.publishGeneratedDocument(
+        tenantId,
+        userId,
+        generatedDocumentId,
+        makeMaterialization(),
+      ),
+    ).resolves.toEqual({
+      outcome: 'CREATED',
+      expedienteDocId: 'expediente-001',
+      generatedDocumentId,
+    });
+
+    expect(mockExpedienteDocCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        contratoId: null,
+        categoria: 'CERTIFICADO',
+        generatedDocumentId,
+        storageKey: 'pdfs/tenant-001-generated-document-001.pdf',
+      }),
+      select: { id: true },
+    });
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'CERTIFICATION_DOCUMENT_PUBLISHED',
+        entityId: 'expediente-001',
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('mantiene el requisito de contrato para publicar CONTRACT', async () => {
+    mockGeneratedDocumentFindFirst.mockResolvedValue(
+      makeGeneratedDocument({ contratoId: null }),
+    );
+
+    await expect(
+      service.publishGeneratedDocument(
+        tenantId,
+        userId,
+        generatedDocumentId,
+        makeMaterialization(),
+      ),
+    ).rejects.toThrow('Los documentos CONTRACT requieren un contrato');
+
+    expect(mockTransaction).not.toHaveBeenCalled();
+  });
+
+  it('mantiene fuera de publicación los tipos no aprobados', async () => {
+    mockGeneratedDocumentFindFirst.mockResolvedValue(
+      makeGeneratedDocument({ contratoId: null, tipo: 'LETTER' }),
+    );
+
+    await expect(
+      service.publishGeneratedDocument(
+        tenantId,
+        userId,
+        generatedDocumentId,
+        makeMaterialization(),
+      ),
+    ).rejects.toThrow(
+      'Solo se pueden publicar documentos CONTRACT o CERTIFICATION',
+    );
+
+    expect(mockTransaction).not.toHaveBeenCalled();
   });
 
   it('devuelve el índice existente sin crear ni auditar otra publicación', async () => {

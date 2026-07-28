@@ -14,6 +14,7 @@ import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.servic
 import { StorageService } from '../storage/storage.service';
 import { PdfRenderService } from '../pdf-render/pdf-render.service';
 import { formatNombreCompleto } from '@saas/types';
+import { isImmutablePublishedDocumentType } from './document-invariants';
 
 interface ReplacementContext {
   NOMBRE_COMPLETO: string;
@@ -51,7 +52,11 @@ export class GeneratedDocumentsService {
     private pdfRender: PdfRenderService,
   ) {}
 
-  async generate(tenantId: string, dto: CreateGeneratedDocumentDto) {
+  async generate(
+    tenantId: string,
+    userId: string,
+    dto: CreateGeneratedDocumentDto,
+  ) {
     const employee = await this.tenantPrisma.execute((prisma) =>
       prisma.empleado.findFirst({
         where: { id: dto.employeeId, tenantId, deletedAt: null },
@@ -124,15 +129,38 @@ export class GeneratedDocumentsService {
 
     const contenidoFinal = this.replaceVariables(template.contenido, context);
 
-    return this.prisma.generatedDocument.create({
-      data: {
-        tenantId,
-        employeeId: dto.employeeId,
-        templateId: dto.templateId,
-        nombre: dto.nombre,
-        contenidoFinal,
-        tipo: template.tipo,
-      },
+    const data = {
+      tenantId,
+      employeeId: dto.employeeId,
+      templateId: dto.templateId,
+      nombre: dto.nombre,
+      contenidoFinal,
+      tipo: template.tipo,
+    };
+
+    if (template.tipo !== 'CERTIFICATION') {
+      return this.prisma.generatedDocument.create({ data });
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const document = await tx.generatedDocument.create({ data });
+
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'CERTIFICATION_ISSUED',
+          entityType: 'GeneratedDocument',
+          entityId: document.id,
+          metadata: {
+            employeeId: dto.employeeId,
+            templateId: dto.templateId,
+          },
+        },
+        tx,
+      );
+
+      return document;
     });
   }
 
@@ -223,9 +251,21 @@ export class GeneratedDocumentsService {
 
   async remove(tenantId: string, id: string) {
     const doc = await this.findOne(tenantId, id);
-    if (doc.tipo === 'CONTRACT') {
+    const isPublishedCertification =
+      doc.tipo === 'CERTIFICATION' &&
+      Boolean(
+        await this.prisma.expedienteDoc.findFirst({
+          where: { tenantId, generatedDocumentId: doc.id },
+          select: { id: true },
+        }),
+      );
+
+    if (
+      isImmutablePublishedDocumentType(doc.tipo) &&
+      (doc.tipo === 'CONTRACT' || isPublishedCertification)
+    ) {
       throw new BadRequestException(
-        'Los documentos CONTRACT son inmutables y no se pueden eliminar.',
+        `Los documentos ${doc.tipo} publicados son inmutables y no se pueden eliminar.`,
       );
     }
     return this.prisma.generatedDocument.delete({ where: { id } });
@@ -281,14 +321,36 @@ export class GeneratedDocumentsService {
   }
 
   async generatePdf(tenantId: string, userId: string, id: string) {
-    const doc = await this.findOne(tenantId, id);
-    if (!doc) throw new NotFoundException('Documento no encontrado');
+    const documentReference = await this.prisma.generatedDocument.findFirst({
+      where: { id, tenantId },
+      select: { id: true, nombre: true, tipo: true },
+    });
+    if (!documentReference) {
+      throw new NotFoundException('Documento no encontrado');
+    }
 
-    if (doc.tipo === 'CONTRACT') {
+    if (documentReference.tipo === 'CONTRACT') {
       throw new BadRequestException(
         'Los documentos CONTRACT deben renderizarse desde el contrato.',
       );
     }
+
+    if (documentReference.tipo === 'CERTIFICATION') {
+      const materialized = await this.materializePdf(tenantId, id);
+      await this.expedienteDocsService.publishGeneratedDocument(
+        tenantId,
+        userId,
+        documentReference.id,
+        materialized,
+      );
+      return {
+        id: documentReference.id,
+        pdfUrl: materialized.pdfUrl,
+        nombre: documentReference.nombre,
+      };
+    }
+
+    const doc = await this.findOne(tenantId, id);
 
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },

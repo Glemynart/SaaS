@@ -35,7 +35,7 @@ export class GeneratedDocumentsController {
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: CreateGeneratedDocumentDto,
   ) {
-    return this.service.generate(user.tenantId, dto);
+    return this.service.generate(user.tenantId, user.userId, dto);
   }
 
   @Get()
