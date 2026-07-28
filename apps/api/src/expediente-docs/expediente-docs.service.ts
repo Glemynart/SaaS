@@ -9,12 +9,20 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { PdfMaterializationResult } from '../generated-documents/generated-documents.service';
+import { isImmutablePublishedDocumentType } from '../generated-documents/document-invariants';
 
 const TIPO_TO_CATEGORIA: Record<string, ExpedienteCategoria> = {
   CONTRACT: ExpedienteCategoria.CONTRATO,
   CERTIFICATION: ExpedienteCategoria.CERTIFICADO,
   LETTER: ExpedienteCategoria.OTRO,
   MEMO: ExpedienteCategoria.OTRO,
+};
+
+const PUBLISHABLE_DOCUMENT_TYPES = new Set(['CONTRACT', 'CERTIFICATION']);
+
+const PUBLISH_AUDIT_ACTION: Record<string, string> = {
+  CONTRACT: 'CONTRACT_DOCUMENT_PUBLISHED',
+  CERTIFICATION: 'CERTIFICATION_DOCUMENT_PUBLISHED',
 };
 
 export interface PublishGeneratedDocumentResult {
@@ -79,9 +87,12 @@ export class ExpedienteDocsService {
 
   async remove(tenantId: string, id: string) {
     const doc = await this.findOne(tenantId, id);
-    if (doc.generatedDocument?.tipo === 'CONTRACT') {
+    if (
+      doc.generatedDocument &&
+      isImmutablePublishedDocumentType(doc.generatedDocument.tipo)
+    ) {
       throw new BadRequestException(
-        'Los documentos CONTRACT publicados son inmutables y no se pueden eliminar del expediente.',
+        `Los documentos ${doc.generatedDocument.tipo} publicados son inmutables y no se pueden eliminar del expediente.`,
       );
     }
     return this.prisma.expedienteDoc.delete({ where: { id: doc.id } });
@@ -141,12 +152,18 @@ export class ExpedienteDocsService {
       throw new NotFoundException('Documento generado no encontrado');
     }
 
+    if (!PUBLISHABLE_DOCUMENT_TYPES.has(generatedDocument.tipo)) {
+      throw new BadRequestException(
+        'Solo se pueden publicar documentos CONTRACT o CERTIFICATION en esta fase.',
+      );
+    }
+
     if (
-      generatedDocument.tipo !== 'CONTRACT' ||
+      generatedDocument.tipo === 'CONTRACT' &&
       generatedDocument.contratoId === null
     ) {
       throw new BadRequestException(
-        'Solo se pueden publicar documentos contractuales en esta fase.',
+        'Los documentos CONTRACT requieren un contrato para publicarse.',
       );
     }
 
@@ -157,6 +174,8 @@ export class ExpedienteDocsService {
     }
 
     const { pdfStorageKey, pdfSizeBytes, pdfUrl } = materialization;
+    const categoria = TIPO_TO_CATEGORIA[generatedDocument.tipo];
+    const auditAction = PUBLISH_AUDIT_ACTION[generatedDocument.tipo];
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -183,7 +202,7 @@ export class ExpedienteDocsService {
             empleadoId: generatedDocument.employeeId,
             contratoId: generatedDocument.contratoId,
             generatedDocumentId: generatedDocument.id,
-            categoria: ExpedienteCategoria.CONTRATO,
+            categoria,
             nombre: generatedDocument.nombre,
             storageKey: pdfStorageKey,
             mimeType: 'application/pdf',
@@ -198,7 +217,7 @@ export class ExpedienteDocsService {
           {
             tenantId,
             userId,
-            action: 'CONTRACT_DOCUMENT_PUBLISHED',
+            action: auditAction,
             entityType: 'ExpedienteDoc',
             entityId: expedienteDoc.id,
             metadata: {

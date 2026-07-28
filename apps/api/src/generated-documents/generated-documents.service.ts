@@ -14,6 +14,7 @@ import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.servic
 import { StorageService } from '../storage/storage.service';
 import { PdfRenderService } from '../pdf-render/pdf-render.service';
 import { formatNombreCompleto } from '@saas/types';
+import { isImmutablePublishedDocumentType } from './document-invariants';
 
 interface ReplacementContext {
   NOMBRE_COMPLETO: string;
@@ -223,9 +224,21 @@ export class GeneratedDocumentsService {
 
   async remove(tenantId: string, id: string) {
     const doc = await this.findOne(tenantId, id);
-    if (doc.tipo === 'CONTRACT') {
+    const isPublishedCertification =
+      doc.tipo === 'CERTIFICATION' &&
+      Boolean(
+        await this.prisma.expedienteDoc.findFirst({
+          where: { tenantId, generatedDocumentId: doc.id },
+          select: { id: true },
+        }),
+      );
+
+    if (
+      isImmutablePublishedDocumentType(doc.tipo) &&
+      (doc.tipo === 'CONTRACT' || isPublishedCertification)
+    ) {
       throw new BadRequestException(
-        'Los documentos CONTRACT son inmutables y no se pueden eliminar.',
+        `Los documentos ${doc.tipo} publicados son inmutables y no se pueden eliminar.`,
       );
     }
     return this.prisma.generatedDocument.delete({ where: { id } });
