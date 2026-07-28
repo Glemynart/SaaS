@@ -1,7 +1,13 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ExpedienteCategoria, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
+import { AuditService } from '../audit/audit.service';
 
 const TIPO_TO_CATEGORIA: Record<string, ExpedienteCategoria> = {
   CONTRACT: ExpedienteCategoria.CONTRATO,
@@ -10,6 +16,12 @@ const TIPO_TO_CATEGORIA: Record<string, ExpedienteCategoria> = {
   MEMO: ExpedienteCategoria.OTRO,
 };
 
+export interface PublishGeneratedDocumentResult {
+  outcome: 'CREATED' | 'EXISTING';
+  expedienteDocId: string;
+  generatedDocumentId: string;
+}
+
 @Injectable()
 export class ExpedienteDocsService {
   private readonly logger = new Logger(ExpedienteDocsService.name);
@@ -17,6 +29,7 @@ export class ExpedienteDocsService {
   constructor(
     private prisma: PrismaService,
     private readonly tenantPrisma: TenantPrismaService,
+    private readonly auditService: AuditService,
   ) {}
 
   async findByEmployee(tenantId: string, employeeId: string) {
@@ -94,6 +107,131 @@ export class ExpedienteDocsService {
         subidoPorNombre: 'sistema',
       },
     });
+  }
+
+  /**
+   * Publica un contrato ya materializado como índice de expediente. El PDF
+   * permanece bajo la identidad de GeneratedDocument; aquí sólo se registra
+   * su referencia canónica y la auditoría en la misma transacción.
+   */
+  async publishGeneratedDocument(
+    tenantId: string,
+    userId: string,
+    generatedDocumentId: string,
+  ): Promise<PublishGeneratedDocumentResult> {
+    const generatedDocument = await this.prisma.generatedDocument.findFirst({
+      where: { id: generatedDocumentId, tenantId },
+      select: {
+        id: true,
+        tenantId: true,
+        employeeId: true,
+        contratoId: true,
+        nombre: true,
+        tipo: true,
+        pdfStorageKey: true,
+        pdfSizeBytes: true,
+        pdfUrl: true,
+      },
+    });
+    if (!generatedDocument) {
+      throw new NotFoundException('Documento generado no encontrado');
+    }
+
+    if (
+      generatedDocument.tipo !== 'CONTRACT' ||
+      generatedDocument.contratoId === null
+    ) {
+      throw new BadRequestException(
+        'Solo se pueden publicar documentos contractuales en esta fase.',
+      );
+    }
+
+    if (
+      !generatedDocument.pdfStorageKey ||
+      generatedDocument.pdfSizeBytes === null ||
+      !generatedDocument.pdfUrl
+    ) {
+      throw new BadRequestException(
+        'El documento debe estar materializado antes de publicarse en el expediente.',
+      );
+    }
+
+    const pdfStorageKey = generatedDocument.pdfStorageKey;
+    const pdfSizeBytes = generatedDocument.pdfSizeBytes;
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.expedienteDoc.findFirst({
+          where: { tenantId, generatedDocumentId },
+          select: { id: true },
+        });
+        if (existing) {
+          return {
+            outcome: 'EXISTING',
+            expedienteDocId: existing.id,
+            generatedDocumentId,
+          };
+        }
+
+        const expedienteDoc = await tx.expedienteDoc.create({
+          data: {
+            tenantId,
+            empleadoId: generatedDocument.employeeId,
+            contratoId: generatedDocument.contratoId,
+            generatedDocumentId: generatedDocument.id,
+            categoria: ExpedienteCategoria.CONTRATO,
+            nombre: generatedDocument.nombre,
+            storageKey: pdfStorageKey,
+            mimeType: 'application/pdf',
+            tamanoBytes: pdfSizeBytes,
+            subidoPorId: userId,
+            subidoPorNombre: 'sistema',
+          },
+          select: { id: true },
+        });
+
+        await this.auditService.log(
+          {
+            tenantId,
+            userId,
+            action: 'CONTRACT_DOCUMENT_PUBLISHED',
+            entityType: 'ExpedienteDoc',
+            entityId: expedienteDoc.id,
+            metadata: {
+              generatedDocumentId: generatedDocument.id,
+              contratoId: generatedDocument.contratoId,
+              pdfStorageKey,
+              pdfSizeBytes,
+            },
+          },
+          tx,
+        );
+
+        return {
+          outcome: 'CREATED',
+          expedienteDocId: expedienteDoc.id,
+          generatedDocumentId,
+        };
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const existing = await this.prisma.expedienteDoc.findFirst({
+          where: { tenantId, generatedDocumentId },
+          select: { id: true },
+        });
+        if (existing) {
+          return {
+            outcome: 'EXISTING',
+            expedienteDocId: existing.id,
+            generatedDocumentId,
+          };
+        }
+      }
+      throw error;
+    }
   }
 
   private async buildStats(tenantId: string, employeeId: string) {
