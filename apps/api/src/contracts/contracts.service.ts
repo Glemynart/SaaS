@@ -1,15 +1,14 @@
 import {
   Injectable,
-  Logger,
   NotFoundException,
   BadRequestException,
-  ConflictException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { DocumentTemplate, GeneratedDocument, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { GeneratedDocumentsService } from '../generated-documents/generated-documents.service';
+import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
 import { ContractQueryDto } from './dto/contract-query.dto';
 import { CreateContractDto } from './dto/create-contract.dto';
 import {
@@ -50,15 +49,19 @@ export interface ContractVariablesSnapshot {
   };
 }
 
+export interface EnsureGeneratedDocumentResult {
+  outcome: 'CREATED' | 'EXISTING';
+  document: GeneratedDocument;
+}
+
 @Injectable()
 export class ContractsService {
-  private readonly logger = new Logger(ContractsService.name);
-
   constructor(
     private prisma: PrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private auditService: AuditService,
     private generatedDocumentsService: GeneratedDocumentsService,
+    private expedienteDocsService: ExpedienteDocsService,
   ) {}
 
   async findAll(tenantId: string, query: ContractQueryDto) {
@@ -138,12 +141,42 @@ export class ContractsService {
           sede: { select: { id: true, nombre: true } },
           plantilla: { select: { id: true, nombre: true } },
           lote: { select: { id: true, estado: true } },
+          generatedDocuments: {
+            where: { tenantId, tipo: 'CONTRACT' },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: {
+              id: true,
+              nombre: true,
+              pdfStorageKey: true,
+              pdfUrl: true,
+              expedienteDocs: {
+                where: { tenantId },
+                take: 1,
+                select: { id: true },
+              },
+            },
+          },
         },
       }),
     );
 
     if (!contract) throw new NotFoundException('Contrato no encontrado');
-    return contract;
+    const { generatedDocuments, ...contractDetail } = contract;
+    const generatedDocument = generatedDocuments?.[0];
+
+    return {
+      ...contractDetail,
+      generatedDocument: generatedDocument
+        ? {
+            id: generatedDocument.id,
+            nombre: generatedDocument.nombre,
+            pdfStorageKey: generatedDocument.pdfStorageKey,
+            pdfUrl: generatedDocument.pdfUrl,
+            expedienteDocId: generatedDocument.expedienteDocs[0]?.id ?? null,
+          }
+        : null,
+    };
   }
 
   async create(
@@ -291,6 +324,15 @@ export class ContractsService {
       );
     }
 
+    if (
+      ['VENCIDO', 'TERMINADO', 'RENOVADO'].includes(estadoNuevo) &&
+      !this.isPublishedContractDocument(contract.generatedDocument)
+    ) {
+      throw new BadRequestException(
+        'El contrato debe tener un documento contractual publicado antes de pasar a un estado terminal.',
+      );
+    }
+
     const updated = await this.prisma.contrato.update({
       where: { id, tenantId },
       data: {
@@ -336,88 +378,88 @@ export class ContractsService {
     });
   }
 
+  /**
+   * Orquesta la identidad documental contractual sin materializar archivos.
+   * Reintentar devuelve el documento existente del contrato, sin crear otra
+   * versión ni invocar el motor PDF.
+   */
+  async ensureGeneratedDocument(
+    tenantId: string,
+    contratoId: string,
+    templateId?: string,
+  ): Promise<EnsureGeneratedDocumentResult> {
+    const contract = await this.prisma.contrato.findFirst({
+      where: { id: contratoId, tenantId },
+      include: { empleado: { select: { deletedAt: true } } },
+    });
+    if (!contract) {
+      throw new NotFoundException('Contrato no encontrado');
+    }
+
+    const existing = await this.prisma.generatedDocument.findFirst({
+      where: { contratoId: contract.id, tenantId },
+    });
+    if (existing) {
+      return { outcome: 'EXISTING', document: existing };
+    }
+
+    this.assertDocumentEligibility(contract);
+
+    const template = await this.resolveTemplate(tenantId, templateId);
+
+    try {
+      return {
+        outcome: 'CREATED',
+        document: await this.createGeneratedDocument(
+          tenantId,
+          contract,
+          template,
+        ),
+      };
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const concurrentDocument =
+          await this.prisma.generatedDocument.findFirst({
+            where: { contratoId: contract.id, tenantId },
+          });
+        if (concurrentDocument) {
+          return { outcome: 'EXISTING', document: concurrentDocument };
+        }
+      }
+      throw error;
+    }
+  }
+
   async generateDocument(
     tenantId: string,
     userId: string,
     contratoId: string,
     dto?: GenerateContractDocumentDto,
   ) {
-    const contract = await this.prisma.contrato.findFirst({
-      where: { id: contratoId, tenantId },
-    });
-    if (!contract) {
-      throw new NotFoundException('Contrato no encontrado');
-    }
-
-    const template = await this.resolveTemplate(tenantId, dto?.templateId);
-
-    const existing = await this.prisma.generatedDocument.findFirst({
-      where: { contratoId: contract.id, tenantId },
-    });
-    if (existing) {
-      // "Ya existe" es un conflicto de estado (409), no una validación de
-      // entrada (400). Usar ConflictException unifica este camino con el catch
-      // P2002 de abajo: ambos representan "el documento ya fue creado" y
-      // permiten que LoteEngineService los trate como idempotentes (skip),
-      // sin confundirlos con BadRequestException de plantilla/snapshot.
-      throw new ConflictException(
-        'Este contrato ya tiene un documento generado. Elimine el existente antes de generar uno nuevo.',
-      );
-    }
-
-    const snapshot = contract.variablesSnapshot;
-    this.validateSnapshot(snapshot, contract.id);
-    const validSnapshot = snapshot as unknown as ContractVariablesSnapshot;
-    const contenidoFinal = this.buildContentFromSnapshot(
-      template.contenido,
-      validSnapshot,
+    const { document } = await this.ensureGeneratedDocument(
+      tenantId,
+      contratoId,
+      dto?.templateId,
+    );
+    const materialized = await this.generatedDocumentsService.materializePdf(
+      tenantId,
+      document.id,
+    );
+    await this.expedienteDocsService.publishGeneratedDocument(
+      tenantId,
+      userId,
+      document.id,
+      materialized,
     );
 
-    let genDoc: { id: string };
-    try {
-      genDoc = await this.prisma.generatedDocument.create({
-        data: {
-          tenantId,
-          employeeId: contract.empleadoId,
-          templateId: template.id,
-          contratoId: contract.id,
-          nombre: `Contrato — ${validSnapshot.empleado.nombreCompleto}`,
-          contenidoFinal,
-          tipo: template.tipo,
-        },
-      });
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        throw new ConflictException(
-          'Ya existe un documento generado para este contrato (conflicto de concurrencia).',
-        );
-      }
-      throw error;
-    }
-
-    try {
-      return await this.generatedDocumentsService.generatePdf(
-        tenantId,
-        userId,
-        genDoc.id,
-      );
-    } catch (error) {
-      this.logger.warn(
-        `generatePdf falló para GeneratedDocument ${genDoc.id}, eliminando documento huérfano`,
-      );
-      await this.prisma.generatedDocument
-        .delete({ where: { id: genDoc.id } })
-        .catch((deleteErr) =>
-          this.logger.error(
-            `No se pudo eliminar GeneratedDocument huérfano ${genDoc.id}`,
-            deleteErr,
-          ),
-        );
-      throw error;
-    }
+    return {
+      id: document.id,
+      pdfUrl: materialized.pdfUrl,
+      nombre: document.nombre,
+    };
   }
 
   private async resolveTemplate(tenantId: string, templateId?: string) {
@@ -451,6 +493,64 @@ export class ContractsService {
       );
     }
     return templates[0];
+  }
+
+  private async createGeneratedDocument(
+    tenantId: string,
+    contract: {
+      id: string;
+      empleadoId: string;
+      variablesSnapshot: Prisma.JsonValue;
+    },
+    template: Pick<DocumentTemplate, 'id' | 'tipo' | 'contenido'>,
+  ): Promise<GeneratedDocument> {
+    this.validateSnapshot(contract.variablesSnapshot, contract.id);
+    const snapshot =
+      contract.variablesSnapshot as unknown as ContractVariablesSnapshot;
+
+    return this.prisma.generatedDocument.create({
+      data: {
+        tenantId,
+        employeeId: contract.empleadoId,
+        templateId: template.id,
+        contratoId: contract.id,
+        nombre: `Contrato — ${snapshot.empleado.nombreCompleto}`,
+        contenidoFinal: this.buildContentFromSnapshot(
+          template.contenido,
+          snapshot,
+        ),
+        tipo: template.tipo,
+      },
+    });
+  }
+
+  private assertDocumentEligibility(contract: {
+    estado: string;
+    empleado: { deletedAt: Date | null };
+  }): void {
+    if (contract.estado !== 'VIGENTE') {
+      throw new BadRequestException(
+        'Solo se puede generar el documento de un contrato VIGENTE.',
+      );
+    }
+
+    if (contract.empleado.deletedAt !== null) {
+      throw new BadRequestException(
+        'No se puede generar un documento para un empleado eliminado.',
+      );
+    }
+  }
+
+  private isPublishedContractDocument(
+    document: {
+      pdfStorageKey: string | null;
+      pdfUrl: string | null;
+      expedienteDocId: string | null;
+    } | null,
+  ): boolean {
+    return Boolean(
+      document?.pdfStorageKey && document.pdfUrl && document.expedienteDocId,
+    );
   }
 
   private buildContentFromSnapshot(

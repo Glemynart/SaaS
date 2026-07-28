@@ -6,6 +6,9 @@ describe('PdfRenderService', () => {
   const mockPageClose = jest.fn().mockResolvedValue(undefined);
   const mockPagePdf = jest.fn().mockResolvedValue(Buffer.from('PDF'));
   const mockPageSetContent = jest.fn().mockResolvedValue(undefined);
+  const mockPageSetJavaScriptEnabled = jest.fn().mockResolvedValue(undefined);
+  const mockPageSetRequestInterception = jest.fn().mockResolvedValue(undefined);
+  const mockPageOn = jest.fn();
   const mockBrowserClose = jest.fn().mockResolvedValue(undefined);
   const mockNewPage = jest.fn();
 
@@ -19,6 +22,9 @@ describe('PdfRenderService', () => {
 
   function makePage() {
     return {
+      setJavaScriptEnabled: mockPageSetJavaScriptEnabled,
+      setRequestInterception: mockPageSetRequestInterception,
+      on: mockPageOn,
       setContent: mockPageSetContent,
       pdf: mockPagePdf,
       close: mockPageClose,
@@ -50,6 +56,68 @@ describe('PdfRenderService', () => {
       margin: { top: '2cm', bottom: '2cm', left: '2.5cm', right: '2.5cm' },
       printBackground: true,
     });
+  });
+
+  it('deshabilita JavaScript antes de cargar HTML en el renderer', async () => {
+    await service.renderPdf('<script>window.__unsafe = true</script>');
+
+    expect(mockPageSetJavaScriptEnabled).toHaveBeenCalledWith(false);
+    expect(
+      mockPageSetJavaScriptEnabled.mock.invocationCallOrder[0],
+    ).toBeLessThan(mockPageSetContent.mock.invocationCallOrder[0]);
+  });
+
+  it('bloquea recursos remotos durante el renderizado', async () => {
+    let requestHandler:
+      | ((request: {
+          url: () => string;
+          continue: () => Promise<void>;
+          abort: (errorCode: string) => Promise<void>;
+        }) => Promise<void>)
+      | undefined;
+    const mockContinue = jest.fn().mockResolvedValue(undefined);
+    const mockAbort = jest.fn().mockResolvedValue(undefined);
+    mockPageOn.mockImplementation((event, handler) => {
+      if (event === 'request') requestHandler = handler;
+    });
+
+    await service.renderPdf('<img src="https://example.com/logo.png">');
+    await requestHandler?.({
+      url: () => 'https://example.com/logo.png',
+      continue: mockContinue,
+      abort: mockAbort,
+    });
+
+    expect(mockPageSetRequestInterception).toHaveBeenCalledWith(true);
+    expect(mockAbort).toHaveBeenCalledWith('blockedbyclient');
+    expect(mockContinue).not.toHaveBeenCalled();
+  });
+
+  it('permite HTML estático válido y recursos data:', async () => {
+    let requestHandler:
+      | ((request: {
+          url: () => string;
+          continue: () => Promise<void>;
+          abort: (errorCode: string) => Promise<void>;
+        }) => Promise<void>)
+      | undefined;
+    const mockContinue = jest.fn().mockResolvedValue(undefined);
+    const mockAbort = jest.fn().mockResolvedValue(undefined);
+    mockPageOn.mockImplementation((event, handler) => {
+      if (event === 'request') requestHandler = handler;
+    });
+
+    await expect(
+      service.renderPdf('<p>Contenido estático</p>'),
+    ).resolves.toEqual(Buffer.from('PDF'));
+    await requestHandler?.({
+      url: () => 'data:image/png;base64,AA==',
+      continue: mockContinue,
+      abort: mockAbort,
+    });
+
+    expect(mockContinue).toHaveBeenCalledTimes(1);
+    expect(mockAbort).not.toHaveBeenCalled();
   });
 
   it('reutiliza el browser singleton entre renders', async () => {
@@ -92,7 +160,6 @@ describe('PdfRenderService', () => {
     await service.renderPdf('<p>1</p>');
     expect(launchSpy).toHaveBeenCalledTimes(1);
 
-    // Simulate disconnect
     const deadBrowser = makeBrowser(false);
     (service as unknown as { browser: unknown }).browser = deadBrowser;
 
