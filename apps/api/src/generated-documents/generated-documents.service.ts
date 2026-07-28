@@ -337,6 +337,12 @@ export class GeneratedDocumentsService {
 
     if (documentReference.tipo === 'CERTIFICATION') {
       const materialized = await this.materializePdf(tenantId, id);
+      await this.expedienteDocsService.publishGeneratedDocument(
+        tenantId,
+        userId,
+        documentReference.id,
+        materialized,
+      );
       return {
         id: documentReference.id,
         pdfUrl: materialized.pdfUrl,
