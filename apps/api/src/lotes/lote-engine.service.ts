@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Contrato, LoteContrato } from '@prisma/client';
+import { Contrato, LoteContrato, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { ContractsService } from '../contracts/contracts.service';
@@ -66,10 +66,8 @@ export class LoteEngineService {
     }
 
     const empleadoIds = await this.resolveTargets(lote);
-    const userId = lote.creadoPorId ?? 'system';
-
-    await this.prisma.loteContrato.update({
-      where: { id: loteId },
+    const acquired = await this.prisma.loteContrato.updateMany({
+      where: { id: loteId, estado: lote.estado },
       data: {
         estado: 'EN_PROCESO',
         total: empleadoIds.length,
@@ -80,6 +78,15 @@ export class LoteEngineService {
         erroresLog: [],
       },
     });
+
+    if (acquired.count === 0) {
+      this.logger.log(
+        `Lote ${loteId} ya está EN_PROCESO, omitiendo re-ejecución`,
+      );
+      return this.prisma.loteContrato.findUnique({ where: { id: loteId } });
+    }
+
+    const userId = lote.creadoPorId ?? 'system';
 
     const errores: LoteErrorEntry[] = [];
 
@@ -188,13 +195,29 @@ export class LoteEngineService {
       sedeId: lote.sedeId ?? undefined,
     };
 
-    const created = await this.contractsService.create(
-      tenantId,
-      userId,
-      dto,
-      lote.id,
-    );
-    return { id: created.id, empleadoId };
+    try {
+      const created = await this.contractsService.create(
+        tenantId,
+        userId,
+        dto,
+        lote.id,
+      );
+      return { id: created.id, empleadoId };
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const concurrentContract = await this.prisma.contrato.findFirst({
+          where: { tenantId, loteId: lote.id, empleadoId },
+          select: { id: true, empleadoId: true },
+        });
+        if (concurrentContract) {
+          return concurrentContract;
+        }
+      }
+      throw error;
+    }
   }
 
   /**
@@ -213,11 +236,15 @@ export class LoteEngineService {
       contrato.id,
       templateId,
     );
-    await this.generatedDocumentsService.materializePdf(tenantId, document.id);
+    const materialized = await this.generatedDocumentsService.materializePdf(
+      tenantId,
+      document.id,
+    );
     await this.expedienteDocsService.publishGeneratedDocument(
       tenantId,
       userId,
       document.id,
+      materialized,
     );
   }
 

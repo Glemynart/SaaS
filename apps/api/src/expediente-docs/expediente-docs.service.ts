@@ -8,6 +8,7 @@ import { ExpedienteCategoria, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
+import type { PdfMaterializationResult } from '../generated-documents/generated-documents.service';
 
 const TIPO_TO_CATEGORIA: Record<string, ExpedienteCategoria> = {
   CONTRACT: ExpedienteCategoria.CONTRATO,
@@ -78,6 +79,11 @@ export class ExpedienteDocsService {
 
   async remove(tenantId: string, id: string) {
     const doc = await this.findOne(tenantId, id);
+    if (doc.generatedDocument?.tipo === 'CONTRACT') {
+      throw new BadRequestException(
+        'Los documentos CONTRACT publicados son inmutables y no se pueden eliminar del expediente.',
+      );
+    }
     return this.prisma.expedienteDoc.delete({ where: { id: doc.id } });
   }
 
@@ -118,6 +124,7 @@ export class ExpedienteDocsService {
     tenantId: string,
     userId: string,
     generatedDocumentId: string,
+    materialization: PdfMaterializationResult,
   ): Promise<PublishGeneratedDocumentResult> {
     const generatedDocument = await this.prisma.generatedDocument.findFirst({
       where: { id: generatedDocumentId, tenantId },
@@ -128,9 +135,6 @@ export class ExpedienteDocsService {
         contratoId: true,
         nombre: true,
         tipo: true,
-        pdfStorageKey: true,
-        pdfSizeBytes: true,
-        pdfUrl: true,
       },
     });
     if (!generatedDocument) {
@@ -146,18 +150,13 @@ export class ExpedienteDocsService {
       );
     }
 
-    if (
-      !generatedDocument.pdfStorageKey ||
-      generatedDocument.pdfSizeBytes === null ||
-      !generatedDocument.pdfUrl
-    ) {
+    if (materialization.id !== generatedDocument.id) {
       throw new BadRequestException(
-        'El documento debe estar materializado antes de publicarse en el expediente.',
+        'La materialización no corresponde al documento a publicar.',
       );
     }
 
-    const pdfStorageKey = generatedDocument.pdfStorageKey;
-    const pdfSizeBytes = generatedDocument.pdfSizeBytes;
+    const { pdfStorageKey, pdfSizeBytes, pdfUrl } = materialization;
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -172,6 +171,11 @@ export class ExpedienteDocsService {
             generatedDocumentId,
           };
         }
+
+        await tx.generatedDocument.update({
+          where: { id: generatedDocument.id },
+          data: { pdfStorageKey, pdfSizeBytes, pdfUrl },
+        });
 
         const expedienteDoc = await tx.expedienteDoc.create({
           data: {

@@ -1324,6 +1324,7 @@ model Contrato {
   @@index([tenantId, loteId])
   @@index([tenantId, tipo])
   @@index([tenantId, sedeId])
+  @@unique([loteId, empleadoId])
   @@map("contratos")
 }
 

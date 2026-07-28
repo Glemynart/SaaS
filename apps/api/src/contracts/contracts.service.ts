@@ -1,15 +1,14 @@
 import {
   Injectable,
-  Logger,
   NotFoundException,
   BadRequestException,
-  ConflictException,
 } from '@nestjs/common';
 import { DocumentTemplate, GeneratedDocument, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { GeneratedDocumentsService } from '../generated-documents/generated-documents.service';
+import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
 import { ContractQueryDto } from './dto/contract-query.dto';
 import { CreateContractDto } from './dto/create-contract.dto';
 import {
@@ -57,13 +56,12 @@ export interface EnsureGeneratedDocumentResult {
 
 @Injectable()
 export class ContractsService {
-  private readonly logger = new Logger(ContractsService.name);
-
   constructor(
     private prisma: PrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private auditService: AuditService,
     private generatedDocumentsService: GeneratedDocumentsService,
+    private expedienteDocsService: ExpedienteDocsService,
   ) {}
 
   async findAll(tenantId: string, query: ContractQueryDto) {
@@ -150,6 +148,7 @@ export class ContractsService {
             select: {
               id: true,
               nombre: true,
+              pdfStorageKey: true,
               pdfUrl: true,
               expedienteDocs: {
                 where: { tenantId },
@@ -172,6 +171,7 @@ export class ContractsService {
         ? {
             id: generatedDocument.id,
             nombre: generatedDocument.nombre,
+            pdfStorageKey: generatedDocument.pdfStorageKey,
             pdfUrl: generatedDocument.pdfUrl,
             expedienteDocId: generatedDocument.expedienteDocs[0]?.id ?? null,
           }
@@ -324,6 +324,15 @@ export class ContractsService {
       );
     }
 
+    if (
+      ['VENCIDO', 'TERMINADO', 'RENOVADO'].includes(estadoNuevo) &&
+      !this.isPublishedContractDocument(contract.generatedDocument)
+    ) {
+      throw new BadRequestException(
+        'El contrato debe tener un documento contractual publicado antes de pasar a un estado terminal.',
+      );
+    }
+
     const updated = await this.prisma.contrato.update({
       where: { id, tenantId },
       data: {
@@ -387,14 +396,14 @@ export class ContractsService {
       throw new NotFoundException('Contrato no encontrado');
     }
 
-    this.assertDocumentEligibility(contract);
-
     const existing = await this.prisma.generatedDocument.findFirst({
       where: { contratoId: contract.id, tenantId },
     });
     if (existing) {
       return { outcome: 'EXISTING', document: existing };
     }
+
+    this.assertDocumentEligibility(contract);
 
     const template = await this.resolveTemplate(tenantId, templateId);
 
@@ -430,64 +439,27 @@ export class ContractsService {
     contratoId: string,
     dto?: GenerateContractDocumentDto,
   ) {
-    const contract = await this.prisma.contrato.findFirst({
-      where: { id: contratoId, tenantId },
-    });
-    if (!contract) {
-      throw new NotFoundException('Contrato no encontrado');
-    }
+    const { document } = await this.ensureGeneratedDocument(
+      tenantId,
+      contratoId,
+      dto?.templateId,
+    );
+    const materialized = await this.generatedDocumentsService.materializePdf(
+      tenantId,
+      document.id,
+    );
+    await this.expedienteDocsService.publishGeneratedDocument(
+      tenantId,
+      userId,
+      document.id,
+      materialized,
+    );
 
-    const template = await this.resolveTemplate(tenantId, dto?.templateId);
-
-    const existing = await this.prisma.generatedDocument.findFirst({
-      where: { contratoId: contract.id, tenantId },
-    });
-    if (existing) {
-      // "Ya existe" es un conflicto de estado (409), no una validación de
-      // entrada (400). Usar ConflictException unifica este camino con el catch
-      // P2002 de abajo: ambos representan "el documento ya fue creado" y
-      // permiten que LoteEngineService los trate como idempotentes (skip),
-      // sin confundirlos con BadRequestException de plantilla/snapshot.
-      throw new ConflictException(
-        'Este contrato ya tiene un documento generado. Elimine el existente antes de generar uno nuevo.',
-      );
-    }
-
-    let genDoc: { id: string };
-    try {
-      genDoc = await this.createGeneratedDocument(tenantId, contract, template);
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        throw new ConflictException(
-          'Ya existe un documento generado para este contrato (conflicto de concurrencia).',
-        );
-      }
-      throw error;
-    }
-
-    try {
-      return await this.generatedDocumentsService.generatePdf(
-        tenantId,
-        userId,
-        genDoc.id,
-      );
-    } catch (error) {
-      this.logger.warn(
-        `generatePdf falló para GeneratedDocument ${genDoc.id}, eliminando documento huérfano`,
-      );
-      await this.prisma.generatedDocument
-        .delete({ where: { id: genDoc.id } })
-        .catch((deleteErr) =>
-          this.logger.error(
-            `No se pudo eliminar GeneratedDocument huérfano ${genDoc.id}`,
-            deleteErr,
-          ),
-        );
-      throw error;
-    }
+    return {
+      id: document.id,
+      pdfUrl: materialized.pdfUrl,
+      nombre: document.nombre,
+    };
   }
 
   private async resolveTemplate(tenantId: string, templateId?: string) {
@@ -567,6 +539,18 @@ export class ContractsService {
         'No se puede generar un documento para un empleado eliminado.',
       );
     }
+  }
+
+  private isPublishedContractDocument(
+    document: {
+      pdfStorageKey: string | null;
+      pdfUrl: string | null;
+      expedienteDocId: string | null;
+    } | null,
+  ): boolean {
+    return Boolean(
+      document?.pdfStorageKey && document.pdfUrl && document.expedienteDocId,
+    );
   }
 
   private buildContentFromSnapshot(

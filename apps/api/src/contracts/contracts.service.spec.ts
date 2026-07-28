@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Test } from '@nestjs/testing';
 import {
@@ -13,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { GeneratedDocumentsService } from '../generated-documents/generated-documents.service';
+import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
 import { ContratoTipo } from './dto/create-contract.dto';
 import { ContratoEstado } from './dto/update-contract-status.dto';
 
@@ -61,8 +58,12 @@ const mockTenantPrisma = {
 
 const mockAudit = { log: jest.fn().mockResolvedValue(undefined) };
 
-const mockGeneratePdf = jest.fn();
-const mockGenDocsService = { generatePdf: mockGeneratePdf };
+const mockMaterializePdf = jest.fn();
+const mockGenDocsService = { materializePdf: mockMaterializePdf };
+const mockPublishGeneratedDocument = jest.fn();
+const mockExpedienteDocsService = {
+  publishGeneratedDocument: mockPublishGeneratedDocument,
+};
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -142,6 +143,12 @@ describe('ContractsService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockGeneratedDocumentFindFirst.mockResolvedValue(null);
+    mockMaterializePdf.mockResolvedValue({
+      id: 'gendoc-001',
+      pdfUrl: '/uploads/pdfs/test.pdf',
+    });
+    mockPublishGeneratedDocument.mockResolvedValue({ outcome: 'CREATED' });
 
     const module = await Test.createTestingModule({
       providers: [
@@ -150,6 +157,10 @@ describe('ContractsService', () => {
         { provide: TenantPrismaService, useValue: mockTenantPrisma },
         { provide: AuditService, useValue: mockAudit },
         { provide: GeneratedDocumentsService, useValue: mockGenDocsService },
+        {
+          provide: ExpedienteDocsService,
+          useValue: mockExpedienteDocsService,
+        },
       ],
     }).compile();
 
@@ -192,6 +203,7 @@ describe('ContractsService', () => {
               id: 'gendoc-001',
               nombre: 'Contrato — María García',
               pdfUrl: '/uploads/pdfs/tenant-001-gendoc-001.pdf',
+              pdfStorageKey: 'pdfs/tenant-001-gendoc-001.pdf',
               expedienteDocs: [{ id: 'expediente-001' }],
             },
           ],
@@ -204,6 +216,7 @@ describe('ContractsService', () => {
         id: 'gendoc-001',
         nombre: 'Contrato — María García',
         pdfUrl: '/uploads/pdfs/tenant-001-gendoc-001.pdf',
+        pdfStorageKey: 'pdfs/tenant-001-gendoc-001.pdf',
         expedienteDocId: 'expediente-001',
       });
       expect(mockContratoFindFirst).toHaveBeenCalledWith(
@@ -373,10 +386,91 @@ describe('ContractsService', () => {
   // ── Snapshot: inmutabilidad ───────────────────────────────────────────────
 
   describe('variablesSnapshot — inmutabilidad', () => {
+    it.each([
+      ContratoEstado.VENCIDO,
+      ContratoEstado.TERMINADO,
+      ContratoEstado.RENOVADO,
+    ])(
+      'bloquea la transición a %s cuando no existe documento contractual',
+      async (estado) => {
+        const contract = makeContract({
+          plantilla: null,
+          lote: null,
+          generatedDocument: null,
+        });
+        mockContratoFindFirst.mockResolvedValue(contract);
+
+        await expect(
+          service.updateStatus(TENANT_ID, USER_ID, 'contract-001', {
+            estado,
+          }),
+        ).rejects.toThrow('debe tener un documento contractual publicado');
+
+        expect(mockContratoUpdate).not.toHaveBeenCalled();
+      },
+    );
+
+    it('permite la transición terminal cuando existe un documento contractual', async () => {
+      const contract = makeContract({
+        generatedDocuments: [
+          {
+            id: 'gendoc-001',
+            nombre: 'Contrato — María García',
+            pdfUrl: '/uploads/pdfs/tenant-001-gendoc-001.pdf',
+            pdfStorageKey: 'pdfs/tenant-001-gendoc-001.pdf',
+            expedienteDocs: [{ id: 'expediente-001' }],
+          },
+        ],
+      });
+      mockContratoFindFirst.mockResolvedValue(contract);
+      mockContratoUpdate.mockResolvedValue({ ...contract, estado: 'VENCIDO' });
+
+      await service.updateStatus(TENANT_ID, USER_ID, 'contract-001', {
+        estado: ContratoEstado.VENCIDO,
+      });
+
+      expect(mockContratoUpdate).toHaveBeenCalledWith({
+        where: { id: 'contract-001', tenantId: TENANT_ID },
+        data: { estado: 'VENCIDO' },
+      });
+    });
+
+    it('bloquea la transición terminal si existe la identidad pero falta la publicación', async () => {
+      const contract = makeContract({
+        generatedDocuments: [
+          {
+            id: 'gendoc-001',
+            nombre: 'Contrato — María García',
+            pdfStorageKey: null,
+            pdfUrl: null,
+            expedienteDocs: [],
+          },
+        ],
+      });
+      mockContratoFindFirst.mockResolvedValue(contract);
+
+      await expect(
+        service.updateStatus(TENANT_ID, USER_ID, 'contract-001', {
+          estado: ContratoEstado.TERMINADO,
+        }),
+      ).rejects.toThrow('debe tener un documento contractual publicado');
+
+      expect(mockContratoUpdate).not.toHaveBeenCalled();
+    });
+
     it('updateStatus no modifica variablesSnapshot', async () => {
       const contract = makeContract({
         plantilla: null,
         lote: null,
+        generatedDocuments: [
+          {
+            id: 'gendoc-001',
+            nombre: 'Contrato — María García',
+            pdfUrl: '/uploads/pdfs/tenant-001-gendoc-001.pdf',
+            pdfStorageKey: 'pdfs/tenant-001-gendoc-001.pdf',
+            expedienteDocs: [{ id: 'expediente-001' }],
+          },
+        ],
       });
       mockContratoFindFirst.mockResolvedValue(contract);
       mockContratoUpdate.mockResolvedValue({
@@ -613,12 +707,27 @@ describe('ContractsService', () => {
             '<p>María Elena García López — Docente de Matemáticas</p>',
         }),
       });
-      expect(mockGeneratePdf).not.toHaveBeenCalled();
+      expect(mockMaterializePdf).not.toHaveBeenCalled();
     });
 
     it('devuelve el documento existente sin validar nuevamente la plantilla', async () => {
       const existing = { id: 'gendoc-existing', contratoId: 'contract-001' };
       mockContratoFindFirst.mockResolvedValue(makeDocumentContract());
+      mockGeneratedDocumentFindFirst.mockResolvedValue(existing);
+
+      await expect(
+        service.ensureGeneratedDocument(TENANT_ID, 'contract-001'),
+      ).resolves.toEqual({ outcome: 'EXISTING', document: existing });
+
+      expect(mockDocumentTemplateFindMany).not.toHaveBeenCalled();
+      expect(mockGeneratedDocumentCreate).not.toHaveBeenCalled();
+    });
+
+    it('recupera un documento existente aunque el contrato ya no esté vigente', async () => {
+      const existing = { id: 'gendoc-existing', contratoId: 'contract-001' };
+      mockContratoFindFirst.mockResolvedValue(
+        makeDocumentContract({ estado: 'VENCIDO' }),
+      );
       mockGeneratedDocumentFindFirst.mockResolvedValue(existing);
 
       await expect(
@@ -638,7 +747,9 @@ describe('ContractsService', () => {
         service.ensureGeneratedDocument(TENANT_ID, 'contract-001'),
       ).rejects.toThrow('contrato VIGENTE');
 
-      expect(mockGeneratedDocumentFindFirst).not.toHaveBeenCalled();
+      expect(mockGeneratedDocumentFindFirst).toHaveBeenCalledWith({
+        where: { contratoId: 'contract-001', tenantId: TENANT_ID },
+      });
     });
 
     it('rechaza un empleado eliminado', async () => {
@@ -705,6 +816,8 @@ describe('ContractsService', () => {
         id: 'contract-001',
         tenantId: TENANT_ID,
         empleadoId: 'emp-001',
+        estado: 'VIGENTE',
+        empleado: { deletedAt: null },
         variablesSnapshot: SNAPSHOT,
         ...overrides,
       };
@@ -735,12 +848,13 @@ describe('ContractsService', () => {
       mockGeneratedDocumentCreate.mockResolvedValue({
         id: 'gendoc-001',
         tenantId: TENANT_ID,
-      });
-      mockGeneratePdf.mockResolvedValue({
-        id: 'gendoc-001',
-        pdfUrl: '/uploads/pdfs/test.pdf',
         nombre: 'Contrato — María Elena García López',
       });
+      mockMaterializePdf.mockResolvedValue({
+        id: 'gendoc-001',
+        pdfUrl: '/uploads/pdfs/test.pdf',
+      });
+      mockPublishGeneratedDocument.mockResolvedValue({ outcome: 'CREATED' });
     }
 
     it('lanza NotFoundException si el contrato no existe', async () => {
@@ -805,14 +919,32 @@ describe('ContractsService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('lanza ConflictException si ya existe documento generado para el contrato', async () => {
+    it('reutiliza el documento existente y completa el flujo unificado', async () => {
       mockContratoFindFirst.mockResolvedValue(makeContractWithSnapshot());
-      mockDocumentTemplateFindMany.mockResolvedValue([makeTemplate()]);
-      mockGeneratedDocumentFindFirst.mockResolvedValue({ id: 'existing-doc' });
+      mockGeneratedDocumentFindFirst.mockResolvedValue({
+        id: 'existing-doc',
+        nombre: 'Contrato existente',
+      });
 
       await expect(
         service.generateDocument(TENANT_ID, USER_ID, 'contract-001'),
-      ).rejects.toThrow(ConflictException);
+      ).resolves.toEqual({
+        id: 'existing-doc',
+        pdfUrl: '/uploads/pdfs/test.pdf',
+        nombre: 'Contrato existente',
+      });
+
+      expect(mockGeneratedDocumentCreate).not.toHaveBeenCalled();
+      expect(mockMaterializePdf).toHaveBeenCalledWith(
+        TENANT_ID,
+        'existing-doc',
+      );
+      expect(mockPublishGeneratedDocument).toHaveBeenCalledWith(
+        TENANT_ID,
+        USER_ID,
+        'existing-doc',
+        expect.anything(),
+      );
     });
 
     it('crea GeneratedDocument con contratoId vinculado', async () => {
@@ -849,7 +981,7 @@ describe('ContractsService', () => {
       expect(createCall.data.contenidoFinal).not.toContain('{{CARGO}}');
     });
 
-    it('delega la generación de PDF a GeneratedDocumentsService.generatePdf', async () => {
+    it('reutiliza exactamente la materialización y publicación del flujo unificado', async () => {
       setupSuccessful();
 
       const result = await service.generateDocument(
@@ -858,16 +990,39 @@ describe('ContractsService', () => {
         'contract-001',
       );
 
-      expect(mockGeneratePdf).toHaveBeenCalledWith(
+      expect(mockMaterializePdf).toHaveBeenCalledWith(TENANT_ID, 'gendoc-001');
+      expect(mockPublishGeneratedDocument).toHaveBeenCalledWith(
         TENANT_ID,
         USER_ID,
         'gendoc-001',
+        expect.anything(),
+      );
+      expect(mockMaterializePdf.mock.invocationCallOrder[0]).toBeLessThan(
+        mockPublishGeneratedDocument.mock.invocationCallOrder[0],
       );
       expect(result).toEqual({
         id: 'gendoc-001',
         pdfUrl: '/uploads/pdfs/test.pdf',
         nombre: 'Contrato — María Elena García López',
       });
+    });
+
+    it('es idempotente al invocar dos veces la generación individual', async () => {
+      setupSuccessful();
+      mockGeneratedDocumentFindFirst
+        .mockReset()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'gendoc-001',
+          nombre: 'Contrato — María Elena García López',
+        });
+
+      await service.generateDocument(TENANT_ID, USER_ID, 'contract-001');
+      await service.generateDocument(TENANT_ID, USER_ID, 'contract-001');
+
+      expect(mockGeneratedDocumentCreate).toHaveBeenCalledTimes(1);
+      expect(mockMaterializePdf).toHaveBeenCalledTimes(2);
+      expect(mockPublishGeneratedDocument).toHaveBeenCalledTimes(2);
     });
 
     it('genera nombre del documento con nombre del empleado del snapshot', async () => {
@@ -1002,40 +1157,41 @@ describe('ContractsService', () => {
 
     // ── Hardening: cleanup huérfano (Parte A) ──────────────────────────────
 
-    it('elimina GeneratedDocument si generatePdf falla y propaga la excepción original', async () => {
+    it('propaga un fallo de materialización sin eliminar la identidad documental', async () => {
       setupSuccessful();
       const pdfError = new Error('Puppeteer crashed');
-      mockGeneratePdf.mockRejectedValue(pdfError);
-      mockGeneratedDocumentDelete.mockResolvedValue({});
+      mockMaterializePdf.mockRejectedValue(pdfError);
 
       await expect(
         service.generateDocument(TENANT_ID, USER_ID, 'contract-001'),
       ).rejects.toThrow(pdfError);
 
-      expect(mockGeneratedDocumentDelete).toHaveBeenCalledWith({
-        where: { id: 'gendoc-001' },
-      });
+      expect(mockGeneratedDocumentDelete).not.toHaveBeenCalled();
     });
 
-    it('propaga la excepción de generatePdf incluso si el cleanup falla', async () => {
+    it('propaga un fallo de publicación sin ejecutar un flujo alternativo', async () => {
       setupSuccessful();
-      const pdfError = new Error('Puppeteer crashed');
-      mockGeneratePdf.mockRejectedValue(pdfError);
-      mockGeneratedDocumentDelete.mockRejectedValue(
-        new Error('DB connection lost'),
-      );
+      const publishError = new Error('Publicación fallida');
+      mockPublishGeneratedDocument.mockRejectedValue(publishError);
 
       await expect(
         service.generateDocument(TENANT_ID, USER_ID, 'contract-001'),
-      ).rejects.toThrow(pdfError);
+      ).rejects.toThrow(publishError);
+
+      expect(mockGeneratedDocumentDelete).not.toHaveBeenCalled();
     });
 
     // ── Hardening: TOCTOU / unique constraint (Parte B) ────────────────────
 
-    it('lanza ConflictException si el unique index detecta generación concurrente', async () => {
+    it('recupera la identidad ganadora si el unique index detecta una carrera', async () => {
       mockContratoFindFirst.mockResolvedValue(makeContractWithSnapshot());
       mockDocumentTemplateFindMany.mockResolvedValue([makeTemplate()]);
-      mockGeneratedDocumentFindFirst.mockResolvedValue(null);
+      mockGeneratedDocumentFindFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'gendoc-concurrent',
+          nombre: 'Contrato concurrente',
+        });
       mockGeneratedDocumentCreate.mockRejectedValue(
         new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
           code: 'P2002',
@@ -1046,7 +1202,11 @@ describe('ContractsService', () => {
 
       await expect(
         service.generateDocument(TENANT_ID, USER_ID, 'contract-001'),
-      ).rejects.toThrow(ConflictException);
+      ).resolves.toEqual({
+        id: 'gendoc-concurrent',
+        pdfUrl: '/uploads/pdfs/test.pdf',
+        nombre: 'Contrato concurrente',
+      });
     });
 
     // ── Hardening: camino feliz intacto ────────────────────────────────────

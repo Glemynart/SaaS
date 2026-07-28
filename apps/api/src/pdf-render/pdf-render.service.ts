@@ -20,6 +20,14 @@ export class PdfRenderService implements OnModuleDestroy {
     const page = await browser.newPage();
     try {
       await page.setJavaScriptEnabled(false);
+      await page.setRequestInterception(true);
+      page.on('request', async (request) => {
+        if (this.isLocalRenderResource(request.url())) {
+          await request.continue();
+          return;
+        }
+        await request.abort('blockedbyclient');
+      });
       await page.setContent(html, { waitUntil: 'domcontentloaded' });
       const pdfBytes = await page.pdf({
         format: 'A4',
@@ -99,6 +107,10 @@ export class PdfRenderService implements OnModuleDestroy {
       this.logger.warn(`No se pudo cerrar el browser: ${String(err)}`);
     }
     this.browser = null;
+  }
+
+  private isLocalRenderResource(url: string): boolean {
+    return /^(data|blob|about):/i.test(url);
   }
 
   private findChromePath(): string | undefined {

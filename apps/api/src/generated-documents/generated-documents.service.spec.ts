@@ -13,6 +13,10 @@ describe('GeneratedDocumentsService.generatePdf', () => {
   let service: GeneratedDocumentsService;
 
   const mockFindFirst = jest.fn();
+  const mockDocumentTemplateFindFirst = jest.fn();
+  const mockGeneratedDocumentCreate = jest.fn();
+  const mockGeneratedDocumentDelete = jest.fn();
+  const mockTenantPrismaExecute = jest.fn();
   const mockTenantFindUnique = jest.fn();
   const mockTransaction = jest.fn();
   const mockTxUpdate = jest.fn();
@@ -36,6 +40,8 @@ describe('GeneratedDocumentsService.generatePdf', () => {
         segundoApellido: null,
         cedula: '123',
       },
+      tipo: 'CERTIFICATION',
+      contratoId: null,
     });
     mockTenantFindUnique.mockReset().mockResolvedValue({
       id: 't1',
@@ -47,7 +53,7 @@ describe('GeneratedDocumentsService.generatePdf', () => {
       id: 'd1',
       pdfUrl: '/uploads/pdfs/t1-d1.pdf',
       nombre: 'Documento',
-      tipo: 'CONTRATO',
+      tipo: 'CERTIFICATION',
       employeeId: 'e1',
       tenantId: 't1',
       contratoId: null,
@@ -64,6 +70,10 @@ describe('GeneratedDocumentsService.generatePdf', () => {
     mockGetObject.mockReset();
     mockRenderPdf.mockReset().mockResolvedValue(Buffer.from('PDF-BYTES'));
     mockGeneratedDocumentUpdate.mockReset();
+    mockDocumentTemplateFindFirst.mockReset();
+    mockGeneratedDocumentCreate.mockReset();
+    mockGeneratedDocumentDelete.mockReset();
+    mockTenantPrismaExecute.mockReset();
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -74,14 +84,17 @@ describe('GeneratedDocumentsService.generatePdf', () => {
             generatedDocument: {
               findFirst: mockFindFirst,
               update: mockGeneratedDocumentUpdate,
+              create: mockGeneratedDocumentCreate,
+              delete: mockGeneratedDocumentDelete,
             },
+            documentTemplate: { findFirst: mockDocumentTemplateFindFirst },
             tenant: { findUnique: mockTenantFindUnique },
             $transaction: mockTransaction,
           },
         },
         {
           provide: TenantPrismaService,
-          useValue: { execute: jest.fn() },
+          useValue: { execute: mockTenantPrismaExecute },
         },
         {
           provide: ExpedienteDocsService,
@@ -101,6 +114,119 @@ describe('GeneratedDocumentsService.generatePdf', () => {
     }).compile();
 
     service = moduleRef.get(GeneratedDocumentsService);
+  });
+
+  it('rechaza generar CONTRACT mediante el flujo legacy', async () => {
+    mockTenantPrismaExecute.mockImplementation((callback) =>
+      callback({ empleado: { findFirst: jest.fn().mockResolvedValue({}) } }),
+    );
+    mockDocumentTemplateFindFirst.mockResolvedValue({
+      id: 'template-contract',
+      tipo: 'CONTRACT',
+      activo: true,
+    });
+
+    await expect(
+      service.generate('t1', {
+        employeeId: 'employee-001',
+        templateId: 'template-contract',
+        nombre: 'Contrato',
+      }),
+    ).rejects.toThrow(
+      'Los documentos CONTRACT deben generarse desde el contrato.',
+    );
+
+    expect(mockGeneratedDocumentCreate).not.toHaveBeenCalled();
+  });
+
+  it('mantiene la generación legacy para tipos no contractuales', async () => {
+    const employee = {
+      primerNombre: 'Ana',
+      segundoNombre: null,
+      primerApellido: 'Gómez',
+      segundoApellido: null,
+      tipoDocumento: 'CC',
+      cedula: '123',
+      cargo: 'Analista',
+      salario: 1000000,
+      tipoContrato: 'TERMINO_INDEFINIDO',
+      fechaIngreso: new Date('2025-01-01'),
+      sedeRef: null,
+    };
+    mockTenantPrismaExecute.mockImplementation((callback) =>
+      callback({
+        empleado: { findFirst: jest.fn().mockResolvedValue(employee) },
+      }),
+    );
+    mockDocumentTemplateFindFirst.mockResolvedValue({
+      id: 'template-certification',
+      tipo: 'CERTIFICATION',
+      activo: true,
+      contenido: '<p>{{NOMBRE_COMPLETO}}</p>',
+    });
+    mockGeneratedDocumentCreate.mockResolvedValue({ id: 'd-certification' });
+
+    await expect(
+      service.generate('t1', {
+        employeeId: 'employee-001',
+        templateId: 'template-certification',
+        nombre: 'Certificación',
+      }),
+    ).resolves.toEqual({ id: 'd-certification' });
+
+    expect(mockGeneratedDocumentCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ tipo: 'CERTIFICATION' }),
+      }),
+    );
+  });
+
+  it('rechaza renderizar CONTRACT mediante generate-pdf legacy', async () => {
+    mockFindFirst.mockResolvedValue({
+      id: 'd-contract',
+      tenantId: 't1',
+      contenidoFinal: '<p>Contrato</p>',
+      tipo: 'CONTRACT',
+      contratoId: 'contract-001',
+      employee: {
+        primerNombre: 'Ana',
+        segundoNombre: null,
+        primerApellido: 'Gómez',
+        segundoApellido: null,
+        cedula: '123',
+      },
+    });
+
+    await expect(service.generatePdf('t1', 'u1', 'd-contract')).rejects.toThrow(
+      'Los documentos CONTRACT deben renderizarse desde el contrato.',
+    );
+
+    expect(mockRenderPdf).not.toHaveBeenCalled();
+    expect(mockCreateFromGeneratedDoc).not.toHaveBeenCalled();
+  });
+
+  it('impide eliminar un GeneratedDocument CONTRACT', async () => {
+    mockFindFirst.mockResolvedValue({
+      id: 'd-contract',
+      tenantId: 't1',
+      tipo: 'CONTRACT',
+    });
+
+    await expect(service.remove('t1', 'd-contract')).rejects.toThrow(
+      'Los documentos CONTRACT son inmutables',
+    );
+
+    expect(mockGeneratedDocumentDelete).not.toHaveBeenCalled();
+  });
+
+  it('mantiene la eliminación para GeneratedDocument no contractual', async () => {
+    mockGeneratedDocumentDelete.mockResolvedValue({ id: 'd1' });
+
+    await expect(service.remove('t1', 'd1')).resolves.toEqual({ id: 'd1' });
+
+    expect(mockGeneratedDocumentDelete).toHaveBeenCalledWith({
+      where: { id: 'd1' },
+    });
   });
 
   it('genera el PDF vía PdfRenderService y lo persiste vía StorageService', async () => {
@@ -128,7 +254,7 @@ describe('GeneratedDocumentsService.generatePdf', () => {
   });
 
   describe('materializePdf', () => {
-    it('renderiza únicamente contenidoFinal y persiste la identidad canónica', async () => {
+    it('renderiza únicamente contenidoFinal sin publicar metadata aún', async () => {
       mockFindFirst.mockResolvedValue({
         id: 'd1',
         tenantId: 't1',
@@ -154,14 +280,7 @@ describe('GeneratedDocumentsService.generatePdf', () => {
           contentType: 'application/pdf',
         }),
       );
-      expect(mockGeneratedDocumentUpdate).toHaveBeenCalledWith({
-        where: { id: 'd1' },
-        data: {
-          pdfStorageKey: 'pdfs/t1-d1.pdf',
-          pdfSizeBytes: 9,
-          pdfUrl: '/uploads/pdfs/t1-d1.pdf',
-        },
-      });
+      expect(mockGeneratedDocumentUpdate).not.toHaveBeenCalled();
       expect(result).toEqual({
         id: 'd1',
         pdfStorageKey: 'pdfs/t1-d1.pdf',
@@ -196,7 +315,28 @@ describe('GeneratedDocumentsService.generatePdf', () => {
       });
     });
 
-    it('repara metadata no canónica desde el artefacto físico existente', async () => {
+    it('reintenta sobre el mismo PDF físico sin publicar metadata por separado', async () => {
+      mockFindFirst.mockResolvedValue({
+        id: 'd1',
+        tenantId: 't1',
+        contenidoFinal: '<p>Contrato inmutable</p>',
+        pdfStorageKey: null,
+        pdfSizeBytes: null,
+        pdfUrl: null,
+      });
+      mockObjectExists.mockResolvedValue(true);
+      mockGetObject.mockResolvedValue(Buffer.from('PDF existente'));
+
+      const first = await service.materializePdf('t1', 'd1');
+      const second = await service.materializePdf('t1', 'd1');
+
+      expect(second).toEqual(first);
+      expect(mockRenderPdf).not.toHaveBeenCalled();
+      expect(mockPutObject).not.toHaveBeenCalled();
+      expect(mockGeneratedDocumentUpdate).not.toHaveBeenCalled();
+    });
+
+    it('devuelve metadata canónica desde el artefacto físico sin persistirla', async () => {
       mockFindFirst.mockResolvedValue({
         id: 'd1',
         tenantId: 't1',
@@ -208,16 +348,14 @@ describe('GeneratedDocumentsService.generatePdf', () => {
       mockObjectExists.mockResolvedValue(true);
       mockGetObject.mockResolvedValue(Buffer.from('PDF canónico'));
 
-      await service.materializePdf('t1', 'd1');
+      const result = await service.materializePdf('t1', 'd1');
 
       expect(mockRenderPdf).not.toHaveBeenCalled();
-      expect(mockGeneratedDocumentUpdate).toHaveBeenCalledWith({
-        where: { id: 'd1' },
-        data: {
-          pdfStorageKey: 'pdfs/t1-d1.pdf',
-          pdfSizeBytes: Buffer.byteLength('PDF canónico'),
-          pdfUrl: '/uploads/pdfs/t1-d1.pdf',
-        },
+      expect(mockGeneratedDocumentUpdate).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        pdfStorageKey: 'pdfs/t1-d1.pdf',
+        pdfSizeBytes: Buffer.byteLength('PDF canónico'),
+        pdfUrl: '/uploads/pdfs/t1-d1.pdf',
       });
     });
 

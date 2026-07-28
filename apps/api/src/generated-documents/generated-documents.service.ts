@@ -73,6 +73,12 @@ export class GeneratedDocumentsService {
       throw new BadRequestException('La plantilla seleccionada está inactiva');
     }
 
+    if (template.tipo === 'CONTRACT') {
+      throw new BadRequestException(
+        'Los documentos CONTRACT deben generarse desde el contrato.',
+      );
+    }
+
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
     });
@@ -216,7 +222,12 @@ export class GeneratedDocumentsService {
   }
 
   async remove(tenantId: string, id: string) {
-    await this.findOne(tenantId, id);
+    const doc = await this.findOne(tenantId, id);
+    if (doc.tipo === 'CONTRACT') {
+      throw new BadRequestException(
+        'Los documentos CONTRACT son inmutables y no se pueden eliminar.',
+      );
+    }
     return this.prisma.generatedDocument.delete({ where: { id } });
   }
 
@@ -260,17 +271,6 @@ export class GeneratedDocumentsService {
       materialized = true;
     }
 
-    if (
-      doc.pdfStorageKey !== storageKey ||
-      doc.pdfSizeBytes !== pdfSizeBytes ||
-      doc.pdfUrl !== pdfUrl
-    ) {
-      await this.prisma.generatedDocument.update({
-        where: { id: doc.id },
-        data: { pdfStorageKey: storageKey, pdfSizeBytes, pdfUrl },
-      });
-    }
-
     return {
       id: doc.id,
       pdfStorageKey: storageKey,
@@ -283,6 +283,12 @@ export class GeneratedDocumentsService {
   async generatePdf(tenantId: string, userId: string, id: string) {
     const doc = await this.findOne(tenantId, id);
     if (!doc) throw new NotFoundException('Documento no encontrado');
+
+    if (doc.tipo === 'CONTRACT') {
+      throw new BadRequestException(
+        'Los documentos CONTRACT deben renderizarse desde el contrato.',
+      );
+    }
 
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
