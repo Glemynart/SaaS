@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { SideSheet } from '@/components/ui/side-sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useDocumentTemplates } from '@/features/document-templates/hooks/use-document-templates';
+import type { DocumentTemplateType } from '@/features/document-templates/services/document-templates-api';
 import { DOCUMENT_TEMPLATE_TYPE_LABELS } from '@/features/document-templates/schemas/document-template-schemas';
 import {
   generateDocumentSchema,
@@ -28,6 +29,7 @@ interface GenerateDocumentFormProps {
   employee: Employee;
   onSubmit: (data: GenerateDocumentFormValues) => void;
   isSubmitting?: boolean;
+  templateType?: DocumentTemplateType;
 }
 
 function EmployeeDataRow({ label, value }: { label: string; value: string }) {
@@ -45,10 +47,12 @@ export function GenerateDocumentForm({
   employee,
   onSubmit,
   isSubmitting = false,
+  templateType,
 }: GenerateDocumentFormProps) {
   const [selectedTemplateContent, setSelectedTemplateContent] = useState('');
   const { data: templatesData, isLoading: templatesLoading } = useDocumentTemplates({
     limit: 50,
+    tipo: templateType,
   });
 
   const {
@@ -62,7 +66,10 @@ export function GenerateDocumentForm({
     defaultValues: {
       employeeId: employee.id,
       templateId: '',
-      nombre: `Doc. ${formatNombreCompleto(employee)}`,
+      nombre:
+        templateType === 'CERTIFICATION'
+          ? `Certificación laboral — ${formatNombreCompleto(employee)}`
+          : `Doc. ${formatNombreCompleto(employee)}`,
     },
   });
 
@@ -79,7 +86,9 @@ export function GenerateDocumentForm({
     <SideSheet
       open={open}
       onOpenChange={onOpenChange}
-      title="Generar documento"
+      title={
+        templateType === 'CERTIFICATION' ? 'Emitir certificación laboral' : 'Generar documento'
+      }
       description={`Empleado: ${formatNombreCompleto(employee)}`}
     >
       <form onSubmit={handleSubmit(onSubmit)} className="flex h-full flex-col">
@@ -111,7 +120,14 @@ export function GenerateDocumentForm({
           </section>
 
           <FormField label="Nombre del documento" required error={errors.nombre?.message}>
-            <Input placeholder="Contrato laboral 2026…" {...register('nombre')} />
+            <Input
+              placeholder={
+                templateType === 'CERTIFICATION'
+                  ? 'Certificación laboral — Juan Pérez'
+                  : 'Contrato laboral 2026…'
+              }
+              {...register('nombre')}
+            />
           </FormField>
 
           <div className="space-y-2">
@@ -196,7 +212,7 @@ export function GenerateDocumentForm({
           </Button>
           <Button type="submit" className="flex-1" disabled={isSubmitting}>
             {isSubmitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-            Generar documento
+            {templateType === 'CERTIFICATION' ? 'Emitir certificación' : 'Generar documento'}
           </Button>
         </div>
       </form>

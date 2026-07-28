@@ -53,10 +53,20 @@ export function GeneratedDocDetail() {
 
   const handleGeneratePdf = useCallback(() => {
     generatePdfMutation.mutate(id, {
-      onSuccess: () => toast.success('PDF generado.'),
-      onError: () => toast.error('No se pudo generar el PDF. Inténtalo de nuevo.'),
+      onSuccess: () =>
+        toast.success(
+          doc?.tipo === 'CERTIFICATION'
+            ? 'Certificación publicada en el expediente.'
+            : 'PDF generado.',
+        ),
+      onError: () =>
+        toast.error(
+          doc?.tipo === 'CERTIFICATION'
+            ? 'No se pudo publicar la certificación. Inténtalo de nuevo; se reutilizará la misma emisión.'
+            : 'No se pudo generar el PDF. Inténtalo de nuevo.',
+        ),
     });
-  }, [id, generatePdfMutation]);
+  }, [id, generatePdfMutation, doc?.tipo]);
 
   const handleDownloadPdf = useCallback(() => {
     window.open(generatedDocumentsApi.getPdfUrl(id), '_blank');
@@ -128,7 +138,7 @@ export function GeneratedDocDetail() {
                 ) : (
                   <Printer className="size-4" aria-hidden="true" />
                 )}
-                Generar PDF
+                {doc.tipo === 'CERTIFICATION' ? 'Publicar certificación' : 'Generar PDF'}
               </Button>
             )}
           </>
