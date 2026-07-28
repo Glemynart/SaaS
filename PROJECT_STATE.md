@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: Payroll P1 · U4 completada + contrato público alineado (2026-07-13)
+## Última actualización: Security Hardening v2 y Accounting v1 completados y fusionados a `main` (2026-07-26)
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -1433,6 +1433,16 @@ Objetivo:
 
 Motor contable de partida doble, en causación, append-only, multiempresa. Infraestructura habilitante para Nómina, Facturación Electrónica, Cartera y Tesorería.
 
+Estado:
+
+✅ **Accounting v1 completada y fusionada a `main`** (PR #63, 2026-07-26).
+
+Resumen de cierre:
+
+- Catálogos, Ledger append-only, reporting y cierre contable mensual/anual operativos.
+- Causación explícita de nómina y ajustes de corrección integrados mediante el puerto del Ledger.
+- Idempotencia, trazabilidad y sincronización transaccional cubiertas, incluidos locks localizados para posting, reversos y cierre de períodos.
+
 ## ADR-001 — Accounting Core
 
 Estado:
@@ -1539,17 +1549,13 @@ Implementado:
 - Reapertura **LIFO** (C3-I4): solo procede sobre el período `CERRADO` más reciente del tenant.
 - Bloqueo por **cierre anual posteado** (C3-I12): si existe comprobante `origenTipo='CIERRE_ANUAL'` no anulado en el período, exige reverso previo por `LedgerService.anular`; C3 nunca borra el asiento.
 - Limpieza de `cerradoAt`/`cerradoPorId` a `null` al reabrir; evidencia del cierre permanece en `AuditLog`.
-- Idempotencia y concurrencia optimista: mismo patrón `updateMany` + guarda de estado que `cerrarPeriodo`.
+- Idempotencia y concurrencia: advisory locks transaccionales localizados coordinan la reapertura con el cierre de períodos posteriores y preservan el orden cronológico.
 - Auditoría `PERIODO_CONTABLE_REABIERTO` (`{ motivo }`), fire-and-forget, solo cuando la reapertura ocurre realmente.
 - Sin `rol` en el contrato del servicio — la autorización ADMIN queda delegada al borde (controller/guard), pendiente de transporte.
 - Contrato de bloqueos centralizado: `ClosureBloqueo` (constantes) + `ORIGEN_CIERRE_ANUAL`, fuente única reutilizable por U1–U4. Los literales previos de U1/U2 se migraron a las constantes (refactor de comportamiento neutro, verificado).
 - 26 unit tests en `closure.service.spec.ts`; suite completa 400/400.
 
 Sin cambios de schema, sin migración, sin transporte HTTP (controller/DTO), sin tocar C1/C2.
-
-**Deuda técnica identificada (no bloqueante, diferida a fase de transporte/hardening):**
-
-- **M1 — TOCTOU reapertura↔cierre:** las validaciones (existencia, LIFO, cierre anual) corren fuera de la `$transaction`; el guard `updateMany` protege la fila propia pero no el invariante entre períodos adyacentes. Una reapertura del período _n-1_ concurrente con un cierre del período _n_ puede dejar un hueco cronológico (viola C3-I2). Hoy no es alcanzable (U3 no tiene transporte HTTP); debe resolverse antes de exponer U3 con acceso admin concurrente (locking de fila o isolation `Serializable`, junto con `cerrarPeriodo`).
 
 ### Fase 3 — Cierre anual (U4)
 
@@ -1621,7 +1627,7 @@ P0 — Payroll Catalogs       ✅ COMPLETADO (parámetros legales, conceptos, es
 P1 — Payroll Core           ✅ COMPLETADO (ProcesoNómina: estados, liquidación válida, snapshot, fail-secure, PayrollBlock, contrato público)
 P1.5 — Corrección post-aprobación ✅ COMPLETADO (acto explícito, ciclo propio, invariantes sobre aprobación original)
 Futuro — Materialización de correcciones (fuera de P1.5)
-P2 — Accounting Integration (mapper concepto → cuenta, contabilización EXPLÍCITA — ver decisión abajo)
+P2 — Accounting Integration ✅ COMPLETADO (causación explícita, correcciones materializadas y ajustes contables)
 P3 — Treasury Integration   (resultado de dispersión, hitos de pago)
 P4 — PILA                   (Planilla Integrada de Liquidación de Aportes)
 P5 — Nómina Electrónica     (Documento soporte DIAN)
@@ -1809,6 +1815,8 @@ Siguiente frente de hardening:
 
 Estado de la Epic:
 
+✅ **COMPLETADA y fusionada a `main`** (PR #64, 2026-07-26).
+
 - ✅ `SHV2-01` — Security Headers completada (2026-07-15).
 - ✅ `SHV2-02` — Caracterización Operacional del Global Rate Limiting completada (2026-07-15).
 - ⛔ `SHV2-03` — Activación del Global Rate Limiting bloqueada por prerrequisitos operativos de infraestructura.
@@ -1818,7 +1826,7 @@ Estado de la Epic:
 
 Decisión de cierre:
 
-- La Epic queda completada en la rama `initiative/security-hardening-v2`; el Global Rate Limiting permanece deliberadamente sin activar hasta contar con evidencia operacional suficiente.
+- La Epic quedó completada y fusionada a `main`; el Global Rate Limiting permanece deliberadamente sin activar hasta contar con evidencia operacional suficiente.
 - `SHV2-03` no puede iniciar hasta que Operaciones documente y demuestre la cadena de proxies confiables, la identificación no falsificable del cliente, el alcance coherente de los contadores según las instancias reales y las métricas que justifiquen límite y ventana.
 - La evidencia y checklist de desbloqueo se conservan en `docs/security/SHV2-02-GLOBAL-RATE-LIMITING-CHARACTERIZATION.md`.
 - RLS queda activa sólo en `empleados`; los filtros `tenantId` de aplicación se preservan como defensa en profundidad.
@@ -1834,9 +1842,20 @@ Alcance preservado:
 - No existe guard global, throttler global ni respuestas HTTP `429` nuevas.
 - No se modificaron JWT, Authorization, RBAC, Frontend ni reglas de dominio.
 
+Resumen de cierre:
+
+- Headers de seguridad y caracterización operativa de rate limiting incorporados sin activar un límite global prematuro.
+- `TenantPrismaService` establece la frontera transaccional tenant-aware y RLS protege la cohorte piloto `empleados`.
+- Las rutas auditadas que acceden a `empleados` operan mediante la frontera tenant-aware con RLS activa.
+
 ---
 
 # <a name="roadmap-futuro"></a>Roadmap Futuro
+
+Hitos cerrados recientemente:
+
+- ✅ Security Hardening v2 — headers, frontera tenant-aware y RLS piloto.
+- ✅ Accounting v1 — Ledger, reporting, cierre contable e integración explícita con Payroll.
 
 Módulos planificados:
 
