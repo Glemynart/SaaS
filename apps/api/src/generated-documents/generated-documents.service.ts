@@ -321,14 +321,30 @@ export class GeneratedDocumentsService {
   }
 
   async generatePdf(tenantId: string, userId: string, id: string) {
-    const doc = await this.findOne(tenantId, id);
-    if (!doc) throw new NotFoundException('Documento no encontrado');
+    const documentReference = await this.prisma.generatedDocument.findFirst({
+      where: { id, tenantId },
+      select: { id: true, nombre: true, tipo: true },
+    });
+    if (!documentReference) {
+      throw new NotFoundException('Documento no encontrado');
+    }
 
-    if (doc.tipo === 'CONTRACT') {
+    if (documentReference.tipo === 'CONTRACT') {
       throw new BadRequestException(
         'Los documentos CONTRACT deben renderizarse desde el contrato.',
       );
     }
+
+    if (documentReference.tipo === 'CERTIFICATION') {
+      const materialized = await this.materializePdf(tenantId, id);
+      return {
+        id: documentReference.id,
+        pdfUrl: materialized.pdfUrl,
+        nombre: documentReference.nombre,
+      };
+    }
+
+    const doc = await this.findOne(tenantId, id);
 
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
