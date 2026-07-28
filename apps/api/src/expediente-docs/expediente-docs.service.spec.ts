@@ -128,6 +128,24 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
     expect(mockTransaction).not.toHaveBeenCalled();
   });
 
+  it('mantiene el aislamiento tenant al buscar el documento a publicar', async () => {
+    mockGeneratedDocumentFindFirst.mockResolvedValue(null);
+
+    await expect(
+      service.publishGeneratedDocument(
+        'tenant-otro',
+        userId,
+        generatedDocumentId,
+      ),
+    ).rejects.toThrow('Documento generado no encontrado');
+
+    expect(mockGeneratedDocumentFindFirst).toHaveBeenCalledWith({
+      where: { id: generatedDocumentId, tenantId: 'tenant-otro' },
+      select: expect.any(Object),
+    });
+    expect(mockTransaction).not.toHaveBeenCalled();
+  });
+
   it('converge al índice ganador si una creación concurrente viola la unicidad', async () => {
     mockExpedienteDocCreate.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {

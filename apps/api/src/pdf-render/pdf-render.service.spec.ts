@@ -6,6 +6,7 @@ describe('PdfRenderService', () => {
   const mockPageClose = jest.fn().mockResolvedValue(undefined);
   const mockPagePdf = jest.fn().mockResolvedValue(Buffer.from('PDF'));
   const mockPageSetContent = jest.fn().mockResolvedValue(undefined);
+  const mockPageSetJavaScriptEnabled = jest.fn().mockResolvedValue(undefined);
   const mockBrowserClose = jest.fn().mockResolvedValue(undefined);
   const mockNewPage = jest.fn();
 
@@ -19,6 +20,7 @@ describe('PdfRenderService', () => {
 
   function makePage() {
     return {
+      setJavaScriptEnabled: mockPageSetJavaScriptEnabled,
       setContent: mockPageSetContent,
       pdf: mockPagePdf,
       close: mockPageClose,
@@ -50,6 +52,15 @@ describe('PdfRenderService', () => {
       margin: { top: '2cm', bottom: '2cm', left: '2.5cm', right: '2.5cm' },
       printBackground: true,
     });
+  });
+
+  it('deshabilita JavaScript antes de cargar HTML en el renderer', async () => {
+    await service.renderPdf('<script>window.__unsafe = true</script>');
+
+    expect(mockPageSetJavaScriptEnabled).toHaveBeenCalledWith(false);
+    expect(
+      mockPageSetJavaScriptEnabled.mock.invocationCallOrder[0],
+    ).toBeLessThan(mockPageSetContent.mock.invocationCallOrder[0]);
   });
 
   it('reutiliza el browser singleton entre renders', async () => {
@@ -92,7 +103,6 @@ describe('PdfRenderService', () => {
     await service.renderPdf('<p>1</p>');
     expect(launchSpy).toHaveBeenCalledTimes(1);
 
-    // Simulate disconnect
     const deadBrowser = makeBrowser(false);
     (service as unknown as { browser: unknown }).browser = deadBrowser;
 

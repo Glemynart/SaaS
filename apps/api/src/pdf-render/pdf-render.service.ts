@@ -19,6 +19,7 @@ export class PdfRenderService implements OnModuleDestroy {
     const browser = await this.ensureBrowser();
     const page = await browser.newPage();
     try {
+      await page.setJavaScriptEnabled(false);
       await page.setContent(html, { waitUntil: 'domcontentloaded' });
       const pdfBytes = await page.pdf({
         format: 'A4',

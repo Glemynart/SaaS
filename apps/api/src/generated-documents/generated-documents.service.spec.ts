@@ -196,6 +196,44 @@ describe('GeneratedDocumentsService.generatePdf', () => {
       });
     });
 
+    it('repara metadata no canónica desde el artefacto físico existente', async () => {
+      mockFindFirst.mockResolvedValue({
+        id: 'd1',
+        tenantId: 't1',
+        contenidoFinal: '<p>Contrato inmutable</p>',
+        pdfStorageKey: 'legacy/t1-d1.pdf',
+        pdfSizeBytes: 1,
+        pdfUrl: '/uploads/legacy/t1-d1.pdf',
+      });
+      mockObjectExists.mockResolvedValue(true);
+      mockGetObject.mockResolvedValue(Buffer.from('PDF canónico'));
+
+      await service.materializePdf('t1', 'd1');
+
+      expect(mockRenderPdf).not.toHaveBeenCalled();
+      expect(mockGeneratedDocumentUpdate).toHaveBeenCalledWith({
+        where: { id: 'd1' },
+        data: {
+          pdfStorageKey: 'pdfs/t1-d1.pdf',
+          pdfSizeBytes: Buffer.byteLength('PDF canónico'),
+          pdfUrl: '/uploads/pdfs/t1-d1.pdf',
+        },
+      });
+    });
+
+    it('mantiene el filtro de tenant al recuperar el documento', async () => {
+      mockFindFirst.mockResolvedValue(null);
+
+      await expect(service.materializePdf('tenant-otro', 'd1')).rejects.toThrow(
+        'Documento generado no encontrado',
+      );
+
+      expect(mockFindFirst).toHaveBeenCalledWith({
+        where: { id: 'd1', tenantId: 'tenant-otro' },
+        select: expect.any(Object),
+      });
+    });
+
     it('no escribe metadata cuando el documento y el artefacto ya están sincronizados', async () => {
       mockFindFirst.mockResolvedValue({
         id: 'd1',
