@@ -1,10 +1,5 @@
-import {
-  ConflictException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
-import { Contrato, LoteContrato, Prisma } from '@prisma/client';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Contrato, LoteContrato } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { ContractsService } from '../contracts/contracts.service';
@@ -26,17 +21,16 @@ interface LoteErrorEntry {
  *
  * Reconcilia cada empleado objetivo del lote hacia el estado "procesado":
  *
- *   Contrato existe  +  GeneratedDocument.pdfUrl != null  +  ExpedienteDoc existe
+ *   Contrato existe  +  GeneratedDocument materializado  +  ExpedienteDoc publicado
  *
  * Máquina de estados por empleado:
  *
  *   S0  Contrato ausente                                  → crear contrato (ensureContrato)
- *   S1  Contrato presente / GeneratedDocument ausente     → generar documento + PDF + expediente
- *   S2  GeneratedDocument presente / pdfUrl null           → limpiar y regenerar
- *   S3  pdfUrl != null / ExpedienteDoc presente            → skip (ya procesado)
- *   S4  pdfUrl != null / ExpedienteDoc ausente             → reparar sin regenerar PDF
+ *   S1  Contrato presente                                  → asegurar identidad documental
+ *   S2  GeneratedDocument presente                         → materializar PDF canónico
+ *   S3  PDF materializado                                  → publicar índice en expediente
  *
- * Reglas: find-before-create, reutilizar servicios existentes, no duplicar lógica.
+ * Reglas: reutilizar servicios existentes, no duplicar lógica.
  *
  * Fuera de alcance en esta fase: ZIP, BullMQ, Redis, R2, StoredFile, migraciones.
  */
@@ -54,7 +48,7 @@ export class LoteEngineService {
 
   /**
    * Procesa (reconcilia) un lote completo. Idempotente: re-ejecutar sobre un
-   * lote ya procesado no regenera PDFs (los empleados en S3 se omiten).
+   * lote ya procesado delega en la idempotencia de cada etapa documental.
    */
   async procesarLote(loteId: string) {
     const lote = await this.prisma.loteContrato.findUnique({
@@ -97,7 +91,12 @@ export class LoteEngineService {
           lote,
           empleadoId,
         );
-        await this.ensureDocumento(lote.tenantId, userId, contrato);
+        await this.ensureDocumento(
+          lote.tenantId,
+          userId,
+          contrato,
+          lote.documentTemplateId,
+        );
 
         // Incremento atómico → progreso visible en tiempo real para polling.
         await this.prisma.loteContrato.update({
@@ -199,102 +198,27 @@ export class LoteEngineService {
   }
 
   /**
-   * Reconcilia el GeneratedDocument + ExpedienteDoc del contrato según la
-   * máquina de estados (S1–S4).
+   * Orquesta exclusivamente los contratos de dominio de 6C.2–6C.4. La
+   * plantilla pertenece al snapshot inmutable del lote; cada servicio conserva
+   * su propia idempotencia y responsabilidad.
    */
   async ensureDocumento(
     tenantId: string,
     userId: string,
     contrato: Pick<Contrato, 'id'>,
+    templateId: string,
   ): Promise<void> {
-    const genDoc = await this.prisma.generatedDocument.findFirst({
-      where: { tenantId, contratoId: contrato.id },
-      select: {
-        id: true,
-        pdfUrl: true,
-        employeeId: true,
-        nombre: true,
-        tipo: true,
-        contratoId: true,
-      },
-    });
-
-    // S1: GeneratedDocument ausente → generar documento + PDF + expediente.
-    if (!genDoc) {
-      try {
-        await this.contractsService.generateDocument(
-          tenantId,
-          userId,
-          contrato.id,
-        );
-      } catch (error) {
-        if (error instanceof ConflictException) {
-          this.logger.log(
-            `Contrato ${contrato.id}: GeneratedDocument ya creado por otro proceso, omitiendo`,
-          );
-          return;
-        }
-        throw error;
-      }
-      return;
-    }
-
-    // S2: GeneratedDocument presente con pdfUrl null (PDF incompleto) →
-    // limpiar el documento huérfano y regenerar desde cero.
-    if (genDoc.pdfUrl == null) {
-      await this.generatedDocumentsService.remove(tenantId, genDoc.id);
-      try {
-        await this.contractsService.generateDocument(
-          tenantId,
-          userId,
-          contrato.id,
-        );
-      } catch (error) {
-        if (error instanceof ConflictException) {
-          this.logger.log(
-            `Contrato ${contrato.id}: GeneratedDocument ya creado por otro proceso, omitiendo`,
-          );
-          return;
-        }
-        throw error;
-      }
-      return;
-    }
-
-    // pdfUrl != null → comprobar expediente.
-    const expediente = await this.prisma.expedienteDoc.findFirst({
-      where: { tenantId, generatedDocumentId: genDoc.id },
-      select: { id: true },
-    });
-
-    // S3: ExpedienteDoc presente → ya procesado, skip.
-    if (expediente) {
-      return;
-    }
-
-    // S4: pdfUrl != null pero ExpedienteDoc ausente → reparar SIN regenerar PDF.
-    try {
-      await this.expedienteDocsService.createFromGeneratedDoc(
-        tenantId,
-        genDoc.id,
-        genDoc.employeeId,
-        genDoc.nombre,
-        genDoc.tipo,
-        undefined,
-        genDoc.contratoId,
-      );
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        this.logger.log(
-          `GenDoc ${genDoc.id}: ExpedienteDoc ya creado por otro proceso, omitiendo`,
-        );
-        return;
-      }
-      throw error;
-    }
+    const { document } = await this.contractsService.ensureGeneratedDocument(
+      tenantId,
+      contrato.id,
+      templateId,
+    );
+    await this.generatedDocumentsService.materializePdf(tenantId, document.id);
+    await this.expedienteDocsService.publishGeneratedDocument(
+      tenantId,
+      userId,
+      document.id,
+    );
   }
 
   /**
