@@ -1,4 +1,6 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -16,6 +18,7 @@ export class DocumentResolutionController {
   }
 
   @Post('confirm')
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   confirm(@Body() dto: DocumentResolutionPreviewDto) {
     return this.service.confirm(dto);
   }

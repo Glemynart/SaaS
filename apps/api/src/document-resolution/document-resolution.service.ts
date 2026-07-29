@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { DocumentTemplateType } from '@prisma/client';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { DocumentResolutionPreviewDto } from './dto/document-resolution-preview.dto';
 
@@ -23,6 +24,11 @@ export class DocumentResolutionService {
 
   async confirm(dto: DocumentResolutionPreviewDto) {
     return this.tenantPrisma.execute(async (prisma, context) => {
+      const existingPlans = await prisma.batchDocumentGenerationPlan.findMany({
+        where: { tenantId: context.tenantId, loteId: dto.loteId },
+      });
+      if (existingPlans.length > 0) return existingPlans;
+
       const results = await this.resolve(dto);
       const blocked = results.find((result) => result.estado === 'BLOQUEADO');
       if (blocked) {
@@ -55,7 +61,7 @@ export class DocumentResolutionService {
               loteId_empleadoId_tipoDocumental: {
                 loteId: dto.loteId,
                 empleadoId: result.empleado.id,
-                tipoDocumental: result.tipoDocumental as never,
+                tipoDocumental: result.tipoDocumental,
               },
             },
             update: {},
@@ -63,7 +69,7 @@ export class DocumentResolutionService {
               tenantId: context.tenantId,
               loteId: dto.loteId,
               empleadoId: result.empleado.id,
-              tipoDocumental: result.tipoDocumental as never,
+              tipoDocumental: result.tipoDocumental,
               fechaProceso: at,
               vinculoLaboralId: internal.relationship.id,
               perfilContractualId: internal.relationship.perfilContractualId,
@@ -75,12 +81,7 @@ export class DocumentResolutionService {
                 vigenteDesde: internal.configuration.vigenteDesde,
                 vigenteHasta: internal.configuration.vigenteHasta,
               },
-              plantillaSnapshot: {
-                id: internal.configuration.plantilla.id,
-                nombre: internal.configuration.plantilla.nombre,
-                versionEfectiva:
-                  internal.configuration.plantilla.updatedAt.toISOString(),
-              },
+              plantillaSnapshot: internal.configuration.plantilla,
               motivoResolucion: 'PERFIL_TIPO_DOCUMENTAL_PLANTILLA_VIGENTE',
               resueltoAt: at,
             },
@@ -191,7 +192,7 @@ export class DocumentResolutionService {
       string,
       { plantilla: { id: string; nombre: string }; id: string }
     >,
-    tipoDocumental: string,
+    tipoDocumental: DocumentTemplateType,
   ) {
     const base = {
       empleado: employee ?? { id: employeeId },
