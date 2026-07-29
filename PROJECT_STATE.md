@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: Security Hardening v2, Accounting v1, Contratos Documentales (Fase 6C) y Certificaciones Laborales (Fase 7) completados y fusionados a `main` (2026-07-28)
+## Última actualización: Security Hardening v3 completada (2026-07-29)
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -93,6 +93,7 @@ Estado actual:
 
 Hitos recientes fusionados a `main`:
 
+- ✅ Security Hardening v3.
 - ✅ Security Hardening v2 — PR #64.
 - ✅ Accounting v1.
 - ✅ Fase 6C — Contratos Documentales — PR #65.
@@ -1921,10 +1922,42 @@ Resumen de cierre:
 
 ---
 
+# Security Hardening v3 — Documentos privados, XSS persistente y autenticación
+
+Estado de la iniciativa:
+
+✅ **COMPLETADA** (2026-07-29).
+
+Implementación:
+
+- ✅ PR1 — Preparación de entrega autenticada de documentos privados (`98f86cb`).
+- ✅ PR2 — Eliminación del acceso público al almacenamiento documental privado (`b219797`).
+- ✅ PR3 — Sanitización centralizada en render del HTML documental persistido (`8524861`).
+- ✅ PR4 — Respuestas homogéneas ante fallos de autenticación (`355e353`).
+
+Resultado:
+
+- Los documentos privados se entregan exclusivamente mediante superficies autenticadas.
+- Los tres sinks documentales renderizan mediante `SafeDocumentHtml`, DOMPurify y una política allowlist centralizada.
+- El contenido persistido, `GeneratedDocument`, `contenidoFinal`, plantillas, PDFs y Storage permanecen sin modificaciones.
+- Tenant inexistente o inactivo, usuario inexistente o inactivo y contraseña incorrecta exponen una respuesta homogénea al cliente.
+- El login exitoso, JWT, refresh token, logout, permisos, autorización, multiempresa y throttling conservan su comportamiento.
+- Logging interno y trazabilidad de auditoría se mantienen.
+
+Validación de cierre:
+
+- Pruebas de entrega documental privada y autenticación aprobadas.
+- Sanitización documental: 19/19 pruebas aprobadas.
+- Lint y typecheck aprobados.
+- El build web permanece condicionado por la disponibilidad externa de Google Fonts para descargar Geist y Geist Mono.
+
+---
+
 # <a name="roadmap-futuro"></a>Roadmap Futuro
 
 Hitos cerrados recientemente:
 
+- ✅ Security Hardening v3 — documentos privados, XSS persistente y autenticación homogénea.
 - ✅ Security Hardening v2 — headers, frontera tenant-aware y RLS piloto.
 - ✅ Accounting v1 — Ledger, reporting, cierre contable e integración explícita con Payroll.
 
