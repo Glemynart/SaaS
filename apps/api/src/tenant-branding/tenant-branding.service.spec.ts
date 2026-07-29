@@ -118,6 +118,27 @@ describe('TenantBrandingService', () => {
     );
   });
 
+  it('lee un logo público mediante StorageService', async () => {
+    const body = Buffer.from('logo público');
+    mockGetObject.mockResolvedValue(body);
+
+    await expect(service.getLogo('t1-logo.png')).resolves.toEqual({
+      body,
+      contentType: 'image/png',
+    });
+    expect(mockGetObject).toHaveBeenCalledWith('logos/t1-logo.png');
+  });
+
+  it('no expone un logo inexistente', async () => {
+    mockGetObject.mockRejectedValue(
+      new StorageObjectNotFoundError('logos/missing.png'),
+    );
+
+    await expect(service.getLogo('missing.png')).rejects.toThrow(
+      'Logo no encontrado',
+    );
+  });
+
   it('el código fuente no contiene escrituras directas a fs', () => {
     const src = fs.readFileSync(
       join(__dirname, 'tenant-branding.service.ts'),

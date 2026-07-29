@@ -23,7 +23,6 @@ describe('production HTTP bootstrap composition', () => {
   const originalAllowedOrigins = process.env.ALLOWED_ORIGINS;
   const app = {
     useGlobalPipes: jest.fn(),
-    useStaticAssets: jest.fn(),
     enableCors: jest.fn(),
     listen: jest.fn(),
   };
@@ -56,10 +55,6 @@ describe('production HTTP bootstrap composition', () => {
       expect.any(Function),
     );
     expect(app.useGlobalPipes).toHaveBeenCalledTimes(1);
-    expect(app.useStaticAssets).toHaveBeenCalledWith(
-      expect.stringMatching(/[\\/]uploads[\\/]logos$/),
-      { prefix: '/uploads/logos/' },
-    );
     expect(app.enableCors).toHaveBeenCalledWith({
       origin: ['https://tenant-a.example', 'http://localhost:3000'],
       credentials: true,
