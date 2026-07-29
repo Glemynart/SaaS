@@ -9,6 +9,11 @@ export class DocumentResolutionService {
   constructor(private readonly tenantPrisma: TenantPrismaService) {}
 
   async preview(dto: DocumentResolutionPreviewDto) {
+    const results = await this.resolve(dto);
+    return results.map(({ internal, ...preview }) => preview);
+  }
+
+  async resolve(dto: DocumentResolutionPreviewDto) {
     const at = dto.fechaProceso ? new Date(dto.fechaProceso) : new Date();
     return this.tenantPrisma.execute(async (prisma, context) => {
       const lote = await prisma.loteContrato.findFirst({
@@ -76,7 +81,7 @@ export class DocumentResolutionService {
         ]),
       );
       return employeeIds.map((employeeId) =>
-        this.resolve(
+        this.resolveEmployee(
           employeeId,
           employeeById.get(employeeId),
           relationshipByEmployee.get(employeeId),
@@ -87,7 +92,7 @@ export class DocumentResolutionService {
     });
   }
 
-  private resolve(
+  private resolveEmployee(
     employeeId: string,
     employee:
       | { id: string; primerNombre: string; primerApellido: string }
@@ -122,6 +127,7 @@ export class DocumentResolutionService {
         : null,
       tipoDocumental,
       plantillaSeleccionada: null as { id: string; nombre: string } | null,
+      internal: { relationship, configuration: null as unknown },
     };
     if (!employee)
       return {
@@ -146,6 +152,7 @@ export class DocumentResolutionService {
       };
     return {
       ...base,
+      internal: { relationship, configuration },
       plantillaSeleccionada: configuration.plantilla,
       estado: 'RESUELTO',
       motivoBloqueo: null,
