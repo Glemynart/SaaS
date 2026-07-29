@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { DocumentResolutionPreviewDto } from './dto/document-resolution-preview.dto';
 
@@ -11,6 +16,69 @@ export class DocumentResolutionService {
   async preview(dto: DocumentResolutionPreviewDto) {
     const results = await this.resolve(dto);
     return results.map(({ internal, ...preview }) => preview);
+  }
+
+  async confirm(dto: DocumentResolutionPreviewDto) {
+    return this.tenantPrisma.execute(async (prisma, context) => {
+      const results = await this.resolve(dto);
+      const blocked = results.find((result) => result.estado === 'BLOQUEADO');
+      if (blocked) {
+        throw new BadRequestException({
+          message:
+            'La confirmación fue cancelada por una resolución bloqueada.',
+          motivo: blocked.motivoBloqueo,
+        });
+      }
+
+      const at = dto.fechaProceso ? new Date(dto.fechaProceso) : new Date();
+      const plans = await Promise.all(
+        results.map((result) => {
+          const internal = result.internal as {
+            relationship: {
+              id: string;
+              perfilContractualId: string;
+              perfilContractual: { id: string; codigo: string; nombre: string };
+            };
+            configuration: {
+              id: string;
+              vigenteDesde: Date;
+              vigenteHasta: Date | null;
+              plantillaId: string;
+              plantilla: { id: string; nombre: string; updatedAt: Date };
+            };
+          };
+          return prisma.batchDocumentGenerationPlan.create({
+            data: {
+              tenantId: context.tenantId,
+              loteId: dto.loteId,
+              empleadoId: result.empleado.id,
+              tipoDocumental: result.tipoDocumental as never,
+              fechaProceso: at,
+              vinculoLaboralId: internal.relationship.id,
+              perfilContractualId: internal.relationship.perfilContractualId,
+              configuracionDocumentalPerfilId: internal.configuration.id,
+              plantillaId: internal.configuration.plantillaId,
+              perfilSnapshot: internal.relationship
+                .perfilContractual as unknown as Prisma.InputJsonValue,
+              configuracionSnapshot: {
+                id: internal.configuration.id,
+                vigenteDesde: internal.configuration.vigenteDesde,
+                vigenteHasta: internal.configuration.vigenteHasta,
+              } as unknown as Prisma.InputJsonValue,
+              plantillaSnapshot: {
+                id: internal.configuration.plantilla.id,
+                nombre: internal.configuration.plantilla.nombre,
+                versionEfectiva:
+                  internal.configuration.plantilla.updatedAt.toISOString(),
+              } as unknown as Prisma.InputJsonValue,
+              motivoResolucion: 'PERFIL_TIPO_DOCUMENTAL_PLANTILLA_VIGENTE',
+              resueltoAt: at,
+            },
+          });
+        }),
+      );
+      return plans;
+    });
   }
 
   async resolve(dto: DocumentResolutionPreviewDto) {
