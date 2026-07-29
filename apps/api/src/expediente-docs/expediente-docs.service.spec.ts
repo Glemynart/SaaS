@@ -167,6 +167,7 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
         pdfStorageKey: 'pdfs/tenant-001-generated-document-001.pdf',
         pdfSizeBytes: 1234,
         pdfUrl: '/uploads/pdfs/tenant-001-generated-document-001.pdf',
+        estado: 'MATERIALIZADO',
       },
     });
     expect(mockAuditLog).toHaveBeenCalledWith(
@@ -425,6 +426,7 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
       pdfStorageKey: materialization.pdfStorageKey,
       pdfSizeBytes: materialization.pdfSizeBytes,
       pdfUrl: materialization.pdfUrl,
+      estado: 'MATERIALIZADO',
     });
     expect(persistedExpediente).toEqual({ id: 'expediente-001' });
   });

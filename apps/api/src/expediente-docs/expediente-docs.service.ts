@@ -193,7 +193,12 @@ export class ExpedienteDocsService {
 
         await tx.generatedDocument.update({
           where: { id: generatedDocument.id },
-          data: { pdfStorageKey, pdfSizeBytes, pdfUrl },
+          data: {
+            pdfStorageKey,
+            pdfSizeBytes,
+            pdfUrl,
+            estado: 'MATERIALIZADO',
+          },
         });
 
         const expedienteDoc = await tx.expedienteDoc.create({

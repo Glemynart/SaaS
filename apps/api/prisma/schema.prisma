@@ -515,6 +515,13 @@ enum BatchDocumentGenerationPlanStatus {
   ANULADO
 }
 
+enum GeneratedDocumentStatus {
+  PENDIENTE_MATERIALIZACION
+  MATERIALIZADO
+  FALLIDO
+  LEGADO_NO_VERIFICADO
+}
+
 // =============================================================================
 // DOCUMENT TEMPLATE — Plantilla base del motor documental (Fase 1)
 // =============================================================================
@@ -591,6 +598,7 @@ model GeneratedDocument {
   pdfSizeBytes  Int?
   pdfUrl        String?
   tipo           DocumentTemplateType
+  estado         GeneratedDocumentStatus @default(PENDIENTE_MATERIALIZACION)
 
   // Relaciones
   expedienteDocs ExpedienteDoc[]
@@ -598,6 +606,7 @@ model GeneratedDocument {
   @@index([tenantId])
   @@index([tenantId, employeeId])
   @@index([tenantId, tipo])
+  @@index([tenantId, estado])
   @@index([tenantId, createdAt])
   @@index([tenantId, contratoId])
   @@map("generated_documents")

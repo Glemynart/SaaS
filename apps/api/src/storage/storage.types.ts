@@ -53,3 +53,19 @@ export class InvalidStorageKeyError extends Error {
     this.name = 'InvalidStorageKeyError';
   }
 }
+
+/** Se lanza cuando se intenta usar R2 antes de habilitar transferencias reales. */
+export class CloudflareR2StorageUnavailableError extends Error {
+  constructor(reason: string) {
+    super(`Cloudflare R2 no está disponible: ${reason}`);
+    this.name = 'CloudflareR2StorageUnavailableError';
+  }
+}
+
+/** Se lanza cuando el proveedor configurado no corresponde a un binding conocido. */
+export class UnknownStorageProviderError extends Error {
+  constructor(provider: string) {
+    super(`Proveedor de almacenamiento desconocido: ${provider}`);
+    this.name = 'UnknownStorageProviderError';
+  }
+}

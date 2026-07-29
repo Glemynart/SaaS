@@ -361,7 +361,15 @@ describe('GeneratedDocumentsService.generatePdf', () => {
     expect(arg.contentType).toBe('application/pdf');
     expect(Buffer.isBuffer(arg.body)).toBe(true);
     expect(result.pdfUrl).toBe('/uploads/pdfs/t1-d1.pdf');
-    expect(mockGeneratedDocumentUpdate).not.toHaveBeenCalled();
+    expect(mockGeneratedDocumentUpdate).toHaveBeenCalledWith({
+      where: { id: 'd1' },
+      data: {
+        pdfStorageKey: 'pdfs/t1-d1.pdf',
+        pdfSizeBytes: 9,
+        pdfUrl: '/uploads/pdfs/t1-d1.pdf',
+        estado: 'MATERIALIZADO',
+      },
+    });
     expect(mockCreateFromGeneratedDoc).not.toHaveBeenCalled();
     expect(mockPublishGeneratedDocument).toHaveBeenCalledWith(
       't1',
@@ -473,7 +481,15 @@ describe('GeneratedDocumentsService.generatePdf', () => {
           contentType: 'application/pdf',
         }),
       );
-      expect(mockGeneratedDocumentUpdate).not.toHaveBeenCalled();
+      expect(mockGeneratedDocumentUpdate).toHaveBeenCalledWith({
+        where: { id: 'd1' },
+        data: {
+          pdfStorageKey: 'pdfs/t1-d1.pdf',
+          pdfSizeBytes: 9,
+          pdfUrl: '/uploads/pdfs/t1-d1.pdf',
+          estado: 'MATERIALIZADO',
+        },
+      });
       expect(result).toEqual({
         id: 'd1',
         pdfStorageKey: 'pdfs/t1-d1.pdf',
@@ -502,6 +518,15 @@ describe('GeneratedDocumentsService.generatePdf', () => {
       expect(mockRenderPdf).not.toHaveBeenCalled();
       expect(mockPutObject).not.toHaveBeenCalled();
       expect(mockGetObject).toHaveBeenCalledWith('pdfs/t1-d1.pdf');
+      expect(mockGeneratedDocumentUpdate).toHaveBeenCalledWith({
+        where: { id: 'd1' },
+        data: {
+          pdfStorageKey: 'pdfs/t1-d1.pdf',
+          pdfSizeBytes: Buffer.byteLength('PDF existente'),
+          pdfUrl: '/uploads/pdfs/t1-d1.pdf',
+          estado: 'MATERIALIZADO',
+        },
+      });
       expect(result).toMatchObject({
         pdfSizeBytes: Buffer.byteLength('PDF existente'),
         materialized: false,
@@ -526,7 +551,7 @@ describe('GeneratedDocumentsService.generatePdf', () => {
       expect(second).toEqual(first);
       expect(mockRenderPdf).not.toHaveBeenCalled();
       expect(mockPutObject).not.toHaveBeenCalled();
-      expect(mockGeneratedDocumentUpdate).not.toHaveBeenCalled();
+      expect(mockGeneratedDocumentUpdate).toHaveBeenCalledTimes(2);
     });
 
     it('devuelve metadata canónica desde el artefacto físico sin persistirla', async () => {
@@ -544,7 +569,15 @@ describe('GeneratedDocumentsService.generatePdf', () => {
       const result = await service.materializePdf('t1', 'd1');
 
       expect(mockRenderPdf).not.toHaveBeenCalled();
-      expect(mockGeneratedDocumentUpdate).not.toHaveBeenCalled();
+      expect(mockGeneratedDocumentUpdate).toHaveBeenCalledWith({
+        where: { id: 'd1' },
+        data: {
+          pdfStorageKey: 'pdfs/t1-d1.pdf',
+          pdfSizeBytes: Buffer.byteLength('PDF canónico'),
+          pdfUrl: '/uploads/pdfs/t1-d1.pdf',
+          estado: 'MATERIALIZADO',
+        },
+      });
       expect(result).toMatchObject({
         pdfStorageKey: 'pdfs/t1-d1.pdf',
         pdfSizeBytes: Buffer.byteLength('PDF canónico'),
@@ -573,6 +606,7 @@ describe('GeneratedDocumentsService.generatePdf', () => {
         pdfStorageKey: 'pdfs/t1-d1.pdf',
         pdfSizeBytes: Buffer.byteLength('PDF existente'),
         pdfUrl: '/uploads/pdfs/t1-d1.pdf',
+        estado: 'MATERIALIZADO',
       });
       mockObjectExists.mockResolvedValue(true);
       mockGetObject.mockResolvedValue(Buffer.from('PDF existente'));
