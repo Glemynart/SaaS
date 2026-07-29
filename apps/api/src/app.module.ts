@@ -28,6 +28,10 @@ import { AccountingModule } from './accounting/accounting.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { TenantContextModule } from './tenant-context/tenant-context.module';
 import { TenantPrismaModule } from './tenant-prisma/tenant-prisma.module';
+import { ContractualProfilesModule } from './contractual-profiles/contractual-profiles.module';
+import { LaborRelationshipsModule } from './labor-relationships/labor-relationships.module';
+import { DocumentProfileConfigurationsModule } from './document-profile-configurations/document-profile-configurations.module';
+import { DocumentResolutionModule } from './document-resolution/document-resolution.module';
 
 @Module({
   imports: [
@@ -57,6 +61,10 @@ import { TenantPrismaModule } from './tenant-prisma/tenant-prisma.module';
     AccountingModule,
     TenantContextModule,
     TenantPrismaModule,
+    ContractualProfilesModule,
+    LaborRelationshipsModule,
+    DocumentProfileConfigurationsModule,
+    DocumentResolutionModule,
     ThrottlerModule.forRoot([
       {
         name: 'login',

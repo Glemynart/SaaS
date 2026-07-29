@@ -268,6 +268,10 @@ model Tenant {
   productServices    ProductService[]
   invoices           Invoice[]
   contratos          Contrato[]
+  perfilesContractuales PerfilContractual[]
+  configuracionesDocumentalesPerfil ConfiguracionDocumentalPerfil[]
+  batchDocumentGenerationPlans BatchDocumentGenerationPlan[]
+  vinculosLaborales  VinculoLaboral[]
   lotes              LoteContrato[]
   expedientes        ExpedienteDoc[]
   alertas            Alerta[]
@@ -438,6 +442,8 @@ model Empleado {
 
   // Relaciones
   contratos          Contrato[]
+  batchDocumentGenerationPlans BatchDocumentGenerationPlan[]
+  vinculosLaborales  VinculoLaboral[]
   generatedDocuments GeneratedDocument[]
   alerts             Alert[]
   payrollRuns        PayrollRun[]
@@ -503,6 +509,12 @@ enum DocumentTemplateType {
   MEMO
 }
 
+enum BatchDocumentGenerationPlanStatus {
+  CONFIRMADO
+  CONSUMIDO
+  ANULADO
+}
+
 // =============================================================================
 // DOCUMENT TEMPLATE — Plantilla base del motor documental (Fase 1)
 // =============================================================================
@@ -533,6 +545,7 @@ model DocumentTemplate {
   // Relaciones
   generatedDocuments GeneratedDocument[]
   lotes              LoteContrato[]
+  configuracionesDocumentalesPerfil ConfiguracionDocumentalPerfil[]
 
   @@index([tenantId])
   @@index([tenantId, tipo])
@@ -1286,6 +1299,11 @@ model Contrato {
   sedeId String?
   sede   Sede?   @relation(fields: [sedeId], references: [id])
 
+  // Clasificación contractual explícita. Es opcional durante la adopción y no
+  // participa aún en la generación ni en el procesamiento de lotes.
+  perfilContractualId String?
+  perfilContractual   PerfilContractual? @relation(fields: [perfilContractualId], references: [id], onDelete: Restrict)
+
   // Auto-referencia: contrato anterior que este contrato renueva
   contratoRenovaId String?
   contratoRenova   Contrato?  @relation("ContratoRenovacion", fields: [contratoRenovaId], references: [id])
@@ -1324,8 +1342,128 @@ model Contrato {
   @@index([tenantId, loteId])
   @@index([tenantId, tipo])
   @@index([tenantId, sedeId])
+  @@index([tenantId, perfilContractualId])
   @@unique([loteId, empleadoId])
   @@map("contratos")
+}
+
+// =============================================================================
+// PERFIL CONTRACTUAL — Catálogo administrable por tenant
+// =============================================================================
+// Clasifica explícitamente un vínculo contractual sin depender de Cargo. La
+// relación con documentos se incorpora en una fase posterior; este catálogo no
+// participa en la generación, selección de plantillas ni procesamiento actual.
+// =============================================================================
+
+model PerfilContractual {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  codigo      String
+  nombre      String
+  descripcion String?
+  activo      Boolean @default(true)
+
+  contratos        Contrato[]
+  vinculosLaborales VinculoLaboral[]
+  configuracionesDocumentales ConfiguracionDocumentalPerfil[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, activo])
+  @@index([tenantId, nombre])
+  @@map("perfiles_contractuales")
+}
+
+// =============================================================================
+// VINCULO LABORAL — Fuente precontractual del perfil contractual
+// =============================================================================
+// Representa la clasificación vigente del proceso laboral de un empleado antes
+// de generar un contrato. No reemplaza el snapshot histórico del contrato ni
+// participa todavía en la generación documental o en los lotes.
+// =============================================================================
+
+model VinculoLaboral {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  empleadoId String
+  empleado   Empleado @relation(fields: [empleadoId], references: [id], onDelete: Restrict)
+
+  perfilContractualId String
+  perfilContractual   PerfilContractual @relation(fields: [perfilContractualId], references: [id], onDelete: Restrict)
+
+  vigenteDesde DateTime  @db.Date
+  vigenteHasta DateTime? @db.Date
+  activo        Boolean  @default(true)
+
+  @@index([tenantId, empleadoId, activo])
+  @@index([tenantId, perfilContractualId])
+  @@map("vinculos_laborales")
+}
+
+// Configuración pre-resolución. No se consulta todavía durante la generación.
+model ConfiguracionDocumentalPerfil {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  perfilContractualId String
+  perfilContractual   PerfilContractual @relation(fields: [perfilContractualId], references: [id], onDelete: Restrict)
+
+  tipoDocumental DocumentTemplateType
+
+  plantillaId String
+  plantilla   DocumentTemplate @relation(fields: [plantillaId], references: [id], onDelete: Restrict)
+
+  vigenteDesde DateTime  @db.Date
+  vigenteHasta DateTime? @db.Date
+  activo        Boolean  @default(true)
+
+  @@index([tenantId, perfilContractualId, tipoDocumental, activo])
+  @@index([tenantId, plantillaId])
+  @@map("configuraciones_documentales_perfil")
+}
+
+model BatchDocumentGenerationPlan {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  loteId   String
+  lote     LoteContrato @relation(fields: [loteId], references: [id], onDelete: Restrict)
+  empleadoId String
+  empleado   Empleado @relation(fields: [empleadoId], references: [id], onDelete: Restrict)
+  tipoDocumental DocumentTemplateType
+  fechaProceso DateTime @db.Date
+  confirmadoAt DateTime @default(now())
+  vinculoLaboralId String
+  perfilContractualId String
+  configuracionDocumentalPerfilId String
+  plantillaId String
+  perfilSnapshot Json
+  configuracionSnapshot Json
+  plantillaSnapshot Json
+  motivoResolucion String
+  formatoVersion Int @default(1)
+  resueltoAt DateTime
+  estado BatchDocumentGenerationPlanStatus @default(CONFIRMADO)
+
+  @@unique([loteId, empleadoId, tipoDocumental])
+  @@index([tenantId, loteId, estado])
+  @@map("batch_document_generation_plans")
 }
 
 // =============================================================================
@@ -1379,6 +1517,7 @@ model LoteContrato {
 
   // Relaciones
   contratos Contrato[]
+  batchDocumentGenerationPlans BatchDocumentGenerationPlan[]
 
   @@index([tenantId, estado])
   @@index([tenantId, createdAt])

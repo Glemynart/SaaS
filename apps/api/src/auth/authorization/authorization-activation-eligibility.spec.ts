@@ -22,7 +22,7 @@ describe('AuthorizationActivationEligibilityEvaluator', () => {
 
     expect(eligibility).toEqual({
       eligible: true,
-      operationCount: 141,
+      operationCount: 157,
       checks: {
         noLegacyInferred: true,
         noOperationsWithoutPolicy: true,
@@ -100,7 +100,10 @@ describe('AuthorizationActivationEligibilityEvaluator', () => {
 
 function surfaceReader(operations: AuthorizationOperationClassification[]) {
   return {
-    classifyModuleGraph: (_rootModule: Type<unknown>) => operations,
+    classifyModuleGraph: (_rootModule: Type<unknown>) => {
+      void _rootModule;
+      return operations;
+    },
   };
 }
 

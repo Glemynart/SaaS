@@ -50,6 +50,14 @@ const LOTE_ID = 'lote-001';
 const USER_ID = 'user-001';
 const TEMPLATE_ID = 'template-frozen-001';
 
+function objectContaining<T extends object>(expected: T): T {
+  return expect.objectContaining(expected) as T;
+}
+
+function anyDate(): Date {
+  return expect.any(Date) as Date;
+}
+
 function makeLote(overrides: Record<string, unknown> = {}) {
   return {
     id: LOTE_ID,
@@ -163,6 +171,145 @@ describe('LoteEngineService', () => {
   });
 
   describe('procesarLote', () => {
+    it('procesa una sola vez cada empleado del snapshot y completa el lote cuando todos tienen éxito', async () => {
+      mockLoteFindUnique.mockResolvedValue(
+        makeLote({
+          configuracion: {
+            empleadoIds: ['emp-001', 'emp-001', 'emp-002'],
+          },
+        }),
+      );
+      mockContratoFindFirst.mockImplementation(
+        ({ where }: { where: { empleadoId: string } }) =>
+          Promise.resolve({
+            id: `contrato-${where.empleadoId}`,
+            empleadoId: where.empleadoId,
+          }),
+      );
+      mockEnsureGeneratedDocument.mockImplementation(
+        (_tenantId: string, contratoId: string) =>
+          Promise.resolve({
+            outcome: 'EXISTING',
+            document: { id: `gendoc-${contratoId}` },
+          }),
+      );
+      mockMaterializePdf.mockImplementation(
+        (_tenantId: string, documentId: string) =>
+          Promise.resolve({ id: documentId }),
+      );
+
+      await service.procesarLote(LOTE_ID);
+
+      expect(mockLoteUpdateMany).toHaveBeenCalledWith(
+        objectContaining({
+          data: objectContaining({
+            estado: 'EN_PROCESO',
+            total: 2,
+            procesados: 0,
+            fallidos: 0,
+            erroresLog: [],
+          }),
+        }),
+      );
+      expect(mockEnsureGeneratedDocument).toHaveBeenNthCalledWith(
+        1,
+        TENANT_ID,
+        'contrato-emp-001',
+        TEMPLATE_ID,
+      );
+      expect(mockEnsureGeneratedDocument).toHaveBeenNthCalledWith(
+        2,
+        TENANT_ID,
+        'contrato-emp-002',
+        TEMPLATE_ID,
+      );
+      expect(mockEnsureGeneratedDocument).toHaveBeenCalledTimes(2);
+
+      expect(mockLoteUpdate).toHaveBeenLastCalledWith(
+        objectContaining({
+          data: objectContaining({
+            estado: 'COMPLETADO',
+            erroresLog: [],
+            completadoAt: anyDate(),
+          }),
+        }),
+      );
+    });
+
+    it('conserva los éxitos y finaliza con errores detallados cuando solo una parte del lote falla', async () => {
+      mockLoteFindUnique.mockResolvedValue(
+        makeLote({ configuracion: { empleadoIds: ['emp-001', 'emp-002'] } }),
+      );
+      mockContratoFindFirst.mockImplementation(
+        ({ where }: { where: { empleadoId: string } }) =>
+          Promise.resolve({
+            id: `contrato-${where.empleadoId}`,
+            empleadoId: where.empleadoId,
+          }),
+      );
+      mockEnsureGeneratedDocument.mockImplementation(
+        (_tenantId: string, contratoId: string) => {
+          if (contratoId === 'contrato-emp-002') {
+            return Promise.reject(new Error('Plantilla inválida'));
+          }
+          return Promise.resolve({
+            outcome: 'EXISTING',
+            document: { id: 'gendoc-001' },
+          });
+        },
+      );
+      mockEmpleadoFindFirst.mockResolvedValue({ cedula: '222' });
+
+      await service.procesarLote(LOTE_ID);
+
+      expect(mockMaterializePdf).toHaveBeenCalledTimes(1);
+      expect(mockPublishGeneratedDocument).toHaveBeenCalledTimes(1);
+      expect(mockLoteUpdate).toHaveBeenLastCalledWith(
+        objectContaining({
+          data: objectContaining({
+            estado: 'COMPLETADO_CON_ERRORES',
+            erroresLog: [
+              {
+                empleadoId: 'emp-002',
+                cedula: '222',
+                error: 'Plantilla inválida',
+              },
+            ],
+          }),
+        }),
+      );
+    });
+
+    it('reprocesa un lote completado sin crear otro contrato y repite solo las etapas idempotentes', async () => {
+      mockLoteFindUnique.mockResolvedValue(makeLote({ estado: 'COMPLETADO' }));
+      mockContratoFindFirst.mockResolvedValue({
+        id: 'contrato-001',
+        empleadoId: 'emp-001',
+      });
+      mockEnsureGeneratedDocument.mockResolvedValue({
+        outcome: 'EXISTING',
+        document: { id: 'gendoc-001' },
+      });
+      mockMaterializePdf.mockResolvedValue({ id: 'gendoc-001' });
+      mockPublishGeneratedDocument.mockResolvedValue({ outcome: 'EXISTING' });
+
+      await service.procesarLote(LOTE_ID);
+      await service.procesarLote(LOTE_ID);
+
+      expect(mockContractsCreate).not.toHaveBeenCalled();
+      expect(mockEnsureGeneratedDocument).toHaveBeenCalledTimes(2);
+      expect(mockMaterializePdf).toHaveBeenCalledTimes(2);
+      expect(mockPublishGeneratedDocument).toHaveBeenCalledTimes(2);
+      expect(mockLoteUpdate).toHaveBeenLastCalledWith(
+        objectContaining({
+          data: objectContaining({
+            estado: 'COMPLETADO',
+            erroresLog: [],
+          }),
+        }),
+      );
+    });
+
     it('permite que un solo proceso adquiera el lote concurrente', async () => {
       const pending = makeLote();
       mockLoteFindUnique
