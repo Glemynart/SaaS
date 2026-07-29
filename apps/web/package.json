@@ -7,6 +7,7 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
+    "test": "pnpm --dir ../api exec jest --config ../web/jest.config.mjs --runInBand",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -20,6 +21,7 @@
     "@tiptap/starter-kit": "^3.26.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "isomorphic-dompurify": "^2.24.0",
     "lucide-react": "^1.18.0",
     "next": "15.5.19",
     "react": "19.1.0",

@@ -6,6 +6,7 @@ const appDir = dirname(fileURLToPath(import.meta.url));
 const workspaceDir = resolve(appDir, '../..');
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ['isomorphic-dompurify'],
   turbopack: {
     root: workspaceDir,
   },

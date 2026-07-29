@@ -623,3 +623,14 @@ input {
   border-top: 1px solid var(--border);
   margin: 1rem 0;
 }
+
+.document-preview [data-document-variable='true'] {
+  display: inline-block;
+  border-radius: 4px;
+  background: var(--color-muted);
+  padding: 0 4px;
+  color: var(--color-primary);
+  font-family: monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
