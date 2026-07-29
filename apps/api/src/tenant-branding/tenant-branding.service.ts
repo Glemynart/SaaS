@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { StorageObjectNotFoundError } from '../storage/storage.types';
 import { UpdateTenantBrandingDto } from './dto/update-tenant-branding.dto';
 import * as path from 'path';
 
@@ -47,6 +48,29 @@ export class TenantBrandingService {
     });
   }
 
+  async getFirma(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { firmaRepresentanteUrl: true },
+    });
+    if (!tenant) throw new NotFoundException('Empresa no encontrada');
+
+    const storageKey = this.getStorageKeyFromPrivateUrl(
+      tenant.firmaRepresentanteUrl,
+    );
+    if (!storageKey) throw new NotFoundException('Firma no configurada');
+
+    try {
+      const body = await this.storage.getObject(storageKey);
+      return { body, contentType: this.getImageContentType(storageKey) };
+    } catch (error) {
+      if (error instanceof StorageObjectNotFoundError) {
+        throw new NotFoundException('Archivo de firma no encontrado');
+      }
+      throw error;
+    }
+  }
+
   async uploadLogo(tenantId: string, originalname: string, buffer: Buffer) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
@@ -85,5 +109,29 @@ export class TenantBrandingService {
       data: { firmaRepresentanteUrl: firmaUrl },
       select: { firmaRepresentanteUrl: true },
     });
+  }
+
+  private getStorageKeyFromPrivateUrl(url: string | null): string | null {
+    const prefix = '/uploads/';
+    if (!url?.startsWith(prefix)) return null;
+
+    const storageKey = url.slice(prefix.length);
+    return storageKey || null;
+  }
+
+  private getImageContentType(storageKey: string): string {
+    switch (path.extname(storageKey).toLowerCase()) {
+      case '.png':
+        return 'image/png';
+      case '.jpg':
+      case '.jpeg':
+        return 'image/jpeg';
+      case '.webp':
+        return 'image/webp';
+      case '.svg':
+        return 'image/svg+xml';
+      default:
+        return 'application/octet-stream';
+    }
   }
 }

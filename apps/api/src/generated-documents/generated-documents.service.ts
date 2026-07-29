@@ -12,6 +12,7 @@ import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
 import { StorageService } from '../storage/storage.service';
+import { StorageObjectNotFoundError } from '../storage/storage.types';
 import { PdfRenderService } from '../pdf-render/pdf-render.service';
 import { formatNombreCompleto } from '@saas/types';
 import { isImmutablePublishedDocumentType } from './document-invariants';
@@ -247,6 +248,43 @@ export class GeneratedDocumentsService {
     }
 
     return doc;
+  }
+
+  async getPdfForDownload(tenantId: string, id: string) {
+    const doc = await this.prisma.generatedDocument.findFirst({
+      where: { id, tenantId },
+      select: {
+        id: true,
+        nombre: true,
+        pdfStorageKey: true,
+        pdfUrl: true,
+      },
+    });
+
+    if (!doc) {
+      throw new NotFoundException('Documento generado no encontrado');
+    }
+    if (!doc.pdfStorageKey && !doc.pdfUrl) {
+      throw new NotFoundException('PDF no generado aún');
+    }
+
+    const candidates = new Set<string>();
+    if (doc.pdfStorageKey) candidates.add(doc.pdfStorageKey);
+    candidates.add(this.getCanonicalPdfStorageKey(tenantId, doc.id));
+
+    const legacyStorageKey = this.getStorageKeyFromLegacyUrl(doc.pdfUrl);
+    if (legacyStorageKey) candidates.add(legacyStorageKey);
+
+    for (const storageKey of candidates) {
+      try {
+        const body = await this.storage.getObject(storageKey);
+        return { nombre: doc.nombre, body };
+      } catch (error) {
+        if (!(error instanceof StorageObjectNotFoundError)) throw error;
+      }
+    }
+
+    throw new NotFoundException('Archivo PDF no encontrado');
   }
 
   async remove(tenantId: string, id: string) {
@@ -514,6 +552,14 @@ export class GeneratedDocumentsService {
 
   private getPdfUrl(storageKey: string): string {
     return `/uploads/${storageKey}`;
+  }
+
+  private getStorageKeyFromLegacyUrl(pdfUrl: string | null): string | null {
+    const prefix = '/uploads/';
+    if (!pdfUrl?.startsWith(prefix)) return null;
+
+    const storageKey = pdfUrl.slice(prefix.length);
+    return storageKey || null;
   }
 
   private replaceVariables(

@@ -12,6 +12,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const backendResponse = await fetch(`${API_URL}/generated-documents/${id}/pdf`, {
       headers: { Authorization: `Bearer ${auth.token}` },
+      cache: 'no-store',
     });
 
     if (!backendResponse.ok) {
@@ -27,6 +28,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `inline`,
+        'Cache-Control': 'private, no-store',
       },
     });
 

@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { NotFoundException } from '@nestjs/common';
 import * as fs from 'fs';
 import { join } from 'path';
 import { GeneratedDocumentsService } from './generated-documents.service';
@@ -7,6 +8,7 @@ import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
 import { StorageService } from '../storage/storage.service';
+import { StorageObjectNotFoundError } from '../storage/storage.types';
 import { PdfRenderService } from '../pdf-render/pdf-render.service';
 
 describe('GeneratedDocumentsService.generatePdf', () => {
@@ -582,6 +584,81 @@ describe('GeneratedDocumentsService.generatePdf', () => {
     });
   });
 
+  describe('getPdfForDownload', () => {
+    it('lee mediante StorageService después de filtrar por tenant', async () => {
+      const body = Buffer.from('PDF privado');
+      mockFindFirst.mockResolvedValue({
+        id: 'd1',
+        nombre: 'Certificación laboral',
+        pdfStorageKey: 'pdfs/t1-d1.pdf',
+        pdfUrl: '/uploads/pdfs/t1-d1.pdf',
+      });
+      mockGetObject.mockResolvedValue(body);
+
+      await expect(service.getPdfForDownload('t1', 'd1')).resolves.toEqual({
+        nombre: 'Certificación laboral',
+        body,
+      });
+      expect(mockFindFirst).toHaveBeenCalledWith({
+        where: { id: 'd1', tenantId: 't1' },
+        select: {
+          id: true,
+          nombre: true,
+          pdfStorageKey: true,
+          pdfUrl: true,
+        },
+      });
+      expect(mockGetObject).toHaveBeenCalledWith('pdfs/t1-d1.pdf');
+    });
+
+    it('no intenta leer almacenamiento cuando el documento no pertenece al tenant', async () => {
+      mockFindFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getPdfForDownload('tenant-otro', 'd1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(mockGetObject).not.toHaveBeenCalled();
+    });
+
+    it('usa la clave canónica como fallback para documentos existentes', async () => {
+      const body = Buffer.from('PDF legado');
+      mockFindFirst.mockResolvedValue({
+        id: 'd1',
+        nombre: 'Documento legado',
+        pdfStorageKey: 'legacy/missing.pdf',
+        pdfUrl: '/uploads/pdfs/t1-d1.pdf',
+      });
+      mockGetObject
+        .mockRejectedValueOnce(
+          new StorageObjectNotFoundError('legacy/missing.pdf'),
+        )
+        .mockResolvedValueOnce(body);
+
+      await expect(service.getPdfForDownload('t1', 'd1')).resolves.toEqual({
+        nombre: 'Documento legado',
+        body,
+      });
+      expect(mockGetObject).toHaveBeenNthCalledWith(1, 'legacy/missing.pdf');
+      expect(mockGetObject).toHaveBeenNthCalledWith(2, 'pdfs/t1-d1.pdf');
+    });
+
+    it('traduce la ausencia del archivo a NotFound', async () => {
+      mockFindFirst.mockResolvedValue({
+        id: 'd1',
+        nombre: 'Documento',
+        pdfStorageKey: null,
+        pdfUrl: '/uploads/pdfs/t1-d1.pdf',
+      });
+      mockGetObject.mockRejectedValue(
+        new StorageObjectNotFoundError('pdfs/t1-d1.pdf'),
+      );
+
+      await expect(service.getPdfForDownload('t1', 'd1')).rejects.toThrow(
+        'Archivo PDF no encontrado',
+      );
+    });
+  });
+
   it('el código fuente no contiene Puppeteer ni escrituras directas a fs', () => {
     const src = fs.readFileSync(
       join(__dirname, 'generated-documents.service.ts'),
@@ -594,5 +671,6 @@ describe('GeneratedDocumentsService.generatePdf', () => {
     expect(src).not.toMatch(/getBrowser/);
     expect(src).toMatch(/pdfRender\.renderPdf/);
     expect(src).toMatch(/storage\.putObject/);
+    expect(src).toMatch(/storage\.getObject/);
   });
 });
