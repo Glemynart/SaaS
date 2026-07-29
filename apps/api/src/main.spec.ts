@@ -57,8 +57,8 @@ describe('production HTTP bootstrap composition', () => {
     );
     expect(app.useGlobalPipes).toHaveBeenCalledTimes(1);
     expect(app.useStaticAssets).toHaveBeenCalledWith(
-      expect.stringMatching(/[\\/]uploads$/),
-      { prefix: '/uploads/' },
+      expect.stringMatching(/[\\/]uploads[\\/]logos$/),
+      { prefix: '/uploads/logos/' },
     );
     expect(app.enableCors).toHaveBeenCalledWith({
       origin: ['https://tenant-a.example', 'http://localhost:3000'],
