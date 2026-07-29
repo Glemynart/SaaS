@@ -269,6 +269,7 @@ model Tenant {
   invoices           Invoice[]
   contratos          Contrato[]
   perfilesContractuales PerfilContractual[]
+  configuracionesDocumentalesPerfil ConfiguracionDocumentalPerfil[]
   vinculosLaborales  VinculoLaboral[]
   lotes              LoteContrato[]
   expedientes        ExpedienteDoc[]
@@ -536,6 +537,7 @@ model DocumentTemplate {
   // Relaciones
   generatedDocuments GeneratedDocument[]
   lotes              LoteContrato[]
+  configuracionesDocumentalesPerfil ConfiguracionDocumentalPerfil[]
 
   @@index([tenantId])
   @@index([tenantId, tipo])
@@ -1360,6 +1362,7 @@ model PerfilContractual {
 
   contratos        Contrato[]
   vinculosLaborales VinculoLaboral[]
+  configuracionesDocumentales ConfiguracionDocumentalPerfil[]
 
   @@unique([tenantId, codigo])
   @@index([tenantId, activo])
@@ -1396,6 +1399,32 @@ model VinculoLaboral {
   @@index([tenantId, empleadoId, activo])
   @@index([tenantId, perfilContractualId])
   @@map("vinculos_laborales")
+}
+
+// Configuración pre-resolución. No se consulta todavía durante la generación.
+model ConfiguracionDocumentalPerfil {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  perfilContractualId String
+  perfilContractual   PerfilContractual @relation(fields: [perfilContractualId], references: [id], onDelete: Restrict)
+
+  tipoDocumental DocumentTemplateType
+
+  plantillaId String
+  plantilla   DocumentTemplate @relation(fields: [plantillaId], references: [id], onDelete: Restrict)
+
+  vigenteDesde DateTime  @db.Date
+  vigenteHasta DateTime? @db.Date
+  activo        Boolean  @default(true)
+
+  @@index([tenantId, perfilContractualId, tipoDocumental, activo])
+  @@index([tenantId, plantillaId])
+  @@map("configuraciones_documentales_perfil")
 }
 
 // =============================================================================

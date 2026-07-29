@@ -9,6 +9,7 @@ const AUTHENTICATED_CONTROLLER_POLICIES = new Set([
   'CuentasContablesController',
   'CuentaSistemaMapController',
   'DaneController',
+  'DocumentProfileConfigurationsController',
   'EmployeesController',
   'ExpedienteDocsController',
   'GeneratedDocumentsController',
