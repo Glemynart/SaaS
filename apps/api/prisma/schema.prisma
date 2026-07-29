@@ -589,6 +589,11 @@ model GeneratedDocument {
   contratoId String?
   contrato   Contrato? @relation(fields: [contratoId], references: [id])
 
+  // Identidad de origen para la generación documental por lote. Se mantiene
+  // en GeneratedDocument para que el plan confirmado no dependa del documento
+  // materializado, pero cada reintento pueda reutilizar su mismo artefacto.
+  batchDocumentGenerationPlanId String? @unique
+
   nombre         String // Nombre del documento generado
   contenidoFinal String // Contenido con variables ya reemplazadas (snapshot inmutable)
   // `pdfStorageKey` identifica el artefacto PDF canónico en el proveedor de

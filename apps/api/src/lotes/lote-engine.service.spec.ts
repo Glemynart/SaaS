@@ -6,6 +6,7 @@ import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.servic
 import { GeneratedDocumentsService } from '../generated-documents/generated-documents.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
+import { BatchDocumentGenerationService } from '../batch-document-generation/batch-document-generation.service';
 import { LoteEngineService } from './lote-engine.service';
 
 const mockLoteFindUnique = jest.fn();
@@ -14,6 +15,7 @@ const mockLoteUpdateMany = jest.fn();
 const mockContratoFindFirst = jest.fn();
 const mockContratoFindMany = jest.fn();
 const mockEmpleadoFindFirst = jest.fn();
+const mockBatchPlanCount = jest.fn();
 const mockPrisma = {
   loteContrato: {
     findUnique: mockLoteFindUnique,
@@ -25,6 +27,7 @@ const mockPrisma = {
     findMany: mockContratoFindMany,
   },
   empleado: { findFirst: mockEmpleadoFindFirst },
+  batchDocumentGenerationPlan: { count: mockBatchPlanCount },
 };
 const mockTenantPrisma = {
   execute: jest.fn((work: (client: typeof mockPrisma) => unknown) =>
@@ -43,6 +46,10 @@ const mockGeneratedDocumentsService = { materializePdf: mockMaterializePdf };
 const mockPublishGeneratedDocument = jest.fn();
 const mockExpedienteDocsService = {
   publishGeneratedDocument: mockPublishGeneratedDocument,
+};
+const mockBatchDocumentGenerationStart = jest.fn();
+const mockBatchDocumentGenerationService = {
+  start: mockBatchDocumentGenerationStart,
 };
 
 const TENANT_ID = 'tenant-001';
@@ -91,6 +98,7 @@ describe('LoteEngineService', () => {
     jest.clearAllMocks();
     mockLoteUpdate.mockImplementation(({ data }) => Promise.resolve(data));
     mockLoteUpdateMany.mockResolvedValue({ count: 1 });
+    mockBatchPlanCount.mockResolvedValue(0);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -103,6 +111,10 @@ describe('LoteEngineService', () => {
           useValue: mockGeneratedDocumentsService,
         },
         { provide: ExpedienteDocsService, useValue: mockExpedienteDocsService },
+        {
+          provide: BatchDocumentGenerationService,
+          useValue: mockBatchDocumentGenerationService,
+        },
       ],
     }).compile();
 
@@ -171,6 +183,61 @@ describe('LoteEngineService', () => {
   });
 
   describe('procesarLote', () => {
+    it('delegates once to the confirmed-plan generation flow after contracts are ensured', async () => {
+      mockBatchPlanCount.mockResolvedValue(1);
+      mockLoteFindUnique.mockResolvedValue(makeLote());
+      mockContratoFindFirst.mockResolvedValue({
+        id: 'contrato-emp-001',
+        empleadoId: 'emp-001',
+      });
+      mockBatchDocumentGenerationStart.mockResolvedValue({
+        loteId: LOTE_ID,
+        total: 1,
+        documents: [],
+      });
+
+      await service.procesarLote(LOTE_ID);
+
+      expect(mockBatchDocumentGenerationStart).toHaveBeenCalledTimes(1);
+      expect(mockBatchDocumentGenerationStart).toHaveBeenCalledWith(LOTE_ID);
+      expect(mockEnsureGeneratedDocument).not.toHaveBeenCalled();
+      expect(
+        mockBatchDocumentGenerationStart.mock.invocationCallOrder[0],
+      ).toBeGreaterThan(mockContratoFindFirst.mock.invocationCallOrder[0]);
+    });
+
+    it('deja el lote reintentable si falla la generación documental basada en planes', async () => {
+      mockBatchPlanCount.mockResolvedValue(1);
+      mockLoteFindUnique.mockResolvedValue(makeLote());
+      mockContratoFindFirst.mockResolvedValue({
+        id: 'contrato-emp-001',
+        empleadoId: 'emp-001',
+      });
+      mockBatchDocumentGenerationStart.mockRejectedValue(
+        new Error('storage falló'),
+      );
+
+      await expect(service.procesarLote(LOTE_ID)).resolves.toMatchObject({
+        estado: 'FALLIDO',
+        procesados: 0,
+        fallidos: 1,
+      });
+
+      expect(mockLoteUpdate).toHaveBeenLastCalledWith(
+        objectContaining({
+          data: objectContaining({
+            estado: 'FALLIDO',
+            erroresLog: [
+              objectContaining({
+                empleadoId: 'BATCH_DOCUMENT_GENERATION',
+                error: 'storage falló',
+              }),
+            ],
+          }),
+        }),
+      );
+    });
+
     it('procesa una sola vez cada empleado del snapshot y completa el lote cuando todos tienen éxito', async () => {
       mockLoteFindUnique.mockResolvedValue(
         makeLote({
@@ -317,7 +384,7 @@ describe('LoteEngineService', () => {
         .mockResolvedValueOnce(pending)
         .mockResolvedValueOnce(makeLote({ estado: 'EN_PROCESO' }));
       let acquired = false;
-      mockLoteUpdateMany.mockImplementation(async () => {
+      mockLoteUpdateMany.mockImplementation(() => {
         if (acquired) return { count: 0 };
         acquired = true;
         return { count: 1 };
@@ -388,8 +455,9 @@ describe('LoteEngineService', () => {
       expect(mockLoteUpdate).toHaveBeenCalledWith(
         expect.objectContaining({ data: { fallidos: { increment: 1 } } }),
       );
-      const finalUpdate = mockLoteUpdate.mock.calls.at(-1)![0];
-      expect(finalUpdate.data.estado).toBe('FALLIDO');
+      expect(mockLoteUpdate).toHaveBeenLastCalledWith(
+        objectContaining({ data: objectContaining({ estado: 'FALLIDO' }) }),
+      );
     });
 
     it('lanza si el lote no existe', async () => {
@@ -419,7 +487,7 @@ describe('LoteEngineService', () => {
       });
       const persistedContracts = new Set<string>();
       mockContractsCreate
-        .mockImplementationOnce(async () => {
+        .mockImplementationOnce(() => {
           persistedContracts.add('contrato-ganador');
           return { id: 'contrato-ganador' };
         })
