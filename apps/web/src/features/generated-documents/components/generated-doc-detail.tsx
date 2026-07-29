@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
+import { SafeDocumentHtml } from '@/components/security/safe-document-html';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { toast } from '@/components/ui/toast';
@@ -173,9 +174,9 @@ export function GeneratedDocDetail() {
         <section className="document-preview mt-4 rounded-[--radius-card] border border-border bg-surface p-8 shadow-[--shadow-card]">
           <h2 className="sr-only">Contenido del documento</h2>
           {/<\/?[a-z][\s\S]*>/i.test(doc.contenidoFinal) ? (
-            <div
+            <SafeDocumentHtml
               className="text-sm leading-relaxed text-foreground"
-              dangerouslySetInnerHTML={{ __html: doc.contenidoFinal }}
+              html={doc.contenidoFinal}
             />
           ) : (
             <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">

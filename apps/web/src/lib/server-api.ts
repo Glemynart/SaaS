@@ -79,6 +79,14 @@ export function jsonError(error: unknown) {
   );
 }
 
+export function loginJsonError(error: unknown) {
+  if (error instanceof BackendError && [400, 401, 403].includes(error.status)) {
+    return NextResponse.json({ message: 'Credenciales inválidas.' }, { status: 401 });
+  }
+
+  return jsonError(error);
+}
+
 export async function refreshAccessToken(request: NextRequest) {
   const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value;
   if (!refreshToken) return null;

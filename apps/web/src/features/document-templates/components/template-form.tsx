@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SafeDocumentHtml } from '@/components/security/safe-document-html';
 import { Select } from '@/components/ui/select';
 import { SideSheet } from '@/components/ui/side-sheet';
 import { RichTextEditor } from './rich-text-editor';
@@ -21,10 +22,7 @@ import type { DocumentTemplate } from '../services/document-templates-api';
 
 function renderHtmlWithVariables(html: string) {
   if (!html) return '<span class="text-muted">Sin contenido</span>';
-  return html.replace(
-    /\{\{([A-Z_]+)\}\}/g,
-    '<span style="display:inline-block;border-radius:4px;background:var(--color-muted);padding:0 4px;font-family:monospace;font-size:0.75rem;font-weight:500;color:var(--color-primary)">{{$1}}</span>',
-  );
+  return html.replace(/\{\{([A-Z_]+)\}\}/g, '<span data-document-variable="true">{{$1}}</span>');
 }
 
 interface TemplateFormProps {
@@ -127,9 +125,9 @@ export function TemplateForm({
             {showPreview ? (
               <div className="document-preview min-h-[16rem] rounded-[--radius-card] border border-border bg-surface p-6 shadow-[--shadow-card]">
                 {contenido ? (
-                  <div
+                  <SafeDocumentHtml
                     className="text-sm leading-relaxed text-foreground"
-                    dangerouslySetInnerHTML={{ __html: renderHtmlWithVariables(contenido) }}
+                    html={renderHtmlWithVariables(contenido)}
                   />
                 ) : (
                   <span className="text-sm italic text-muted-foreground">Sin contenido</span>

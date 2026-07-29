@@ -5,6 +5,7 @@ import { join } from 'path';
 import { TenantBrandingService } from './tenant-branding.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { StorageObjectNotFoundError } from '../storage/storage.types';
 
 describe('TenantBrandingService', () => {
   let service: TenantBrandingService;
@@ -12,6 +13,7 @@ describe('TenantBrandingService', () => {
   const mockTenantFindUnique = jest.fn();
   const mockTenantUpdate = jest.fn();
   const mockPutObject = jest.fn();
+  const mockGetObject = jest.fn();
 
   beforeEach(async () => {
     mockTenantFindUnique.mockReset().mockResolvedValue({ id: 't1' });
@@ -21,6 +23,7 @@ describe('TenantBrandingService', () => {
         Promise.resolve(data),
       );
     mockPutObject.mockReset().mockResolvedValue({ key: 'k', size: 1 });
+    mockGetObject.mockReset();
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -36,7 +39,10 @@ describe('TenantBrandingService', () => {
         },
         {
           provide: StorageService,
-          useValue: { putObject: mockPutObject },
+          useValue: {
+            putObject: mockPutObject,
+            getObject: mockGetObject,
+          },
         },
       ],
     }).compile();
@@ -81,6 +87,37 @@ describe('TenantBrandingService', () => {
     expect(mockPutObject).not.toHaveBeenCalled();
   });
 
+  it('lee la firma privada mediante StorageService', async () => {
+    const body = Buffer.from('firma privada');
+    mockTenantFindUnique.mockResolvedValue({
+      firmaRepresentanteUrl: '/uploads/firmas/t1-firma.png',
+    });
+    mockGetObject.mockResolvedValue(body);
+
+    await expect(service.getFirma('t1')).resolves.toEqual({
+      body,
+      contentType: 'image/png',
+    });
+    expect(mockTenantFindUnique).toHaveBeenCalledWith({
+      where: { id: 't1' },
+      select: { firmaRepresentanteUrl: true },
+    });
+    expect(mockGetObject).toHaveBeenCalledWith('firmas/t1-firma.png');
+  });
+
+  it('no expone una firma inexistente', async () => {
+    mockTenantFindUnique.mockResolvedValue({
+      firmaRepresentanteUrl: '/uploads/firmas/missing.png',
+    });
+    mockGetObject.mockRejectedValue(
+      new StorageObjectNotFoundError('firmas/missing.png'),
+    );
+
+    await expect(service.getFirma('t1')).rejects.toThrow(
+      'Archivo de firma no encontrado',
+    );
+  });
+
   it('el código fuente no contiene escrituras directas a fs', () => {
     const src = fs.readFileSync(
       join(__dirname, 'tenant-branding.service.ts'),
@@ -90,5 +127,6 @@ describe('TenantBrandingService', () => {
       /writeFileSync|writeFile\(|createWriteStream|mkdirSync/,
     );
     expect(src).toMatch(/storage\.putObject/);
+    expect(src).toMatch(/storage\.getObject/);
   });
 });

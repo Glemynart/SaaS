@@ -20,8 +20,8 @@ async function bootstrap() {
     }),
   );
 
-  app.useStaticAssets(join(process.cwd(), '..', '..', 'uploads'), {
-    prefix: '/uploads/',
+  app.useStaticAssets(join(process.cwd(), '..', '..', 'uploads', 'logos'), {
+    prefix: '/uploads/logos/',
   });
 
   const origins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:3000')

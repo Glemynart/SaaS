@@ -8,7 +8,6 @@ import {
   Query,
   Body,
   Res,
-  NotFoundException,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { GeneratedDocumentsService } from './generated-documents.service';
@@ -21,8 +20,6 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
-import * as fs from 'fs';
-import * as path from 'path';
 
 @UseGuards(JwtAuthGuard, ActiveTenantGuard, RolesGuard)
 @Controller('generated-documents')
@@ -72,26 +69,14 @@ export class GeneratedDocumentsController {
     @Param('id') id: string,
     @Res() res: Response,
   ) {
-    const doc = await this.service.findOne(user.tenantId, id);
-    if (!doc.pdfUrl) {
-      throw new NotFoundException('PDF no generado aún');
-    }
-
-    const filePath = path.join(
-      process.cwd(),
-      '..',
-      '..',
-      doc.pdfUrl.replace(/^\//, ''),
-    );
-    if (!fs.existsSync(filePath)) {
-      throw new NotFoundException('Archivo PDF no encontrado');
-    }
+    const doc = await this.service.getPdfForDownload(user.tenantId, id);
 
     res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Cache-Control', 'private, no-store');
     res.setHeader(
       'Content-Disposition',
       `inline; filename="${doc.nombre}.pdf"`,
     );
-    fs.createReadStream(filePath).pipe(res);
+    res.send(doc.body);
   }
 }

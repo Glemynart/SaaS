@@ -73,7 +73,9 @@ export default function IdentidadCorporativaPage() {
   }
 
   const logoFullUrl = imageUrl(branding?.logoUrl ?? null);
-  const firmaFullUrl = imageUrl(branding?.firmaRepresentanteUrl ?? null);
+  const firmaFullUrl = branding?.firmaRepresentanteUrl
+    ? `/api/tenant-branding/firma?v=${encodeURIComponent(branding.firmaRepresentanteUrl)}`
+    : null;
 
   return (
     <div className="mx-auto max-w-3xl">

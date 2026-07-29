@@ -8,7 +8,9 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TenantBrandingService } from './tenant-branding.service';
 import { UpdateTenantBrandingDto } from './dto/update-tenant-branding.dto';
@@ -47,6 +49,17 @@ export class TenantBrandingController {
   @Get()
   getBranding(@CurrentUser() user: CurrentUserPayload) {
     return this.service.getBranding(user.tenantId);
+  }
+
+  @Get('firma')
+  async getFirma(
+    @CurrentUser() user: CurrentUserPayload,
+    @Res() res: Response,
+  ) {
+    const firma = await this.service.getFirma(user.tenantId);
+    res.setHeader('Content-Type', firma.contentType);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(firma.body);
   }
 
   @Roles(UserRole.ADMIN)

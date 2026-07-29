@@ -11,7 +11,7 @@ import {
 import { Test } from '@nestjs/testing';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import type { Request, Response } from 'express';
-import { mkdtemp, rm, writeFile } from 'fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import request from 'supertest';
@@ -54,7 +54,18 @@ describe('Security Headers', () => {
 
   beforeAll(async () => {
     uploadsDirectory = await mkdtemp(join(tmpdir(), 'saas-security-headers-'));
-    await writeFile(join(uploadsDirectory, 'asset.txt'), 'static asset');
+    await mkdir(join(uploadsDirectory, 'logos'));
+    await mkdir(join(uploadsDirectory, 'pdfs'));
+    await mkdir(join(uploadsDirectory, 'firmas'));
+    await writeFile(join(uploadsDirectory, 'logos', 'logo.png'), 'public logo');
+    await writeFile(
+      join(uploadsDirectory, 'pdfs', 'contract.pdf'),
+      'private contract',
+    );
+    await writeFile(
+      join(uploadsDirectory, 'firmas', 'signature.png'),
+      'private signature',
+    );
 
     const moduleRef = await Test.createTestingModule({
       controllers: [SecurityHeadersTestController],
@@ -62,7 +73,9 @@ describe('Security Headers', () => {
 
     const nestApp = moduleRef.createNestApplication<NestExpressApplication>();
     applySecurityHeaders(nestApp);
-    nestApp.useStaticAssets(uploadsDirectory, { prefix: '/uploads/' });
+    nestApp.useStaticAssets(join(uploadsDirectory, 'logos'), {
+      prefix: '/uploads/logos/',
+    });
     await nestApp.init();
     app = nestApp;
   });
@@ -116,14 +129,23 @@ describe('Security Headers', () => {
     expectSecurityHeaders(authenticated.headers);
   });
 
-  it('keeps static uploads consumable across origins', async () => {
+  it('keeps public logos consumable across origins', async () => {
     const response = await request(app.getHttpServer())
-      .get('/uploads/asset.txt')
-      .expect(200)
-      .expect('static asset');
+      .get('/uploads/logos/logo.png')
+      .expect(200);
 
     expectSecurityHeaders(response.headers);
+    expect(response.body).toEqual(Buffer.from('public logo'));
     expect(response.headers['cross-origin-resource-policy']).toBeUndefined();
+  });
+
+  it('does not expose private documents through /uploads', async () => {
+    await request(app.getHttpServer())
+      .get('/uploads/pdfs/contract.pdf')
+      .expect(404);
+    await request(app.getHttpServer())
+      .get('/uploads/firmas/signature.png')
+      .expect(404);
   });
 
   it('preserves inline PDF responses', async () => {

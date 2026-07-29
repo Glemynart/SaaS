@@ -12,15 +12,13 @@ import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
+import { SafeDocumentHtml } from '@/components/security/safe-document-html';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { cn } from '@/lib/utils';
 
 function highlightVariables(html: string): string {
-  return html.replace(
-    /\{\{([A-Z_]+)\}\}/g,
-    '<span style="display:inline-block;border-radius:4px;background:var(--color-muted);padding:0 5px;font-family:monospace;font-size:0.75rem;font-weight:500;color:var(--color-primary)">{{$1}}</span>',
-  );
+  return html.replace(/\{\{([A-Z_]+)\}\}/g, '<span data-document-variable="true">{{$1}}</span>');
 }
 
 function isHtml(str: string): boolean {
@@ -122,9 +120,9 @@ export function TemplateDetail() {
         <section className="document-preview mt-4 rounded-[--radius-card] border border-border bg-surface p-8 shadow-[--shadow-card]">
           <h2 className="sr-only">Contenido de la plantilla</h2>
           {html ? (
-            <div
+            <SafeDocumentHtml
               className="text-sm leading-relaxed text-foreground"
-              dangerouslySetInnerHTML={{ __html: highlightVariables(template.contenido) }}
+              html={highlightVariables(template.contenido)}
             />
           ) : (
             <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
