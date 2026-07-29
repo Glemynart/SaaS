@@ -1,5 +1,10 @@
+import { S3Client } from '@aws-sdk/client-s3';
 import { CloudflareR2StorageProvider } from './cloudflare-r2-storage.provider';
-import { CloudflareR2StorageUnavailableError } from './storage.types';
+import {
+  CloudflareR2StorageConfigurationError,
+  CloudflareR2StorageUnavailableError,
+  StorageObjectNotFoundError,
+} from './storage.types';
 
 describe('CloudflareR2StorageProvider', () => {
   const environment = [
@@ -9,15 +14,19 @@ describe('CloudflareR2StorageProvider', () => {
     'R2_BUCKET',
   ] as const;
   const previous = new Map<string, string | undefined>();
+  let send: jest.SpyInstance;
 
   beforeEach(() => {
     for (const name of environment) {
       previous.set(name, process.env[name]);
-      delete process.env[name];
+      process.env[name] = `test-${name.toLowerCase()}`;
     }
+    process.env.R2_ENDPOINT = 'https://account.r2.cloudflarestorage.com';
+    send = jest.spyOn(S3Client.prototype, 'send');
   });
 
   afterEach(() => {
+    send.mockRestore();
     for (const name of environment) {
       const value = previous.get(name);
       if (value === undefined) delete process.env[name];
@@ -26,20 +35,114 @@ describe('CloudflareR2StorageProvider', () => {
     previous.clear();
   });
 
-  it('falla cerradamente sin credenciales y no inicia transferencias reales', async () => {
+  it('usa el SDK S3 para escribir y devuelve metadata del contrato', async () => {
+    send.mockResolvedValueOnce({});
     const provider = new CloudflareR2StorageProvider();
 
     await expect(
-      provider.put({ key: 'tenant-1/document.pdf', body: Buffer.from('pdf') }),
-    ).rejects.toBeInstanceOf(CloudflareR2StorageUnavailableError);
-    await expect(provider.get('tenant-1/document.pdf')).rejects.toThrow(
-      'R2_ENDPOINT',
+      provider.put({
+        key: 'tenant-1/document.pdf',
+        body: Buffer.from('pdf'),
+        contentType: 'application/pdf',
+      }),
+    ).resolves.toEqual({
+      key: 'tenant-1/document.pdf',
+      size: 3,
+      contentType: 'application/pdf',
+    });
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('convierte una respuesta R2 a Buffer', async () => {
+    send.mockResolvedValueOnce({
+      Body: {
+        transformToByteArray: jest
+          .fn()
+          .mockResolvedValue(Uint8Array.from([1, 2])),
+      },
+    });
+    const provider = new CloudflareR2StorageProvider();
+
+    await expect(provider.get('tenant-1/document.pdf')).resolves.toEqual(
+      Buffer.from([1, 2]),
     );
-    await expect(provider.delete('tenant-1/document.pdf')).rejects.toThrow(
-      'R2_BUCKET',
+  });
+
+  it('clasifica NotFound y fallos transitorios', async () => {
+    const provider = new CloudflareR2StorageProvider();
+    send.mockRejectedValueOnce(s3Error('NoSuchKey', 404));
+    await expect(provider.get('tenant-1/missing.pdf')).rejects.toBeInstanceOf(
+      StorageObjectNotFoundError,
     );
-    await expect(provider.exists('tenant-1/document.pdf')).rejects.toThrow(
+
+    send.mockRejectedValueOnce(s3Error('TimeoutError'));
+    await expect(provider.get('tenant-1/timeout.pdf')).rejects.toBeInstanceOf(
       CloudflareR2StorageUnavailableError,
+    );
+
+    send.mockRejectedValueOnce(s3Error('InternalError', 503));
+    await expect(
+      provider.get('tenant-1/five-hundred.pdf'),
+    ).rejects.toBeInstanceOf(CloudflareR2StorageUnavailableError);
+  });
+
+  it('preserva errores permanentes sin clasificarlos como transitorios', async () => {
+    const provider = new CloudflareR2StorageProvider();
+    const accessDenied = s3Error('AccessDenied', 403);
+    send.mockRejectedValueOnce(accessDenied);
+
+    await expect(provider.get('tenant-1/private.pdf')).rejects.toBe(
+      accessDenied,
+    );
+  });
+
+  it('preserva NoSuchBucket como error permanente y no como objeto ausente', async () => {
+    const provider = new CloudflareR2StorageProvider();
+    const noSuchBucket = s3Error('NoSuchBucket', 404);
+    send.mockRejectedValueOnce(noSuchBucket);
+
+    await expect(provider.get('tenant-1/document.pdf')).rejects.toBe(
+      noSuchBucket,
+    );
+  });
+
+  it('crea condicionalmente durante migración y detecta una key concurrente', async () => {
+    const provider = new CloudflareR2StorageProvider();
+    send.mockResolvedValueOnce({});
+
+    await expect(
+      provider.putIfAbsent({
+        key: 'tenant-1/document.pdf',
+        body: Buffer.from('pdf'),
+      }),
+    ).resolves.toEqual({
+      key: 'tenant-1/document.pdf',
+      size: 3,
+      contentType: undefined,
+    });
+
+    send.mockRejectedValueOnce(s3Error('PreconditionFailed', 412));
+    await expect(
+      provider.putIfAbsent({
+        key: 'tenant-1/document.pdf',
+        body: Buffer.from('pdf'),
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it('valida credenciales y endpoint antes de operar R2', () => {
+    delete process.env.R2_BUCKET;
+    const provider = new CloudflareR2StorageProvider();
+    expect(() => provider.validateConfiguration()).toThrow(
+      CloudflareR2StorageConfigurationError,
     );
   });
 });
+
+function s3Error(name: string, statusCode?: number): Error {
+  return Object.assign(new Error(name), {
+    name,
+    $metadata:
+      statusCode === undefined ? undefined : { httpStatusCode: statusCode },
+  });
+}

@@ -71,6 +71,23 @@ export class TenantBrandingService {
     }
   }
 
+  async getLogo(filename: string) {
+    if (!filename || filename.includes('/') || filename.includes('\\')) {
+      throw new NotFoundException('Logo no encontrado');
+    }
+
+    const storageKey = `logos/${filename}`;
+    try {
+      const body = await this.storage.getObject(storageKey);
+      return { body, contentType: this.getImageContentType(storageKey) };
+    } catch (error) {
+      if (error instanceof StorageObjectNotFoundError) {
+        throw new NotFoundException('Logo no encontrado');
+      }
+      throw error;
+    }
+  }
+
   async uploadLogo(tenantId: string, originalname: string, buffer: Buffer) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },

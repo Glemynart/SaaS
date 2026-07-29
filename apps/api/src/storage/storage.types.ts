@@ -62,6 +62,14 @@ export class CloudflareR2StorageUnavailableError extends Error {
   }
 }
 
+/** Se lanza cuando R2 está seleccionado pero su configuración es inválida. */
+export class CloudflareR2StorageConfigurationError extends Error {
+  constructor(reason: string) {
+    super(`Cloudflare R2 está mal configurado: ${reason}`);
+    this.name = 'CloudflareR2StorageConfigurationError';
+  }
+}
+
 /** Se lanza cuando el proveedor configurado no corresponde a un binding conocido. */
 export class UnknownStorageProviderError extends Error {
   constructor(provider: string) {
