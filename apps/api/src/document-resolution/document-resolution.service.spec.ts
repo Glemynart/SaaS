@@ -1,0 +1,140 @@
+import { DocumentTemplateType } from '@prisma/client';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
+import { DocumentResolutionService } from './document-resolution.service';
+
+const loteFindFirst = jest.fn();
+const employeeFindMany = jest.fn();
+const relationshipFindMany = jest.fn();
+const configurationFindMany = jest.fn();
+const execute = jest.fn();
+const TENANT = 'tenant-001';
+const LOTE = '11111111-1111-4111-8111-111111111111';
+const EMPLOYEE = '22222222-2222-4222-8222-222222222222';
+
+type MockClient = {
+  loteContrato: { findFirst: typeof loteFindFirst };
+  empleado: { findMany: typeof employeeFindMany };
+  vinculoLaboral: { findMany: typeof relationshipFindMany };
+  configuracionDocumentalPerfil: { findMany: typeof configurationFindMany };
+};
+
+const lote = {
+  configuracion: { empleadoIds: [EMPLOYEE] },
+  documentTemplate: { tipo: DocumentTemplateType.CONTRACT },
+};
+const employee = { id: EMPLOYEE, primerNombre: 'Ana', primerApellido: 'López' };
+const relationship = {
+  id: 'relationship',
+  empleadoId: EMPLOYEE,
+  perfilContractualId: 'profile',
+  perfilContractual: {
+    id: 'profile',
+    codigo: 'DOCENTE',
+    nombre: 'Docente',
+    activo: true,
+  },
+};
+const configuration = {
+  id: 'configuration',
+  perfilContractualId: 'profile',
+  plantilla: { id: 'template', nombre: 'Contrato docente' },
+};
+
+function objectContaining<T extends object>(expected: T): T {
+  return expect.objectContaining(expected) as T;
+}
+
+describe('DocumentResolutionService', () => {
+  let service: DocumentResolutionService;
+  beforeEach(() => {
+    jest.clearAllMocks();
+    loteFindFirst.mockResolvedValue(lote);
+    employeeFindMany.mockResolvedValue([employee]);
+    relationshipFindMany.mockResolvedValue([relationship]);
+    configurationFindMany.mockResolvedValue([configuration]);
+    execute.mockImplementation(
+      (work: (client: MockClient, context: { tenantId: string }) => unknown) =>
+        work(
+          {
+            loteContrato: { findFirst: loteFindFirst },
+            empleado: { findMany: employeeFindMany },
+            vinculoLaboral: { findMany: relationshipFindMany },
+            configuracionDocumentalPerfil: { findMany: configurationFindMany },
+          },
+          { tenantId: TENANT },
+        ),
+    );
+    service = new DocumentResolutionService({
+      execute,
+    } as unknown as TenantPrismaService);
+  });
+  const preview = () =>
+    service.preview({ loteId: LOTE, fechaProceso: '2026-06-01' });
+
+  it('resuelve una plantilla vigente de forma determinística', async () => {
+    await expect(preview()).resolves.toEqual([
+      expect.objectContaining({
+        estado: 'RESUELTO',
+        plantillaSeleccionada: configuration.plantilla,
+        tipoDocumental: DocumentTemplateType.CONTRACT,
+      }),
+    ]);
+  });
+  it('bloquea el vínculo inexistente', async () => {
+    relationshipFindMany.mockResolvedValue([]);
+    await expect(preview()).resolves.toEqual([
+      expect.objectContaining({
+        estado: 'BLOQUEADO',
+        motivoBloqueo: 'VINCULO_INEXISTENTE_O_FUERA_DE_VIGENCIA',
+      }),
+    ]);
+  });
+  it('bloquea un perfil inactivo', async () => {
+    relationshipFindMany.mockResolvedValue([
+      {
+        ...relationship,
+        perfilContractual: { ...relationship.perfilContractual, activo: false },
+      },
+    ]);
+    await expect(preview()).resolves.toEqual([
+      expect.objectContaining({ motivoBloqueo: 'PERFIL_INACTIVO' }),
+    ]);
+  });
+  it('bloquea configuración inexistente, fuera de vigencia o plantilla inactiva', async () => {
+    configurationFindMany.mockResolvedValue([]);
+    await expect(preview()).resolves.toEqual([
+      expect.objectContaining({
+        motivoBloqueo: 'CONFIGURACION_O_PLANTILLA_NO_VIGENTE',
+      }),
+    ]);
+  });
+  it('aísla empleados de otro tenant', async () => {
+    employeeFindMany.mockResolvedValue([]);
+    await expect(preview()).resolves.toEqual([
+      expect.objectContaining({
+        motivoBloqueo: 'EMPLEADO_INEXISTENTE_O_FUERA_DEL_TENANT',
+      }),
+    ]);
+    expect(employeeFindMany).toHaveBeenCalledWith(
+      objectContaining({
+        where: objectContaining({ tenantId: TENANT }),
+      }),
+    );
+  });
+  it('produce resultados independientes para múltiples empleados', async () => {
+    const second = '33333333-3333-4333-8333-333333333333';
+    loteFindFirst.mockResolvedValue({
+      ...lote,
+      configuracion: { empleadoIds: [EMPLOYEE, second] },
+    });
+    employeeFindMany.mockResolvedValue([employee, { ...employee, id: second }]);
+    relationshipFindMany.mockResolvedValue([relationship]);
+    await expect(preview()).resolves.toEqual([
+      expect.objectContaining({ estado: 'RESUELTO' }),
+      objectContaining({
+        empleado: objectContaining({ id: second }),
+        estado: 'BLOQUEADO',
+      }),
+    ]);
+  });
+});

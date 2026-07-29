@@ -31,6 +31,7 @@ import { TenantPrismaModule } from './tenant-prisma/tenant-prisma.module';
 import { ContractualProfilesModule } from './contractual-profiles/contractual-profiles.module';
 import { LaborRelationshipsModule } from './labor-relationships/labor-relationships.module';
 import { DocumentProfileConfigurationsModule } from './document-profile-configurations/document-profile-configurations.module';
+import { DocumentResolutionModule } from './document-resolution/document-resolution.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { DocumentProfileConfigurationsModule } from './document-profile-configur
     ContractualProfilesModule,
     LaborRelationshipsModule,
     DocumentProfileConfigurationsModule,
+    DocumentResolutionModule,
     ThrottlerModule.forRoot([
       {
         name: 'login',
