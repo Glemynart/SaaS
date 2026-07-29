@@ -14,4 +14,9 @@ export class DocumentResolutionController {
   preview(@Body() dto: DocumentResolutionPreviewDto) {
     return this.service.preview(dto);
   }
+
+  @Post('confirm')
+  confirm(@Body() dto: DocumentResolutionPreviewDto) {
+    return this.service.confirm(dto);
+  }
 }
