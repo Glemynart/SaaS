@@ -32,6 +32,7 @@ import { ContractualProfilesModule } from './contractual-profiles/contractual-pr
 import { LaborRelationshipsModule } from './labor-relationships/labor-relationships.module';
 import { DocumentProfileConfigurationsModule } from './document-profile-configurations/document-profile-configurations.module';
 import { DocumentResolutionModule } from './document-resolution/document-resolution.module';
+import { BatchDocumentGenerationModule } from './batch-document-generation/batch-document-generation.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { DocumentResolutionModule } from './document-resolution/document-resolut
     LaborRelationshipsModule,
     DocumentProfileConfigurationsModule,
     DocumentResolutionModule,
+    BatchDocumentGenerationModule,
     ThrottlerModule.forRoot([
       {
         name: 'login',
