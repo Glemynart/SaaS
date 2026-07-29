@@ -11,7 +11,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
-import { SafeDocumentHtml } from '@/components/security/safe-document-html';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { toast } from '@/components/ui/toast';
@@ -121,9 +120,9 @@ export function GeneratedDocDetail() {
           <>
             <StatusBadge
               domain="documentoGenerado"
-              estado={doc.pdfUrl ? 'PDF_DISPONIBLE' : 'SIN_PDF'}
+              estado={doc.pdfAvailable ? 'PDF_DISPONIBLE' : 'SIN_PDF'}
             />
-            {doc.pdfUrl ? (
+            {doc.pdfAvailable ? (
               <Button size="sm" onClick={handleDownloadPdf}>
                 <FileDown className="size-4" aria-hidden="true" />
                 Descargar PDF
@@ -170,20 +169,6 @@ export function GeneratedDocDetail() {
             </div>
           </div>
         </SectionCard>
-
-        <section className="document-preview mt-4 rounded-[--radius-card] border border-border bg-surface p-8 shadow-[--shadow-card]">
-          <h2 className="sr-only">Contenido del documento</h2>
-          {/<\/?[a-z][\s\S]*>/i.test(doc.contenidoFinal) ? (
-            <SafeDocumentHtml
-              className="text-sm leading-relaxed text-foreground"
-              html={doc.contenidoFinal}
-            />
-          ) : (
-            <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-              {doc.contenidoFinal}
-            </div>
-          )}
-        </section>
 
         <p className="mt-4 text-center text-xs text-muted-foreground">
           Este documento es una copia fiel del momento de su generación. Los datos del empleado
