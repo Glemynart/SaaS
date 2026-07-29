@@ -8,7 +8,7 @@ Plataforma SaaS de Gestión Administrativa para Operadores Educativos y Contrati
 
 ## Visión
 
-Simplificar la gestión de contratos, expedientes, alertas y facturación electrónica mediante una plataforma moderna, fácil de usar y enfocada en procesos operativos.
+Simplificar la gestión de contratos, expedientes, alertas, certificaciones laborales, facturación electrónica y contabilidad v1 mediante una plataforma moderna, fácil de usar y enfocada en procesos operativos.
 
 ## Problema
 
@@ -20,6 +20,7 @@ Las organizaciones gestionan información mediante Excel, documentos Word y múl
 - Automatizar contratos.
 - Centralizar expedientes.
 - Gestionar alertas.
+- Emitir certificaciones laborales trazables.
 - Emitir facturación electrónica.
 
 ## MVP
@@ -32,10 +33,17 @@ Las organizaciones gestionan información mediante Excel, documentos Word y múl
 
 ### Módulo Contratos
 
-- Plantillas DOCX
+- Plantillas documentales
 - Contratos individuales
 - Contratos masivos
 - PDF
+
+### Módulo Documental
+
+- Documentos generados con snapshot inmutable
+- Expediente digital
+- Certificaciones laborales
+- PDF canónico para documentos publicados
 
 ### Módulo Expediente
 
@@ -63,9 +71,10 @@ Las organizaciones gestionan información mediante Excel, documentos Word y múl
 
 ## Restricciones
 
-- No desarrollar contabilidad.
-- No desarrollar ERP.
+- No desarrollar un ERP contable integral.
 - No desarrollar nómina completa en MVP.
+
+La contabilidad v1 sí forma parte del producto: catálogos, comprobantes, reportes y cierres contables por tenant.
 
 ## Métricas de Éxito
 

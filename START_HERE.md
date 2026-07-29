@@ -22,11 +22,11 @@ Desarrollar una plataforma SaaS multiempresa enfocada en pequeñas empresas, con
 
 - Facturación electrónica.
 
+- Contabilidad v1.
+
 - Nómina electrónica (fase futura).
 
-La plataforma NO busca reemplazar sistemas contables como Siigo, World Office o Helisa.
-
-La contabilidad seguirá realizándose en dichas plataformas mediante exportaciones e integraciones futuras.
+La plataforma no busca ser un ERP contable integral ni reemplazar de inmediato sistemas como Siigo, World Office o Helisa. Incluye contabilidad v1 para operar catálogos, comprobantes, reportes y cierres por tenant; las integraciones y alcances regulatorios más amplios siguen siendo evoluciones posteriores.
 
 La propuesta de valor es:
 
@@ -102,7 +102,7 @@ No somos:
 
 - ERP.
 
-- Sistema contable.
+- ERP contable integral.
 
 - Sistema financiero.
 
@@ -112,17 +112,7 @@ No somos:
 
 2
 
-La contabilidad permanece en:
-
-- Siigo.
-
-- World Office.
-
-- Helisa.
-
-- Alegra.
-
-- Otros sistemas contables.
+La contabilidad v1 se opera dentro de la plataforma. Las integraciones con Siigo, World Office, Helisa, Alegra u otros sistemas son alcance futuro.
 
 ## **MVP Aprobado**
 
@@ -243,6 +233,20 @@ Incluye:
 - XML.
 
 - Integración Matías API.
+
+## **Módulo 9**
+
+Documentos Generados, Certificaciones Laborales y Contabilidad v1.
+
+Incluye:
+
+- Snapshot documental inmutable y PDF canónico.
+
+- Publicación en expediente digital.
+
+- Certificaciones laborales mediante `GeneratedDocument` y `ExpedienteDoc`.
+
+- Catálogos, comprobantes, reportes y cierres contables por tenant.
 
 ## **Funcionalidades Fuera del MVP**
 

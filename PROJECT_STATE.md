@@ -15,6 +15,7 @@ El objetivo es centralizar:
 - Expedientes digitales.
 - Alertas.
 - Generación documental.
+- Certificaciones laborales.
 - Gestión multisede.
 - Nómina electrónica (futuro).
 - Facturación electrónica (futuro).
@@ -65,7 +66,9 @@ Backend:
 
 Servicios:
 
-- Firebase
+- Renderizado PDF con Puppeteer.
+- Almacenamiento local configurable mediante el proveedor de storage.
+- Resend para correo transaccional, con modo degradado cuando no está configurado.
 
 ---
 

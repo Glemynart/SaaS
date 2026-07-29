@@ -1,6 +1,7 @@
 # FASE 7 — Certificaciones Laborales
 
-**Estado:** Propuesta arquitectónica para aprobación  
+**Estado:** Implementada y fusionada a `main`
+**Referencia:** PR #67 — merge commit `e745c19` (2026-07-28)
 **Alcance:** emisión de certificaciones laborales mediante el flujo documental existente.  
 **Fuera de alcance:** agregado `CertificaciónLaboral`, snapshot estructurado paralelo, firma electrónica o certificada, certificados salariales, DOCX, carga manual, autoservicio de empleados, envío por correo, revocación, reemplazo y recursos externos en el renderer.
 
@@ -169,14 +170,23 @@ Si alguno de estos casos requiere un ciclo de vida propio, podrá evaluarse una 
 
 ---
 
-## 9. Plan de implementación en PRs pequeños y reversibles
+## 9. Implementación completada
 
-1. **7.1 — Invariantes de emisión `CERTIFICATION`.** Definir reglas de plantilla, snapshot canónico, identidad de emisión e inmutabilidad sobre el flujo documental existente. Gate: no se introduce un agregado adicional.
-2. **7.2 — Creación documental y contenido final.** Incorporar el caso de uso de emisión con datos resueltos una sola vez. Gate: cambios posteriores no alteran el contenido final.
-3. **7.3 — Materialización PDF recuperable.** Aplicar clave canónica, renderizado aislado y retry técnico sobre el mismo documento. Gate: no se crean documentos ni PDFs lógicos duplicados.
-4. **7.4 — Publicación en expediente y auditoría.** Asegurar índice `CERTIFICADO`, metadata y auditoría en una sola transacción. Gate: no existe estado parcial en base de datos.
-5. **7.5 — Consulta autorizada.** Integrar consulta y descarga usando la superficie documental y de expediente existente. Gate: mismo tenant, roles y artefacto físico en ambas vistas.
-6. **7.6 — Cierre de seguridad y concurrencia.** Validar aislamiento tenant, idempotencia, recuperación, inmutabilidad y renderer sin recursos externos. Gate: los reintentos convergen y la evidencia no se recalcula.
+La entrega se fusionó mediante PR #67. Quedaron implementados los seis cortes previstos:
+
+1. Invariantes de emisión `CERTIFICATION`, sin agregado paralelo.
+2. Creación de `GeneratedDocument` con `contenidoFinal` inmutable y auditoría de emisión.
+3. Materialización idempotente del PDF bajo una clave canónica derivada del tenant y del documento.
+4. Publicación transaccional e idempotente en `ExpedienteDoc` con categoría `CERTIFICADO`.
+5. Consulta y descarga desde las superficies documentales y de expediente existentes.
+6. Pruebas de aislamiento, recuperación, inmutabilidad, concurrencia y renderer sin recursos externos.
+
+## 10. Validación de cierre
+
+- API: 62 suites y 712 pruebas PASS.
+- Typecheck de API y frontend PASS.
+- Prisma validate PASS.
+- Auditoría de aceptación de Fase 7: APPROVE.
 
 ## Criterios de aceptación arquitectónicos
 
