@@ -7,6 +7,7 @@ const employeeFindMany = jest.fn();
 const relationshipFindMany = jest.fn();
 const configurationFindMany = jest.fn();
 const planUpsert = jest.fn();
+const planFindMany = jest.fn();
 const execute = jest.fn();
 const TENANT = 'tenant-001';
 const LOTE = '11111111-1111-4111-8111-111111111111';
@@ -17,7 +18,10 @@ type MockClient = {
   empleado: { findMany: typeof employeeFindMany };
   vinculoLaboral: { findMany: typeof relationshipFindMany };
   configuracionDocumentalPerfil: { findMany: typeof configurationFindMany };
-  batchDocumentGenerationPlan: { upsert: typeof planUpsert };
+  batchDocumentGenerationPlan: {
+    upsert: typeof planUpsert;
+    findMany: typeof planFindMany;
+  };
 };
 
 const lote = {
@@ -46,6 +50,7 @@ const configuration = {
     id: 'template',
     nombre: 'Contrato docente',
     updatedAt: new Date('2026-01-01'),
+    contenido: 'versión confirmada',
   },
 };
 
@@ -61,6 +66,7 @@ describe('DocumentResolutionService', () => {
     employeeFindMany.mockResolvedValue([employee]);
     relationshipFindMany.mockResolvedValue([relationship]);
     configurationFindMany.mockResolvedValue([configuration]);
+    planFindMany.mockResolvedValue([]);
     execute.mockImplementation(
       (work: (client: MockClient, context: { tenantId: string }) => unknown) =>
         work(
@@ -69,7 +75,10 @@ describe('DocumentResolutionService', () => {
             empleado: { findMany: employeeFindMany },
             vinculoLaboral: { findMany: relationshipFindMany },
             configuracionDocumentalPerfil: { findMany: configurationFindMany },
-            batchDocumentGenerationPlan: { upsert: planUpsert },
+            batchDocumentGenerationPlan: {
+              upsert: planUpsert,
+              findMany: planFindMany,
+            },
           },
           { tenantId: TENANT },
         ),
@@ -113,6 +122,46 @@ describe('DocumentResolutionService', () => {
     expect(planUpsert).toHaveBeenLastCalledWith(
       objectContaining({ update: {}, create: objectContaining({}) }),
     );
+  });
+
+  it('reutiliza planes existentes sin volver a resolver cambios posteriores', async () => {
+    const existingPlan = {
+      id: 'plan-1',
+      plantillaSnapshot: { contenido: 'histórico' },
+    };
+    planFindMany.mockResolvedValue([existingPlan]);
+    relationshipFindMany.mockResolvedValue([]);
+    configurationFindMany.mockResolvedValue([]);
+
+    await expect(confirm()).resolves.toEqual([existingPlan]);
+    expect(employeeFindMany).not.toHaveBeenCalled();
+    expect(planUpsert).not.toHaveBeenCalled();
+  });
+
+  it('conserva el snapshot histórico cuando la plantilla cambia después de confirmar', async () => {
+    const historicalSnapshot = {
+      id: 'template',
+      contenido: 'versión confirmada',
+    };
+    planUpsert.mockResolvedValue({
+      id: 'plan-1',
+      plantillaSnapshot: historicalSnapshot,
+    });
+    await confirm();
+
+    planFindMany.mockResolvedValue([
+      { id: 'plan-1', plantillaSnapshot: historicalSnapshot },
+    ]);
+    configuration.plantilla = {
+      ...configuration.plantilla,
+      contenido: 'versión posterior',
+    };
+
+    await expect(confirm()).resolves.toEqual([
+      { id: 'plan-1', plantillaSnapshot: historicalSnapshot },
+    ]);
+    expect(planUpsert).toHaveBeenCalledTimes(1);
+    expect(configurationFindMany).toHaveBeenCalledTimes(1);
   });
 
   it('hace rollback lógico sin crear planes si hay una resolución bloqueada', async () => {
