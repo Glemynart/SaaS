@@ -26,6 +26,20 @@ export interface GeneratedDocument {
   };
 }
 
+export interface GeneratedDocumentMetadata {
+  id: string;
+  employeeId: string;
+  templateId: string;
+  nombre: string;
+  tipo: string;
+  estado: string;
+  pdfSizeBytes: number | null;
+  pdfAvailable: boolean;
+  createdAt: string;
+  employee: GeneratedDocument['employee'];
+  template: GeneratedDocument['template'];
+}
+
 export interface GetGeneratedDocumentsParams {
   page?: number;
   limit?: number;
@@ -86,7 +100,7 @@ export const generatedDocumentsApi = {
   },
 
   getById: async (id: string) => {
-    return request<GeneratedDocument>(`/api/generated-documents/${id}`);
+    return request<GeneratedDocumentMetadata>(`/api/generated-documents/${id}`);
   },
 
   generate: async (payload: CreateGeneratedDocumentPayload) => {
@@ -110,6 +124,6 @@ export const generatedDocumentsApi = {
   },
 
   getPdfUrl: (id: string) => {
-    return `/api/generated-documents/${id}/pdf`;
+    return `/api/generated-documents/${id}/download`;
   },
 };
