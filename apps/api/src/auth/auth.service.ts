@@ -1,7 +1,7 @@
 import {
   Injectable,
+  Logger,
   UnauthorizedException,
-  BadRequestException,
   ConflictException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -12,8 +12,15 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { UserRole } from '@prisma/client';
 
+const INVALID_LOGIN_MESSAGE = 'Credenciales inválidas.';
+const NON_EXISTENT_TENANT_ID = '00000000-0000-0000-0000-000000000000';
+const DUMMY_PASSWORD_HASH =
+  '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy';
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private usersService: UsersService,
@@ -92,33 +99,50 @@ export class AuthService {
     const tenant = await this.prisma.tenant.findUnique({
       where: { nit: data.tenantNit },
     });
-    if (!tenant) {
-      throw new UnauthorizedException(
-        'Credenciales inválidas (empresa no encontrada).',
-      );
-    }
 
-    if (!tenant.activo) {
-      throw new BadRequestException(
-        'La empresa está inactiva y no puede iniciar sesión.',
-      );
-    }
-
-    const user = await this.usersService.findByEmail(tenant.id, data.email);
-    if (!user) {
-      throw new UnauthorizedException('Credenciales inválidas.');
-    }
-
-    if (!user.activo) {
-      throw new UnauthorizedException('El usuario está inactivo.');
-    }
+    const user = await this.usersService.findByEmail(
+      tenant?.id ?? NON_EXISTENT_TENANT_ID,
+      data.email,
+    );
 
     const isPasswordValid = await bcrypt.compare(
       data.passwordPlain,
-      user.passwordHash,
+      user?.passwordHash ?? DUMMY_PASSWORD_HASH,
     );
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Credenciales inválidas.');
+
+    const failureReason = !tenant
+      ? 'TENANT_NOT_FOUND'
+      : !tenant.activo
+        ? 'TENANT_INACTIVE'
+        : !user
+          ? 'USER_NOT_FOUND'
+          : !user.activo
+            ? 'USER_INACTIVE'
+            : !isPasswordValid
+              ? 'INVALID_PASSWORD'
+              : null;
+
+    if (failureReason) {
+      const identifierFingerprint = crypto
+        .createHash('sha256')
+        .update(`${data.tenantNit}:${data.email.toLowerCase()}`)
+        .digest('hex');
+      this.logger.warn(
+        JSON.stringify({
+          event: 'LOGIN_FAILED',
+          reason: failureReason,
+          tenantId: tenant?.id ?? null,
+          userId: user?.id ?? null,
+          identifierFingerprint,
+          ipAddress: data.ipAddress ?? null,
+          userAgent: data.userAgent ?? null,
+        }),
+      );
+      throw new UnauthorizedException(INVALID_LOGIN_MESSAGE);
+    }
+
+    if (!tenant || !user) {
+      throw new UnauthorizedException(INVALID_LOGIN_MESSAGE);
     }
 
     await this.prisma.user.update({

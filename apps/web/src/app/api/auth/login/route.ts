@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { backendFetch, jsonError, loginResponse } from '@/lib/server-api';
+import { backendFetch, loginJsonError, loginResponse } from '@/lib/server-api';
 import type { LoginPayload, LoginResponse } from '@/types/auth';
 
 export async function POST(request: NextRequest) {
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
 
     return loginResponse(body);
   } catch (error) {
-    return jsonError(error);
+    return loginJsonError(error);
   }
 }
 

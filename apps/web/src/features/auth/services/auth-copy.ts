@@ -52,9 +52,6 @@ export const authCopy = {
 export const authErrors = {
   invalidCredentials:
     'Los datos no coinciden con una cuenta activa. Revisa el NIT, el correo y la contraseña.',
-  userDisabled:
-    'Tu cuenta está deshabilitada. Contacta al administrador de tu empresa para reactivarla.',
-  tenantSuspended: 'El acceso de esta empresa está suspendido. Escribe a soporte para reactivarlo.',
   tooManyAttempts: 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.',
   network: 'No pudimos conectar. Revisa tu conexión e inténtalo de nuevo.',
   service: 'El servicio no está disponible en este momento. Inténtalo de nuevo en unos minutos.',
@@ -62,8 +59,8 @@ export const authErrors = {
 };
 
 /**
- * Mapeo backend → interfaz (§9.2). Se detecta por el contenido del mensaje
- * que emite el backend actual; cualquier caso no reconocido cae al genérico.
+ * Mapeo backend → interfaz (§9.2). Los fallos de autenticación siempre caen
+ * al mismo mensaje para no revelar el estado de empresa o usuario.
  * Nunca se retorna el texto crudo de la excepción.
  */
 export function mapLoginError(error: unknown): string {
@@ -74,8 +71,6 @@ export function mapLoginError(error: unknown): string {
 
   const raw = error instanceof Error ? error.message : '';
 
-  if (/usuario está inactivo/i.test(raw)) return authErrors.userDisabled;
-  if (/empresa está inactiva/i.test(raw)) return authErrors.tenantSuspended;
   if (/too many requests|throttler/i.test(raw)) return authErrors.tooManyAttempts;
   if (/problema inesperado|internal server|no se pudo completar/i.test(raw)) {
     return authErrors.service;
