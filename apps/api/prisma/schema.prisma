@@ -270,6 +270,7 @@ model Tenant {
   contratos          Contrato[]
   perfilesContractuales PerfilContractual[]
   configuracionesDocumentalesPerfil ConfiguracionDocumentalPerfil[]
+  batchDocumentGenerationPlans BatchDocumentGenerationPlan[]
   vinculosLaborales  VinculoLaboral[]
   lotes              LoteContrato[]
   expedientes        ExpedienteDoc[]
@@ -441,6 +442,7 @@ model Empleado {
 
   // Relaciones
   contratos          Contrato[]
+  batchDocumentGenerationPlans BatchDocumentGenerationPlan[]
   vinculosLaborales  VinculoLaboral[]
   generatedDocuments GeneratedDocument[]
   alerts             Alert[]
@@ -505,6 +507,12 @@ enum DocumentTemplateType {
   CERTIFICATION
   LETTER
   MEMO
+}
+
+enum BatchDocumentGenerationPlanStatus {
+  CONFIRMADO
+  CONSUMIDO
+  ANULADO
 }
 
 // =============================================================================
@@ -1427,6 +1435,37 @@ model ConfiguracionDocumentalPerfil {
   @@map("configuraciones_documentales_perfil")
 }
 
+model BatchDocumentGenerationPlan {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  loteId   String
+  lote     LoteContrato @relation(fields: [loteId], references: [id], onDelete: Restrict)
+  empleadoId String
+  empleado   Empleado @relation(fields: [empleadoId], references: [id], onDelete: Restrict)
+  tipoDocumental DocumentTemplateType
+  fechaProceso DateTime @db.Date
+  confirmadoAt DateTime @default(now())
+  vinculoLaboralId String
+  perfilContractualId String
+  configuracionDocumentalPerfilId String
+  plantillaId String
+  perfilSnapshot Json
+  configuracionSnapshot Json
+  plantillaSnapshot Json
+  motivoResolucion String
+  formatoVersion Int @default(1)
+  resueltoAt DateTime
+  estado BatchDocumentGenerationPlanStatus @default(CONFIRMADO)
+
+  @@unique([loteId, empleadoId, tipoDocumental])
+  @@index([tenantId, loteId, estado])
+  @@map("batch_document_generation_plans")
+}
+
 // =============================================================================
 // LOTE CONTRATO — Proceso de generación masiva de contratos
 // =============================================================================
@@ -1478,6 +1517,7 @@ model LoteContrato {
 
   // Relaciones
   contratos Contrato[]
+  batchDocumentGenerationPlans BatchDocumentGenerationPlan[]
 
   @@index([tenantId, estado])
   @@index([tenantId, createdAt])
