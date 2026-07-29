@@ -3,7 +3,6 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { DocumentResolutionPreviewDto } from './dto/document-resolution-preview.dto';
 
@@ -15,7 +14,11 @@ export class DocumentResolutionService {
 
   async preview(dto: DocumentResolutionPreviewDto) {
     const results = await this.resolve(dto);
-    return results.map(({ internal, ...preview }) => preview);
+    return results.map((result) =>
+      Object.fromEntries(
+        Object.entries(result).filter(([key]) => key !== 'internal'),
+      ),
+    );
   }
 
   async confirm(dto: DocumentResolutionPreviewDto) {
@@ -47,8 +50,16 @@ export class DocumentResolutionService {
               plantilla: { id: string; nombre: string; updatedAt: Date };
             };
           };
-          return prisma.batchDocumentGenerationPlan.create({
-            data: {
+          return prisma.batchDocumentGenerationPlan.upsert({
+            where: {
+              loteId_empleadoId_tipoDocumental: {
+                loteId: dto.loteId,
+                empleadoId: result.empleado.id,
+                tipoDocumental: result.tipoDocumental as never,
+              },
+            },
+            update: {},
+            create: {
               tenantId: context.tenantId,
               loteId: dto.loteId,
               empleadoId: result.empleado.id,
@@ -58,19 +69,18 @@ export class DocumentResolutionService {
               perfilContractualId: internal.relationship.perfilContractualId,
               configuracionDocumentalPerfilId: internal.configuration.id,
               plantillaId: internal.configuration.plantillaId,
-              perfilSnapshot: internal.relationship
-                .perfilContractual as unknown as Prisma.InputJsonValue,
+              perfilSnapshot: internal.relationship.perfilContractual,
               configuracionSnapshot: {
                 id: internal.configuration.id,
                 vigenteDesde: internal.configuration.vigenteDesde,
                 vigenteHasta: internal.configuration.vigenteHasta,
-              } as unknown as Prisma.InputJsonValue,
+              },
               plantillaSnapshot: {
                 id: internal.configuration.plantilla.id,
                 nombre: internal.configuration.plantilla.nombre,
                 versionEfectiva:
                   internal.configuration.plantilla.updatedAt.toISOString(),
-              } as unknown as Prisma.InputJsonValue,
+              },
               motivoResolucion: 'PERFIL_TIPO_DOCUMENTAL_PLANTILLA_VIGENTE',
               resueltoAt: at,
             },
