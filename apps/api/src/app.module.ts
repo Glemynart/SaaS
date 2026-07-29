@@ -29,6 +29,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { TenantContextModule } from './tenant-context/tenant-context.module';
 import { TenantPrismaModule } from './tenant-prisma/tenant-prisma.module';
 import { ContractualProfilesModule } from './contractual-profiles/contractual-profiles.module';
+import { LaborRelationshipsModule } from './labor-relationships/labor-relationships.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { ContractualProfilesModule } from './contractual-profiles/contractual-pr
     TenantContextModule,
     TenantPrismaModule,
     ContractualProfilesModule,
+    LaborRelationshipsModule,
     ThrottlerModule.forRoot([
       {
         name: 'login',

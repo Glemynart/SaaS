@@ -269,6 +269,7 @@ model Tenant {
   invoices           Invoice[]
   contratos          Contrato[]
   perfilesContractuales PerfilContractual[]
+  vinculosLaborales  VinculoLaboral[]
   lotes              LoteContrato[]
   expedientes        ExpedienteDoc[]
   alertas            Alerta[]
@@ -439,6 +440,7 @@ model Empleado {
 
   // Relaciones
   contratos          Contrato[]
+  vinculosLaborales  VinculoLaboral[]
   generatedDocuments GeneratedDocument[]
   alerts             Alert[]
   payrollRuns        PayrollRun[]
@@ -1356,12 +1358,44 @@ model PerfilContractual {
   descripcion String?
   activo      Boolean @default(true)
 
-  contratos Contrato[]
+  contratos        Contrato[]
+  vinculosLaborales VinculoLaboral[]
 
   @@unique([tenantId, codigo])
   @@index([tenantId, activo])
   @@index([tenantId, nombre])
   @@map("perfiles_contractuales")
+}
+
+// =============================================================================
+// VINCULO LABORAL — Fuente precontractual del perfil contractual
+// =============================================================================
+// Representa la clasificación vigente del proceso laboral de un empleado antes
+// de generar un contrato. No reemplaza el snapshot histórico del contrato ni
+// participa todavía en la generación documental o en los lotes.
+// =============================================================================
+
+model VinculoLaboral {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  empleadoId String
+  empleado   Empleado @relation(fields: [empleadoId], references: [id], onDelete: Restrict)
+
+  perfilContractualId String
+  perfilContractual   PerfilContractual @relation(fields: [perfilContractualId], references: [id], onDelete: Restrict)
+
+  vigenteDesde DateTime  @db.Date
+  vigenteHasta DateTime? @db.Date
+  activo        Boolean  @default(true)
+
+  @@index([tenantId, empleadoId, activo])
+  @@index([tenantId, perfilContractualId])
+  @@map("vinculos_laborales")
 }
 
 // =============================================================================
