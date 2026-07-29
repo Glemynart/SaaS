@@ -5,6 +5,7 @@ const AUTHENTICATED_CONTROLLER_POLICIES = new Set([
   'BillingController',
   'CentrosCostoController',
   'ContractsController',
+  'ContractualProfilesController',
   'CuentasContablesController',
   'CuentaSistemaMapController',
   'DaneController',

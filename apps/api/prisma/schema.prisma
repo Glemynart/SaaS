@@ -268,6 +268,7 @@ model Tenant {
   productServices    ProductService[]
   invoices           Invoice[]
   contratos          Contrato[]
+  perfilesContractuales PerfilContractual[]
   lotes              LoteContrato[]
   expedientes        ExpedienteDoc[]
   alertas            Alerta[]
@@ -1286,6 +1287,11 @@ model Contrato {
   sedeId String?
   sede   Sede?   @relation(fields: [sedeId], references: [id])
 
+  // Clasificación contractual explícita. Es opcional durante la adopción y no
+  // participa aún en la generación ni en el procesamiento de lotes.
+  perfilContractualId String?
+  perfilContractual   PerfilContractual? @relation(fields: [perfilContractualId], references: [id], onDelete: Restrict)
+
   // Auto-referencia: contrato anterior que este contrato renueva
   contratoRenovaId String?
   contratoRenova   Contrato?  @relation("ContratoRenovacion", fields: [contratoRenovaId], references: [id])
@@ -1324,8 +1330,38 @@ model Contrato {
   @@index([tenantId, loteId])
   @@index([tenantId, tipo])
   @@index([tenantId, sedeId])
+  @@index([tenantId, perfilContractualId])
   @@unique([loteId, empleadoId])
   @@map("contratos")
+}
+
+// =============================================================================
+// PERFIL CONTRACTUAL — Catálogo administrable por tenant
+// =============================================================================
+// Clasifica explícitamente un vínculo contractual sin depender de Cargo. La
+// relación con documentos se incorpora en una fase posterior; este catálogo no
+// participa en la generación, selección de plantillas ni procesamiento actual.
+// =============================================================================
+
+model PerfilContractual {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  codigo      String
+  nombre      String
+  descripcion String?
+  activo      Boolean @default(true)
+
+  contratos Contrato[]
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, activo])
+  @@index([tenantId, nombre])
+  @@map("perfiles_contractuales")
 }
 
 // =============================================================================
