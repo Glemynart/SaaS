@@ -326,6 +326,7 @@ export class GeneratedDocumentsService {
         pdfStorageKey: true,
         pdfSizeBytes: true,
         pdfUrl: true,
+        estado: true,
       },
     });
     if (!doc) {
@@ -347,6 +348,23 @@ export class GeneratedDocumentsService {
       );
       pdfSizeBytes = stored.size;
       materialized = true;
+    }
+
+    if (
+      doc.pdfStorageKey !== storageKey ||
+      doc.pdfSizeBytes !== pdfSizeBytes ||
+      doc.pdfUrl !== pdfUrl ||
+      doc.estado !== 'MATERIALIZADO'
+    ) {
+      await this.prisma.generatedDocument.update({
+        where: { id: doc.id },
+        data: {
+          pdfStorageKey: storageKey,
+          pdfSizeBytes,
+          pdfUrl,
+          estado: 'MATERIALIZADO',
+        },
+      });
     }
 
     return {
@@ -397,12 +415,21 @@ export class GeneratedDocumentsService {
 
     const html = this.buildPdfHtml(doc.contenidoFinal, tenant, doc.employee);
 
-    const { pdfUrl } = await this.renderAndStorePdf(tenantId, id, html);
+    const {
+      pdfUrl,
+      storageKey,
+      size: pdfSizeBytes,
+    } = await this.renderAndStorePdf(tenantId, id, html);
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.generatedDocument.update({
         where: { id },
-        data: { pdfUrl },
+        data: {
+          pdfStorageKey: storageKey,
+          pdfSizeBytes,
+          pdfUrl,
+          estado: 'MATERIALIZADO',
+        },
         select: {
           id: true,
           pdfUrl: true,

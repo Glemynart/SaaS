@@ -1,7 +1,12 @@
 import { Global, Module } from '@nestjs/common';
+import { CloudflareR2StorageProvider } from './cloudflare-r2-storage.provider';
 import { LocalDiskStorageProvider } from './local-disk-storage.provider';
 import { StorageService } from './storage.service';
-import { STORAGE_PROVIDER } from './storage.types';
+import {
+  STORAGE_PROVIDER,
+  StorageProvider,
+  UnknownStorageProviderError,
+} from './storage.types';
 
 /**
  * Módulo global de almacenamiento.
@@ -15,7 +20,21 @@ import { STORAGE_PROVIDER } from './storage.types';
 @Module({
   providers: [
     LocalDiskStorageProvider,
-    { provide: STORAGE_PROVIDER, useExisting: LocalDiskStorageProvider },
+    CloudflareR2StorageProvider,
+    {
+      provide: STORAGE_PROVIDER,
+      inject: [LocalDiskStorageProvider, CloudflareR2StorageProvider],
+      useFactory: (
+        local: LocalDiskStorageProvider,
+        cloudflareR2: CloudflareR2StorageProvider,
+      ): StorageProvider => {
+        const provider = process.env.STORAGE_PROVIDER ?? 'local';
+        if (provider === 'local') return local;
+        if (provider === 'r2') return cloudflareR2;
+
+        throw new UnknownStorageProviderError(provider);
+      },
+    },
     StorageService,
   ],
   exports: [StorageService],
