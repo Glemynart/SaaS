@@ -6,6 +6,7 @@ const loteFindFirst = jest.fn();
 const employeeFindMany = jest.fn();
 const relationshipFindMany = jest.fn();
 const configurationFindMany = jest.fn();
+const planUpsert = jest.fn();
 const execute = jest.fn();
 const TENANT = 'tenant-001';
 const LOTE = '11111111-1111-4111-8111-111111111111';
@@ -16,6 +17,7 @@ type MockClient = {
   empleado: { findMany: typeof employeeFindMany };
   vinculoLaboral: { findMany: typeof relationshipFindMany };
   configuracionDocumentalPerfil: { findMany: typeof configurationFindMany };
+  batchDocumentGenerationPlan: { upsert: typeof planUpsert };
 };
 
 const lote = {
@@ -37,7 +39,14 @@ const relationship = {
 const configuration = {
   id: 'configuration',
   perfilContractualId: 'profile',
-  plantilla: { id: 'template', nombre: 'Contrato docente' },
+  plantillaId: 'template',
+  vigenteDesde: new Date('2026-01-01'),
+  vigenteHasta: null,
+  plantilla: {
+    id: 'template',
+    nombre: 'Contrato docente',
+    updatedAt: new Date('2026-01-01'),
+  },
 };
 
 function objectContaining<T extends object>(expected: T): T {
@@ -60,6 +69,7 @@ describe('DocumentResolutionService', () => {
             empleado: { findMany: employeeFindMany },
             vinculoLaboral: { findMany: relationshipFindMany },
             configuracionDocumentalPerfil: { findMany: configurationFindMany },
+            batchDocumentGenerationPlan: { upsert: planUpsert },
           },
           { tenantId: TENANT },
         ),
@@ -70,6 +80,46 @@ describe('DocumentResolutionService', () => {
   });
   const preview = () =>
     service.preview({ loteId: LOTE, fechaProceso: '2026-06-01' });
+  const confirm = () =>
+    service.confirm({ loteId: LOTE, fechaProceso: '2026-06-01' });
+
+  it('confirma planes con snapshots y el tenant de la transacción', async () => {
+    planUpsert.mockResolvedValue({ id: 'plan-1' });
+    await expect(confirm()).resolves.toEqual([{ id: 'plan-1' }]);
+    expect(planUpsert).toHaveBeenCalledWith(
+      objectContaining({
+        create: objectContaining({
+          tenantId: TENANT,
+          loteId: LOTE,
+          empleadoId: EMPLOYEE,
+          perfilSnapshot: relationship.perfilContractual,
+        }),
+      }),
+    );
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+
+  it('permite una segunda confirmación sin duplicar ni modificar snapshots', async () => {
+    const existingPlan = {
+      id: 'plan-1',
+      perfilSnapshot: relationship.perfilContractual,
+    };
+    planUpsert.mockResolvedValue(existingPlan);
+
+    await expect(confirm()).resolves.toEqual([existingPlan]);
+    await expect(confirm()).resolves.toEqual([existingPlan]);
+
+    expect(planUpsert).toHaveBeenCalledTimes(2);
+    expect(planUpsert).toHaveBeenLastCalledWith(
+      objectContaining({ update: {}, create: objectContaining({}) }),
+    );
+  });
+
+  it('hace rollback lógico sin crear planes si hay una resolución bloqueada', async () => {
+    relationshipFindMany.mockResolvedValue([]);
+    await expect(confirm()).rejects.toThrow();
+    expect(planUpsert).not.toHaveBeenCalled();
+  });
 
   it('resuelve una plantilla vigente de forma determinística', async () => {
     await expect(preview()).resolves.toEqual([
