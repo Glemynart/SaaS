@@ -6,6 +6,7 @@ import { ContractsModule } from '../contracts/contracts.module';
 import { GeneratedDocumentsModule } from '../generated-documents/generated-documents.module';
 import { ExpedienteDocsModule } from '../expediente-docs/expediente-docs.module';
 import { TenantsModule } from '../tenants/tenants.module';
+import { BatchDocumentGenerationModule } from '../batch-document-generation/batch-document-generation.module';
 
 /**
  * LotesModule — Generación masiva de contratos.
@@ -21,6 +22,7 @@ import { TenantsModule } from '../tenants/tenants.module';
     GeneratedDocumentsModule,
     ExpedienteDocsModule,
     TenantsModule,
+    BatchDocumentGenerationModule,
   ],
   controllers: [LotesController],
   providers: [LoteEngineService, LotesService],

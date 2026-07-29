@@ -1,5 +1,11 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Contrato, LoteContrato, Prisma } from '@prisma/client';
+import {
+  BatchDocumentGenerationPlanStatus,
+  Contrato,
+  LoteContrato,
+  Prisma,
+} from '@prisma/client';
+import { BatchDocumentGenerationService } from '../batch-document-generation/batch-document-generation.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { ContractsService } from '../contracts/contracts.service';
@@ -44,6 +50,7 @@ export class LoteEngineService {
     private readonly contractsService: ContractsService,
     private readonly generatedDocumentsService: GeneratedDocumentsService,
     private readonly expedienteDocsService: ExpedienteDocsService,
+    private readonly batchDocumentGenerationService: BatchDocumentGenerationService,
   ) {}
 
   /**
@@ -87,6 +94,19 @@ export class LoteEngineService {
     }
 
     const userId = lote.creadoPorId ?? 'system';
+    const hasDocumentGenerationPlans =
+      (await this.prisma.batchDocumentGenerationPlan.count({
+        where: {
+          tenantId: lote.tenantId,
+          loteId,
+          estado: {
+            in: [
+              BatchDocumentGenerationPlanStatus.CONFIRMADO,
+              BatchDocumentGenerationPlanStatus.CONSUMIDO,
+            ],
+          },
+        },
+      })) > 0;
 
     const errores: LoteErrorEntry[] = [];
 
@@ -98,12 +118,14 @@ export class LoteEngineService {
           lote,
           empleadoId,
         );
-        await this.ensureDocumento(
-          lote.tenantId,
-          userId,
-          contrato,
-          lote.documentTemplateId,
-        );
+        if (!hasDocumentGenerationPlans) {
+          await this.ensureDocumento(
+            lote.tenantId,
+            userId,
+            contrato,
+            lote.documentTemplateId,
+          );
+        }
 
         // Incremento atómico → progreso visible en tiempo real para polling.
         await this.prisma.loteContrato.update({
@@ -128,6 +150,34 @@ export class LoteEngineService {
       }
     }
 
+    if (hasDocumentGenerationPlans && errores.length === 0) {
+      try {
+        await this.batchDocumentGenerationService.start(loteId);
+      } catch (error) {
+        const mensaje =
+          error instanceof Error ? error.message : 'Error desconocido';
+        this.logger.warn(
+          `Lote ${loteId}: la generación documental falló — ${mensaje}`,
+        );
+        return this.prisma.loteContrato.update({
+          where: { id: loteId },
+          data: {
+            estado: 'FALLIDO',
+            completadoAt: new Date(),
+            procesados: 0,
+            fallidos: empleadoIds.length,
+            erroresLog: [
+              {
+                empleadoId: 'BATCH_DOCUMENT_GENERATION',
+                cedula: null,
+                error: mensaje,
+              },
+            ],
+          },
+        });
+      }
+    }
+
     const procesados = empleadoIds.length - errores.length;
     const estado =
       errores.length === 0
@@ -141,7 +191,7 @@ export class LoteEngineService {
       data: {
         estado,
         completadoAt: new Date(),
-        erroresLog: errores as unknown as object[],
+        erroresLog: errores as unknown as Prisma.InputJsonValue,
       },
     });
   }

@@ -20,6 +20,7 @@ describe('GeneratedDocument lifecycle infrastructure', () => {
     expect(schema).toContain(
       'estado         GeneratedDocumentStatus @default(PENDIENTE_MATERIALIZACION)',
     );
+    expect(schema).toContain('batchDocumentGenerationPlanId String? @unique');
     expect(schema).toContain('@@index([tenantId, estado])');
   });
 
