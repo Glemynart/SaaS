@@ -8,6 +8,8 @@
 | **Ámbito**      | SaaS multiempresa «La Oficina Nítida» · facturación electrónica DIAN |
 | **Relacionado** | [PR10](../PR10-ELECTRONIC-INVOICING-ARCHITECTURE.md), ADR-001        |
 
+**Fuente normativa:** este ADR prevalece sobre PR10 ante conflicto; PR10 es la especificación operativa de esta decisión.
+
 ## Contexto
 
 El módulo de facturación interno existente no tiene aún la semántica, evidencia ni resiliencia requeridas para emitir documentos electrónicos ante DIAN. La integración con MATIAS es externa, su contrato puede evolucionar y las entregas asíncronas pueden repetirse o quedar ambiguas. La solución debe respetar el monolito multiempresa, conservar la trazabilidad fiscal y no acoplar el dominio ni a un proveedor ni a BullMQ.
@@ -15,6 +17,8 @@ El módulo de facturación interno existente no tiene aún la semántica, eviden
 ## Decisión
 
 Se adopta un bounded context de facturación electrónica dentro del monolito modular. `FacturaElectronica` es el agregado fiscal inmutable tras la numeración; la transmisión es durable e idempotente; MATIAS queda detrás de un puerto de transmisión y BullMQ es únicamente un ejecutor de infraestructura reemplazable.
+
+El agregado no conoce puertos externos. Los casos de uso de aplicación invocan el puerto de transmisión; BullMQ únicamente ejecuta esos casos de uso sobre transmisiones persistidas y permanece reemplazable. PR18 integra el núcleo de causación ya definido en ADR-001; no desarrolla un ERP contable ni amplía el MVP de facturación.
 
 ## Decisiones internas
 
@@ -34,6 +38,8 @@ El consecutivo se asigna desde un rango del tenant al crear la transmisión dura
 
 Los casos de uso dependen solo del puerto de transmisión electrónica y la transmisión persistida es la fuente de verdad. BullMQ es el ejecutor inicial que despierta el procesamiento, no una dependencia de dominio ni un requisito permanente; puede cambiarse sin modificar reglas de negocio. Se descartan la emisión HTTP síncrona y confiar solo en una cola efímera.
 
+El agregado permanece puro: no conoce puertos externos. Solo los casos de uso de aplicación invocan el puerto; BullMQ se limita a ejecutar esos casos de uso y no contiene reglas de negocio.
+
 ### FE-05 — Puerto MATIAS y payload canónico propio
 
 MATIAS se consume mediante una capa anticorrupción. **El payload canónico del dominio nunca será el DTO del proveedor: el dominio define su propio modelo y el adaptador traduce hacia y desde MATIAS API.** Se descarta filtrar DTOs, códigos de error o convenciones MATIAS al agregado fiscal.
@@ -49,6 +55,8 @@ Ante un timeout o respuesta no concluyente, la factura pasa a conciliación y se
 ### FE-08 — Contabilización posterior a aceptación
 
 Solo `FACTURA_ACEPTADA` puede causar la venta mediante el puerto contable y la idempotencia de origen de ADR-001. Se descarta contabilizar al crear o transmitir, y se mantiene la consistencia eventual controlada entre lo fiscal y el libro.
+
+PR18 integra el núcleo de causación ya definido en ADR-001; no desarrolla un ERP contable ni amplía el MVP de facturación.
 
 ### FE-09 — Evidencia privada y auditoría central
 
