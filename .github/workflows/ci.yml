@@ -43,6 +43,9 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @saas/api exec prisma generate
 
+      - name: Build shared types
+        run: pnpm --filter @saas/types build
+
       - name: Typecheck
         run: pnpm typecheck
 
