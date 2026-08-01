@@ -186,3 +186,5 @@ Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente p
 **Estado de cierre:** `GOAL ACTIVO — NO COMPLETADO`
 
 Motivo: existen slices funcionales importantes, pero permanecen abiertas la gestión de usuarios, contratación inteligente end-to-end, expediente operativo, automatización de alertas, deployment y aceptación productiva.
+
+La PR #78 puede quedar `APROBADA PARA MERGE` para E1.1 sin cerrar E1.1, M1 ni GOAL-01: E1.2, E1.3 y E1.4 siguen pendientes, y M1 sólo se completa cuando se cumple su resultado verificable completo.

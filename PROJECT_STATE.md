@@ -1958,7 +1958,7 @@ Validación de cierre:
 - Pruebas de entrega documental privada y autenticación aprobadas.
 - Sanitización documental: 19/19 pruebas aprobadas.
 - Lint y typecheck aprobados.
-- El build web permanece condicionado por la disponibilidad externa de Google Fonts para descargar Geist y Geist Mono.
+- El build web no depende de una descarga externa de fuentes; usa una pila de fuentes del sistema.
 
 ---
 
