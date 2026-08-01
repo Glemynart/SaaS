@@ -9,12 +9,14 @@ describe('StorageService', () => {
   const mockGet = jest.fn();
   const mockDelete = jest.fn();
   const mockExists = jest.fn();
+  const mockCheckReadiness = jest.fn();
 
   beforeEach(async () => {
     mockPut.mockReset();
     mockGet.mockReset();
     mockDelete.mockReset();
     mockExists.mockReset();
+    mockCheckReadiness.mockReset();
 
     const provider: StorageProvider = {
       put: mockPut,
@@ -66,5 +68,27 @@ describe('StorageService', () => {
 
     await expect(service.objectExists('k')).resolves.toBe(true);
     expect(mockExists).toHaveBeenCalledWith('k');
+  });
+
+  it('delega checkReadiness en el proveedor cuando está disponible', async () => {
+    const provider: StorageProvider = {
+      put: mockPut,
+      get: mockGet,
+      delete: mockDelete,
+      exists: mockExists,
+      checkReadiness: mockCheckReadiness,
+    };
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        StorageService,
+        { provide: STORAGE_PROVIDER, useValue: provider },
+      ],
+    }).compile();
+    service = moduleRef.get(StorageService);
+
+    await service.checkReadiness();
+
+    expect(mockCheckReadiness).toHaveBeenCalledTimes(1);
+    expect(mockExists).not.toHaveBeenCalled();
   });
 });

@@ -6,6 +6,10 @@ import { passwordResetTemplate } from './templates/password-reset.template';
 
 export type EmailType = 'password-reset';
 
+export interface EmailReadiness {
+  status: 'up' | 'degraded';
+}
+
 export interface PasswordResetPayload {
   userName: string;
   resetUrl: string;
@@ -109,6 +113,12 @@ export class EmailService implements OnModuleInit {
         })
         .catch(() => {});
     }
+  }
+
+  getReadiness(): EmailReadiness {
+    return {
+      status: this.resend && !this.degraded ? 'up' : 'degraded',
+    };
   }
 
   private resolveSubject(type: EmailType): string {

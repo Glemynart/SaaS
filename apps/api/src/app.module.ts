@@ -33,6 +33,7 @@ import { LaborRelationshipsModule } from './labor-relationships/labor-relationsh
 import { DocumentProfileConfigurationsModule } from './document-profile-configurations/document-profile-configurations.module';
 import { DocumentResolutionModule } from './document-resolution/document-resolution.module';
 import { BatchDocumentGenerationModule } from './batch-document-generation/batch-document-generation.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { BatchDocumentGenerationModule } from './batch-document-generation/batch
     DocumentProfileConfigurationsModule,
     DocumentResolutionModule,
     BatchDocumentGenerationModule,
+    HealthModule,
     ThrottlerModule.forRoot([
       {
         name: 'login',

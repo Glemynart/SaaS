@@ -61,8 +61,8 @@ docker build -f deploy/Dockerfile.web -t la-oficina-nitida-web:staging .
 
 El arranque contra un PostgreSQL de staging requiere las migraciones y el
 seed definidos por E1.2; este PR no los ejecuta implícitamente ni eleva los
-privilegios del usuario runtime. R2, correo real, health/readiness y pruebas
-browser pertenecen a E1.3/E1.4.
+privilegios del usuario runtime. Las verificaciones de R2, correo real y
+health/readiness se describen en E1.3; las pruebas browser pertenecen a E1.4.
 
 ## E1.2 - Migraciones, seed y rol runtime
 
@@ -135,4 +135,78 @@ docker run --rm \
   -lc 'cd /app/apps/api && npm run prisma:seed'
 ```
 
-R2, correo real, health/readiness y pruebas browser pertenecen a E1.3/E1.4.
+## E1.3 - R2, correo real y health/readiness
+
+El servicio API de staging debe usar los proveedores reales, manteniendo
+`DATABASE_URL` con el rol runtime no privilegiado de E1.2:
+
+```text
+STORAGE_PROVIDER=r2
+R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+R2_ACCESS_KEY_ID=<access-key>
+R2_SECRET_ACCESS_KEY=<secret-key>
+R2_BUCKET=<bucket>
+RESEND_API_KEY=<resend-api-key>
+EMAIL_FROM=<dominio-verificado>
+EMAIL_FROM_NAME=La Oficina Nítida
+REQUIRE_REAL_EMAIL=true
+```
+
+`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `RESEND_API_KEY` y cualquier
+contraseña se configuran únicamente como secretos del entorno. `R2_ENDPOINT`,
+`R2_BUCKET` y `EMAIL_FROM` también deben pertenecer al entorno de staging y no
+se deben copiar desde un `.env` local.
+
+### Comprobación del proceso y dependencias
+
+El API expone dos rutas públicas sin datos de tenant:
+
+- `GET /health` devuelve `200` cuando el proceso está vivo. No consulta
+  dependencias y es adecuada como healthcheck básico de la plataforma.
+- `GET /readiness` devuelve `200` sólo cuando PostgreSQL y el storage activo
+  responden. Con `REQUIRE_REAL_EMAIL=true`, también exige que Resend y
+  `EMAIL_FROM` estén configurados; si no, devuelve `503` sin exponer secretos
+  ni detalles internos.
+
+Después de desplegar la imagen y aplicar E1.2, verifica:
+
+```bash
+curl --fail "$API_URL/health"
+curl --fail "$API_URL/readiness"
+```
+
+Una respuesta `503` en `/readiness` debe corregirse en la configuración del
+entorno o en la dependencia indicada antes de considerar staging operativo.
+
+### Comprobación R2
+
+Con `/readiness` en `200`, ejecuta desde la UI una operación que escriba y lea
+un objeto, por ejemplo cargar el logo de una organización y consultarlo desde
+la configuración de identidad. Para una migración de archivos locales
+existentes, ejecuta el migrador explícito sobre la misma imagen y conserva su
+reporte de diferencias:
+
+```bash
+STORAGE_PROVIDER=r2 \
+R2_ENDPOINT="$R2_ENDPOINT" \
+R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
+R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+R2_BUCKET="$R2_BUCKET" \
+pnpm --filter @saas/api storage:migrate-local-to-r2
+```
+
+No uses `r2-migration` como estado final: ese proveedor sólo sirve para la
+transición porque escribe en R2 y permite fallback controlado de lectura.
+
+### Comprobación de correo real
+
+Usa una cuenta de prueba del tenant de staging y solicita recuperación de
+contraseña desde `/recuperar`. Verifica en el buzón que:
+
+1. llega el correo desde el dominio verificado en Resend;
+2. el enlace abre `/reset-password` y permite completar el flujo;
+3. el token expira o se invalida después de su uso.
+
+No uses datos ni buzones de clientes reales para esta prueba. El modo
+degradado se conserva para desarrollo local, pero `REQUIRE_REAL_EMAIL=true`
+impide declarar readiness de staging cuando el correo real no está listo.

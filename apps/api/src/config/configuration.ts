@@ -26,5 +26,6 @@ export default () => ({
     apiKey: process.env.RESEND_API_KEY,
     from: process.env.EMAIL_FROM,
     fromName: process.env.EMAIL_FROM_NAME ?? 'La Oficina Nítida',
+    requireReal: process.env.REQUIRE_REAL_EMAIL === 'true',
   },
 });
