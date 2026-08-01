@@ -197,14 +197,14 @@ adelanta E3.2 ni trabajo de Milestones posteriores.
 
 ## PRs asociados
 
-| PR      | Epic  | Propósito                                                                | Estado            | ¿Cierra capacidad?                                         |
-| ------- | ----- | ------------------------------------------------------------------------ | ----------------- | ---------------------------------------------------------- |
-| #78     | E1.1  | Imágenes reproducibles de staging para API y Web.                        | FUSIONADO         | No; E1.1 requiere verificación de staging.                 |
-| #79     | E1.2  | Migraciones, seed y rol runtime PostgreSQL no privilegiado.              | FUSIONADO         | Sí; E1.2 verificada localmente y en DB limpia.             |
-| #80     | E1.3  | R2, correo real y health/readiness checks.                               | FUSIONADO         | No; requiere verificación real en staging.                 |
-| #81     | E1.4  | CI, observabilidad y base de pruebas browser end-to-end.                 | FUSIONADO         | Sí; CI y Browser E2E verificados; M1 aún requiere staging. |
-| próximo | E3.1  | Verificación browser del CRUD, búsqueda e importación XLSX de empleados. | EN IMPLEMENTACIÓN | No; se cierra cuando el PR se fusione.                     |
-| #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.     | FUSIONADOS        | No; el recorrido inteligente sigue abierto.                |
+| PR      | Epic  | Propósito                                                                | Estado     | ¿Cierra capacidad?                                         |
+| ------- | ----- | ------------------------------------------------------------------------ | ---------- | ---------------------------------------------------------- |
+| #78     | E1.1  | Imágenes reproducibles de staging para API y Web.                        | FUSIONADO  | No; E1.1 requiere verificación de staging.                 |
+| #79     | E1.2  | Migraciones, seed y rol runtime PostgreSQL no privilegiado.              | FUSIONADO  | Sí; E1.2 verificada localmente y en DB limpia.             |
+| #80     | E1.3  | R2, correo real y health/readiness checks.                               | FUSIONADO  | No; requiere verificación real en staging.                 |
+| #81     | E1.4  | CI, observabilidad y base de pruebas browser end-to-end.                 | FUSIONADO  | Sí; CI y Browser E2E verificados; M1 aún requiere staging. |
+| #83     | E3.1  | Verificación browser del CRUD, búsqueda e importación XLSX de empleados. | ABIERTO    | No; se cierra cuando el PR se fusione.                     |
+| #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.     | FUSIONADOS | No; el recorrido inteligente sigue abierto.                |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.
 
