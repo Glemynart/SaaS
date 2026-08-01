@@ -61,4 +61,38 @@ test('crea un perfil contractual y lo vincula a un empleado desde la UI', async 
 
   await expect(page.getByRole('button', { name: 'Actualizar vínculo', exact: true })).toBeVisible();
   await expect(page.getByLabel('Perfil contractual')).toContainText(profileName);
+
+  await page.goto('/documentos/plantillas');
+  await page.getByRole('button', { name: /Plantillas base/ }).click();
+  const seedDialog = page.getByRole('alertdialog');
+  await seedDialog.getByRole('button', { name: /Crear plantillas base/ }).click();
+  await expect(page.getByText(/Contrato laboral/).first()).toBeVisible();
+
+  await page.goto('/documentos/configuracion');
+  await expect(page.getByRole('heading', { name: /Configuraci.n documental/ })).toBeVisible();
+  await page.getByRole('button', { name: /Nueva configuraci.n/ }).click();
+
+  const configurationDialog = page.getByRole('dialog', { name: /Nueva configuraci.n documental/ });
+  await configurationDialog
+    .getByLabel('Perfil contractual')
+    .selectOption({ label: `${profileName} (${profileCode})` });
+  const templateSelect = configurationDialog.getByLabel('Plantilla');
+  const templateValue = await templateSelect
+    .locator('option')
+    .filter({ hasText: /Contrato laboral/ })
+    .first()
+    .getAttribute('value');
+  expect(templateValue).toBeTruthy();
+  await templateSelect.selectOption(templateValue!);
+  await configurationDialog.getByRole('button', { name: /Crear configuraci.n/ }).click();
+
+  const configurationRow = page.getByRole('row').filter({ hasText: profileName });
+  await expect(configurationRow).toContainText(/Contrato laboral/);
+  await expect(configurationRow).toContainText('Activa');
+
+  await configurationRow.getByRole('button', { name: 'Editar', exact: true }).click();
+  const editDialog = page.getByRole('dialog', { name: /Editar configuraci.n documental/ });
+  await editDialog.locator('input[type="checkbox"]').uncheck();
+  await editDialog.getByRole('button', { name: /Guardar configuraci.n/ }).click();
+  await expect(configurationRow).toContainText('Inactiva');
 });

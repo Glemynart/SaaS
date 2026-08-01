@@ -108,7 +108,10 @@ export class DocumentProfileConfigurationsService {
           id,
         );
         const vigenteDesde = dto.vigenteDesde ?? current.vigenteDesde;
-        const vigenteHasta = dto.vigenteHasta ?? current.vigenteHasta;
+        const vigenteHasta =
+          dto.vigenteHasta !== undefined
+            ? dto.vigenteHasta
+            : current.vigenteHasta;
         this.validateDates(vigenteDesde, vigenteHasta);
         if (dto.plantillaId)
           await this.ensureCompatibleTemplate(
@@ -135,8 +138,10 @@ export class DocumentProfileConfigurationsService {
               ...(dto.vigenteDesde && {
                 vigenteDesde: new Date(dto.vigenteDesde),
               }),
-              ...(dto.vigenteHasta && {
-                vigenteHasta: new Date(dto.vigenteHasta),
+              ...(dto.vigenteHasta !== undefined && {
+                vigenteHasta: dto.vigenteHasta
+                  ? new Date(dto.vigenteHasta)
+                  : null,
               }),
               ...(dto.activo !== undefined && { activo: dto.activo }),
             },
