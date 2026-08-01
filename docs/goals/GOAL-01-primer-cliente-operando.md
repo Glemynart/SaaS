@@ -138,10 +138,10 @@ decisión de dominio, y prepara los datos laborales sin adelantar otros Mileston
 
 - [x] E3.1 — Empleados CRUD, búsqueda e importación XLSX verificadas (PR #83 fusionada).
 - [x] E3.2 — Perfiles contractuales y vínculos laborales precontractuales (PR #84 fusionada).
-- [ ] E3.3 — Configuración perfil → tipo documental → plantilla.
+- [x] E3.3 — Configuración perfil → tipo documental → plantilla (PR #86 fusionada y verificada por CI/Browser E2E).
 - [ ] E3.4 — Errores y bloqueos comprensibles para el operador.
 
-### Estado de ejecución vigente — E3.3
+### Estado post-merge — E3.3
 
 Tras fusionar E3.2, la revisión del grafo de dependencias en `main` confirma
 que E3.3 — configuración perfil → tipo documental → plantilla — es la siguiente
@@ -150,10 +150,11 @@ para operar la configuración. No requiere staging, R2, correo ni una nueva
 decisión de dominio; además prepara los datos que M4 necesita. E2.1 sigue
 pendiente por invitaciones y correo, mientras M1 sigue bloqueado por staging.
 La PR de mantenimiento que migra las acciones de GitHub a Node 24 es
-independiente y no bloquea GOAL-01. PR #86 queda abierta para revisión y contiene
-únicamente E3.3; como E3.4 depende de la configuración y del recorrido operativo
-que entrega E3.3, GOAL-01 pasa a `ESPERANDO_MERGE` y no se inicia otra Epic sobre
-`main` hasta que desaparezca esa dependencia.
+independiente y no bloquea GOAL-01. PR #86 entregó únicamente E3.3 y quedó
+fusionada después de que sus checks y los checks post-merge de `main` terminaran
+en verde. La dependencia de E3.4 ya desapareció; GOAL-01 vuelve a `ACTIVO`, M1
+permanece `BLOQUEADO` por staging y E3.4 queda como la siguiente Epic pendiente
+de M3. No se inicia E3.4 en esta sincronización de estado.
 
 ### M4 — Contratación Inteligente End-to-End
 
@@ -247,7 +248,7 @@ y vínculo laboral del backend desde la interfaz, sin requerir staging, R2,
 correo ni una nueva decisión de dominio, y quedó fusionada en PR #84 con CI y
 Browser E2E verdes. E2.1 permanece pendiente porque su recorrido completo
 
-> La determinación vigente, actualizada después de E3.2, queda documentada en
-> la sección de ejecución: E3.3 es la Epic activa de GOAL-01 y está abierta en
-> PR #86. E3.4 requiere el recorrido operativo que entrega E3.3; por ello
-> GOAL-01 permanece `ESPERANDO_MERGE` hasta que la PR sea fusionada y verificada.
+> La determinación vigente, actualizada después de E3.3, queda documentada en
+> la sección post-merge: E3.3 está fusionada en PR #86 y verificada por CI y
+> Browser E2E. GOAL-01 permanece `ACTIVO`; E3.4 es la siguiente Epic pendiente,
+> pero no se implementa en esta sincronización.
