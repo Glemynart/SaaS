@@ -110,6 +110,17 @@ Debe responder una sola pregunta:
 
 El veredicto es `APROBADO PARA MERGE` o `NO APROBADO PARA MERGE`. Los bloqueos se corrigen en nuevos commits y la auditoría se repite. No se agregan refactors cosméticos ni mejoras hipotéticas.
 
+### Frontera entre estados
+
+Estos estados no son equivalentes:
+
+- `APROBADO PARA MERGE` significa que la PR y la Epic que entrega están listas para revisión y merge. No significa que la PR esté fusionada, que el Milestone esté completo ni que el Goal esté completo.
+- Una Epic sólo puede marcarse completada cuando su capacidad está fusionada y verificada end-to-end.
+- Un Milestone sólo puede marcarse completado cuando se cumplen su resultado verificable y todas sus Epics requeridas.
+- El Goal activo permanece `ACTIVO` mientras exista cualquier Milestone, Epic, criterio de aceptación, evidencia productiva o aceptación del cliente pendiente.
+
+El cierre de una ejecución de desarrollo puede detenerse en `APROBADO PARA MERGE`; el cierre del Goal es una decisión posterior y exige la sección `Cierre de un Goal` completa.
+
 ## Cierre de un Goal
 
 Un Goal se completa únicamente cuando:

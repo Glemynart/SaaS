@@ -21,6 +21,7 @@
 - Resolve missing in-scope dependencies first. For a new product or architecture decision, write an ADR and wait only for that approval.
 - Keep PRs small, reversible, and tied to one Epic. Never merge; the user merges.
 - Audit the complete PR yourself. Fix blockers, update the PR, and repeat until the verdict is `APROBADO PARA MERGE`.
+- `APROBADO PARA MERGE` closes only the audit of the current PR/Epic; it does not complete its Milestone or the active Goal. A Goal may be marked `COMPLETADO` only under the Goal closure rules in `docs/goals/README.md`.
 
 ## Package Manager
 
