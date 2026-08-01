@@ -3,7 +3,6 @@ import {
   BadRequestException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import * as XLSX from 'xlsx';
@@ -75,7 +74,11 @@ interface RawRow {
 
 function str(val: unknown): string | undefined {
   if (val === undefined || val === null || val === '') return undefined;
-  return String(val).trim();
+  if (typeof val === 'string') return val.trim();
+  if (typeof val === 'number' || typeof val === 'boolean') {
+    return val.toString().trim();
+  }
+  return undefined;
 }
 
 function parseDate(val: unknown): string | undefined {
@@ -84,7 +87,8 @@ function parseDate(val: unknown): string | undefined {
   if (val instanceof Date) {
     return val.toISOString().split('T')[0];
   }
-  const s = String(val).trim();
+  if (typeof val !== 'string' && typeof val !== 'number') return undefined;
+  const s = val.toString().trim();
   // Accept YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   // Accept DD/MM/YYYY
@@ -155,7 +159,6 @@ const TEMPLATE_HINTS = [
 @Injectable()
 export class EmployeeImportService {
   constructor(
-    private prisma: PrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private auditService: AuditService,
   ) {}
@@ -181,8 +184,8 @@ export class EmployeeImportService {
         'TERMINO_FIJO',
         '2025-01-15',
         'ACTIVO',
-        'Sede Principal',
-        'Primaria',
+        '',
+        '',
         'FALSE',
         'COMPLETA',
         '',
@@ -260,14 +263,16 @@ export class EmployeeImportService {
     // Batch-resolve sedes by name (case-insensitive via lowercase map)
     const sedeMap = new Map<string, string>(); // lowercase name → sedeId
     if (sedeNamesInFile.size > 0) {
-      const sedes = await this.prisma.sede.findMany({
-        where: {
-          tenantId,
-          activo: true,
-          nombre: { in: Array.from(sedeNamesInFile), mode: 'insensitive' },
-        },
-        select: { id: true, nombre: true },
-      });
+      const sedes = await this.tenantPrisma.execute((prisma) =>
+        prisma.sede.findMany({
+          where: {
+            tenantId,
+            activo: true,
+            nombre: { in: Array.from(sedeNamesInFile), mode: 'insensitive' },
+          },
+          select: { id: true, nombre: true },
+        }),
+      );
       for (const s of sedes) {
         sedeMap.set(s.nombre.toLowerCase(), s.id);
       }

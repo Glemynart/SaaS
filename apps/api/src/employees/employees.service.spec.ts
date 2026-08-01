@@ -14,6 +14,7 @@ const mockAuditLog = jest.fn();
 const mockTenantPrismaExecute = jest.fn();
 
 const TENANT_A = 'tenant-a';
+const USER_A = 'user-a';
 const TENANT_B_EMPLOYEE = 'employee-from-tenant-b';
 
 describe('EmployeesService tenant isolation contracts', () => {
@@ -90,7 +91,7 @@ describe('EmployeesService tenant isolation contracts', () => {
     mockEmpleadoFindFirst.mockResolvedValue(null);
 
     await expect(
-      service.update(TENANT_B_EMPLOYEE, { primerNombre: 'Ataque' }),
+      service.update(USER_A, TENANT_B_EMPLOYEE, { primerNombre: 'Ataque' }),
     ).rejects.toBeInstanceOf(NotFoundException);
 
     expect(mockEmpleadoFindFirst).toHaveBeenCalledWith(
@@ -108,9 +109,9 @@ describe('EmployeesService tenant isolation contracts', () => {
   it('rejects a cross-tenant deletion before issuing a write', async () => {
     mockEmpleadoFindFirst.mockResolvedValue(null);
 
-    await expect(service.remove(TENANT_B_EMPLOYEE)).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.remove(USER_A, TENANT_B_EMPLOYEE),
+    ).rejects.toBeInstanceOf(NotFoundException);
 
     expect(mockEmpleadoFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -122,5 +123,66 @@ describe('EmployeesService tenant isolation contracts', () => {
       }),
     );
     expect(mockEmpleadoUpdate).not.toHaveBeenCalled();
+  });
+
+  it('audits an update after the tenant-scoped write succeeds', async () => {
+    mockEmpleadoFindFirst.mockResolvedValue({ id: 'employee-a' });
+    mockEmpleadoUpdate.mockResolvedValue({ id: 'employee-a' });
+
+    await service.update(USER_A, 'employee-a', { cargo: 'Coordinador' });
+
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: TENANT_A,
+        userId: USER_A,
+        action: 'EMPLOYEE_UPDATE',
+        entityType: 'Employee',
+        entityId: 'employee-a',
+        metadata: { fields: ['cargo'] },
+      }),
+    );
+  });
+
+  it('clears an optional retirement date when the edit form sends an empty value', async () => {
+    mockEmpleadoFindFirst.mockResolvedValue({ id: 'employee-a' });
+    mockEmpleadoUpdate.mockResolvedValue({ id: 'employee-a' });
+
+    await service.update(USER_A, 'employee-a', { fechaRetiro: '' });
+
+    const [updateQuery] = mockEmpleadoUpdate.mock.calls as [
+      [{ data: { fechaRetiro: Date | null } }],
+    ];
+    expect(updateQuery?.[0].data.fechaRetiro).toBeNull();
+  });
+
+  it('clears an optional municipality when the edit form sends an empty value', async () => {
+    mockEmpleadoFindFirst.mockResolvedValue({ id: 'employee-a' });
+    mockEmpleadoUpdate.mockResolvedValue({ id: 'employee-a' });
+
+    await service.update(USER_A, 'employee-a', {
+      municipioExpedicionDocId: '',
+    });
+
+    const [updateQuery] = mockEmpleadoUpdate.mock.calls as [
+      [{ data: { municipioExpedicionDocId: string | null } }],
+    ];
+    expect(updateQuery?.[0].data.municipioExpedicionDocId).toBeNull();
+  });
+
+  it('audits a soft delete after the tenant-scoped write succeeds', async () => {
+    mockEmpleadoFindFirst.mockResolvedValue({ id: 'employee-a' });
+    mockEmpleadoUpdate.mockResolvedValue({ id: 'employee-a' });
+
+    await service.remove(USER_A, 'employee-a');
+
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: TENANT_A,
+        userId: USER_A,
+        action: 'EMPLOYEE_DELETE',
+        entityType: 'Employee',
+        entityId: 'employee-a',
+      }),
+    );
   });
 });
