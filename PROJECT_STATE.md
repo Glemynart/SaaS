@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 E1.4 esperando merge (2026-08-01)
+## Última actualización: GOAL-01 E1.4 fusionada; M1 pendiente de staging (2026-08-01)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -95,7 +95,7 @@ Estado actual:
 
 Goal activo:
 
-- 🟡 GOAL-01 M1 — E1.1 fusionada como PR #78; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real en staging; E1.4 está implementada en PR #81, auditada y esperando merge.
+- 🟡 GOAL-01 M1 — E1.1 fusionada como PR #78 y pendiente de validación reproducible en staging; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real de R2/correo en staging; E1.4 fusionada como PR #81, auditada y verificada por CI/Browser E2E.
 
 - [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
@@ -111,7 +111,9 @@ Hitos recientes fusionados a `main`:
 - 🟡 Contratación Inteligente PR11.1/PR11.2 — PR #76; procesamiento PR11.3 y UI pendientes.
 - ✅ E1.2 — Migraciones, seed y rol PostgreSQL runtime no privilegiado — PR #79.
 - 🟡 E1.3 — R2, correo real y health/readiness checks — PR #80 fusionada; validación real de staging pendiente.
-- 🟡 E1.4 — CI, observabilidad y base de pruebas browser end-to-end — PR #81 abierta, checks verdes y `APROBADO PARA MERGE`; no se inicia otra Epic hasta su merge.
+- ✅ E1.4 — CI, observabilidad y base de pruebas browser end-to-end — PR #81 fusionada, checks verdes y auditoría `APROBADO PARA MERGE`; M1 sigue pendiente de la evidencia operativa de E1.1/E1.3.
+
+La investigación de `main` no encontró una URL de staging, secretos de entorno ni un workflow de despliegue disponible en el repositorio o en GitHub. La validación de E1.1/E1.3 requiere resolver esa dependencia operativa externa; no se adelanta código de M2.
 
 ## <a name="landing-saas"></a>Landing SaaS
 

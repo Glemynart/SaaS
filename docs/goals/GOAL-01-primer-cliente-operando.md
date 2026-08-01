@@ -8,7 +8,7 @@ La evidencia final será un primer cliente que complete y acepte el recorrido pr
 
 ## Estado
 
-`ESPERANDO_MERGE`
+`ACTIVO`
 
 ## Estrategia que lo justifica
 
@@ -95,14 +95,20 @@ Estas exclusiones son limitaciones temporales del roadmap. No se numerarán como
 - [ ] E1.1 — Staging reproducible, configuración y secretos.
 - [x] E1.2 — Migraciones, seed y rol PostgreSQL runtime no privilegiado.
 - [ ] E1.3 — R2, correo real y health/readiness checks.
-- [ ] E1.4 — CI, observabilidad y base de pruebas browser end-to-end.
+- [x] E1.4 — CI, observabilidad y base de pruebas browser end-to-end.
 
-E1.4 está implementada en la PR #81, que tiene los checks de CI y Browser E2E
-verdes y fue auditada como `APROBADO PARA MERGE`. E1.3 ya está fusionada en
-`main` y sus rutas `/health` y `/readiness` son la base de los smoke tests. La
-verificación real de R2 y correo de E1.3 sigue siendo evidencia operativa
-pendiente y no se declara cerrada por la sola existencia del código. Mientras
-la PR #81 permanezca abierta no se inicia otra Epic sobre `main`.
+E1.4 se fusionó en `main` como PR #81, con los checks de CI y Browser E2E
+verdes y auditoría `APROBADO PARA MERGE`. E1.3 también está fusionada y sus
+rutas `/health` y `/readiness` son la base de los smoke tests. La verificación
+real de R2 y correo de E1.3, junto con la validación de staging reproducible de
+E1.1, sigue siendo evidencia operativa pendiente y no se declara cerrada por
+la sola existencia del código. Por ello M1 aún no desbloquea M2 y no se inicia
+E2.1 hasta demostrar el resultado operativo de deployment.
+
+La investigación de `main` no encontró una URL de staging, secretos de entorno
+ni un workflow de despliegue disponible en el repositorio o en GitHub. Esta es
+una dependencia operativa externa pendiente, no una decisión de arquitectura ni
+un motivo para adelantar código de M2.
 
 ### M2 — Gestión de Organizaciones y Usuarios
 
@@ -180,13 +186,13 @@ la PR #81 permanezca abierta no se inicia otra Epic sobre `main`.
 
 ## PRs asociados
 
-| PR      | Epic  | Propósito                                                            | Estado     | ¿Cierra capacidad?                             |
-| ------- | ----- | -------------------------------------------------------------------- | ---------- | ---------------------------------------------- |
-| #78     | E1.1  | Imágenes reproducibles de staging para API y Web.                    | FUSIONADO  | No; E1.1 requiere verificación de staging.     |
-| #79     | E1.2  | Migraciones, seed y rol runtime PostgreSQL no privilegiado.          | FUSIONADO  | Sí; E1.2 verificada localmente y en DB limpia. |
-| #80     | E1.3  | R2, correo real y health/readiness checks.                           | FUSIONADO  | No; requiere verificación real en staging.     |
-| #81     | E1.4  | CI, observabilidad y base de pruebas browser end-to-end.             | ABIERTO    | No; requiere merge para cerrar la Epic.        |
-| #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente. | FUSIONADOS | No; el recorrido inteligente sigue abierto.    |
+| PR      | Epic  | Propósito                                                            | Estado     | ¿Cierra capacidad?                                         |
+| ------- | ----- | -------------------------------------------------------------------- | ---------- | ---------------------------------------------------------- |
+| #78     | E1.1  | Imágenes reproducibles de staging para API y Web.                    | FUSIONADO  | No; E1.1 requiere verificación de staging.                 |
+| #79     | E1.2  | Migraciones, seed y rol runtime PostgreSQL no privilegiado.          | FUSIONADO  | Sí; E1.2 verificada localmente y en DB limpia.             |
+| #80     | E1.3  | R2, correo real y health/readiness checks.                           | FUSIONADO  | No; requiere verificación real en staging.                 |
+| #81     | E1.4  | CI, observabilidad y base de pruebas browser end-to-end.             | FUSIONADO  | Sí; CI y Browser E2E verificados; M1 aún requiere staging. |
+| #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente. | FUSIONADOS | No; el recorrido inteligente sigue abierto.                |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.
 
@@ -198,12 +204,12 @@ Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente p
 
 Motivo: existen slices funcionales importantes, pero permanecen abiertas la gestión de usuarios, contratación inteligente end-to-end, expediente operativo, automatización de alertas, deployment y aceptación productiva.
 
-Las PR #78, #79 y #80 fueron fusionadas. #78 entregó el empaquetado de E1.1,
+Las PR #78, #79, #80 y #81 fueron fusionadas. #78 entregó el empaquetado de E1.1,
 pero E1.1 aún requiere verificación de staging. #79 entregó y verificó E1.2
 con migraciones, seed idempotente y rol runtime no privilegiado. #80 entregó las
 comprobaciones de R2, correo real y readiness; su cierre requiere verificación
-real en staging. La PR #81 entrega E1.4, está abierta, tiene checks verdes y
-fue auditada como `APROBADO PARA MERGE`. Como el siguiente trabajo depende de
-esa PR, el Goal queda en `ESPERANDO_MERGE` y no se inicia otra Epic sobre
-`main` hasta que desaparezca la dependencia. M1 y el resto del Goal siguen
-abiertos.
+real en staging. #81 entregó E1.4, está fusionada y sus checks de CI y Browser
+E2E están verdes. El Goal vuelve a `ACTIVO`, pero M1 y el resto del Goal siguen
+abiertos porque aún falta ejecutar la validación operativa de staging de E1.1
+y E1.3. E2.1 no se inicia hasta que esa dependencia de deployment quede
+resuelta.
