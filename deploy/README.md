@@ -1,4 +1,4 @@
-# Staging reproducible
+# Staging reproducible (E1.1)
 
 E1.1 define el empaquetado reproducible de las dos aplicaciones que componen
 el producto actual:
@@ -63,3 +63,76 @@ El arranque contra un PostgreSQL de staging requiere las migraciones y el
 seed definidos por E1.2; este PR no los ejecuta implícitamente ni eleva los
 privilegios del usuario runtime. R2, correo real, health/readiness y pruebas
 browser pertenecen a E1.3/E1.4.
+
+## E1.2 - Migraciones, seed y rol runtime
+
+La conexion privilegiada de migraciones y la conexion de la aplicacion son
+distintas:
+
+- `DATABASE_URL_MIGRATION`: solo para la operacion de release; puede crear o
+  alterar el esquema y nunca se configura en el servicio API.
+- `DATABASE_URL`: conexion runtime con un rol `LOGIN NOSUPERUSER NOBYPASSRLS`
+  sin privilegio `CREATE` sobre `public`.
+
+Ejecuta una vez el bootstrap del rol usando una conexion administrativa y el
+mismo propietario que ejecutara las migraciones futuras:
+
+```bash
+export GOAL01_RUNTIME_DB_ROLE=saas_api_runtime
+export GOAL01_RUNTIME_DB_PASSWORD='genera-un-secreto-largo-y-aleatorio'
+psql "$DATABASE_URL_MIGRATION" \\
+  -v ON_ERROR_STOP=1 \\
+  -f deploy/postgres/bootstrap-runtime-role.sql
+```
+
+El script es idempotente, otorga unicamente `USAGE` de schema, DML sobre las
+tablas existentes y uso de secuencias, y configura privilegios por defecto
+para tablas futuras. No uses `postgres`, `rdsadmin` ni el mismo rol de la
+sesion administrativa como rol runtime.
+
+Aplica el schema de forma explicita con la conexion privilegiada:
+
+```bash
+DATABASE_URL="$DATABASE_URL_MIGRATION" \\
+  pnpm --filter @saas/api exec prisma migrate deploy
+```
+
+Despues ejecuta el seed con la conexion runtime para verificar que el rol de
+la aplicacion puede operar los catalogos necesarios:
+
+```bash
+DATABASE_URL="$DATABASE_URL" \\
+  pnpm --filter @saas/api exec prisma db seed
+```
+
+El seed es idempotente y debe ejecutarse dos veces en una instalacion de
+staging. La segunda ejecucion no debe crear duplicados. Verifica ademas el
+guardrail del rol:
+
+```sql
+SELECT rolname, rolsuper, rolbypassrls
+FROM pg_roles
+WHERE rolname = 'saas_api_runtime';
+```
+
+El resultado esperado es `rolsuper = false` y `rolbypassrls = false`. Cuando
+RLS esta activa, el API debe conservar el contexto tenant-aware existente; no
+se debe sustituir por una conexion superusuario.
+
+Para ejecutar estas operaciones contra la imagen API de E1.1, usa la misma
+imagen con un comando one-off y no agregues `DATABASE_URL_MIGRATION` al
+servicio runtime:
+
+```bash
+docker run --rm \\
+  -e DATABASE_URL="$DATABASE_URL_MIGRATION" \\
+  --entrypoint node la-oficina-nitida-api:staging \\
+  apps/api/node_modules/prisma/build/index.js migrate deploy
+
+docker run --rm \\
+  -e DATABASE_URL="$DATABASE_URL" \\
+  --entrypoint sh la-oficina-nitida-api:staging \\
+  -lc 'cd /app/apps/api && npm run prisma:seed'
+```
+
+R2, correo real, health/readiness y pruebas browser pertenecen a E1.3/E1.4.
