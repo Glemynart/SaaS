@@ -1,0 +1,53 @@
+# Keep the Docker build context limited to files required by the application.
+.git/
+.github/
+.claude/
+.agents/
+.codex/
+.impeccable/
+.system_generated/
+.gemini/
+.husky/
+
+# Host dependencies and build artifacts are recreated in the image.
+node_modules/
+**/node_modules/
+.pnpm-store/
+dist/
+**/dist/
+.next/
+**/.next/
+.turbo/
+**/.turbo/
+coverage/
+**/coverage/
+build/
+**/build/
+out/
+**/out/
+
+# Never send local secrets or local data to the Docker daemon.
+.env
+.env.*
+**/.env
+**/.env.*
+uploads/
+**/uploads/
+postgres_data/
+
+# Logs and editor/system files are not part of an application image.
+*.log
+**/*.log
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Deployment descriptors and documentation do not belong in either app image.
+Dockerfile*
+docker-compose*.yml
+*.md
+docs/
+
+# Only apps/api/prisma/schema.prisma is the schema source of truth.
+/schema.prisma
