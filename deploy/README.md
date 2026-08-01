@@ -41,6 +41,19 @@ Dockerfiles.
 
 Con Docker Desktop ejecutándose:
 
+Si la red local reemplaza certificados TLS públicos (por ejemplo, un antivirus
+o un proxy corporativo), exporta su certificado raíz en formato PEM y pásalo
+sólo durante el build:
+
+```bash
+docker build --secret id=build-ca,src=/path/to/network-root.pem \
+  -f deploy/Dockerfile.api -t la-oficina-nitida-api:staging .
+```
+
+El certificado se monta únicamente mientras se inicializa pnpm y se instalan
+dependencias; no se copia a la imagen runtime. Los builds de Railway no
+necesitan esta opción salvo que su builder use la misma intercepción TLS.
+
 ```bash
 docker build -f deploy/Dockerfile.api -t la-oficina-nitida-api:staging .
 docker build -f deploy/Dockerfile.web -t la-oficina-nitida-web:staging .
