@@ -132,17 +132,16 @@ staging, R2, correo ni una decisión de dominio pendiente.
 
 M3 es el siguiente Milestone desbloqueado mientras M1 espera evidencia externa.
 La decisión evita bloquear el Goal completo por un único camino operativo. E3.1
-ya está fusionada; E3.2 es la única Epic activa porque consume las bases de
-perfiles y vínculos ya existentes, no requiere staging, R2, correo ni una nueva
-decisión de dominio, y prepara los datos laborales sin adelantar E3.3 ni otros
-Milestones.
+y E3.2 ya están fusionadas; E3.3 es la única Epic activa porque consume las bases
+de perfiles y vínculos ya existentes, no requiere staging, R2, correo ni una nueva
+decisión de dominio, y prepara los datos laborales sin adelantar otros Milestones.
 
 - [x] E3.1 — Empleados CRUD, búsqueda e importación XLSX verificadas (PR #83 fusionada).
 - [x] E3.2 — Perfiles contractuales y vínculos laborales precontractuales (PR #84 fusionada).
 - [ ] E3.3 — Configuración perfil → tipo documental → plantilla.
 - [ ] E3.4 — Errores y bloqueos comprensibles para el operador.
 
-### Decisión de prioridad vigente — E3.3
+### Estado de ejecución vigente — E3.3
 
 Tras fusionar E3.2, la revisión del grafo de dependencias en `main` confirma
 que E3.3 — configuración perfil → tipo documental → plantilla — es la siguiente
@@ -151,9 +150,10 @@ para operar la configuración. No requiere staging, R2, correo ni una nueva
 decisión de dominio; además prepara los datos que M4 necesita. E2.1 sigue
 pendiente por invitaciones y correo, mientras M1 sigue bloqueado por staging.
 La PR de mantenimiento que migra las acciones de GitHub a Node 24 es
-independiente y no bloquea GOAL-01.
-PR #86 queda abierta para revisión y contiene únicamente E3.3; no se fusiona
-como parte de esta auditoría.
+independiente y no bloquea GOAL-01. PR #86 queda abierta para revisión y contiene
+únicamente E3.3; como E3.4 depende de la configuración y del recorrido operativo
+que entrega E3.3, GOAL-01 pasa a `ESPERANDO_MERGE` y no se inicia otra Epic sobre
+`main` hasta que desaparezca esa dependencia.
 
 ### M4 — Contratación Inteligente End-to-End
 
@@ -248,6 +248,6 @@ correo ni una nueva decisión de dominio, y quedó fusionada en PR #84 con CI y
 Browser E2E verdes. E2.1 permanece pendiente porque su recorrido completo
 
 > La determinación vigente, actualizada después de E3.2, queda documentada en
-> la sección de prioridad: E3.3 es la Epic activa de GOAL-01.
-> requiere backend de invitaciones y correo. La siguiente Epic se determinará
-> mediante una nueva revisión de dependencias; E3.3 no se inicia en este ciclo.
+> la sección de ejecución: E3.3 es la Epic activa de GOAL-01 y está abierta en
+> PR #86. E3.4 requiere el recorrido operativo que entrega E3.3; por ello
+> GOAL-01 permanece `ESPERANDO_MERGE` hasta que la PR sea fusionada y verificada.
