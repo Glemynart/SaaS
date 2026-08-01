@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 E1.3 fusionada y E1.4 desbloqueada (2026-08-01)
+## Última actualización: GOAL-01 E1.4 esperando merge (2026-08-01)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -95,7 +95,7 @@ Estado actual:
 
 Goal activo:
 
-- 🟡 GOAL-01 M1 — E1.1 fusionada como PR #78; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real en staging; E1.4 está desbloqueada para implementación.
+- 🟡 GOAL-01 M1 — E1.1 fusionada como PR #78; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real en staging; E1.4 está implementada en PR #81, auditada y esperando merge.
 
 - [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
@@ -111,6 +111,7 @@ Hitos recientes fusionados a `main`:
 - 🟡 Contratación Inteligente PR11.1/PR11.2 — PR #76; procesamiento PR11.3 y UI pendientes.
 - ✅ E1.2 — Migraciones, seed y rol PostgreSQL runtime no privilegiado — PR #79.
 - 🟡 E1.3 — R2, correo real y health/readiness checks — PR #80 fusionada; validación real de staging pendiente.
+- 🟡 E1.4 — CI, observabilidad y base de pruebas browser end-to-end — PR #81 abierta, checks verdes y `APROBADO PARA MERGE`; no se inicia otra Epic hasta su merge.
 
 ## <a name="landing-saas"></a>Landing SaaS
 
