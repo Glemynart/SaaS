@@ -80,8 +80,8 @@ mismo propietario que ejecutara las migraciones futuras:
 ```bash
 export GOAL01_RUNTIME_DB_ROLE=saas_api_runtime
 export GOAL01_RUNTIME_DB_PASSWORD='genera-un-secreto-largo-y-aleatorio'
-psql "$DATABASE_URL_MIGRATION" \\
-  -v ON_ERROR_STOP=1 \\
+psql "$DATABASE_URL_MIGRATION" \
+  -v ON_ERROR_STOP=1 \
   -f deploy/postgres/bootstrap-runtime-role.sql
 ```
 
@@ -93,7 +93,7 @@ sesion administrativa como rol runtime.
 Aplica el schema de forma explicita con la conexion privilegiada:
 
 ```bash
-DATABASE_URL="$DATABASE_URL_MIGRATION" \\
+DATABASE_URL="$DATABASE_URL_MIGRATION" \
   pnpm --filter @saas/api exec prisma migrate deploy
 ```
 
@@ -101,7 +101,7 @@ Despues ejecuta el seed con la conexion runtime para verificar que el rol de
 la aplicacion puede operar los catalogos necesarios:
 
 ```bash
-DATABASE_URL="$DATABASE_URL" \\
+DATABASE_URL="$DATABASE_URL" \
   pnpm --filter @saas/api exec prisma db seed
 ```
 
@@ -124,14 +124,14 @@ imagen con un comando one-off y no agregues `DATABASE_URL_MIGRATION` al
 servicio runtime:
 
 ```bash
-docker run --rm \\
-  -e DATABASE_URL="$DATABASE_URL_MIGRATION" \\
-  --entrypoint node la-oficina-nitida-api:staging \\
+docker run --rm \
+  -e DATABASE_URL="$DATABASE_URL_MIGRATION" \
+  --entrypoint node la-oficina-nitida-api:staging \
   apps/api/node_modules/prisma/build/index.js migrate deploy
 
-docker run --rm \\
-  -e DATABASE_URL="$DATABASE_URL" \\
-  --entrypoint sh la-oficina-nitida-api:staging \\
+docker run --rm \
+  -e DATABASE_URL="$DATABASE_URL" \
+  --entrypoint sh la-oficina-nitida-api:staging \
   -lc 'cd /app/apps/api && npm run prisma:seed'
 ```
 
