@@ -18,9 +18,9 @@ Producto
 
 ## Goal activo
 
-| Goal                                                                    | Estado | Resultado                                                                            |
-| ----------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------ |
-| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md) | ACTIVO | Un operador educativo usa el recorrido laboral y documental principal en producción. |
+| Goal                                                                    | Estado          | Resultado                                                                            |
+| ----------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------ |
+| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md) | ESPERANDO_MERGE | Un operador educativo usa el recorrido laboral y documental principal en producción. |
 
 Solo puede existir un Goal activo. Los posibles resultados futuros permanecen sin numerar en el Backlog hasta ser priorizados.
 
@@ -115,9 +115,10 @@ El veredicto es `APROBADO PARA MERGE` o `NO APROBADO PARA MERGE`. Los bloqueos s
 Estos estados no son equivalentes:
 
 - `APROBADO PARA MERGE` significa que la PR y la Epic que entrega están listas para revisión y merge. No significa que la PR esté fusionada, que el Milestone esté completo ni que el Goal esté completo.
+- `ESPERANDO_MERGE` significa que el siguiente trabajo del Goal depende de una PR abierta. Mientras exista esa dependencia no se inicia otra Epic sobre `main`; el Goal vuelve a `ACTIVO` cuando la dependencia desaparece.
 - Una Epic sólo puede marcarse completada cuando su capacidad está fusionada y verificada end-to-end.
 - Un Milestone sólo puede marcarse completado cuando se cumplen su resultado verificable y todas sus Epics requeridas.
-- El Goal activo permanece `ACTIVO` mientras exista cualquier Milestone, Epic, criterio de aceptación, evidencia productiva o aceptación del cliente pendiente.
+- El Goal activo permanece `ACTIVO` o `ESPERANDO_MERGE` mientras exista cualquier Milestone, Epic, criterio de aceptación, evidencia productiva o aceptación del cliente pendiente.
 
 El cierre de una ejecución de desarrollo puede detenerse en `APROBADO PARA MERGE`; el cierre del Goal es una decisión posterior y exige la sección `Cierre de un Goal` completa.
 
