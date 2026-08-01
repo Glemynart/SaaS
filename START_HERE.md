@@ -4,9 +4,11 @@
 
 ## **Estado del Proyecto**
 
-Este documento es la fuente de verdad del proyecto.
+Este documento describe la visión y el contexto del proyecto. La existencia de una capacidad se verifica siempre contra el código y su recorrido funcional; la documentación es una hipótesis hasta comprobarla.
 
 Antes de escribir código, modificar arquitectura o agregar funcionalidades, cualquier desarrollador o IA debe leer este documento completo.
+
+La metodología vigente está en [`docs/goals/README.md`](docs/goals/README.md). El Goal activo es [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md) y gobierna la priorización sobre cualquier orden o alcance histórico de este documento.
 
 ## **Visión del Producto**
 
@@ -114,7 +116,9 @@ No somos:
 
 La contabilidad v1 se opera dentro de la plataforma. Las integraciones con Siigo, World Office, Helisa, Alegra u otros sistemas son alcance futuro.
 
-## **MVP Aprobado**
+## **Visión funcional histórica**
+
+La lista siguiente conserva la visión amplia del producto. No representa por sí sola el alcance comercial activo ni demuestra que una capacidad exista. GOAL-01 define qué debe completarse para el primer cliente; las capacidades futuras permanecen en Backlog hasta ser priorizadas.
 
 ## **Módulo 1**
 
@@ -212,9 +216,11 @@ Incluye:
 
 4
 
-## **Módulo 8**
+## **Capacidad futura — Módulo 8**
 
 Facturación Electrónica.
+
+Fuera de GOAL-01. El código actual contiene una fundación de facturación interna, pero no emisión electrónica DIAN ni integración Matías API.
 
 Incluye:
 
@@ -234,9 +240,11 @@ Incluye:
 
 - Integración Matías API.
 
-## **Módulo 9**
+## **Capacidad existente o futura según el caso — Módulo 9**
 
 Documentos Generados, Certificaciones Laborales y Contabilidad v1.
+
+Documentos generados y certificaciones apoyan GOAL-01. La superficie comercial de contabilidad requiere una decisión de producto futura y no bloquea el Goal activo.
 
 Incluye:
 
@@ -551,48 +559,40 @@ Siempre:
 
 ## **Orden de Ejecución**
 
-Seguir estrictamente:
+La secuencia histórica por módulos queda reemplazada por la jerarquía de Goals:
 
 ```
-E1 Infraestructura
-↓
-E2 Auth + Multiempresa
-↓
-E3 Empleados
-↓
-E4 Contratos
-↓
-E5 Expediente
-↓
-E6 Alertas
-↓
-E7 Facturación
-↓
-E7b Dashboard
+Producto
+└── Goal activo
+    └── Milestones
+        └── Epics end-to-end
+            └── PRs de entrega
 ```
 
-No alterar dependencias.
+Antes de trabajar debe verificarse si la tarea acerca el proyecto al Goal activo. Las dependencias se comprueban contra arquitectura, dominio, documentación, código y migraciones.
 
-## **Definición de Éxito del MVP**
+## **Definición de Éxito Comercial Activa**
 
-El MVP se considera exitoso cuando:
+GOAL-01 se considera exitoso cuando:
 
-- Una empresa puede registrar empleados.
+- El primer cliente está incorporado y operando en producción.
 
-- Puede importar empleados desde Excel.
+- Sus usuarios administran la organización sin compartir credenciales.
 
-- Puede generar contratos individuales.
+- Puede registrar o importar empleados y preparar su información laboral.
 
-- Puede generar contratos masivos.
+- Puede completar contratación individual e inteligente desde la UI.
 
-- Puede almacenar expedientes.
+- Cada contrato produce su PDF canónico y llega al expediente correcto.
 
-- Puede recibir alertas de vencimiento.
+- El expediente admite la operación documental básica acordada con el piloto.
 
-- Puede emitir facturas electrónicas reales mediante Matías API.
+- Las alertas se generan automáticamente y conducen a acciones verificables.
 
-- Puede operar sin utilizar Excel para los procesos principales.
+- Deployment, migraciones, seguridad, backup, restauración, monitoreo y soporte están probados.
 
-En ese momento se inicia la fase comercial formal y la incorporación de los primeros clientes de pago.
+- Existe evidencia end-to-end y aceptación del cliente sobre el recorrido principal.
+
+Facturación electrónica, nómina electrónica, suite financiera e IA no son criterios de cierre de GOAL-01.
 
 11

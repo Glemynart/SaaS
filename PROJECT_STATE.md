@@ -2,7 +2,9 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: Security Hardening v3 completada (2026-07-29)
+## Última actualización: metodología por Goals y GOAL-01 aprobados (2026-08-01)
+
+> Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -89,7 +91,13 @@ Servicios:
 
 Estado actual:
 
-✅ Plataforma operativa con gestión de empleados, contratos, expediente digital, pipeline documental canónico, seguridad endurecida y contabilidad v1.
+🟡 Plataforma con capacidades base avanzadas, todavía sin operación comercial end-to-end verificada.
+
+Goal activo:
+
+- [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md).
+
+La auditoría de código confirmó empleados, sedes, autenticación, documentos, certificaciones, seguridad y motores internos importantes. Permanecen abiertos gestión de usuarios, contratación inteligente end-to-end, subida operativa al expediente, automatización de alertas, deployment reproducible y Go Live.
 
 Hitos recientes fusionados a `main`:
 
@@ -98,6 +106,7 @@ Hitos recientes fusionados a `main`:
 - ✅ Accounting v1.
 - ✅ Fase 6C — Contratos Documentales — PR #65.
 - ✅ Fase 7 — Certificaciones Laborales — PR #67.
+- 🟡 Contratación Inteligente PR11.1/PR11.2 — PR #76; procesamiento PR11.3 y UI pendientes.
 
 ## <a name="landing-saas"></a>Landing SaaS
 
@@ -1955,13 +1964,19 @@ Validación de cierre:
 
 # <a name="roadmap-futuro"></a>Roadmap Futuro
 
+## Goal activo
+
+- [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md): operación laboral y documental del primer cliente en producción.
+
+Sus Milestones son Deployment verificable, Gestión de Organizaciones y Usuarios, Preparación Laboral, Contratación Inteligente, Expediente Digital, Seguimiento Operativo y Go Live Comercial.
+
 Hitos cerrados recientemente:
 
 - ✅ Security Hardening v3 — documentos privados, XSS persistente y autenticación homogénea.
 - ✅ Security Hardening v2 — headers, frontera tenant-aware y RLS piloto.
 - ✅ Accounting v1 — Ledger, reporting, cierre contable e integración explícita con Payroll.
 
-Módulos planificados:
+Candidatos futuros sin número de Goal:
 
 - Nómina electrónica.
 - Facturación electrónica.
@@ -1970,39 +1985,26 @@ Módulos planificados:
 - Gestión documental avanzada.
 - Multiempresa avanzado.
 - Multisede avanzado.
+- Inteligencia artificial.
 
 Importante:
 
 Las capacidades futuras NO deben introducir sobreingeniería temprana.
 
-Se implementarán únicamente cuando exista una necesidad real de negocio.
+Se implementarán únicamente cuando exista una necesidad real de negocio y sean priorizadas después del Goal activo. Un Goal solo puede redefinirse cuando cambie la estrategia del producto, no por nuevas ideas, módulos o mejoras.
 
 ---
 
 # <a name="forma-de-trabajo"></a>Forma de Trabajo
 
-ChatGPT:
+El desarrollo sigue la metodología definida en [`docs/goals/README.md`](docs/goals/README.md):
 
-- Arquitectura.
-- Auditorías.
-- Diseño.
-- Priorización.
-- Revisión técnica.
-- Generación de prompts para Claude.
+- un solo Goal activo;
+- capacidades funcionales por Milestones y Epics end-to-end;
+- PRs como unidades de entrega, no como objetivos;
+- código y comportamiento verificable como fuente de verdad;
+- documentación tratada como hipótesis;
+- auditoría basada en la pregunta “¿un cliente podría utilizar esta capacidad hoy?”;
+- Codex como Lead Engineer responsable de investigar, implementar, verificar y preparar el PR sin realizar el merge.
 
-Claude:
-
-- Implementación.
-- Refactors.
-- Migraciones.
-- Walkthroughs técnicos.
-
-Regla principal:
-
-Primero arquitectura.
-
-Luego planificación.
-
-Luego implementación.
-
-Nunca al revés.
+Regla principal: primero evidencia, luego arquitectura y dependencias, después el siguiente paso mínimo y finalmente verificación completa.
