@@ -129,18 +129,20 @@ describe('HTTP security composition contracts', () => {
 
   it('keeps production security headers on public, 401, 403, and authorized responses', async () => {
     const adminToken = await tokenFor(UserRole.ADMIN);
-    const responses = await Promise.all([
-      request(server).get('/http-security-contract/public').expect(200),
-      request(server).get('/http-security-contract/protected').expect(401),
-      request(server)
+    const responses = [
+      await request(server).get('/http-security-contract/public').expect(200),
+      await request(server)
+        .get('/http-security-contract/protected')
+        .expect(401),
+      await request(server)
         .get('/http-security-contract/protected')
         .set('Authorization', `Bearer ${await tokenFor(UserRole.VIEWER)}`)
         .expect(403),
-      request(server)
+      await request(server)
         .get('/http-security-contract/protected')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200),
-    ]);
+    ];
 
     responses.forEach(({ headers }) => expectSecurityHeaders(headers));
   });

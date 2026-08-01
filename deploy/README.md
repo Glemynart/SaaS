@@ -210,3 +210,22 @@ contraseña desde `/recuperar`. Verifica en el buzón que:
 No uses datos ni buzones de clientes reales para esta prueba. El modo
 degradado se conserva para desarrollo local, pero `REQUIRE_REAL_EMAIL=true`
 impide declarar readiness de staging cuando el correo real no está listo.
+
+## E1.4 - CI, observabilidad y browser smoke
+
+El repositorio valida en cada pull request y en cada push a `main`:
+
+- instalación reproducible con `pnpm install --frozen-lockfile`;
+- typecheck, pruebas de API, validación Prisma y build;
+- migraciones contra PostgreSQL efímero y un smoke browser del registro,
+  inicio de sesión y llegada al dashboard.
+
+La ejecución browser usa almacenamiento local y correo degradado únicamente en
+el entorno de pruebas. No reutiliza secretos de staging ni pretende cerrar la
+verificación real de R2/correo de E1.3.
+
+El API devuelve `x-request-id` en cada respuesta y registra únicamente método,
+ruta normalizada, estado, duración e identificador de correlación. No registra
+query strings, cuerpos, credenciales ni cabeceras de autorización. Cuando una
+prueba browser falla, CI conserva el reporte, trace, screenshot o video que
+Playwright haya generado como evidencia de diagnóstico.
