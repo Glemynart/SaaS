@@ -19,6 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/toast';
 import { formatNombreCompleto } from '@saas/types';
 import { cn } from '@/lib/utils';
+import { LaborRelationshipPanel } from '@/features/labor-relationships/components/labor-relationship-panel';
 
 const TIPO_CONTRATO_LABEL: Record<string, string> = {
   TERMINO_FIJO: 'Término fijo',
@@ -268,6 +269,8 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
           )}
         </div>
       </PageHeader>
+
+      <LaborRelationshipPanel employeeId={id} />
 
       {employee && (
         <GenerateDocumentForm

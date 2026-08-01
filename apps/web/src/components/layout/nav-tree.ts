@@ -9,6 +9,7 @@ import {
   Receipt,
   ScrollText,
   Settings,
+  Tags,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -41,6 +42,12 @@ export const NAV_TREE: NavItem[] = [
   { label: 'Inicio', href: '/dashboard', icon: LayoutDashboard, group: null },
   { label: 'Alertas', href: '/alertas', icon: Bell, group: null, badge: 'alerts-open-count' },
   { label: 'Empleados', href: '/empleados', icon: Users, group: 'Personal' },
+  {
+    label: 'Perfiles contractuales',
+    href: '/perfiles-contractuales',
+    icon: Tags,
+    group: 'Personal',
+  },
   {
     label: 'Contratos',
     href: '/contratos',
