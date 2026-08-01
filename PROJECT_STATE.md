@@ -95,6 +95,8 @@ Estado actual:
 
 Goal activo:
 
+- 🟡 GOAL-01 M1 — E1.1 fusionada como PR #78; verificación de staging y E1.2 siguen abiertas.
+
 - [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
 La auditoría de código confirmó empleados, sedes, autenticación, documentos, certificaciones, seguridad y motores internos importantes. Permanecen abiertos gestión de usuarios, contratación inteligente end-to-end, subida operativa al expediente, automatización de alertas, deployment reproducible y Go Live.

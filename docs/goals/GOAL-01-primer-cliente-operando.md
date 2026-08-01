@@ -175,6 +175,7 @@ Estas exclusiones son limitaciones temporales del roadmap. No se numerarán como
 
 | PR      | Epic  | Propósito                                                            | Estado     | ¿Cierra capacidad?                          |
 | ------- | ----- | -------------------------------------------------------------------- | ---------- | ------------------------------------------- |
+| #78     | E1.1  | Imágenes reproducibles de staging para API y Web.                    | FUSIONADO  | No; E1.1 requiere verificación de staging.  |
 | #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente. | FUSIONADOS | No; el recorrido inteligente sigue abierto. |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.
@@ -187,4 +188,4 @@ Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente p
 
 Motivo: existen slices funcionales importantes, pero permanecen abiertas la gestión de usuarios, contratación inteligente end-to-end, expediente operativo, automatización de alertas, deployment y aceptación productiva.
 
-La PR #78 puede quedar `APROBADA PARA MERGE` para E1.1 sin cerrar E1.1, M1 ni GOAL-01: E1.2, E1.3 y E1.4 siguen pendientes, y M1 sólo se completa cuando se cumple su resultado verificable completo.
+La PR #78 fue fusionada y entregó el empaquetado de E1.1, pero no cerró E1.1, M1 ni GOAL-01: la verificación de staging y E1.2, E1.3 y E1.4 siguen pendientes. E1.2 queda desbloqueada porque sus artefactos de migración y runtime parten de la imagen de API ya disponible; M1 sólo se completa cuando se cumple su resultado verificable completo.

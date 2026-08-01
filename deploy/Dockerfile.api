@@ -52,6 +52,7 @@ COPY --from=build --chown=node:node /workspace/apps/api/node_modules ./apps/api/
 COPY --from=build --chown=node:node /workspace/apps/api/dist ./apps/api/dist
 COPY --from=build --chown=node:node /workspace/apps/api/prisma ./apps/api/prisma
 COPY --from=build --chown=node:node /workspace/apps/api/package.json ./apps/api/package.json
+COPY --from=build --chown=node:node /workspace/apps/api/tsconfig.json ./apps/api/tsconfig.json
 COPY --from=build --chown=node:node /workspace/packages/types ./packages/types
 
 USER node
