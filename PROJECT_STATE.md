@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 E3.3 en PR #86; esperando merge; M1 bloqueado por staging (2026-08-01)
+## Última actualización: GOAL-01 E3.3 fusionada; M1 bloqueado por staging (2026-08-01)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -95,7 +95,7 @@ Estado actual:
 
 Goal activo:
 
-- 🟡 GOAL-01 ESPERANDO_MERGE — M1 está BLOQUEADO por la dependencia externa de staging: E1.1 fusionada como PR #78 y pendiente de validación reproducible; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real de R2/correo; E1.4 fusionada como PR #81 y verificada por CI/Browser E2E. M3 es el Milestone desbloqueado; E3.1 y E3.2 están fusionadas y E3.3 está lista en PR #86. E3.4 depende de ese recorrido y no se inicia hasta el merge.
+- 🟡 GOAL-01 activo — M1 está BLOQUEADO por la dependencia externa de staging: E1.1 fusionada como PR #78 y pendiente de validación reproducible; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real de R2/correo; E1.4 fusionada como PR #81 y verificada por CI/Browser E2E. M3 es el Milestone desbloqueado; E3.1, E3.2 y E3.3 están fusionadas. E3.3 quedó entregada en PR #86 con checks de PR y post-merge verdes; E3.4 es la siguiente Epic pendiente y no se inicia en esta sincronización.
 
 - [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
@@ -119,15 +119,16 @@ La investigación de `main` no encontró una URL de staging, secretos de entorno
 
 ## <a name="goal-01-current-decision"></a>GOAL-01 — Decisión de prioridad vigente
 
-Tras fusionar E3.2, la revisión del código y del grafo de dependencias mantiene
-GOAL-01 en `ESPERANDO_MERGE`, M1 `BLOQUEADO` por staging y E3.3 como la Epic activa.
+Tras fusionar E3.3, la revisión del código y del grafo de dependencias mantiene
+GOAL-01 `ACTIVO`, M1 `BLOQUEADO` por staging y E3.4 como la siguiente Epic pendiente.
 El backend tenant-aware de configuración documental ya existe; la Epic entrega
 la interfaz perfil → tipo documental → plantilla y su recorrido browser. E3.3
 no depende de staging, R2, correo, M4 ni de la PR independiente que actualiza
 las acciones de GitHub a Node 24.
-PR #86 queda abierta para revisión de E3.3. E3.4 depende de la configuración y
-del recorrido operativo que entrega E3.3, por lo que no se inicia otra Epic sobre
-`main` hasta que PR #86 sea fusionada.
+PR #86 quedó fusionada y verificada por CI y Browser E2E, incluidos los checks
+post-merge de `main`. E3.4 depende de la configuración y del recorrido operativo
+que entrega E3.3; esa dependencia ya está resuelta, pero E3.4 no se inicia en
+esta sincronización de estado.
 
 ## <a name="landing-saas"></a>Landing SaaS
 
