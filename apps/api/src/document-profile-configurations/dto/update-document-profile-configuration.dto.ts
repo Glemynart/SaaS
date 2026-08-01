@@ -11,7 +11,7 @@ export class UpdateDocumentProfileConfigurationDto {
 
   @IsDateString()
   @IsOptional()
-  vigenteHasta?: string;
+  vigenteHasta?: string | null;
 
   @IsBoolean()
   @IsOptional()

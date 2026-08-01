@@ -104,4 +104,28 @@ describe('DocumentProfileConfigurationsService', () => {
     ).rejects.toThrow(BadRequestException);
     expect(execute).not.toHaveBeenCalled();
   });
+
+  it('permite limpiar la fecha final de una configuración existente', async () => {
+    configurationFindFirst
+      .mockResolvedValueOnce({
+        id: CONFIG,
+        perfilContractualId: PROFILE,
+        tipoDocumental: DocumentTemplateType.CONTRACT,
+        vigenteDesde: new Date('2026-01-01'),
+        vigenteHasta: new Date('2026-12-31'),
+        activo: true,
+      })
+      .mockResolvedValueOnce(null);
+    configurationUpdate.mockResolvedValue({
+      id: CONFIG,
+      vigenteHasta: null,
+    });
+
+    await service.update('user', CONFIG, { vigenteHasta: null });
+
+    const lastUpdateCall = configurationUpdate.mock.calls.at(-1) as
+      | [{ data: { vigenteHasta: Date | null } }]
+      | undefined;
+    expect(lastUpdateCall?.[0].data.vigenteHasta).toBeNull();
+  });
 });

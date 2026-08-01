@@ -117,6 +117,17 @@ Hitos recientes fusionados a `main`:
 
 La investigación de `main` no encontró una URL de staging, secretos de entorno ni un workflow de despliegue disponible en el repositorio o en GitHub. La validación de E1.1/E1.3 requiere resolver esa dependencia operativa externa. Esto bloquea M1, no GOAL-01: E3.2 avanzó y quedó fusionada sin adelantar E3.3 ni Milestones posteriores.
 
+## <a name="goal-01-current-decision"></a>GOAL-01 — Decisión de prioridad vigente
+
+Tras fusionar E3.2, la revisión del código y del grafo de dependencias mantiene
+GOAL-01 `ACTIVO`, M1 `BLOQUEADO` por staging y prioriza E3.3 como la Epic activa.
+El backend tenant-aware de configuración documental ya existe; la Epic entrega
+la interfaz perfil → tipo documental → plantilla y su recorrido browser. E3.3
+no depende de staging, R2, correo, M4 ni de la PR independiente que actualiza
+las acciones de GitHub a Node 24.
+PR #86 queda abierta para revisión de E3.3; no se fusiona como parte de esta
+auditoría.
+
 ## <a name="landing-saas"></a>Landing SaaS
 
 Estado:

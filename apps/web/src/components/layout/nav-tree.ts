@@ -3,6 +3,7 @@ import {
   Calculator,
   FileText,
   Files,
+  Link2,
   Landmark,
   LayoutDashboard,
   MapPin,
@@ -56,6 +57,12 @@ export const NAV_TREE: NavItem[] = [
     children: [{ label: 'Lotes', href: '/contratos/lotes' }],
   },
   { label: 'Plantillas', href: '/documentos/plantillas', icon: ScrollText, group: 'Documentos' },
+  {
+    label: 'Configuración documental',
+    href: '/documentos/configuracion',
+    icon: Link2,
+    group: 'Documentos',
+  },
   { label: 'Generados', href: '/documentos/generados', icon: Files, group: 'Documentos' },
   {
     label: 'Nómina',

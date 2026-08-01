@@ -142,6 +142,19 @@ Milestones.
 - [ ] E3.3 — Configuración perfil → tipo documental → plantilla.
 - [ ] E3.4 — Errores y bloqueos comprensibles para el operador.
 
+### Decisión de prioridad vigente — E3.3
+
+Tras fusionar E3.2, la revisión del grafo de dependencias en `main` confirma
+que E3.3 — configuración perfil → tipo documental → plantilla — es la siguiente
+Epic segura. El backend tenant-aware ya existe y falta la superficie de interfaz
+para operar la configuración. No requiere staging, R2, correo ni una nueva
+decisión de dominio; además prepara los datos que M4 necesita. E2.1 sigue
+pendiente por invitaciones y correo, mientras M1 sigue bloqueado por staging.
+La PR de mantenimiento que migra las acciones de GitHub a Node 24 es
+independiente y no bloquea GOAL-01.
+PR #86 queda abierta para revisión y contiene únicamente E3.3; no se fusiona
+como parte de esta auditoría.
+
 ### M4 — Contratación Inteligente End-to-End
 
 **Resultado verificable:** campaña → resolución → confirmación → procesamiento → contrato → PDF → expediente se completa desde la UI.
@@ -233,5 +246,8 @@ staging, R2, correo ni una nueva decisión de dominio. E3.2 expuso el catálogo
 y vínculo laboral del backend desde la interfaz, sin requerir staging, R2,
 correo ni una nueva decisión de dominio, y quedó fusionada en PR #84 con CI y
 Browser E2E verdes. E2.1 permanece pendiente porque su recorrido completo
-requiere backend de invitaciones y correo. La siguiente Epic se determinará
-mediante una nueva revisión de dependencias; E3.3 no se inicia en este ciclo.
+
+> La determinación vigente, actualizada después de E3.2, queda documentada en
+> la sección de prioridad: E3.3 es la Epic activa de GOAL-01.
+> requiere backend de invitaciones y correo. La siguiente Epic se determinará
+> mediante una nueva revisión de dependencias; E3.3 no se inicia en este ciclo.
