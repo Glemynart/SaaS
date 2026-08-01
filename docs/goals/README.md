@@ -18,9 +18,9 @@ Producto
 
 ## Goal activo
 
-| Goal                                                                    | Estado          | Resultado                                                                            |
-| ----------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------ |
-| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md) | ESPERANDO_MERGE | Un operador educativo usa el recorrido laboral y documental principal en producción. |
+| Goal                                                                    | Estado | Resultado                                                                            |
+| ----------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------ |
+| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md) | ACTIVO | Un operador educativo usa el recorrido laboral y documental principal en producción. |
 
 Solo puede existir un Goal activo. Los posibles resultados futuros permanecen sin numerar en el Backlog hasta ser priorizados.
 

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -34,6 +34,7 @@ import { DocumentProfileConfigurationsModule } from './document-profile-configur
 import { DocumentResolutionModule } from './document-resolution/document-resolution.module';
 import { BatchDocumentGenerationModule } from './batch-document-generation/batch-document-generation.module';
 import { HealthModule } from './health/health.module';
+import { HttpObservabilityMiddleware } from './observability/http-observability.middleware';
 
 @Module({
   imports: [
@@ -100,4 +101,8 @@ import { HealthModule } from './health/health.module';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(HttpObservabilityMiddleware).forRoutes('*');
+  }
+}
