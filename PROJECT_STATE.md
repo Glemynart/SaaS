@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 E3.2 en implementación; M1 bloqueado por staging (2026-08-01)
+## Última actualización: GOAL-01 E3.2 fusionada; M1 bloqueado por staging (2026-08-01)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -95,7 +95,7 @@ Estado actual:
 
 Goal activo:
 
-- 🟡 GOAL-01 activo — M1 está BLOQUEADO por la dependencia externa de staging: E1.1 fusionada como PR #78 y pendiente de validación reproducible; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real de R2/correo; E1.4 fusionada como PR #81 y verificada por CI/Browser E2E. M3 es el siguiente Milestone desbloqueado y E3.2 está en implementación.
+- 🟡 GOAL-01 activo — M1 está BLOQUEADO por la dependencia externa de staging: E1.1 fusionada como PR #78 y pendiente de validación reproducible; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real de R2/correo; E1.4 fusionada como PR #81 y verificada por CI/Browser E2E. M3 es el siguiente Milestone desbloqueado y E3.2 quedó fusionada como PR #84.
 
 - [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
@@ -113,9 +113,9 @@ Hitos recientes fusionados a `main`:
 - 🟡 E1.3 — R2, correo real y health/readiness checks — PR #80 fusionada; validación real de staging pendiente.
 - ✅ E1.4 — CI, observabilidad y base de pruebas browser end-to-end — PR #81 fusionada, checks verdes y auditoría `APROBADO PARA MERGE`; M1 sigue pendiente de la evidencia operativa de E1.1/E1.3.
 - ✅ E3.1 — Empleados CRUD, búsqueda e importación XLSX — PR #83 fusionada y verificada browser; no depende de staging, R2, correo ni E3.2.
-- 🔵 E3.2 — Perfiles contractuales y vínculos laborales precontractuales — implementación y verificación en la rama `goal-01/e3-2-contractual-profiles`; usa las bases backend ya fusionadas y no depende de staging, R2, correo ni E3.3.
+- ✅ E3.2 — Perfiles contractuales y vínculos laborales precontractuales — PR #84 fusionada y verificada por CI/Browser E2E; usa las bases backend existentes y no depende de staging, R2, correo ni E3.3.
 
-La investigación de `main` no encontró una URL de staging, secretos de entorno ni un workflow de despliegue disponible en el repositorio o en GitHub. La validación de E1.1/E1.3 requiere resolver esa dependencia operativa externa. Esto bloquea M1, no GOAL-01: el camino independiente de M3 continúa con E3.2 sin adelantar E3.3 ni Milestones posteriores.
+La investigación de `main` no encontró una URL de staging, secretos de entorno ni un workflow de despliegue disponible en el repositorio o en GitHub. La validación de E1.1/E1.3 requiere resolver esa dependencia operativa externa. Esto bloquea M1, no GOAL-01: E3.2 avanzó y quedó fusionada sin adelantar E3.3 ni Milestones posteriores.
 
 ## <a name="landing-saas"></a>Landing SaaS
 
