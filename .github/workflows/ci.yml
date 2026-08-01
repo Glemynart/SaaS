@@ -17,6 +17,11 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/saas_ci
+      JWT_SECRET: ci-only-ci-secret
+      STORAGE_PROVIDER: local
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,6 +39,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @saas/api exec prisma generate
 
       - name: Typecheck
         run: pnpm typecheck
