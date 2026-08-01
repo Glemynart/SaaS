@@ -70,7 +70,10 @@ test('crea un perfil contractual y lo vincula a un empleado desde la UI', async 
 
   await page.goto('/documentos/configuracion');
   await expect(page.getByRole('heading', { name: /Configuraci.n documental/ })).toBeVisible();
-  await page.getByRole('button', { name: /Nueva configuraci.n/ }).click();
+  await page
+    .getByRole('button', { name: /Nueva configuraci.n/ })
+    .first()
+    .click();
 
   const configurationDialog = page.getByRole('dialog', { name: /Nueva configuraci.n documental/ });
   await configurationDialog

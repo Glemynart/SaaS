@@ -54,15 +54,6 @@ export function LaborRelationshipPanel({ employeeId }: LaborRelationshipPanelPro
       });
       return;
     }
-
-    if (!relationshipsQuery.isLoading) {
-      setValues((current) => ({
-        ...current,
-        perfilContractualId: '',
-        vigenteDesde: current.vigenteDesde || today(),
-        vigenteHasta: '',
-      }));
-    }
   }, [relationship, relationshipsQuery.isLoading]);
 
   function update(field: keyof LaborRelationshipFormValues, value: string) {
