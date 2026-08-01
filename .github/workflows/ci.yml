@@ -17,6 +17,20 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: saas_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d saas_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       NODE_ENV: test
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/saas_ci
@@ -42,6 +56,9 @@ jobs:
 
       - name: Generate Prisma client
         run: pnpm --filter @saas/api exec prisma generate
+
+      - name: Prepare database
+        run: pnpm --filter @saas/api exec prisma migrate deploy
 
       - name: Build shared types
         run: pnpm --filter @saas/types build
