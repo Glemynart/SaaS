@@ -164,6 +164,10 @@ export class CloudflareR2StorageProvider implements StorageProvider {
     }
   }
 
+  async checkReadiness(): Promise<void> {
+    await this.exists('__health__/storage-probe');
+  }
+
   private validateKey(key: string): void {
     if (!key || key.trim() === '') {
       throw new InvalidStorageKeyError(key, 'la key está vacía');

@@ -27,15 +27,17 @@ export interface StorageObjectMetadata {
 }
 
 /**
- * Abstracción de un backend de almacenamiento. Hoy sólo existe
- * `LocalDiskStorageProvider`; en el futuro R2 implementará esta misma
- * interfaz sin que los consumidores de `StorageService` cambien.
+ * Abstracción de un backend de almacenamiento. Los proveedores local y R2
+ * implementan este contrato sin que los consumidores de `StorageService`
+ * conozcan el backend activo.
  */
 export interface StorageProvider {
   put(input: PutObjectInput): Promise<StorageObjectMetadata>;
   get(key: string): Promise<Buffer>;
   delete(key: string): Promise<void>;
   exists(key: string): Promise<boolean>;
+  /** Comprueba que el backend está disponible para el runtime. */
+  checkReadiness?(): Promise<void>;
 }
 
 /** Se lanza cuando se solicita una `key` que no existe en el backend. */

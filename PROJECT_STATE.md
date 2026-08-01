@@ -69,7 +69,7 @@ Backend:
 Servicios:
 
 - Renderizado PDF con Puppeteer.
-- Almacenamiento local configurable mediante el proveedor de storage.
+- Almacenamiento local o Cloudflare R2 configurable mediante el proveedor de storage.
 - Resend para correo transaccional, con modo degradado cuando no está configurado.
 
 ---
@@ -95,7 +95,7 @@ Estado actual:
 
 Goal activo:
 
-- 🟡 GOAL-01 M1 — E1.1 fusionada como PR #78; verificación de staging y E1.2 siguen abiertas.
+- 🟡 GOAL-01 M1 — E1.1 fusionada como PR #78; E1.2 fusionada como PR #79 y verificada; siguen abiertas la verificación final de staging, E1.3 y E1.4.
 
 - [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
@@ -109,6 +109,7 @@ Hitos recientes fusionados a `main`:
 - ✅ Fase 6C — Contratos Documentales — PR #65.
 - ✅ Fase 7 — Certificaciones Laborales — PR #67.
 - 🟡 Contratación Inteligente PR11.1/PR11.2 — PR #76; procesamiento PR11.3 y UI pendientes.
+- ✅ E1.2 — Migraciones, seed y rol PostgreSQL runtime no privilegiado — PR #79.
 
 ## <a name="landing-saas"></a>Landing SaaS
 

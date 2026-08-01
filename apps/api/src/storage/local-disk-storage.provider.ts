@@ -68,9 +68,15 @@ export class LocalDiskStorageProvider implements StorageProvider {
     try {
       await fs.access(fullPath);
       return true;
-    } catch {
-      return false;
+    } catch (error: unknown) {
+      if (this.isNotFound(error)) return false;
+      throw error;
     }
+  }
+
+  async checkReadiness(): Promise<void> {
+    await fs.mkdir(this.root, { recursive: true });
+    await fs.access(this.root);
   }
 
   /**
