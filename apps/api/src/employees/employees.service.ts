@@ -130,60 +130,100 @@ export class EmployeesService {
     );
   }
 
-  async update(id: string, updateDto: UpdateEmployeeDto) {
-    return this.tenantPrisma.execute(async (prisma, context) => {
-      const tenantId = context.tenantId;
-      await this.findOneInTenant(prisma, tenantId, id);
+  async update(userId: string, id: string, updateDto: UpdateEmployeeDto) {
+    const { employee, tenantId } = await this.tenantPrisma.execute(
+      async (prisma, context) => {
+        const tenantId = context.tenantId;
+        await this.findOneInTenant(prisma, tenantId, id);
 
-      if (updateDto.cedula) {
-        const existing = await prisma.empleado.findUnique({
-          where: {
-            tenantId_cedula: {
-              tenantId,
-              cedula: updateDto.cedula,
+        if (updateDto.cedula) {
+          const existing = await prisma.empleado.findUnique({
+            where: {
+              tenantId_cedula: {
+                tenantId,
+                cedula: updateDto.cedula,
+              },
             },
-          },
-        });
-        if (existing && existing.id !== id) {
-          throw new BadRequestException(
-            'Ya existe otro empleado con esta cédula',
+          });
+          if (existing && existing.id !== id) {
+            throw new BadRequestException(
+              'Ya existe otro empleado con esta cédula',
+            );
+          }
+        }
+
+        if (updateDto.sedeId) {
+          await this.ensureSedeBelongsToTenant(
+            prisma,
+            tenantId,
+            updateDto.sedeId,
           );
         }
-      }
 
-      if (updateDto.sedeId) {
-        await this.ensureSedeBelongsToTenant(
-          prisma,
-          tenantId,
-          updateDto.sedeId,
-        );
-      }
+        const dataToUpdate: Prisma.EmpleadoUncheckedUpdateInput = {
+          ...updateDto,
+        };
+        if (updateDto.fechaIngreso) {
+          dataToUpdate.fechaIngreso = new Date(updateDto.fechaIngreso);
+        }
+        if (updateDto.fechaRetiro !== undefined) {
+          dataToUpdate.fechaRetiro = updateDto.fechaRetiro
+            ? new Date(updateDto.fechaRetiro)
+            : null;
+        }
+        if (updateDto.municipioExpedicionDocId !== undefined) {
+          dataToUpdate.municipioExpedicionDocId =
+            updateDto.municipioExpedicionDocId || null;
+        }
 
-      const dataToUpdate: Prisma.EmpleadoUpdateInput = { ...updateDto };
-      if (updateDto.fechaIngreso) {
-        dataToUpdate.fechaIngreso = new Date(updateDto.fechaIngreso);
-      }
+        const employee = await prisma.empleado.update({
+          where: { id, tenantId },
+          data: dataToUpdate,
+        });
+        return { employee, tenantId };
+      },
+    );
 
-      return prisma.empleado.update({
-        where: { id, tenantId },
-        data: dataToUpdate,
-      });
-    });
+    this.auditService
+      .log({
+        tenantId,
+        userId,
+        action: 'EMPLOYEE_UPDATE',
+        entityType: 'Employee',
+        entityId: employee.id,
+        metadata: { fields: Object.keys(updateDto) },
+      })
+      .catch(() => {});
+    return employee;
   }
 
-  async remove(id: string) {
-    return this.tenantPrisma.execute(async (prisma, context) => {
-      const tenantId = context.tenantId;
-      await this.findOneInTenant(prisma, tenantId, id);
+  async remove(userId: string, id: string) {
+    const { employee, tenantId } = await this.tenantPrisma.execute(
+      async (prisma, context) => {
+        const tenantId = context.tenantId;
+        await this.findOneInTenant(prisma, tenantId, id);
 
-      return prisma.empleado.update({
-        where: { id, tenantId },
-        data: {
-          deletedAt: new Date(),
-          estado: 'INACTIVO',
-        },
-      });
-    });
+        const employee = await prisma.empleado.update({
+          where: { id, tenantId },
+          data: {
+            deletedAt: new Date(),
+            estado: 'INACTIVO',
+          },
+        });
+        return { employee, tenantId };
+      },
+    );
+
+    this.auditService
+      .log({
+        tenantId,
+        userId,
+        action: 'EMPLOYEE_DELETE',
+        entityType: 'Employee',
+        entityId: employee.id,
+      })
+      .catch(() => {});
+    return employee;
   }
 
   private async findOneInTenant(

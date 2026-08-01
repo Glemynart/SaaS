@@ -92,6 +92,11 @@ Estas exclusiones son limitaciones temporales del roadmap. No se numerarán como
 
 **Resultado verificable:** la aplicación se despliega desde cero en un ambiente representativo y completa un smoke test autenticado.
 
+**Estado del Milestone:** `BLOQUEADO` por una dependencia operativa externa verificable:
+no existe todavía una URL de staging, secretos de entorno ni un workflow de despliegue
+disponible en el repositorio o en GitHub. Este estado pertenece a M1; no cambia el
+estado del Goal, que permanece `ACTIVO`.
+
 - [ ] E1.1 — Staging reproducible, configuración y secretos.
 - [x] E1.2 — Migraciones, seed y rol PostgreSQL runtime no privilegiado.
 - [ ] E1.3 — R2, correo real y health/readiness checks.
@@ -102,13 +107,15 @@ verdes y auditoría `APROBADO PARA MERGE`. E1.3 también está fusionada y sus
 rutas `/health` y `/readiness` son la base de los smoke tests. La verificación
 real de R2 y correo de E1.3, junto con la validación de staging reproducible de
 E1.1, sigue siendo evidencia operativa pendiente y no se declara cerrada por
-la sola existencia del código. Por ello M1 aún no desbloquea M2 y no se inicia
-E2.1 hasta demostrar el resultado operativo de deployment.
+la sola existencia del código. M1 no desbloquea el camino de M2 que requiere
+deployment y correo, pero esta dependencia no bloquea los caminos independientes
+del Goal.
 
 La investigación de `main` no encontró una URL de staging, secretos de entorno
 ni un workflow de despliegue disponible en el repositorio o en GitHub. Esta es
-una dependencia operativa externa pendiente, no una decisión de arquitectura ni
-un motivo para adelantar código de M2.
+una dependencia operativa externa pendiente, no una decisión de arquitectura.
+La prioridad se reevalúa como un grafo de dependencias: M3 puede avanzar sin
+staging, R2, correo ni una decisión de dominio pendiente.
 
 ### M2 — Gestión de Organizaciones y Usuarios
 
@@ -123,7 +130,11 @@ un motivo para adelantar código de M2.
 
 **Resultado verificable:** el operador prepara desde la interfaz todos los datos necesarios para contratar.
 
-- [ ] E3.1 — Empleados CRUD, búsqueda e importación XLSX verificadas.
+M3 es el siguiente Milestone desbloqueado mientras M1 espera evidencia externa.
+La decisión evita bloquear el Goal completo por un único camino operativo y no
+adelanta E3.2 ni trabajo de Milestones posteriores.
+
+- [ ] E3.1 — Empleados CRUD, búsqueda e importación XLSX verificadas (Epic actual).
 - [ ] E3.2 — Perfiles contractuales y vínculos laborales precontractuales.
 - [ ] E3.3 — Configuración perfil → tipo documental → plantilla.
 - [ ] E3.4 — Errores y bloqueos comprensibles para el operador.
@@ -186,13 +197,14 @@ un motivo para adelantar código de M2.
 
 ## PRs asociados
 
-| PR      | Epic  | Propósito                                                            | Estado     | ¿Cierra capacidad?                                         |
-| ------- | ----- | -------------------------------------------------------------------- | ---------- | ---------------------------------------------------------- |
-| #78     | E1.1  | Imágenes reproducibles de staging para API y Web.                    | FUSIONADO  | No; E1.1 requiere verificación de staging.                 |
-| #79     | E1.2  | Migraciones, seed y rol runtime PostgreSQL no privilegiado.          | FUSIONADO  | Sí; E1.2 verificada localmente y en DB limpia.             |
-| #80     | E1.3  | R2, correo real y health/readiness checks.                           | FUSIONADO  | No; requiere verificación real en staging.                 |
-| #81     | E1.4  | CI, observabilidad y base de pruebas browser end-to-end.             | FUSIONADO  | Sí; CI y Browser E2E verificados; M1 aún requiere staging. |
-| #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente. | FUSIONADOS | No; el recorrido inteligente sigue abierto.                |
+| PR      | Epic  | Propósito                                                                | Estado     | ¿Cierra capacidad?                                         |
+| ------- | ----- | ------------------------------------------------------------------------ | ---------- | ---------------------------------------------------------- |
+| #78     | E1.1  | Imágenes reproducibles de staging para API y Web.                        | FUSIONADO  | No; E1.1 requiere verificación de staging.                 |
+| #79     | E1.2  | Migraciones, seed y rol runtime PostgreSQL no privilegiado.              | FUSIONADO  | Sí; E1.2 verificada localmente y en DB limpia.             |
+| #80     | E1.3  | R2, correo real y health/readiness checks.                               | FUSIONADO  | No; requiere verificación real en staging.                 |
+| #81     | E1.4  | CI, observabilidad y base de pruebas browser end-to-end.                 | FUSIONADO  | Sí; CI y Browser E2E verificados; M1 aún requiere staging. |
+| #83     | E3.1  | Verificación browser del CRUD, búsqueda e importación XLSX de empleados. | ABIERTO    | No; se cierra cuando el PR se fusione.                     |
+| #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.     | FUSIONADOS | No; el recorrido inteligente sigue abierto.                |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.
 
@@ -209,7 +221,9 @@ pero E1.1 aún requiere verificación de staging. #79 entregó y verificó E1.2
 con migraciones, seed idempotente y rol runtime no privilegiado. #80 entregó las
 comprobaciones de R2, correo real y readiness; su cierre requiere verificación
 real en staging. #81 entregó E1.4, está fusionada y sus checks de CI y Browser
-E2E están verdes. El Goal vuelve a `ACTIVO`, pero M1 y el resto del Goal siguen
-abiertos porque aún falta ejecutar la validación operativa de staging de E1.1
-y E1.3. E2.1 no se inicia hasta que esa dependencia de deployment quede
-resuelta.
+E2E están verdes. GOAL-01 permanece `ACTIVO`; M1 está `BLOQUEADO` a la espera
+de la validación operativa de staging de E1.1 y E1.3. La siguiente Epic es E3.1:
+su recorrido usa únicamente la autenticación, persistencia y frontera tenant ya
+existentes, y no requiere staging, R2, correo ni una nueva decisión de dominio.
+E2.1 permanece pendiente porque su recorrido completo requiere backend de
+invitaciones y correo, y no se inicia en este PR.

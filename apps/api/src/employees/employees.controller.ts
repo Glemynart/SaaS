@@ -47,13 +47,17 @@ export class EmployeesController {
 
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateEmployeeDto) {
-    return this.employeesService.update(id, dto);
+  update(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateEmployeeDto,
+  ) {
+    return this.employeesService.update(user.userId, id, dto);
   }
 
   @Roles(UserRole.ADMIN)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.employeesService.remove(id);
+  remove(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    return this.employeesService.remove(user.userId, id);
   }
 }
