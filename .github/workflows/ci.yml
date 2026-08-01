@@ -67,7 +67,7 @@ jobs:
         run: pnpm typecheck
 
       - name: API tests
-        run: pnpm --filter @saas/api exec jest --runInBand
+        run: pnpm --filter @saas/api exec jest --maxWorkers=2
 
       - name: Validate Prisma schema
         run: pnpm --filter @saas/api exec prisma validate
