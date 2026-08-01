@@ -131,11 +131,14 @@ staging, R2, correo ni una decisión de dominio pendiente.
 **Resultado verificable:** el operador prepara desde la interfaz todos los datos necesarios para contratar.
 
 M3 es el siguiente Milestone desbloqueado mientras M1 espera evidencia externa.
-La decisión evita bloquear el Goal completo por un único camino operativo y no
-adelanta E3.2 ni trabajo de Milestones posteriores.
+La decisión evita bloquear el Goal completo por un único camino operativo. E3.1
+ya está fusionada; E3.2 es la única Epic activa porque consume las bases de
+perfiles y vínculos ya existentes, no requiere staging, R2, correo ni una nueva
+decisión de dominio, y prepara los datos laborales sin adelantar E3.3 ni otros
+Milestones.
 
-- [ ] E3.1 — Empleados CRUD, búsqueda e importación XLSX verificadas (Epic actual).
-- [ ] E3.2 — Perfiles contractuales y vínculos laborales precontractuales.
+- [x] E3.1 — Empleados CRUD, búsqueda e importación XLSX verificadas (PR #83 fusionada).
+- [ ] E3.2 — Perfiles contractuales y vínculos laborales precontractuales (Epic activa en la rama `goal-01/e3-2-contractual-profiles`).
 - [ ] E3.3 — Configuración perfil → tipo documental → plantilla.
 - [ ] E3.4 — Errores y bloqueos comprensibles para el operador.
 
@@ -197,14 +200,15 @@ adelanta E3.2 ni trabajo de Milestones posteriores.
 
 ## PRs asociados
 
-| PR      | Epic  | Propósito                                                                | Estado     | ¿Cierra capacidad?                                         |
-| ------- | ----- | ------------------------------------------------------------------------ | ---------- | ---------------------------------------------------------- |
-| #78     | E1.1  | Imágenes reproducibles de staging para API y Web.                        | FUSIONADO  | No; E1.1 requiere verificación de staging.                 |
-| #79     | E1.2  | Migraciones, seed y rol runtime PostgreSQL no privilegiado.              | FUSIONADO  | Sí; E1.2 verificada localmente y en DB limpia.             |
-| #80     | E1.3  | R2, correo real y health/readiness checks.                               | FUSIONADO  | No; requiere verificación real en staging.                 |
-| #81     | E1.4  | CI, observabilidad y base de pruebas browser end-to-end.                 | FUSIONADO  | Sí; CI y Browser E2E verificados; M1 aún requiere staging. |
-| #83     | E3.1  | Verificación browser del CRUD, búsqueda e importación XLSX de empleados. | ABIERTO    | No; se cierra cuando el PR se fusione.                     |
-| #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.     | FUSIONADOS | No; el recorrido inteligente sigue abierto.                |
+| PR          | Epic  | Propósito                                                                 | Estado            | ¿Cierra capacidad?                                         |
+| ----------- | ----- | ------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------- |
+| #78         | E1.1  | Imágenes reproducibles de staging para API y Web.                         | FUSIONADO         | No; E1.1 requiere verificación de staging.                 |
+| #79         | E1.2  | Migraciones, seed y rol runtime PostgreSQL no privilegiado.               | FUSIONADO         | Sí; E1.2 verificada localmente y en DB limpia.             |
+| #80         | E1.3  | R2, correo real y health/readiness checks.                                | FUSIONADO         | No; requiere verificación real en staging.                 |
+| #81         | E1.4  | CI, observabilidad y base de pruebas browser end-to-end.                  | FUSIONADO         | Sí; CI y Browser E2E verificados; M1 aún requiere staging. |
+| #83         | E3.1  | Verificación browser del CRUD, búsqueda e importación XLSX de empleados.  | FUSIONADO         | Sí; recorrido verificado browser.                          |
+| rama actual | E3.2  | Perfiles contractuales y vínculos laborales precontractuales desde la UI. | EN IMPLEMENTACIÓN | No; se cierra cuando el PR se fusione.                     |
+| #69–#76     | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS        | No; el recorrido inteligente sigue abierto.                |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.
 
@@ -216,14 +220,18 @@ Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente p
 
 Motivo: existen slices funcionales importantes, pero permanecen abiertas la gestión de usuarios, contratación inteligente end-to-end, expediente operativo, automatización de alertas, deployment y aceptación productiva.
 
-Las PR #78, #79, #80 y #81 fueron fusionadas. #78 entregó el empaquetado de E1.1,
+Las PR #78, #79, #80, #81 y #83 fueron fusionadas. #78 entregó el empaquetado de E1.1,
 pero E1.1 aún requiere verificación de staging. #79 entregó y verificó E1.2
 con migraciones, seed idempotente y rol runtime no privilegiado. #80 entregó las
 comprobaciones de R2, correo real y readiness; su cierre requiere verificación
 real en staging. #81 entregó E1.4, está fusionada y sus checks de CI y Browser
 E2E están verdes. GOAL-01 permanece `ACTIVO`; M1 está `BLOQUEADO` a la espera
-de la validación operativa de staging de E1.1 y E1.3. La siguiente Epic es E3.1:
-su recorrido usa únicamente la autenticación, persistencia y frontera tenant ya
-existentes, y no requiere staging, R2, correo ni una nueva decisión de dominio.
-E2.1 permanece pendiente porque su recorrido completo requiere backend de
-invitaciones y correo, y no se inicia en este PR.
+de la validación operativa de staging de E1.1 y E1.3. E3.1 entregó el recorrido
+browser de empleados y quedó fusionada en PR #83; su recorrido usó únicamente
+la autenticación, persistencia y frontera tenant ya existentes, sin requerir
+staging, R2, correo ni una nueva decisión de dominio. La siguiente Epic es E3.2:
+su recorrido usa el catálogo y vínculo laboral del backend
+ya existente, los expone desde la interfaz y no requiere staging, R2, correo ni
+una nueva decisión de dominio. E2.1 permanece pendiente porque su recorrido
+completo requiere backend de invitaciones y correo, y E3.3 no se inicia en este
+PR.
