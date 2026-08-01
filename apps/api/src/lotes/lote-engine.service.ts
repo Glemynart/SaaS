@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   BatchDocumentGenerationPlanStatus,
   Contrato,
@@ -63,6 +68,12 @@ export class LoteEngineService {
     });
     if (!lote) {
       throw new NotFoundException('Lote no encontrado');
+    }
+
+    if (!lote.documentTemplateId) {
+      throw new ConflictException(
+        'Las campañas inteligentes requieren confirmación antes de procesarse.',
+      );
     }
 
     if (lote.estado === 'EN_PROCESO') {

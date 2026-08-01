@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { LoteContrato, Prisma } from '@prisma/client';
 import { Test } from '@nestjs/testing';
 import { ContractsService } from '../contracts/contracts.service';
@@ -75,6 +75,7 @@ function makeLote(overrides: Record<string, unknown> = {}) {
     sedeId: null,
     creadoPorId: USER_ID,
     nombreLote: null,
+    proposito: null,
     tipoContrato: 'TERMINO_FIJO',
     fechaInicioContrato: new Date('2026-02-01'),
     fechaFinContrato: new Date('2026-12-15'),
@@ -183,6 +184,17 @@ describe('LoteEngineService', () => {
   });
 
   describe('procesarLote', () => {
+    it('no procesa una campaña inteligente sin confirmación', async () => {
+      mockLoteFindUnique.mockResolvedValue(
+        makeLote({ documentTemplateId: null }),
+      );
+
+      await expect(service.procesarLote(LOTE_ID)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(mockLoteUpdateMany).not.toHaveBeenCalled();
+    });
+
     it('delegates once to the confirmed-plan generation flow after contracts are ensured', async () => {
       mockBatchPlanCount.mockResolvedValue(1);
       mockLoteFindUnique.mockResolvedValue(makeLote());

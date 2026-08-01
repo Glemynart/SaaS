@@ -65,6 +65,10 @@ enum LoteEstado {
   FALLIDO
 }
 
+enum LoteProposito {
+  CONTRATACION
+}
+
 enum PlantillaTipo {
   CONTRATO
   PREAVISO
@@ -271,6 +275,7 @@ model Tenant {
   perfilesContractuales PerfilContractual[]
   configuracionesDocumentalesPerfil ConfiguracionDocumentalPerfil[]
   batchDocumentGenerationPlans BatchDocumentGenerationPlan[]
+  batchDocumentGenerationExclusions BatchDocumentGenerationExclusion[]
   vinculosLaborales  VinculoLaboral[]
   lotes              LoteContrato[]
   expedientes        ExpedienteDoc[]
@@ -1470,6 +1475,8 @@ model BatchDocumentGenerationPlan {
   perfilSnapshot Json
   configuracionSnapshot Json
   plantillaSnapshot Json
+  empleadoSnapshot Json?
+  contratoSnapshot Json?
   motivoResolucion String
   formatoVersion Int @default(1)
   resueltoAt DateTime
@@ -1478,6 +1485,28 @@ model BatchDocumentGenerationPlan {
   @@unique([loteId, empleadoId, tipoDocumental])
   @@index([tenantId, loteId, estado])
   @@map("batch_document_generation_plans")
+}
+
+model BatchDocumentGenerationExclusion {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  loteId   String
+  lote     LoteContrato @relation(fields: [loteId], references: [id], onDelete: Restrict)
+
+  // Se conserva como valor libre porque un empleado seleccionado puede no
+  // existir o no pertenecer ya al tenant en la fecha de evaluación.
+  empleadoId String
+  tipoDocumental DocumentTemplateType
+  fechaEvaluacion DateTime @db.Date
+  motivoBloqueo String
+  detalle Json?
+
+  @@unique([loteId, empleadoId, tipoDocumental])
+  @@index([tenantId, loteId])
+  @@map("batch_document_generation_exclusions")
 }
 
 // =============================================================================
@@ -1497,8 +1526,8 @@ model LoteContrato {
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  documentTemplateId String
-  documentTemplate   DocumentTemplate @relation(fields: [documentTemplateId], references: [id])
+  documentTemplateId String?
+  documentTemplate   DocumentTemplate? @relation(fields: [documentTemplateId], references: [id])
 
   sedeId String?
   sede   Sede?   @relation(fields: [sedeId], references: [id])
@@ -1508,6 +1537,7 @@ model LoteContrato {
 
   // Metadata del lote
   nombreLote          String?
+  proposito           LoteProposito?
   tipoContrato        ContratoTipo?
   fechaInicioContrato DateTime?
   fechaFinContrato    DateTime?
@@ -1532,6 +1562,7 @@ model LoteContrato {
   // Relaciones
   contratos Contrato[]
   batchDocumentGenerationPlans BatchDocumentGenerationPlan[]
+  batchDocumentGenerationExclusions BatchDocumentGenerationExclusion[]
 
   @@index([tenantId, estado])
   @@index([tenantId, createdAt])
