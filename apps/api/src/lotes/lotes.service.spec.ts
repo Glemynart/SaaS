@@ -4,6 +4,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
+import { LoteProposito } from '@prisma/client';
 import { LotesService } from './lotes.service';
 import { LoteEngineService } from './lote-engine.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -105,6 +106,54 @@ describe('LotesService', () => {
         }),
       );
       expect(result).toEqual(makeLote());
+    });
+
+    it('crea campaña inteligente sin plantilla y conserva su propósito', async () => {
+      mockPrisma.loteContrato.create.mockResolvedValue(
+        makeLote({
+          documentTemplateId: null,
+          proposito: LoteProposito.CONTRATACION,
+        }),
+      );
+
+      await service.create(
+        TENANT_ID,
+        USER_ID,
+        makeDto({
+          templateId: undefined,
+          proposito: LoteProposito.CONTRATACION,
+        }),
+      );
+
+      expect(mockPrisma.documentTemplate.findFirst).not.toHaveBeenCalled();
+      expect(mockPrisma.loteContrato.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            documentTemplateId: null,
+            proposito: LoteProposito.CONTRATACION,
+          }),
+        }),
+      );
+    });
+
+    it('exige propósito cuando no se proporciona plantilla', async () => {
+      await expect(
+        service.create(TENANT_ID, USER_ID, makeDto({ templateId: undefined })),
+      ).rejects.toThrow(
+        'Una campaña inteligente requiere el propósito CONTRATACION.',
+      );
+    });
+
+    it('rechaza mezclar plantilla manual y propósito inteligente', async () => {
+      await expect(
+        service.create(
+          TENANT_ID,
+          USER_ID,
+          makeDto({ proposito: LoteProposito.CONTRATACION }),
+        ),
+      ).rejects.toThrow(
+        'Un lote manual no puede combinar plantilla y propósito inteligente.',
+      );
     });
 
     it('rechaza template inexistente', async () => {
