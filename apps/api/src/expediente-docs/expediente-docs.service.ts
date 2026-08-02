@@ -12,7 +12,6 @@ import { AuditService } from '../audit/audit.service';
 import { StorageService } from '../storage/storage.service';
 import { StorageObjectNotFoundError } from '../storage/storage.types';
 import type { PdfMaterializationResult } from '../generated-documents/generated-documents.service';
-import { isImmutablePublishedDocumentType } from '../generated-documents/document-invariants';
 import { validateManualDocument } from './manual-document-validation';
 import { randomUUID } from 'node:crypto';
 
@@ -159,16 +158,10 @@ export class ExpedienteDocsService {
   }
 
   async remove(tenantId: string, id: string) {
-    const doc = await this.findOne(tenantId, id);
-    if (
-      doc.generatedDocument &&
-      isImmutablePublishedDocumentType(doc.generatedDocument.tipo)
-    ) {
-      throw new BadRequestException(
-        `Los documentos ${doc.generatedDocument.tipo} publicados son inmutables y no se pueden eliminar del expediente.`,
-      );
-    }
-    return this.prisma.expedienteDoc.delete({ where: { id: doc.id } });
+    await this.findOne(tenantId, id);
+    throw new BadRequestException(
+      'Los documentos publicados son inmutables y no se pueden eliminar del expediente.',
+    );
   }
 
   async uploadManual(

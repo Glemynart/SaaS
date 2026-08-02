@@ -34,12 +34,12 @@ describe('AuthorizationSurfaceClassifier', () => {
 
     expect(countBy(operations, 'policy')).toEqual({
       [AuthorizationPolicyKind.UNAUTHENTICATED]: 10,
-      [AuthorizationPolicyKind.AUTHENTICATED]: 61,
-      [AuthorizationPolicyKind.RBAC]: 96,
+      [AuthorizationPolicyKind.AUTHENTICATED]: 58,
+      [AuthorizationPolicyKind.RBAC]: 99,
     });
     expect(countBy(operations, 'source')).toEqual({
-      [AuthorizationClassificationSource.EXPLICIT]: 71,
-      [AuthorizationClassificationSource.EXISTING_RBAC]: 96,
+      [AuthorizationClassificationSource.EXPLICIT]: 68,
+      [AuthorizationClassificationSource.EXISTING_RBAC]: 99,
     });
     expect(
       operations.filter(

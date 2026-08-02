@@ -108,46 +108,30 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
     service = moduleRef.get(ExpedienteDocsService);
   });
 
-  it('impide eliminar un ExpedienteDoc asociado a CONTRACT publicado', async () => {
+  it('impide eliminar cualquier documento publicado, incluso uno contractual', async () => {
     mockExpedienteDocFindFirst.mockResolvedValue({
       id: 'expediente-001',
       generatedDocument: { id: generatedDocumentId, tipo: 'CONTRACT' },
     });
 
     await expect(service.remove(tenantId, 'expediente-001')).rejects.toThrow(
-      'Los documentos CONTRACT publicados son inmutables',
+      'Los documentos publicados son inmutables',
     );
 
     expect(mockExpedienteDocDelete).not.toHaveBeenCalled();
   });
 
-  it('impide eliminar un ExpedienteDoc asociado a CERTIFICATION publicado', async () => {
+  it('impide eliminar un documento manual publicado', async () => {
     mockExpedienteDocFindFirst.mockResolvedValue({
       id: 'expediente-001',
-      generatedDocument: { id: generatedDocumentId, tipo: 'CERTIFICATION' },
+      generatedDocument: null,
     });
 
     await expect(service.remove(tenantId, 'expediente-001')).rejects.toThrow(
-      'Los documentos CERTIFICATION publicados son inmutables',
+      'Los documentos publicados son inmutables',
     );
 
     expect(mockExpedienteDocDelete).not.toHaveBeenCalled();
-  });
-
-  it('mantiene la eliminación para ExpedienteDoc no publicado', async () => {
-    mockExpedienteDocFindFirst.mockResolvedValue({
-      id: 'expediente-001',
-      generatedDocument: { id: generatedDocumentId, tipo: 'LETTER' },
-    });
-    mockExpedienteDocDelete.mockResolvedValue({ id: 'expediente-001' });
-
-    await expect(service.remove(tenantId, 'expediente-001')).resolves.toEqual({
-      id: 'expediente-001',
-    });
-
-    expect(mockExpedienteDocDelete).toHaveBeenCalledWith({
-      where: { id: 'expediente-001' },
-    });
   });
 
   it('crea el índice con la clave y tamaño canónicos dentro de la transacción', async () => {

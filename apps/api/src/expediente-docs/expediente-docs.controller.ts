@@ -30,6 +30,7 @@ import { UploadExpedienteDocDto } from './dto/upload-expediente-doc.dto';
 export class ExpedienteDocsController {
   constructor(private readonly service: ExpedienteDocsService) {}
 
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Get('employees/:id/expediente')
   findByEmployee(
     @CurrentUser() user: CurrentUserPayload,
@@ -38,11 +39,13 @@ export class ExpedienteDocsController {
     return this.service.findByEmployee(user.tenantId, id);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Get('expediente-docs/:id')
   findOne(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
     return this.service.findOne(user.tenantId, id);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Get('expediente-docs/:id/history')
   findHistory(
     @CurrentUser() user: CurrentUserPayload,
