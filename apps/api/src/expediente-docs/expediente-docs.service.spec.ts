@@ -14,6 +14,7 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
   const mockGeneratedDocumentUpdate = jest.fn();
   const mockExpedienteDocFindFirst = jest.fn();
   const mockExpedienteDocCreate = jest.fn();
+  const mockExpedienteDocFamilyCreate = jest.fn();
   const mockExpedienteDocDelete = jest.fn();
   const mockTransaction = jest.fn();
   const mockAuditLog = jest.fn();
@@ -55,6 +56,7 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
     mockGeneratedDocumentUpdate.mockResolvedValue({ id: generatedDocumentId });
     mockExpedienteDocFindFirst.mockResolvedValue(null);
     mockExpedienteDocCreate.mockResolvedValue({ id: 'expediente-001' });
+    mockExpedienteDocFamilyCreate.mockResolvedValue({ id: 'family-001' });
     mockExpedienteDocDelete.mockReset();
     mockTenantPrismaExecute.mockImplementation((work) =>
       work({
@@ -69,6 +71,7 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
           findFirst: mockExpedienteDocFindFirst,
           create: mockExpedienteDocCreate,
         },
+        expedienteDocFamily: { create: mockExpedienteDocFamilyCreate },
       }),
     );
 
@@ -86,6 +89,7 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
               findFirst: mockExpedienteDocFindFirst,
               delete: mockExpedienteDocDelete,
             },
+            expedienteDocFamily: { create: mockExpedienteDocFamilyCreate },
             $transaction: mockTransaction,
           },
         },
@@ -382,6 +386,7 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
               return stagedExpediente;
             },
           },
+          expedienteDocFamily: { create: async () => ({ id: 'family-001' }) },
         });
         persistedMetadata = stagedMetadata;
         persistedExpediente = stagedExpediente;

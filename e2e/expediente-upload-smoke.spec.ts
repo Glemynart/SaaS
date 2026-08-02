@@ -48,10 +48,38 @@ test('sube un documento manual al expediente de un empleado desde la UI', async 
     mimeType: 'application/pdf',
     buffer: Buffer.from('%PDF-1.7\nexpediente e2e'),
   });
+  await uploadDialog.locator('#expediente-category').selectOption('DOCUMENTO_PERSONAL');
   await uploadDialog.getByLabel('Categoría').selectOption('DOCUMENTO_PERSONAL');
   await uploadDialog.getByRole('button', { name: 'Subir documento', exact: true }).click();
 
   await expect(page.getByRole('row').filter({ hasText: 'cedula.pdf' })).toContainText(
     'Documento personal',
   );
+
+  const firstRevisionRow = page.getByRole('row').filter({ hasText: 'cedula.pdf' });
+  await expect(firstRevisionRow).toContainText('v1');
+
+  await firstRevisionRow.getByRole('button').nth(2).click();
+  const revisionDialog = page.getByRole('dialog').filter({ has: page.locator('#expediente-file') });
+  await expect(revisionDialog).toBeVisible();
+  await revisionDialog.locator('input[type="file"]').setInputFiles({
+    name: 'cedula-actualizada.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.7\nexpediente e2e revision 2'),
+  });
+  await revisionDialog.locator('button').last().click();
+
+  const currentRevisionRow = page.getByRole('row').filter({ hasText: 'cedula-actualizada.pdf' });
+  await expect(currentRevisionRow).toContainText('v2');
+
+  await currentRevisionRow.getByRole('button').first().click();
+  const historyDialog = page.getByRole('dialog', { name: 'Historial documental' });
+  await expect(historyDialog).toContainText('v2');
+  await expect(historyDialog).toContainText('v1');
+
+  await historyDialog.getByRole('button', { name: 'Cerrar' }).click();
+  const downloadPromise = page.waitForEvent('download');
+  await currentRevisionRow.getByRole('button').nth(1).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe('cedula-actualizada.pdf');
 });

@@ -24,7 +24,22 @@ type ExpedienteCreateInput = { data: Record<string, unknown> };
 type ExpedienteCreate = (
   args: ExpedienteCreateInput,
 ) => Promise<{ id: string }>;
-type TransactionClientMock = { expedienteDoc: { create: ExpedienteCreate } };
+type FamilyFindFirst = (args: unknown) => Promise<{
+  id: string;
+  categoria: ExpedienteCategoria;
+} | null>;
+type DocumentFindFirst = (args: unknown) => Promise<{
+  id: string;
+  version: number;
+  generatedDocumentId: string | null;
+} | null>;
+type TransactionClientMock = {
+  expedienteDocFamily: { create: ExpedienteCreate };
+  expedienteDoc: {
+    create: ExpedienteCreate;
+    update: (args: unknown) => Promise<unknown>;
+  };
+};
 type Transaction = (
   work: (client: TransactionClientMock) => Promise<unknown>,
 ) => Promise<unknown>;
@@ -42,6 +57,12 @@ describe('ExpedienteDocsService.uploadManual', () => {
   let service: ExpedienteDocsService;
   let employeeFindFirst: jest.MockedFunction<EmployeeFindFirst>;
   let expedienteDocCreate: jest.MockedFunction<ExpedienteCreate>;
+  let expedienteDocFamilyCreate: jest.MockedFunction<ExpedienteCreate>;
+  let familyFindFirst: jest.MockedFunction<FamilyFindFirst>;
+  let documentFindFirst: jest.MockedFunction<DocumentFindFirst>;
+  let expedienteDocUpdate: jest.MockedFunction<
+    (args: unknown) => Promise<unknown>
+  >;
   let transaction: jest.MockedFunction<Transaction>;
   let auditLog: jest.MockedFunction<AuditLog>;
   let putObject: jest.MockedFunction<
@@ -55,6 +76,17 @@ describe('ExpedienteDocsService.uploadManual', () => {
     employeeFindFirst.mockResolvedValue({ id: employeeId });
     expedienteDocCreate = jest.fn() as jest.MockedFunction<ExpedienteCreate>;
     expedienteDocCreate.mockResolvedValue({ id: 'doc-001' });
+    expedienteDocFamilyCreate =
+      jest.fn() as jest.MockedFunction<ExpedienteCreate>;
+    expedienteDocFamilyCreate.mockResolvedValue({ id: 'family-001' });
+    familyFindFirst = jest.fn() as jest.MockedFunction<FamilyFindFirst>;
+    familyFindFirst.mockResolvedValue(null);
+    documentFindFirst = jest.fn() as jest.MockedFunction<DocumentFindFirst>;
+    documentFindFirst.mockResolvedValue(null);
+    expedienteDocUpdate = jest.fn() as jest.MockedFunction<
+      (args: unknown) => Promise<unknown>
+    >;
+    expedienteDocUpdate.mockResolvedValue({ id: 'doc-001', vigente: false });
     auditLog = jest.fn() as jest.MockedFunction<AuditLog>;
     auditLog.mockResolvedValue(undefined);
     putObject = jest.fn() as jest.MockedFunction<
@@ -75,11 +107,21 @@ describe('ExpedienteDocsService.uploadManual', () => {
     );
     transaction = jest.fn() as jest.MockedFunction<Transaction>;
     transaction.mockImplementation((work) =>
-      work({ expedienteDoc: { create: expedienteDocCreate } }),
+      work({
+        expedienteDocFamily: { create: expedienteDocFamilyCreate },
+        expedienteDoc: {
+          create: expedienteDocCreate,
+          update: expedienteDocUpdate,
+        },
+      }),
     );
 
     service = new ExpedienteDocsService(
-      { $transaction: transaction } as unknown as PrismaService,
+      {
+        $transaction: transaction,
+        expedienteDocFamily: { findFirst: familyFindFirst },
+        expedienteDoc: { findFirst: documentFindFirst },
+      } as unknown as PrismaService,
       { execute: tenantExecute } as unknown as TenantPrismaService,
       { log: auditLog } as unknown as AuditService,
       { putObject, deleteObject } as unknown as StorageService,
@@ -124,6 +166,20 @@ describe('ExpedienteDocsService.uploadManual', () => {
       subidoPorId: userId,
     });
     expect(createInput?.data.generatedDocumentId).toBeUndefined();
+    expect(createInput?.data).toMatchObject({
+      version: 1,
+      vigente: true,
+      reemplazaId: undefined,
+    });
+    expect(expedienteDocFamilyCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        id: expect.any(String),
+        tenantId,
+        empleadoId: employeeId,
+        categoria: ExpedienteCategoria.DOCUMENTO_PERSONAL,
+        nombre: 'cedula.pdf',
+      }),
+    });
     expect(auditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         tenantId,
@@ -149,6 +205,73 @@ describe('ExpedienteDocsService.uploadManual', () => {
         file,
       ),
     ).rejects.toThrow('Empleado no encontrado');
+
+    expect(putObject).not.toHaveBeenCalled();
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it('creates the next immutable revision in the same document family', async () => {
+    const familyId = 'family-001';
+    familyFindFirst.mockResolvedValue({
+      id: familyId,
+      categoria: ExpedienteCategoria.DOCUMENTO_PERSONAL,
+    });
+    documentFindFirst.mockResolvedValue({
+      id: 'doc-001',
+      version: 1,
+      generatedDocumentId: null,
+    });
+    expedienteDocCreate.mockResolvedValue({ id: 'doc-002' });
+
+    await expect(
+      service.uploadManual(
+        tenantId,
+        userId,
+        'admin@example.test',
+        employeeId,
+        ExpedienteCategoria.DOCUMENTO_PERSONAL,
+        { ...file, originalname: 'cedula-actualizada.pdf' },
+        familyId,
+      ),
+    ).resolves.toEqual({ id: 'doc-002' });
+
+    expect(putObject.mock.calls[0]?.[0].key).toMatch(
+      new RegExp(
+        `^${tenantId}/expediente/${employeeId}/DOCUMENTO_PERSONAL/${familyId}_v2\\.pdf$`,
+      ),
+    );
+    expect(expedienteDocUpdate).toHaveBeenCalledWith({
+      where: { id: 'doc-001' },
+      data: { vigente: false },
+    });
+    expect(expedienteDocCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        familiaId: familyId,
+        reemplazaId: 'doc-001',
+        version: 2,
+        vigente: true,
+      }),
+    });
+    expect(expedienteDocFamilyCreate).not.toHaveBeenCalled();
+  });
+
+  it('does not allow a revision to change document category', async () => {
+    familyFindFirst.mockResolvedValue({
+      id: 'family-001',
+      categoria: ExpedienteCategoria.DOCUMENTO_PERSONAL,
+    });
+
+    await expect(
+      service.uploadManual(
+        tenantId,
+        userId,
+        'admin@example.test',
+        employeeId,
+        ExpedienteCategoria.CERTIFICADO,
+        file,
+        'family-001',
+      ),
+    ).rejects.toThrow('Una revisión debe conservar la familia documental');
 
     expect(putObject).not.toHaveBeenCalled();
     expect(transaction).not.toHaveBeenCalled();
