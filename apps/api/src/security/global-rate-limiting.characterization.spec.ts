@@ -100,7 +100,9 @@ describe('Global Rate Limiting operational characterization', () => {
   });
 
   it.each([
-    ['register', 'register', 3, 60_000],
+    // Browser smoke tests register four independent tenants in NODE_ENV=test;
+    // production keeps the existing limit of three registrations per minute.
+    ['register', 'register', process.env.NODE_ENV === 'test' ? 10 : 3, 60_000],
     ['login', 'login', 5, 60_000],
     ['refresh', 'refresh', 10, 60_000],
     ['forgotPassword', 'forgotPassword', 3, 3_600_000],
