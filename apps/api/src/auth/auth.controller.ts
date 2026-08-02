@@ -28,7 +28,11 @@ import {
   Unauthenticated,
 } from './authorization/authorization-policy';
 
-const REGISTER_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
+const REGISTER_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 3;
+const LOGIN_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 5;
+const REFRESH_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 10;
+const FORGOT_PASSWORD_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 3;
+const RESET_PASSWORD_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 5;
 
 @Controller('auth')
 export class AuthController {
@@ -49,7 +53,7 @@ export class AuthController {
   @Unauthenticated()
   @Post('login')
   @UseGuards(ThrottlerGuard)
-  @Throttle({ login: { limit: 5, ttl: 60000 } })
+  @Throttle({ login: { limit: LOGIN_RATE_LIMIT, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto, @Req() req: Request, @Ip() ip: string) {
     const userAgent = req.headers['user-agent'];
@@ -75,7 +79,7 @@ export class AuthController {
   @Unauthenticated()
   @Post('refresh')
   @UseGuards(ThrottlerGuard)
-  @Throttle({ refresh: { limit: 10, ttl: 60000 } })
+  @Throttle({ refresh: { limit: REFRESH_RATE_LIMIT, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async refresh(
     @Body() dto: RefreshDto,
@@ -104,7 +108,9 @@ export class AuthController {
   @Unauthenticated()
   @Post('forgot-password')
   @UseGuards(ThrottlerGuard)
-  @Throttle({ forgotPassword: { limit: 3, ttl: 3600000 } })
+  @Throttle({
+    forgotPassword: { limit: FORGOT_PASSWORD_RATE_LIMIT, ttl: 3600000 },
+  })
   @SkipThrottle({
     login: true,
     register: true,
@@ -129,7 +135,9 @@ export class AuthController {
   @Unauthenticated()
   @Post('reset-password')
   @UseGuards(ThrottlerGuard)
-  @Throttle({ resetPassword: { limit: 5, ttl: 900000 } })
+  @Throttle({
+    resetPassword: { limit: RESET_PASSWORD_RATE_LIMIT, ttl: 900000 },
+  })
   @SkipThrottle({
     login: true,
     register: true,

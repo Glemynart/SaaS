@@ -21,7 +21,7 @@ describe('AuthorizationSurfaceClassifier', () => {
   it('classifies the complete current HTTP surface without ambiguity', () => {
     const operations = classifier.classifyModuleGraph(AppModule);
 
-    expect(operations).toHaveLength(162);
+    expect(operations).toHaveLength(165);
     expect(new Set(operations.map(({ operationId }) => operationId)).size).toBe(
       operations.length,
     );
@@ -35,11 +35,11 @@ describe('AuthorizationSurfaceClassifier', () => {
     expect(countBy(operations, 'policy')).toEqual({
       [AuthorizationPolicyKind.UNAUTHENTICATED]: 10,
       [AuthorizationPolicyKind.AUTHENTICATED]: 60,
-      [AuthorizationPolicyKind.RBAC]: 92,
+      [AuthorizationPolicyKind.RBAC]: 95,
     });
     expect(countBy(operations, 'source')).toEqual({
       [AuthorizationClassificationSource.EXPLICIT]: 70,
-      [AuthorizationClassificationSource.EXISTING_RBAC]: 92,
+      [AuthorizationClassificationSource.EXISTING_RBAC]: 95,
     });
     expect(
       operations.filter(

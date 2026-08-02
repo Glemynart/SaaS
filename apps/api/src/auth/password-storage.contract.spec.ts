@@ -31,7 +31,11 @@ describe('Password storage security contracts', () => {
         ),
       },
     };
-    const service = new UsersService(prisma as unknown as PrismaService);
+    const auditService = { log: jest.fn().mockResolvedValue(undefined) };
+    const service = new UsersService(
+      prisma as unknown as PrismaService,
+      auditService as unknown as AuditService,
+    );
 
     await service.create({
       tenantId: 'tenant-1',
