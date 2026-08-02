@@ -38,7 +38,7 @@ export class AlertsController {
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Patch(':id/resolve')
   resolve(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
-    return this.service.resolve(user.tenantId, id);
+    return this.service.resolve(user.tenantId, id, user.userId);
   }
 
   @Roles(UserRole.ADMIN)

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { AlertQueryDto } from './dto/alert-query.dto';
 import { Prisma } from '@prisma/client';
 import { formatNombreCompleto } from '@saas/types';
@@ -10,6 +11,7 @@ export class AlertsService {
   constructor(
     private prisma: PrismaService,
     private readonly tenantPrisma: TenantPrismaService,
+    private readonly auditService: AuditService,
   ) {}
 
   async findAll(tenantId: string, query: AlertQueryDto) {
@@ -79,11 +81,50 @@ export class AlertsService {
     return alert;
   }
 
-  async resolve(tenantId: string, id: string) {
-    const alert = await this.findOne(tenantId, id);
-    return this.prisma.alert.update({
-      where: { id: alert.id },
-      data: { status: 'RESOLVED', resolvedAt: new Date() },
+  async resolve(tenantId: string, id: string, userId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const alert = await tx.alert.findFirst({
+        where: { id, tenantId },
+      });
+
+      if (!alert) throw new NotFoundException('Alerta no encontrada');
+      if (alert.status === 'RESOLVED') return alert;
+
+      const resolvedAt = new Date();
+      const updateResult = await tx.alert.updateMany({
+        where: { id: alert.id, tenantId, status: 'OPEN' },
+        data: { status: 'RESOLVED', resolvedAt, resolvedById: userId },
+      });
+
+      if (updateResult.count === 0) {
+        const current = await tx.alert.findFirst({
+          where: { id: alert.id, tenantId },
+        });
+        if (!current) throw new NotFoundException('Alerta no encontrada');
+        return current;
+      }
+
+      const resolved = await tx.alert.findFirst({
+        where: { id: alert.id, tenantId },
+      });
+      if (!resolved) throw new NotFoundException('Alerta no encontrada');
+
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'ALERT_RESOLVED',
+          entityType: 'Alert',
+          entityId: alert.id,
+          metadata: {
+            previousStatus: alert.status,
+            resolvedAt: resolvedAt.toISOString(),
+          },
+        },
+        tx,
+      );
+
+      return resolved;
     });
   }
 

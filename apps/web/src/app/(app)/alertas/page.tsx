@@ -19,20 +19,14 @@ import {
   useGenerateContractAlerts,
   useGenerateMissingDocAlerts,
 } from '@/features/alerts/hooks/use-alerts';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { StatusBadge } from '@/components/ui/status-badge';
 
 const SEVERITY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   INFO: Info,
   WARNING: AlertTriangle,
   CRITICAL: ShieldAlert,
-};
-
-const SEVERITY_COLORS: Record<string, string> = {
-  INFO: 'bg-blue-50 text-blue-700 border-blue-200',
-  WARNING: 'bg-amber-50 text-amber-700 border-amber-200',
-  CRITICAL: 'bg-red-50 text-red-700 border-red-200',
 };
 
 function formatDate(dateStr: string): string {
@@ -112,23 +106,23 @@ export default function AlertasPage() {
 
       {stats && (
         <div className="mb-6 grid gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
+          <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
             <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
               <Bell className="size-3.5" /> Abiertas
             </div>
             <p className="mt-1 text-2xl font-semibold text-foreground">{stats.open}</p>
           </div>
-          <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
+          <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
             <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
               <ShieldAlert className="size-3.5" /> Críticas
             </div>
-            <p className="mt-1 text-2xl font-semibold text-red-600">{stats.critical}</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{stats.critical}</p>
           </div>
-          <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
+          <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
             <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
               <CheckCircle2 className="size-3.5" /> Resueltas
             </div>
-            <p className="mt-1 text-2xl font-semibold text-emerald-600">{stats.resolved}</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{stats.resolved}</p>
           </div>
         </div>
       )}
@@ -137,7 +131,7 @@ export default function AlertasPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="h-10 rounded-md border border-border bg-white px-3 py-2 text-sm text-muted-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          className="h-10 rounded-md border border-border bg-surface px-3 py-2 text-sm text-muted-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
         >
           <option value="OPEN">Abiertas</option>
           <option value="RESOLVED">Resueltas</option>
@@ -146,7 +140,7 @@ export default function AlertasPage() {
         <select
           value={severityFilter}
           onChange={(e) => setSeverityFilter(e.target.value)}
-          className="h-10 rounded-md border border-border bg-white px-3 py-2 text-sm text-muted-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          className="h-10 rounded-md border border-border bg-surface px-3 py-2 text-sm text-muted-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
         >
           <option value="">Todas las severidades</option>
           <option value="INFO">Info</option>
@@ -163,14 +157,14 @@ export default function AlertasPage() {
         </div>
       ) : alerts.length === 0 ? (
         <div className="flex h-72 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/30">
-          <CheckCircle2 className="mb-3 size-8 text-emerald-400/50" />
+          <CheckCircle2 className="mb-3 size-8 text-muted-foreground" />
           <p className="text-sm font-medium text-muted-foreground">No hay alertas activas</p>
           <p className="mt-1 text-xs text-muted-foreground/70">
             Usá los botones superiores para generar alertas automáticamente.
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-border bg-white">
+        <div className="overflow-hidden rounded-xl border border-border bg-surface">
           <div className="divide-y divide-border">
             {alerts.map((alert) => {
               const SevIcon = SEVERITY_ICONS[alert.severity] ?? Info;
@@ -185,15 +179,13 @@ export default function AlertasPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium text-foreground">{alert.titulo}</p>
-                      <Badge className={SEVERITY_COLORS[alert.severity]}>{alert.severity}</Badge>
+                      <StatusBadge domain="alertaSeverity" estado={alert.severity} />
                       {alert.status === 'RESOLVED' && (
-                        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">
-                          Resuelta
-                        </Badge>
+                        <StatusBadge domain="alertaEstado" estado="RESOLVED" />
                       )}
                     </div>
                     <p className="mt-0.5 text-xs text-muted-foreground">{alert.descripcion}</p>
-                    <div className="mt-1.5 flex items-center gap-3 text-[0.68rem] text-muted-foreground/60">
+                    <div className="mt-1.5 flex items-center gap-3 text-2xs text-muted-foreground">
                       {alert.employee && (
                         <Link
                           href={`/empleados/${alert.employee.id}`}
@@ -204,13 +196,16 @@ export default function AlertasPage() {
                       )}
                       {alert.expedienteDoc && <span>{alert.expedienteDoc.nombre}</span>}
                       <span>{formatDate(alert.createdAt)}</span>
+                      {alert.status === 'RESOLVED' && alert.resolvedAt && (
+                        <span>Resuelta el {formatDate(alert.resolvedAt)}</span>
+                      )}
                     </div>
                   </div>
                   {alert.status === 'OPEN' && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="shrink-0 text-xs text-muted-foreground hover:text-emerald-600"
+                      className="shrink-0 text-xs text-muted-foreground hover:text-primary"
                       onClick={() => handleResolve(alert.id)}
                       disabled={resolveMutation.isPending}
                     >

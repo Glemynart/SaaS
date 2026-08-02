@@ -673,6 +673,7 @@ model Alert {
   status      AlertStatus   @default(OPEN)
   dueDate     DateTime?
   resolvedAt  DateTime?
+  resolvedById String?
 
   @@index([tenantId])
   @@index([tenantId, status])
@@ -680,6 +681,7 @@ model Alert {
   @@index([tenantId, employeeId])
   @@index([tenantId, dueDate])
   @@index([tenantId, expedienteDocId])
+  @@index([tenantId, resolvedById])
   @@map("alerts_new")
 }
 
