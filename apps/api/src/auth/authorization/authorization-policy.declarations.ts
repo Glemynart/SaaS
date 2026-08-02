@@ -24,6 +24,7 @@ const AUTHENTICATED_CONTROLLER_POLICIES = new Set([
   'TenantBrandingController',
   'TercerosController',
   'TiposComprobanteController',
+  'UsersController',
 ]);
 
 export const getDeclaredControllerPolicy = (

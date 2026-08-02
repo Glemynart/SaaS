@@ -12,6 +12,7 @@ import {
   Settings,
   Tags,
   Users,
+  UserCog,
   type LucideIcon,
 } from 'lucide-react';
 import type { UserRole } from '@/types/auth';
@@ -98,6 +99,13 @@ export const NAV_TREE: NavItem[] = [
     ],
   },
   { label: 'Sedes', href: '/sedes', icon: MapPin, group: 'Organización' },
+  {
+    label: 'Usuarios',
+    href: '/usuarios',
+    icon: UserCog,
+    group: 'Organización',
+    requiredRole: ['ADMIN'],
+  },
   {
     label: 'Identidad corporativa',
     href: '/configuracion/identidad',
