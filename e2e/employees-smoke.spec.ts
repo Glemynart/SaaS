@@ -2,8 +2,10 @@ import { expect, test } from '@playwright/test';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-test('registra, busca, edita, desactiva e importa empleados desde la UI', async ({ page }) => {
-  const suffix = Date.now().toString().slice(-8);
+test('registra, busca, edita, desactiva e importa empleados desde la UI', async ({
+  page,
+}, testInfo) => {
+  const suffix = `${Date.now().toString().slice(-7)}${testInfo.retry}`;
   const nit = `8${suffix}`;
   const email = `employees-e2e-${suffix}@example.test`;
   const password = 'E2e-password-123!';
@@ -29,7 +31,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
 
   await page.goto('/empleados');
   await expect(page.getByRole('heading', { name: 'Empleados' })).toBeVisible();
-  await page.getByRole('button', { name: 'Nuevo empleado', exact: true }).click();
+  await page.getByRole('button', { name: 'Nuevo empleado', exact: true }).first().click();
 
   const createDialog = page.getByRole('dialog', { name: 'Nuevo empleado' });
   await createDialog.locator('[name="cedula"]').fill(cedula);
