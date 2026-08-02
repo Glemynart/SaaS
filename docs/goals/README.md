@@ -18,9 +18,9 @@ Producto
 
 ## Goal activo
 
-| Goal                                                                    | Estado | Resultado                                                       |
-| ----------------------------------------------------------------------- | ------ | --------------------------------------------------------------- |
-| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md) | ACTIVO | E3.3 está fusionada y E3.4 está en implementación dentro de M3. |
+| Goal                                                                    | Estado          | Resultado                                                          |
+| ----------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------ |
+| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md) | ESPERANDO_MERGE | E3.4 está lista en PR #88; no se inicia otra Epic hasta su fusión. |
 
 Solo puede existir un Goal activo. Los posibles resultados futuros permanecen sin numerar en el Backlog hasta ser priorizados.
 

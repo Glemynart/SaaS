@@ -8,7 +8,7 @@ La evidencia final será un primer cliente que complete y acepte el recorrido pr
 
 ## Estado
 
-`ACTIVO`
+`ESPERANDO_MERGE`
 
 ## Estrategia que lo justifica
 
@@ -94,8 +94,8 @@ Estas exclusiones son limitaciones temporales del roadmap. No se numerarán como
 
 **Estado del Milestone:** `BLOQUEADO` por una dependencia operativa externa verificable:
 no existe todavía una URL de staging, secretos de entorno ni un workflow de despliegue
-disponible en el repositorio o en GitHub. Este estado pertenece a M1; no cambia el
-estado del Goal, que permanece `ACTIVO`.
+disponible en el repositorio o en GitHub. Este estado pertenece a M1; no convierte al
+Goal en bloqueado. El Goal permanece `ESPERANDO_MERGE` únicamente por la PR #88.
 
 - [ ] E1.1 — Staging reproducible, configuración y secretos.
 - [x] E1.2 — Migraciones, seed y rol PostgreSQL runtime no privilegiado.
@@ -154,9 +154,10 @@ correo, mientras M1 sigue bloqueado por staging.
 La PR de mantenimiento que migra las acciones de GitHub a Node 24 es
 independiente y no bloquea GOAL-01. PR #86 entregó únicamente E3.3 y quedó
 fusionada después de que sus checks y los checks post-merge de `main` terminaran
-en verde. La dependencia de E3.4 ya desapareció; GOAL-01 vuelve a `ACTIVO`, M1
-permanece `BLOQUEADO` por staging y E3.4 pasa a implementación como la Epic
-activa de M3. La entrega se limita a feedback operativo y no adelanta E4.1.
+en verde. La dependencia de E3.4 ya desapareció: la implementación está en PR #88
+y sus checks de CI y Browser E2E están verdes. M1 permanece `BLOQUEADO` por
+staging, pero GOAL-01 queda `ESPERANDO_MERGE` hasta que esa PR se fusione. La
+entrega se limita a feedback operativo y no adelanta E4.1.
 
 ### M4 — Contratación Inteligente End-to-End
 
@@ -232,7 +233,7 @@ Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente p
 
 **Pregunta:** ¿un cliente podría utilizar hoy la capacidad completa definida por GOAL-01?
 
-**Estado de cierre:** `GOAL ACTIVO — NO COMPLETADO`
+**Estado de cierre:** `GOAL ESPERANDO_MERGE — NO COMPLETADO`
 
 Motivo: existen slices funcionales importantes, pero permanecen abiertas la gestión de usuarios, contratación inteligente end-to-end, expediente operativo, automatización de alertas, deployment y aceptación productiva.
 
@@ -241,7 +242,8 @@ pero E1.1 aún requiere verificación de staging. #79 entregó y verificó E1.2
 con migraciones, seed idempotente y rol runtime no privilegiado. #80 entregó las
 comprobaciones de R2, correo real y readiness; su cierre requiere verificación
 real en staging. #81 entregó E1.4, está fusionada y sus checks de CI y Browser
-E2E están verdes. GOAL-01 permanece `ACTIVO`; M1 está `BLOQUEADO` a la espera
+E2E están verdes. GOAL-01 permanece `ESPERANDO_MERGE` por la PR #88; M1 está
+`BLOQUEADO` a la espera
 de la validación operativa de staging de E1.1 y E1.3. E3.1 entregó el recorrido
 browser de empleados y quedó fusionada en PR #83; su recorrido usó únicamente
 la autenticación, persistencia y frontera tenant ya existentes, sin requerir
@@ -252,5 +254,5 @@ Browser E2E verdes. E2.1 permanece pendiente porque su recorrido completo
 
 > La determinación vigente, actualizada después de E3.3, queda documentada en
 > la sección post-merge: E3.3 está fusionada en PR #86 y verificada por CI y
-> Browser E2E. GOAL-01 permanece `ACTIVO`; E3.4 está en implementación,
-> pendiente de merge y verificación post-merge.
+> Browser E2E. GOAL-01 queda `ESPERANDO_MERGE` por la PR #88; E3.4 está
+> implementada, pendiente de merge y verificación post-merge.
