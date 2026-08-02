@@ -27,7 +27,7 @@ export default defineConfig({
     {
       command: 'pnpm --filter @saas/api start:prod',
       url: 'http://127.0.0.1:4000/health',
-      env: { PORT: '4000' },
+      env: { NODE_ENV: 'test', PORT: '4000' },
       timeout: 120_000,
       reuseExistingServer: !isCI,
     },
