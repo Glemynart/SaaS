@@ -28,7 +28,7 @@ import {
   Unauthenticated,
 } from './authorization/authorization-policy';
 
-const REGISTER_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
+const REGISTER_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 3;
 const LOGIN_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 5;
 
 @Controller('auth')

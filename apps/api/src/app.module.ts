@@ -40,7 +40,7 @@ import { HttpObservabilityMiddleware } from './observability/http-observability.
 // evaluates every global bucket on each auth route, so test-only headroom for
 // registration and login avoids cross-bucket interference without changing
 // production limits.
-const REGISTER_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
+const REGISTER_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 3;
 const LOGIN_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 5;
 const FORGOT_PASSWORD_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
 
