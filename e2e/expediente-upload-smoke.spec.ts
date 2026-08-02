@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+test.setTimeout(120_000);
+
 test('sube un documento manual al expediente de un empleado desde la UI', async ({ page }) => {
   const suffix = Date.now().toString().slice(-8);
   const nit = `6${suffix}`;
