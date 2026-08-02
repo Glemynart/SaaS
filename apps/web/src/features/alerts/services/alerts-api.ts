@@ -10,6 +10,7 @@ export interface AlertItem {
   dueDate: string | null;
   createdAt: string;
   resolvedAt: string | null;
+  resolvedById: string | null;
   employee: {
     id: string;
     primerNombre: string;
