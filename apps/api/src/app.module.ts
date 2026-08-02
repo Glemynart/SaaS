@@ -36,7 +36,11 @@ import { BatchDocumentGenerationModule } from './batch-document-generation/batch
 import { HealthModule } from './health/health.module';
 import { HttpObservabilityMiddleware } from './observability/http-observability.middleware';
 
+// The browser smoke suite creates four tenants from one local IP. The guard
+// evaluates every global bucket on each auth route, so test-only headroom
+// avoids cross-bucket interference without changing production limits.
 const REGISTER_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
+const FORGOT_PASSWORD_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
 
 @Module({
   imports: [
@@ -91,7 +95,7 @@ const REGISTER_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
       {
         name: 'forgotPassword',
         ttl: 3600000,
-        limit: 3,
+        limit: FORGOT_PASSWORD_RATE_LIMIT,
       },
       {
         name: 'resetPassword',
