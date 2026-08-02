@@ -1,23 +1,7 @@
 import Link from 'next/link';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { LoteSummary, LoteEstado } from '../services/lotes-api';
-
-const ESTADO_STYLE: Record<LoteEstado, string> = {
-  PENDIENTE: 'bg-amber-50 text-amber-700 border-amber-200',
-  EN_PROCESO: 'bg-blue-50 text-blue-700 border-blue-200',
-  COMPLETADO: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  COMPLETADO_CON_ERRORES: 'bg-orange-50 text-orange-700 border-orange-200',
-  FALLIDO: 'bg-red-50 text-red-700 border-red-200',
-};
-
-const ESTADO_LABEL: Record<LoteEstado, string> = {
-  PENDIENTE: 'Pendiente',
-  EN_PROCESO: 'En proceso',
-  COMPLETADO: 'Completado',
-  COMPLETADO_CON_ERRORES: 'Con errores',
-  FALLIDO: 'Fallido',
-};
+import { StatusBadge } from '@/components/ui/status-badge';
+import type { LoteSummary } from '../services/lotes-api';
 
 function formatDate(d: string): string {
   return new Date(d).toLocaleDateString('es-CO', {
@@ -47,7 +31,7 @@ export function LotesTable({ lotes, isLoading }: { lotes: LoteSummary[]; isLoadi
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-white">
+    <div className="overflow-hidden rounded-xl border border-border bg-surface">
       <table className="w-full text-left text-sm">
         <thead className="border-b border-border bg-surface/50 text-muted-foreground">
           <tr>
@@ -73,14 +57,16 @@ export function LotesTable({ lotes, isLoading }: { lotes: LoteSummary[]; isLoadi
                   </Link>
                 </td>
                 <td className="px-6 py-3">
-                  <Badge className={ESTADO_STYLE[l.estado]}>
-                    {ESTADO_LABEL[l.estado] ?? l.estado}
-                  </Badge>
+                  <StatusBadge domain="lote" estado={l.estado} />
                 </td>
-                <td className="px-6 py-3 text-muted-foreground">{l.documentTemplate.nombre}</td>
+                <td className="px-6 py-3 text-muted-foreground">
+                  {l.documentTemplate?.nombre ?? 'Campaña inteligente'}
+                </td>
                 <td className="px-6 py-3 text-muted-foreground">
                   {done}/{l.total}
-                  {l.fallidos > 0 && <span className="ml-1 text-red-600">({l.fallidos} err)</span>}
+                  {l.fallidos > 0 && (
+                    <span className="ml-1 text-destructive">({l.fallidos} err)</span>
+                  )}
                 </td>
                 <td className="px-6 py-3 text-muted-foreground">{l.sede?.nombre ?? '—'}</td>
                 <td className="px-6 py-3 text-muted-foreground">{formatDate(l.createdAt)}</td>
