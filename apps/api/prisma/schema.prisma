@@ -263,6 +263,7 @@ model Tenant {
   generatedDocuments GeneratedDocument[]
   expedienteDocFamilies ExpedienteDocFamily[]
   alerts             Alert[]
+  alertGenerationRunTenants AlertGenerationRunTenant[]
   payrollPeriods     PayrollPeriod[]
   payrollRuns        PayrollRun[]
   payrollSnapshots   PayrollSnapshot[]
@@ -643,6 +644,25 @@ enum AlertStatus {
   RESOLVED
 }
 
+enum AlertGenerationRunStatus {
+  RUNNING
+  SUCCEEDED
+  PARTIAL
+  FAILED
+  SKIPPED
+}
+
+enum AlertGenerationRunTrigger {
+  SCHEDULED
+  MANUAL_RETRY
+}
+
+enum AlertGenerationRunTenantStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
 // =============================================================================
 // ALERT — Alerta de seguimiento documental y contractual (Fase: Alertas)
 // =============================================================================
@@ -683,6 +703,56 @@ model Alert {
   @@index([tenantId, expedienteDocId])
   @@index([tenantId, resolvedById])
   @@map("alerts_new")
+}
+
+// =============================================================================
+// ALERT GENERATION RUN — Estado operativo del scheduler (E6.3)
+// =============================================================================
+
+model AlertGenerationRun {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  schedulerKey String
+  trigger      AlertGenerationRunTrigger @default(SCHEDULED)
+  parentRunId  String?
+  status       AlertGenerationRunStatus  @default(RUNNING)
+  startedAt    DateTime                  @default(now())
+  finishedAt   DateTime?
+
+  tenantsProcessed        Int @default(0)
+  tenantsFailed           Int @default(0)
+  contractAlertsCreated   Int @default(0)
+  missingDocAlertsCreated Int @default(0)
+
+  tenantResults AlertGenerationRunTenant[]
+
+  @@index([schedulerKey, startedAt])
+  @@index([parentRunId])
+  @@map("alert_generation_runs")
+}
+
+model AlertGenerationRunTenant {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  runId    String
+  run      AlertGenerationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  status                  AlertGenerationRunTenantStatus @default(RUNNING)
+  attemptCount            Int                            @default(0)
+  contractAlertsCreated   Int                            @default(0)
+  missingDocAlertsCreated Int                            @default(0)
+  lastErrorCode           String?
+  startedAt               DateTime                       @default(now())
+  finishedAt              DateTime?
+
+  @@unique([runId, tenantId])
+  @@index([tenantId, startedAt])
+  @@index([runId, status])
+  @@map("alert_generation_run_tenants")
 }
 
 // =============================================================================

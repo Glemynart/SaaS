@@ -13,11 +13,14 @@ import {
   UserRound,
 } from 'lucide-react';
 import { formatNombreCompleto } from '@saas/types';
+import { useMe } from '@/features/auth/hooks/use-auth';
 import {
   useAlerts,
   useResolveAlert,
   useGenerateContractAlerts,
   useGenerateMissingDocAlerts,
+  useLatestAlertGenerationRun,
+  useRetryAlertGenerationRun,
 } from '@/features/alerts/hooks/use-alerts';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -52,9 +55,15 @@ export default function AlertasPage() {
   const resolveMutation = useResolveAlert();
   const genContractAlerts = useGenerateContractAlerts();
   const genMissingAlerts = useGenerateMissingDocAlerts();
+  const me = useMe();
+  const generationRun = useLatestAlertGenerationRun();
+  const retryGeneration = useRetryAlertGenerationRun();
 
   const alerts = data?.data ?? [];
   const stats = data?.stats;
+  const latestRun = generationRun.data;
+  const canRetryGeneration =
+    me.data?.user.rol === 'ADMIN' && latestRun?.tenantResult?.status === 'FAILED';
 
   const handleResolve = useCallback(
     (id: string) => {
@@ -103,6 +112,71 @@ export default function AlertasPage() {
           </Button>
         </div>
       </div>
+
+      <section
+        aria-label="Estado de la generación diaria de alertas"
+        className="mb-6 rounded-xl border border-border bg-surface p-4 shadow-sm"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">
+              Generación diaria de alertas
+            </p>
+            {generationRun.isLoading ? (
+              <Skeleton className="mt-2 h-4 w-56" />
+            ) : latestRun ? (
+              <p className="mt-1 text-sm text-foreground">
+                Última ejecución: {formatDate(latestRun.startedAt)}
+                {latestRun.trigger === 'MANUAL_RETRY' ? ' · reintento manual' : ''}
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-muted-foreground">
+                Aún no hay una ejecución registrada para esta organización.
+              </p>
+            )}
+          </div>
+          {latestRun && <StatusBadge domain="alertGenerationRun" estado={latestRun.status} />}
+        </div>
+
+        {latestRun?.tenantResult?.status === 'FAILED' && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+            <div>
+              <p className="text-sm text-destructive">
+                La generación falló después de {latestRun.tenantResult.attemptCount} intento(s).
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Código operativo: {latestRun.tenantResult.lastErrorCode ?? 'No disponible'}
+              </p>
+            </div>
+            {canRetryGeneration && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => retryGeneration.mutate(latestRun.id)}
+                disabled={retryGeneration.isPending}
+              >
+                {retryGeneration.isPending ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="size-3.5" />
+                )}
+                Reintentar
+              </Button>
+            )}
+          </div>
+        )}
+
+        {generationRun.isError && (
+          <p role="alert" className="mt-3 text-xs text-destructive">
+            No se pudo consultar el estado de la generación diaria.
+          </p>
+        )}
+        {retryGeneration.isError && (
+          <p role="alert" className="mt-3 text-xs text-destructive">
+            {retryGeneration.error.message}
+          </p>
+        )}
+      </section>
 
       {stats && (
         <div className="mb-6 grid gap-4 sm:grid-cols-3">
