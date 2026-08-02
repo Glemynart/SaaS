@@ -14,6 +14,7 @@ import { formatNombreCompleto } from '@saas/types';
 import { PdfRenderService } from '../pdf-render/pdf-render.service';
 import { StorageService } from '../storage/storage.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
+import { parseContractPlanSnapshot } from '../contracts/contract-plan-snapshot';
 
 type PlanTemplateSnapshot = {
   id: string;
@@ -150,6 +151,8 @@ export class BatchDocumentGenerationService {
           empleadoId: true,
           plantillaId: true,
           plantillaSnapshot: true,
+          empleadoSnapshot: true,
+          contratoSnapshot: true,
           tipoDocumental: true,
           estado: true,
         },
@@ -215,11 +218,15 @@ export class BatchDocumentGenerationService {
         plan.plantillaId,
         plan.tipoDocumental,
       );
+      const contractPlanSnapshot = parseContractPlanSnapshot(
+        plan.empleadoSnapshot,
+        plan.contratoSnapshot,
+      );
       const nombreCompleto = formatNombreCompleto({
-        primerNombre: employee.primerNombre,
-        segundoNombre: employee.segundoNombre,
-        primerApellido: employee.primerApellido,
-        segundoApellido: employee.segundoApellido,
+        primerNombre: contractPlanSnapshot.empleado.primerNombre,
+        segundoNombre: contractPlanSnapshot.empleado.segundoNombre,
+        primerApellido: contractPlanSnapshot.empleado.primerApellido,
+        segundoApellido: contractPlanSnapshot.empleado.segundoApellido,
       });
       const documentData = {
         tenantId: context.tenantId,
@@ -229,20 +236,25 @@ export class BatchDocumentGenerationService {
         nombre: `${snapshot.nombre ?? template.nombre} — ${nombreCompleto}`,
         contenidoFinal: this.replaceVariables(snapshot.contenido, {
           NOMBRE_COMPLETO: nombreCompleto,
-          DOCUMENTO: `${employee.tipoDocumento} ${employee.cedula}`,
-          CARGO: employee.cargo,
+          DOCUMENTO: `${contractPlanSnapshot.empleado.tipoDocumento} ${contractPlanSnapshot.empleado.cedula}`,
+          CARGO: contractPlanSnapshot.contrato.cargo,
           SALARIO: new Intl.NumberFormat('es-CO', {
             style: 'currency',
             currency: 'COP',
             minimumFractionDigits: 0,
             maximumFractionDigits: 0,
-          }).format(Number(employee.salario)),
-          TIPO_CONTRATO: this.formatTipoContrato(employee.tipoContrato),
-          FECHA_INGRESO: new Date(employee.fechaIngreso).toLocaleDateString(
-            'es-CO',
-            { year: 'numeric', month: 'long', day: 'numeric' },
+          }).format(Number(contractPlanSnapshot.contrato.salario)),
+          TIPO_CONTRATO: this.formatTipoContrato(
+            contractPlanSnapshot.contrato.tipo,
           ),
-          SEDE: employee.sedeRef?.nombre ?? '',
+          FECHA_INGRESO: new Date(
+            contractPlanSnapshot.contrato.fechaInicio,
+          ).toLocaleDateString('es-CO', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          }),
+          SEDE: contractPlanSnapshot.contrato.sede?.nombre ?? '',
           EMPRESA: tenant.razonSocial ?? tenant.nombre,
           NIT: tenant.nit,
           REPRESENTANTE_LEGAL: tenant.representanteLegal ?? 'No definido',

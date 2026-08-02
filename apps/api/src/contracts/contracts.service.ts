@@ -16,6 +16,7 @@ import {
   ContratoEstado as ContratoEstadoEnum,
 } from './dto/update-contract-status.dto';
 import { GenerateContractDocumentDto } from './dto/generate-contract-document.dto';
+import { ContractPlanSnapshot } from './contract-plan-snapshot';
 
 export interface ContractVariablesSnapshot {
   empleado: {
@@ -52,6 +53,11 @@ export interface ContractVariablesSnapshot {
 export interface EnsureGeneratedDocumentResult {
   outcome: 'CREATED' | 'EXISTING';
   document: GeneratedDocument;
+}
+
+export interface ContractCreationOptions {
+  perfilContractualId?: string;
+  historicalSnapshot?: ContractPlanSnapshot;
 }
 
 @Injectable()
@@ -184,22 +190,64 @@ export class ContractsService {
     userId: string,
     dto: CreateContractDto,
     loteId?: string,
+    options?: ContractCreationOptions,
   ) {
     const employee = await this.validateEmployee(tenantId, dto.employeeId);
 
-    let sede: { id: string; nombre: string } | null = null;
-    if (dto.sedeId) {
-      sede = await this.validateSede(tenantId, dto.sedeId);
+    const historicalEmployee = options?.historicalSnapshot?.empleado;
+    const historicalContract = options?.historicalSnapshot?.contrato;
+    if (historicalEmployee && historicalEmployee.id !== dto.employeeId) {
+      throw new BadRequestException(
+        'El snapshot del empleado no coincide con el contrato.',
+      );
     }
 
-    if (dto.fechaFin) {
-      const inicio = new Date(dto.fechaInicio);
-      const fin = new Date(dto.fechaFin);
-      if (fin <= inicio) {
+    if (options?.perfilContractualId) {
+      const profile = await this.prisma.perfilContractual.findFirst({
+        where: { id: options.perfilContractualId, tenantId },
+        select: { id: true },
+      });
+      if (!profile) {
         throw new BadRequestException(
-          'La fecha de fin debe ser posterior a la fecha de inicio.',
+          'El perfil contractual no existe o no pertenece a esta empresa.',
         );
       }
+    }
+
+    const effectiveContract = historicalContract ?? {
+      cargo: dto.cargo,
+      salario: String(dto.salario),
+      tipo: dto.tipo,
+      fechaInicio: dto.fechaInicio,
+      fechaFin: dto.fechaFin ?? null,
+      sedeId: dto.sedeId ?? null,
+      sede: null,
+    };
+    const salario = Number(effectiveContract.salario);
+    if (!Number.isFinite(salario) || salario < 0) {
+      throw new BadRequestException('El salario del contrato no es válido.');
+    }
+
+    const fechaInicio = new Date(effectiveContract.fechaInicio);
+    const fechaFin = effectiveContract.fechaFin
+      ? new Date(effectiveContract.fechaFin)
+      : null;
+    if (
+      Number.isNaN(fechaInicio.getTime()) ||
+      (fechaFin && Number.isNaN(fechaFin.getTime()))
+    ) {
+      throw new BadRequestException('Las fechas del contrato no son válidas.');
+    }
+
+    let sede: { id: string; nombre: string } | null = null;
+    if (effectiveContract.sedeId) {
+      sede = await this.validateSede(tenantId, effectiveContract.sedeId);
+    }
+
+    if (fechaFin && fechaFin <= fechaInicio) {
+      throw new BadRequestException(
+        'La fecha de fin debe ser posterior a la fecha de inicio.',
+      );
     }
 
     const tenant = await this.prisma.tenant.findUnique({
@@ -213,29 +261,37 @@ export class ContractsService {
     });
     if (!tenant) throw new NotFoundException('Empresa no encontrada');
 
+    const snapshotEmployee = historicalEmployee ?? {
+      ...employee,
+      segundoNombre: employee.segundoNombre,
+      segundoApellido: employee.segundoApellido,
+    };
+    const snapshotSede =
+      historicalContract?.sede ??
+      (sede ? { id: sede.id, nombre: sede.nombre } : null);
     const snapshot: ContractVariablesSnapshot = {
       empleado: {
         nombreCompleto: [
-          employee.primerNombre,
-          employee.segundoNombre,
-          employee.primerApellido,
-          employee.segundoApellido,
+          snapshotEmployee.primerNombre,
+          snapshotEmployee.segundoNombre,
+          snapshotEmployee.primerApellido,
+          snapshotEmployee.segundoApellido,
         ]
           .filter((v) => v?.trim())
           .join(' '),
-        primerNombre: employee.primerNombre,
-        segundoNombre: employee.segundoNombre,
-        primerApellido: employee.primerApellido,
-        segundoApellido: employee.segundoApellido,
-        tipoDocumento: employee.tipoDocumento,
-        cedula: employee.cedula,
+        primerNombre: snapshotEmployee.primerNombre,
+        segundoNombre: snapshotEmployee.segundoNombre,
+        primerApellido: snapshotEmployee.primerApellido,
+        segundoApellido: snapshotEmployee.segundoApellido,
+        tipoDocumento: snapshotEmployee.tipoDocumento,
+        cedula: snapshotEmployee.cedula,
       },
       contrato: {
-        cargo: dto.cargo,
-        salario: String(dto.salario),
-        tipo: dto.tipo,
-        fechaInicio: dto.fechaInicio,
-        fechaFin: dto.fechaFin ?? null,
+        cargo: effectiveContract.cargo,
+        salario: String(effectiveContract.salario),
+        tipo: effectiveContract.tipo,
+        fechaInicio: effectiveContract.fechaInicio,
+        fechaFin: effectiveContract.fechaFin,
       },
       empresa: {
         nombre: tenant.nombre,
@@ -243,7 +299,7 @@ export class ContractsService {
         nit: tenant.nit,
         representanteLegal: tenant.representanteLegal,
       },
-      sede: sede ? { nombre: sede.nombre } : null,
+      sede: snapshotSede ? { nombre: snapshotSede.nombre } : null,
       metadata: {
         generatedAt: new Date().toISOString(),
         version: 1,
@@ -253,13 +309,14 @@ export class ContractsService {
     const data = {
       tenantId,
       empleadoId: dto.employeeId,
-      cargo: dto.cargo,
-      salario: dto.salario,
-      tipo: dto.tipo,
-      fechaInicio: new Date(dto.fechaInicio),
-      fechaFin: dto.fechaFin ? new Date(dto.fechaFin) : null,
-      sedeId: dto.sedeId ?? null,
+      cargo: effectiveContract.cargo,
+      salario,
+      tipo: effectiveContract.tipo as CreateContractDto['tipo'],
+      fechaInicio,
+      fechaFin,
+      sedeId: effectiveContract.sedeId,
       loteId: loteId ?? null,
+      perfilContractualId: options?.perfilContractualId ?? null,
       estado: 'VIGENTE' as const,
       variablesSnapshot: snapshot as unknown as Prisma.JsonValue,
     } as Prisma.ContratoUncheckedCreateInput;

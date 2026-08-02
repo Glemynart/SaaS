@@ -68,6 +68,30 @@ const plan = {
     nombre: 'Contrato laboral',
     contenido: 'CONTRATO {{NOMBRE_COMPLETO}} - {{EMPRESA}}',
   },
+  empleadoSnapshot: {
+    id: EMPLOYEE,
+    primerNombre: 'Ana',
+    segundoNombre: null,
+    primerApellido: 'LÃ³pez',
+    segundoApellido: null,
+    tipoDocumento: 'CC',
+    cedula: '123456789',
+    cargo: 'Analista',
+    salario: '2500000',
+    tipoContrato: 'TERMINO_INDEFINIDO',
+    fechaIngreso: '2026-01-15T00:00:00.000Z',
+    sedeId: null,
+    sede: null,
+  },
+  contratoSnapshot: {
+    cargo: 'Analista',
+    salario: '2500000',
+    tipo: 'TERMINO_INDEFINIDO',
+    fechaInicio: '2026-01-15T00:00:00.000Z',
+    fechaFin: null,
+    sedeId: null,
+    sede: null,
+  },
   tipoDocumental: 'CONTRACT' as const,
   estado: BatchDocumentGenerationPlanStatus.CONFIRMADO,
 };
@@ -87,8 +111,15 @@ const employee = {
   sedeRef: { nombre: 'Principal' },
 };
 
+const historicalSurname = plan.empleadoSnapshot.primerApellido;
+plan.empleadoSnapshot.primerApellido = employee.primerApellido;
+
 function objectContaining<T extends object>(expected: T): T {
   return expect.objectContaining(expected) as T;
+}
+
+function stringContaining(value: string): string {
+  return expect.stringContaining(value);
 }
 
 describe('BatchDocumentGenerationService', () => {
@@ -261,6 +292,51 @@ describe('BatchDocumentGenerationService', () => {
         }),
       }),
     );
+  });
+
+  it('renderiza usando los snapshots confirmados aunque cambie el empleado', async () => {
+    const historicalPlan = {
+      ...plan,
+      plantillaSnapshot: {
+        ...plan.plantillaSnapshot,
+        contenido:
+          '{{NOMBRE_COMPLETO}}|{{DOCUMENTO}}|{{CARGO}}|{{SALARIO}}|{{FECHA_INGRESO}}',
+      },
+      empleadoSnapshot: {
+        ...plan.empleadoSnapshot,
+        primerNombre: 'Nombre confirmado',
+        primerApellido: historicalSurname,
+        cedula: '111222333',
+      },
+      contratoSnapshot: {
+        ...plan.contratoSnapshot,
+        cargo: 'Cargo confirmado',
+        salario: '3200000',
+        fechaInicio: '2026-02-01T00:00:00.000Z',
+      },
+    };
+    planFindFirst.mockResolvedValue(historicalPlan);
+
+    await service.start(LOTE);
+
+    expect(documentCreate).toHaveBeenCalledWith(
+      objectContaining({
+        data: objectContaining({
+          contenidoFinal: stringContaining(
+            'Nombre confirmado LÃ³pez|CC 111222333|Cargo confirmado',
+          ),
+        }),
+      }),
+    );
+    const documentCalls = documentCreate.mock.calls as unknown as Array<
+      unknown[]
+    >;
+    const generatedDocumentCall = documentCalls[0]?.[0] as {
+      data: { contenidoFinal: string };
+    };
+    const generatedContent = generatedDocumentCall.data.contenidoFinal;
+    expect(generatedContent).not.toContain('Analista');
+    expect(generatedContent).not.toContain('123456789');
   });
 
   it('marca el documento como FALLIDO si el render falla y conserva el plan', async () => {

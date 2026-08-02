@@ -1318,8 +1318,8 @@ model Contrato {
   sedeId String?
   sede   Sede?   @relation(fields: [sedeId], references: [id])
 
-  // Clasificación contractual explícita. Es opcional durante la adopción y no
-  // participa aún en la generación ni en el procesamiento de lotes.
+  // Clasificación contractual confirmada por la resolución precontractual.
+  // El contrato la conserva como evidencia histórica; no resuelve nuevos lotes.
   perfilContractualId String?
   perfilContractual   PerfilContractual? @relation(fields: [perfilContractualId], references: [id], onDelete: Restrict)
 
@@ -1401,8 +1401,8 @@ model PerfilContractual {
 // VINCULO LABORAL — Fuente precontractual del perfil contractual
 // =============================================================================
 // Representa la clasificación vigente del proceso laboral de un empleado antes
-// de generar un contrato. No reemplaza el snapshot histórico del contrato ni
-// participa todavía en la generación documental o en los lotes.
+// de generar un contrato. Produce los snapshots del plan confirmado; la
+// generación posterior usa esos snapshots y no vuelve a consultar el vínculo.
 // =============================================================================
 
 model VinculoLaboral {
