@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 activo; E6.2 fusionada y verificada; M1 bloqueado por infraestructura externa (2026-08-02)
+## Última actualización: GOAL-01 activo; ADR-007 aceptado; E6.2 fusionada y verificada; M1 bloqueado por infraestructura externa (2026-08-02)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -111,8 +111,8 @@ tenants activos. La ejecución usa el contexto tenant-aware, una transacción
 PostgreSQL y un advisory lock para evitar concurrencia entre instancias. Sus
 checks post-merge de CI y Browser E2E están verdes. E6.2 fue fusionada en el PR
 #106: la resolución de alertas conserva actor, fecha y evento de auditoría en
-una transacción y su Browser E2E está verde. E6.3 permanece pendiente; M6 está
-en progreso.
+una transacción y su Browser E2E está verde. ADR-007 fue aprobado y fusionado
+en el PR #107; E6.3 permanece pendiente y M6 está en progreso.
 
 Estado actual:
 
@@ -170,10 +170,11 @@ requiere staging ni un proveedor R2 concreto.
 
 Tras fusionar E4.3 en PR #92, E4.4 en PR #93, E5.1 en PR #95, E2.1 en PR #96,
 E4.5 en PR #97, E4.7 en PR #99, ADR-006 en PR #101, E5.2 en PR #102, E5.3 en
-PR #103, E5.4 en PR #104, E6.1 en PR #105 y E6.2 en PR #106, la revisión del código y del grafo de dependencias mantiene M1
+PR #103, E5.4 en PR #104, E6.1 en PR #105, E6.2 en PR #106 y ADR-007 en PR
+#107, la revisión del código y del grafo de dependencias mantiene M1
 `BLOQUEADO POR INFRAESTRUCTURA EXTERNA`, pero GOAL-01 permanece `ACTIVO`.
 M5 queda completado con E5.1, E5.2, E5.3 y E5.4. M6 está en progreso con E6.1
-y E6.2 fusionadas; E6.3 permanece pendiente.
+y E6.2 fusionadas; ADR-007 está aprobado y E6.3 permanece pendiente.
 
 La revisión de dependencias de E4.2 concluyó:
 

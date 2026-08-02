@@ -99,25 +99,26 @@ Estas exclusiones son limitaciones temporales del roadmap. No se numerarán como
 
 ## Dependencias y decisiones
 
-| Dependencia o decisión                                                | Tipo                   | Estado         | Acción                                                       |
-| --------------------------------------------------------------------- | ---------------------- | -------------- | ------------------------------------------------------------ |
-| Alcance laboral-documental del primer cliente                         | Estrategia de producto | APROBADO       | Gobierna GOAL-01.                                            |
-| Perfil contractual como evidencia histórica                           | Arquitectura           | APROBADO       | Respetar ADR-004.                                            |
-| E4.2 — Procesamiento de planes confirmados                            | Trabajo entregado      | CERRADO        | PR #90 fusionada y verificada.                               |
-| E4.3 — Perfil y snapshots históricos                                  | Trabajo entregado      | CERRADO        | PR #92 fusionada y verificada.                               |
-| E4.4 — PDF canónico y expediente                                      | Trabajo entregado      | CERRADO        | PR #93 fusionada y verificada.                               |
-| E4.6 — Contratación individual desde la UI                            | Trabajo entregado      | CERRADO        | PR #94 fusionada y verificada.                               |
-| E5.1 — Subida manual y validación de archivos                         | Trabajo entregado      | CERRADO        | PR #95 fusionada y verificada.                               |
-| E2.1 — Gestión directa de usuarios                                    | Trabajo entregado      | CERRADO        | PR #96 fusionada y verificada por CI/Browser E2E.            |
-| E4.5 — Reintentos e idempotencia de lotes                             | Trabajo entregado      | CERRADO        | PR #97 fusionada y verificada por CI/Browser E2E post-merge. |
-| ADR-006 — Modelo de versionado e inmutabilidad del Expediente Digital | Decisión de dominio    | APROBADO       | Gobierna E5.2, E5.3 y E5.4.                                  |
-| E5.2 — Familias, revisiones, consulta e historial                     | Trabajo entregado      | CERRADO        | PR #102 fusionada y verificada.                              |
-| E5.3 — Inmutabilidad y permisos del expediente                        | Trabajo entregado      | CERRADO        | PR #103 fusionada; checks post-merge verdes.                 |
-| E5.4 — Auditoría e integración consistente del expediente             | Trabajo entregado      | CERRADO        | PR #104 fusionada; checks post-merge verdes.                 |
-| E6.1 — Scheduler de vencimientos y documentos faltantes               | Trabajo entregado      | CERRADO        | PR #105 fusionada; checks post-merge verdes.                 |
-| E6.2 — Dashboard accionable y resolución trazable                     | Trabajo entregado      | CERRADO        | PR #106 fusionada; checks post-merge verdes.                 |
-| Superficie comercial de contabilidad                                  | Decisión de producto   | FUERA DEL GOAL | Resolver antes de priorizar un Goal futuro.                  |
-| Infraestructura productiva                                            | Dependencia técnica    | ABIERTO        | Resolver en M1.                                              |
+| Dependencia o decisión                                                           | Tipo                     | Estado         | Acción                                                       |
+| -------------------------------------------------------------------------------- | ------------------------ | -------------- | ------------------------------------------------------------ |
+| Alcance laboral-documental del primer cliente                                    | Estrategia de producto   | APROBADO       | Gobierna GOAL-01.                                            |
+| Perfil contractual como evidencia histórica                                      | Arquitectura             | APROBADO       | Respetar ADR-004.                                            |
+| E4.2 — Procesamiento de planes confirmados                                       | Trabajo entregado        | CERRADO        | PR #90 fusionada y verificada.                               |
+| E4.3 — Perfil y snapshots históricos                                             | Trabajo entregado        | CERRADO        | PR #92 fusionada y verificada.                               |
+| E4.4 — PDF canónico y expediente                                                 | Trabajo entregado        | CERRADO        | PR #93 fusionada y verificada.                               |
+| E4.6 — Contratación individual desde la UI                                       | Trabajo entregado        | CERRADO        | PR #94 fusionada y verificada.                               |
+| E5.1 — Subida manual y validación de archivos                                    | Trabajo entregado        | CERRADO        | PR #95 fusionada y verificada.                               |
+| E2.1 — Gestión directa de usuarios                                               | Trabajo entregado        | CERRADO        | PR #96 fusionada y verificada por CI/Browser E2E.            |
+| E4.5 — Reintentos e idempotencia de lotes                                        | Trabajo entregado        | CERRADO        | PR #97 fusionada y verificada por CI/Browser E2E post-merge. |
+| ADR-006 — Modelo de versionado e inmutabilidad del Expediente Digital            | Decisión de dominio      | APROBADO       | Gobierna E5.2, E5.3 y E5.4.                                  |
+| ADR-007 — Ejecución, reintentos y visibilidad operativa del scheduler de alertas | Decisión de arquitectura | APROBADO       | PR #107 fusionada; gobierna E6.3.                            |
+| E5.2 — Familias, revisiones, consulta e historial                                | Trabajo entregado        | CERRADO        | PR #102 fusionada y verificada.                              |
+| E5.3 — Inmutabilidad y permisos del expediente                                   | Trabajo entregado        | CERRADO        | PR #103 fusionada; checks post-merge verdes.                 |
+| E5.4 — Auditoría e integración consistente del expediente                        | Trabajo entregado        | CERRADO        | PR #104 fusionada; checks post-merge verdes.                 |
+| E6.1 — Scheduler de vencimientos y documentos faltantes                          | Trabajo entregado        | CERRADO        | PR #105 fusionada; checks post-merge verdes.                 |
+| E6.2 — Dashboard accionable y resolución trazable                                | Trabajo entregado        | CERRADO        | PR #106 fusionada; checks post-merge verdes.                 |
+| Superficie comercial de contabilidad                                             | Decisión de producto     | FUERA DEL GOAL | Resolver antes de priorizar un Goal futuro.                  |
+| Infraestructura productiva                                                       | Dependencia técnica      | ABIERTO        | Resolver en M1.                                              |
 
 ## Milestones y Epics
 
@@ -215,7 +216,8 @@ directas del expediente sobre la integración documental ya existente para
 contratos y certificaciones. E6.1 automatiza diariamente la generación de
 alertas de contratos por vencer y empleados sin contrato dentro de una
 transacción con lock advisory, sin introducir correo, R2 ni staging. M5 queda
-completado y M6 continúa en progreso con E6.2 fusionada y E6.3 pendiente.
+completado y M6 continúa en progreso con E6.2 fusionada; ADR-007 fue aprobado
+en PR #107 y gobierna E6.3, que permanece pendiente.
 
 ### M4 — Contratación Inteligente End-to-End
 
@@ -364,9 +366,10 @@ infraestructura externa.
 > La determinación vigente, actualizada después de E6.2, queda documentada en
 > la sección post-merge: E2.1, E4.3, E4.4, E4.5, E4.6, E5.1, E5.2, E5.3, E5.4
 > y E6.1/E6.2 están fusionadas en PR #96, #92, #93, #97, #94, #95, #102,
-> #103, #104, #105 y #106.
+> #103, #104, #105, #106 y ADR-007 en PR #107.
 > GOAL-01 permanece `ACTIVO`; M1 sigue `BLOQUEADO POR INFRAESTRUCTURA EXTERNA` y
 > E4.7 quedó fusionada en PR #99. La semántica de versionado e inmutabilidad fue
-> aprobada en ADR-006 y ya gobierna E5.2/E5.3/E5.4. M5 queda completado, M6
-> continúa con E6.2 fusionada y E6.3 pendiente; M7 queda reservado para el cierre final de
+> aprobada en ADR-006 y ya gobierna E5.2/E5.3/E5.4. ADR-007 fue aprobado y ya
+> gobierna E6.3. M5 queda completado, M6 continúa con E6.2 fusionada y E6.3
+> pendiente; M7 queda reservado para el cierre final de
 > despliegue y Go Live.

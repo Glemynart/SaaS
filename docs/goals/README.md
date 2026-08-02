@@ -18,9 +18,9 @@ Producto
 
 ## Goal activo
 
-| Goal                                                                    | Estado | Resultado                                                                       |
-| ----------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------- |
-| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md) | ACTIVO | E6.2 fusionada; M6 en progreso; M1 sigue BLOQUEADO POR INFRAESTRUCTURA EXTERNA. |
+| Goal                                                                    | Estado | Resultado                                                                                         |
+| ----------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------- |
+| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md) | ACTIVO | ADR-007 aceptado; E6.2 fusionada; M6 en progreso; M1 sigue BLOQUEADO POR INFRAESTRUCTURA EXTERNA. |
 
 Solo puede existir un Goal activo. Los posibles resultados futuros permanecen sin numerar en el Backlog hasta ser priorizados.
 
