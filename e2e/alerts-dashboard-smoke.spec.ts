@@ -49,4 +49,7 @@ test('muestra y resuelve una alerta desde la bandeja del dashboard', async ({ pa
   await page.locator('select').first().selectOption('RESOLVED');
   await expect(page.getByText('Resuelta', { exact: true })).toBeVisible();
   await expect(page.getByText(/Resuelta el/)).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: 'Estado de la generación diaria de alertas' }),
+  ).toContainText('Aún no hay una ejecución registrada');
 });

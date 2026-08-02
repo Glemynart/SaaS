@@ -35,6 +35,29 @@ export interface AlertsResponse {
   meta: { total: number; page: number; limit: number; totalPages: number };
 }
 
+export type AlertGenerationRunStatus = 'RUNNING' | 'SUCCEEDED' | 'PARTIAL' | 'FAILED' | 'SKIPPED';
+
+export interface AlertGenerationRun {
+  id: string;
+  schedulerKey: string;
+  trigger: 'SCHEDULED' | 'MANUAL_RETRY';
+  parentRunId: string | null;
+  status: AlertGenerationRunStatus;
+  startedAt: string;
+  finishedAt: string | null;
+  tenantsProcessed: number;
+  tenantsFailed: number;
+  contractAlertsCreated: number;
+  missingDocAlertsCreated: number;
+  tenantResult: {
+    status: 'RUNNING' | 'SUCCEEDED' | 'FAILED';
+    attemptCount: number;
+    lastErrorCode: string | null;
+    startedAt: string;
+    finishedAt: string | null;
+  } | null;
+}
+
 type ApiEnvelope = { message?: string };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -80,4 +103,21 @@ export const alertsApi = {
       { method: 'POST', body: '{}' },
     );
   },
+
+  getLatestGenerationRun: async () =>
+    request<AlertGenerationRun | null>('/api/alerts/generation-runs/latest'),
+
+  retryGenerationRun: async (runId: string) =>
+    request<{
+      runId: string;
+      status: AlertGenerationRunStatus;
+      skipped: boolean;
+      tenantsProcessed: number;
+      tenantsFailed: number;
+      contractAlertsCreated: number;
+      missingDocAlertsCreated: number;
+    }>(`/api/alerts/generation-runs/${runId}/retry`, {
+      method: 'POST',
+      body: '{}',
+    }),
 };

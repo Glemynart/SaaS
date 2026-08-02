@@ -71,6 +71,18 @@ const STATUS_MAP = {
     OPEN: { semantic: 'warning', label: 'Abierta' },
     RESOLVED: { semantic: 'neutral', label: 'Resuelta' },
   },
+  alertGenerationRun: {
+    RUNNING: { semantic: 'info', label: 'En curso' },
+    SUCCEEDED: { semantic: 'success', label: 'Completada' },
+    PARTIAL: { semantic: 'warning', label: 'Parcial' },
+    FAILED: { semantic: 'danger', label: 'Fallida' },
+    SKIPPED: { semantic: 'neutral', label: 'Omitida' },
+  },
+  alertGenerationTenant: {
+    RUNNING: { semantic: 'info', label: 'En curso' },
+    SUCCEEDED: { semantic: 'success', label: 'Completada' },
+    FAILED: { semantic: 'danger', label: 'Fallida' },
+  },
   factura: {
     BORRADOR: { semantic: 'neutral', label: 'Borrador' },
     EMITIDA: { semantic: 'success', label: 'Emitida' },
