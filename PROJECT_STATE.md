@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 activo; E4.5 en implementación; E2.1 y E5.1 fusionadas; M1 bloqueado por infraestructura externa (2026-08-02)
+## Última actualización: GOAL-01 activo; E4.5 fusionada; E4.7 siguiente; E2.1 y E5.1 fusionadas; M1 bloqueado por infraestructura externa (2026-08-02)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -95,7 +95,7 @@ Estado actual:
 
 Goal activo:
 
-- 🟡 GOAL-01 activo — M1 está BLOQUEADO POR INFRAESTRUCTURA EXTERNA: E1.1 fusionada como PR #78 y pendiente de validación reproducible; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real de R2/correo; E1.4 fusionada como PR #81 y verificada por CI/Browser E2E. M3 está completado con E3.1, E3.2, E3.3 y E3.4 fusionadas. E4.1 quedó entregada en PR #89, E4.2 en PR #90 y E4.3 en PR #92, todas con checks de CI y Browser E2E verdes. E4.4 quedó fusionada en PR #93, E4.6 en PR #94, E5.1 en PR #95 y E2.1 en PR #96, todas con checks post-merge verdes. E4.5 está en implementación como camino independiente; E4.7 sigue separada como evidencia browser y las invitaciones quedan separadas por su dependencia de correo real.
+- 🟡 GOAL-01 activo — M1 está BLOQUEADO POR INFRAESTRUCTURA EXTERNA: E1.1 fusionada como PR #78 y pendiente de validación reproducible; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real de R2/correo; E1.4 fusionada como PR #81 y verificada por CI/Browser E2E. M3 está completado con E3.1, E3.2, E3.3 y E3.4 fusionadas. E4.1 quedó entregada en PR #89, E4.2 en PR #90 y E4.3 en PR #92, todas con checks de CI y Browser E2E verdes. E4.4 quedó fusionada en PR #93, E4.6 en PR #94, E5.1 en PR #95, E2.1 en PR #96 y E4.5 en PR #97, todas con checks post-merge verdes. E4.7 sigue separada como evidencia browser y las invitaciones quedan separadas por su dependencia de correo real.
 
 - [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
@@ -124,12 +124,13 @@ Hitos recientes fusionados a `main`:
 - ✅ E4.6 — Contratación individual completa como flujo alternativo — PR #94 fusionada y verificada por CI/Browser E2E post-merge.
 - ✅ E5.1 — Subida manual y validación de archivos — PR #95 fusionada y verificada por CI/Browser E2E; independiente de M1.
 - ✅ E2.1 — Gestión directa de usuarios — PR #96 fusionada y verificada por CI/Browser E2E; las invitaciones quedan separadas por su dependencia de correo real.
-- 🟡 E4.5 — Reintentos selectivos, idempotencia y errores parciales — Epic actual en implementación; no depende de staging, R2, DNS, correo ni una decisión nueva de dominio.
+- ✅ E4.5 — Reintentos selectivos, idempotencia y errores parciales — PR #97 fusionada y verificada por CI/Browser E2E; no dependía de staging, R2, DNS, correo ni una decisión nueva de dominio.
+- 🟡 E4.7 — Prueba browser del caso exitoso, parcial y reintentado — siguiente Epic; no depende de M1.
 
-La investigación de `main` no encontró una URL de staging operativa, secretos de entorno configurados, dominio/DNS/certificados, recursos R2, configuración de correo transaccional real ni un workflow de despliegue disponible en el repositorio o en GitHub. La validación de E1.1/E1.3 requiere resolver esa dependencia operativa externa. Esto bloquea M1, no GOAL-01: el Goal permanece ACTIVO. E2.1, E4.2, E4.3, E4.4, E4.6 y E5.1 quedaron fusionadas por caminos independientes; E4.5 continúa por otro camino independiente. El checklist operativo de M1 está en [`docs/goals/GOAL-01-M1-infrastructure-checklist.md`](docs/goals/GOAL-01-M1-infrastructure-checklist.md).
+La investigación de `main` no encontró una URL de staging operativa, secretos de entorno configurados, dominio/DNS/certificados, recursos R2, configuración de correo transaccional real ni un workflow de despliegue disponible en el repositorio o en GitHub. La validación de E1.1/E1.3 requiere resolver esa dependencia operativa externa. Esto bloquea M1, no GOAL-01: el Goal permanece ACTIVO. E2.1, E4.2, E4.3, E4.4, E4.5, E4.6 y E5.1 quedaron fusionadas por caminos independientes; E4.7 continúa por otro camino independiente. El checklist operativo de M1 está en [`docs/goals/GOAL-01-M1-infrastructure-checklist.md`](docs/goals/GOAL-01-M1-infrastructure-checklist.md).
 
 E4.2 quedó fusionada y verificada en `main` mediante PR #90. M3 está completado y
-M4 tiene E4.1, E4.2, E4.3, E4.4 y E4.6 entregadas; E4.5 está en implementación y E4.7 sigue pendiente como validación browser separada.
+M4 tiene E4.1, E4.2, E4.3, E4.4, E4.5 y E4.6 entregadas; E4.7 sigue pendiente como validación browser separada.
 E5.1 quedó fusionada en PR #95. El procesamiento usa planes ya confirmados
 desde PostgreSQL, respeta las exclusiones
 persistidas y usa la abstracción de storage existente. Su validación local no
@@ -137,9 +138,9 @@ requiere staging ni un proveedor R2 concreto.
 
 ## <a name="goal-01-current-decision"></a>GOAL-01 — Decisión de prioridad vigente
 
-Tras fusionar E4.3 en PR #92, E4.4 en PR #93, E5.1 en PR #95 y E2.1 en PR #96, la revisión del código y del grafo de dependencias
+Tras fusionar E4.3 en PR #92, E4.4 en PR #93, E5.1 en PR #95, E2.1 en PR #96 y E4.5 en PR #97, la revisión del código y del grafo de dependencias
 mantiene M1 `BLOQUEADO POR INFRAESTRUCTURA EXTERNA`, pero GOAL-01 permanece
-`ACTIVO`. E4.5 no depende de esas Epics fusionadas,
+`ACTIVO`. E4.7 no depende de esas Epics fusionadas,
 ni de la infraestructura externa de M1, por lo que puede avanzar sin poner trabajo
 en riesgo ni introducir retrabajo.
 
@@ -160,14 +161,12 @@ para empleados guardados como exclusiones. E4.2 corrige únicamente esas dos
 rupturas: usa los planes `CONFIRMADO`/`CONSUMIDO` como objetivos efectivos y deja
 fuera las exclusiones; el flujo manual permanece sin cambios.
 
-E4.5 es la Epic independiente actual. La revisión del código confirma que puede
-reutilizar la frontera tenant, los snapshots y la idempotencia documental
-existentes: el retry selectivo conserva éxitos previos y limita la reconciliación
-a empleados con error. Su implementación no requiere dominio, DNS, Cloudflare,
-R2, OCI Email Delivery, variables de producción ni staging. E5.2 queda pendiente
-del ADR `Modelo de versionado e inmutabilidad del Expediente Digital`; E4.7 queda
-separada como evidencia browser. M7 queda reservado para el cierre final de
-despliegue y Go Live.
+E4.7 es la Epic independiente actual. La revisión del código confirma que su
+alcance es evidencia browser de los casos exitoso, parcial y reintentado sobre
+el flujo de lotes ya fusionado. No requiere dominio, DNS, Cloudflare, R2, OCI
+Email Delivery, variables de producción ni staging. E5.2 queda pendiente del
+ADR `Modelo de versionado e inmutabilidad del Expediente Digital`; M7 queda
+reservado para el cierre final de despliegue y Go Live.
 
 ## <a name="landing-saas"></a>Landing SaaS
 
