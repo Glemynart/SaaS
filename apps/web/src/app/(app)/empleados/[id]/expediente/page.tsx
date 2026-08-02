@@ -9,14 +9,12 @@ import {
   Loader2,
   RefreshCw,
   SearchX,
-  Trash2,
   Upload,
 } from 'lucide-react';
 import { useEmployee } from '@/features/employees/hooks/use-employees';
 import {
   useExpedienteDocs,
   useExpedienteDocHistory,
-  useDeleteExpedienteDoc,
   useUploadExpedienteDoc,
 } from '@/features/expediente-docs/hooks/use-expediente-docs';
 import {
@@ -29,7 +27,6 @@ import { DOCUMENT_TEMPLATE_TYPE_LABELS } from '@/features/document-templates/sch
 import { ArrowLeft } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
@@ -105,9 +102,7 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
   const { id } = use(params);
   const { data: employee, isLoading: empLoading } = useEmployee(id);
   const { data: docsData, isLoading: docsLoading } = useExpedienteDocs(id);
-  const deleteMutation = useDeleteExpedienteDoc();
   const uploadMutation = useUploadExpedienteDoc();
-  const [pendingDelete, setPendingDelete] = useState<ExpedienteDoc | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadCategory, setUploadCategory] = useState<(typeof UPLOAD_CATEGORIES)[number]>('OTRO');
@@ -295,15 +290,6 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
               <span className="sr-only">Crear nueva versiÃ³n de {doc.nombre}</span>
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2 text-destructive hover:bg-destructive/8 hover:text-destructive"
-            onClick={() => setPendingDelete(doc)}
-          >
-            <Trash2 className="size-3.5" aria-hidden="true" />
-            <span className="sr-only">Quitar {doc.nombre} del expediente</span>
-          </Button>
         </div>
       ),
     },
@@ -477,30 +463,6 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
           </div>
         )}
       </SideSheet>
-
-      <ConfirmDialog
-        level={1}
-        open={pendingDelete !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingDelete(null);
-        }}
-        title="Quitar documento del expediente"
-        description={
-          pendingDelete
-            ? `"${pendingDelete.nombre}" dejará de aparecer en el expediente del empleado.`
-            : ''
-        }
-        confirmLabel="Quitar documento"
-        onConfirm={() => {
-          if (pendingDelete) {
-            deleteMutation.mutate(pendingDelete.id, {
-              onSuccess: () => toast.success('Documento quitado del expediente.'),
-              onError: () => toast.error('No se pudo quitar el documento. Inténtalo de nuevo.'),
-            });
-          }
-          setPendingDelete(null);
-        }}
-      />
     </div>
   );
 }
