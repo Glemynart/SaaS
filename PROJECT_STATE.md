@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 activo; E4.5 y E4.7 fusionadas; E2.1 y E5.1 fusionadas; M1 bloqueado por infraestructura externa (2026-08-02)
+## Última actualización: GOAL-01 activo; E4.5 y E4.7 fusionadas; E2.1 y E5.1 fusionadas; ADR-006 aprobado; M1 bloqueado por infraestructura externa (2026-08-02)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -164,8 +164,8 @@ fuera las exclusiones; el flujo manual permanece sin cambios.
 E4.7 quedó fusionada en PR #99. La revisión del código confirma que su alcance fue
 evidencia browser de los casos exitoso, parcial y reintentado sobre el flujo de
 lotes ya fusionado. No requirió dominio, DNS, Cloudflare, R2, OCI Email Delivery,
-variables de producción ni staging. E5.2 queda pendiente del
-ADR `Modelo de versionado e inmutabilidad del Expediente Digital`; M7 queda
+variables de producción ni staging. La semántica de E5.2 quedó aprobada en
+ADR-006 y su implementación comienza después de fusionar ese ADR; M7 queda
 reservado para el cierre final de despliegue y Go Live.
 
 ## <a name="landing-saas"></a>Landing SaaS
