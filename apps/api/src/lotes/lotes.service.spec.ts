@@ -413,7 +413,9 @@ describe('LotesService', () => {
       );
 
       await service.retry(TENANT_ID, USER_ID, 'lote-001');
-      expect(mockEngine.procesarLote).toHaveBeenCalledWith('lote-001');
+      expect(mockEngine.procesarLote).toHaveBeenCalledWith('lote-001', {
+        retry: true,
+      });
     });
 
     it('permite COMPLETADO_CON_ERRORES', async () => {
@@ -425,7 +427,35 @@ describe('LotesService', () => {
       );
 
       await service.retry(TENANT_ID, USER_ID, 'lote-001');
-      expect(mockEngine.procesarLote).toHaveBeenCalledWith('lote-001');
+      expect(mockEngine.procesarLote).toHaveBeenCalledWith('lote-001', {
+        retry: true,
+      });
+    });
+
+    it('reintenta solo los empleados registrados como fallidos', async () => {
+      mockPrisma.loteContrato.findFirst.mockResolvedValue(
+        makeLote({
+          estado: 'COMPLETADO_CON_ERRORES',
+          erroresLog: [
+            { empleadoId: 'emp-002', cedula: '222', error: 'PDF falló' },
+            {
+              empleadoId: 'emp-002',
+              cedula: '222',
+              error: 'PDF falló de nuevo',
+            },
+          ],
+        }),
+      );
+      mockEngine.procesarLote.mockResolvedValue(
+        makeLote({ estado: 'COMPLETADO' }),
+      );
+
+      await service.retry(TENANT_ID, USER_ID, 'lote-001');
+
+      expect(mockEngine.procesarLote).toHaveBeenCalledWith('lote-001', {
+        retry: true,
+        employeeIds: ['emp-002'],
+      });
     });
 
     it('rechaza PENDIENTE', async () => {

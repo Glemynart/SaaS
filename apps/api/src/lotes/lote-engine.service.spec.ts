@@ -459,6 +459,103 @@ describe('LoteEngineService', () => {
       );
     });
 
+    it('reintenta solo el empleado fallido y conserva los Ã©xitos anteriores', async () => {
+      mockLoteFindUnique.mockResolvedValue(
+        makeLote({
+          estado: 'COMPLETADO_CON_ERRORES',
+          total: 2,
+          procesados: 1,
+          fallidos: 1,
+          configuracion: { empleadoIds: ['emp-001', 'emp-002'] },
+          erroresLog: [
+            { empleadoId: 'emp-002', cedula: '222', error: 'PDF fallÃ³' },
+          ],
+        }),
+      );
+      mockContratoFindFirst.mockResolvedValue({
+        id: 'contrato-emp-002',
+        empleadoId: 'emp-002',
+      });
+      mockEnsureGeneratedDocument.mockResolvedValue({
+        outcome: 'EXISTING',
+        document: { id: 'gendoc-emp-002' },
+      });
+      mockMaterializePdf.mockResolvedValue({ id: 'gendoc-emp-002' });
+      mockPublishGeneratedDocument.mockResolvedValue({ outcome: 'EXISTING' });
+
+      await service.procesarLote(LOTE_ID, {
+        retry: true,
+        employeeIds: ['emp-002'],
+      });
+
+      expect(mockContratoFindFirst).toHaveBeenCalledTimes(1);
+      expect(mockContratoFindFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ empleadoId: 'emp-002' }),
+        }),
+      );
+      expect(mockContratoFindFirst).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ empleadoId: 'emp-001' }),
+        }),
+      );
+      expect(mockLoteUpdate).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            estado: 'COMPLETADO',
+            procesados: 2,
+            fallidos: 0,
+            erroresLog: [],
+          }),
+        }),
+      );
+    });
+
+    it('mantiene como fallido el empleado si su reintento vuelve a fallar', async () => {
+      mockLoteFindUnique.mockResolvedValue(
+        makeLote({
+          estado: 'COMPLETADO_CON_ERRORES',
+          total: 2,
+          procesados: 1,
+          fallidos: 1,
+          configuracion: { empleadoIds: ['emp-001', 'emp-002'] },
+          erroresLog: [
+            { empleadoId: 'emp-002', cedula: '222', error: 'PDF fallÃ³' },
+          ],
+        }),
+      );
+      mockContratoFindFirst.mockResolvedValue({
+        id: 'contrato-emp-002',
+        empleadoId: 'emp-002',
+      });
+      mockEnsureGeneratedDocument.mockRejectedValue(
+        new Error('sigue fallando'),
+      );
+      mockEmpleadoFindFirst.mockResolvedValue({ cedula: '222' });
+
+      await service.procesarLote(LOTE_ID, {
+        retry: true,
+        employeeIds: ['emp-002'],
+      });
+
+      expect(mockLoteUpdate).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            estado: 'COMPLETADO_CON_ERRORES',
+            procesados: 1,
+            fallidos: 1,
+            erroresLog: [
+              {
+                empleadoId: 'emp-002',
+                cedula: '222',
+                error: 'sigue fallando',
+              },
+            ],
+          }),
+        }),
+      );
+    });
+
     it('reprocesa un lote completado sin crear otro contrato y repite solo las etapas idempotentes', async () => {
       mockLoteFindUnique.mockResolvedValue(makeLote({ estado: 'COMPLETADO' }));
       mockContratoFindFirst.mockResolvedValue({
