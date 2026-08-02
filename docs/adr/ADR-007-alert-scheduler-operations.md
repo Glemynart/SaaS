@@ -1,8 +1,8 @@
 # ADR-007: Ejecución, reintentos y visibilidad operativa del scheduler de alertas
 
 **Date**: 2026-08-02
-**Status**: proposed
-**Deciders**: pendiente de aprobación del responsable de producto y arquitectura
+**Status**: accepted
+**Deciders**: responsable de producto y arquitectura; Lead Engineer
 
 ## Context
 
@@ -35,6 +35,10 @@ Se propone modelar las ejecuciones del scheduler como estado operativo separado 
    PostgreSQL y procesará después los tenants de forma aislada. Una ejecución
    abandonada podrá identificarse como incompleta sin bloquear permanentemente las
    siguientes.
+   Para el scheduler `alerts-daily-generation` solo puede existir una ejecución
+   `RUNNING` en cualquier momento; este invariante se impondrá en PostgreSQL con
+   una restricción única parcial sobre la clave del scheduler y el estado
+   `RUNNING`. Los estados terminales y `SKIPPED` no participan en esa unicidad.
 4. Cada tenant tendrá como máximo un reintento automático dentro de la misma
    ejecución. La operación podrá iniciar un nuevo reintento explícito para los
    resultados fallidos. La deduplicación existente de alertas seguirá siendo la
@@ -46,6 +50,13 @@ Se propone modelar las ejecuciones del scheduler como estado operativo separado 
 6. La API y la pantalla de Alertas mostrarán la última ejecución, su estado, los
    tenants fallidos y la acción de reintento disponible para `ADMIN`. La consulta
    será tenant-aware y no expondrá ejecuciones de otra organización.
+7. `AlertGenerationRun` y `AlertGenerationRunTenant` se conservarán durante 180
+   días contados desde `finishedAt` cuando la ejecución esté en un estado terminal.
+   Las filas `RUNNING` no se purgarán; primero deberán recuperarse y pasar a un
+   estado terminal. Una purga gobernada y tenant-aware podrá eliminar únicamente
+   los registros operativos que superen ese plazo. Nunca eliminará las alertas
+   generadas ni sus eventos de `AuditLog`, cuya retención se rige por la política
+   de auditoría existente.
 
 ## Alternatives Considered
 
@@ -79,12 +90,15 @@ Se propone modelar las ejecuciones del scheduler como estado operativo separado 
 - Un tenant defectuoso no oculta ni revierte el trabajo válido de los demás.
 - Los reintentos son acotados, idempotentes y auditables.
 - El historial operativo queda separado de la auditoría append-only.
+- La retención operativa es predecible y no altera la evidencia de alertas ni
+  auditoría.
 
 ### Negative
 
 - Añade dos estructuras persistentes, endpoints y una superficie de UI.
 - Requiere definir recuperación de ejecuciones abandonadas y retención de sus
   resultados.
+- La purga periódica requiere una tarea operativa gobernada y verificable.
 
 ### Risks
 
