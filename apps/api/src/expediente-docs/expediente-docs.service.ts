@@ -135,10 +135,20 @@ export class ExpedienteDocsService {
     return { family, revisions };
   }
 
-  async download(tenantId: string, id: string) {
+  async download(tenantId: string, userId: string, id: string) {
     const document = await this.prisma.expedienteDoc.findFirst({
       where: { id, tenantId },
-      select: { nombre: true, mimeType: true, storageKey: true },
+      select: {
+        id: true,
+        nombre: true,
+        mimeType: true,
+        storageKey: true,
+        familiaId: true,
+        version: true,
+        categoria: true,
+        generatedDocumentId: true,
+        contratoId: true,
+      },
     });
     if (!document) {
       throw new NotFoundException('Documento no encontrado en el expediente');
@@ -153,6 +163,24 @@ export class ExpedienteDocsService {
       }
       throw error;
     }
+
+    this.auditService
+      .log({
+        tenantId,
+        userId,
+        action: 'EXPEDIENTE_DOCUMENT_ACCESS_GRANTED',
+        entityType: 'ExpedienteDoc',
+        entityId: document.id,
+        metadata: {
+          delivery: 'DOWNLOAD',
+          familiaId: document.familiaId,
+          version: document.version,
+          categoria: document.categoria,
+          generatedDocumentId: document.generatedDocumentId,
+          contratoId: document.contratoId,
+        },
+      })
+      .catch(() => {});
 
     return { nombre: document.nombre, mimeType: document.mimeType, body };
   }
