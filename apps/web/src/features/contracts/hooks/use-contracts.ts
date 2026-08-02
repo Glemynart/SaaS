@@ -43,3 +43,16 @@ export function useUpdateContractStatus() {
     },
   });
 }
+
+export function useGenerateContractDocument() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, templateId }: { id: string; templateId?: string }) =>
+      contractsApi.generateDocument(id, templateId),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: contractKeys.lists() });
+      qc.invalidateQueries({ queryKey: contractKeys.detail(id) });
+    },
+  });
+}
