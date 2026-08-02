@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 activo; E5.1 en implementación; E4.4 y E4.6 fusionadas; M1 bloqueado por infraestructura externa (2026-08-02)
+## Última actualización: GOAL-01 activo; E5.1 en PR #95; E4.4 y E4.6 fusionadas; M1 bloqueado por infraestructura externa (2026-08-02)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -122,7 +122,7 @@ Hitos recientes fusionados a `main`:
 - ✅ E4.3 — Perfil y snapshots confirmados preservados en contrato y documento — PR #92 fusionada y verificada.
 - ✅ E4.4 — PDF canónico vinculado al contrato y publicado en expediente — PR #93 fusionada y verificada por CI/Browser E2E post-merge.
 - ✅ E4.6 — Contratación individual completa como flujo alternativo — PR #94 fusionada y verificada por CI/Browser E2E post-merge.
-- 🟡 E5.1 — Subida manual y validación de archivos — en implementación; independiente de M1 y de las Epics ya fusionadas.
+- 🟡 E5.1 — Subida manual y validación de archivos — PR #95 abierta con checks verdes; independiente de M1 y de las Epics ya fusionadas.
 
 La investigación de `main` no encontró una URL de staging operativa, secretos de entorno configurados, dominio/DNS/certificados, recursos R2, configuración de correo transaccional real ni un workflow de despliegue disponible en el repositorio o en GitHub. La validación de E1.1/E1.3 requiere resolver esa dependencia operativa externa. Esto bloquea M1, no GOAL-01: el Goal permanece ACTIVO. E4.2, E4.3, E4.4 y E4.6 quedaron fusionadas por caminos independientes; E5.1 continúa por otro camino independiente. El checklist operativo de M1 está en [`docs/goals/GOAL-01-M1-infrastructure-checklist.md`](docs/goals/GOAL-01-M1-infrastructure-checklist.md).
 
