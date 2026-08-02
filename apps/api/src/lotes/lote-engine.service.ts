@@ -8,6 +8,7 @@ import {
   BatchDocumentGenerationPlanStatus,
   Contrato,
   LoteContrato,
+  LoteProposito,
   Prisma,
 } from '@prisma/client';
 import { BatchDocumentGenerationService } from '../batch-document-generation/batch-document-generation.service';
@@ -70,12 +71,6 @@ export class LoteEngineService {
       throw new NotFoundException('Lote no encontrado');
     }
 
-    if (!lote.documentTemplateId) {
-      throw new ConflictException(
-        'Las campañas inteligentes requieren confirmación antes de procesarse.',
-      );
-    }
-
     if (lote.estado === 'EN_PROCESO') {
       this.logger.log(
         `Lote ${loteId} ya está EN_PROCESO, omitiendo re-ejecución`,
@@ -83,7 +78,8 @@ export class LoteEngineService {
       return lote;
     }
 
-    const empleadoIds = await this.resolveTargets(lote);
+    const { empleadoIds, hasDocumentGenerationPlans } =
+      await this.resolveProcessingTargets(lote);
     const acquired = await this.prisma.loteContrato.updateMany({
       where: { id: loteId, estado: lote.estado },
       data: {
@@ -105,20 +101,6 @@ export class LoteEngineService {
     }
 
     const userId = lote.creadoPorId ?? 'system';
-    const hasDocumentGenerationPlans =
-      (await this.prisma.batchDocumentGenerationPlan.count({
-        where: {
-          tenantId: lote.tenantId,
-          loteId,
-          estado: {
-            in: [
-              BatchDocumentGenerationPlanStatus.CONFIRMADO,
-              BatchDocumentGenerationPlanStatus.CONSUMIDO,
-            ],
-          },
-        },
-      })) > 0;
-
     const errores: LoteErrorEntry[] = [];
 
     for (const empleadoId of empleadoIds) {
@@ -129,12 +111,13 @@ export class LoteEngineService {
           lote,
           empleadoId,
         );
-        if (!hasDocumentGenerationPlans) {
+        const documentTemplateId = lote.documentTemplateId;
+        if (!hasDocumentGenerationPlans && documentTemplateId) {
           await this.ensureDocumento(
             lote.tenantId,
             userId,
             contrato,
-            lote.documentTemplateId,
+            documentTemplateId,
           );
         }
 
@@ -205,6 +188,55 @@ export class LoteEngineService {
         erroresLog: errores as unknown as Prisma.InputJsonValue,
       },
     });
+  }
+
+  /**
+   * Determina los objetivos efectivos del procesamiento.
+   *
+   * Los lotes manuales conservan el snapshot de empleados del lote. Una
+   * campaña inteligente, en cambio, sólo puede avanzar sobre los planes que
+   * la resolución confirmó: las filas de exclusión no son objetivos de
+   * contrato ni de documento.
+   */
+  private async resolveProcessingTargets(
+    lote: LoteContrato,
+  ): Promise<{ empleadoIds: string[]; hasDocumentGenerationPlans: boolean }> {
+    const plans = await this.prisma.batchDocumentGenerationPlan.findMany({
+      where: {
+        tenantId: lote.tenantId,
+        loteId: lote.id,
+        estado: {
+          in: [
+            BatchDocumentGenerationPlanStatus.CONFIRMADO,
+            BatchDocumentGenerationPlanStatus.CONSUMIDO,
+          ],
+        },
+      },
+      select: { empleadoId: true },
+    });
+
+    if (!lote.documentTemplateId) {
+      if (lote.proposito !== LoteProposito.CONTRATACION) {
+        throw new ConflictException(
+          'Las campañas inteligentes requieren confirmación antes de procesarse.',
+        );
+      }
+      if (plans.length === 0) {
+        throw new ConflictException(
+          'La campaña inteligente no tiene planes confirmados para procesar.',
+        );
+      }
+
+      return {
+        empleadoIds: Array.from(new Set(plans.map((plan) => plan.empleadoId))),
+        hasDocumentGenerationPlans: true,
+      };
+    }
+
+    return {
+      empleadoIds: await this.resolveTargets(lote),
+      hasDocumentGenerationPlans: plans.length > 0,
+    };
   }
 
   /**

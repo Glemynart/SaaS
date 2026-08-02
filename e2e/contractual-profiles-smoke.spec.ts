@@ -122,6 +122,11 @@ test('crea un perfil contractual y lo vincula a un empleado desde la UI', async 
   await expect(page.getByText('1 resueltos', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Confirmar resolución', exact: true }).click();
   await expect(page.getByText(/Confirmación total guardada/)).toBeVisible();
+  await page.getByRole('button', { name: 'Procesar', exact: true }).click();
+  await expect(page.getByText('Completado', { exact: true })).toBeVisible();
+  await expect(
+    page.locator('dt').filter({ hasText: 'Procesados' }).locator('xpath=following-sibling::dd[1]'),
+  ).toHaveText('1');
 
   await page.goto('/documentos/configuracion');
   await expect(page.getByRole('heading', { name: /Configuraci.n documental/ })).toBeVisible();
