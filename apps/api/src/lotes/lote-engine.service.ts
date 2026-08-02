@@ -158,7 +158,7 @@ export class LoteEngineService {
 
     if (hasDocumentGenerationPlans && errores.length === 0) {
       try {
-        await this.batchDocumentGenerationService.start(loteId);
+        await this.batchDocumentGenerationService.start(loteId, userId);
       } catch (error) {
         const mensaje =
           error instanceof Error ? error.message : 'Error desconocido';

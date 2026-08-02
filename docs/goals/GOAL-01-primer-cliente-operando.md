@@ -41,8 +41,7 @@ Este Goal solo puede redefinirse si cambia la estrategia del producto. Nuevas id
 
 - no existe administración de usuarios, invitaciones ni UI de roles;
 - la UI no puede crear, resolver ni confirmar campañas inteligentes;
-- E4.2 ya procesa planes confirmados; E4.3 está fusionada y E4.4 tiene la PR #93 abierta para completar el vínculo PDF-contrato-expediente;
-- la generación basada en planes todavía no completa el vínculo PDF-contrato ni la publicación en el expediente en `main`;
+- E4.2 ya procesa planes confirmados; E4.3 y E4.4 están fusionadas; E4.6 está en implementación para exponer desde la UI la generación individual;
 - la generación documental del contrato individual no está expuesta desde su UI;
 - el expediente no permite subida manual ni clasificación operativa;
 - las alertas requieren generación manual y no tienen scheduler;
@@ -90,7 +89,7 @@ Estas exclusiones son limitaciones temporales del roadmap. No se numerarán como
 | Perfil contractual como evidencia histórica   | Arquitectura                  | APROBADO          | Respetar ADR-004.                           |
 | E4.2 — Procesamiento de planes confirmados    | Trabajo entregado             | CERRADO           | PR #90 fusionada y verificada.              |
 | E4.3 — Perfil y snapshots históricos          | Trabajo entregado             | CERRADO           | PR #92 fusionada y verificada.              |
-| E4.4 — PDF canónico y expediente              | Trabajo pendiente planificado | ESPERANDO MERGE   | PR #93 abierta; checks verdes.              |
+| E4.4 — PDF canónico y expediente              | Trabajo entregado             | CERRADO           | PR #93 fusionada y verificada.              |
 | E4.6 — Contratación individual desde la UI    | Trabajo pendiente planificado | EN IMPLEMENTACIÓN | Avanzar por camino independiente de E4.4.   |
 | Superficie comercial de contabilidad          | Decisión de producto          | FUERA DEL GOAL    | Resolver antes de priorizar un Goal futuro. |
 | Infraestructura productiva                    | Dependencia técnica           | ABIERTO           | Resolver en M1.                             |
@@ -166,9 +165,8 @@ contrato de dominio. E4.2 procesa esos planes confirmados y deja fuera las
 exclusiones, usando PostgreSQL, Puppeteer y la abstracción de storage existente. PR
 #90 quedó fusionada en `main` con CI y Browser E2E verdes.
 E2.1 continúa pendiente porque su recorrido completo requiere invitaciones por
-correo real; no se adelanta ni se modifica. E4.3 quedó fusionada en PR #92. La
-PR #93 implementa E4.4 y permanece abierta con CI y Browser E2E verdes, por lo
-que E4.5 y E4.7 no se inician hasta que desaparezca esa dependencia.
+correo real; no se adelanta ni se modifica. E4.3 quedó fusionada en PR #92 y E4.4
+quedó fusionada en PR #93 con CI y Browser E2E post-merge verdes.
 La migración de las acciones de GitHub a Node 24 fue una tarea de mantenimiento
 independiente ya fusionada y no cambia el estado del Goal.
 
@@ -176,9 +174,8 @@ E4.6 sí puede avanzar en paralelo: `main` ya contiene `POST
 /contracts/:id/generate-document`, la materialización PDF desde snapshots y la
 publicación idempotente en `ExpedienteDoc`. La ruptura comprobada es únicamente
 que la UI de contrato individual no expone esa capacidad. La Epic añade la ruta
-BFF, el cliente/hook y la acción en el detalle de contrato, sin tocar la ruta
-inteligente de E4.4, sin requerir staging, DNS, Cloudflare, R2 específico o correo
-real, y sin generar retrabajo cuando E4.4 se fusione.
+BFF, el cliente/hook y la acción en el detalle de contrato, sin requerir staging,
+DNS, Cloudflare, R2 específico o correo real, y sin generar retrabajo en E4.4.
 
 ### M4 — Contratación Inteligente End-to-End
 
@@ -187,7 +184,7 @@ real, y sin generar retrabajo cuando E4.4 se fusione.
 - [x] E4.1 — Creación, preview y confirmación total/parcial desde frontend (PR #89 fusionada y verificada por CI/Browser E2E).
 - [x] E4.2 — PR11.3 procesa únicamente planes confirmados y respeta exclusiones (PR #90 fusionada y verificada por CI/Browser E2E).
 - [x] E4.3 — Perfil y snapshots preservados en contrato y documento (PR #92 fusionada y verificada).
-- [ ] E4.4 — PDF canónico vinculado al contrato y publicado en expediente (PR #93 abierta; checks verdes, pendiente de merge).
+- [x] E4.4 — PDF canónico vinculado al contrato y publicado en expediente (PR #93 fusionada y verificada por CI/Browser E2E post-merge).
 - [ ] E4.5 — Reintentos, idempotencia y errores parciales verificables.
 - [ ] E4.6 — Contratación individual completa como flujo alternativo (en implementación independiente).
 - [ ] E4.7 — Prueba browser del caso exitoso, parcial y reintentado.
@@ -251,7 +248,7 @@ real, y sin generar retrabajo cuando E4.4 se fusione.
 | #89      | E4.1  | Creación, preview y confirmación total/parcial desde frontend.            | FUSIONADO         | Sí; CI/Browser E2E post-merge verdes.                      |
 | #90      | E4.2  | Procesamiento de planes confirmados y exclusiones desde la campaña.       | FUSIONADO         | Sí; CI/Browser E2E verdes.                                 |
 | #92      | E4.3  | Perfil y snapshots confirmados preservados en contrato y documento.       | FUSIONADO         | Sí; CI y Browser E2E verdes.                               |
-| #93      | E4.4  | PDF canónico vinculado al contrato y publicado en expediente.             | ABIERTO           | No; CI y Browser E2E verdes, pendiente de merge.           |
+| #93      | E4.4  | PDF canónico vinculado al contrato y publicado en expediente.             | FUSIONADO         | Sí; CI y Browser E2E post-merge verdes.                    |
 | (actual) | E4.6  | Contratación individual completa desde la UI.                             | EN IMPLEMENTACIÓN | No; reutiliza el backend documental existente.             |
 | #69–#76  | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS        | No; el recorrido inteligente sigue abierto.                |
 
@@ -287,10 +284,10 @@ por CI y Browser E2E. E4.2 fue implementada, auditada y fusionada en PR #90:
 el código de `main` rechazaba campañas inteligentes sin `documentTemplateId` y no
 filtraba los empleados excluidos antes de crear contratos. La corrección usa sólo
 los planes `CONFIRMADO`/`CONSUMIDO`, no requiere DNS, Cloudflare, R2 específico,
-OCI Email Delivery ni staging, y no adelanta E4.4. E4.4 está cubierta por la PR #93,
-abierta con checks verdes; su resultado es dependencia de E4.5 y E4.7, no de E4.6.
+OCI Email Delivery ni staging, y no adelanta E4.5. E4.4 quedó fusionada en PR #93
+con checks post-merge verdes; E4.6 continúa como camino independiente.
 
 > La determinación vigente, actualizada después de E3.4, queda documentada en
-> la sección post-merge: E4.3 está fusionada en PR #92, E4.4 está abierta en PR #93
-> con checks verdes y E4.6 avanza por un camino independiente. GOAL-01 permanece
-> `ACTIVO`; M1 sigue `BLOQUEADO POR INFRAESTRUCTURA EXTERNA`.
+> la sección post-merge: E4.3 y E4.4 están fusionadas en PR #92 y PR #93; E4.6
+> avanza por un camino independiente. GOAL-01 permanece `ACTIVO`; M1 sigue
+> `BLOQUEADO POR INFRAESTRUCTURA EXTERNA`.

@@ -6,6 +6,7 @@ import {
 import { PdfRenderService } from '../pdf-render/pdf-render.service';
 import { StorageService } from '../storage/storage.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
+import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
 import { BatchDocumentGenerationService } from './batch-document-generation.service';
 
 const loteFindFirst = jest.fn();
@@ -15,6 +16,7 @@ const planUpdateMany = jest.fn();
 const documentFindFirst = jest.fn();
 const documentCreate = jest.fn();
 const documentUpdateMany = jest.fn();
+const contractFindFirst = jest.fn();
 const templateFindFirst = jest.fn();
 const employeeFindFirst = jest.fn();
 const tenantFindFirst = jest.fn();
@@ -22,6 +24,7 @@ const renderPdf = jest.fn();
 const objectExists = jest.fn();
 const getObject = jest.fn();
 const putObject = jest.fn();
+const mockPublishGeneratedDocument = jest.fn();
 
 const TENANT = 'tenant-001';
 const LOTE = '11111111-1111-4111-8111-111111111111';
@@ -43,6 +46,7 @@ function mockPrismaClient() {
       create: documentCreate,
       updateMany: documentUpdateMany,
     },
+    contrato: { findFirst: contractFindFirst },
     documentTemplate: { findFirst: templateFindFirst },
     empleado: { findFirst: employeeFindFirst },
     tenant: { findFirst: tenantFindFirst },
@@ -62,6 +66,7 @@ const plan = {
   id: PLAN,
   tenantId: TENANT,
   empleadoId: EMPLOYEE,
+  loteId: LOTE,
   plantillaId: TEMPLATE,
   plantillaSnapshot: {
     id: TEMPLATE,
@@ -118,7 +123,7 @@ function objectContaining<T extends object>(expected: T): T {
   return expect.objectContaining(expected) as T;
 }
 
-function stringContaining(value: string): string {
+function stringContaining(value: string): unknown {
   return expect.stringContaining(value);
 }
 
@@ -135,9 +140,14 @@ describe('BatchDocumentGenerationService', () => {
     documentCreate.mockResolvedValue({
       id: DOCUMENT,
       estado: GeneratedDocumentStatus.PENDIENTE_MATERIALIZACION,
+      contratoId: 'contrato-001',
+      pdfStorageKey: null,
+      pdfSizeBytes: null,
+      pdfUrl: null,
       contenidoFinal: 'CONTRATO Ana López - Empresa Uno',
     });
     documentUpdateMany.mockResolvedValue({ count: 1 });
+    contractFindFirst.mockResolvedValue({ id: 'contrato-001' });
     templateFindFirst.mockResolvedValue({
       id: TEMPLATE,
       nombre: 'Contrato laboral',
@@ -160,10 +170,14 @@ describe('BatchDocumentGenerationService', () => {
       size: 9,
       contentType: 'application/pdf',
     });
+    mockPublishGeneratedDocument.mockResolvedValue({ outcome: 'CREATED' });
     service = new BatchDocumentGenerationService(
       { execute } as unknown as TenantPrismaService,
       { renderPdf } as unknown as PdfRenderService,
       { objectExists, getObject, putObject } as unknown as StorageService,
+      {
+        publishGeneratedDocument: mockPublishGeneratedDocument,
+      } as unknown as ExpedienteDocsService,
     );
   });
 
@@ -183,6 +197,7 @@ describe('BatchDocumentGenerationService', () => {
           employeeId: EMPLOYEE,
           templateId: TEMPLATE,
           batchDocumentGenerationPlanId: PLAN,
+          contratoId: 'contrato-001',
           contenidoFinal: 'CONTRATO Ana López - Empresa Uno',
           tipo: 'CONTRACT',
         }),
@@ -196,6 +211,15 @@ describe('BatchDocumentGenerationService', () => {
       body: Buffer.from('PDF-BYTES'),
       contentType: 'application/pdf',
     });
+    expect(mockPublishGeneratedDocument).toHaveBeenCalledWith(
+      TENANT,
+      'system',
+      DOCUMENT,
+      expect.objectContaining({
+        id: DOCUMENT,
+        pdfStorageKey: `pdfs/${TENANT}-${DOCUMENT}.pdf`,
+      }),
+    );
   });
 
   it('actualiza GeneratedDocument y consume el plan después de almacenar', async () => {
@@ -207,6 +231,7 @@ describe('BatchDocumentGenerationService', () => {
         pdfStorageKey: `pdfs/${TENANT}-${DOCUMENT}.pdf`,
         pdfUrl: `/uploads/pdfs/${TENANT}-${DOCUMENT}.pdf`,
         pdfSizeBytes: 9,
+        contratoId: 'contrato-001',
         estado: GeneratedDocumentStatus.MATERIALIZADO,
       },
     });
@@ -252,6 +277,10 @@ describe('BatchDocumentGenerationService', () => {
     documentFindFirst.mockResolvedValue({
       id: DOCUMENT,
       estado: GeneratedDocumentStatus.MATERIALIZADO,
+      contratoId: 'contrato-001',
+      pdfStorageKey: `pdfs/${TENANT}-${DOCUMENT}.pdf`,
+      pdfSizeBytes: 9,
+      pdfUrl: `/uploads/pdfs/${TENANT}-${DOCUMENT}.pdf`,
       contenidoFinal: 'snapshot existente',
     });
 
@@ -264,6 +293,12 @@ describe('BatchDocumentGenerationService', () => {
     expect(putObject).not.toHaveBeenCalled();
     expect(documentUpdateMany).not.toHaveBeenCalled();
     expect(planUpdateMany).not.toHaveBeenCalled();
+    expect(mockPublishGeneratedDocument).toHaveBeenCalledWith(
+      TENANT,
+      'system',
+      DOCUMENT,
+      expect.objectContaining({ id: DOCUMENT }),
+    );
   });
 
   it('recupera un documento fallido usando el artefacto ya almacenado', async () => {
@@ -291,6 +326,35 @@ describe('BatchDocumentGenerationService', () => {
           estado: GeneratedDocumentStatus.MATERIALIZADO,
         }),
       }),
+    );
+  });
+
+  it('reconcilia el contrato en documentos materializados por E4.2', async () => {
+    planFindFirst.mockResolvedValue({
+      ...plan,
+      estado: BatchDocumentGenerationPlanStatus.CONSUMIDO,
+    });
+    documentFindFirst.mockResolvedValue({
+      id: DOCUMENT,
+      estado: GeneratedDocumentStatus.MATERIALIZADO,
+      contratoId: null,
+      pdfStorageKey: `pdfs/${TENANT}-${DOCUMENT}.pdf`,
+      pdfSizeBytes: 9,
+      pdfUrl: `/uploads/pdfs/${TENANT}-${DOCUMENT}.pdf`,
+      contenidoFinal: 'snapshot existente',
+    });
+
+    await service.start(LOTE, 'user-001');
+
+    expect(documentUpdateMany).toHaveBeenCalledWith({
+      where: { id: DOCUMENT, tenantId: TENANT, contratoId: null },
+      data: { contratoId: 'contrato-001' },
+    });
+    expect(mockPublishGeneratedDocument).toHaveBeenCalledWith(
+      TENANT,
+      'user-001',
+      DOCUMENT,
+      expect.objectContaining({ id: DOCUMENT }),
     );
   });
 
