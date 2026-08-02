@@ -18,6 +18,10 @@ import { ContractsService } from '../contracts/contracts.service';
 import { GeneratedDocumentsService } from '../generated-documents/generated-documents.service';
 import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
 import { CreateContractDto } from '../contracts/dto/create-contract.dto';
+import {
+  ContractPlanSnapshot,
+  parseContractPlanSnapshot,
+} from '../contracts/contract-plan-snapshot';
 
 /**
  * Entrada del erroresLog del lote. Una por empleado fallido.
@@ -26,6 +30,13 @@ interface LoteErrorEntry {
   empleadoId: string;
   cedula: string | null;
   error: string;
+}
+
+interface ConfirmedContractPlan {
+  empleadoId: string;
+  perfilContractualId: string;
+  empleadoSnapshot: Prisma.JsonValue | null;
+  contratoSnapshot: Prisma.JsonValue | null;
 }
 
 /**
@@ -78,7 +89,7 @@ export class LoteEngineService {
       return lote;
     }
 
-    const { empleadoIds, hasDocumentGenerationPlans } =
+    const { empleadoIds, hasDocumentGenerationPlans, plansByEmployee } =
       await this.resolveProcessingTargets(lote);
     const acquired = await this.prisma.loteContrato.updateMany({
       where: { id: loteId, estado: lote.estado },
@@ -110,6 +121,7 @@ export class LoteEngineService {
           userId,
           lote,
           empleadoId,
+          plansByEmployee.get(empleadoId),
         );
         const documentTemplateId = lote.documentTemplateId;
         if (!hasDocumentGenerationPlans && documentTemplateId) {
@@ -198,9 +210,11 @@ export class LoteEngineService {
    * la resolución confirmó: las filas de exclusión no son objetivos de
    * contrato ni de documento.
    */
-  private async resolveProcessingTargets(
-    lote: LoteContrato,
-  ): Promise<{ empleadoIds: string[]; hasDocumentGenerationPlans: boolean }> {
+  private async resolveProcessingTargets(lote: LoteContrato): Promise<{
+    empleadoIds: string[];
+    hasDocumentGenerationPlans: boolean;
+    plansByEmployee: Map<string, ConfirmedContractPlan>;
+  }> {
     const plans = await this.prisma.batchDocumentGenerationPlan.findMany({
       where: {
         tenantId: lote.tenantId,
@@ -212,7 +226,12 @@ export class LoteEngineService {
           ],
         },
       },
-      select: { empleadoId: true },
+      select: {
+        empleadoId: true,
+        perfilContractualId: true,
+        empleadoSnapshot: true,
+        contratoSnapshot: true,
+      },
     });
 
     if (!lote.documentTemplateId) {
@@ -230,12 +249,14 @@ export class LoteEngineService {
       return {
         empleadoIds: Array.from(new Set(plans.map((plan) => plan.empleadoId))),
         hasDocumentGenerationPlans: true,
+        plansByEmployee: new Map(plans.map((plan) => [plan.empleadoId, plan])),
       };
     }
 
     return {
       empleadoIds: await this.resolveTargets(lote),
       hasDocumentGenerationPlans: plans.length > 0,
+      plansByEmployee: new Map(),
     };
   }
 
@@ -249,6 +270,7 @@ export class LoteEngineService {
     userId: string,
     lote: LoteContrato,
     empleadoId: string,
+    plan?: ConfirmedContractPlan,
   ): Promise<Pick<Contrato, 'id' | 'empleadoId'>> {
     const existing = await this.prisma.contrato.findFirst({
       where: { tenantId, loteId: lote.id, empleadoId },
@@ -257,6 +279,10 @@ export class LoteEngineService {
     if (existing) {
       return existing;
     }
+
+    const historicalSnapshot: ContractPlanSnapshot | undefined = plan
+      ? parseContractPlanSnapshot(plan.empleadoSnapshot, plan.contratoSnapshot)
+      : undefined;
 
     const empleado = await this.tenantPrisma.execute((prisma) =>
       prisma.empleado.findFirst({
@@ -275,17 +301,23 @@ export class LoteEngineService {
       );
     }
 
-    const fechaInicio = lote.fechaInicioContrato ?? empleado.fechaIngreso;
+    const contractSnapshot = historicalSnapshot?.contrato;
+    const fechaInicio = contractSnapshot
+      ? new Date(contractSnapshot.fechaInicio)
+      : (lote.fechaInicioContrato ?? empleado.fechaIngreso);
 
     const dto: CreateContractDto = {
       employeeId: empleadoId,
-      cargo: empleado.cargo,
-      salario: Number(empleado.salario),
-      tipo: (lote.tipoContrato ??
+      cargo: contractSnapshot?.cargo ?? empleado.cargo,
+      salario: Number(contractSnapshot?.salario ?? empleado.salario),
+      tipo: (contractSnapshot?.tipo ??
+        lote.tipoContrato ??
         empleado.tipoContrato) as CreateContractDto['tipo'],
       fechaInicio: fechaInicio.toISOString(),
-      fechaFin: lote.fechaFinContrato?.toISOString(),
-      sedeId: lote.sedeId ?? undefined,
+      fechaFin: contractSnapshot
+        ? (contractSnapshot.fechaFin ?? undefined)
+        : lote.fechaFinContrato?.toISOString(),
+      sedeId: contractSnapshot?.sedeId ?? lote.sedeId ?? undefined,
     };
 
     try {
@@ -294,6 +326,12 @@ export class LoteEngineService {
         userId,
         dto,
         lote.id,
+        plan && historicalSnapshot
+          ? {
+              perfilContractualId: plan.perfilContractualId,
+              historicalSnapshot,
+            }
+          : undefined,
       );
       return { id: created.id, empleadoId };
     } catch (error) {

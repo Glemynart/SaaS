@@ -56,6 +56,36 @@ const TENANT_ID = 'tenant-001';
 const LOTE_ID = 'lote-001';
 const USER_ID = 'user-001';
 const TEMPLATE_ID = 'template-frozen-001';
+const PROFILE_ID = 'profile-001';
+
+const confirmedPlan = {
+  empleadoId: 'emp-001',
+  perfilContractualId: PROFILE_ID,
+  empleadoSnapshot: {
+    id: 'emp-001',
+    primerNombre: 'Ana',
+    segundoNombre: null,
+    primerApellido: 'LÃ³pez',
+    segundoApellido: null,
+    tipoDocumento: 'CC',
+    cedula: '123456',
+    cargo: 'Cargo confirmado',
+    salario: '3200000',
+    tipoContrato: 'TERMINO_FIJO',
+    fechaIngreso: '2026-01-01T00:00:00.000Z',
+    sedeId: null,
+    sede: null,
+  },
+  contratoSnapshot: {
+    cargo: 'Cargo confirmado',
+    salario: '3200000',
+    tipo: 'TERMINO_FIJO',
+    fechaInicio: '2026-02-01T00:00:00.000Z',
+    fechaFin: '2026-12-15T00:00:00.000Z',
+    sedeId: null,
+    sede: null,
+  },
+};
 
 function objectContaining<T extends object>(expected: T): T {
   return expect.objectContaining(expected) as T;
@@ -203,11 +233,15 @@ describe('LoteEngineService', () => {
           configuracion: { empleadoIds: ['emp-001', 'emp-002'] },
         }),
       );
-      mockBatchPlanFindMany.mockResolvedValue([{ empleadoId: 'emp-001' }]);
-      mockContratoFindFirst.mockResolvedValue({
-        id: 'contrato-emp-001',
-        empleadoId: 'emp-001',
+      mockBatchPlanFindMany.mockResolvedValue([confirmedPlan]);
+      mockContratoFindFirst.mockResolvedValue(null);
+      mockEmpleadoFindFirst.mockResolvedValue({
+        cargo: 'Cargo actual',
+        salario: 9999999,
+        tipoContrato: 'TERMINO_INDEFINIDO',
+        fechaIngreso: new Date('2026-01-01'),
       });
+      mockContractsCreate.mockResolvedValue({ id: 'contrato-emp-001' });
       mockBatchDocumentGenerationStart.mockResolvedValue({
         loteId: LOTE_ID,
         total: 1,
@@ -233,6 +267,24 @@ describe('LoteEngineService', () => {
         objectContaining({
           where: objectContaining({ empleadoId: 'emp-002' }),
         }),
+      );
+      expect(mockContractsCreate).toHaveBeenCalledWith(
+        TENANT_ID,
+        USER_ID,
+        objectContaining({
+          cargo: 'Cargo confirmado',
+          salario: 3200000,
+          fechaInicio: '2026-02-01T00:00:00.000Z',
+          fechaFin: '2026-12-15T00:00:00.000Z',
+        }),
+        LOTE_ID,
+        {
+          perfilContractualId: PROFILE_ID,
+          historicalSnapshot: objectContaining({
+            empleado: confirmedPlan.empleadoSnapshot,
+            contrato: confirmedPlan.contratoSnapshot,
+          }),
+        },
       );
       expect(mockBatchDocumentGenerationStart).toHaveBeenCalledWith(LOTE_ID);
     });

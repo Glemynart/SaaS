@@ -23,6 +23,7 @@ const mockContratoCount = jest.fn();
 const mockContratoUpdate = jest.fn();
 const mockTenantFindUnique = jest.fn();
 const mockSedeFindFirst = jest.fn();
+const mockPerfilContractualFindFirst = jest.fn();
 const mockDocumentTemplateFindFirst = jest.fn();
 const mockDocumentTemplateFindMany = jest.fn();
 const mockGeneratedDocumentFindFirst = jest.fn();
@@ -40,6 +41,7 @@ const mockPrisma = {
   },
   tenant: { findUnique: mockTenantFindUnique },
   sede: { findFirst: mockSedeFindFirst },
+  perfilContractual: { findFirst: mockPerfilContractualFindFirst },
   documentTemplate: {
     findFirst: mockDocumentTemplateFindFirst,
     findMany: mockDocumentTemplateFindMany,
@@ -300,6 +302,101 @@ describe('ContractsService', () => {
 
       expect(snapshot.metadata.version).toBe(1);
       expect(snapshot.metadata.generatedAt).toBeDefined();
+    });
+
+    it('conserva el perfil y los snapshots confirmados de una campaña', async () => {
+      const historicalSnapshot = {
+        empleado: {
+          id: 'emp-001',
+          primerNombre: 'Nombre confirmado',
+          segundoNombre: null,
+          primerApellido: 'Apellido confirmado',
+          segundoApellido: null,
+          tipoDocumento: 'CC',
+          cedula: '111222333',
+          cargo: 'Cargo confirmado',
+          salario: '3200000',
+          tipoContrato: 'TERMINO_FIJO',
+          fechaIngreso: '2026-01-01T00:00:00.000Z',
+          sedeId: null,
+          sede: null,
+        },
+        contrato: {
+          cargo: 'Cargo confirmado',
+          salario: '3200000',
+          tipo: 'TERMINO_FIJO',
+          fechaInicio: '2026-02-01T00:00:00.000Z',
+          fechaFin: '2026-12-15T00:00:00.000Z',
+          sedeId: null,
+          sede: null,
+        },
+      };
+      mockEmpleadoFindFirst.mockResolvedValue(makeEmployee());
+      mockPerfilContractualFindFirst.mockResolvedValue({ id: 'profile-001' });
+      mockTenantFindUnique.mockResolvedValue(makeTenant());
+      mockContratoCreate.mockResolvedValue(makeContract());
+
+      await service.create(
+        TENANT_ID,
+        USER_ID,
+        makeCreateDto({ cargo: 'Cargo actual', salario: 9999999 }),
+        'lote-001',
+        {
+          perfilContractualId: 'profile-001',
+          historicalSnapshot,
+        },
+      );
+
+      const createCalls = mockContratoCreate.mock.calls as unknown as Array<
+        unknown[]
+      >;
+      const createCall = createCalls[0]?.[0] as {
+        data: Record<string, unknown> & {
+          variablesSnapshot: ContractVariablesSnapshot;
+        };
+      };
+      expect(createCall.data).toEqual(
+        expect.objectContaining({
+          perfilContractualId: 'profile-001',
+          cargo: 'Cargo confirmado',
+          salario: 3200000,
+          fechaInicio: new Date('2026-02-01T00:00:00.000Z'),
+          fechaFin: new Date('2026-12-15T00:00:00.000Z'),
+        }),
+      );
+      expect(createCall.data.variablesSnapshot.empleado).toEqual(
+        expect.objectContaining({
+          nombreCompleto: 'Nombre confirmado Apellido confirmado',
+          cedula: '111222333',
+        }),
+      );
+      expect(createCall.data.variablesSnapshot.contrato).toEqual(
+        expect.objectContaining({
+          cargo: 'Cargo confirmado',
+          salario: '3200000',
+        }),
+      );
+      expect(mockPerfilContractualFindFirst).toHaveBeenCalledWith({
+        where: { id: 'profile-001', tenantId: TENANT_ID },
+        select: { id: true },
+      });
+    });
+
+    it('rechaza un perfil contractual de otro tenant', async () => {
+      mockEmpleadoFindFirst.mockResolvedValue(makeEmployee());
+      mockPerfilContractualFindFirst.mockResolvedValue(null);
+
+      await expect(
+        service.create(TENANT_ID, USER_ID, makeCreateDto(), undefined, {
+          perfilContractualId: 'profile-other-tenant',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(mockPerfilContractualFindFirst).toHaveBeenCalledWith({
+        where: { id: 'profile-other-tenant', tenantId: TENANT_ID },
+        select: { id: true },
+      });
+      expect(mockContratoCreate).not.toHaveBeenCalled();
     });
 
     it('sede es null cuando no se asocia sede', async () => {
