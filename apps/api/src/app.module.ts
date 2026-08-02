@@ -26,6 +26,7 @@ import { StorageModule } from './storage/storage.module';
 import { PdfRenderModule } from './pdf-render/pdf-render.module';
 import { AccountingModule } from './accounting/accounting.module';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { TenantContextModule } from './tenant-context/tenant-context.module';
 import { TenantPrismaModule } from './tenant-prisma/tenant-prisma.module';
 import { ContractualProfilesModule } from './contractual-profiles/contractual-profiles.module';
@@ -106,6 +107,7 @@ const FORGOT_PASSWORD_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
         limit: process.env.NODE_ENV === 'test' ? 50 : 5,
       },
     ]),
+    ScheduleModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [AppService],
