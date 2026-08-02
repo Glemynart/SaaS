@@ -27,7 +27,7 @@ const faqs = [
   },
   {
     q: '¿Funciona para organizaciones con varias razones sociales o contratos con varios municipios?',
-    a: 'Sí. La funcionalidad multiempresa está incluida desde el inicio, sin costo adicional. Puede administrar varias organizaciones desde el mismo inicio de sesión. Cada una opera de forma completamente independiente: sus empleados, sus contratos, sus expedientes y su historial de auditoría son propios y no se mezclan con los de las otras organizaciones.',
+    a: 'Sí. Puede registrar cada organización de forma independiente y operar sus sedes, usuarios, contratos y expedientes dentro de su propio espacio. Cada acceso se identifica con el NIT, correo y contraseña de la organización; así los datos y el historial de auditoría nunca se mezclan con los de otra empresa.',
   },
   {
     q: '¿Cuándo estará disponible la facturación electrónica?',

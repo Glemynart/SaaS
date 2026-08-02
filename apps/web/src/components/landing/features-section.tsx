@@ -80,18 +80,17 @@ const features = [
     id: 'multiempresa',
     icon: Building2,
     badge: null,
-    title: 'Varias organizaciones, un solo lugar de trabajo.',
+    title: 'Cada organización, su espacio de trabajo seguro.',
     subtitle:
-      'Si administra contratos con varios municipios, opera bajo diferentes razones sociales o gestiona más de una entidad, cada organización funciona de manera completamente independiente.',
+      'Si administra contratos con varios municipios o sedes, la información de cada organización funciona de manera completamente independiente.',
     bullets: [
       'Aislamiento total de información entre organizaciones',
-      'Cambio de contexto entre empresas desde el mismo inicio de sesión',
-      'Logo y nombre propios por organización',
+      'Acceso con el NIT, correo y contraseña de cada organización',
+      'Sedes, logo y nombre propios por organización',
       'Registro de auditoría independiente por cada empresa',
-      'Usuarios con acceso diferenciado por organización',
+      'Usuarios y roles dentro de cada organización',
     ],
-    microcopy:
-      'Diseñado para uniones temporales, consorcios y operadores con múltiples contratos municipales.',
+    microcopy: 'Diseñado para operadores con múltiples sedes y contratos municipales.',
     visual: <MultiempresaVisual />,
   },
   {
@@ -353,20 +352,20 @@ function EmployeesVisual() {
 }
 
 function MultiempresaVisual() {
-  const orgs = [
-    { name: 'Operadora Los Andes SAS', nit: '901.234.567-8', active: true },
-    { name: 'Fundación Educativa Norte', nit: '800.112.233-4', active: false },
-    { name: 'Consorcio Educativo Sur', nit: '700.998.877-2', active: false },
+  const context = [
+    { name: 'Operadora Los Andes SAS', detail: 'NIT 901.234.567-8', tone: 'info' as const },
+    { name: 'Sede principal', detail: 'Bogotá · Activa', tone: 'success' as const },
+    { name: 'Sede norte', detail: 'Chía · Activa', tone: 'success' as const },
   ];
   return (
-    <ProductWindow title="Organizaciones activas">
-      {orgs.map((o, i) => (
-        <WindowRow key={o.name} last={i === orgs.length - 1}>
+    <ProductWindow title="Espacio de trabajo">
+      {context.map((item, i) => (
+        <WindowRow key={item.name} last={i === context.length - 1}>
           <div className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium text-foreground">{o.name}</span>
-            <span className="block font-mono text-2xs text-muted-foreground">{o.nit}</span>
+            <span className="block truncate text-sm font-medium text-foreground">{item.name}</span>
+            <span className="block font-mono text-2xs text-muted-foreground">{item.detail}</span>
           </div>
-          {o.active && <StateChip tone="info" label="Activa" />}
+          <StateChip tone={item.tone} label={i === 0 ? 'Actual' : 'Activa'} />
         </WindowRow>
       ))}
     </ProductWindow>
