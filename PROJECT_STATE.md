@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 activo; E4.3 en implementación; M1 bloqueado por infraestructura externa (2026-08-01)
+## Última actualización: GOAL-01 activo; E4.4 en implementación; M1 bloqueado por infraestructura externa (2026-08-02)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -95,7 +95,7 @@ Estado actual:
 
 Goal activo:
 
-- 🟡 GOAL-01 activo — M1 está BLOQUEADO POR INFRAESTRUCTURA EXTERNA: E1.1 fusionada como PR #78 y pendiente de validación reproducible; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real de R2/correo; E1.4 fusionada como PR #81 y verificada por CI/Browser E2E. M3 está completado con E3.1, E3.2, E3.3 y E3.4 fusionadas. E4.1 quedó entregada en PR #89 y E4.2 en PR #90, ambas con checks de CI y Browser E2E verdes. E4.3 está en implementación y no depende de staging, DNS, Cloudflare, R2 específico, correo ni una nueva decisión de dominio.
+- 🟡 GOAL-01 activo — M1 está BLOQUEADO POR INFRAESTRUCTURA EXTERNA: E1.1 fusionada como PR #78 y pendiente de validación reproducible; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real de R2/correo; E1.4 fusionada como PR #81 y verificada por CI/Browser E2E. M3 está completado con E3.1, E3.2, E3.3 y E3.4 fusionadas. E4.1 quedó entregada en PR #89, E4.2 en PR #90 y E4.3 en PR #92, todas con checks de CI y Browser E2E verdes. E4.4 está en implementación y no depende de staging, DNS, Cloudflare, R2 específico, correo ni una nueva decisión de dominio.
 
 - [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
@@ -118,12 +118,13 @@ Hitos recientes fusionados a `main`:
 - ✅ E3.4 — Feedback accionable para errores, bloqueos y reintentos — PR #88 fusionada y verificada por CI/Browser E2E post-merge.
 - ✅ E4.1 — Creación, preview y confirmación total/parcial desde frontend — PR #89 fusionada y verificada por CI/Browser E2E post-merge.
 - ✅ E4.2 — Procesamiento de planes confirmados y exclusiones — PR #90 fusionada y verificada por CI/Browser E2E.
-- 🟡 E4.3 — Perfil y snapshots confirmados preservados en contrato y documento — en implementación; no se adelanta E4.4.
+- ✅ E4.3 — Perfil y snapshots confirmados preservados en contrato y documento — PR #92 fusionada y verificada.
+- 🟡 E4.4 — PDF canónico vinculado al contrato y publicado en expediente — en implementación; no se adelanta E4.5.
 
-La investigación de `main` no encontró una URL de staging operativa, secretos de entorno configurados, dominio/DNS/certificados, recursos R2, configuración de correo transaccional real ni un workflow de despliegue disponible en el repositorio o en GitHub. La validación de E1.1/E1.3 requiere resolver esa dependencia operativa externa. Esto bloquea M1, no GOAL-01: el Goal permanece ACTIVO. E4.2 quedó fusionada por un camino independiente y E4.3 continúa por el mismo camino. El checklist operativo de M1 está en [`docs/goals/GOAL-01-M1-infrastructure-checklist.md`](docs/goals/GOAL-01-M1-infrastructure-checklist.md).
+La investigación de `main` no encontró una URL de staging operativa, secretos de entorno configurados, dominio/DNS/certificados, recursos R2, configuración de correo transaccional real ni un workflow de despliegue disponible en el repositorio o en GitHub. La validación de E1.1/E1.3 requiere resolver esa dependencia operativa externa. Esto bloquea M1, no GOAL-01: el Goal permanece ACTIVO. E4.2 y E4.3 quedaron fusionadas por un camino independiente y E4.4 continúa por el mismo camino. El checklist operativo de M1 está en [`docs/goals/GOAL-01-M1-infrastructure-checklist.md`](docs/goals/GOAL-01-M1-infrastructure-checklist.md).
 
 E4.2 quedó fusionada y verificada en `main` mediante PR #90. M3 está completado y
-M4 tiene E4.1 y E4.2 entregadas; E4.3 está en implementación y E4.4 no se adelanta. El
+M4 tiene E4.1, E4.2 y E4.3 entregadas; E4.4 está en implementación y E4.5 no se adelanta. El
 procesamiento usa planes ya confirmados desde PostgreSQL, respeta las exclusiones
 persistidas y usa la abstracción de storage existente. Su validación local no
 requiere staging ni un proveedor R2 concreto.
@@ -153,12 +154,12 @@ para empleados guardados como exclusiones. E4.2 corrige únicamente esas dos
 rupturas: usa los planes `CONFIRMADO`/`CONSUMIDO` como objetivos efectivos y deja
 fuera las exclusiones; el flujo manual permanece sin cambios.
 
-E4.3 es el siguiente nodo desbloqueado. La resolución ya persiste el perfil,
-el empleado y el contrato confirmados en el plan, pero E4.2 todavía creaba el
-contrato con datos laborales vivos y generaba el documento desde el empleado
-actual. La implementación en curso conserva el perfil y los snapshots en el
-contrato y usa los snapshots confirmados para el contenido documental. No añade
-migraciones, no cambia ADR-004 y no adelanta el vínculo PDF-contrato de E4.4.
+E4.3 quedó fusionada en PR #92. E4.4 es el siguiente nodo desbloqueado. La
+resolución conserva el perfil, el empleado y el contrato confirmados en el plan,
+y el procesamiento usa esos snapshots al crear el contrato y componer el
+contenido documental. E4.4 completa el vínculo PDF-contrato y la publicación
+idempotente en el expediente. No añade migraciones, no cambia ADR-004 y no
+adelanta E4.5.
 
 ## <a name="landing-saas"></a>Landing SaaS
 
