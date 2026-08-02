@@ -31,7 +31,10 @@ type ApiEnvelope = { message?: string };
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
+    headers: {
+      ...(init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+      ...init?.headers,
+    },
   });
   const body = (await response.json().catch(() => ({}))) as ApiEnvelope;
   if (!response.ok) throw new Error(body.message ?? 'No se pudo completar la solicitud.');
@@ -41,6 +44,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const expedienteDocsApi = {
   getByEmployee: async (employeeId: string) => {
     return request<ExpedienteDocsResponse>(`/api/employees/${employeeId}/expediente`);
+  },
+
+  uploadManual: async (employeeId: string, file: File, categoria: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('categoria', categoria);
+    return request<ExpedienteDoc>(`/api/employees/${employeeId}/expediente`, {
+      method: 'POST',
+      body: formData,
+    });
   },
 
   delete: async (id: string) => {

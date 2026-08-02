@@ -21,7 +21,7 @@ describe('AuthorizationSurfaceClassifier', () => {
   it('classifies the complete current HTTP surface without ambiguity', () => {
     const operations = classifier.classifyModuleGraph(AppModule);
 
-    expect(operations).toHaveLength(161);
+    expect(operations).toHaveLength(162);
     expect(new Set(operations.map(({ operationId }) => operationId)).size).toBe(
       operations.length,
     );
@@ -35,11 +35,11 @@ describe('AuthorizationSurfaceClassifier', () => {
     expect(countBy(operations, 'policy')).toEqual({
       [AuthorizationPolicyKind.UNAUTHENTICATED]: 10,
       [AuthorizationPolicyKind.AUTHENTICATED]: 60,
-      [AuthorizationPolicyKind.RBAC]: 91,
+      [AuthorizationPolicyKind.RBAC]: 92,
     });
     expect(countBy(operations, 'source')).toEqual({
       [AuthorizationClassificationSource.EXPLICIT]: 70,
-      [AuthorizationClassificationSource.EXISTING_RBAC]: 91,
+      [AuthorizationClassificationSource.EXISTING_RBAC]: 92,
     });
     expect(
       operations.filter(
@@ -47,6 +47,21 @@ describe('AuthorizationSurfaceClassifier', () => {
           source === AuthorizationClassificationSource.LEGACY_INFERRED,
       ),
     ).toEqual([]);
+
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'ExpedienteDocsController.uploadManual',
+      ),
+    ).toMatchObject({
+      requestMethod: 'POST',
+      operationPath: 'employees/:id/expediente',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN, UserRole.OPERADOR],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
   });
 
   it('detects a declaration that contradicts the effective legacy policy', () => {

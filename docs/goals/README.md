@@ -18,9 +18,9 @@ Producto
 
 ## Goal activo
 
-| Goal                                                                    | Estado | Resultado                                                                      |
-| ----------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------- |
-| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md) | ACTIVO | E4.6 está en implementación; E4.4 fusionada; M1 sigue BLOQUEADO POR INFRAESTRUCTURA EXTERNA. |
+| Goal                                                                    | Estado | Resultado                                                                                            |
+| ----------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------- |
+| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md) | ACTIVO | E5.1 está en implementación; E4.4 y E4.6 fusionadas; M1 sigue BLOQUEADO POR INFRAESTRUCTURA EXTERNA. |
 
 Solo puede existir un Goal activo. Los posibles resultados futuros permanecen sin numerar en el Backlog hasta ser priorizados.
 

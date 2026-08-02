@@ -4,6 +4,7 @@ import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { ExpedienteDocsService } from './expediente-docs.service';
 
 describe('ExpedienteDocsService.publishGeneratedDocument', () => {
@@ -93,6 +94,10 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
           useValue: { execute: mockTenantPrismaExecute },
         },
         { provide: AuditService, useValue: { log: mockAuditLog } },
+        {
+          provide: StorageService,
+          useValue: { putObject: jest.fn(), deleteObject: jest.fn() },
+        },
       ],
     }).compile();
 
