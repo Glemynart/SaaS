@@ -24,6 +24,9 @@ E6.3 fue fusionada en el PR #108: el scheduler registra ejecuciones, recupera
 fallos, permite reintentos operativos y deja visibles los resultados y la
 auditoría para la operación. Sus checks post-merge de CI y Browser E2E están
 verdes; M6 queda completado.
+E2.4 fue fusionada en el PR #110: las sedes y la identidad corporativa se
+prueban desde la UI dentro del tenant autenticado, y la promesa pública describe
+el aislamiento por organización sin prometer cambio de contexto entre empresas.
 
 **Pausa selectiva:** GOAL-01 permanece `ACTIVO` y M1 continúa `BLOQUEADO POR
 INFRAESTRUCTURA EXTERNA`. Las Epics que requieran dominio, DNS, Cloudflare, R2,
@@ -54,9 +57,9 @@ Este Goal solo puede redefinirse si cambia la estrategia del producto. Nuevas id
 
 ### Rupturas comprobadas
 
-- no existe todavía gestión operativa de usuarios ni invitaciones; son caminos distintos:
-  la gestión directa no requiere correo y las invitaciones sí;
-- la UI no puede crear, resolver ni confirmar campañas inteligentes;
+- E2.1 ya entrega la gestión directa de usuarios; E2.2 y E2.3 siguen pendientes
+  porque las invitaciones y la recuperación requieren correo real;
+- E4.1 ya permite crear, resolver y confirmar campañas inteligentes desde la UI;
 - E4.2 ya procesa planes confirmados; E4.3, E4.4, E4.6 y E5.1 están fusionadas;
 - la generación basada en planes no completa todavía todos los casos de contrato, snapshots y expediente;
 - la generación documental del contrato individual no está expuesta desde su UI;
@@ -65,7 +68,8 @@ Este Goal solo puede redefinirse si cambia la estrategia del producto. Nuevas id
 - E6.1 ya genera diariamente alertas de vencimientos y documentos faltantes; E6.2
   ya permite ampliar la bandeja y resolver alertas con trazabilidad; E6.3 ya hace
   visibles fallos, reintentos y auditoría operativa;
-- no hay suite browser end-to-end para el recorrido comercial;
+- existen smoke tests browser para recorridos funcionales, pero todavía no una
+  única suite que pruebe el recorrido comercial completo en producción;
 - no existe deployment productivo reproducible ni evidencia de Go Live;
 - el formulario público de demo simula el envío sin persistir ni notificar el lead;
 - la base local auditada estaba doce migraciones detrás de `main`.
@@ -121,6 +125,7 @@ Estas exclusiones son limitaciones temporales del roadmap. No se numerarán como
 | E5.4 — Auditoría e integración consistente del expediente                        | Trabajo entregado        | CERRADO        | PR #104 fusionada; checks post-merge verdes.                 |
 | E6.1 — Scheduler de vencimientos y documentos faltantes                          | Trabajo entregado        | CERRADO        | PR #105 fusionada; checks post-merge verdes.                 |
 | E6.2 — Dashboard accionable y resolución trazable                                | Trabajo entregado        | CERRADO        | PR #106 fusionada; checks post-merge verdes.                 |
+| E2.4 — Sedes, identidad y promesa multiempresa coherente con el producto real    | Trabajo entregado        | CERRADO        | PR #110 fusionada; CI y Browser E2E post-merge verdes.       |
 | Superficie comercial de contabilidad                                             | Decisión de producto     | FUERA DEL GOAL | Resolver antes de priorizar un Goal futuro.                  |
 | Infraestructura productiva                                                       | Dependencia técnica      | ABIERTO        | Resolver en M1.                                              |
 
@@ -164,7 +169,8 @@ staging, R2, correo ni una decisión de dominio pendiente.
       fusionada y verificada por CI/Browser E2E).
 - [ ] E2.2 — Invitaciones y alta por correo (depende de correo real).
 - [ ] E2.3 — Recuperación de acceso real por correo (depende de correo real).
-- [ ] E2.4 — Sedes, identidad y promesa multiempresa coherente con el producto real.
+- [x] E2.4 — Sedes, identidad y promesa multiempresa coherente con el producto real (PR #110
+      fusionada; checks post-merge de CI/Browser E2E verdes).
 
 E2.1 no envía correo: un ADMIN crea y administra directamente las cuentas con
 credenciales entregadas por el canal operativo acordado. E2.2 queda separado
@@ -188,12 +194,12 @@ sin requerir staging, R2, correo ni una nueva decisión de dominio.
       reintentos de dependencias y enlaces a prerrequisitos existentes; PR #88 fusionada
       y verificada por CI/Browser E2E post-merge).
 
-### Estado post-merge — E6.3 fusionada; M6 completado
+### Estado post-merge — E2.4 y E6.3 fusionadas; M2 parcial; M6 completado
 
 Tras fusionar E4.3 en PR #92, E4.4 en PR #93, E4.6 en PR #94, E5.1 en PR #95,
 E2.1 en PR #96, E4.5 en PR #97, E4.7 en PR #99, ADR-006 en PR #101, E5.2 en
 PR #102, E5.3 en PR #103, E5.4 en PR #104, E6.1 en PR #105, E6.2 en PR #106,
-ADR-007 en PR #107 y E6.3 en PR #108, `main` contiene
+ADR-007 en PR #107, E6.3 en PR #108 y E2.4 en PR #110, `main` contiene
 esas capacidades con checks post-merge verdes.
 La revisión del estado real del repositorio confirma que no existe evidencia
 operativa suficiente para cerrar M1, pero también confirma que E4.5 no depende de
@@ -223,6 +229,9 @@ alertas de contratos por vencer y empleados sin contrato dentro de una
 transacción con lock advisory, sin introducir correo, R2 ni staging. M5 queda
 completado y M6 queda completado con E6.2 y E6.3 fusionadas. ADR-007 fue
 aprobado en PR #107 y gobierna la operación del scheduler implementada en E6.3.
+E2.4 quedó fusionada en PR #110: la UI y el API permiten operar sedes e identidad
+corporativa dentro del tenant autenticado, y la landing ya no promete cambiar de
+organización desde una misma sesión.
 
 ### M4 — Contratación Inteligente End-to-End
 
@@ -319,6 +328,7 @@ externa estén listos.
 | #105    | E6.1  | Scheduler diario de vencimientos y documentos faltantes.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
 | #106    | E6.2  | Dashboard accionable y resolución trazable.                               | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
 | #108    | E6.3  | Fallos, reintentos y auditoría visibles para operación.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
+| #110    | E2.4  | Sedes, identidad y promesa multiempresa coherente con el producto real.   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
 | #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.
@@ -333,7 +343,7 @@ Motivo: existen slices funcionales importantes, pero permanecen abiertas las
 invitaciones de usuarios, el deployment y la aceptación productiva.
 
 Las PR #78, #79, #80, #81, #83, #84, #85, #86, #88, #89, #90, #92, #93, #94,
-#95, #96, #97, #99, #101, #102, #103, #104, #105, #106, #107 y #108 fueron fusionadas. #78 entregó el empaquetado de E1.1,
+#95, #96, #97, #99, #101, #102, #103, #104, #105, #106, #107, #108 y #110 fueron fusionadas. #78 entregó el empaquetado de E1.1,
 pero E1.1 aún requiere verificación de staging. #79 entregó y verificó E1.2
 con migraciones, seed idempotente y rol runtime no privilegiado. #80 entregó las
 comprobaciones de R2, correo real y readiness; su cierre requiere verificación
@@ -364,19 +374,19 @@ E2.1 quedó fusionada en PR #96; las invitaciones permanecen separadas por su
 dependencia de correo real. E4.5 quedó fusionada en PR #97 con checks
 post-merge verdes. E4.7 quedó fusionada en PR #99 con checks post-merge verdes.
 E5.2 quedó fusionada en PR #102, E5.3 en PR #103, E5.4 en PR #104, E6.1 en
-PR #105, E6.2 en PR #106 y E6.3 en PR #108; tienen checks post-merge de CI/Browser E2E verdes. E5.3 bloquea la eliminación
+PR #105, E6.2 en PR #106 y E6.3 en PR #108; E2.4 quedó fusionada en PR #110. Todas tienen checks post-merge de CI/Browser E2E verdes. E5.3 bloquea la eliminación
 de documentos publicados, incluidos los manuales, y exige ADMIN/OPERADOR para
 lectura, detalle, historial, descarga y carga; VIEWER sigue diferido conforme a
 ADR-SEC-002. E5.4 audita las descargas directas del expediente, M5 queda
 completado y E6.1 automatiza la generación diaria de alertas sin dependencia de
 infraestructura externa.
 
-> La determinación vigente, actualizada después de E6.3, queda documentada en
-> la sección post-merge: E2.1, E4.3, E4.4, E4.5, E4.6, E5.1, E5.2, E5.3, E5.4
+> La determinación vigente, actualizada después de E2.4 y E6.3, queda documentada en
+> la sección post-merge: E2.1, E2.4, E4.3, E4.4, E4.5, E4.6, E5.1, E5.2, E5.3, E5.4
 > y E6.1/E6.2/E6.3 están fusionadas en PR #96, #92, #93, #97, #94, #95, #102,
-> #103, #104, #105, #106, #108 y ADR-007 en PR #107.
+> #103, #104, #105, #106, #108, #110 y ADR-007 en PR #107.
 > GOAL-01 permanece `ACTIVO`; M1 sigue `BLOQUEADO POR INFRAESTRUCTURA EXTERNA` y
 > E4.7 quedó fusionada en PR #99. La semántica de versionado e inmutabilidad fue
 > aprobada en ADR-006 y ya gobierna E5.2/E5.3/E5.4. ADR-007 fue aprobado y ya
-> gobierna E6.3. M5 y M6 quedan completados; M7 queda reservado para el cierre final de
+> gobierna E6.3. E2.4 quedó cerrada; M5 y M6 quedan completados; M7 queda reservado para el cierre final de
 > despliegue y Go Live.
