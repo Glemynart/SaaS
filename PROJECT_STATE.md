@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 activo; E5.3 fusionada y verificada; M1 bloqueado por infraestructura externa (2026-08-02)
+## Última actualización: GOAL-01 activo; E5.4 fusionada y verificada; M1 bloqueado por infraestructura externa (2026-08-02)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -89,7 +89,7 @@ Servicios:
 
 # <a name="estado-general-del-proyecto"></a>Estado General del Proyecto
 
-## Estado de E5.2 y E5.3
+## Estado de E5.2, E5.3 y E5.4
 
 E5.2 fue fusionada en el PR #102, con familias documentales explícitas,
 revisiones append-only, consulta tenant-scoped, descarga autenticada e
@@ -99,7 +99,11 @@ E5.3 fue fusionada en el PR #103. Las publicaciones del expediente son
 append-only: no se pueden eliminar documentos generados ni manuales; las rutas
 de lectura, detalle e historial exigen `ADMIN`/`OPERADOR`, y la UI ya no ofrece
 una acción destructiva. Sus checks post-merge de CI y Browser E2E están verdes.
-E5.4 sigue pendiente y no forma parte de estos cambios.
+E5.4 fue fusionada en el PR #104. Las descargas directas desde el expediente
+registran el actor, tenant, familia, versión, categoría y origen documental
+después de leer exitosamente el objeto. La integración de contratos y
+certificaciones continúa usando la publicación documental común y sus eventos
+de auditoría. Sus checks post-merge de CI y Browser E2E están verdes.
 
 Estado actual:
 
@@ -107,11 +111,11 @@ Estado actual:
 
 Goal activo:
 
-- 🟡 GOAL-01 activo — M1 está BLOQUEADO POR INFRAESTRUCTURA EXTERNA: E1.1 fusionada como PR #78 y pendiente de validación reproducible; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real de R2/correo; E1.4 fusionada como PR #81 y verificada por CI/Browser E2E. M3 está completado con E3.1, E3.2, E3.3 y E3.4 fusionadas. E4.1 quedó entregada en PR #89, E4.2 en PR #90 y E4.3 en PR #92, todas con checks de CI y Browser E2E verdes. E4.4 quedó fusionada en PR #93, E4.6 en PR #94, E5.1 en PR #95, E2.1 en PR #96, E4.5 en PR #97 y E4.7 en PR #99, todas con checks post-merge verdes. E5.2 quedó fusionada en PR #102 y E5.3 en PR #103, también con checks post-merge verdes. Las invitaciones quedan separadas por su dependencia de correo real.
+- 🟡 GOAL-01 activo — M1 está BLOQUEADO POR INFRAESTRUCTURA EXTERNA: E1.1 fusionada como PR #78 y pendiente de validación reproducible; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real de R2/correo; E1.4 fusionada como PR #81 y verificada por CI/Browser E2E. M3 está completado con E3.1, E3.2, E3.3 y E3.4 fusionadas. E4.1 quedó entregada en PR #89, E4.2 en PR #90 y E4.3 en PR #92, todas con checks de CI y Browser E2E verdes. E4.4 quedó fusionada en PR #93, E4.6 en PR #94, E5.1 en PR #95, E2.1 en PR #96, E4.5 en PR #97 y E4.7 en PR #99, todas con checks post-merge verdes. E5.2 quedó fusionada en PR #102, E5.3 en PR #103 y E5.4 en PR #104, también con checks post-merge verdes. Las invitaciones quedan separadas por su dependencia de correo real.
 
 - [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
-La auditoría de código confirmó empleados, sedes, autenticación, documentos, certificaciones, seguridad y motores internos importantes. Permanecen abiertas las invitaciones de usuarios, la auditoría e integración completa del expediente, la contratación inteligente end-to-end, la automatización de alertas, el deployment reproducible y Go Live.
+La auditoría de código confirmó empleados, sedes, autenticación, documentos, certificaciones, seguridad y motores internos importantes. Permanecen abiertas las invitaciones de usuarios, la automatización de alertas, el deployment reproducible y Go Live.
 
 Hitos recientes fusionados a `main`:
 
@@ -136,12 +140,13 @@ Hitos recientes fusionados a `main`:
 - ✅ E4.6 — Contratación individual completa como flujo alternativo — PR #94 fusionada y verificada por CI/Browser E2E post-merge.
 - ✅ E5.1 — Subida manual y validación de archivos — PR #95 fusionada y verificada por CI/Browser E2E; independiente de M1.
 - ✅ E5.2 — Familias documentales, revisiones, consulta, descarga e historial — PR #102 fusionada y verificada por CI/Browser E2E.
-- ✅ E5.3 — Inmutabilidad de documentos publicados y permisos por rol — PR #103 fusionada y verificada por CI/Browser E2E; E5.4 permanece pendiente.
+- ✅ E5.3 — Inmutabilidad de documentos publicados y permisos por rol — PR #103 fusionada y verificada por CI/Browser E2E.
+- ✅ E5.4 — Auditoría de descargas e integración documental — PR #104 fusionada y verificada por CI/Browser E2E; M5 queda completado.
 - ✅ E2.1 — Gestión directa de usuarios — PR #96 fusionada y verificada por CI/Browser E2E; las invitaciones quedan separadas por su dependencia de correo real.
 - ✅ E4.5 — Reintentos selectivos, idempotencia y errores parciales — PR #97 fusionada y verificada por CI/Browser E2E; no dependía de staging, R2, DNS, correo ni una decisión nueva de dominio.
 - ✅ E4.7 — Prueba browser del caso exitoso, parcial y reintentado — PR #99 fusionada y verificada por CI/Browser E2E; no depende de M1.
 
-La investigación de `main` no encontró una URL de staging operativa, secretos de entorno configurados, dominio/DNS/certificados, recursos R2, configuración de correo transaccional real ni un workflow de despliegue disponible en el repositorio o en GitHub. La validación de E1.1/E1.3 requiere resolver esa dependencia operativa externa. Esto bloquea M1, no GOAL-01: el Goal permanece ACTIVO. E2.1, E4.2, E4.3, E4.4, E4.5, E4.6, E4.7 y E5.1 quedaron fusionadas por caminos independientes. El checklist operativo de M1 está en [`docs/goals/GOAL-01-M1-infrastructure-checklist.md`](docs/goals/GOAL-01-M1-infrastructure-checklist.md).
+La investigación de `main` no encontró una URL de staging operativa, secretos de entorno configurados, dominio/DNS/certificados, recursos R2, configuración de correo transaccional real ni un workflow de despliegue disponible en el repositorio o en GitHub. La validación de E1.1/E1.3 requiere resolver esa dependencia operativa externa. Esto bloquea M1, no GOAL-01: el Goal permanece ACTIVO. E2.1, E4.2, E4.3, E4.4, E4.5, E4.6, E4.7, E5.1, E5.2, E5.3 y E5.4 quedaron fusionadas por caminos independientes. El checklist operativo de M1 está en [`docs/goals/GOAL-01-M1-infrastructure-checklist.md`](docs/goals/GOAL-01-M1-infrastructure-checklist.md).
 
 E4.2 quedó fusionada y verificada en `main` mediante PR #90. M3 está completado y
 M4 tiene E4.1, E4.2, E4.3, E4.4, E4.5, E4.6 y E4.7 entregadas; E4.7 cerró la evidencia browser separada con PR #99.
@@ -153,11 +158,11 @@ requiere staging ni un proveedor R2 concreto.
 ## <a name="goal-01-current-decision"></a>GOAL-01 — Decisión de prioridad vigente
 
 Tras fusionar E4.3 en PR #92, E4.4 en PR #93, E5.1 en PR #95, E2.1 en PR #96,
-E4.5 en PR #97, E4.7 en PR #99, ADR-006 en PR #101, E5.2 en PR #102 y E5.3 en
-PR #103, la revisión del código y del grafo de dependencias mantiene M1
+E4.5 en PR #97, E4.7 en PR #99, ADR-006 en PR #101, E5.2 en PR #102, E5.3 en
+PR #103 y E5.4 en PR #104, la revisión del código y del grafo de dependencias mantiene M1
 `BLOQUEADO POR INFRAESTRUCTURA EXTERNA`, pero GOAL-01 permanece `ACTIVO`.
-E5.4 es el siguiente trabajo pendiente del expediente; no se implementa en este
-cambio.
+M5 queda completado con E5.1, E5.2, E5.3 y E5.4. No se adelanta trabajo de M6
+en este cambio.
 
 La revisión de dependencias de E4.2 concluyó:
 
@@ -180,8 +185,8 @@ E4.7 quedó fusionada en PR #99. La revisión del código confirma que su alcanc
 evidencia browser de los casos exitoso, parcial y reintentado sobre el flujo de
 lotes ya fusionado. No requirió dominio, DNS, Cloudflare, R2, OCI Email Delivery,
 variables de producción ni staging. La semántica de versionado e inmutabilidad
-quedó aprobada en ADR-006; E5.2 y E5.3 ya están fusionadas, y E5.4 permanece
-pendiente. M7 queda reservado para el cierre final de despliegue y Go Live.
+quedó aprobada en ADR-006; E5.2, E5.3 y E5.4 ya están fusionadas. M7 queda
+reservado para el cierre final de despliegue y Go Live.
 
 ## <a name="landing-saas"></a>Landing SaaS
 

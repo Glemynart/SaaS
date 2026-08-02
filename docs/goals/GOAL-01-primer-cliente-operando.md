@@ -10,10 +10,11 @@ La evidencia final será un primer cliente que complete y acepte el recorrido pr
 
 `ACTIVO`
 
-E5.2 fue fusionada en el PR #102 y E5.3 en el PR #103. Los checks post-merge
-de CI/Browser E2E de ambas están verdes. E5.3 dejó las revisiones publicadas
-append-only, protegió las lecturas del expediente con el RBAC operativo y retiró
-la acción destructiva de la UI. E5.4 sigue separada y pendiente.
+E5.2 fue fusionada en el PR #102, E5.3 en el PR #103 y E5.4 en el PR #104.
+Los checks post-merge de CI/Browser E2E de las tres están verdes. E5.3 dejó
+las revisiones publicadas append-only, protegió las lecturas del expediente con
+el RBAC operativo y retiró la acción destructiva de la UI. E5.4 añadió la
+auditoría de las descargas directas del expediente y dejó M5 completado.
 
 **Pausa selectiva:** GOAL-01 permanece `ACTIVO` y M1 continúa `BLOQUEADO POR
 INFRAESTRUCTURA EXTERNA`. Las Epics que requieran dominio, DNS, Cloudflare, R2,
@@ -51,7 +52,7 @@ Este Goal solo puede redefinirse si cambia la estrategia del producto. Nuevas id
 - la generación basada en planes no completa todavía todos los casos de contrato, snapshots y expediente;
 - la generación documental del contrato individual no está expuesta desde su UI;
 - el expediente ya permite carga manual, clasificación, descarga e historial/versionado;
-  permanece pendiente la auditoría e integración consistente de E5.4.
+  la auditoría e integración consistente del expediente quedaron entregadas en E5.4.
 - las alertas requieren generación manual y no tienen scheduler;
 - no hay suite browser end-to-end para el recorrido comercial;
 - no existe deployment productivo reproducible ni evidencia de Go Live;
@@ -105,6 +106,7 @@ Estas exclusiones son limitaciones temporales del roadmap. No se numerarán como
 | ADR-006 — Modelo de versionado e inmutabilidad del Expediente Digital | Decisión de dominio    | APROBADO       | Gobierna E5.2, E5.3 y E5.4.                                  |
 | E5.2 — Familias, revisiones, consulta e historial                     | Trabajo entregado      | CERRADO        | PR #102 fusionada y verificada.                              |
 | E5.3 — Inmutabilidad y permisos del expediente                        | Trabajo entregado      | CERRADO        | PR #103 fusionada; checks post-merge verdes.                 |
+| E5.4 — Auditoría e integración consistente del expediente             | Trabajo entregado      | CERRADO        | PR #104 fusionada; checks post-merge verdes.                 |
 | Superficie comercial de contabilidad                                  | Decisión de producto   | FUERA DEL GOAL | Resolver antes de priorizar un Goal futuro.                  |
 | Infraestructura productiva                                            | Dependencia técnica    | ABIERTO        | Resolver en M1.                                              |
 
@@ -172,12 +174,12 @@ sin requerir staging, R2, correo ni una nueva decisión de dominio.
       reintentos de dependencias y enlaces a prerrequisitos existentes; PR #88 fusionada
       y verificada por CI/Browser E2E post-merge).
 
-### Estado post-merge — E5.3 fusionada; E5.4 siguiente Epic pendiente
+### Estado post-merge — E5.4 fusionada; M5 completado
 
 Tras fusionar E4.3 en PR #92, E4.4 en PR #93, E4.6 en PR #94, E5.1 en PR #95,
 E2.1 en PR #96, E4.5 en PR #97, E4.7 en PR #99, ADR-006 en PR #101, E5.2 en
-PR #102 y E5.3 en PR #103, `main` contiene esas capacidades con checks
-post-merge verdes.
+PR #102, E5.3 en PR #103 y E5.4 en PR #104, `main` contiene esas capacidades
+con checks post-merge verdes.
 La revisión del estado real del repositorio confirma que no existe evidencia
 operativa suficiente para cerrar M1, pero también confirma que E4.5 no depende de
 ese entorno.
@@ -199,9 +201,10 @@ separadas en E2.2 por la dependencia de correo real. E4.5 quedó fusionada en PR
 #97 y E4.7 en PR #99, ambas con checks post-merge verdes. ADR-006 quedó aprobada
 en PR #101; E5.2 quedó implementada conforme a esa decisión en PR #102 y E5.3
 completó la inmutabilidad de las publicaciones y el RBAC operativo del expediente
-en PR #103. E5.4 permanece como el siguiente nodo del mismo Milestone porque
-añade auditoría e integración consistente con contratos y certificaciones sobre
-esas garantías; no se adelanta en este cambio.
+en PR #103. E5.4 quedó fusionada en PR #104 y añade la auditoría de descargas
+directas del expediente sobre la integración documental ya existente para
+contratos y certificaciones. M5 queda completado; no se adelanta M6 en este
+cambio.
 
 ### M4 — Contratación Inteligente End-to-End
 
@@ -225,7 +228,8 @@ esas garantías; no se adelanta en este cambio.
       (PR #102 fusionada; checks post-merge de CI/Browser E2E verdes).
 - [x] E5.3 — Inmutabilidad de documentos publicados y permisos por rol
       (PR #103 fusionada; checks post-merge de CI/Browser E2E verdes).
-- [ ] E5.4 — Auditoría e integración consistente con contratos y certificaciones.
+- [x] E5.4 — Auditoría e integración consistente con contratos y certificaciones
+      (PR #104 fusionada; checks post-merge de CI/Browser E2E verdes).
 
 ### M6 — Seguimiento Operativo
 
@@ -290,6 +294,7 @@ externa estén listos.
 | #99     | E4.7  | Prueba browser del caso exitoso, parcial y reintentado.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes; no depende de M1.  |
 | #102    | E5.2  | Familias documentales, revisiones, consulta, descarga e historial.        | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
 | #103    | E5.3  | Inmutabilidad de publicaciones y permisos por rol en expediente.          | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
+| #104    | E5.4  | Auditoría de descargas e integración documental consistente.              | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
 | #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.
@@ -300,12 +305,12 @@ Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente p
 
 **Estado de cierre:** `GOAL ACTIVO — NO COMPLETADO`
 
-Motivo: existen slices funcionales importantes, pero permanecen abiertas la gestión
-directa e invitación de usuarios, contratación inteligente end-to-end, expediente
-operativo, automatización de alertas, deployment y aceptación productiva.
+Motivo: existen slices funcionales importantes, pero permanecen abiertas las
+invitaciones de usuarios, la automatización de alertas, el deployment y la
+aceptación productiva.
 
 Las PR #78, #79, #80, #81, #83, #84, #85, #86, #88, #89, #90, #92, #93, #94,
-#95, #96, #97, #99, #101, #102 y #103 fueron fusionadas. #78 entregó el empaquetado de E1.1,
+#95, #96, #97, #99, #101, #102, #103 y #104 fueron fusionadas. #78 entregó el empaquetado de E1.1,
 pero E1.1 aún requiere verificación de staging. #79 entregó y verificó E1.2
 con migraciones, seed idempotente y rol runtime no privilegiado. #80 entregó las
 comprobaciones de R2, correo real y readiness; su cierre requiere verificación
@@ -335,17 +340,17 @@ en PR #93, E4.6 en PR #94 y E5.1 en PR #95, todas con checks post-merge verdes.
 E2.1 quedó fusionada en PR #96; las invitaciones permanecen separadas por su
 dependencia de correo real. E4.5 quedó fusionada en PR #97 con checks
 post-merge verdes. E4.7 quedó fusionada en PR #99 con checks post-merge verdes.
-E5.2 quedó fusionada en PR #102 y E5.3 en PR #103; ambas tienen checks
-post-merge de CI/Browser E2E verdes. E5.3 bloquea la eliminación de documentos
-publicados, incluidos los manuales, y exige ADMIN/OPERADOR para lectura, detalle,
-historial, descarga y carga; VIEWER sigue diferido conforme a ADR-SEC-002. E5.4
-queda pendiente y no se adelanta.
+E5.2 quedó fusionada en PR #102, E5.3 en PR #103 y E5.4 en PR #104; las tres
+tienen checks post-merge de CI/Browser E2E verdes. E5.3 bloquea la eliminación
+de documentos publicados, incluidos los manuales, y exige ADMIN/OPERADOR para
+lectura, detalle, historial, descarga y carga; VIEWER sigue diferido conforme a
+ADR-SEC-002. E5.4 audita las descargas directas del expediente y M5 queda
+completado.
 
-> La determinación vigente, actualizada después de E5.3, queda documentada en
+> La determinación vigente, actualizada después de E5.4, queda documentada en
 > la sección post-merge: E2.1, E4.3, E4.4, E4.5, E4.6, E5.1, E5.2 y E5.3 están
-> fusionadas en PR #96, #92, #93, #97, #94, #95, #102 y #103.
+> fusionadas en PR #96, #92, #93, #97, #94, #95, #102, #103 y #104.
 > GOAL-01 permanece `ACTIVO`; M1 sigue `BLOQUEADO POR INFRAESTRUCTURA EXTERNA` y
 > E4.7 quedó fusionada en PR #99. La semántica de versionado e inmutabilidad fue
-> aprobada en ADR-006 y ya gobierna E5.2/E5.3; E5.4 es el siguiente trabajo
-> pendiente del expediente. M7 queda reservado para el cierre final de despliegue
-> y Go Live.
+> aprobada en ADR-006 y ya gobierna E5.2/E5.3/E5.4. M5 queda completado y M7
+> reservado para el cierre final de despliegue y Go Live.
