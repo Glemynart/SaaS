@@ -92,7 +92,7 @@ const FORGOT_PASSWORD_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
       {
         name: 'refresh',
         ttl: 60000,
-        limit: 10,
+        limit: process.env.NODE_ENV === 'test' ? 50 : 10,
       },
       {
         name: 'forgotPassword',

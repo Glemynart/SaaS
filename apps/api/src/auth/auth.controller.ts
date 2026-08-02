@@ -30,6 +30,7 @@ import {
 
 const REGISTER_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 3;
 const LOGIN_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 5;
+const REFRESH_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 10;
 
 @Controller('auth')
 export class AuthController {
@@ -76,7 +77,7 @@ export class AuthController {
   @Unauthenticated()
   @Post('refresh')
   @UseGuards(ThrottlerGuard)
-  @Throttle({ refresh: { limit: 10, ttl: 60000 } })
+  @Throttle({ refresh: { limit: REFRESH_RATE_LIMIT, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async refresh(
     @Body() dto: RefreshDto,

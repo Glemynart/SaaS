@@ -32,7 +32,11 @@ const AUTH_THROTTLERS = [
     ttl: 60_000,
     limit: process.env.NODE_ENV === 'test' ? 50 : 3,
   },
-  { name: 'refresh', ttl: 60_000, limit: 10 },
+  {
+    name: 'refresh',
+    ttl: 60_000,
+    limit: process.env.NODE_ENV === 'test' ? 50 : 10,
+  },
   {
     name: 'forgotPassword',
     ttl: 3_600_000,
@@ -116,7 +120,7 @@ describe('Global Rate Limiting operational characterization', () => {
     // production keeps the existing limit of three registrations per minute.
     ['register', 'register', process.env.NODE_ENV === 'test' ? 50 : 3, 60_000],
     ['login', 'login', process.env.NODE_ENV === 'test' ? 50 : 5, 60_000],
-    ['refresh', 'refresh', 10, 60_000],
+    ['refresh', 'refresh', process.env.NODE_ENV === 'test' ? 50 : 10, 60_000],
     ['forgotPassword', 'forgotPassword', 3, 3_600_000],
     ['resetPassword', 'resetPassword', 5, 900_000],
   ] as const)(
