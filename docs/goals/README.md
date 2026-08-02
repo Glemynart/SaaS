@@ -18,15 +18,15 @@ Producto
 
 ## Goal activo
 
-| Goal                                                                    | Estado | Resultado                                                                      |
-| ----------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------ |
-| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md) | ACTIVO | E5.4 fusionada; M5 completado; M1 sigue BLOQUEADO POR INFRAESTRUCTURA EXTERNA. |
+| Goal                                                                    | Estado | Resultado                                                                       |
+| ----------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------- |
+| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md) | ACTIVO | E6.1 fusionada; M6 en progreso; M1 sigue BLOQUEADO POR INFRAESTRUCTURA EXTERNA. |
 
 Solo puede existir un Goal activo. Los posibles resultados futuros permanecen sin numerar en el Backlog hasta ser priorizados.
 
 Estado de implementación vigente: E5.2 fue fusionada en el PR #102, E5.3 en el
-PR #103 y E5.4 en el PR #104; sus checks post-merge de CI y Browser E2E están
-verdes. M1 sigue
+PR #103, E5.4 en el PR #104 y E6.1 en el PR #105; sus checks post-merge de CI y
+Browser E2E están verdes. M1 sigue
 BLOQUEADO POR INFRAESTRUCTURA EXTERNA; GOAL-01 permanece ACTIVO.
 
 ## Regla de redefinición
