@@ -15,7 +15,7 @@ const mockLoteUpdateMany = jest.fn();
 const mockContratoFindFirst = jest.fn();
 const mockContratoFindMany = jest.fn();
 const mockEmpleadoFindFirst = jest.fn();
-const mockBatchPlanCount = jest.fn();
+const mockBatchPlanFindMany = jest.fn();
 const mockPrisma = {
   loteContrato: {
     findUnique: mockLoteFindUnique,
@@ -27,7 +27,7 @@ const mockPrisma = {
     findMany: mockContratoFindMany,
   },
   empleado: { findFirst: mockEmpleadoFindFirst },
-  batchDocumentGenerationPlan: { count: mockBatchPlanCount },
+  batchDocumentGenerationPlan: { findMany: mockBatchPlanFindMany },
 };
 const mockTenantPrisma = {
   execute: jest.fn((work: (client: typeof mockPrisma) => unknown) =>
@@ -99,7 +99,7 @@ describe('LoteEngineService', () => {
     jest.clearAllMocks();
     mockLoteUpdate.mockImplementation(({ data }) => Promise.resolve(data));
     mockLoteUpdateMany.mockResolvedValue({ count: 1 });
-    mockBatchPlanCount.mockResolvedValue(0);
+    mockBatchPlanFindMany.mockResolvedValue([]);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -186,7 +186,7 @@ describe('LoteEngineService', () => {
   describe('procesarLote', () => {
     it('no procesa una campaña inteligente sin confirmación', async () => {
       mockLoteFindUnique.mockResolvedValue(
-        makeLote({ documentTemplateId: null }),
+        makeLote({ documentTemplateId: null, proposito: 'CONTRATACION' }),
       );
 
       await expect(service.procesarLote(LOTE_ID)).rejects.toBeInstanceOf(
@@ -195,8 +195,50 @@ describe('LoteEngineService', () => {
       expect(mockLoteUpdateMany).not.toHaveBeenCalled();
     });
 
+    it('procesa sólo empleados con planes confirmados y omite las exclusiones', async () => {
+      mockLoteFindUnique.mockResolvedValue(
+        makeLote({
+          documentTemplateId: null,
+          proposito: 'CONTRATACION',
+          configuracion: { empleadoIds: ['emp-001', 'emp-002'] },
+        }),
+      );
+      mockBatchPlanFindMany.mockResolvedValue([{ empleadoId: 'emp-001' }]);
+      mockContratoFindFirst.mockResolvedValue({
+        id: 'contrato-emp-001',
+        empleadoId: 'emp-001',
+      });
+      mockBatchDocumentGenerationStart.mockResolvedValue({
+        loteId: LOTE_ID,
+        total: 1,
+        documents: [],
+      });
+
+      await service.procesarLote(LOTE_ID);
+
+      expect(mockLoteUpdateMany).toHaveBeenCalledWith(
+        objectContaining({
+          data: objectContaining({ total: 1 }),
+        }),
+      );
+      expect(mockContratoFindFirst).toHaveBeenCalledWith({
+        where: {
+          tenantId: TENANT_ID,
+          loteId: LOTE_ID,
+          empleadoId: 'emp-001',
+        },
+        select: { id: true, empleadoId: true },
+      });
+      expect(mockContratoFindFirst).not.toHaveBeenCalledWith(
+        objectContaining({
+          where: objectContaining({ empleadoId: 'emp-002' }),
+        }),
+      );
+      expect(mockBatchDocumentGenerationStart).toHaveBeenCalledWith(LOTE_ID);
+    });
+
     it('delegates once to the confirmed-plan generation flow after contracts are ensured', async () => {
-      mockBatchPlanCount.mockResolvedValue(1);
+      mockBatchPlanFindMany.mockResolvedValue([{ empleadoId: 'emp-001' }]);
       mockLoteFindUnique.mockResolvedValue(makeLote());
       mockContratoFindFirst.mockResolvedValue({
         id: 'contrato-emp-001',
@@ -219,7 +261,7 @@ describe('LoteEngineService', () => {
     });
 
     it('deja el lote reintentable si falla la generación documental basada en planes', async () => {
-      mockBatchPlanCount.mockResolvedValue(1);
+      mockBatchPlanFindMany.mockResolvedValue([{ empleadoId: 'emp-001' }]);
       mockLoteFindUnique.mockResolvedValue(makeLote());
       mockContratoFindFirst.mockResolvedValue({
         id: 'contrato-emp-001',

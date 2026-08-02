@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 E4.1 en implementación; M1 bloqueado por staging (2026-08-01)
+## Última actualización: GOAL-01 activo; E4.2 en implementación; M1 bloqueado por infraestructura externa (2026-08-01)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -95,7 +95,7 @@ Estado actual:
 
 Goal activo:
 
-- 🟡 GOAL-01 activo — M1 está BLOQUEADO por la dependencia externa de staging: E1.1 fusionada como PR #78 y pendiente de validación reproducible; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real de R2/correo; E1.4 fusionada como PR #81 y verificada por CI/Browser E2E. M3 está completado con E3.1, E3.2, E3.3 y E3.4 fusionadas. E3.4 quedó entregada en PR #88 con checks de CI y Browser E2E post-merge verdes; E4.1 es la Epic actual de M4.
+- 🟡 GOAL-01 activo — M1 está BLOQUEADO POR INFRAESTRUCTURA EXTERNA: E1.1 fusionada como PR #78 y pendiente de validación reproducible; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real de R2/correo; E1.4 fusionada como PR #81 y verificada por CI/Browser E2E. M3 está completado con E3.1, E3.2, E3.3 y E3.4 fusionadas. E4.1 quedó entregada en PR #89 con checks de CI y Browser E2E post-merge verdes. E4.2 es la Epic activa porque su procesamiento backend no depende de staging, DNS, Cloudflare, R2 específico, correo ni una nueva decisión de dominio.
 
 - [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
@@ -108,7 +108,7 @@ Hitos recientes fusionados a `main`:
 - ✅ Accounting v1.
 - ✅ Fase 6C — Contratos Documentales — PR #65.
 - ✅ Fase 7 — Certificaciones Laborales — PR #67.
-- 🟡 Contratación Inteligente PR11.1/PR11.2 — PR #76; procesamiento PR11.3 y UI pendientes.
+- 🟡 Contratación Inteligente PR11.1/PR11.2 — PR #76; E4.2/PR11.3 en implementación.
 - ✅ E1.2 — Migraciones, seed y rol PostgreSQL runtime no privilegiado — PR #79.
 - 🟡 E1.3 — R2, correo real y health/readiness checks — PR #80 fusionada; validación real de staging pendiente.
 - ✅ E1.4 — CI, observabilidad y base de pruebas browser end-to-end — PR #81 fusionada, checks verdes y auditoría `APROBADO PARA MERGE`; M1 sigue pendiente de la evidencia operativa de E1.1/E1.3.
@@ -116,24 +116,39 @@ Hitos recientes fusionados a `main`:
 - ✅ E3.2 — Perfiles contractuales y vínculos laborales precontractuales — PR #84 fusionada y verificada por CI/Browser E2E; usa las bases backend existentes y no depende de staging, R2, correo ni E3.3.
 - ✅ E3.3 — Configuración perfil → tipo documental → plantilla — PR #86 fusionada y verificada por CI/Browser E2E post-merge.
 - ✅ E3.4 — Feedback accionable para errores, bloqueos y reintentos — PR #88 fusionada y verificada por CI/Browser E2E post-merge.
+- ✅ E4.1 — Creación, preview y confirmación total/parcial desde frontend — PR #89 fusionada y verificada por CI/Browser E2E post-merge.
 
-La investigación de `main` no encontró una URL de staging, secretos de entorno ni un workflow de despliegue disponible en el repositorio o en GitHub. La validación de E1.1/E1.3 requiere resolver esa dependencia operativa externa. Esto bloquea M1, no GOAL-01: E3.2 avanzó y quedó fusionada sin adelantar E3.3 ni Milestones posteriores.
+La investigación de `main` no encontró una URL de staging operativa, secretos de entorno configurados, dominio/DNS/certificados, recursos R2, configuración de correo transaccional real ni un workflow de despliegue disponible en el repositorio o en GitHub. La validación de E1.1/E1.3 requiere resolver esa dependencia operativa externa. Esto bloquea M1, no GOAL-01: el Goal permanece ACTIVO y E4.2 avanza por un camino independiente. El checklist operativo de M1 está en [`docs/goals/GOAL-01-M1-infrastructure-checklist.md`](docs/goals/GOAL-01-M1-infrastructure-checklist.md).
 
-E3.4 quedó fusionada y verificada en `main`. M3 está completado. E4.1 es ahora la
-Epic actual de M4: completa desde la interfaz la creación de campañas inteligentes,
-el preview de resolución y la confirmación total/parcial usando contratos backend
-ya existentes. No requiere staging, R2, correo ni una nueva decisión de dominio, y
-no adelanta E4.2.
+E4.1 quedó fusionada y verificada en `main`. M3 está completado y M4 tiene E4.1
+entregada. E4.2 es el siguiente nodo desbloqueado: procesa planes ya confirmados
+desde PostgreSQL, respeta las exclusiones persistidas y usa la abstracción de storage
+existente. Su validación local no requiere staging ni un proveedor R2 concreto.
 
 ## <a name="goal-01-current-decision"></a>GOAL-01 — Decisión de prioridad vigente
 
-Tras fusionar E3.4, la revisión del código y del grafo de dependencias mantiene
-M1 `BLOQUEADO` por staging, pero GOAL-01 permanece `ACTIVO`. M3 está completado y
-E4.1 es la Epic priorizada: el backend tenant-aware ya expone preview y
-confirmación, mientras la superficie frontend y BFF eran la capacidad pendiente.
-E4.1 no depende de staging, R2, correo, M1 ni de una nueva decisión de dominio.
-La implementación queda limitada a creación, preview y confirmación total/parcial;
-E4.2 continúa pendiente.
+Tras fusionar E4.1, la revisión del código y del grafo de dependencias mantiene M1
+`BLOQUEADO POR INFRAESTRUCTURA EXTERNA`, pero GOAL-01 permanece `ACTIVO`. E4.2 es
+la Epic priorizada porque la creación y confirmación de planes ya está fusionada en
+PR #76/#89 y el procesamiento puede ejecutarse con PostgreSQL, Puppeteer y el
+proveedor de storage local existente.
+
+La revisión de dependencias de E4.2 concluyó:
+
+- dominio: consume el modelo y las decisiones ya aprobadas de lote, perfil,
+  configuración, contrato y snapshot; no introduce una decisión nueva;
+- DNS, Cloudflare y OCI Email Delivery: no son usados por el motor de procesamiento;
+- R2: no es una dependencia específica; el código depende de `StorageService`, cuyo
+  proveedor local es el predeterminado y cuyo adaptador R2 es intercambiable;
+- staging y variables de producción: no son necesarios para implementar ni probar
+  la selección de planes confirmados y exclusiones.
+
+La inconsistencia encontrada en `main` era que una campaña inteligente se crea sin
+`documentTemplateId`, pero `LoteEngineService` la rechazaba antes de consultar sus
+planes. Además, recorría todos los empleados seleccionados y podía crear contratos
+para empleados guardados como exclusiones. E4.2 corrige únicamente esas dos
+rupturas: usa los planes `CONFIRMADO`/`CONSUMIDO` como objetivos efectivos y deja
+fuera las exclusiones; el flujo manual permanece sin cambios.
 
 ## <a name="landing-saas"></a>Landing SaaS
 

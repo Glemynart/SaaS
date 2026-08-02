@@ -10,6 +10,12 @@ La evidencia final será un primer cliente que complete y acepte el recorrido pr
 
 `ACTIVO`
 
+**Pausa selectiva:** GOAL-01 permanece `ACTIVO` y M1 continúa `BLOQUEADO POR
+INFRAESTRUCTURA EXTERNA`. Las Epics que requieran dominio, DNS, Cloudflare, R2,
+OCI Email Delivery, variables de producción o staging permanecen detenidas. E4.2
+se reevalúa como camino independiente y puede avanzar sin esas dependencias. El
+desbloqueo operativo de M1 se controla con el [checklist de infraestructura](GOAL-01-M1-infrastructure-checklist.md).
+
 ## Estrategia que lo justifica
 
 - **Cliente objetivo:** operadores educativos colombianos con alta carga laboral y documental.
@@ -92,7 +98,7 @@ Estas exclusiones son limitaciones temporales del roadmap. No se numerarán como
 
 **Resultado verificable:** la aplicación se despliega desde cero en un ambiente representativo y completa un smoke test autenticado.
 
-**Estado del Milestone:** `BLOQUEADO` por una dependencia operativa externa verificable:
+**Estado del Milestone:** `BLOQUEADO POR INFRAESTRUCTURA EXTERNA` por una dependencia operativa verificable:
 no existe todavía una URL de staging, secretos de entorno ni un workflow de despliegue
 disponible en el repositorio o en GitHub. Este estado pertenece a M1; no convierte al
 Goal en bloqueado. GOAL-01 permanece `ACTIVO`.
@@ -144,29 +150,29 @@ sin requerir staging, R2, correo ni una nueva decisión de dominio.
       reintentos de dependencias y enlaces a prerrequisitos existentes; PR #88 fusionada
       y verificada por CI/Browser E2E post-merge).
 
-### Estado post-merge — E3.4 y prioridad E4.1
+### Estado post-merge — E4.1 fusionada y E4.2 priorizada
 
-Tras fusionar E3.4 en PR #88, los checks post-merge de `main` (CI y Browser E2E)
-terminaron en verde y M3 queda completado. La revisión del grafo de dependencias
-confirma que E4.1 — creación, preview y confirmación total/parcial desde frontend —
-es la siguiente Epic segura.
+Tras fusionar E4.1 en PR #89, los checks post-merge de `main` (CI y Browser E2E)
+terminaron en verde. M3 queda completado y E4.1 queda entregada en M4. La revisión
+del estado real del repositorio confirma que no existe evidencia operativa suficiente
+para cerrar M1, pero también confirma que E4.2 no depende de ese entorno.
 
-El backend tenant-aware ya expone los contratos de preview y confirmación, conserva
-planes, exclusiones y snapshots históricos, y procesa campañas inteligentes solo
-con planes confirmados. E4.1 completa la superficie frontend y BFF que faltaba sin
-cambiar el contrato de dominio. No requiere staging, R2, correo ni una nueva
-decisión de dominio; tampoco adelanta E4.2. E2.1 sigue pendiente por invitaciones y
-correo, mientras M1 sigue bloqueado por staging.
-La PR de mantenimiento que migra las acciones de GitHub a Node 24 es
-independiente y no bloquea GOAL-01. E4.1 se limita a la creación de la campaña
-inteligente, su preview y la confirmación total/parcial desde la interfaz.
+El backend tenant-aware y la superficie frontend/BFF de E4.1 conservan los contratos
+de preview y confirmación, planes, exclusiones y snapshots históricos sin cambiar el
+contrato de dominio. E4.2 procesa esos planes confirmados y deja fuera las
+exclusiones, usando PostgreSQL, Puppeteer y la abstracción de storage existente.
+E2.1 continúa pendiente porque su recorrido completo requiere invitaciones por
+correo real; no se adelanta ni se modifica. La decisión de prioridad no desbloquea
+M1: sólo permite avanzar el nodo independiente E4.2.
+La migración de las acciones de GitHub a Node 24 fue una tarea de mantenimiento
+independiente ya fusionada y no cambia el estado del Goal.
 
 ### M4 — Contratación Inteligente End-to-End
 
 **Resultado verificable:** campaña → resolución → confirmación → procesamiento → contrato → PDF → expediente se completa desde la UI.
 
-- [ ] E4.1 — Creación, preview y confirmación total/parcial desde frontend (Epic actual).
-- [ ] E4.2 — PR11.3 procesa únicamente planes confirmados y respeta exclusiones.
+- [x] E4.1 — Creación, preview y confirmación total/parcial desde frontend (PR #89 fusionada y verificada por CI/Browser E2E).
+- [ ] E4.2 — PR11.3 procesa únicamente planes confirmados y respeta exclusiones (en implementación).
 - [ ] E4.3 — Perfil y snapshots preservados en contrato y documento.
 - [ ] E4.4 — PDF canónico vinculado al contrato y publicado en expediente.
 - [ ] E4.5 — Reintentos, idempotencia y errores parciales verificables.
@@ -229,6 +235,7 @@ inteligente, su preview y la confirmación total/parcial desde la interfaz.
 | #84     | E3.2  | Perfiles contractuales y vínculos laborales precontractuales desde la UI. | FUSIONADO  | Sí; recorrido verificado por CI y Browser E2E.             |
 | #86     | E3.3  | Configuración perfil → tipo documental → plantilla desde UI.              | FUSIONADO  | Sí; CI/Browser E2E y checks post-merge verdes.             |
 | #88     | E3.4  | Feedback accionable para errores, bloqueos y reintentos operativos.       | FUSIONADO  | Sí; CI/Browser E2E post-merge verdes.                      |
+| #89     | E4.1  | Creación, preview y confirmación total/parcial desde frontend.            | FUSIONADO  | Sí; CI/Browser E2E post-merge verdes.                      |
 | #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.
@@ -241,26 +248,31 @@ Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente p
 
 Motivo: existen slices funcionales importantes, pero permanecen abiertas la gestión de usuarios, contratación inteligente end-to-end, expediente operativo, automatización de alertas, deployment y aceptación productiva.
 
-Las PR #78, #79, #80, #81, #83, #84, #86 y #88 fueron fusionadas. #78 entregó el empaquetado de E1.1,
+Las PR #78, #79, #80, #81, #83, #84, #86, #88 y #89 fueron fusionadas. #78 entregó el empaquetado de E1.1,
 pero E1.1 aún requiere verificación de staging. #79 entregó y verificó E1.2
 con migraciones, seed idempotente y rol runtime no privilegiado. #80 entregó las
 comprobaciones de R2, correo real y readiness; su cierre requiere verificación
 real en staging. #81 entregó E1.4, está fusionada y sus checks de CI y Browser
 E2E están verdes. E3.4 fue fusionada en PR #88 y sus checks post-merge de `main`
-están verdes. GOAL-01 permanece `ACTIVO`; M1 está `BLOQUEADO` a la espera
-de la validación operativa de staging de E1.1 y E1.3. E3.1 entregó el recorrido
+están verdes. E4.1 fue fusionada en PR #89 y sus checks post-merge de `main` están
+verdes. GOAL-01 permanece `ACTIVO`; M1 está `BLOQUEADO POR
+INFRAESTRUCTURA EXTERNA` a la espera de la validación operativa de dominio, DNS,
+Cloudflare, R2, correo, secretos, certificados y staging para E1.1 y E1.3. E3.1 entregó el recorrido
 browser de empleados y quedó fusionada en PR #83; su recorrido usó únicamente
 la autenticación, persistencia y frontera tenant ya existentes, sin requerir
 staging, R2, correo ni una nueva decisión de dominio. E3.2 expuso el catálogo
 y vínculo laboral del backend desde la interfaz, sin requerir staging, R2,
 correo ni una nueva decisión de dominio, y quedó fusionada en PR #84 con CI y
 Browser E2E verdes. E2.1 permanece pendiente porque su recorrido completo requiere
-invitaciones por correo real. E4.1 es la Epic actual: el código de `main` ya ofrece
-los contratos backend de preview y confirmación, pero la interfaz y sus rutas BFF
-aún no estaban disponibles. La auditoría de E4.1 deberá demostrar creación,
-preview y confirmación total/parcial sin adelantar E4.2.
+invitaciones por correo real. E4.1 ya fue implementada, auditada y fusionada en PR
+#89; su recorrido de creación, preview y confirmación total/parcial quedó verificado
+por CI y Browser E2E. E4.2 es el camino independiente actualmente en implementación:
+el código de `main` rechazaba campañas inteligentes sin `documentTemplateId` y no
+filtraba los empleados excluidos antes de crear contratos. La corrección usa sólo
+los planes `CONFIRMADO`/`CONSUMIDO`, no requiere DNS, Cloudflare, R2 específico,
+OCI Email Delivery ni staging, y no adelanta E4.3.
 
 > La determinación vigente, actualizada después de E3.4, queda documentada en
-> la sección post-merge: E3.4 está fusionada en PR #88 y verificada por CI y
-> Browser E2E post-merge. GOAL-01 permanece `ACTIVO`; M1 sigue `BLOQUEADO` por
-> staging y E4.1 es la siguiente Epic priorizada por el grafo de dependencias.
+> la sección post-merge: E4.1 está fusionada en PR #89 y verificada por CI y
+> Browser E2E post-merge. GOAL-01 permanece `ACTIVO`; M1 sigue `BLOQUEADO POR
+INFRAESTRUCTURA EXTERNA`, mientras E4.2 avanza por su camino independiente.
