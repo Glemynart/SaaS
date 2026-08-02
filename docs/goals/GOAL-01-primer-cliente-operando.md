@@ -10,6 +10,10 @@ La evidencia final será un primer cliente que complete y acepte el recorrido pr
 
 `ACTIVO`
 
+E5.2 esta implementada en el PR #102 y pendiente de checks de CI/Browser E2E
+y merge. La capacidad sigue separada de E5.3 y E5.4; no adelanta trabajo de
+esas Epics.
+
 **Pausa selectiva:** GOAL-01 permanece `ACTIVO` y M1 continúa `BLOQUEADO POR
 INFRAESTRUCTURA EXTERNA`. Las Epics que requieran dominio, DNS, Cloudflare, R2,
 OCI Email Delivery, variables de producción o staging permanecen detenidas. E4.2
