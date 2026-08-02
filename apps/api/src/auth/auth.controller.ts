@@ -28,6 +28,8 @@ import {
   Unauthenticated,
 } from './authorization/authorization-policy';
 
+const REGISTER_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
+
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -39,7 +41,7 @@ export class AuthController {
   @Unauthenticated()
   @Post('register')
   @UseGuards(ThrottlerGuard)
-  @Throttle({ register: { limit: 3, ttl: 60000 } })
+  @Throttle({ register: { limit: REGISTER_RATE_LIMIT, ttl: 60000 } })
   async register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
