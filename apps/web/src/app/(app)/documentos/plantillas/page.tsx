@@ -29,6 +29,7 @@ import type {
 } from '@/features/document-templates/services/document-templates-api';
 import type { DocumentTemplateFormValues } from '@/features/document-templates/schemas/document-template-schemas';
 import { DOCUMENT_TEMPLATE_TYPE_LABELS } from '@/features/document-templates/schemas/document-template-schemas';
+import { getUserFacingError } from '@/lib/error-message';
 
 export default function PlantillasPage() {
   const [filters, setFilters] = useState<GetDocumentTemplatesParams>({ page: 1, limit: 30 });
@@ -37,7 +38,7 @@ export default function PlantillasPage() {
   const [editingTemplate, setEditingTemplate] = useState<DocumentTemplate | undefined>(undefined);
   const [seedConfirmOpen, setSeedConfirmOpen] = useState(false);
 
-  const { data, isLoading, isError, refetch } = useDocumentTemplates(filters);
+  const { data, isLoading, isError, error, refetch } = useDocumentTemplates(filters);
   const createMutation = useCreateDocumentTemplate();
   const updateMutation = useUpdateDocumentTemplate();
   const deleteMutation = useDeleteDocumentTemplate();
@@ -81,7 +82,10 @@ export default function PlantillasPage() {
     (id: string) =>
       deleteMutation.mutate(id, {
         onSuccess: () => toast.success('Plantilla eliminada.'),
-        onError: () => toast.error('No se pudo eliminar la plantilla. Inténtalo de nuevo.'),
+        onError: (error) =>
+          toast.error(
+            getUserFacingError(error, 'No se pudo eliminar la plantilla. Inténtalo de nuevo.'),
+          ),
       }),
     [deleteMutation],
   );
@@ -92,7 +96,10 @@ export default function PlantillasPage() {
         { id },
         {
           onSuccess: () => toast.success('Plantilla duplicada.'),
-          onError: () => toast.error('No se pudo duplicar la plantilla. Inténtalo de nuevo.'),
+          onError: (error) =>
+            toast.error(
+              getUserFacingError(error, 'No se pudo duplicar la plantilla. Inténtalo de nuevo.'),
+            ),
         },
       ),
     [duplicateMutation],
@@ -101,7 +108,8 @@ export default function PlantillasPage() {
   const handleToggleActive = useCallback(
     (id: string) =>
       toggleMutation.mutate(id, {
-        onError: () => toast.error('No se pudo cambiar el estado de la plantilla.'),
+        onError: (error) =>
+          toast.error(getUserFacingError(error, 'No se pudo cambiar el estado de la plantilla.')),
       }),
     [toggleMutation],
   );
@@ -109,7 +117,8 @@ export default function PlantillasPage() {
   const handleSeed = useCallback(() => {
     seedMutation.mutate(undefined, {
       onSuccess: (result) => toast.success(result.message ?? 'Plantillas base creadas.'),
-      onError: () => toast.error('No se pudieron crear las plantillas base.'),
+      onError: (error) =>
+        toast.error(getUserFacingError(error, 'No se pudieron crear las plantillas base.')),
     });
   }, [seedMutation]);
 
@@ -123,7 +132,13 @@ export default function PlantillasPage() {
               setDrawerOpen(false);
               toast.success('Cambios guardados.');
             },
-            onError: () => toast.error('No se pudieron guardar los cambios. Inténtalo de nuevo.'),
+            onError: (error) =>
+              toast.error(
+                getUserFacingError(
+                  error,
+                  'No se pudieron guardar los cambios. Inténtalo de nuevo.',
+                ),
+              ),
           },
         );
       } else {
@@ -132,7 +147,10 @@ export default function PlantillasPage() {
             setDrawerOpen(false);
             toast.success('Plantilla creada.');
           },
-          onError: () => toast.error('No se pudo crear la plantilla. Inténtalo de nuevo.'),
+          onError: (error) =>
+            toast.error(
+              getUserFacingError(error, 'No se pudo crear la plantilla. Inténtalo de nuevo.'),
+            ),
         });
       }
     },
@@ -199,7 +217,7 @@ export default function PlantillasPage() {
         <EmptyState
           icon={AlertTriangle}
           title="No pudimos cargar las plantillas."
-          description="Revisa tu conexión e inténtalo de nuevo."
+          description={getUserFacingError(error, 'Revisa tu conexión e inténtalo de nuevo.')}
           action={
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               Reintentar

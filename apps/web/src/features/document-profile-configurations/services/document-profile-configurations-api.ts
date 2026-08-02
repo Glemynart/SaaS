@@ -1,3 +1,4 @@
+import { getApiErrorMessage } from '@/lib/error-message';
 import type { ContractualProfile } from '@/features/contractual-profiles/services/contractual-profiles-api';
 import type {
   DocumentTemplate,
@@ -35,7 +36,7 @@ export interface UpdateDocumentProfileConfigurationInput {
   activo?: boolean;
 }
 
-type ApiEnvelope<T> = T & { message?: string };
+type ApiEnvelope<T> = T & { message?: unknown };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -49,7 +50,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const body = (await response.json().catch(() => ({}))) as ApiEnvelope<T>;
 
   if (!response.ok) {
-    throw new Error(body.message ?? 'No se pudo completar la solicitud.');
+    throw new Error(getApiErrorMessage(body, 'No se pudo completar la solicitud.'));
   }
 
   return body as T;

@@ -27,6 +27,20 @@ test('crea un perfil contractual y lo vincula a un empleado desde la UI', async 
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 
+  await page.goto('/documentos/configuracion');
+  await expect(page.getByRole('heading', { name: /Configuraci.n documental/ })).toBeVisible();
+  await expect(
+    page.getByText(/Para crear una regla necesitas al menos un perfil contractual activo/),
+  ).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Crear perfil contractual' })).toHaveAttribute(
+    'href',
+    '/perfiles-contractuales',
+  );
+  await expect(page.getByRole('link', { name: 'Crear plantilla' })).toHaveAttribute(
+    'href',
+    '/documentos/plantillas',
+  );
+
   await page.goto('/perfiles-contractuales');
   await expect(page.getByRole('heading', { name: 'Perfiles contractuales' })).toBeVisible();
   await page.getByRole('button', { name: 'Nuevo perfil contractual', exact: true }).click();

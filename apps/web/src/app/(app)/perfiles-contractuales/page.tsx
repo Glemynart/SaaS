@@ -23,6 +23,7 @@ import {
   useUpdateContractualProfileStatus,
 } from '@/features/contractual-profiles/hooks/use-contractual-profiles';
 import type { ContractualProfile } from '@/features/contractual-profiles/services/contractual-profiles-api';
+import { getUserFacingError } from '@/lib/error-message';
 
 export default function ContractualProfilesPage() {
   const [search, setSearch] = useState('');
@@ -31,7 +32,7 @@ export default function ContractualProfilesPage() {
   const [selectedProfile, setSelectedProfile] = useState<ContractualProfile | undefined>();
   const [pendingStatus, setPendingStatus] = useState<ContractualProfile | null>(null);
 
-  const { data, isLoading, isError, refetch } = useContractualProfiles({
+  const { data, isLoading, isError, error, refetch } = useContractualProfiles({
     search: search || undefined,
     activo: status === '' ? undefined : status === 'true',
   });
@@ -64,7 +65,8 @@ export default function ContractualProfilesPage() {
             setSheetOpen(false);
             toast.success('Perfil contractual actualizado.');
           },
-          onError: (error) => toast.error(error.message),
+          onError: (error) =>
+            toast.error(getUserFacingError(error, 'No se pudo actualizar el perfil contractual.')),
         },
       );
       return;
@@ -81,7 +83,8 @@ export default function ContractualProfilesPage() {
           setSheetOpen(false);
           toast.success('Perfil contractual creado.');
         },
-        onError: (error) => toast.error(error.message),
+        onError: (error) =>
+          toast.error(getUserFacingError(error, 'No se pudo crear el perfil contractual.')),
       },
     );
   }
@@ -95,7 +98,8 @@ export default function ContractualProfilesPage() {
       { id: profile.id, activo: true },
       {
         onSuccess: () => toast.success('Perfil contractual activado.'),
-        onError: (error) => toast.error(error.message),
+        onError: (error) =>
+          toast.error(getUserFacingError(error, 'No se pudo cambiar el estado del perfil.')),
       },
     );
   }
@@ -116,7 +120,7 @@ export default function ContractualProfilesPage() {
     >
       {mutationError && (
         <Alert variant="destructive" className="mb-4">
-          {mutationError.message}
+          {getUserFacingError(mutationError, 'No se pudo completar la operación.')}
         </Alert>
       )}
 
@@ -142,7 +146,7 @@ export default function ContractualProfilesPage() {
         <EmptyState
           icon={AlertTriangle}
           title="No pudimos cargar los perfiles contractuales."
-          description="Revisa tu conexión e inténtalo de nuevo."
+          description={getUserFacingError(error, 'Revisa tu conexión e inténtalo de nuevo.')}
           action={
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               Reintentar

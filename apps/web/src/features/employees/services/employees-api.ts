@@ -1,3 +1,5 @@
+import { getApiErrorMessage } from '@/lib/error-message';
+
 export interface Employee {
   id: string;
   tenantId: string;
@@ -49,7 +51,7 @@ export interface PaginatedResponse<T> {
   };
 }
 
-type ApiEnvelope<T> = T & { message?: string };
+type ApiEnvelope<T> = T & { message?: unknown };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -63,7 +65,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const body = (await response.json().catch(() => ({}))) as ApiEnvelope<T>;
 
   if (!response.ok) {
-    throw new Error(body.message ?? 'No se pudo completar la solicitud.');
+    throw new Error(getApiErrorMessage(body, 'No se pudo completar la solicitud.'));
   }
 
   return body as T;
@@ -118,7 +120,13 @@ export const employeesApi = {
       errors?: { fila: number; campo: string; mensaje: string }[];
     }>;
     if (!response.ok) {
-      throw new ImportError(body.message ?? 'Error al importar', body.errors ?? []);
+      throw new ImportError(
+        getApiErrorMessage(
+          body,
+          'No pudimos importar los empleados. Corrige los errores y vuelve a intentarlo.',
+        ),
+        body.errors ?? [],
+      );
     }
     return body as { imported: number; message: string };
   },

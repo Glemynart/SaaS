@@ -131,30 +131,32 @@ staging, R2, correo ni una decisión de dominio pendiente.
 **Resultado verificable:** el operador prepara desde la interfaz todos los datos necesarios para contratar.
 
 M3 es el siguiente Milestone desbloqueado mientras M1 espera evidencia externa.
-La decisión evita bloquear el Goal completo por un único camino operativo. E3.1
-y E3.2 ya están fusionadas; E3.3 es la única Epic activa porque consume las bases
-de perfiles y vínculos ya existentes, no requiere staging, R2, correo ni una nueva
-decisión de dominio, y prepara los datos laborales sin adelantar otros Milestones.
+La decisión evita bloquear el Goal completo por un único camino operativo. E3.1,
+E3.2 y E3.3 ya están fusionadas; E3.4 es la Epic activa porque mejora la
+operabilidad de esas superficies sin requerir staging, R2, correo ni una nueva
+decisión de dominio, y prepara el siguiente flujo sin adelantar M4.
 
 - [x] E3.1 — Empleados CRUD, búsqueda e importación XLSX verificadas (PR #83 fusionada).
 - [x] E3.2 — Perfiles contractuales y vínculos laborales precontractuales (PR #84 fusionada).
 - [x] E3.3 — Configuración perfil → tipo documental → plantilla (PR #86 fusionada y verificada por CI/Browser E2E).
-- [ ] E3.4 — Errores y bloqueos comprensibles para el operador.
+- [ ] E3.4 — Errores y bloqueos comprensibles para el operador (feedback accionable,
+      reintentos de dependencias y enlaces a prerrequisitos existentes).
 
-### Estado post-merge — E3.3
+### Estado post-merge — E3.3 y prioridad E3.4
 
-Tras fusionar E3.2, la revisión del grafo de dependencias en `main` confirma
-que E3.3 — configuración perfil → tipo documental → plantilla — es la siguiente
-Epic segura. El backend tenant-aware ya existe y falta la superficie de interfaz
-para operar la configuración. No requiere staging, R2, correo ni una nueva
-decisión de dominio; además prepara los datos que M4 necesita. E2.1 sigue
-pendiente por invitaciones y correo, mientras M1 sigue bloqueado por staging.
+Tras fusionar E3.3, la revisión del grafo de dependencias en `main` confirma
+que E3.4 — errores y bloqueos comprensibles para el operador — es la siguiente
+Epic segura. El backend tenant-aware ya expone mensajes de validación y motivos
+de bloqueo; la Epic mejora su entrega en las superficies de preparación laboral,
+sin cambiar el contrato de dominio ni iniciar la resolución/confirmación de M4.
+No requiere staging, R2 ni correo. E2.1 sigue pendiente por invitaciones y
+correo, mientras M1 sigue bloqueado por staging.
 La PR de mantenimiento que migra las acciones de GitHub a Node 24 es
 independiente y no bloquea GOAL-01. PR #86 entregó únicamente E3.3 y quedó
 fusionada después de que sus checks y los checks post-merge de `main` terminaran
 en verde. La dependencia de E3.4 ya desapareció; GOAL-01 vuelve a `ACTIVO`, M1
-permanece `BLOQUEADO` por staging y E3.4 queda como la siguiente Epic pendiente
-de M3. No se inicia E3.4 en esta sincronización de estado.
+permanece `BLOQUEADO` por staging y E3.4 pasa a implementación como la Epic
+activa de M3. La entrega se limita a feedback operativo y no adelanta E4.1.
 
 ### M4 — Contratación Inteligente End-to-End
 
@@ -250,5 +252,5 @@ Browser E2E verdes. E2.1 permanece pendiente porque su recorrido completo
 
 > La determinación vigente, actualizada después de E3.3, queda documentada en
 > la sección post-merge: E3.3 está fusionada en PR #86 y verificada por CI y
-> Browser E2E. GOAL-01 permanece `ACTIVO`; E3.4 es la siguiente Epic pendiente,
-> pero no se implementa en esta sincronización.
+> Browser E2E. GOAL-01 permanece `ACTIVO`; E3.4 está en implementación,
+> pendiente de merge y verificación post-merge.

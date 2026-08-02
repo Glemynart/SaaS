@@ -25,6 +25,7 @@ import {
   ImportError,
 } from '@/features/employees/services/employees-api';
 import { type EmployeeFormData } from '@/features/employees/schemas/employee-schemas';
+import { getUserFacingError } from '@/lib/error-message';
 
 export default function EmpleadosPage() {
   const [page, setPage] = useState(1);
@@ -41,7 +42,12 @@ export default function EmpleadosPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const { data, isLoading, isError, refetch } = useEmployees({ page, limit: 20, search, estado });
+  const { data, isLoading, isError, error, refetch } = useEmployees({
+    page,
+    limit: 20,
+    search,
+    estado,
+  });
   const createMutation = useCreateEmployee();
   const updateMutation = useUpdateEmployee();
   const deleteMutation = useDeleteEmployee();
@@ -80,7 +86,10 @@ export default function EmpleadosPage() {
             setIsSheetOpen(false);
             toast.success('Cambios guardados.');
           },
-          onError: () => toast.error('No se pudieron guardar los cambios. Inténtalo de nuevo.'),
+          onError: (error) =>
+            toast.error(
+              getUserFacingError(error, 'No se pudieron guardar los cambios. Inténtalo de nuevo.'),
+            ),
         },
       );
     } else {
@@ -89,7 +98,10 @@ export default function EmpleadosPage() {
           setIsSheetOpen(false);
           toast.success('Empleado creado.');
         },
-        onError: () => toast.error('No se pudo crear el empleado. Inténtalo de nuevo.'),
+        onError: (error) =>
+          toast.error(
+            getUserFacingError(error, 'No se pudo crear el empleado. Inténtalo de nuevo.'),
+          ),
       });
     }
   };
@@ -97,7 +109,10 @@ export default function EmpleadosPage() {
   const handleDelete = (id: string) => {
     deleteMutation.mutate(id, {
       onSuccess: () => toast.success('Empleado desactivado.'),
-      onError: () => toast.error('No se pudo desactivar el empleado. Inténtalo de nuevo.'),
+      onError: (error) =>
+        toast.error(
+          getUserFacingError(error, 'No se pudo desactivar el empleado. Inténtalo de nuevo.'),
+        ),
     });
   };
 
@@ -128,15 +143,24 @@ export default function EmpleadosPage() {
           setImportResult({ errors: error.errors, message: error.message });
         } else {
           setImportResult({
-            message: error instanceof Error ? error.message : 'Error al importar.',
+            message: getUserFacingError(
+              error,
+              'No pudimos importar los empleados. Corrige los errores y vuelve a intentarlo.',
+            ),
           });
         }
       },
     });
   }, [selectedFile, importMutation]);
 
-  const handleDownloadTemplate = useCallback(() => {
-    employeesApi.downloadTemplate().catch(() => {});
+  const handleDownloadTemplate = useCallback(async () => {
+    try {
+      await employeesApi.downloadTemplate();
+    } catch (error) {
+      toast.error(
+        getUserFacingError(error, 'No se pudo descargar la plantilla. Inténtalo de nuevo.'),
+      );
+    }
   }, []);
 
   return (
@@ -163,7 +187,7 @@ export default function EmpleadosPage() {
         <EmptyState
           icon={AlertTriangle}
           title="No pudimos cargar los empleados."
-          description="Revisa tu conexión e inténtalo de nuevo."
+          description={getUserFacingError(error, 'Revisa tu conexión e inténtalo de nuevo.')}
           action={
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               Reintentar

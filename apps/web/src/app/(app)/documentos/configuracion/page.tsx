@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import Link from 'next/link';
 import { AlertTriangle, Link2, Plus } from 'lucide-react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,7 @@ import {
 import { DocumentProfileConfigurationsTable } from '@/features/document-profile-configurations/components/document-profile-configurations-table';
 import type { DocumentProfileConfiguration } from '@/features/document-profile-configurations/services/document-profile-configurations-api';
 import { useDocumentTemplates } from '@/features/document-templates/hooks/use-document-templates';
+import { getUserFacingError } from '@/lib/error-message';
 
 export default function DocumentProfileConfigurationsPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -61,7 +63,10 @@ export default function DocumentProfileConfigurationsPage() {
             setSheetOpen(false);
             toast.success('Configuración documental actualizada.');
           },
-          onError: (error) => toast.error(error.message),
+          onError: (error) =>
+            toast.error(
+              getUserFacingError(error, 'No se pudo actualizar la configuración documental.'),
+            ),
         },
       );
       return;
@@ -81,7 +86,8 @@ export default function DocumentProfileConfigurationsPage() {
           setSheetOpen(false);
           toast.success('Configuración documental creada.');
         },
-        onError: (error) => toast.error(error.message),
+        onError: (error) =>
+          toast.error(getUserFacingError(error, 'No se pudo crear la configuración documental.')),
       },
     );
   }
@@ -92,6 +98,13 @@ export default function DocumentProfileConfigurationsPage() {
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
   const isLoading =
     configurationsQuery.isLoading || profilesQuery.isLoading || templatesQuery.isLoading;
+  const retryQueries = useCallback(() => {
+    void Promise.all([
+      configurationsQuery.refetch(),
+      profilesQuery.refetch(),
+      templatesQuery.refetch(),
+    ]);
+  }, [configurationsQuery, profilesQuery, templatesQuery]);
 
   return (
     <PageHeader
@@ -113,9 +126,9 @@ export default function DocumentProfileConfigurationsPage() {
         <EmptyState
           icon={AlertTriangle}
           title="No pudimos cargar la configuración documental."
-          description="Revisa tu conexión e inténtalo de nuevo."
+          description={getUserFacingError(queryError, 'Revisa tu conexión e inténtalo de nuevo.')}
           action={
-            <Button variant="outline" size="sm" onClick={() => configurationsQuery.refetch()}>
+            <Button variant="outline" size="sm" onClick={retryQueries}>
               Reintentar
             </Button>
           }
@@ -125,11 +138,27 @@ export default function DocumentProfileConfigurationsPage() {
           {(profiles.length === 0 || templates.length === 0) && !isLoading && (
             <Alert className="mb-5 flex items-start gap-3">
               <Link2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              <span>
-                Para crear una regla necesitas al menos un perfil contractual activo y una plantilla
-                documental.
-                {profiles.length === 0 && ' Crea primero un perfil contractual.'}
-                {templates.length === 0 && ' Crea primero una plantilla.'}
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span>
+                  Para crear una regla necesitas al menos un perfil contractual activo y una
+                  plantilla documental.
+                </span>
+                {profiles.length === 0 && (
+                  <Link
+                    href="/perfiles-contractuales"
+                    className="font-medium text-foreground underline underline-offset-2"
+                  >
+                    Crear perfil contractual
+                  </Link>
+                )}
+                {templates.length === 0 && (
+                  <Link
+                    href="/documentos/plantillas"
+                    className="font-medium text-foreground underline underline-offset-2"
+                  >
+                    Crear plantilla
+                  </Link>
+                )}
               </span>
             </Alert>
           )}

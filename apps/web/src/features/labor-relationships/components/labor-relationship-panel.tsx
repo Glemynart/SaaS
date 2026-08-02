@@ -8,6 +8,7 @@ import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { toast } from '@/components/ui/toast';
+import { getUserFacingError } from '@/lib/error-message';
 import { useContractualProfiles } from '@/features/contractual-profiles/hooks/use-contractual-profiles';
 import {
   useCreateLaborRelationship,
@@ -72,7 +73,8 @@ export function LaborRelationshipPanel({ employeeId }: LaborRelationshipPanelPro
         { id: relationship.id, data },
         {
           onSuccess: () => toast.success('Vínculo laboral actualizado.'),
-          onError: (error) => toast.error(error.message),
+          onError: (error) =>
+            toast.error(getUserFacingError(error, 'No se pudo actualizar el vínculo laboral.')),
         },
       );
       return;
@@ -82,7 +84,8 @@ export function LaborRelationshipPanel({ employeeId }: LaborRelationshipPanelPro
       { empleadoId: employeeId, ...data },
       {
         onSuccess: () => toast.success('Vínculo laboral creado.'),
-        onError: (error) => toast.error(error.message),
+        onError: (error) =>
+          toast.error(getUserFacingError(error, 'No se pudo crear el vínculo laboral.')),
       },
     );
   }
@@ -107,7 +110,18 @@ export function LaborRelationshipPanel({ employeeId }: LaborRelationshipPanelPro
 
       {error && (
         <Alert variant="destructive" className="mt-4">
-          No pudimos cargar el vínculo laboral o los perfiles contractuales.
+          <p>{getUserFacingError(error, 'No pudimos cargar los datos del vínculo laboral.')}</p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            onClick={() => {
+              void Promise.all([relationshipsQuery.refetch(), profilesQuery.refetch()]);
+            }}
+          >
+            Reintentar
+          </Button>
         </Alert>
       )}
 
