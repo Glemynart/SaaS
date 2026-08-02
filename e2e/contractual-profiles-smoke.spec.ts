@@ -43,7 +43,7 @@ test('crea un perfil contractual y lo vincula a un empleado desde la UI', async 
 
   await page.goto('/perfiles-contractuales');
   await expect(page.getByRole('heading', { name: 'Perfiles contractuales' })).toBeVisible();
-  await page.getByRole('button', { name: 'Nuevo perfil contractual', exact: true }).click();
+  await page.getByRole('button', { name: 'Nuevo perfil contractual', exact: true }).first().click();
 
   const profileDialog = page.getByRole('dialog', { name: 'Nuevo perfil contractual' });
   await profileDialog.locator('[name="codigo"]').fill(profileCode);

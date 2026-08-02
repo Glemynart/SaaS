@@ -1,14 +1,21 @@
 'use client';
 
-import { use, useCallback } from 'react';
+import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Download, FileText } from 'lucide-react';
-import { useContract, useUpdateContractStatus } from '@/features/contracts/hooks/use-contracts';
+import {
+  useContract,
+  useGenerateContractDocument,
+  useUpdateContractStatus,
+} from '@/features/contracts/hooks/use-contracts';
 import { generatedDocumentsApi } from '@/features/generated-documents/services/generated-documents-api';
 import { formatNombreCompleto } from '@saas/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { toast } from '@/components/ui/toast';
+import { getUserFacingError } from '@/lib/error-message';
+import { useDocumentTemplates } from '@/features/document-templates/hooks/use-document-templates';
 
 const TIPO_LABELS: Record<string, string> = {
   TERMINO_FIJO: 'Término Fijo',
@@ -46,6 +53,23 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   const { id } = use(params);
   const { data: contract, isLoading } = useContract(id);
   const statusMutation = useUpdateContractStatus();
+  const generateDocumentMutation = useGenerateContractDocument();
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const { data: templateData, isLoading: templatesLoading } = useDocumentTemplates({
+    page: 1,
+    limit: 100,
+    tipo: 'CONTRACT',
+  });
+  const activeContractTemplates = useMemo(
+    () => templateData?.data.filter((template) => template.activo) ?? [],
+    [templateData?.data],
+  );
+
+  useEffect(() => {
+    if (!activeContractTemplates.some((template) => template.id === selectedTemplateId)) {
+      setSelectedTemplateId(activeContractTemplates[0]?.id ?? '');
+    }
+  }, [activeContractTemplates, selectedTemplateId]);
 
   const handleStatus = useCallback(
     (estado: string) => {
@@ -55,6 +79,22 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     },
     [id, statusMutation],
   );
+
+  const handleGenerateDocument = useCallback(() => {
+    generateDocumentMutation.mutate(
+      { id, templateId: selectedTemplateId || undefined },
+      {
+        onSuccess: () => toast.success('Documento contractual publicado en el expediente.'),
+        onError: (error) =>
+          toast.error(
+            getUserFacingError(
+              error,
+              'No se pudo generar el documento contractual. Inténtalo de nuevo.',
+            ),
+          ),
+      },
+    );
+  }, [generateDocumentMutation, id, selectedTemplateId]);
 
   if (isLoading)
     return (
@@ -66,6 +106,8 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     return <div className="py-10 text-center text-muted-foreground">Contrato no encontrado.</div>;
 
   const transitions = VALID_TRANSITIONS[contract.estado] ?? [];
+  const documentNeedsPublication =
+    !contract.generatedDocument?.pdfUrl || !contract.generatedDocument.expedienteDocId;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -98,6 +140,37 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
               </Button>
             ))}
           </div>
+        )}
+        {contract.estado === 'VIGENTE' && documentNeedsPublication && (
+          <>
+            {activeContractTemplates.length > 1 && (
+              <select
+                aria-label="Plantilla de contrato"
+                value={selectedTemplateId}
+                onChange={(event) => setSelectedTemplateId(event.target.value)}
+                disabled={templatesLoading || generateDocumentMutation.isPending}
+                className="h-9 rounded-md border border-border bg-surface px-2 text-xs text-foreground"
+              >
+                {activeContractTemplates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.nombre}
+                  </option>
+                ))}
+              </select>
+            )}
+            <Button
+              size="sm"
+              onClick={handleGenerateDocument}
+              disabled={templatesLoading || generateDocumentMutation.isPending}
+            >
+              <FileText className="size-4" aria-hidden="true" />
+              {generateDocumentMutation.isPending
+                ? 'Generando...'
+                : contract.generatedDocument
+                  ? 'Reintentar documento'
+                  : 'Generar documento'}
+            </Button>
+          </>
         )}
       </div>
 
