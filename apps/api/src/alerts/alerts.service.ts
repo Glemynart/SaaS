@@ -88,6 +88,39 @@ export class AlertsService {
   }
 
   async generateContractAlerts(tenantId: string) {
+    return this.tenantPrisma.execute((prisma) =>
+      this.generateContractAlertsWithClient(tenantId, prisma),
+    );
+  }
+
+  async generateMissingDocAlerts(tenantId: string) {
+    return this.tenantPrisma.execute((prisma) =>
+      this.generateMissingDocAlertsWithClient(tenantId, prisma),
+    );
+  }
+
+  /**
+   * Runs both automatic alert detectors in the scheduler's tenant-scoped
+   * transaction. The caller owns the transaction and has already installed
+   * the tenant context in PostgreSQL.
+   */
+  async generateForTenant(tenantId: string, prisma: Prisma.TransactionClient) {
+    const contractAlerts = await this.generateContractAlertsWithClient(
+      tenantId,
+      prisma,
+    );
+    const missingDocAlerts = await this.generateMissingDocAlertsWithClient(
+      tenantId,
+      prisma,
+    );
+
+    return { contractAlerts, missingDocAlerts };
+  }
+
+  private async generateContractAlertsWithClient(
+    tenantId: string,
+    prisma: Prisma.TransactionClient,
+  ) {
     const created: unknown[] = [];
     const now = new Date();
     const thresholds = [
@@ -98,32 +131,30 @@ export class AlertsService {
     const lookahead = new Date(now);
     lookahead.setDate(lookahead.getDate() + 30);
 
-    const contratos = await this.tenantPrisma.execute((prisma) =>
-      prisma.contrato.findMany({
-        where: {
-          tenantId,
-          estado: { in: ['VIGENTE', 'RENOVADO'] },
-          fechaFin: { gte: now, lte: lookahead },
-        },
-        include: {
-          empleado: {
-            select: {
-              id: true,
-              primerNombre: true,
-              segundoNombre: true,
-              primerApellido: true,
-              segundoApellido: true,
-            },
-          },
-          expedienteDocs: {
-            where: { categoria: 'CONTRATO' },
-            orderBy: { version: 'desc' },
-            select: { id: true },
-            take: 1,
+    const contratos = await prisma.contrato.findMany({
+      where: {
+        tenantId,
+        estado: { in: ['VIGENTE', 'RENOVADO'] },
+        fechaFin: { gte: now, lte: lookahead },
+      },
+      include: {
+        empleado: {
+          select: {
+            id: true,
+            primerNombre: true,
+            segundoNombre: true,
+            primerApellido: true,
+            segundoApellido: true,
           },
         },
-      }),
-    );
+        expedienteDocs: {
+          where: { categoria: 'CONTRATO' },
+          orderBy: { version: 'desc' },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    });
 
     for (const contrato of contratos) {
       const diasRestantes = Math.floor(
@@ -149,12 +180,12 @@ export class AlertsService {
               titulo: `Contrato próximo a vencer (${threshold.label})`,
             };
 
-        const exists = await this.prisma.alert.findFirst({
+        const exists = await prisma.alert.findFirst({
           where: dedupeWhere,
         });
         if (exists) continue;
 
-        const alert = await this.prisma.alert.create({
+        const alert = await prisma.alert.create({
           data: {
             tenantId,
             employeeId: contrato.empleadoId,
@@ -175,23 +206,24 @@ export class AlertsService {
     };
   }
 
-  async generateMissingDocAlerts(tenantId: string) {
-    const employees = await this.tenantPrisma.execute((prisma) =>
-      prisma.empleado.findMany({
-        where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
-        select: {
-          id: true,
-          primerNombre: true,
-          segundoNombre: true,
-          primerApellido: true,
-          segundoApellido: true,
-        },
-      }),
-    );
+  private async generateMissingDocAlertsWithClient(
+    tenantId: string,
+    prisma: Prisma.TransactionClient,
+  ) {
+    const employees = await prisma.empleado.findMany({
+      where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
+      select: {
+        id: true,
+        primerNombre: true,
+        segundoNombre: true,
+        primerApellido: true,
+        segundoApellido: true,
+      },
+    });
 
     let created = 0;
     for (const emp of employees) {
-      const hasContract = await this.prisma.contrato.findFirst({
+      const hasContract = await prisma.contrato.findFirst({
         where: {
           tenantId,
           empleadoId: emp.id,
@@ -201,7 +233,7 @@ export class AlertsService {
       });
       if (hasContract) continue;
 
-      const exists = await this.prisma.alert.findFirst({
+      const exists = await prisma.alert.findFirst({
         where: {
           tenantId,
           employeeId: emp.id,
@@ -211,7 +243,7 @@ export class AlertsService {
       });
       if (exists) continue;
 
-      await this.prisma.alert.create({
+      await prisma.alert.create({
         data: {
           tenantId,
           employeeId: emp.id,
