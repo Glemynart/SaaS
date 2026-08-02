@@ -41,8 +41,8 @@ Este Goal solo puede redefinirse si cambia la estrategia del producto. Nuevas id
 
 - no existe administración de usuarios, invitaciones ni UI de roles;
 - la UI no puede crear, resolver ni confirmar campañas inteligentes;
-- E4.2 ya procesa planes confirmados; E4.3 quedó fusionada en PR #92 para conservar la decisión histórica en contrato y documento; E5.1 está en implementación para habilitar la subida manual al expediente;
-- la generación basada en planes no completa todavía contrato, snapshots y expediente;
+- E4.2 ya procesa planes confirmados; E4.3, E4.4 y E4.6 están fusionadas; E5.1 está en implementación para habilitar la subida manual al expediente;
+- la generación basada en planes no completa todavía todos los casos de contrato, snapshots y expediente;
 - la generación documental del contrato individual no está expuesta desde su UI;
 - el expediente no permite subida manual ni clasificación operativa;
 - las alertas requieren generación manual y no tienen scheduler;
@@ -84,15 +84,17 @@ Estas exclusiones son limitaciones temporales del roadmap. No se numerarán como
 
 ## Dependencias y decisiones
 
-| Dependencia o decisión                        | Tipo                   | Estado            | Acción                                      |
-| --------------------------------------------- | ---------------------- | ----------------- | ------------------------------------------- |
-| Alcance laboral-documental del primer cliente | Estrategia de producto | APROBADO          | Gobierna GOAL-01.                           |
-| Perfil contractual como evidencia histórica   | Arquitectura           | APROBADO          | Respetar ADR-004.                           |
-| E4.2 — Procesamiento de planes confirmados    | Trabajo entregado      | CERRADO           | PR #90 fusionada y verificada.              |
-| E4.3 — Perfil y snapshots históricos          | Trabajo entregado      | CERRADO           | PR #92 fusionada y verificada.              |
-| E5.1 — Subida manual y validación de archivos | Trabajo en curso       | EN IMPLEMENTACIÓN | Epic independiente de M1 y de PRs #93/#94.  |
-| Superficie comercial de contabilidad          | Decisión de producto   | FUERA DEL GOAL    | Resolver antes de priorizar un Goal futuro. |
-| Infraestructura productiva                    | Dependencia técnica    | ABIERTO           | Resolver en M1.                             |
+| Dependencia o decisión                        | Tipo                   | Estado            | Acción                                          |
+| --------------------------------------------- | ---------------------- | ----------------- | ----------------------------------------------- |
+| Alcance laboral-documental del primer cliente | Estrategia de producto | APROBADO          | Gobierna GOAL-01.                               |
+| Perfil contractual como evidencia histórica   | Arquitectura           | APROBADO          | Respetar ADR-004.                               |
+| E4.2 — Procesamiento de planes confirmados    | Trabajo entregado      | CERRADO           | PR #90 fusionada y verificada.                  |
+| E4.3 — Perfil y snapshots históricos          | Trabajo entregado      | CERRADO           | PR #92 fusionada y verificada.                  |
+| E4.4 — PDF canónico y expediente              | Trabajo entregado      | CERRADO           | PR #93 fusionada y verificada.                  |
+| E4.6 — Contratación individual desde la UI    | Trabajo entregado      | CERRADO           | PR #94 fusionada y verificada.                  |
+| E5.1 — Subida manual y validación de archivos | Trabajo en curso       | EN IMPLEMENTACIÓN | Epic independiente de M1 y de Epics fusionadas. |
+| Superficie comercial de contabilidad          | Decisión de producto   | FUERA DEL GOAL    | Resolver antes de priorizar un Goal futuro.     |
+| Infraestructura productiva                    | Dependencia técnica    | ABIERTO           | Resolver en M1.                                 |
 
 ## Milestones y Epics
 
@@ -166,7 +168,8 @@ de preview y confirmación, planes, exclusiones y snapshots históricos sin camb
 contrato de dominio. E4.2 procesa esos planes confirmados y deja fuera las
 exclusiones, usando PostgreSQL, Puppeteer y la abstracción de storage existente. PR
 #90 quedó fusionada en `main` con CI y Browser E2E verdes. PR #93 (E4.4) y PR
-#94 (E4.6) siguen abiertas, pero E5.1 no depende de ninguna de ellas: reutiliza el
+#94 (E4.6) quedaron fusionadas con CI y Browser E2E post-merge verdes, pero E5.1
+no depende de ninguna de ellas: reutiliza el
 modelo `ExpedienteDoc`, la abstracción `StorageService` y la autenticación tenant-aware
 ya fusionadas.
 E2.1 continúa pendiente porque su recorrido completo requiere invitaciones por
@@ -191,9 +194,9 @@ y conserva E5.2 para descarga/versionado posterior.
 - [x] E4.1 — Creación, preview y confirmación total/parcial desde frontend (PR #89 fusionada y verificada por CI/Browser E2E).
 - [x] E4.2 — PR11.3 procesa únicamente planes confirmados y respeta exclusiones (PR #90 fusionada y verificada por CI/Browser E2E).
 - [x] E4.3 — Perfil y snapshots preservados en contrato y documento (PR #92 fusionada y verificada por CI/Browser E2E del PR).
-- [ ] E4.4 — PDF canónico vinculado al contrato y publicado en expediente (PR #93 abierta, checks verdes).
+- [x] E4.4 — PDF canónico vinculado al contrato y publicado en expediente (PR #93 fusionada y verificada por CI/Browser E2E post-merge).
 - [ ] E4.5 — Reintentos, idempotencia y errores parciales verificables.
-- [ ] E4.6 — Contratación individual completa como flujo alternativo (PR #94 abierta, checks verdes).
+- [x] E4.6 — Contratación individual completa como flujo alternativo (PR #94 fusionada y verificada por CI/Browser E2E post-merge).
 - [ ] E4.7 — Prueba browser del caso exitoso, parcial y reintentado.
 
 ### M5 — Expediente Digital Operativo
@@ -242,23 +245,23 @@ y conserva E5.2 para descarga/versionado posterior.
 
 ## PRs asociados
 
-| PR       | Epic  | Propósito                                                                 | Estado            | ¿Cierra capacidad?                                                                 |
-| -------- | ----- | ------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------- |
-| #78      | E1.1  | Imágenes reproducibles de staging para API y Web.                         | FUSIONADO         | No; E1.1 requiere verificación de staging.                                         |
-| #79      | E1.2  | Migraciones, seed y rol runtime PostgreSQL no privilegiado.               | FUSIONADO         | Sí; E1.2 verificada localmente y en DB limpia.                                     |
-| #80      | E1.3  | R2, correo real y health/readiness checks.                                | FUSIONADO         | No; requiere verificación real en staging.                                         |
-| #81      | E1.4  | CI, observabilidad y base de pruebas browser end-to-end.                  | FUSIONADO         | Sí; CI y Browser E2E verificados; M1 aún requiere staging.                         |
-| #83      | E3.1  | Verificación browser del CRUD, búsqueda e importación XLSX de empleados.  | FUSIONADO         | Sí; recorrido verificado browser.                                                  |
-| #84      | E3.2  | Perfiles contractuales y vínculos laborales precontractuales desde la UI. | FUSIONADO         | Sí; recorrido verificado por CI y Browser E2E.                                     |
-| #86      | E3.3  | Configuración perfil → tipo documental → plantilla desde UI.              | FUSIONADO         | Sí; CI/Browser E2E y checks post-merge verdes.                                     |
-| #88      | E3.4  | Feedback accionable para errores, bloqueos y reintentos operativos.       | FUSIONADO         | Sí; CI/Browser E2E post-merge verdes.                                              |
-| #89      | E4.1  | Creación, preview y confirmación total/parcial desde frontend.            | FUSIONADO         | Sí; CI/Browser E2E post-merge verdes.                                              |
-| #90      | E4.2  | Procesamiento de planes confirmados y exclusiones desde la campaña.       | FUSIONADO         | Sí; CI/Browser E2E verdes.                                                         |
-| #92      | E4.3  | Perfil y snapshots confirmados preservados en contrato y documento.       | FUSIONADO         | Sí; checks del PR verdes; post-merge requiere corregir un selector de Browser E2E. |
-| #93      | E4.4  | PDF canónico vinculado al contrato y publicado en expediente.             | ABIERTO           | No; PR abierta con checks verdes.                                                  |
-| #94      | E4.6  | Contratación individual completa como flujo alternativo.                  | ABIERTO           | No; PR abierta con checks verdes.                                                  |
-| (actual) | E5.1  | Subida manual y validación de archivos en expediente.                     | EN IMPLEMENTACIÓN | No; PR en preparación.                                                             |
-| #69–#76  | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS        | No; el recorrido inteligente sigue abierto.                                        |
+| PR       | Epic  | Propósito                                                                 | Estado            | ¿Cierra capacidad?                                         |
+| -------- | ----- | ------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------- |
+| #78      | E1.1  | Imágenes reproducibles de staging para API y Web.                         | FUSIONADO         | No; E1.1 requiere verificación de staging.                 |
+| #79      | E1.2  | Migraciones, seed y rol runtime PostgreSQL no privilegiado.               | FUSIONADO         | Sí; E1.2 verificada localmente y en DB limpia.             |
+| #80      | E1.3  | R2, correo real y health/readiness checks.                                | FUSIONADO         | No; requiere verificación real en staging.                 |
+| #81      | E1.4  | CI, observabilidad y base de pruebas browser end-to-end.                  | FUSIONADO         | Sí; CI y Browser E2E verificados; M1 aún requiere staging. |
+| #83      | E3.1  | Verificación browser del CRUD, búsqueda e importación XLSX de empleados.  | FUSIONADO         | Sí; recorrido verificado browser.                          |
+| #84      | E3.2  | Perfiles contractuales y vínculos laborales precontractuales desde la UI. | FUSIONADO         | Sí; recorrido verificado por CI y Browser E2E.             |
+| #86      | E3.3  | Configuración perfil → tipo documental → plantilla desde UI.              | FUSIONADO         | Sí; CI/Browser E2E y checks post-merge verdes.             |
+| #88      | E3.4  | Feedback accionable para errores, bloqueos y reintentos operativos.       | FUSIONADO         | Sí; CI/Browser E2E post-merge verdes.                      |
+| #89      | E4.1  | Creación, preview y confirmación total/parcial desde frontend.            | FUSIONADO         | Sí; CI/Browser E2E post-merge verdes.                      |
+| #90      | E4.2  | Procesamiento de planes confirmados y exclusiones desde la campaña.       | FUSIONADO         | Sí; CI/Browser E2E verdes.                                 |
+| #92      | E4.3  | Perfil y snapshots confirmados preservados en contrato y documento.       | FUSIONADO         | Sí; CI y Browser E2E verdes.                               |
+| #93      | E4.4  | PDF canónico vinculado al contrato y publicado en expediente.             | FUSIONADO         | Sí; CI y Browser E2E post-merge verdes.                    |
+| #94      | E4.6  | Contratación individual completa desde la UI.                             | FUSIONADO         | Sí; CI y Browser E2E post-merge verdes.                    |
+| (actual) | E5.1  | Subida manual y validación de archivos en expediente.                     | EN IMPLEMENTACIÓN | No; PR en preparación.                                     |
+| #69–#76  | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS        | No; el recorrido inteligente sigue abierto.                |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.
 
@@ -270,7 +273,7 @@ Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente p
 
 Motivo: existen slices funcionales importantes, pero permanecen abiertas la gestión de usuarios, contratación inteligente end-to-end, expediente operativo, automatización de alertas, deployment y aceptación productiva.
 
-Las PR #78, #79, #80, #81, #83, #84, #86, #88 y #89 fueron fusionadas. #78 entregó el empaquetado de E1.1,
+Las PR #78, #79, #80, #81, #83, #84, #86, #88, #89, #90 y #92 fueron fusionadas. #78 entregó el empaquetado de E1.1,
 pero E1.1 aún requiere verificación de staging. #79 entregó y verificó E1.2
 con migraciones, seed idempotente y rol runtime no privilegiado. #80 entregó las
 comprobaciones de R2, correo real y readiness; su cierre requiere verificación
@@ -292,12 +295,14 @@ por CI y Browser E2E. E4.2 fue implementada, auditada y fusionada en PR #90:
 el código de `main` rechazaba campañas inteligentes sin `documentTemplateId` y no
 filtraba los empleados excluidos antes de crear contratos. La corrección usa sólo
 los planes `CONFIRMADO`/`CONSUMIDO`, no requiere DNS, Cloudflare, R2 específico,
-OCI Email Delivery ni staging, y no adelanta E4.3. E4.3 quedó implementada y
+
+OCI Email Delivery ni staging, y no adelanta E4.5. E4.3 quedó implementada y
 fusionada en PR #92; el fallo post-merge del Browser E2E fue un selector estricto
-en `employees-smoke`, no una regresión funcional del producto. E5.1 es la Epic
+en `employees-smoke`, no una regresión funcional del producto. E4.4 quedó fusionada
+en PR #93 y E4.6 en PR #94, ambas con checks post-merge verdes. E5.1 es la Epic
 independiente que continúa ahora.
 
 > La determinación vigente, actualizada después de E3.4, queda documentada en
-> la sección post-merge: E4.3 está fusionada en PR #92; PR #93 y PR #94 siguen
-> abiertas. GOAL-01 permanece `ACTIVO`; M1 sigue `BLOQUEADO POR
-INFRAESTRUCTURA EXTERNA` y E5.1 es la Epic independiente en implementación.
+> la sección post-merge: E4.3, E4.4 y E4.6 están fusionadas en PR #92, #93 y #94.
+> GOAL-01 permanece `ACTIVO`; M1 sigue `BLOQUEADO POR INFRAESTRUCTURA EXTERNA` y
+> E5.1 es la Epic independiente en implementación.

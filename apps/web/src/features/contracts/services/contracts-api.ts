@@ -40,6 +40,12 @@ export interface Contract {
   generatedDocument?: ContractGeneratedDocument | null;
 }
 
+export interface GenerateContractDocumentResult {
+  id: string;
+  pdfUrl: string;
+  nombre: string;
+}
+
 export interface GetContractsParams {
   page?: number;
   limit?: number;
@@ -89,6 +95,13 @@ export const contractsApi = {
     return request<Contract>(`/api/contracts/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ estado }),
+    });
+  },
+
+  generateDocument: async (id: string, templateId?: string) => {
+    return request<GenerateContractDocumentResult>(`/api/contracts/${id}/generate-document`, {
+      method: 'POST',
+      body: JSON.stringify(templateId ? { templateId } : {}),
     });
   },
 };
