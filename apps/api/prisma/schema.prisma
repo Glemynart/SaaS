@@ -261,6 +261,7 @@ model Tenant {
   plantillas         Plantilla[]
   documentTemplates  DocumentTemplate[]
   generatedDocuments GeneratedDocument[]
+  expedienteDocFamilies ExpedienteDocFamily[]
   alerts             Alert[]
   payrollPeriods     PayrollPeriod[]
   payrollRuns        PayrollRun[]
@@ -450,6 +451,7 @@ model Empleado {
   batchDocumentGenerationPlans BatchDocumentGenerationPlan[]
   vinculosLaborales  VinculoLaboral[]
   generatedDocuments GeneratedDocument[]
+  expedienteDocFamilies ExpedienteDocFamily[]
   alerts             Alert[]
   payrollRuns        PayrollRun[]
   payrollSnapshots   PayrollSnapshot[]
@@ -1572,10 +1574,32 @@ model LoteContrato {
 // =============================================================================
 // EXPEDIENTE DOC — Documento del expediente digital de un empleado
 // =============================================================================
-// Cada fila es un documento almacenado en R2 dentro del expediente
-// de un empleado. Soporta versioning básico mediante el campo `version`.
-// La categoría determina en qué carpeta lógica aparece en la UI.
+// Cada fila es una revisión inmutable almacenada dentro del expediente de un
+// empleado. La familia documental agrupa revisiones del mismo acto; la
+// categoría pertenece a la familia y no puede cambiar entre revisiones.
 // =============================================================================
+
+model ExpedienteDocFamily {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  empleadoId String
+  empleado   Empleado @relation(fields: [empleadoId], references: [id], onDelete: Restrict)
+
+  categoria   ExpedienteCategoria
+  nombre      String
+  descripcion String?
+
+  revisiones ExpedienteDoc[]
+
+  @@index([tenantId, empleadoId])
+  @@index([tenantId, empleadoId, categoria])
+  @@map("expediente_doc_families")
+}
 
 model ExpedienteDoc {
   id        String   @id @default(uuid())
@@ -1588,6 +1612,13 @@ model ExpedienteDoc {
   empleadoId String
   empleado   Empleado @relation(fields: [empleadoId], references: [id])
 
+  familiaId String
+  familia   ExpedienteDocFamily @relation(fields: [familiaId], references: [id], onDelete: Restrict)
+
+  reemplazaId String? @unique
+  reemplaza ExpedienteDoc? @relation("ExpedienteDocRevision", fields: [reemplazaId], references: [id], onDelete: Restrict)
+  reemplazadoPor ExpedienteDoc? @relation("ExpedienteDocRevision")
+
   contratoId String?
   contrato   Contrato? @relation(fields: [contratoId], references: [id])
 
@@ -1598,7 +1629,8 @@ model ExpedienteDoc {
   categoria   ExpedienteCategoria
   nombre      String // Nombre original del archivo
   descripcion String?
-  version     Int                 @default(1) // Incrementa cuando se sube una nueva versión
+  version     Int                 @default(1) // Versión dentro de una familia documental
+  vigente     Boolean             @default(true) // Solo una revisión vigente por familia
 
   // Fechas de vigencia del documento
   fechaDocumento     DateTime?
@@ -1620,6 +1652,8 @@ model ExpedienteDoc {
   @@index([tenantId, empleadoId])
   @@index([tenantId, empleadoId, categoria])
   @@index([tenantId, categoria])
+  @@index([tenantId, familiaId, vigente])
+  @@unique([familiaId, version])
   @@map("expediente_docs")
 }
 

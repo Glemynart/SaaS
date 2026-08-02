@@ -24,6 +24,10 @@ Producto
 
 Solo puede existir un Goal activo. Los posibles resultados futuros permanecen sin numerar en el Backlog hasta ser priorizados.
 
+Estado de implementacion vigente: E5.2 esta desarrollada en el PR #102 y
+permanece pendiente de checks verdes y merge. M1 sigue BLOQUEADO POR
+INFRAESTRUCTURA EXTERNA; GOAL-01 permanece ACTIVO.
+
 ## Regla de redefinición
 
 Un Goal solo puede redefinirse cuando cambie la estrategia del producto.

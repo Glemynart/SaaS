@@ -2,14 +2,27 @@
 
 import { use, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Download, FolderOpen, Loader2, SearchX, Trash2, Upload } from 'lucide-react';
+import {
+  Download,
+  FolderOpen,
+  History as HistoryIcon,
+  Loader2,
+  RefreshCw,
+  SearchX,
+  Trash2,
+  Upload,
+} from 'lucide-react';
 import { useEmployee } from '@/features/employees/hooks/use-employees';
 import {
   useExpedienteDocs,
+  useExpedienteDocHistory,
   useDeleteExpedienteDoc,
   useUploadExpedienteDoc,
 } from '@/features/expediente-docs/hooks/use-expediente-docs';
-import type { ExpedienteDoc } from '@/features/expediente-docs/services/expediente-docs-api';
+import {
+  expedienteDocsApi,
+  type ExpedienteDoc,
+} from '@/features/expediente-docs/services/expediente-docs-api';
 import { generatedDocumentsApi } from '@/features/generated-documents/services/generated-documents-api';
 import { formatNombreCompleto } from '@saas/types';
 import { DOCUMENT_TEMPLATE_TYPE_LABELS } from '@/features/document-templates/schemas/document-template-schemas';
@@ -98,6 +111,11 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadCategory, setUploadCategory] = useState<(typeof UPLOAD_CATEGORIES)[number]>('OTRO');
+  const [uploadFamiliaId, setUploadFamiliaId] = useState<string | null>(null);
+  const [historyDoc, setHistoryDoc] = useState<ExpedienteDoc | null>(null);
+  const { data: historyData, isLoading: historyLoading } = useExpedienteDocHistory(
+    historyDoc?.id ?? '',
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isLoading = empLoading || docsLoading;
@@ -107,13 +125,29 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
   const resetUpload = () => {
     setUploadFile(null);
     setUploadCategory('OTRO');
+    setUploadFamiliaId(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const openUpload = (
+    familiaId: string | null = null,
+    categoria: (typeof UPLOAD_CATEGORIES)[number] = 'OTRO',
+  ) => {
+    resetUpload();
+    setUploadFamiliaId(familiaId);
+    setUploadCategory(categoria);
+    setUploadOpen(true);
   };
 
   const handleUpload = () => {
     if (!uploadFile) return;
     uploadMutation.mutate(
-      { employeeId: id, file: uploadFile, categoria: uploadCategory },
+      {
+        employeeId: id,
+        file: uploadFile,
+        categoria: uploadCategory,
+        familiaId: uploadFamiliaId,
+      },
       {
         onSuccess: () => {
           toast.success('Documento subido al expediente.');
@@ -207,6 +241,11 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
       render: (doc) => <span className="text-muted-foreground">{formatSize(doc.tamanoBytes)}</span>,
     },
     {
+      key: 'version',
+      header: 'VersiÃ³n',
+      render: (doc) => <Badge variant={doc.vigente ? 'success' : 'neutral'}>v{doc.version}</Badge>,
+    },
+    {
       key: 'agregado',
       header: 'Agregado',
       render: (doc) => <span className="text-muted-foreground">{formatDate(doc.createdAt)}</span>,
@@ -218,17 +257,42 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
       cellClassName: 'text-right',
       render: (doc) => (
         <div className="flex items-center justify-end gap-1">
-          {doc.generatedDocumentId && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-muted-foreground hover:text-foreground"
+            onClick={() => setHistoryDoc(doc)}
+          >
+            <HistoryIcon className="size-3.5" aria-hidden="true" />
+            <span className="sr-only">Ver historial de {doc.nombre}</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-muted-foreground hover:text-foreground"
+            onClick={() =>
+              window.open(
+                doc.generatedDocumentId
+                  ? generatedDocumentsApi.getPdfUrl(doc.generatedDocumentId)
+                  : expedienteDocsApi.getDownloadUrl(doc.id),
+                '_blank',
+              )
+            }
+          >
+            <Download className="size-3.5" aria-hidden="true" />
+            <span className="sr-only">Descargar {doc.nombre}</span>
+          </Button>
+          {!doc.generatedDocumentId && (
             <Button
               variant="ghost"
               size="sm"
               className="h-8 px-2 text-muted-foreground hover:text-foreground"
               onClick={() =>
-                window.open(generatedDocumentsApi.getPdfUrl(doc.generatedDocumentId!), '_blank')
+                openUpload(doc.familiaId, doc.categoria as (typeof UPLOAD_CATEGORIES)[number])
               }
             >
-              <Download className="size-3.5" aria-hidden="true" />
-              <span className="sr-only">Descargar {doc.nombre}</span>
+              <RefreshCw className="size-3.5" aria-hidden="true" />
+              <span className="sr-only">Crear nueva versiÃ³n de {doc.nombre}</span>
             </Button>
           )}
           <Button
@@ -255,7 +319,7 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
         width="standard"
         className="max-w-none"
         actions={
-          <Button size="sm" onClick={() => setUploadOpen(true)}>
+          <Button size="sm" onClick={() => openUpload()}>
             <Upload className="size-4" aria-hidden="true" />
             Subir documento
           </Button>
@@ -294,8 +358,12 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
           setUploadOpen(open);
           if (!open && !uploadMutation.isPending) resetUpload();
         }}
-        title="Subir documento"
-        description="Agrega un PDF o una imagen al expediente del empleado."
+        title={uploadFamiliaId ? 'Crear nueva versiÃ³n' : 'Subir documento'}
+        description={
+          uploadFamiliaId
+            ? 'La nueva revisiÃ³n conservarÃ¡ la familia documental actual.'
+            : 'Agrega un PDF o una imagen al expediente del empleado.'
+        }
       >
         <div className="flex h-full flex-col">
           <div className="flex-1 space-y-5">
@@ -319,6 +387,7 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
                 onChange={(event) =>
                   setUploadCategory(event.target.value as (typeof UPLOAD_CATEGORIES)[number])
                 }
+                disabled={!!uploadFamiliaId}
               >
                 {UPLOAD_CATEGORIES.map((category) => (
                   <option key={category} value={category}>
@@ -346,10 +415,67 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
               {uploadMutation.isPending && (
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />
               )}
-              Subir documento
+              {uploadFamiliaId ? 'Crear versiÃ³n' : 'Subir documento'}
             </Button>
           </div>
         </div>
+      </SideSheet>
+
+      <SideSheet
+        open={historyDoc !== null}
+        onOpenChange={(open) => {
+          if (!open) setHistoryDoc(null);
+        }}
+        title="Historial documental"
+        description={historyData?.family.nombre ?? historyDoc?.nombre}
+      >
+        {historyLoading && (
+          <div className="space-y-3">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        )}
+        {!historyLoading && historyData && (
+          <div className="space-y-3">
+            {historyData.revisions.map((revision) => (
+              <div
+                key={revision.id}
+                className="flex items-center justify-between gap-3 rounded-md border border-border p-3"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={revision.vigente ? 'success' : 'neutral'}>
+                      v{revision.version}
+                    </Badge>
+                    {revision.vigente && (
+                      <span className="text-xs text-muted-foreground">Vigente</span>
+                    )}
+                  </div>
+                  <p className="mt-1 truncate text-sm font-medium text-foreground">
+                    {revision.nombre}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{formatDate(revision.createdAt)}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() =>
+                    window.open(
+                      revision.generatedDocumentId
+                        ? generatedDocumentsApi.getPdfUrl(revision.generatedDocumentId)
+                        : expedienteDocsApi.getDownloadUrl(revision.id),
+                      '_blank',
+                    )
+                  }
+                >
+                  <Download className="size-3.5" aria-hidden="true" />
+                  Descargar
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
       </SideSheet>
 
       <ConfirmDialog

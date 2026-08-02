@@ -214,7 +214,7 @@ test('demuestra procesamiento exitoso, parcial y reintento desde la UI', async (
   await expect(page.getByText('Fallo controlado para evidencia browser')).toBeVisible();
 
   await page.getByRole('button', { name: 'Reintentar', exact: true }).click();
-  await expect(page.getByText('Completado', { exact: true })).toBeVisible();
+  await expect(page.getByText('Completado', { exact: true }).first()).toBeVisible();
   await expect(
     page.locator('dt').filter({ hasText: 'Procesados' }).locator('xpath=following-sibling::dd[1]'),
   ).toHaveText('2');

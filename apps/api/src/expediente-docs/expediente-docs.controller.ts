@@ -6,10 +6,12 @@ import {
   Get,
   Param,
   Post,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -41,6 +43,32 @@ export class ExpedienteDocsController {
     return this.service.findOne(user.tenantId, id);
   }
 
+  @Get('expediente-docs/:id/history')
+  findHistory(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+  ) {
+    return this.service.findHistory(user.tenantId, id);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Get('expediente-docs/:id/download')
+  async download(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const doc = await this.service.download(user.tenantId, id);
+
+    res.setHeader('Content-Type', doc.mimeType);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${this.toSafeFilename(doc.nombre)}"`,
+    );
+    res.send(doc.body);
+  }
+
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Post('employees/:id/expediente')
   @UseInterceptors(
@@ -64,6 +92,7 @@ export class ExpedienteDocsController {
       employeeId,
       dto.categoria,
       file,
+      dto.familiaId,
     );
   }
 
@@ -71,5 +100,9 @@ export class ExpedienteDocsController {
   @Delete('expediente-docs/:id')
   remove(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
     return this.service.remove(user.tenantId, id);
+  }
+
+  private toSafeFilename(nombre: string): string {
+    return nombre.replace(/[\\/\r\n"]/g, '_');
   }
 }

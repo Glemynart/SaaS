@@ -89,6 +89,13 @@ Servicios:
 
 # <a name="estado-general-del-proyecto"></a>Estado General del Proyecto
 
+## Estado de E5.2
+
+E5.2 esta implementada en el PR #102, con familias documentales explicitas,
+revisiones append-only, consulta tenant-scoped, descarga autenticada e
+historial v1/v2. El PR permanece pendiente de checks de GitHub y merge. E5.3
+y E5.4 siguen pendientes y no forman parte de este cambio.
+
 Estado actual:
 
 🟡 Plataforma con capacidades base avanzadas, todavía sin operación comercial end-to-end verificada.
