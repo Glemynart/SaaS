@@ -20,7 +20,7 @@ Producto
 
 | Goal                                                                    | Estado | Resultado                                                                    |
 | ----------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------- |
-| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md) | ACTIVO | E4.3 está en implementación; M1 sigue BLOQUEADO POR INFRAESTRUCTURA EXTERNA. |
+| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md) | ACTIVO | E5.1 está en implementación; M1 sigue BLOQUEADO POR INFRAESTRUCTURA EXTERNA. |
 
 Solo puede existir un Goal activo. Los posibles resultados futuros permanecen sin numerar en el Backlog hasta ser priorizados.
 
@@ -115,7 +115,7 @@ El veredicto es `APROBADO PARA MERGE` o `NO APROBADO PARA MERGE`. Los bloqueos s
 Estos estados no son equivalentes:
 
 - `APROBADO PARA MERGE` significa que la PR y la Epic que entrega están listas para revisión y merge. No significa que la PR esté fusionada, que el Milestone esté completo ni que el Goal esté completo.
-- `ESPERANDO_MERGE` significa que el siguiente trabajo del Goal depende de una PR abierta. Mientras exista esa dependencia no se inicia otra Epic sobre `main`; el Goal vuelve a `ACTIVO` cuando la dependencia desaparece.
+- `ESPERANDO_MERGE` significa que la Epic candidata depende de una PR abierta. Esa PR bloquea únicamente las Epics que dependen de ella; una Epic independiente puede iniciarse sobre `main` mientras el Goal permanezca `ACTIVO`. El Goal vuelve a `ACTIVO` cuando desaparece la dependencia del trabajo candidato.
 - Una Epic sólo puede marcarse completada cuando su capacidad está fusionada y verificada end-to-end.
 - Un Milestone sólo puede marcarse completado cuando se cumplen su resultado verificable y todas sus Epics requeridas.
 - El Goal activo permanece `ACTIVO` o `ESPERANDO_MERGE` mientras exista cualquier Milestone, Epic, criterio de aceptación, evidencia productiva o aceptación del cliente pendiente.

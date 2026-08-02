@@ -29,7 +29,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
 
   await page.goto('/empleados');
   await expect(page.getByRole('heading', { name: 'Empleados' })).toBeVisible();
-  await page.getByRole('button', { name: 'Nuevo empleado', exact: true }).click();
+  await page.getByRole('button', { name: 'Nuevo empleado', exact: true }).first().click();
 
   const createDialog = page.getByRole('dialog', { name: 'Nuevo empleado' });
   await createDialog.locator('[name="cedula"]').fill(cedula);

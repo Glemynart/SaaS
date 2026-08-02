@@ -24,3 +24,23 @@ export function useDeleteExpedienteDoc() {
     },
   });
 }
+
+export function useUploadExpedienteDoc() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      employeeId,
+      file,
+      categoria,
+    }: {
+      employeeId: string;
+      file: File;
+      categoria: string;
+    }) => expedienteDocsApi.uploadManual(employeeId, file, categoria),
+    onSuccess: (_document, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: expedienteDocKeys.byEmployee(variables.employeeId),
+      });
+    },
+  });
+}

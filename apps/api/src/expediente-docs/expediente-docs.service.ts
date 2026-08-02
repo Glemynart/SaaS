@@ -8,8 +8,11 @@ import { ExpedienteCategoria, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { StorageService } from '../storage/storage.service';
 import type { PdfMaterializationResult } from '../generated-documents/generated-documents.service';
 import { isImmutablePublishedDocumentType } from '../generated-documents/document-invariants';
+import { validateManualDocument } from './manual-document-validation';
+import { randomUUID } from 'node:crypto';
 
 const TIPO_TO_CATEGORIA: Record<string, ExpedienteCategoria> = {
   CONTRACT: ExpedienteCategoria.CONTRATO,
@@ -39,6 +42,7 @@ export class ExpedienteDocsService {
     private prisma: PrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private readonly auditService: AuditService,
+    private readonly storage: StorageService,
   ) {}
 
   async findByEmployee(tenantId: string, employeeId: string) {
@@ -96,6 +100,84 @@ export class ExpedienteDocsService {
       );
     }
     return this.prisma.expedienteDoc.delete({ where: { id: doc.id } });
+  }
+
+  async uploadManual(
+    tenantId: string,
+    userId: string,
+    userEmail: string,
+    employeeId: string,
+    categoria: ExpedienteCategoria,
+    file: { originalname: string; buffer: Buffer },
+  ) {
+    const employee = await this.tenantPrisma.execute((prisma) =>
+      prisma.empleado.findFirst({
+        where: { id: employeeId, tenantId, deletedAt: null },
+        select: { id: true },
+      }),
+    );
+    if (!employee) throw new NotFoundException('Empleado no encontrado');
+
+    const validated = validateManualDocument(file);
+    const documentId = randomUUID();
+    const safeName = (
+      validated.originalName || `documento.${validated.extension}`
+    )
+      .replace(/[\\/]/g, '_')
+      .slice(0, 180);
+    const storageKey = `${tenantId}/expediente/${employeeId}/${categoria}/${documentId}_v1.${validated.extension}`;
+
+    const stored = await this.storage.putObject({
+      key: storageKey,
+      body: file.buffer,
+      contentType: validated.mimeType,
+    });
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const document = await tx.expedienteDoc.create({
+          data: {
+            id: documentId,
+            tenantId,
+            empleadoId: employeeId,
+            categoria,
+            nombre: safeName,
+            storageKey,
+            mimeType: validated.mimeType,
+            tamanoBytes: stored.size,
+            subidoPorId: userId,
+            subidoPorNombre: userEmail,
+          },
+        });
+
+        await this.auditService.log(
+          {
+            tenantId,
+            userId,
+            action: 'EXPEDIENTE_DOCUMENT_UPLOADED',
+            entityType: 'ExpedienteDoc',
+            entityId: document.id,
+            metadata: {
+              empleadoId: employeeId,
+              categoria,
+              storageKey,
+              mimeType: validated.mimeType,
+              tamanoBytes: stored.size,
+            },
+          },
+          tx,
+        );
+
+        return document;
+      });
+    } catch (error) {
+      await this.storage.deleteObject(storageKey).catch((cleanupError) => {
+        this.logger.warn(
+          `No se pudo limpiar el archivo manual ${storageKey}: ${String(cleanupError)}`,
+        );
+      });
+      throw error;
+    }
   }
 
   async createFromGeneratedDoc(

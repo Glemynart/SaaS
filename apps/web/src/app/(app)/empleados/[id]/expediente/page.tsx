@@ -1,12 +1,13 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Download, FolderOpen, SearchX, Trash2 } from 'lucide-react';
+import { Download, FolderOpen, Loader2, SearchX, Trash2, Upload } from 'lucide-react';
 import { useEmployee } from '@/features/employees/hooks/use-employees';
 import {
   useExpedienteDocs,
   useDeleteExpedienteDoc,
+  useUploadExpedienteDoc,
 } from '@/features/expediente-docs/hooks/use-expediente-docs';
 import type { ExpedienteDoc } from '@/features/expediente-docs/services/expediente-docs-api';
 import { generatedDocumentsApi } from '@/features/generated-documents/services/generated-documents-api';
@@ -19,7 +20,11 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SideSheet } from '@/components/ui/side-sheet';
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 
@@ -32,6 +37,16 @@ const CATEGORY_LABELS: Record<string, string> = {
   TERMINACION: 'Terminación',
   OTRO: 'Otro',
 };
+
+const UPLOAD_CATEGORIES = [
+  'CONTRATO',
+  'AFILIACION',
+  'CERTIFICADO',
+  'DOCUMENTO_PERSONAL',
+  'PREAVISO',
+  'TERMINACION',
+  'OTRO',
+] as const;
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('es-CO', {
@@ -78,11 +93,37 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
   const { data: employee, isLoading: empLoading } = useEmployee(id);
   const { data: docsData, isLoading: docsLoading } = useExpedienteDocs(id);
   const deleteMutation = useDeleteExpedienteDoc();
+  const uploadMutation = useUploadExpedienteDoc();
   const [pendingDelete, setPendingDelete] = useState<ExpedienteDoc | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadCategory, setUploadCategory] = useState<(typeof UPLOAD_CATEGORIES)[number]>('OTRO');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isLoading = empLoading || docsLoading;
   const docs = docsData?.docs ?? [];
   const stats = docsData?.stats;
+
+  const resetUpload = () => {
+    setUploadFile(null);
+    setUploadCategory('OTRO');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleUpload = () => {
+    if (!uploadFile) return;
+    uploadMutation.mutate(
+      { employeeId: id, file: uploadFile, categoria: uploadCategory },
+      {
+        onSuccess: () => {
+          toast.success('Documento subido al expediente.');
+          setUploadOpen(false);
+          resetUpload();
+        },
+        onError: (error) => toast.error(error.message),
+      },
+    );
+  };
 
   const backLink = (
     <Link
@@ -213,6 +254,12 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
         description={formatNombreCompleto(employee)}
         width="standard"
         className="max-w-none"
+        actions={
+          <Button size="sm" onClick={() => setUploadOpen(true)}>
+            <Upload className="size-4" aria-hidden="true" />
+            Subir documento
+          </Button>
+        }
       >
         {stats && (
           <div className="mb-6 grid gap-4 sm:grid-cols-4">
@@ -240,6 +287,70 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
           }
         />
       </PageHeader>
+
+      <SideSheet
+        open={uploadOpen}
+        onOpenChange={(open) => {
+          setUploadOpen(open);
+          if (!open && !uploadMutation.isPending) resetUpload();
+        }}
+        title="Subir documento"
+        description="Agrega un PDF o una imagen al expediente del empleado."
+      >
+        <div className="flex h-full flex-col">
+          <div className="flex-1 space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="expediente-file">Archivo</Label>
+              <Input
+                ref={fileInputRef}
+                id="expediente-file"
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
+              />
+              <p className="text-xs text-muted-foreground">PDF, JPG, PNG o WebP. Máximo 5 MB.</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="expediente-category">Categoría</Label>
+              <Select
+                id="expediente-category"
+                value={uploadCategory}
+                onChange={(event) =>
+                  setUploadCategory(event.target.value as (typeof UPLOAD_CATEGORIES)[number])
+                }
+              >
+                {UPLOAD_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>
+                    {CATEGORY_LABELS[category] ?? category}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+
+          <div className="mt-6 flex items-center gap-3 border-t border-border pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setUploadOpen(false)}
+              disabled={uploadMutation.isPending}
+              className="flex-1"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleUpload}
+              disabled={!uploadFile || uploadMutation.isPending}
+              className="flex-1"
+            >
+              {uploadMutation.isPending && (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              )}
+              Subir documento
+            </Button>
+          </div>
+        </div>
+      </SideSheet>
 
       <ConfirmDialog
         level={1}
