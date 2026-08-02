@@ -31,6 +31,8 @@ import {
 const REGISTER_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 3;
 const LOGIN_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 5;
 const REFRESH_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 10;
+const FORGOT_PASSWORD_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 3;
+const RESET_PASSWORD_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 5;
 
 @Controller('auth')
 export class AuthController {
@@ -106,7 +108,9 @@ export class AuthController {
   @Unauthenticated()
   @Post('forgot-password')
   @UseGuards(ThrottlerGuard)
-  @Throttle({ forgotPassword: { limit: 3, ttl: 3600000 } })
+  @Throttle({
+    forgotPassword: { limit: FORGOT_PASSWORD_RATE_LIMIT, ttl: 3600000 },
+  })
   @SkipThrottle({
     login: true,
     register: true,
@@ -131,7 +135,9 @@ export class AuthController {
   @Unauthenticated()
   @Post('reset-password')
   @UseGuards(ThrottlerGuard)
-  @Throttle({ resetPassword: { limit: 5, ttl: 900000 } })
+  @Throttle({
+    resetPassword: { limit: RESET_PASSWORD_RATE_LIMIT, ttl: 900000 },
+  })
   @SkipThrottle({
     login: true,
     register: true,

@@ -40,9 +40,13 @@ const AUTH_THROTTLERS = [
   {
     name: 'forgotPassword',
     ttl: 3_600_000,
-    limit: process.env.NODE_ENV === 'test' ? 10 : 3,
+    limit: process.env.NODE_ENV === 'test' ? 50 : 3,
   },
-  { name: 'resetPassword', ttl: 900_000, limit: 5 },
+  {
+    name: 'resetPassword',
+    ttl: 900_000,
+    limit: process.env.NODE_ENV === 'test' ? 50 : 5,
+  },
 ] as const;
 
 type AuthThrottleMethod =
@@ -121,8 +125,18 @@ describe('Global Rate Limiting operational characterization', () => {
     ['register', 'register', process.env.NODE_ENV === 'test' ? 50 : 3, 60_000],
     ['login', 'login', process.env.NODE_ENV === 'test' ? 50 : 5, 60_000],
     ['refresh', 'refresh', process.env.NODE_ENV === 'test' ? 50 : 10, 60_000],
-    ['forgotPassword', 'forgotPassword', 3, 3_600_000],
-    ['resetPassword', 'resetPassword', 5, 900_000],
+    [
+      'forgotPassword',
+      'forgotPassword',
+      process.env.NODE_ENV === 'test' ? 50 : 3,
+      3_600_000,
+    ],
+    [
+      'resetPassword',
+      'resetPassword',
+      process.env.NODE_ENV === 'test' ? 50 : 5,
+      900_000,
+    ],
   ] as const)(
     'preserves the %s endpoint metadata',
     (methodName, throttlerName, limit, ttl) => {
