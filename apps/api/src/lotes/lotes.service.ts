@@ -276,18 +276,41 @@ export class LotesService {
       })
       .catch(() => {});
 
-    return this.engine.procesarLote(id);
+    const retryEmployeeIds = this.getRetryEmployeeIds(lote.erroresLog);
+    return this.engine.procesarLote(id, {
+      retry: true,
+      ...(retryEmployeeIds.length > 0 ? { employeeIds: retryEmployeeIds } : {}),
+    });
   }
 
   /** Carga el lote validando pertenencia al tenant. */
   private async ensureTenantLote(tenantId: string, id: string) {
     const lote = await this.prisma.loteContrato.findFirst({
       where: { id, tenantId },
-      select: { id: true, estado: true },
+      select: { id: true, estado: true, erroresLog: true },
     });
     if (!lote) {
       throw new NotFoundException('Lote no encontrado');
     }
     return lote;
+  }
+
+  private getRetryEmployeeIds(value: Prisma.JsonValue | null): string[] {
+    if (!Array.isArray(value)) return [];
+
+    return Array.from(
+      new Set(
+        value.flatMap((entry) => {
+          if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+            return [];
+          }
+          const empleadoId = (entry as Record<string, unknown>).empleadoId;
+          return typeof empleadoId === 'string' &&
+            empleadoId !== 'BATCH_DOCUMENT_GENERATION'
+            ? [empleadoId]
+            : [];
+        }),
+      ),
+    );
   }
 }

@@ -241,6 +241,18 @@ describe('BatchDocumentGenerationService', () => {
     });
   });
 
+  it('filtra los planes cuando el reintento es selectivo', async () => {
+    await service.start(LOTE, 'user-001', [EMPLOYEE]);
+
+    expect(planFindMany).toHaveBeenCalledWith(
+      objectContaining({
+        where: objectContaining({
+          empleadoId: { in: [EMPLOYEE] },
+        }),
+      }),
+    );
+  });
+
   it('no consume el plan si no se materializa exactamente un documento', async () => {
     documentUpdateMany.mockResolvedValueOnce({ count: 0 });
 

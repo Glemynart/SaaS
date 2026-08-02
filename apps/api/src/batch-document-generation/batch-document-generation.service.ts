@@ -55,7 +55,11 @@ export class BatchDocumentGenerationService {
     private readonly expedienteDocsService: ExpedienteDocsService,
   ) {}
 
-  async start(loteId: string, userId = 'system') {
+  async start(
+    loteId: string,
+    userId = 'system',
+    employeeIds?: readonly string[],
+  ) {
     const plans = await this.tenantPrisma.execute(async (prisma, context) => {
       const lote = await prisma.loteContrato.findFirst({
         where: { id: loteId, tenantId: context.tenantId },
@@ -73,6 +77,7 @@ export class BatchDocumentGenerationService {
         where: {
           tenantId: context.tenantId,
           loteId,
+          ...(employeeIds ? { empleadoId: { in: [...employeeIds] } } : {}),
           estado: {
             in: [
               BatchDocumentGenerationPlanStatus.CONFIRMADO,
