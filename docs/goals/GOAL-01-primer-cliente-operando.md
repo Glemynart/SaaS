@@ -164,7 +164,7 @@ sin requerir staging, R2, correo ni una nueva decisión de dominio.
       reintentos de dependencias y enlaces a prerrequisitos existentes; PR #88 fusionada
       y verificada por CI/Browser E2E post-merge).
 
-### Estado post-merge y siguiente Epic — E4.7 pendiente
+### Estado post-merge y Epic actual — E4.7 en implementación
 
 Tras fusionar E4.3 en PR #92, E4.4 en PR #93, E4.6 en PR #94, E5.1 en PR #95 y
 E2.1 en PR #96, `main` contiene esas capacidades con checks post-merge verdes.
@@ -194,7 +194,7 @@ documental ya existentes; no requiere dominio, DNS, Cloudflare, R2 específico,
 OCI Email Delivery, variables de producción ni staging.
 
 E4.5 quedó fusionada en PR #97 y los checks post-merge de `main` quedaron verdes.
-E4.7 permanece pendiente como Epic separada para demostrar en browser los casos
+E4.7 está en implementación como Epic separada para demostrar en browser los casos
 exitoso, parcial y reintentado. E5.2 tampoco se adelanta: requiere primero el ADR
 `Modelo de versionado e inmutabilidad del Expediente Digital` y su aprobación.
 
@@ -209,7 +209,7 @@ exitoso, parcial y reintentado. E5.2 tampoco se adelanta: requiere primero el AD
 - [x] E4.5 — Reintentos, idempotencia y errores parciales verificables (PR #97
       fusionada y verificada por CI/Browser E2E post-merge).
 - [x] E4.6 — Contratación individual completa como flujo alternativo (PR #94 fusionada y verificada por CI/Browser E2E post-merge).
-- [ ] E4.7 — Prueba browser del caso exitoso, parcial y reintentado.
+- [ ] E4.7 — Prueba browser del caso exitoso, parcial y reintentado (en implementación).
 
 ### M5 — Expediente Digital Operativo
 
@@ -281,7 +281,7 @@ externa estén listos.
 | #95     | E5.1  | Subida manual y validación de archivos en expediente.                     | FUSIONADO  | Sí; CI y Browser E2E verdes post-merge.                    |
 | #96     | E2.1  | Gestión directa de usuarios sin invitaciones por correo.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
 | #97     | E4.5  | Reintentos selectivos, idempotencia y errores parciales.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| actual  | E4.7  | Prueba browser del caso exitoso, parcial y reintentado.                   | PENDIENTE  | Siguiente Epic; no depende de M1.                          |
+| actual  | E4.7  | Prueba browser del caso exitoso, parcial y reintentado.                   | EN CURSO   | PR actual; no depende de M1.                               |
 | #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.
@@ -325,12 +325,12 @@ en `employees-smoke`, no una regresión funcional del producto. E4.4 quedó fusi
 en PR #93, E4.6 en PR #94 y E5.1 en PR #95, todas con checks post-merge verdes.
 E2.1 quedó fusionada en PR #96; las invitaciones permanecen separadas por su
 dependencia de correo real. E4.5 quedó fusionada en PR #97 con checks
-post-merge verdes. E4.7 es la Epic independiente que continúa ahora.
+post-merge verdes. E4.7 es la Epic independiente en implementación.
 
 > La determinación vigente, actualizada después de E3.4, queda documentada en
 > la sección post-merge: E2.1, E4.3, E4.4, E4.5, E4.6 y E5.1 están fusionadas en
 > PR #96, #92, #93, #97, #94 y #95.
 > GOAL-01 permanece `ACTIVO`; M1 sigue `BLOQUEADO POR INFRAESTRUCTURA EXTERNA` y
-> E4.7 es la siguiente Epic independiente. E5.2 requiere el ADR de versionado e
+> E4.7 es la Epic independiente en implementación. E5.2 requiere el ADR de versionado e
 > inmutabilidad antes de implementarse. M7 queda reservado para el cierre final
 > de despliegue y Go Live.
