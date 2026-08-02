@@ -103,10 +103,30 @@ test('crea un perfil contractual y lo vincula a un empleado desde la UI', async 
   await templateSelect.selectOption(templateValue!);
   await configurationDialog.getByRole('button', { name: /Crear configuraci.n/ }).click();
 
-  const configurationRow = page.getByRole('row').filter({ hasText: profileName });
-  await expect(configurationRow).toContainText(/Contrato laboral/);
-  await expect(configurationRow).toContainText('Activa');
+  const initialConfigurationRow = page.getByRole('row').filter({ hasText: profileName });
+  await expect(initialConfigurationRow).toContainText(/Contrato laboral/);
+  await expect(initialConfigurationRow).toContainText('Activa');
 
+  await page.goto('/contratos/lotes');
+  await page.getByRole('button', { name: 'Nuevo lote', exact: true }).click();
+
+  const loteDialog = page.getByRole('dialog', { name: 'Nuevo lote' });
+  await loteDialog.getByLabel('Tipo de operación').selectOption({ label: 'Campaña inteligente' });
+  await loteDialog.getByLabel('Nombre del lote').fill('Campaña inteligente E4.1');
+  await loteDialog.locator('input[type="checkbox"]').first().check();
+  await loteDialog.getByRole('button', { name: 'Crear campaña', exact: true }).click();
+
+  await expect(page).toHaveURL(/\/contratos\/lotes\/[0-9a-f-]+$/);
+  await expect(page.getByRole('heading', { name: 'Resolución de campaña' })).toBeVisible();
+  await page.getByRole('button', { name: 'Previsualizar resolución', exact: true }).click();
+  await expect(page.getByText('1 resueltos', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Confirmar resolución', exact: true }).click();
+  await expect(page.getByText(/Confirmación total guardada/)).toBeVisible();
+
+  await page.goto('/documentos/configuracion');
+  await expect(page.getByRole('heading', { name: /Configuraci.n documental/ })).toBeVisible();
+  const configurationRow = page.getByRole('row').filter({ hasText: profileName });
+  await expect(configurationRow).toContainText('Activa');
   await configurationRow.getByRole('button', { name: 'Editar', exact: true }).click();
   const editDialog = page.getByRole('dialog', { name: /Editar configuraci.n documental/ });
   await editDialog.locator('input[type="checkbox"]').uncheck();

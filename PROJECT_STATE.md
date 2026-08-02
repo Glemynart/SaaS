@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 E3.4 esperando merge; M1 bloqueado por staging (2026-08-01)
+## Última actualización: GOAL-01 E4.1 en implementación; M1 bloqueado por staging (2026-08-01)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -95,7 +95,7 @@ Estado actual:
 
 Goal activo:
 
-- 🟡 GOAL-01 esperando merge — M1 está BLOQUEADO por la dependencia externa de staging: E1.1 fusionada como PR #78 y pendiente de validación reproducible; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real de R2/correo; E1.4 fusionada como PR #81 y verificada por CI/Browser E2E. M3 es el Milestone desbloqueado; E3.1, E3.2 y E3.3 están fusionadas. E3.3 quedó entregada en PR #86 con checks de PR y post-merge verdes; E3.4 está implementada en PR #88, con checks verdes, pendiente de merge y verificación post-merge.
+- 🟡 GOAL-01 activo — M1 está BLOQUEADO por la dependencia externa de staging: E1.1 fusionada como PR #78 y pendiente de validación reproducible; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real de R2/correo; E1.4 fusionada como PR #81 y verificada por CI/Browser E2E. M3 está completado con E3.1, E3.2, E3.3 y E3.4 fusionadas. E3.4 quedó entregada en PR #88 con checks de CI y Browser E2E post-merge verdes; E4.1 es la Epic actual de M4.
 
 - [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
@@ -114,29 +114,26 @@ Hitos recientes fusionados a `main`:
 - ✅ E1.4 — CI, observabilidad y base de pruebas browser end-to-end — PR #81 fusionada, checks verdes y auditoría `APROBADO PARA MERGE`; M1 sigue pendiente de la evidencia operativa de E1.1/E1.3.
 - ✅ E3.1 — Empleados CRUD, búsqueda e importación XLSX — PR #83 fusionada y verificada browser; no depende de staging, R2, correo ni E3.2.
 - ✅ E3.2 — Perfiles contractuales y vínculos laborales precontractuales — PR #84 fusionada y verificada por CI/Browser E2E; usa las bases backend existentes y no depende de staging, R2, correo ni E3.3.
+- ✅ E3.3 — Configuración perfil → tipo documental → plantilla — PR #86 fusionada y verificada por CI/Browser E2E post-merge.
+- ✅ E3.4 — Feedback accionable para errores, bloqueos y reintentos — PR #88 fusionada y verificada por CI/Browser E2E post-merge.
 
 La investigación de `main` no encontró una URL de staging, secretos de entorno ni un workflow de despliegue disponible en el repositorio o en GitHub. La validación de E1.1/E1.3 requiere resolver esa dependencia operativa externa. Esto bloquea M1, no GOAL-01: E3.2 avanzó y quedó fusionada sin adelantar E3.3 ni Milestones posteriores.
 
-La implementación actual de E3.4 se mantiene dentro de M3: hace visibles los
-mensajes de validación y bloqueos que ya produce el backend, ofrece reintentos
-para sus consultas y enlaza los prerrequisitos existentes. No cambia el dominio
-de resolución documental ni adelanta el trabajo de M4; queda pendiente de merge
-y de la verificación post-merge para declararse entregada. Mientras la PR #88
-permanezca abierta, GOAL-01 está en `ESPERANDO_MERGE` y no se inicia otra Epic.
+E3.4 quedó fusionada y verificada en `main`. M3 está completado. E4.1 es ahora la
+Epic actual de M4: completa desde la interfaz la creación de campañas inteligentes,
+el preview de resolución y la confirmación total/parcial usando contratos backend
+ya existentes. No requiere staging, R2, correo ni una nueva decisión de dominio, y
+no adelanta E4.2.
 
 ## <a name="goal-01-current-decision"></a>GOAL-01 — Decisión de prioridad vigente
 
-Tras fusionar E3.3, la revisión del código y del grafo de dependencias mantiene
-M1 `BLOQUEADO` por staging y E3.4 como la Epic priorizada de M3. Como E3.4 está
-en la PR #88, GOAL-01 queda actualmente en `ESPERANDO_MERGE`.
-El backend tenant-aware de configuración documental ya existe y E3.4 mejora
-la entrega operativa de sus errores y prerrequisitos. E3.4 no depende de
-staging, R2, correo, M4 ni de la PR independiente que actualiza las acciones de
-GitHub a Node 24.
-PR #86 quedó fusionada y verificada por CI y Browser E2E, incluidos los checks
-post-merge de `main`. E3.4 depende de la configuración y del recorrido operativo
-que entrega E3.3; esa dependencia ya está resuelta y su implementación queda
-pendiente de merge y verificación post-merge.
+Tras fusionar E3.4, la revisión del código y del grafo de dependencias mantiene
+M1 `BLOQUEADO` por staging, pero GOAL-01 permanece `ACTIVO`. M3 está completado y
+E4.1 es la Epic priorizada: el backend tenant-aware ya expone preview y
+confirmación, mientras la superficie frontend y BFF eran la capacidad pendiente.
+E4.1 no depende de staging, R2, correo, M1 ni de una nueva decisión de dominio.
+La implementación queda limitada a creación, preview y confirmación total/parcial;
+E4.2 continúa pendiente.
 
 ## <a name="landing-saas"></a>Landing SaaS
 

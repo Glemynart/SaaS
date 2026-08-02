@@ -8,7 +8,7 @@ La evidencia final será un primer cliente que complete y acepte el recorrido pr
 
 ## Estado
 
-`ESPERANDO_MERGE`
+`ACTIVO`
 
 ## Estrategia que lo justifica
 
@@ -95,7 +95,7 @@ Estas exclusiones son limitaciones temporales del roadmap. No se numerarán como
 **Estado del Milestone:** `BLOQUEADO` por una dependencia operativa externa verificable:
 no existe todavía una URL de staging, secretos de entorno ni un workflow de despliegue
 disponible en el repositorio o en GitHub. Este estado pertenece a M1; no convierte al
-Goal en bloqueado. El Goal permanece `ESPERANDO_MERGE` únicamente por la PR #88.
+Goal en bloqueado. GOAL-01 permanece `ACTIVO`.
 
 - [ ] E1.1 — Staging reproducible, configuración y secretos.
 - [x] E1.2 — Migraciones, seed y rol PostgreSQL runtime no privilegiado.
@@ -130,40 +130,42 @@ staging, R2, correo ni una decisión de dominio pendiente.
 
 **Resultado verificable:** el operador prepara desde la interfaz todos los datos necesarios para contratar.
 
-M3 es el siguiente Milestone desbloqueado mientras M1 espera evidencia externa.
-La decisión evita bloquear el Goal completo por un único camino operativo. E3.1,
-E3.2 y E3.3 ya están fusionadas; E3.4 es la Epic activa porque mejora la
-operabilidad de esas superficies sin requerir staging, R2, correo ni una nueva
-decisión de dominio, y prepara el siguiente flujo sin adelantar M4.
+**Estado del Milestone:** `COMPLETADO`.
+
+M3 fue el Milestone desbloqueado mientras M1 esperaba evidencia externa. La
+decisión evitó bloquear el Goal completo por un único camino operativo. E3.1,
+E3.2, E3.3 y E3.4 están fusionadas; sus recorridos preparan el siguiente flujo
+sin requerir staging, R2, correo ni una nueva decisión de dominio.
 
 - [x] E3.1 — Empleados CRUD, búsqueda e importación XLSX verificadas (PR #83 fusionada).
 - [x] E3.2 — Perfiles contractuales y vínculos laborales precontractuales (PR #84 fusionada).
 - [x] E3.3 — Configuración perfil → tipo documental → plantilla (PR #86 fusionada y verificada por CI/Browser E2E).
-- [ ] E3.4 — Errores y bloqueos comprensibles para el operador (feedback accionable,
-      reintentos de dependencias y enlaces a prerrequisitos existentes).
+- [x] E3.4 — Errores y bloqueos comprensibles para el operador (feedback accionable,
+      reintentos de dependencias y enlaces a prerrequisitos existentes; PR #88 fusionada
+      y verificada por CI/Browser E2E post-merge).
 
-### Estado post-merge — E3.3 y prioridad E3.4
+### Estado post-merge — E3.4 y prioridad E4.1
 
-Tras fusionar E3.3, la revisión del grafo de dependencias en `main` confirma
-que E3.4 — errores y bloqueos comprensibles para el operador — es la siguiente
-Epic segura. El backend tenant-aware ya expone mensajes de validación y motivos
-de bloqueo; la Epic mejora su entrega en las superficies de preparación laboral,
-sin cambiar el contrato de dominio ni iniciar la resolución/confirmación de M4.
-No requiere staging, R2 ni correo. E2.1 sigue pendiente por invitaciones y
+Tras fusionar E3.4 en PR #88, los checks post-merge de `main` (CI y Browser E2E)
+terminaron en verde y M3 queda completado. La revisión del grafo de dependencias
+confirma que E4.1 — creación, preview y confirmación total/parcial desde frontend —
+es la siguiente Epic segura.
+
+El backend tenant-aware ya expone los contratos de preview y confirmación, conserva
+planes, exclusiones y snapshots históricos, y procesa campañas inteligentes solo
+con planes confirmados. E4.1 completa la superficie frontend y BFF que faltaba sin
+cambiar el contrato de dominio. No requiere staging, R2, correo ni una nueva
+decisión de dominio; tampoco adelanta E4.2. E2.1 sigue pendiente por invitaciones y
 correo, mientras M1 sigue bloqueado por staging.
 La PR de mantenimiento que migra las acciones de GitHub a Node 24 es
-independiente y no bloquea GOAL-01. PR #86 entregó únicamente E3.3 y quedó
-fusionada después de que sus checks y los checks post-merge de `main` terminaran
-en verde. La dependencia de E3.4 ya desapareció: la implementación está en PR #88
-y sus checks de CI y Browser E2E están verdes. M1 permanece `BLOQUEADO` por
-staging, pero GOAL-01 queda `ESPERANDO_MERGE` hasta que esa PR se fusione. La
-entrega se limita a feedback operativo y no adelanta E4.1.
+independiente y no bloquea GOAL-01. E4.1 se limita a la creación de la campaña
+inteligente, su preview y la confirmación total/parcial desde la interfaz.
 
 ### M4 — Contratación Inteligente End-to-End
 
 **Resultado verificable:** campaña → resolución → confirmación → procesamiento → contrato → PDF → expediente se completa desde la UI.
 
-- [ ] E4.1 — Creación, preview y confirmación total/parcial desde frontend.
+- [ ] E4.1 — Creación, preview y confirmación total/parcial desde frontend (Epic actual).
 - [ ] E4.2 — PR11.3 procesa únicamente planes confirmados y respeta exclusiones.
 - [ ] E4.3 — Perfil y snapshots preservados en contrato y documento.
 - [ ] E4.4 — PDF canónico vinculado al contrato y publicado en expediente.
@@ -225,6 +227,8 @@ entrega se limita a feedback operativo y no adelanta E4.1.
 | #81     | E1.4  | CI, observabilidad y base de pruebas browser end-to-end.                  | FUSIONADO  | Sí; CI y Browser E2E verificados; M1 aún requiere staging. |
 | #83     | E3.1  | Verificación browser del CRUD, búsqueda e importación XLSX de empleados.  | FUSIONADO  | Sí; recorrido verificado browser.                          |
 | #84     | E3.2  | Perfiles contractuales y vínculos laborales precontractuales desde la UI. | FUSIONADO  | Sí; recorrido verificado por CI y Browser E2E.             |
+| #86     | E3.3  | Configuración perfil → tipo documental → plantilla desde UI.              | FUSIONADO  | Sí; CI/Browser E2E y checks post-merge verdes.             |
+| #88     | E3.4  | Feedback accionable para errores, bloqueos y reintentos operativos.       | FUSIONADO  | Sí; CI/Browser E2E post-merge verdes.                      |
 | #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.
@@ -233,26 +237,30 @@ Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente p
 
 **Pregunta:** ¿un cliente podría utilizar hoy la capacidad completa definida por GOAL-01?
 
-**Estado de cierre:** `GOAL ESPERANDO_MERGE — NO COMPLETADO`
+**Estado de cierre:** `GOAL ACTIVO — NO COMPLETADO`
 
 Motivo: existen slices funcionales importantes, pero permanecen abiertas la gestión de usuarios, contratación inteligente end-to-end, expediente operativo, automatización de alertas, deployment y aceptación productiva.
 
-Las PR #78, #79, #80, #81 y #83 fueron fusionadas. #78 entregó el empaquetado de E1.1,
+Las PR #78, #79, #80, #81, #83, #84, #86 y #88 fueron fusionadas. #78 entregó el empaquetado de E1.1,
 pero E1.1 aún requiere verificación de staging. #79 entregó y verificó E1.2
 con migraciones, seed idempotente y rol runtime no privilegiado. #80 entregó las
 comprobaciones de R2, correo real y readiness; su cierre requiere verificación
 real en staging. #81 entregó E1.4, está fusionada y sus checks de CI y Browser
-E2E están verdes. GOAL-01 permanece `ESPERANDO_MERGE` por la PR #88; M1 está
-`BLOQUEADO` a la espera
+E2E están verdes. E3.4 fue fusionada en PR #88 y sus checks post-merge de `main`
+están verdes. GOAL-01 permanece `ACTIVO`; M1 está `BLOQUEADO` a la espera
 de la validación operativa de staging de E1.1 y E1.3. E3.1 entregó el recorrido
 browser de empleados y quedó fusionada en PR #83; su recorrido usó únicamente
 la autenticación, persistencia y frontera tenant ya existentes, sin requerir
 staging, R2, correo ni una nueva decisión de dominio. E3.2 expuso el catálogo
 y vínculo laboral del backend desde la interfaz, sin requerir staging, R2,
 correo ni una nueva decisión de dominio, y quedó fusionada en PR #84 con CI y
-Browser E2E verdes. E2.1 permanece pendiente porque su recorrido completo
+Browser E2E verdes. E2.1 permanece pendiente porque su recorrido completo requiere
+invitaciones por correo real. E4.1 es la Epic actual: el código de `main` ya ofrece
+los contratos backend de preview y confirmación, pero la interfaz y sus rutas BFF
+aún no estaban disponibles. La auditoría de E4.1 deberá demostrar creación,
+preview y confirmación total/parcial sin adelantar E4.2.
 
-> La determinación vigente, actualizada después de E3.3, queda documentada en
-> la sección post-merge: E3.3 está fusionada en PR #86 y verificada por CI y
-> Browser E2E. GOAL-01 queda `ESPERANDO_MERGE` por la PR #88; E3.4 está
-> implementada, pendiente de merge y verificación post-merge.
+> La determinación vigente, actualizada después de E3.4, queda documentada en
+> la sección post-merge: E3.4 está fusionada en PR #88 y verificada por CI y
+> Browser E2E post-merge. GOAL-01 permanece `ACTIVO`; M1 sigue `BLOQUEADO` por
+> staging y E4.1 es la siguiente Epic priorizada por el grafo de dependencias.
