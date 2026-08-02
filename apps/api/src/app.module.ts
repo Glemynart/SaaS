@@ -37,9 +37,11 @@ import { HealthModule } from './health/health.module';
 import { HttpObservabilityMiddleware } from './observability/http-observability.middleware';
 
 // The browser smoke suite creates four tenants from one local IP. The guard
-// evaluates every global bucket on each auth route, so test-only headroom
-// avoids cross-bucket interference without changing production limits.
+// evaluates every global bucket on each auth route, so test-only headroom for
+// registration and login avoids cross-bucket interference without changing
+// production limits.
 const REGISTER_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
+const LOGIN_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 5;
 const FORGOT_PASSWORD_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
 
 @Module({
@@ -80,7 +82,7 @@ const FORGOT_PASSWORD_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
       {
         name: 'login',
         ttl: 60000,
-        limit: 5,
+        limit: LOGIN_RATE_LIMIT,
       },
       {
         name: 'register',

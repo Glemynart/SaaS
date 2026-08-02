@@ -22,7 +22,11 @@ const THROTTLER_TTL = 'THROTTLER:TTL';
 const THROTTLER_SKIP = 'THROTTLER:SKIP';
 
 const AUTH_THROTTLERS = [
-  { name: 'login', ttl: 60_000, limit: 5 },
+  {
+    name: 'login',
+    ttl: 60_000,
+    limit: process.env.NODE_ENV === 'test' ? 10 : 5,
+  },
   {
     name: 'register',
     ttl: 60_000,
@@ -78,7 +82,7 @@ describe('Global Rate Limiting operational characterization', () => {
     await ipApplication.close();
   });
 
-  it('keeps the five existing Auth throttlers unchanged', () => {
+  it('keeps production Auth throttlers unchanged', () => {
     const imports = (Reflect.getMetadata('imports', AppModule) ??
       []) as unknown[];
     const throttlerModule = imports.find(
@@ -111,7 +115,7 @@ describe('Global Rate Limiting operational characterization', () => {
     // Browser smoke tests register four independent tenants in NODE_ENV=test;
     // production keeps the existing limit of three registrations per minute.
     ['register', 'register', process.env.NODE_ENV === 'test' ? 10 : 3, 60_000],
-    ['login', 'login', 5, 60_000],
+    ['login', 'login', process.env.NODE_ENV === 'test' ? 10 : 5, 60_000],
     ['refresh', 'refresh', 10, 60_000],
     ['forgotPassword', 'forgotPassword', 3, 3_600_000],
     ['resetPassword', 'resetPassword', 5, 900_000],

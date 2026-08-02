@@ -29,6 +29,7 @@ import {
 } from './authorization/authorization-policy';
 
 const REGISTER_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
+const LOGIN_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 5;
 
 @Controller('auth')
 export class AuthController {
@@ -49,7 +50,7 @@ export class AuthController {
   @Unauthenticated()
   @Post('login')
   @UseGuards(ThrottlerGuard)
-  @Throttle({ login: { limit: 5, ttl: 60000 } })
+  @Throttle({ login: { limit: LOGIN_RATE_LIMIT, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto, @Req() req: Request, @Ip() ip: string) {
     const userAgent = req.headers['user-agent'];
