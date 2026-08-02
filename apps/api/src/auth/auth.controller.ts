@@ -29,7 +29,7 @@ import {
 } from './authorization/authorization-policy';
 
 const REGISTER_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
-const LOGIN_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 20 : 5;
+const LOGIN_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 5;
 
 @Controller('auth')
 export class AuthController {
