@@ -286,7 +286,10 @@ describe('LoteEngineService', () => {
           }),
         },
       );
-      expect(mockBatchDocumentGenerationStart).toHaveBeenCalledWith(LOTE_ID);
+      expect(mockBatchDocumentGenerationStart).toHaveBeenCalledWith(
+        LOTE_ID,
+        USER_ID,
+      );
     });
 
     it('delegates once to the confirmed-plan generation flow after contracts are ensured', async () => {
@@ -305,7 +308,10 @@ describe('LoteEngineService', () => {
       await service.procesarLote(LOTE_ID);
 
       expect(mockBatchDocumentGenerationStart).toHaveBeenCalledTimes(1);
-      expect(mockBatchDocumentGenerationStart).toHaveBeenCalledWith(LOTE_ID);
+      expect(mockBatchDocumentGenerationStart).toHaveBeenCalledWith(
+        LOTE_ID,
+        USER_ID,
+      );
       expect(mockEnsureGeneratedDocument).not.toHaveBeenCalled();
       expect(
         mockBatchDocumentGenerationStart.mock.invocationCallOrder[0],
