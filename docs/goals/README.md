@@ -18,9 +18,9 @@ Producto
 
 ## Goal activo
 
-| Goal                                                                    | Estado | Resultado                                                                                                                      |
-| ----------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md) | ACTIVO | E4.1 está fusionada en PR #89; E4.2 avanza por un camino independiente mientras M1 está BLOQUEADO POR INFRAESTRUCTURA EXTERNA. |
+| Goal                                                                    | Estado | Resultado                                                                      |
+| ----------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------ |
+| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md) | ACTIVO | E4.2 está fusionada en PR #90; M1 sigue BLOQUEADO POR INFRAESTRUCTURA EXTERNA. |
 
 Solo puede existir un Goal activo. Los posibles resultados futuros permanecen sin numerar en el Backlog hasta ser priorizados.
 
