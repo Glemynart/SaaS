@@ -16,7 +16,18 @@ test('sube un documento manual al expediente de un empleado desde la UI', async 
   await page.getByLabel(/Apellido/).fill('Gomez');
   await page.getByLabel('Correo administrador').fill(email);
   await page.getByRole('textbox', { name: /Contrase.a/ }).fill(password);
+  const registrationResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/auth/register') && response.request().method() === 'POST',
+  );
   await page.getByRole('button', { name: 'Crear empresa' }).click();
+
+  // The browser suite registers three independent tenants before this test and
+  // the production throttle allows three registrations per IP per minute.
+  if ((await registrationResponse).status() === 429) {
+    await page.waitForTimeout(61_000);
+    await page.getByRole('button', { name: 'Crear empresa' }).click();
+  }
 
   await expect(page).toHaveURL(/\/login\?registered=1$/);
   await page.getByLabel('NIT de la empresa').fill(nit);
