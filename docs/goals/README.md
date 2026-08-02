@@ -24,8 +24,8 @@ Producto
 
 Solo puede existir un Goal activo. Los posibles resultados futuros permanecen sin numerar en el Backlog hasta ser priorizados.
 
-Estado de implementacion vigente: E5.2 esta desarrollada en el PR #102 y
-permanece pendiente de checks verdes y merge. M1 sigue BLOQUEADO POR
+Estado de implementación vigente: E5.2 fue fusionada en el PR #102 y sus
+checks post-merge de CI y Browser E2E están verdes. M1 sigue BLOQUEADO POR
 INFRAESTRUCTURA EXTERNA; GOAL-01 permanece ACTIVO.
 
 ## Regla de redefinición

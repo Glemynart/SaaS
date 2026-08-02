@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 activo; E4.5 y E4.7 fusionadas; E2.1 y E5.1 fusionadas; ADR-006 aprobado; M1 bloqueado por infraestructura externa (2026-08-02)
+## Última actualización: GOAL-01 activo; E5.2 fusionada y verificada; M1 bloqueado por infraestructura externa (2026-08-02)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -91,9 +91,9 @@ Servicios:
 
 ## Estado de E5.2
 
-E5.2 esta implementada en el PR #102, con familias documentales explicitas,
+E5.2 fue fusionada en el PR #102, con familias documentales explícitas,
 revisiones append-only, consulta tenant-scoped, descarga autenticada e
-historial v1/v2. El PR permanece pendiente de checks de GitHub y merge. E5.3
+historial v1/v2. Sus checks post-merge de CI y Browser E2E están verdes. E5.3
 y E5.4 siguen pendientes y no forman parte de este cambio.
 
 Estado actual:
@@ -130,6 +130,7 @@ Hitos recientes fusionados a `main`:
 - ✅ E4.4 — PDF canónico vinculado al contrato y publicado en expediente — PR #93 fusionada y verificada por CI/Browser E2E post-merge.
 - ✅ E4.6 — Contratación individual completa como flujo alternativo — PR #94 fusionada y verificada por CI/Browser E2E post-merge.
 - ✅ E5.1 — Subida manual y validación de archivos — PR #95 fusionada y verificada por CI/Browser E2E; independiente de M1.
+- ✅ E5.2 — Familias documentales, revisiones, consulta, descarga e historial — PR #102 fusionada y verificada por CI/Browser E2E; E5.3 y E5.4 permanecen pendientes.
 - ✅ E2.1 — Gestión directa de usuarios — PR #96 fusionada y verificada por CI/Browser E2E; las invitaciones quedan separadas por su dependencia de correo real.
 - ✅ E4.5 — Reintentos selectivos, idempotencia y errores parciales — PR #97 fusionada y verificada por CI/Browser E2E; no dependía de staging, R2, DNS, correo ni una decisión nueva de dominio.
 - ✅ E4.7 — Prueba browser del caso exitoso, parcial y reintentado — PR #99 fusionada y verificada por CI/Browser E2E; no depende de M1.

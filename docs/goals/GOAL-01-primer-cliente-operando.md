@@ -10,9 +10,9 @@ La evidencia final será un primer cliente que complete y acepte el recorrido pr
 
 `ACTIVO`
 
-E5.2 esta implementada en el PR #102 y pendiente de checks de CI/Browser E2E
-y merge. La capacidad sigue separada de E5.3 y E5.4; no adelanta trabajo de
-esas Epics.
+E5.2 fue fusionada en el PR #102 y sus checks post-merge de CI/Browser E2E
+están verdes. La capacidad sigue separada de E5.3 y E5.4; no adelanta trabajo
+de esas Epics.
 
 **Pausa selectiva:** GOAL-01 permanece `ACTIVO` y M1 continúa `BLOQUEADO POR
 INFRAESTRUCTURA EXTERNA`. Las Epics que requieran dominio, DNS, Cloudflare, R2,
@@ -49,7 +49,8 @@ Este Goal solo puede redefinirse si cambia la estrategia del producto. Nuevas id
 - E4.2 ya procesa planes confirmados; E4.3, E4.4, E4.6 y E5.1 están fusionadas;
 - la generación basada en planes no completa todavía todos los casos de contrato, snapshots y expediente;
 - la generación documental del contrato individual no está expuesta desde su UI;
-- el expediente no permite subida manual ni clasificación operativa;
+- el expediente ya permite carga manual, clasificación, descarga e historial/versionado;
+  permanecen pendientes la inmutabilidad y los permisos específicos de E5.3.
 - las alertas requieren generación manual y no tienen scheduler;
 - no hay suite browser end-to-end para el recorrido comercial;
 - no existe deployment productivo reproducible ni evidencia de Go Live;
@@ -168,7 +169,7 @@ sin requerir staging, R2, correo ni una nueva decisión de dominio.
       reintentos de dependencias y enlaces a prerrequisitos existentes; PR #88 fusionada
       y verificada por CI/Browser E2E post-merge).
 
-### Estado post-merge — E4.7 fusionada; siguiente Epic por recalcular
+### Estado post-merge — E5.2 fusionada; siguiente Epic por recalcular
 
 Tras fusionar E4.3 en PR #92, E4.4 en PR #93, E4.6 en PR #94, E5.1 en PR #95 y
 E2.1 en PR #96, `main` contiene esas capacidades con checks post-merge verdes.
@@ -222,8 +223,8 @@ su implementación comienza después de fusionar ese ADR.
 **Resultado verificable:** el expediente sustituye la carpeta operativa básica del empleado.
 
 - [x] E5.1 — Subida manual y validación de archivos (PR #95 fusionada y verificada por CI/Browser E2E).
-- [ ] E5.2 — Clasificación, consulta, descarga e historial/versionado definido
-      (habilitada por ADR-006 una vez fusionado en `main`).
+- [x] E5.2 — Clasificación, consulta, descarga e historial/versionado definido
+      (PR #102 fusionada; checks post-merge de CI/Browser E2E verdes).
 - [ ] E5.3 — Inmutabilidad de documentos publicados y permisos por rol.
 - [ ] E5.4 — Auditoría e integración consistente con contratos y certificaciones.
 
@@ -288,6 +289,7 @@ externa estén listos.
 | #96     | E2.1  | Gestión directa de usuarios sin invitaciones por correo.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
 | #97     | E4.5  | Reintentos selectivos, idempotencia y errores parciales.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
 | #99     | E4.7  | Prueba browser del caso exitoso, parcial y reintentado.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes; no depende de M1.  |
+| #102    | E5.2  | Familias documentales, revisiones, consulta, descarga e historial.        | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
 | #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.
