@@ -61,7 +61,7 @@ export class ExpedienteDocsController {
     @Param('id') id: string,
     @Res() res: Response,
   ) {
-    const doc = await this.service.download(user.tenantId, id);
+    const doc = await this.service.download(user.tenantId, user.userId, id);
 
     res.setHeader('Content-Type', doc.mimeType);
     res.setHeader('Cache-Control', 'private, no-store');
