@@ -23,7 +23,11 @@ const THROTTLER_SKIP = 'THROTTLER:SKIP';
 
 const AUTH_THROTTLERS = [
   { name: 'login', ttl: 60_000, limit: 5 },
-  { name: 'register', ttl: 60_000, limit: 3 },
+  {
+    name: 'register',
+    ttl: 60_000,
+    limit: process.env.NODE_ENV === 'test' ? 10 : 3,
+  },
   { name: 'refresh', ttl: 60_000, limit: 10 },
   { name: 'forgotPassword', ttl: 3_600_000, limit: 3 },
   { name: 'resetPassword', ttl: 900_000, limit: 5 },

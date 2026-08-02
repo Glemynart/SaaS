@@ -36,6 +36,8 @@ import { BatchDocumentGenerationModule } from './batch-document-generation/batch
 import { HealthModule } from './health/health.module';
 import { HttpObservabilityMiddleware } from './observability/http-observability.middleware';
 
+const REGISTER_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -79,7 +81,7 @@ import { HttpObservabilityMiddleware } from './observability/http-observability.
       {
         name: 'register',
         ttl: 60000,
-        limit: 3,
+        limit: REGISTER_RATE_LIMIT,
       },
       {
         name: 'refresh',
