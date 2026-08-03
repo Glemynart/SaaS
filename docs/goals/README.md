@@ -148,9 +148,9 @@ Estos estados no son equivalentes:
 - El Goal activo permanece `ACTIVO`, `IMPLEMENTACIÓN BLOQUEADA` o `ESPERANDO_MERGE`
   mientras exista cualquier Milestone, Epic, criterio de aceptación, evidencia
   productiva, aceptación del cliente o actividad útil de arquitectura,
-  planificación, investigación o preparación pendiente. `ARQUITECTURA
-DISPONIBLE` se registra como una capacidad de preparación del Goal, no como
-  un Goal nuevo.
+  planificación, investigación o preparación pendiente. El estado
+  `ARQUITECTURA DISPONIBLE` se registra como una capacidad de preparación del
+  Goal, no como un Goal nuevo.
 
 El cierre de una ejecución de desarrollo puede detenerse en `APROBADO PARA MERGE`; el cierre del Goal es una decisión posterior y exige la sección `Cierre de un Goal` completa.
 
