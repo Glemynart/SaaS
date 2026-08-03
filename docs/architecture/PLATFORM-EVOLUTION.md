@@ -3,7 +3,7 @@
 **Estado:** referencia arquitectónica aprobada
 **Alcance:** evolución del producto sin crear un Goal nuevo
 **Goal activo:** [GOAL-01 — Primer Cliente Operando](../goals/GOAL-01-primer-cliente-operando.md)
-**Fuente de contraste:** `main` en `b4f98c8`
+**Fuente de contraste:** `main` en `d88a2ca`
 
 ## Propósito
 
@@ -29,6 +29,11 @@ La metodología distingue tres dimensiones:
 
 Una implementación bloqueada no impide realizar arquitectura, planificación,
 investigación o preparación que acerque el producto al Goal activo.
+
+La auditoría vigente identificó que E7.3 requiere una decisión de frontera de
+plataforma antes de implementar una captura pública pre-tenant. Esa decisión
+está propuesta en [ADR-008](../adr/ADR-008-demo-request-capture-boundary.md);
+no se considera una capacidad implementada.
 
 ## Evidencia actual
 

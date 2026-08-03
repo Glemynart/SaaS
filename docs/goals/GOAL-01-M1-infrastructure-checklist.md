@@ -121,5 +121,7 @@ M1 puede pasar de `BLOQUEADO POR INFRAESTRUCTURA EXTERNA` a validación operativ
 - smoke autenticado y Browser E2E ejecutados contra staging;
 - evidencia operativa conservada sin valores secretos.
 
-Hasta entonces no se implementan nuevas funcionalidades ni se inicia otra Epic de
-GOAL-01.
+Hasta entonces permanecen detenidas únicamente las rutas que dependan de esta
+infraestructura. El estado de GOAL-01 sigue siendo `ACTIVO`: las rutas
+independientes y el trabajo de arquitectura, planificación, investigación o
+preparación se evalúan mediante el grafo de dependencias del Goal.

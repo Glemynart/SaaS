@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 activo; regla de bloqueo del Goal sincronizada; M1 bloqueado por infraestructura externa (2026-08-03)
+## Última actualización: GOAL-01 activo; ADR-008 propuesto para E7.3; M1 bloqueado por infraestructura externa (2026-08-03)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -117,6 +117,11 @@ Un Milestone bloqueado por infraestructura no bloquea el Goal completo. La
 auditoría debe revisar todos los Milestones, Epics, ADRs y actividades de
 arquitectura, planificación, investigación y preparación antes de declarar
 `GOAL BLOQUEADO`.
+
+La auditoría del grafo identificó E7.3 como la única ruta pendiente que no está
+bloqueada directamente por staging, R2 o correo, pero su captura pública ocurre
+antes del tenant y requiere una decisión de frontera de plataforma. ADR-008 está
+propuesto; no se implementó código ni se inició E7.3.
 
 # <a name="estado-general-del-proyecto"></a>Estado General del Proyecto
 

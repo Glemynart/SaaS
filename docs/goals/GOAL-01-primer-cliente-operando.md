@@ -138,6 +138,7 @@ Estas exclusiones son limitaciones temporales del roadmap. No se numerarán como
 | E6.1 — Scheduler de vencimientos y documentos faltantes                          | Trabajo entregado        | CERRADO        | PR #105 fusionada; checks post-merge verdes.                 |
 | E6.2 — Dashboard accionable y resolución trazable                                | Trabajo entregado        | CERRADO        | PR #106 fusionada; checks post-merge verdes.                 |
 | E2.4 — Sedes, identidad y promesa multiempresa coherente con el producto real    | Trabajo entregado        | CERRADO        | PR #110 fusionada; CI y Browser E2E post-merge verdes.       |
+| E7.3 — Captura real de solicitudes de demo                                       | Decisión de arquitectura | PENDIENTE      | Resolver ADR-008 antes de persistir PII pre-tenant.          |
 | Superficie comercial de contabilidad                                             | Decisión de producto     | FUERA DEL GOAL | Resolver antes de priorizar un Goal futuro.                  |
 | Infraestructura productiva                                                       | Dependencia técnica      | ABIERTO        | Resolver en M1.                                              |
 
@@ -289,6 +290,12 @@ M7 es el cierre final del Goal. Sus tareas de despliegue productivo, operación,
 aceptación y Go Live no se intercalan con el desarrollo de las capacidades
 funcionales anteriores; se ejecutan cuando el producto y la infraestructura
 externa estén listos.
+
+La auditoría de dependencias identificó que E7.3 no depende de staging, R2 o
+correo real en su núcleo, pero sí requiere decidir la frontera de plataforma
+para una solicitud pública que nace antes del tenant. [ADR-008](../adr/ADR-008-demo-request-capture-boundary.md)
+queda propuesta; E7.3 no está desbloqueada para implementación hasta que esa
+decisión sea aceptada.
 
 - [ ] E7.1 — Backup y restauración probados.
 - [ ] E7.2 — Monitoreo, alertamiento técnico y soporte operativo.
