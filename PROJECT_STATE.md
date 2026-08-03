@@ -51,6 +51,16 @@ La propuesta de valor actual es:
 
 “Centralizar la gestión laboral, documental y operativa de operadores educativos colombianos.”
 
+## Investigación de posicionamiento y branding
+
+La investigación de branding quedó cerrada el 2026-08-03. `La Oficina Nítida`
+continúa siendo un nombre de trabajo; no existe una marca comercial aprobada.
+El posicionamiento y los territorios conceptuales conservados están documentados
+en [`docs/branding/BRAND-POSITIONING-AND-TERRITORIES.md`](docs/branding/BRAND-POSITIONING-AND-TERRITORIES.md).
+
+Esta decisión no redefine GOAL-01, no cambia el roadmap, no crea una Epic y no
+autoriza nuevas generaciones de nombres.
+
 ---
 
 # <a name="stack-tecnológico"></a>Stack Tecnológico
