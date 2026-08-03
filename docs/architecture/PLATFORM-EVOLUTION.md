@@ -3,7 +3,7 @@
 **Estado:** referencia arquitectónica aprobada
 **Alcance:** evolución del producto sin crear un Goal nuevo
 **Goal activo:** [GOAL-01 — Primer Cliente Operando](../goals/GOAL-01-primer-cliente-operando.md)
-**Fuente de contraste:** `main` en `d88a2ca`
+**Fuente de contraste:** `main` en `1c69924d`
 
 ## Propósito
 

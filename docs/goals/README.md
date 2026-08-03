@@ -196,4 +196,5 @@ Después del cierre puede priorizarse y numerarse el siguiente Goal del producto
 
 - `GOAL_TEMPLATE.md`: estructura mínima obligatoria.
 - `GOAL-01-primer-cliente-operando.md`: Goal activo.
+- [`GOAL-02 — Evolución Financiera y Cumplimiento Electrónico`](GOAL-02-base-financial-regulatory-evolution.md): documento base no activo; no abre un segundo Goal.
 - El Backlog conserva candidatos futuros sin convertirlos anticipadamente en Goals.
