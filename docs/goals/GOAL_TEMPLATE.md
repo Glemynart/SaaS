@@ -8,6 +8,16 @@ Describe qué podrá hacer el cliente y qué evidencia demostrará el resultado.
 
 `PROPUESTO | ACTIVO | BLOQUEADO | COMPLETADO`
 
+### Estado operativo por dimensión
+
+- Goal: `ACTIVO | BLOQUEADO`.
+- Implementación: `DISPONIBLE | BLOQUEADA SELECTIVAMENTE | ESPERANDO_MERGE`.
+- Arquitectura y preparación: `DISPONIBLE | PENDIENTE`.
+
+`BLOQUEADO` solo se usa cuando no existe actividad útil de implementación,
+arquitectura, planificación, investigación o preparación, o una dependencia
+externa impide avanzar en todas esas categorías.
+
 ## Estrategia que lo justifica
 
 - Cliente objetivo:

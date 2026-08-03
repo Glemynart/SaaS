@@ -10,6 +10,18 @@ La evidencia final será un primer cliente que complete y acepte el recorrido pr
 
 `ACTIVO`
 
+### Estado operativo por dimensión
+
+- **GOAL-01:** `ACTIVO`.
+- **Implementación:** `BLOQUEADA SELECTIVAMENTE` por infraestructura externa
+  en M1/M7 y correo real en M2.
+- **Arquitectura y preparación:** `DISPONIBLE` en [Platform Evolution](../architecture/PLATFORM-EVOLUTION.md),
+  sin crear GOAL-02 ni modificar el resultado de negocio vigente.
+
+La ausencia de una Epic implementable no cambia el estado del Goal mientras
+exista trabajo útil de arquitectura, planificación, investigación o
+preparación que acerque el resultado del primer cliente.
+
 E5.2 fue fusionada en el PR #102, E5.3 en el PR #103, E5.4 en el PR #104 y E6.1
 en el PR #105. Los checks post-merge de CI/Browser E2E de las cuatro están
 verdes. E5.3 dejó
