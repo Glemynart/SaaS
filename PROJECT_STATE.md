@@ -97,6 +97,20 @@ Servicios:
 
 ---
 
+# <a name="estado-operativo-goal-01"></a>Estado operativo de GOAL-01
+
+- **GOAL-01:** `ACTIVO`.
+- **Implementación:** `BLOQUEADA SELECTIVAMENTE` por M1/M7 y correo real en
+  M2; esto no equivale a bloquear el Goal.
+- **Arquitectura y preparación:** `DISPONIBLE` mediante
+  [`Platform Evolution`](docs/architecture/PLATFORM-EVOLUTION.md).
+
+La metodología permite continuar con arquitectura, planificación,
+investigación y preparación mientras una ruta de implementación espera una
+dependencia externa. GOAL-01 solo podrá pasar a `BLOQUEADO` cuando una
+auditoría demuestre que no existe ninguna actividad útil en esas categorías ni
+en implementación.
+
 # <a name="estado-general-del-proyecto"></a>Estado General del Proyecto
 
 ## Estado de E2.4, E5.2, E5.3, E5.4, E6.1, E6.2 y E6.3
@@ -2074,6 +2088,11 @@ Validación de cierre:
 
 # <a name="roadmap-futuro"></a>Roadmap Futuro
 
+La referencia arquitectónica vigente para la evolución del producto es
+[`Platform Evolution`](docs/architecture/PLATFORM-EVOLUTION.md). Organiza las
+capacidades futuras por dominio y dependencia; no crea un Goal nuevo ni cambia
+la regla de un único Goal activo.
+
 ## Goal activo
 
 - [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md): operación laboral y documental del primer cliente en producción.
@@ -2114,6 +2133,8 @@ El desarrollo sigue la metodología definida en [`docs/goals/README.md`](docs/go
 - PRs como unidades de entrega, no como objetivos;
 - código y comportamiento verificable como fuente de verdad;
 - documentación tratada como hipótesis;
+- estado del Goal separado del estado de implementación: `GOAL ACTIVO`,
+  `IMPLEMENTACIÓN BLOQUEADA` y `ARQUITECTURA DISPONIBLE`;
 - auditoría basada en la pregunta “¿un cliente podría utilizar esta capacidad hoy?”;
 - Codex como Lead Engineer responsable de investigar, implementar, verificar y preparar el PR sin realizar el merge.
 

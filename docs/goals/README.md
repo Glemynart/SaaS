@@ -18,9 +18,9 @@ Producto
 
 ## Goal activo
 
-| Goal                                                                    | Estado | Resultado                                                                                          |
-| ----------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------- |
-| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md) | ACTIVO | E2.4 y E6.3 fusionadas; M2 parcial; M6 completado; M1 sigue BLOQUEADO POR INFRAESTRUCTURA EXTERNA. |
+| Goal                                                                    | Estado | Resultado                                                                                                                                     |
+| ----------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md) | ACTIVO | Implementación bloqueada selectivamente por M1/M2/M7; arquitectura disponible en [Platform Evolution](../architecture/PLATFORM-EVOLUTION.md). |
 
 Solo puede existir un Goal activo. Los posibles resultados futuros permanecen sin numerar en el Backlog hasta ser priorizados.
 
@@ -28,13 +28,34 @@ Estado de implementación vigente: E5.2 fue fusionada en el PR #102, E5.3 en el
 PR #103, E5.4 en el PR #104, E6.1 en el PR #105, E6.2 en el PR #106, E6.3 en
 el PR #108 y E2.4 en el PR #110; sus checks post-merge de CI y Browser E2E están
 verdes. M1 sigue
-BLOQUEADO POR INFRAESTRUCTURA EXTERNA; GOAL-01 permanece ACTIVO.
+BLOQUEADO POR INFRAESTRUCTURA EXTERNA; GOAL-01 permanece ACTIVO. La
+implementación está bloqueada selectivamente, pero la arquitectura y la
+preparación del producto permanecen disponibles mediante [Platform Evolution](../architecture/PLATFORM-EVOLUTION.md).
 
 ## Regla de redefinición
 
 Un Goal solo puede redefinirse cuando cambie la estrategia del producto.
 
 Nuevas ideas, módulos, mejoras, bugs, deuda técnica o dependencias descubiertas no redefinen el Goal: se clasifican, se incorporan al alcance aprobado cuando son necesarias o se envían al Backlog.
+
+## Estados independientes del Goal y de la implementación
+
+El estado del Goal y el estado de una ruta de implementación son dimensiones
+distintas:
+
+| Estado                     | Significado                                                                                                                                                                      |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GOAL ACTIVO`              | El resultado de negocio, sus criterios de aceptación o trabajo útil de arquitectura, planificación, investigación o preparación siguen vigentes.                                 |
+| `IMPLEMENTACIÓN BLOQUEADA` | Una o más Epics no pueden implementarse por infraestructura, correo, una PR abierta, una decisión pendiente u otra dependencia verificable. El Goal no cambia por ello.          |
+| `ARQUITECTURA DISPONIBLE`  | Existe una arquitectura, roadmap, ADR aprobado o preparación verificable que permite continuar acercando el producto al Goal aunque una ruta funcional esté detenida.            |
+| `ESPERANDO_MERGE`          | La Epic candidata depende de una PR abierta. Solo se detienen las rutas que dependen de esa PR.                                                                                  |
+| `GOAL BLOQUEADO`           | No existe ninguna actividad útil de implementación, arquitectura, planificación, investigación o preparación, o una dependencia externa impide avanzar en todas esas categorías. |
+
+Un Milestone bloqueado no bloquea el Goal completo. La ausencia temporal de
+Epics implementables tampoco lo bloquea si existe trabajo útil de arquitectura,
+planificación, investigación o preparación. Antes de usar `GOAL BLOQUEADO` se
+debe auditar el grafo completo de dependencias y dejar evidencia de que no
+queda ninguna actividad de valor.
 
 ## Fuente de verdad
 
@@ -124,7 +145,12 @@ Estos estados no son equivalentes:
 - `ESPERANDO_MERGE` significa que la Epic candidata depende de una PR abierta. Esa PR bloquea únicamente las Epics que dependen de ella; una Epic independiente puede iniciarse sobre `main` mientras el Goal permanezca `ACTIVO`. El Goal vuelve a `ACTIVO` cuando desaparece la dependencia del trabajo candidato.
 - Una Epic sólo puede marcarse completada cuando su capacidad está fusionada y verificada end-to-end.
 - Un Milestone sólo puede marcarse completado cuando se cumplen su resultado verificable y todas sus Epics requeridas.
-- El Goal activo permanece `ACTIVO` o `ESPERANDO_MERGE` mientras exista cualquier Milestone, Epic, criterio de aceptación, evidencia productiva o aceptación del cliente pendiente.
+- El Goal activo permanece `ACTIVO`, `IMPLEMENTACIÓN BLOQUEADA` o `ESPERANDO_MERGE`
+  mientras exista cualquier Milestone, Epic, criterio de aceptación, evidencia
+  productiva, aceptación del cliente o actividad útil de arquitectura,
+  planificación, investigación o preparación pendiente. `ARQUITECTURA
+DISPONIBLE` se registra como una capacidad de preparación del Goal, no como
+  un Goal nuevo.
 
 El cierre de una ejecución de desarrollo puede detenerse en `APROBADO PARA MERGE`; el cierre del Goal es una decisión posterior y exige la sección `Cierre de un Goal` completa.
 
