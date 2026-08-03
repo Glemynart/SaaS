@@ -2,10 +2,10 @@
 
 | Campo           | Valor                                                                                      |
 | --------------- | ------------------------------------------------------------------------------------------ |
-| **Estado**      | Propuesto                                                                                  |
+| **Estado**      | Aceptado                                                                                   |
 | **Fecha**       | 2026-08-03                                                                                 |
 | **Decisores**   | Producto · Arquitectura · Seguridad                                                        |
-| **Ámbito**      | GOAL-01 · E7.3 · landing pública · monolito NestJS/Next.js/Prisma                          |
+| **Ámbito**      | Platform Evolution · E7.3 futura · landing pública · monolito NestJS/Next.js/Prisma        |
 | **Relacionado** | [GOAL-01](../goals/GOAL-01-primer-cliente-operando.md), [ADR-SEC-001](ADR-SEC-001.md),     |
 |                 | [ADR-SEC-002](ADR-SEC-002.md), [Platform Evolution](../architecture/PLATFORM-EVOLUTION.md) |
 | **Reemplaza**   | —                                                                                          |
@@ -134,11 +134,29 @@ cliente.
 - La retención de prospectos tendrá un ciclo de vida distinto al de los datos
   laborales de un tenant.
 
-## Criterio para desbloquear E7.3
+## Decisión de alcance de GOAL-01
 
-E7.3 no debe iniciar implementación hasta que esta ADR sea aceptada y se
-confirmen explícitamente los cinco puntos de la decisión propuesta. La Epic
-posterior deberá ser end-to-end e incluir persistencia, operación autenticada,
-autorización, retención, controles anti-abuso, pruebas browser y copy público
-alineado con el canal real. No se modifica código mientras la decisión esté
-pendiente.
+E7.3 no forma parte del resultado mínimo de GOAL-01. El Goal se cierra cuando un
+primer cliente ya identificado puede ser incorporado y operar su tenant en
+producción; la captura pública de prospectos ocurre antes de que exista esa
+relación y pertenece al canal de adquisición comercial.
+
+El código actual permite iniciar la operación por un canal directo: el registro
+crea la organización y la cuenta administradora, y un `ADMIN` puede crear
+usuarios adicionales desde la aplicación. La landing y su formulario de demo no
+participan en ese recorrido. Por tanto, retirar E7.3 de GOAL-01 reduce alcance
+sin eliminar una capacidad necesaria para el primer cliente ni introducir deuda
+en los módulos laborales y documentales.
+
+E7.3 queda en el backlog de Platform Evolution. Se priorizará cuando exista una
+necesidad comercial verificable de capturar y operar prospectos desde la landing.
+Esta decisión no modifica la frontera arquitectónica aprobada en este ADR; solo
+define cuándo esa frontera se convierte en implementación prioritaria.
+
+## Criterio para priorizar E7.3 en Platform Evolution
+
+La implementación de E7.3 deberá iniciarse únicamente cuando la adquisición
+comercial sea prioritaria y se confirmen explícitamente los cinco puntos de la
+decisión propuesta. La Epic posterior deberá ser end-to-end e incluir
+persistencia, operación autenticada, autorización, retención, controles
+anti-abuso, pruebas browser y copy público alineado con el canal real.
