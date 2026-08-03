@@ -30,10 +30,11 @@ La metodología distingue tres dimensiones:
 Una implementación bloqueada no impide realizar arquitectura, planificación,
 investigación o preparación que acerque el producto al Goal activo.
 
-La auditoría vigente identificó que E7.3 requiere una decisión de frontera de
-plataforma antes de implementar una captura pública pre-tenant. Esa decisión
-está propuesta en [ADR-008](../adr/ADR-008-demo-request-capture-boundary.md);
-no se considera una capacidad implementada.
+La auditoría vigente identificó que E7.3 requiere una frontera de plataforma
+antes de implementar una captura pública pre-tenant. Esa frontera quedó
+aceptada en [ADR-008](../adr/ADR-008-demo-request-capture-boundary.md); E7.3
+queda fuera del alcance mínimo de GOAL-01 y no se considera una capacidad
+implementada.
 
 ## Evidencia actual
 

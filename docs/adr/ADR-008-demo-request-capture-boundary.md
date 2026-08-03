@@ -35,9 +35,9 @@ tenant-aware. Persistir el registro en un tenant, crear un tenant ficticio o
 prometer contacto sin una operación receptora produciría una frontera de
 seguridad o una promesa de producto falsa.
 
-## Decisión propuesta
+## Decisión adoptada
 
-Antes de implementar E7.3 se propone adoptar una frontera de plataforma
+Antes de implementar E7.3 se adopta una frontera de plataforma
 explícita para la captura y operación de solicitudes públicas:
 
 1. **Propiedad:** crear un agregado `DemoRequest` del plano de plataforma,
@@ -50,7 +50,7 @@ explícita para la captura y operación de solicitudes públicas:
 3. **Ciclo de vida:** usar como mínimo `PENDIENTE`, `CONTACTADO` y
    `DESCARTADO`, registrando actor, fecha y motivo cuando cambie el estado.
 4. **Privacidad:** definir finalidad, base de tratamiento, consentimiento,
-   retención, borrado o anonimización antes de persistir PII. La propuesta
+   retención, borrado o anonimización antes de persistir PII. La política
    mínima es consentimiento explícito para contacto comercial, versión y fecha
    de la política, y no almacenar documentos ni datos no necesarios.
 5. **Superficie pública:** exigir DTO estricto con allowlist, límites de tamaño,
@@ -58,7 +58,7 @@ explícita para la captura y operación de solicitudes públicas:
    protección anti-automatización y rate limit dedicado. No se activará el
    rate limiting global como efecto colateral de E7.3.
 
-La frontera propuesta queda así:
+La frontera adoptada queda así:
 
 ```text
 Landing pública
@@ -157,6 +157,6 @@ define cuándo esa frontera se convierte en implementación prioritaria.
 
 La implementación de E7.3 deberá iniciarse únicamente cuando la adquisición
 comercial sea prioritaria y se confirmen explícitamente los cinco puntos de la
-decisión propuesta. La Epic posterior deberá ser end-to-end e incluir
+decisión adoptada. La Epic posterior deberá ser end-to-end e incluir
 persistencia, operación autenticada, autorización, retención, controles
 anti-abuso, pruebas browser y copy público alineado con el canal real.
