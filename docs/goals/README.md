@@ -57,6 +57,30 @@ planificación, investigación o preparación. Antes de usar `GOAL BLOQUEADO` se
 debe auditar el grafo completo de dependencias y dejar evidencia de que no
 queda ninguna actividad de valor.
 
+### Regla obligatoria para declarar un Goal bloqueado
+
+El estado del Goal se determina sobre el grafo completo de dependencias, no
+sobre el estado del Milestone o de la Epic que esté bloqueada. La ausencia de
+una Epic implementable solo cambia la dimensión de implementación; no cambia
+por sí sola el estado del Goal.
+
+Mientras exista una actividad útil de arquitectura, planificación,
+investigación, preparación o implementación que acerque el resultado vigente,
+el estado debe permanecer:
+
+- `GOAL ACTIVO`;
+- `IMPLEMENTACIÓN BLOQUEADA` para las rutas que tengan una dependencia
+  verificable; y/o
+- `ARQUITECTURA DISPONIBLE` cuando exista trabajo arquitectónico o preparatorio
+  utilizable por el Goal.
+
+Antes de declarar `GOAL BLOQUEADO`, la auditoría debe dejar evidencia explícita
+de que revisó todos los Milestones, Epics, ADRs y actividades de preparación,
+y que no existe ninguna actividad útil en esas cinco categorías o que una
+dependencia externa impide avanzar en todas ellas. Un bloqueo de staging,
+dominio, correo u otra infraestructura se registra en las rutas afectadas y no
+se propaga automáticamente al Goal completo.
+
 ## Fuente de verdad
 
 El código ejecutable y su comportamiento verificable son la fuente de verdad sobre las capacidades existentes. `START_HERE.md`, `PROJECT_STATE.md`, ADRs, documentación y PRs fusionados son evidencia contextual e hipótesis que deben contrastarse con el código.
@@ -125,7 +149,7 @@ Checklist mínimo:
 
 Codex conduce el Goal, no solo genera código. Investiga, implementa el siguiente paso mínimo, administra rama/commits/push/PR, mantiene la documentación y audita su propio PR sin subagentes.
 
-La responsabilidad de entrega continúa hasta que el PR está listo para revisión y la capacidad que pretende cerrar existe funcionalmente. El usuario conserva siempre la decisión de merge.
+La responsabilidad de entrega continúa hasta que el PR está listo para revisión y la capacidad que pretende cerrar existe funcionalmente. Cuando los checks de GitHub están verdes y la auditoría da `APROBADO PARA MERGE`, la regla vigente permite realizar el merge y volver a `main` para sincronizar el estado. Una decisión de arquitectura pendiente detiene únicamente la ruta que depende de ella.
 
 ## Auditoría de PR
 
