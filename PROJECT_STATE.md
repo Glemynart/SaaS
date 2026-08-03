@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 activo; regla de bloqueo del Goal sincronizada; M1 bloqueado por infraestructura externa (2026-08-03)
+## Última actualización: GOAL-01 activo; E7.3 fuera del Goal y ADR-008 aceptado como referencia futura; M1 bloqueado por infraestructura externa (2026-08-03)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -117,6 +117,12 @@ Un Milestone bloqueado por infraestructura no bloquea el Goal completo. La
 auditoría debe revisar todos los Milestones, Epics, ADRs y actividades de
 arquitectura, planificación, investigación y preparación antes de declarar
 `GOAL BLOQUEADO`.
+
+La auditoría de negocio determinó que E7.3 no es necesaria para tener operando al
+primer cliente: captura prospectos antes del tenant y no participa en el
+onboarding ni en el recorrido laboral-documental. ADR-008 fue aceptado como
+referencia de Platform Evolution; E7.3 queda fuera de GOAL-01 y no se implementó
+código.
 
 # <a name="estado-general-del-proyecto"></a>Estado General del Proyecto
 
@@ -243,13 +249,19 @@ reservado para el cierre final de despliegue y Go Live.
 
 Estado:
 
-✅ Completada
+✅ Superficie informativa completada; captura real de prospectos pendiente fuera
+de GOAL-01.
 
-Objetivo:
+Objetivo de la superficie actual:
 
-- Captación de leads.
-- Solicitud de demos.
+- Presentación del producto.
+- Solicitud de demo simulada.
 - SEO.
+
+La landing y el formulario de demo pertenecen al canal de adquisición comercial,
+no al resultado mínimo de GOAL-01. La captura real de prospectos queda en
+Platform Evolution bajo ADR-008; el formulario actual continúa siendo una
+superficie demostrativa hasta que esa iniciativa sea priorizada.
 
 Commit principal:
 

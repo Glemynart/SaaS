@@ -3,7 +3,7 @@
 **Estado:** referencia arquitectónica aprobada
 **Alcance:** evolución del producto sin crear un Goal nuevo
 **Goal activo:** [GOAL-01 — Primer Cliente Operando](../goals/GOAL-01-primer-cliente-operando.md)
-**Fuente de contraste:** `main` en `b4f98c8`
+**Fuente de contraste:** `main` en `d88a2ca`
 
 ## Propósito
 
@@ -29,6 +29,12 @@ La metodología distingue tres dimensiones:
 
 Una implementación bloqueada no impide realizar arquitectura, planificación,
 investigación o preparación que acerque el producto al Goal activo.
+
+La auditoría vigente identificó que E7.3 requiere una frontera de plataforma
+antes de implementar una captura pública pre-tenant. Esa frontera quedó
+aceptada en [ADR-008](../adr/ADR-008-demo-request-capture-boundary.md); E7.3
+queda fuera del alcance mínimo de GOAL-01 y no se considera una capacidad
+implementada.
 
 ## Evidencia actual
 
@@ -154,6 +160,33 @@ envíos duplicados.
 
 **Orden y relación:** después de M1; habilita E2.2, portales y comunicaciones
 operativas.
+
+### Captura comercial y solicitudes públicas de demo
+
+**Objetivo:** convertir la landing en un canal operativo de adquisición, con
+captura, seguimiento y contacto verificables para prospectos que aún no tienen
+tenant.
+
+**Problema de negocio:** el formulario actual solo simula el envío en el
+navegador. Sin una prioridad comercial explícita, implementar persistencia de
+prospectos antes del primer cliente agregaría una superficie operativa que no es
+necesaria para el recorrido laboral-documental del Goal.
+
+**Reutiliza:** la landing existente, la capa de validación, los adaptadores de
+correo y las capacidades transversales de auditoría, retención y control de
+acceso que se habiliten en el plano de plataforma.
+
+**Dependencias y riesgos:** ADR-008 define la separación entre plataforma y
+tenants; todavía se necesitarían identidad de plataforma, bandeja operativa,
+privacidad, retención, anti-abuso y un canal de comunicación verificable. Un
+proveedor de correo o CRM debe quedar detrás de un adaptador y no ser la fuente
+de verdad del dominio.
+
+**Orden y relación:** fuera del alcance mínimo de GOAL-01. Se prioriza cuando
+exista una necesidad comercial verificable de adquisición desde la landing; no
+es prerequisito para incorporar y operar el primer tenant. Se relaciona con
+Comunicaciones, Integraciones y API pública, pero no con el cierre operativo del
+Goal.
 
 ### Integraciones y API pública
 
