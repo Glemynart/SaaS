@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 activo; E2.4 y E6.3 fusionadas y verificadas; M1 bloqueado por infraestructura externa (2026-08-02)
+## Última actualización: GOAL-01 activo; regla de bloqueo del Goal sincronizada; M1 bloqueado por infraestructura externa (2026-08-03)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -110,6 +110,13 @@ investigación y preparación mientras una ruta de implementación espera una
 dependencia externa. GOAL-01 solo podrá pasar a `BLOQUEADO` cuando una
 auditoría demuestre que no existe ninguna actividad útil en esas categorías ni
 en implementación.
+
+La regla vigente distingue explícitamente el estado del Goal del estado de sus
+rutas: `GOAL ACTIVO`, `IMPLEMENTACIÓN BLOQUEADA` y `ARQUITECTURA DISPONIBLE`.
+Un Milestone bloqueado por infraestructura no bloquea el Goal completo. La
+auditoría debe revisar todos los Milestones, Epics, ADRs y actividades de
+arquitectura, planificación, investigación y preparación antes de declarar
+`GOAL BLOQUEADO`.
 
 # <a name="estado-general-del-proyecto"></a>Estado General del Proyecto
 
@@ -2136,6 +2143,6 @@ El desarrollo sigue la metodología definida en [`docs/goals/README.md`](docs/go
 - estado del Goal separado del estado de implementación: `GOAL ACTIVO`,
   `IMPLEMENTACIÓN BLOQUEADA` y `ARQUITECTURA DISPONIBLE`;
 - auditoría basada en la pregunta “¿un cliente podría utilizar esta capacidad hoy?”;
-- Codex como Lead Engineer responsable de investigar, implementar, verificar y preparar el PR sin realizar el merge.
+- Codex como Lead Engineer responsable de investigar, implementar, verificar y preparar el PR; con checks verdes y auditoría `APROBADO PARA MERGE`, puede realizar el merge y volver a `main` para sincronizar el estado.
 
 Regla principal: primero evidencia, luego arquitectura y dependencias, después el siguiente paso mínimo y finalmente verificación completa.
