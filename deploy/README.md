@@ -1,231 +1,268 @@
-# Staging reproducible (E1.1)
+# Deployment de staging del API
 
-E1.1 define el empaquetado reproducible de las dos aplicaciones que componen
-el producto actual:
+Este directorio contiene el empaquetado reproducible y la operación de staging
+del API NestJS. El despliegue objetivo usa Vercel para el frontend y el VPS
+existente para `apps/api`.
 
-- `deploy/Dockerfile.api` construye el API NestJS y deja Chromium disponible
-  para el renderer PDF.
-- `deploy/Dockerfile.web` construye el frontend Next.js.
+## Alcance
 
-Ambas imágenes se construyen desde la raíz del repositorio y fijan la versión
-de pnpm declarada en `package.json`. Las instalaciones usan
-`pnpm install --frozen-lockfile`; ningún archivo `.env` ni dato local entra en
-el contexto de Docker.
+- `deploy/Dockerfile.api` construye la imagen del API y deja Chromium
+  disponible para el renderer PDF.
+- `deploy/docker-compose.staging.yml` ejecuta únicamente `api` y Caddy.
+- PostgreSQL y Redis son infraestructura existente y no forman parte del
+  Compose de staging.
+- La imagen se publica en GHCR para que el VPS no necesite Git ni un build
+  local.
+- El primer despliegue no ejecuta migraciones ni seed automáticamente.
 
-## Configuración en Railway
+La imagen API se construye desde la raíz del repositorio con
+`pnpm install --frozen-lockfile`. El Dockerfile genera Prisma y compila el
+entrypoint `apps/api/dist/src/main.js`. Los archivos `.env` no se incluyen en
+el contexto ni en la imagen.
 
-Crear dos servicios desde el mismo repositorio, ambos con la raíz del
-repositorio como contexto de build:
+## Imagen GHCR
 
-| Servicio | Dockerfile              | Puerto | Variables mínimas                                                    |
-| -------- | ----------------------- | -----: | -------------------------------------------------------------------- |
-| API      | `deploy/Dockerfile.api` | `4000` | `NODE_ENV`, `DATABASE_URL`, `JWT_SECRET`, `ALLOWED_ORIGINS`          |
-| Web      | `deploy/Dockerfile.web` | `3000` | `NODE_ENV`, `API_URL`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SITE_URL` |
+`.github/workflows/api-image.yml` publica una imagen multi-arquitectura para
+`linux/amd64` y `linux/arm64`. Cada ejecución publica un tag inmutable basado
+en el commit:
 
-En Railway se debe configurar el puerto público a partir de la variable
-`PORT` que entrega la plataforma. El API usa `PORT=4000` y el Web
-`PORT=3000` como valores por defecto para ejecución local; el arranque no
-codifica una URL ni un secreto de staging.
-
-`API_URL` es una URL server-side del Web y puede apuntar al dominio interno
-del servicio API. `NEXT_PUBLIC_API_URL` se entrega al navegador, por lo que
-debe ser el dominio público del API y no puede contener credenciales.
-
-Las variables sensibles se crean únicamente en el panel de variables del
-entorno de staging: `DATABASE_URL`, `JWT_SECRET`, `R2_ACCESS_KEY_ID`,
-`R2_SECRET_ACCESS_KEY`, `RESEND_API_KEY` y cualquier secreto futuro. No se
-copian desde `.env`, no se escriben en el repositorio y no se incluyen en los
-Dockerfiles.
-
-## Verificación local del empaquetado
-
-Con Docker Desktop ejecutándose:
-
-Si la red local reemplaza certificados TLS públicos (por ejemplo, un antivirus
-o un proxy corporativo), exporta su certificado raíz en formato PEM y pásalo
-sólo durante el build:
-
-```bash
-docker build --secret id=build-ca,src=/path/to/network-root.pem \
-  -f deploy/Dockerfile.api -t la-oficina-nitida-api:staging .
+```text
+ghcr.io/OWNER/REPOSITORY/api:sha-COMMIT_SHA
 ```
 
-El certificado se monta únicamente mientras se inicializa pnpm y se instalan
-dependencias; no se copia a la imagen runtime. Los builds de Railway no
-necesitan esta opción salvo que su builder use la misma intercepción TLS.
+El VPS debe consumir ese tag o, preferiblemente, el digest asociado. No se
+usa `latest` ni se depende de un tag mutable `staging`.
 
-```bash
-docker build -f deploy/Dockerfile.api -t la-oficina-nitida-api:staging .
-docker build -f deploy/Dockerfile.web -t la-oficina-nitida-web:staging .
+El paquete de GHCR debe permitir lectura desde el VPS. El login del VPS se
+realiza con una credencial de solo lectura gestionada fuera del repositorio.
+
+## Configuración del VPS
+
+El VPS debe conservar estos contenedores y datos sin recrearlos:
+
+- PostgreSQL: contenedor `postgres`, base inicial `oficina_nitida`.
+- Redis: contenedor `redis`, sin uso por la versión actual del API.
+- Red Docker existente: `la-oficina-nitida_laoficina`.
+
+Antes de iniciar la aplicación, verifica manualmente en el VPS que la red
+exista y que PostgreSQL esté conectado a ella. No crees una red alternativa.
+La URL runtime debe usar el DNS Docker del contenedor existente:
+
+```text
+postgresql://saas_api_runtime:<password>@postgres:5432/oficina_nitida?schema=public
 ```
 
-El arranque contra un PostgreSQL de staging requiere las migraciones y el
-seed definidos por E1.2; este PR no los ejecuta implícitamente ni eleva los
-privilegios del usuario runtime. Las verificaciones de R2, correo real y
-health/readiness se describen en E1.3; las pruebas browser pertenecen a E1.4.
+La base `oficina_nitida` no se considera staging automáticamente. Antes de
+ejecutar cualquier migración o seed, confirma explícitamente que esa base es
+la base de staging que se utilizará. Si no lo es, debe seleccionarse una base
+de staging separada dentro del PostgreSQL existente mediante un procedimiento
+operativo aprobado.
 
-## E1.2 - Migraciones, seed y rol runtime
+El Compose usa la red externa ya existente:
 
-La conexion privilegiada de migraciones y la conexion de la aplicacion son
-distintas:
+```yaml
+networks:
+  la-oficina-nitida:
+    external: true
+    name: la-oficina-nitida_laoficina
+```
 
-- `DATABASE_URL_MIGRATION`: solo para la operacion de release; puede crear o
-  alterar el esquema y nunca se configura en el servicio API.
-- `DATABASE_URL`: conexion runtime con un rol `LOGIN NOSUPERUSER NOBYPASSRLS`
-  sin privilegio `CREATE` sobre `public`.
+La API no publica el puerto `4000`. Caddy es el único servicio que publica
+`80` y `443`.
 
-Ejecuta una vez el bootstrap del rol usando una conexion administrativa y el
-mismo propietario que ejecutara las migraciones futuras:
+## Archivos en el VPS
+
+Una estructura sugerida, sin tocar los directorios de datos existentes, es:
+
+```text
+/home/ubuntu/la-oficina-nitida/
+├── app/
+│   ├── .env
+│   ├── deploy/
+│   │   ├── caddy/Caddyfile
+│   │   └── docker-compose.staging.yml
+│   └── deploy/postgres/bootstrap-runtime-role.sql
+├── uploads/
+├── backups/
+├── caddy/config/Caddyfile
+├── caddy/data/
+├── postgres/data/
+└── redis/data/
+```
+
+El archivo `.env` real se crea en el VPS a partir de
+`deploy/staging.env.example` y queda fuera de Git. El directorio `uploads`
+debe ser escribible por el usuario `node` de la imagen.
+
+Variables mínimas para staging:
+
+```env
+API_IMAGE=ghcr.io/OWNER/REPOSITORY/api:sha-COMMIT_SHA
+UPLOADS_PATH=/home/ubuntu/la-oficina-nitida/uploads
+NODE_ENV=production
+PORT=4000
+DATABASE_URL=postgresql://saas_api_runtime:<password>@postgres:5432/oficina_nitida?schema=public
+JWT_SECRET=<secret-long-random>
+FRONTEND_URL=https://staging.dusema.com
+BACKEND_URL=https://staging-api.dusema.com
+ALLOWED_ORIGINS=https://staging.dusema.com
+STORAGE_PROVIDER=local
+STORAGE_LOCAL_ROOT=/app/uploads
+REQUIRE_REAL_EMAIL=false
+```
+
+No se agregan `REDIS_URL`, variables `R2_*`, Resend ni OCI Email Delivery en
+este despliegue inicial.
+
+## Caddy
+
+Instala `deploy/caddy/Caddyfile` en:
+
+```text
+/home/ubuntu/la-oficina-nitida/caddy/config/Caddyfile
+```
+
+El Compose monta esa ruta en `/etc/caddy` y conserva los certificados en:
+
+```text
+/home/ubuntu/la-oficina-nitida/caddy/data
+```
+
+Caddy atiende `staging-api.dusema.com`, termina HTTPS y hace
+`reverse_proxy api:4000`. La emisión automática de certificados requiere que
+DNS y los puertos públicos `80/443` estén preparados; esa configuración queda
+fuera de este repositorio y de esta tarea.
+
+## Primer despliegue
+
+El procedimiento debe ejecutarse manualmente en el VPS. No se debe ejecutar
+`docker compose down` sobre el Compose que administra PostgreSQL o Redis.
+
+1. Autentica Docker contra GHCR y descarga la imagen indicada por `API_IMAGE`.
+2. Confirma la arquitectura ARM64, la red Docker existente y el nombre de la
+   base de staging.
+3. Confirma que existe un backup utilizable antes de cambiar el esquema.
+4. Crea el directorio persistente de uploads y verifica sus permisos.
+5. Copia el Compose, el Caddyfile, este SQL y el `.env` al directorio de
+   aplicación.
+6. Valida la configuración sin iniciar servicios:
+
+   ```bash
+   docker compose \
+     --env-file /home/ubuntu/la-oficina-nitida/app/.env \
+     -f /home/ubuntu/la-oficina-nitida/app/deploy/docker-compose.staging.yml \
+     config
+   ```
+
+7. Levanta solamente la API y Caddy. Este comando no ejecuta migraciones ni
+   seed:
+
+   ```bash
+   docker compose \
+     --env-file /home/ubuntu/la-oficina-nitida/app/.env \
+     -f /home/ubuntu/la-oficina-nitida/app/deploy/docker-compose.staging.yml \
+     up -d api caddy
+   ```
+
+8. Verifica los endpoints:
+
+   ```bash
+   curl --fail https://staging-api.dusema.com/health
+   curl --fail https://staging-api.dusema.com/readiness
+   ```
+
+El healthcheck de Compose consulta `/health`. `/readiness` valida PostgreSQL y
+el storage local; con `REQUIRE_REAL_EMAIL=false` no exige un proveedor de
+correo real.
+
+## Migraciones y seed: operación explícita
+
+No se ejecutan durante `up`. Solo después de confirmar que la base es staging,
+que existe un backup y que las credenciales son correctas, se ejecutan como
+operaciones one-off.
+
+Primero aplica el rol runtime usando una conexión administrativa. El SQL es
+idempotente y no recrea PostgreSQL:
 
 ```bash
 export GOAL01_RUNTIME_DB_ROLE=saas_api_runtime
-export GOAL01_RUNTIME_DB_PASSWORD='genera-un-secreto-largo-y-aleatorio'
-psql "$DATABASE_URL_MIGRATION" \
-  -v ON_ERROR_STOP=1 \
-  -f deploy/postgres/bootstrap-runtime-role.sql
+export GOAL01_RUNTIME_DB_PASSWORD='<runtime-password>'
+
+docker exec -i \
+  -e GOAL01_RUNTIME_DB_ROLE \
+  -e GOAL01_RUNTIME_DB_PASSWORD \
+  postgres psql -U oficina -d oficina_nitida \
+  -v ON_ERROR_STOP=1 < deploy/postgres/bootstrap-runtime-role.sql
 ```
 
-El script es idempotente, otorga unicamente `USAGE` de schema, DML sobre las
-tablas existentes y uso de secuencias, y configura privilegios por defecto
-para tablas futuras. No uses `postgres`, `rdsadmin` ni el mismo rol de la
-sesion administrativa como rol runtime.
+Usa `oficina` como usuario administrativo solo si su privilegio administrativo
+ha sido confirmado en el VPS. No uses el rol runtime para migrar.
 
-Aplica el schema de forma explicita con la conexion privilegiada:
+Después, define temporalmente la conexión privilegiada en la sesión del
+operador y ejecuta Prisma dentro de la misma imagen:
 
 ```bash
-DATABASE_URL="$DATABASE_URL_MIGRATION" \
-  pnpm --filter @saas/api exec prisma migrate deploy
-```
+export DATABASE_URL_MIGRATION='postgresql://oficina:<password>@postgres:5432/oficina_nitida?schema=public'
 
-Despues ejecuta el seed con la conexion runtime para verificar que el rol de
-la aplicacion puede operar los catalogos necesarios:
-
-```bash
-DATABASE_URL="$DATABASE_URL" \
-  pnpm --filter @saas/api exec prisma db seed
-```
-
-El seed es idempotente y debe ejecutarse dos veces en una instalacion de
-staging. La segunda ejecucion no debe crear duplicados. Verifica ademas el
-guardrail del rol:
-
-```sql
-SELECT rolname, rolsuper, rolbypassrls
-FROM pg_roles
-WHERE rolname = 'saas_api_runtime';
-```
-
-El resultado esperado es `rolsuper = false` y `rolbypassrls = false`. Cuando
-RLS esta activa, el API debe conservar el contexto tenant-aware existente; no
-se debe sustituir por una conexion superusuario.
-
-Para ejecutar estas operaciones contra la imagen API de E1.1, usa la misma
-imagen con un comando one-off y no agregues `DATABASE_URL_MIGRATION` al
-servicio runtime:
-
-```bash
-docker run --rm \
+docker compose \
+  --env-file /home/ubuntu/la-oficina-nitida/app/.env \
+  -f /home/ubuntu/la-oficina-nitida/app/deploy/docker-compose.staging.yml \
+  run --rm --no-deps \
   -e DATABASE_URL="$DATABASE_URL_MIGRATION" \
-  --entrypoint node la-oficina-nitida-api:staging \
+  --entrypoint node api \
   apps/api/node_modules/prisma/build/index.js migrate deploy
+```
 
-docker run --rm \
-  -e DATABASE_URL="$DATABASE_URL" \
-  --entrypoint sh la-oficina-nitida-api:staging \
+El seed es también explícito y usa la conexión runtime:
+
+```bash
+docker compose \
+  --env-file /home/ubuntu/la-oficina-nitida/app/.env \
+  -f /home/ubuntu/la-oficina-nitida/app/deploy/docker-compose.staging.yml \
+  run --rm --no-deps \
+  --entrypoint sh api \
   -lc 'cd /app/apps/api && npm run prisma:seed'
 ```
 
-## E1.3 - R2, correo real y health/readiness
+No guardes `DATABASE_URL_MIGRATION` en el `.env` permanente de la API.
 
-El servicio API de staging debe usar los proveedores reales, manteniendo
-`DATABASE_URL` con el rol runtime no privilegiado de E1.2:
+## Rollback
 
-```text
-STORAGE_PROVIDER=r2
-R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
-R2_ACCESS_KEY_ID=<access-key>
-R2_SECRET_ACCESS_KEY=<secret-key>
-R2_BUCKET=<bucket>
-RESEND_API_KEY=<resend-api-key>
-EMAIL_FROM=<dominio-verificado>
-EMAIL_FROM_NAME=La Oficina Nítida
-REQUIRE_REAL_EMAIL=true
-```
-
-`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `RESEND_API_KEY` y cualquier
-contraseña se configuran únicamente como secretos del entorno. `R2_ENDPOINT`,
-`R2_BUCKET` y `EMAIL_FROM` también deben pertenecer al entorno de staging y no
-se deben copiar desde un `.env` local.
-
-### Comprobación del proceso y dependencias
-
-El API expone dos rutas públicas sin datos de tenant:
-
-- `GET /health` devuelve `200` cuando el proceso está vivo. No consulta
-  dependencias y es adecuada como healthcheck básico de la plataforma.
-- `GET /readiness` devuelve `200` sólo cuando PostgreSQL y el storage activo
-  responden. Con `REQUIRE_REAL_EMAIL=true`, también exige que Resend y
-  `EMAIL_FROM` estén configurados; si no, devuelve `503` sin exponer secretos
-  ni detalles internos.
-
-Después de desplegar la imagen y aplicar E1.2, verifica:
+El rollback de aplicación consiste en cambiar `API_IMAGE` al tag SHA o digest
+anterior y recrear solamente `api`:
 
 ```bash
-curl --fail "$API_URL/health"
-curl --fail "$API_URL/readiness"
+docker compose \
+  --env-file /home/ubuntu/la-oficina-nitida/app/.env \
+  -f /home/ubuntu/la-oficina-nitida/app/deploy/docker-compose.staging.yml \
+  up -d api
 ```
 
-Una respuesta `503` en `/readiness` debe corregirse en la configuración del
-entorno o en la dependencia indicada antes de considerar staging operativo.
+Caddy, PostgreSQL, Redis y sus datos no se modifican durante este rollback.
 
-### Comprobación R2
+Un rollback de la imagen no revierte migraciones Prisma. Las migraciones deben
+ser compatibles con la versión anterior; si una migración no lo permite, la
+recuperación del esquema requiere restaurar un backup mediante un procedimiento
+operativo aprobado. No uses `latest` ni elimines imágenes anteriores antes de
+validar el despliegue nuevo.
 
-Con `/readiness` en `200`, ejecuta desde la UI una operación que escriba y lea
-un objeto, por ejemplo cargar el logo de una organización y consultarlo desde
-la configuración de identidad. Para una migración de archivos locales
-existentes, ejecuta el migrador explícito sobre la misma imagen y conserva su
-reporte de diferencias:
+## ARM64 y PDF
 
-```bash
-STORAGE_PROVIDER=r2 \
-R2_ENDPOINT="$R2_ENDPOINT" \
-R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
-R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
-R2_BUCKET="$R2_BUCKET" \
-pnpm --filter @saas/api storage:migrate-local-to-r2
-```
+El Dockerfile usa imágenes oficiales multi-arquitectura de Node 22 sobre
+Debian Bookworm. `PUPPETEER_SKIP_DOWNLOAD=true` evita descargar un navegador
+durante el build e instala Chromium del sistema en la imagen runtime.
+`bcrypt` 6.0.0 incluye prebuild `linux-arm64` y el renderer busca
+`/usr/bin/chromium`, por lo que no se introduce una dependencia de Chromium
+x86 exclusiva.
 
-No uses `r2-migration` como estado final: ese proveedor sólo sirve para la
-transición porque escribe en R2 y permite fallback controlado de lectura.
+La verificación definitiva de la imagen ARM64 debe ocurrir en GHCR y en el VPS
+con un smoke de `/health`, `/readiness` y una generación real de PDF. Si la
+construcción multi-arquitectura falla en esos pasos, se debe corregir la
+compatibilidad de la imagen antes de desplegar; no se deben añadir emulación o
+flags arbitrarios al runtime.
 
-### Comprobación de correo real
+## Logs y observabilidad
 
-Usa una cuenta de prueba del tenant de staging y solicita recuperación de
-contraseña desde `/recuperar`. Verifica en el buzón que:
-
-1. llega el correo desde el dominio verificado en Resend;
-2. el enlace abre `/reset-password` y permite completar el flujo;
-3. el token expira o se invalida después de su uso.
-
-No uses datos ni buzones de clientes reales para esta prueba. El modo
-degradado se conserva para desarrollo local, pero `REQUIRE_REAL_EMAIL=true`
-impide declarar readiness de staging cuando el correo real no está listo.
-
-## E1.4 - CI, observabilidad y browser smoke
-
-El repositorio valida en cada pull request y en cada push a `main`:
-
-- instalación reproducible con `pnpm install --frozen-lockfile`;
-- typecheck, pruebas de API, validación Prisma y build;
-- migraciones contra PostgreSQL efímero y un smoke browser del registro,
-  inicio de sesión y llegada al dashboard.
-
-La ejecución browser usa almacenamiento local y correo degradado únicamente en
-el entorno de pruebas. No reutiliza secretos de staging ni pretende cerrar la
-verificación real de R2/correo de E1.3.
-
-El API devuelve `x-request-id` en cada respuesta y registra únicamente método,
-ruta normalizada, estado, duración e identificador de correlación. No registra
-query strings, cuerpos, credenciales ni cabeceras de autorización. Cuando una
-prueba browser falla, CI conserva el reporte, trace, screenshot o video que
-Playwright haya generado como evidencia de diagnóstico.
+El Compose rota los logs `json-file` de API y Caddy a un máximo de cinco
+archivos de 10 MB. La aplicación conserva `x-request-id` y logs sanitizados;
+no se agrega una plataforma de observabilidad nueva para este staging.

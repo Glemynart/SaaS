@@ -1,0 +1,69 @@
+name: la-oficina-nitida-staging
+
+services:
+  api:
+    image: ${API_IMAGE:?API_IMAGE is required}
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-4000}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
+      BACKEND_URL: ${BACKEND_URL:?BACKEND_URL is required}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?ALLOWED_ORIGINS is required}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
+      STORAGE_LOCAL_ROOT: ${STORAGE_LOCAL_ROOT:-/app/uploads}
+      REQUIRE_REAL_EMAIL: ${REQUIRE_REAL_EMAIL:-false}
+    restart: unless-stopped
+    expose:
+      - '4000'
+    volumes:
+      - ${UPLOADS_PATH:-/home/ubuntu/la-oficina-nitida/uploads}:/app/uploads
+    networks:
+      - la-oficina-nitida
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:4000/health').then(response =>
+          process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    shm_size: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '5'
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - /home/ubuntu/la-oficina-nitida/caddy/config:/etc/caddy
+      - /home/ubuntu/la-oficina-nitida/caddy/data:/data
+    networks:
+      - la-oficina-nitida
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '5'
+
+networks:
+  la-oficina-nitida:
+    external: true
+    name: la-oficina-nitida_laoficina
