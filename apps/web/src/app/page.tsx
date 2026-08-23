@@ -4,7 +4,7 @@ import { LandingClient } from '@/components/landing/landing-client';
 export const dynamic = 'force-static';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://laoficinanitida.com';
-const SITE_NAME = 'La Oficina Nítida';
+const SITE_NAME = 'Dusema Gestión';
 const TITLE = 'Plataforma de Gestión Laboral para Operadores Educativos Colombianos';
 const DESCRIPTION =
   'Centralice empleados, contratos masivos, expediente digital y alertas de vencimiento en una sola plataforma. Diseñado para operadores educativos colombianos. Sin ERP. Operativo el mismo día.';

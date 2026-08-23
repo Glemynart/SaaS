@@ -36,7 +36,7 @@ export function Sidebar({ collapsed, onToggleCollapsed, onNavigate }: SidebarPro
         </div>
         {!collapsed && (
           <p className="truncate text-sm font-semibold tracking-[-0.01em]" translate="no">
-            La Oficina Nítida
+            Dusema Gestión
           </p>
         )}
       </div>

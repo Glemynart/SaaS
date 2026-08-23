@@ -5,8 +5,8 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'La Oficina Nítida',
-    template: '%s | La Oficina Nítida',
+    default: 'Dusema Gestión',
+    template: '%s | Dusema Gestión',
   },
   description: 'Plataforma de gestión laboral para operadores educativos colombianos.',
 };

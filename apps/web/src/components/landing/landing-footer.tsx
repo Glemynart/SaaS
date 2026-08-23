@@ -34,9 +34,7 @@ export function LandingFooter() {
               <div className="brand-mark brand-mark-compact" aria-hidden="true">
                 <span>1</span>
               </div>
-              <span className="text-sm font-semibold text-primary-foreground">
-                La Oficina Nítida
-              </span>
+              <span className="text-sm font-semibold text-primary-foreground">Dusema Gestión</span>
             </div>
             <p className="mt-4 text-sm leading-6">
               Gestión laboral para operadores educativos colombianos.
@@ -104,7 +102,7 @@ export function LandingFooter() {
 
         {/* Bottom band */}
         <div className="flex flex-wrap items-center justify-between gap-4 py-6">
-          <p className="text-xs">© {year} La Oficina Nítida. Todos los derechos reservados.</p>
+          <p className="text-xs">© {year} Dusema Gestión. Todos los derechos reservados.</p>
           <Link
             href="/login"
             className="text-xs transition-colors hover:text-primary-foreground/80"
