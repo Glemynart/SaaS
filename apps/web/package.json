@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "build": "pnpm --filter @saas/types build && next build --turbopack",
     "start": "next start",
     "lint": "eslint",
     "test": "pnpm --dir ../api exec jest --config ../web/jest.config.mjs --runInBand",
