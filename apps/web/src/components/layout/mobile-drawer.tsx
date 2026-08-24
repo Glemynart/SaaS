@@ -45,7 +45,7 @@ export function MobileDrawer({ open, onOpenChange }: MobileDrawerProps) {
   return (
     <>
       <div
-        className="fixed inset-0 z-[--z-overlay] bg-[--overlay] transition-opacity lg:hidden"
+        className="fixed inset-0 z-(--z-overlay) bg-(--overlay) transition-opacity lg:hidden"
         onClick={() => onOpenChange(false)}
         aria-hidden="true"
       />
@@ -55,7 +55,7 @@ export function MobileDrawer({ open, onOpenChange }: MobileDrawerProps) {
         aria-modal="true"
         aria-label="Navegación principal"
         className={cn(
-          'fixed inset-y-0 left-0 z-[--z-overlay] w-[17.5rem] border-r border-border shadow-[--shadow-overlay] transition-transform duration-[--duration-base] ease-[--ease-out-ui] lg:hidden',
+          'fixed inset-y-0 left-0 z-(--z-overlay) w-[17.5rem] border-r border-border shadow-(--shadow-overlay) transition-transform duration-(--duration-base) ease-(--ease-out-ui) lg:hidden',
           visible ? 'translate-x-0' : '-translate-x-full',
         )}
       >

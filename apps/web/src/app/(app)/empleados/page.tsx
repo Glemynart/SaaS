@@ -266,7 +266,7 @@ export default function EmpleadosPage() {
               Descargar plantilla Excel
             </Button>
 
-            <div className="rounded-[--radius-card] border border-dashed border-border bg-canvas p-6 text-center">
+            <div className="rounded-(--radius-card) border border-dashed border-border bg-canvas p-6 text-center">
               <input
                 ref={fileInputRef}
                 type="file"

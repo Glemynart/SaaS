@@ -77,12 +77,12 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
   return (
     <>
       <div
-        className="fixed inset-0 z-[--z-overlay] bg-[--overlay] transition-opacity"
+        className="fixed inset-0 z-(--z-overlay) bg-(--overlay) transition-opacity"
         onClick={() => dismissible && onOpenChange(false)}
         aria-hidden="true"
       />
       <div
-        className="fixed inset-0 z-[--z-overlay] flex items-center justify-center p-4"
+        className="fixed inset-0 z-(--z-overlay) flex items-center justify-center p-4"
         role="alertdialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -90,7 +90,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
       >
         <div
           ref={containerRef}
-          className="w-full max-w-sm rounded-[--radius-card] border border-border bg-surface p-5 shadow-[--shadow-overlay]"
+          className="w-full max-w-sm rounded-(--radius-card) border border-border bg-surface p-5 shadow-(--shadow-overlay)"
         >
           <div className="flex items-start justify-between gap-3">
             <h2 id={titleId} className="text-sm font-semibold text-foreground">

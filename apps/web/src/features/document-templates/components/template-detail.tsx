@@ -95,7 +95,7 @@ export function TemplateDetail() {
           </>
         }
       >
-        <section className="rounded-[--radius-card] border border-border bg-surface p-5 shadow-[--shadow-card]">
+        <section className="rounded-(--radius-card) border border-border bg-surface p-5 shadow-(--shadow-card)">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
             <Variable className="size-4 text-muted-foreground" aria-hidden="true" />
             Variables utilizadas en esta plantilla
@@ -117,7 +117,7 @@ export function TemplateDetail() {
           </div>
         </section>
 
-        <section className="document-preview mt-4 rounded-[--radius-card] border border-border bg-surface p-8 shadow-[--shadow-card]">
+        <section className="document-preview mt-4 rounded-(--radius-card) border border-border bg-surface p-8 shadow-(--shadow-card)">
           <h2 className="sr-only">Contenido de la plantilla</h2>
           {html ? (
             <SafeDocumentHtml

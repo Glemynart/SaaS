@@ -100,7 +100,7 @@ export function CentrosCostoManagement() {
           </Button>
         )}
       </div>
-      <div className="grid gap-3 rounded-[--radius-card] border border-border bg-surface p-4 sm:grid-cols-2">
+      <div className="grid gap-3 rounded-(--radius-card) border border-border bg-surface p-4 sm:grid-cols-2">
         <Input
           aria-label="Buscar centros de costo"
           placeholder="Buscar por código o nombre"
