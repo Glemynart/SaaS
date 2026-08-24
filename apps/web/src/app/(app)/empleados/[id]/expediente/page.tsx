@@ -237,7 +237,7 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
     },
     {
       key: 'version',
-      header: 'VersiÃ³n',
+      header: 'Versión',
       render: (doc) => <Badge variant={doc.vigente ? 'success' : 'neutral'}>v{doc.version}</Badge>,
     },
     {
