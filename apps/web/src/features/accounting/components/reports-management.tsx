@@ -141,7 +141,7 @@ function isPaginatedReport(value: unknown): value is PaginatedReport {
 
 function FinancialSectionView({ section }: { section: FinancialSection }) {
   return (
-    <section className="rounded-[--radius-card] border border-border bg-surface p-4">
+    <section className="rounded-(--radius-card) border border-border bg-surface p-4">
       <div className="flex items-baseline justify-between gap-4 border-b border-border-soft pb-2">
         <h3 className="font-semibold text-foreground">{section.nombre}</h3>
         <span className="font-medium text-foreground">{toText(section.valor)}</span>
@@ -195,7 +195,7 @@ function FinancialReportView({ report, type }: { report: FinancialReport; type: 
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {totals.map(([label, value]) => (
-          <div key={label} className="rounded-[--radius-card] border border-border bg-surface p-4">
+          <div key={label} className="rounded-(--radius-card) border border-border bg-surface p-4">
             <p className="text-sm text-muted-foreground">{label}</p>
             <p className="mt-1 text-lg font-semibold text-foreground">{toText(value)}</p>
           </div>
@@ -332,7 +332,7 @@ export function ReportsManagement() {
           Consulta los reportes calculados por ReportingService.
         </p>
       </div>
-      <div className="grid gap-3 rounded-[--radius-card] border border-border bg-surface p-4 lg:grid-cols-3">
+      <div className="grid gap-3 rounded-(--radius-card) border border-border bg-surface p-4 lg:grid-cols-3">
         <FormField label="Reporte">
           <Select
             value={reportId}

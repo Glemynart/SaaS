@@ -95,7 +95,7 @@ export function LaborRelationshipPanel({ employeeId }: LaborRelationshipPanelPro
   const error = relationshipsQuery.error ?? profilesQuery.error;
 
   return (
-    <section className="mt-4 rounded-[--radius-card] border border-border bg-surface p-5 shadow-[--shadow-card]">
+    <section className="mt-4 rounded-(--radius-card) border border-border bg-surface p-5 shadow-(--shadow-card)">
       <div className="flex items-start gap-3">
         <div className="mt-0.5 rounded-md bg-primary/10 p-2 text-primary">
           <Link2 className="size-4" aria-hidden="true" />

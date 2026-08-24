@@ -12,12 +12,12 @@ export function BandejaSkeleton() {
         <Skeleton className="h-6 w-24" />
         <Skeleton className="h-4 w-72" />
       </div>
-      <div className="rounded-[--radius-card] border border-border bg-surface shadow-[--shadow-card]">
+      <div className="rounded-(--radius-card) border border-border bg-surface shadow-(--shadow-card)">
         <div className="space-y-2 p-4">
           <Skeleton className="h-3 w-32" />
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="flex items-center gap-3 py-3">
-              <Skeleton className="size-8 shrink-0 rounded-[--radius-control]" />
+              <Skeleton className="size-8 shrink-0 rounded-(--radius-control)" />
               <div className="min-w-0 flex-1 space-y-2">
                 <Skeleton className="h-4 w-3/5" />
                 <Skeleton className="h-3 w-2/5" />

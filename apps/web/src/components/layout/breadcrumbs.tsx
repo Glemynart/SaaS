@@ -84,7 +84,7 @@ export function Breadcrumbs() {
                 <>
                   <Link
                     href={crumb.href}
-                    className="truncate text-muted-foreground transition-colors duration-[--duration-fast] hover:text-foreground"
+                    className="truncate text-muted-foreground transition-colors duration-(--duration-fast) hover:text-foreground"
                   >
                     {crumb.label}
                   </Link>

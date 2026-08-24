@@ -123,7 +123,7 @@ export function TemplateForm({
             </div>
 
             {showPreview ? (
-              <div className="document-preview min-h-[16rem] rounded-[--radius-card] border border-border bg-surface p-6 shadow-[--shadow-card]">
+              <div className="document-preview min-h-[16rem] rounded-(--radius-card) border border-border bg-surface p-6 shadow-(--shadow-card)">
                 {contenido ? (
                   <SafeDocumentHtml
                     className="text-sm leading-relaxed text-foreground"

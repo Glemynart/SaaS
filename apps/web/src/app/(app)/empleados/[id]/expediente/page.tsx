@@ -84,7 +84,7 @@ function StatTile({
   size?: 'lg' | 'sm';
 }) {
   return (
-    <div className="rounded-[--radius-card] border border-border bg-surface p-4 shadow-[--shadow-card]">
+    <div className="rounded-(--radius-card) border border-border bg-surface p-4 shadow-(--shadow-card)">
       <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
       <p
         className={cn(

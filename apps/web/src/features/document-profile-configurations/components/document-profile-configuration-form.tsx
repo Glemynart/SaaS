@@ -191,7 +191,7 @@ export function DocumentProfileConfigurationForm({
           checked={values.activo}
           onChange={(event) => update('activo', event.target.checked)}
           disabled={isLoading}
-          className="mt-0.5 size-4 accent-[--accent]"
+          className="mt-0.5 size-4 accent-(--accent)"
         />
         <span>
           <span className="block font-medium text-foreground">Regla activa</span>

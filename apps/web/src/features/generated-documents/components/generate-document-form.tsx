@@ -93,7 +93,7 @@ export function GenerateDocumentForm({
     >
       <form onSubmit={handleSubmit(onSubmit)} className="flex h-full flex-col">
         <div className="flex-1 space-y-5">
-          <section className="rounded-[--radius-card] border border-border bg-canvas p-4">
+          <section className="rounded-(--radius-card) border border-border bg-canvas p-4">
             <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Datos del empleado
             </h3>
@@ -140,7 +140,7 @@ export function GenerateDocumentForm({
                 ))}
               </div>
             ) : templates.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-[--radius-card] border border-dashed border-border bg-canvas py-8 text-center">
+              <div className="flex flex-col items-center justify-center rounded-(--radius-card) border border-dashed border-border bg-canvas py-8 text-center">
                 <FileText className="mb-2 size-6 text-muted-foreground" aria-hidden="true" />
                 <p className="text-xs text-muted-foreground">No hay plantillas disponibles.</p>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -161,7 +161,7 @@ export function GenerateDocumentForm({
                     aria-checked={watchTemplateId === tpl.id}
                     onClick={() => handleTemplateSelect(tpl.id, tpl.contenido)}
                     className={cn(
-                      'w-full rounded-[--radius-card] border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      'w-full rounded-(--radius-card) border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       watchTemplateId === tpl.id
                         ? 'border-ring bg-primary/5'
                         : 'border-border hover:bg-muted/40',
@@ -190,7 +190,7 @@ export function GenerateDocumentForm({
           {selectedTemplateContent && (
             <div className="space-y-2">
               <Label>Vista previa de la plantilla</Label>
-              <div className="max-h-40 overflow-y-auto rounded-[--radius-card] border border-border bg-surface p-4">
+              <div className="max-h-40 overflow-y-auto rounded-(--radius-card) border border-border bg-surface p-4">
                 <div className="whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
                   {selectedTemplateContent.length > 600
                     ? selectedTemplateContent.slice(0, 600) + '…'

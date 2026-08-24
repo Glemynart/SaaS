@@ -63,7 +63,7 @@ export function DataTable<T>({
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-[--radius-card] border border-border bg-surface shadow-[--shadow-card]',
+        'overflow-hidden rounded-(--radius-card) border border-border bg-surface shadow-(--shadow-card)',
         className,
       )}
     >
