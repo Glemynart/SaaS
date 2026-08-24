@@ -65,8 +65,9 @@ const FORGOT_PASSWORD_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
     DaneModule,
     SedesModule,
     EmployeeImportModule,
-    ContractsModule,
+    // Register the static /contracts/lotes routes before /contracts/:id.
     LotesModule,
+    ContractsModule,
     EmailModule,
     StorageModule,
     PdfRenderModule,
