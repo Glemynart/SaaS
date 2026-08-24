@@ -88,15 +88,19 @@ export class EmployeesService {
         ...(estado && { estado }),
       };
 
-      if (search) {
-        where.OR = [
-          { primerNombre: { contains: search, mode: 'insensitive' } },
-          { segundoNombre: { contains: search, mode: 'insensitive' } },
-          { primerApellido: { contains: search, mode: 'insensitive' } },
-          { segundoApellido: { contains: search, mode: 'insensitive' } },
-          { cedula: { contains: search, mode: 'insensitive' } },
-          { email: { contains: search, mode: 'insensitive' } },
-        ];
+      const searchTerms = search?.trim().split(/\s+/).filter(Boolean) ?? [];
+
+      if (searchTerms.length > 0) {
+        where.AND = searchTerms.map((term) => ({
+          OR: [
+            { primerNombre: { contains: term, mode: 'insensitive' } },
+            { segundoNombre: { contains: term, mode: 'insensitive' } },
+            { primerApellido: { contains: term, mode: 'insensitive' } },
+            { segundoApellido: { contains: term, mode: 'insensitive' } },
+            { cedula: { contains: term, mode: 'insensitive' } },
+            { email: { contains: term, mode: 'insensitive' } },
+          ],
+        }));
       }
 
       const [data, total] = await Promise.all([

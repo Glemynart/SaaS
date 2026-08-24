@@ -17,6 +17,18 @@ const TENANT_A = 'tenant-a';
 const USER_A = 'user-a';
 const TENANT_B_EMPLOYEE = 'employee-from-tenant-b';
 
+const expectedSearchConditions = (terms: string[]) =>
+  terms.map((term) => ({
+    OR: [
+      { primerNombre: { contains: term, mode: 'insensitive' } },
+      { segundoNombre: { contains: term, mode: 'insensitive' } },
+      { primerApellido: { contains: term, mode: 'insensitive' } },
+      { segundoApellido: { contains: term, mode: 'insensitive' } },
+      { cedula: { contains: term, mode: 'insensitive' } },
+      { email: { contains: term, mode: 'insensitive' } },
+    ],
+  }));
+
 describe('EmployeesService tenant isolation contracts', () => {
   let service: EmployeesService;
 
@@ -67,6 +79,51 @@ describe('EmployeesService tenant isolation contracts', () => {
     );
     expect(mockEmpleadoCount).toHaveBeenCalledWith({ where: expectedWhere });
     expect(mockTenantPrismaExecute).toHaveBeenCalledTimes(1);
+  });
+
+  it('searches an individual term across employee fields', async () => {
+    await service.findAll({ page: 1, limit: 10, search: 'Empleado' });
+
+    const [findManyArgs] = mockEmpleadoFindMany.mock.calls;
+    const where = findManyArgs?.[0]?.where;
+    expect(where).toMatchObject({
+      tenantId: TENANT_A,
+      deletedAt: null,
+    });
+    expect(where?.AND).toEqual(expectedSearchConditions(['Empleado']));
+  });
+
+  it('matches every term in a compound employee search across the fields', async () => {
+    await service.findAll({
+      page: 1,
+      limit: 10,
+      search: 'Empleado Prueba',
+    });
+
+    const [findManyArgs] = mockEmpleadoFindMany.mock.calls;
+    const where = findManyArgs?.[0]?.where;
+    expect(where?.AND).toEqual(
+      expectedSearchConditions(['Empleado', 'Prueba']),
+    );
+  });
+
+  it('returns an empty result when an employee search has no matches', async () => {
+    mockEmpleadoFindMany.mockResolvedValue([]);
+    mockEmpleadoCount.mockResolvedValue(0);
+
+    const result = await service.findAll({
+      page: 1,
+      limit: 10,
+      search: 'No existe',
+    });
+
+    const [findManyArgs] = mockEmpleadoFindMany.mock.calls;
+    const where = findManyArgs?.[0]?.where;
+    expect(where?.AND).toEqual(expectedSearchConditions(['No', 'existe']));
+    expect(result).toEqual({
+      data: [],
+      meta: { total: 0, page: 1, limit: 10, totalPages: 0 },
+    });
   });
 
   it('does not read an employee belonging to another tenant', async () => {
