@@ -55,12 +55,11 @@ Estado esperado mientras esté incompleto:
 - [ ] Enviar un mensaje de prueba a un buzón externo y comprobar entrega, SPF, DKIM y DMARC.
 - [ ] Verificar el recorrido de invitación y recuperación de acceso cuando el entorno de staging esté disponible.
 
-> El código actual nombra la integración de correo como `RESEND_API_KEY`, `EMAIL_FROM`,
-> `EMAIL_FROM_NAME` y `REQUIRE_REAL_EMAIL`. La configuración de OCI debe quedar
-> resuelta por el responsable de infraestructura de acuerdo con el despliegue real;
-> no se deben inventar ni copiar credenciales en este checklist. Si OCI no es
-> compatible con el adaptador actualmente desplegado, esa diferencia deberá
-> resolverse antes de declarar M1 desbloqueado.
+> El código actual utiliza Nodemailer con OCI SMTP mediante `EMAIL_SMTP_HOST`,
+> `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`, `EMAIL_SMTP_PASSWORD`,
+> `EMAIL_SMTP_SECURE`, `EMAIL_SMTP_REQUIRE_TLS`, `EMAIL_FROM`,
+> `EMAIL_FROM_NAME` y `REQUIRE_REAL_EMAIL`. No se deben inventar ni copiar
+> credenciales en este checklist.
 
 ## 5. Secretos y variables de entorno
 
@@ -73,7 +72,7 @@ Estado esperado mientras esté incompleto:
 - [ ] Configurar `PORT`, `FRONTEND_URL`, `BACKEND_URL` y `ALLOWED_ORIGINS` con los hostnames HTTPS reales.
 - [ ] Configurar `API_URL`, `NEXT_PUBLIC_API_URL` y `NEXT_PUBLIC_SITE_URL` con los hostnames correctos; confirmar que ninguna variable pública contiene secretos.
 - [ ] Configurar `STORAGE_PROVIDER` y, si corresponde, `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` y `R2_BUCKET`.
-- [ ] Configurar las credenciales y el remitente de correo que requiera el adaptador realmente desplegado, incluyendo `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME` y `REQUIRE_REAL_EMAIL` si siguen siendo las variables efectivas.
+- [ ] Configurar las credenciales SMTP OCI y el remitente que requiere el adaptador desplegado: `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`, `EMAIL_SMTP_PASSWORD`, `EMAIL_SMTP_SECURE`, `EMAIL_SMTP_REQUIRE_TLS`, `EMAIL_FROM`, `EMAIL_FROM_NAME` y `REQUIRE_REAL_EMAIL`.
 - [ ] Configurar `REDIS_URL` sólo si el entorno lo requiere y validar que apunta al servicio de staging correcto.
 - [ ] Configurar `MATIAS_API_URL` y `MATIAS_API_KEY` únicamente si una capacidad del entorno las utiliza.
 - [ ] Guardar secretos en el gestor de secretos de la plataforma; no incluir valores en GitHub, imágenes, logs, capturas o tickets.

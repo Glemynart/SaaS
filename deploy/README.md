@@ -108,11 +108,20 @@ BACKEND_URL=https://staging-api.dusema.com
 ALLOWED_ORIGINS=https://staging.dusema.com
 STORAGE_PROVIDER=local
 STORAGE_LOCAL_ROOT=/app/uploads
-REQUIRE_REAL_EMAIL=false
+EMAIL_SMTP_HOST=smtp.email.sa-bogota-1.oci.oraclecloud.com
+EMAIL_SMTP_PORT=587
+EMAIL_SMTP_USER=<smtp-username>
+EMAIL_SMTP_PASSWORD=<smtp-password>
+EMAIL_SMTP_SECURE=false
+EMAIL_SMTP_REQUIRE_TLS=true
+EMAIL_FROM=no-reply@dusema.com
+EMAIL_FROM_NAME=<display-name>
+REQUIRE_REAL_EMAIL=true
 ```
 
-No se agregan `REDIS_URL`, variables `R2_*`, Resend ni OCI Email Delivery en
-este despliegue inicial.
+Las credenciales SMTP de OCI deben existir únicamente en el `.env` privado del
+VPS; no deben entrar en Git. `REQUIRE_REAL_EMAIL=true` hace que `/readiness`
+falle si el transporte SMTP no está configurado.
 
 ## Caddy
 

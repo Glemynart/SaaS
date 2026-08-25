@@ -23,9 +23,24 @@ export default () => ({
     apiKey: process.env.MATIAS_API_KEY,
   },
   email: {
-    apiKey: process.env.RESEND_API_KEY,
     from: process.env.EMAIL_FROM,
     fromName: process.env.EMAIL_FROM_NAME ?? 'La Oficina Nítida',
     requireReal: process.env.REQUIRE_REAL_EMAIL === 'true',
+    smtp: {
+      host: process.env.EMAIL_SMTP_HOST,
+      port: process.env.EMAIL_SMTP_PORT
+        ? parseInt(process.env.EMAIL_SMTP_PORT, 10)
+        : undefined,
+      user: process.env.EMAIL_SMTP_USER,
+      password: process.env.EMAIL_SMTP_PASSWORD,
+      secure:
+        process.env.EMAIL_SMTP_SECURE === undefined
+          ? undefined
+          : process.env.EMAIL_SMTP_SECURE === 'true',
+      requireTls:
+        process.env.EMAIL_SMTP_REQUIRE_TLS === undefined
+          ? undefined
+          : process.env.EMAIL_SMTP_REQUIRE_TLS === 'true',
+    },
   },
 });

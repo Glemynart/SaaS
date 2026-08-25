@@ -80,7 +80,7 @@ Servicios:
 
 - Renderizado PDF con Puppeteer.
 - Almacenamiento local o Cloudflare R2 configurable mediante el proveedor de storage.
-- Resend para correo transaccional, con modo degradado cuando no está configurado.
+- Nodemailer hacia OCI SMTP para correo transaccional, con modo degradado cuando no está configurado.
 
 ---
 
