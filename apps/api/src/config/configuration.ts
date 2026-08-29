@@ -6,6 +6,12 @@ export default () => ({
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
   },
+  platformS2s: {
+    issuer: process.env.PLATFORM_S2S_ISSUER,
+    audience: process.env.PLATFORM_S2S_AUDIENCE,
+    publicKey: process.env.PLATFORM_S2S_PUBLIC_KEY,
+    kid: process.env.PLATFORM_S2S_KID,
+  },
   frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:3000',
   backendUrl: process.env.BACKEND_URL ?? 'http://localhost:4000',
   allowedOrigins: (process.env.ALLOWED_ORIGINS ?? 'http://localhost:3000')

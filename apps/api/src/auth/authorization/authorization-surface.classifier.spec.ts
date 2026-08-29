@@ -5,7 +5,9 @@ import { Roles } from '../decorators/roles.decorator';
 import { ActiveTenantGuard } from '../guards/active-tenant.guard';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
+import { PlatformS2sGuard } from '../../platform-admin/guards/platform-s2s.guard';
 import {
+  AUTHENTICATION_GUARD_KEY,
   Authenticated,
   AuthorizationClassificationSource,
   AuthorizationClassificationStatus,
@@ -21,7 +23,7 @@ describe('AuthorizationSurfaceClassifier', () => {
   it('classifies the complete current HTTP surface without ambiguity', () => {
     const operations = classifier.classifyModuleGraph(AppModule);
 
-    expect(operations).toHaveLength(169);
+    expect(operations).toHaveLength(170);
     expect(new Set(operations.map(({ operationId }) => operationId)).size).toBe(
       operations.length,
     );
@@ -34,11 +36,11 @@ describe('AuthorizationSurfaceClassifier', () => {
 
     expect(countBy(operations, 'policy')).toEqual({
       [AuthorizationPolicyKind.UNAUTHENTICATED]: 10,
-      [AuthorizationPolicyKind.AUTHENTICATED]: 59,
+      [AuthorizationPolicyKind.AUTHENTICATED]: 60,
       [AuthorizationPolicyKind.RBAC]: 100,
     });
     expect(countBy(operations, 'source')).toEqual({
-      [AuthorizationClassificationSource.EXPLICIT]: 69,
+      [AuthorizationClassificationSource.EXPLICIT]: 70,
       [AuthorizationClassificationSource.EXISTING_RBAC]: 100,
     });
     expect(
@@ -133,6 +135,30 @@ describe('AuthorizationSurfaceClassifier', () => {
         status: AuthorizationClassificationStatus.CLASSIFIED,
       },
     ]);
+  });
+
+  it('classifies PlatformS2sGuard as authentication for deny-by-default', () => {
+    expect(
+      Reflect.getMetadata(AUTHENTICATION_GUARD_KEY, PlatformS2sGuard),
+    ).toBe(true);
+
+    const operation = classifier
+      .classifyModuleGraph(AppModule)
+      .find(
+        ({ operationId }) =>
+          operationId === 'PlatformTenantsController.findOne',
+      );
+
+    expect(operation).toMatchObject({
+      requestMethod: 'GET',
+      controllerPath: 'platform/admin/v1/tenants',
+      operationPath: ':tenantId',
+      policy: AuthorizationPolicyKind.AUTHENTICATED,
+      source: AuthorizationClassificationSource.EXPLICIT,
+      requiresAuthentication: true,
+      requiresActiveTenant: false,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
   });
 });
 
