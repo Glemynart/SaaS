@@ -10,7 +10,8 @@ import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
 import { AuthenticationGuard } from '../../auth/authorization/authorization-policy';
 
-export const PLATFORM_S2S_SCOPE = 'dusema:tenant:read';
+export const PLATFORM_S2S_SCOPE = 'DUSEMA_TENANT_READ';
+export const PLATFORM_S2S_SUB = 'pos-platform';
 
 export interface PlatformS2sClaims {
   iss: string;
@@ -150,7 +151,6 @@ export class PlatformS2sGuard implements CanActivate {
     const requiredStringClaims = [
       'iss',
       'scope',
-      'sub',
       'actorUid',
       'empresaPosId',
       'correlationId',
@@ -161,6 +161,8 @@ export class PlatformS2sGuard implements CanActivate {
     ) {
       return false;
     }
+
+    if (payload.sub !== PLATFORM_S2S_SUB) return false;
 
     const audience = payload.aud;
     const validAudience =

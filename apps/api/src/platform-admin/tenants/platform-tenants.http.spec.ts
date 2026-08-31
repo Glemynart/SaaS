@@ -9,7 +9,10 @@ import request from 'supertest';
 import configuration from '../../config/configuration';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PlatformAdminModule } from '../platform-admin.module';
-import { PLATFORM_S2S_SCOPE } from '../guards/platform-s2s.guard';
+import {
+  PLATFORM_S2S_SCOPE,
+  PLATFORM_S2S_SUB,
+} from '../guards/platform-s2s.guard';
 import { PLATFORM_TENANT_SELECT } from './platform-tenants.service';
 
 describe('PlatformTenantsController HTTP', () => {
@@ -147,6 +150,11 @@ describe('PlatformTenantsController HTTP', () => {
     ['audience incorrecta', () => tokenFor({}, { audience: 'other-api' })],
     ['token expirado', () => tokenFor({}, { expiresIn: -1 })],
     ['scope incorrecto', () => tokenFor({ scope: 'dusema:tenant:write' })],
+    [
+      'scope legado no permitido',
+      () => tokenFor({ scope: 'dusema:tenant:read' }),
+    ],
+    ['sub incorrecto', () => tokenFor({ sub: 'other-service' })],
     ['kid desconocido', () => tokenFor({}, { keyid: 'unknown-key' })],
   ])('rechaza %s', async (_case, createToken) => {
     await request(server)
@@ -280,7 +288,7 @@ describe('PlatformTenantsController HTTP', () => {
     options: TokenOptions = {},
   ): Promise<string> {
     const payload = {
-      sub: 'pos-service',
+      sub: PLATFORM_S2S_SUB,
       actorUid: 'operator-001',
       empresaPosId: 'pos-company-001',
       correlationId: 'corr-001',
@@ -315,7 +323,7 @@ describe('PlatformTenantsController HTTP', () => {
     const payload = {
       iss: issuer,
       aud: audience,
-      sub: 'pos-service',
+      sub: PLATFORM_S2S_SUB,
       actorUid: 'operator-001',
       empresaPosId: 'pos-company-001',
       correlationId: 'corr-001',
