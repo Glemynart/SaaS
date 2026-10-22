@@ -6,6 +6,8 @@ import { passwordResetTemplate } from './templates/password-reset.template';
 
 export type EmailType = 'password-reset';
 
+const SMTP_SEND_FAILURE_CATEGORY = 'SMTP_SEND_FAILED';
+
 export interface EmailReadiness {
   status: 'up' | 'degraded';
 }
@@ -93,12 +95,8 @@ export class EmailService implements OnModuleInit {
 
     if (this.degraded || !this.transporter) {
       this.logger.log(
-        `[EMAIL DEGRADADO] type=${type} to=${to} subject="${subject}"`,
+        `[EMAIL DEGRADADO] type=${type} to=${this.obfuscate(to)} subject="${subject}"`,
       );
-      if (type === 'password-reset') {
-        const p = payload;
-        this.logger.log(`[EMAIL DEGRADADO] resetUrl=${p.resetUrl}`);
-      }
       return;
     }
 
@@ -109,9 +107,10 @@ export class EmailService implements OnModuleInit {
         subject,
         html,
       });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`EMAIL_FAILED type=${type} to=${to} error=${message}`);
+    } catch {
+      this.logger.error(
+        `EMAIL_FAILED type=${type} to=${this.obfuscate(to)} category=${SMTP_SEND_FAILURE_CATEGORY}`,
+      );
 
       await this.audit
         .log({
@@ -122,7 +121,7 @@ export class EmailService implements OnModuleInit {
           metadata: {
             type,
             to: this.obfuscate(to),
-            error: message,
+            category: SMTP_SEND_FAILURE_CATEGORY,
           },
         })
         .catch(() => {});

@@ -7,6 +7,13 @@ jest.mock('nodemailer', () => ({
   createTransport: jest.fn(),
 }));
 
+type SentMailInput = {
+  from: string;
+  to: string;
+  subject: string;
+  html: string;
+};
+
 describe('EmailService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -41,41 +48,89 @@ describe('EmailService', () => {
   });
 
   it('sends through SMTP using EMAIL_FROM', async () => {
-    const sendMail = jest.fn().mockResolvedValue(undefined);
+    const sendMail = jest
+      .fn<Promise<void>, [SentMailInput]>()
+      .mockResolvedValue(undefined);
     mockTransport(sendMail);
     const service = createService(smtpConfig());
 
     service.onModuleInit();
     await service.send(passwordResetParams());
 
+    const sentMail = sendMail.mock.calls[0]?.[0];
+    expect(sentMail?.subject).toBe('Restablece tu contraseña');
+    expect(sentMail?.html).toContain('Restablecer contraseña');
     expect(sendMail).toHaveBeenCalledWith(
       expect.objectContaining({
         from: 'Staging <staging@example.com>',
         to: 'recipient@example.com',
-        subject: expect.any(String),
-        html: expect.any(String),
       }),
     );
   });
 
+  it('does not log recovery URLs or complete recipients in degraded mode', async () => {
+    const recipient = 'recovery-user@example.invalid';
+    const resetUrl =
+      'https://staging.example.invalid/reset-password?token=RESET_TOKEN_SENTINEL';
+    const params = passwordResetParams();
+    params.to = recipient;
+    params.payload.resetUrl = resetUrl;
+
+    const service = createService({});
+    const logger = { log: jest.fn(), error: jest.fn() };
+    Object.defineProperty(service, 'logger', { value: logger });
+
+    service.onModuleInit();
+    await service.send(params);
+
+    const logs = JSON.stringify([
+      logger.log.mock.calls,
+      logger.error.mock.calls,
+    ]);
+    expect(logs).toContain('type=password-reset');
+    expect(logs).toContain('to=r***@example.invalid');
+    expect(logs).not.toContain(recipient);
+    expect(logs).not.toContain(resetUrl);
+    expect(logs).not.toContain('RESET_TOKEN_SENTINEL');
+  });
+
   it('audits SMTP failures without throwing or degrading readiness', async () => {
-    const sendMail = jest.fn().mockRejectedValue(new Error('SMTP unavailable'));
+    const recipient = 'recovery-user@example.invalid';
+    const resetUrl =
+      'https://staging.example.invalid/reset-password?token=RESET_TOKEN_SENTINEL';
+    const sensitiveError =
+      'SMTP_ERROR_SENTINEL recipient=' + recipient + ' url=' + resetUrl;
+    const sendMail = jest.fn().mockRejectedValue(new Error(sensitiveError));
     mockTransport(sendMail);
     const audit = { log: jest.fn().mockResolvedValue(undefined) };
     const service = createService(smtpConfig(), audit);
+    const logger = { log: jest.fn(), error: jest.fn() };
+    Object.defineProperty(service, 'logger', { value: logger });
 
     service.onModuleInit();
-    await expect(service.send(passwordResetParams())).resolves.toBeUndefined();
+    const params = passwordResetParams();
+    params.to = recipient;
+    params.payload.resetUrl = resetUrl;
+    await expect(service.send(params)).resolves.toBeUndefined();
 
-    expect(audit.log).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'EMAIL_FAILED',
-        metadata: expect.objectContaining({
-          to: 'r***@example.com',
-          error: 'SMTP unavailable',
-        }),
-      }),
-    );
+    const logs = JSON.stringify([
+      logger.log.mock.calls,
+      logger.error.mock.calls,
+    ]);
+    const auditRecords = JSON.stringify(audit.log.mock.calls);
+    const recordedOutput = logs + auditRecords;
+
+    expect(logs).toContain('category=SMTP_SEND_FAILED');
+    expect(logs).toContain('to=r***@example.invalid');
+    expect(recordedOutput).not.toContain(recipient);
+    expect(recordedOutput).not.toContain(resetUrl);
+    expect(recordedOutput).not.toContain('RESET_TOKEN_SENTINEL');
+    expect(recordedOutput).not.toContain('SMTP_ERROR_SENTINEL');
+    expect(audit.log).toHaveBeenCalledTimes(1);
+    expect(auditRecords).toContain('"action":"EMAIL_FAILED"');
+    expect(auditRecords).toContain('"to":"r***@example.invalid"');
+    expect(auditRecords).toContain('"category":"SMTP_SEND_FAILED"');
+    expect(auditRecords).not.toContain('"error"');
     expect(service.getReadiness()).toEqual({ status: 'up' });
   });
 });
