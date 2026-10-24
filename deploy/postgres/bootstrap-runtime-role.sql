@@ -35,11 +35,6 @@ SELECT format(
 ) \gexec
 
 SELECT format(
-  'DO $guard$ DECLARE runtime_role_oid oid; BEGIN SELECT oid INTO runtime_role_oid FROM pg_roles WHERE rolname = %L; IF runtime_role_oid IS NOT NULL AND EXISTS (SELECT 1 FROM pg_roles AS candidate WHERE candidate.oid <> runtime_role_oid AND pg_has_role(runtime_role_oid, candidate.oid, ''MEMBER'')) THEN RAISE EXCEPTION ''runtime role must not have membership in other roles''; END IF; END $guard$;',
-  :'runtime_role'
-) \gexec
-
-SELECT format(
   'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS',
   :'runtime_role',
   :'runtime_password'
@@ -54,6 +49,13 @@ SELECT format(
   'ALTER ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS',
   :'runtime_role',
   :'runtime_password'
+) \gexec
+
+-- Check memberships after normalizing role attributes. The transaction rolls
+-- these changes back if the runtime role still belongs to another role.
+SELECT format(
+  'DO $guard$ DECLARE runtime_role_oid oid; BEGIN SELECT oid INTO runtime_role_oid FROM pg_roles WHERE rolname = %L; IF runtime_role_oid IS NOT NULL AND EXISTS (SELECT 1 FROM pg_roles AS candidate WHERE candidate.oid <> runtime_role_oid AND pg_has_role(runtime_role_oid, candidate.oid, ''MEMBER'')) THEN RAISE EXCEPTION ''runtime role must not have membership in other roles''; END IF; END $guard$;',
+  :'runtime_role'
 ) \gexec
 
 SELECT format(
