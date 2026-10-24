@@ -373,13 +373,18 @@ privilegios heredados de `PUBLIC`; esta observación no autoriza la revocación.
 
 ```bash
 export GOAL01_RUNTIME_DB_ROLE=REPLACE_WITH_DEDICATED_STAGING_RUNTIME_ROLE
-export GOAL01_RUNTIME_DB_PASSWORD='<runtime-password>'
 
-docker exec -i \
-  -e GOAL01_RUNTIME_DB_ROLE \
-  -e GOAL01_RUNTIME_DB_PASSWORD \
-  postgres psql -U REPLACE_WITH_STAGING_MIGRATION_ROLE -d REPLACE_WITH_APPROVED_STAGING_DATABASE \
-  -v ON_ERROR_STOP=1 < deploy/postgres/bootstrap-runtime-role.sql
+(
+  read -r -s -p 'Staging runtime DB password: ' GOAL01_RUNTIME_DB_PASSWORD
+  printf '\n'
+  export GOAL01_RUNTIME_DB_PASSWORD
+
+  docker exec -i \
+    -e GOAL01_RUNTIME_DB_ROLE \
+    -e GOAL01_RUNTIME_DB_PASSWORD \
+    postgres psql -U REPLACE_WITH_STAGING_MIGRATION_ROLE -d REPLACE_WITH_APPROVED_STAGING_DATABASE \
+    -v ON_ERROR_STOP=1 < deploy/postgres/bootstrap-runtime-role.sql
+)
 ```
 
 Usa una identidad de migración aprobada para staging y con permisos distintos
