@@ -235,7 +235,7 @@ En la revalidación del 2026-10-24, el HEAD observado entonces de PR #124 era
 (`saa-s-izym3kh5f-glemynarts-projects.vercel.app`), `READY`, target `preview`, sin el alias de
 staging. El check Vercel asociado a ese HEAD enlaza al deployment; `vercel inspect --json` no
 expuso `gitSource`. Es un Preview de rama, no una fuente estable aprobada para el alias.
-La revalidación más reciente, el 2026-10-24 15:27 UTC, vincula el HEAD `14dd130ce0cfd15854ebbf72ff55d2c6df75862b`
+Una revalidación previa, el 2026-10-24 15:27 UTC, vincula el HEAD `14dd130ce0cfd15854ebbf72ff55d2c6df75862b`
 de PR #124 con el deployment Vercel `dpl_3mdQChGgPfAQe8CpDNttQdiaEatX`
 (`saa-s-cjomolfb6-glemynarts-projects.vercel.app`), `READY`, target `preview`; GitHub deployment
 `7300586669` reporta `success` para ese SHA y URL. Vercel muestra un alias de rama generado, no
@@ -243,6 +243,9 @@ de PR #124 con el deployment Vercel `dpl_3mdQChGgPfAQe8CpDNttQdiaEatX`
 inspección actual confirma que `staging.dusema.com` sigue asociado a
 `dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`, target `production`. No se verificó que el Preview use una API
 aislada, de modo que no está listo para recibir el alias.
+La revalidación posterior del 2026-10-24 19:09 UTC identificó el Preview `dpl_4JisJHHvR3GfijTzNxsStLinPV6J`
+(`READY`, target `preview`) para el HEAD actual de PR #124; el acceso público redirigió a SSO y el host API
+no se verificó. El detalle operativo está en [`deploy/README.md`](deploy/README.md#frontend-de-staging-en-vercel).
 La consulta de solo lectura no encontró una rama GitHub
 `staging`. La lista del entorno Vercel Preview incluye `API_URL`, `NEXT_PUBLIC_API_URL` y
 `NEXT_PUBLIC_SITE_URL`, pero sus valores no se leyeron. La URL `/configuracion/identidad` redirigió a

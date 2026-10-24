@@ -56,6 +56,16 @@ alias `staging.dusema.com`. El alias continúa en `dpl_Bt5rJx8JEvYozAu83ojogVBJV
 por ello no confirma el hostname del backend ni su aislamiento. No reasignes el alias hasta verificar
 el destino de ambas variables por un canal autorizado que no publique sus valores.
 
+Revalidación del 2026-10-24 19:09 UTC: el HEAD `afd8aa4eef02b31550d4f1e49712aff1f92e7b1e`
+de PR #124 tiene el deployment `dpl_4JisJHHvR3GfijTzNxsStLinPV6J`
+(`saa-s-fhdrdqdrr-glemynarts-projects.vercel.app`), `READY`, target `preview`; el deployment
+de GitHub `7302331717` reporta `success` para ese SHA y URL. Un GET sin autenticación devolvió
+HTTP 302 a `vercel.com/sso-api` (se omitió la query), así que no se confirmó acceso de navegador
+sin SSO. `API_URL` y `NEXT_PUBLIC_API_URL` aparecen en el entorno Preview, pero sus valores no
+se consultaron y el host API sigue sin verificarse. Este es un Preview de la rama abierta de PR #124,
+no una fuente estable aprobada. El alias sigue en `dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`, target
+`production`. No se reasignó; la API actual tampoco está aislada de `oficina_nitida`.
+
 Antes de cambiar el alias:
 
 1. Selecciona una revisión estable aprobada para Preview e identifica su SHA,
