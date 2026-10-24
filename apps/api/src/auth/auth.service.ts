@@ -10,7 +10,7 @@ import { UsersService } from '../users/users.service';
 import { TenantsService } from '../tenants/tenants.service';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import { UserRole } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 
 const INVALID_LOGIN_MESSAGE = 'Credenciales inválidas.';
 const NON_EXISTENT_TENANT_ID = '00000000-0000-0000-0000-000000000000';
@@ -230,19 +230,34 @@ export class AuthService {
       throw new UnauthorizedException('Empresa inactiva o no encontrada.');
     }
 
-    await this.prisma.refreshToken.update({
-      where: { id: tokenId },
-      data: { revokedAt: new Date() },
+    const tokens = await this.prisma.$transaction(async (tx) => {
+      const claim = await tx.refreshToken.updateMany({
+        where: { id: tokenId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+
+      if (claim.count !== 1) return null;
+
+      return this.generateTokens(
+        user.id,
+        user.tenantId,
+        user.rol,
+        user.email,
+        userAgent,
+        ipAddress,
+        tx,
+      );
     });
 
-    const tokens = await this.generateTokens(
-      user.id,
-      user.tenantId,
-      user.rol,
-      user.email,
-      userAgent,
-      ipAddress,
-    );
+    if (!tokens) {
+      await this.prisma.refreshToken.updateMany({
+        where: { userId: dbToken.userId },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException(
+        'Token de renovación ya utilizado y revocado. Sesión terminada por seguridad.',
+      );
+    }
 
     return tokens;
   }
@@ -270,6 +285,7 @@ export class AuthService {
     email: string,
     userAgent?: string,
     ipAddress?: string,
+    tx?: Prisma.TransactionClient,
   ) {
     const payload = {
       sub: userId,
@@ -288,7 +304,7 @@ export class AuthService {
 
     const tokenHash = await bcrypt.hash(secret, 10);
 
-    const dbToken = await this.prisma.refreshToken.create({
+    const dbToken = await (tx ?? this.prisma).refreshToken.create({
       data: {
         userId,
         tokenHash,
