@@ -155,4 +155,15 @@ if run_bootstrap oficina_nitida >/dev/null; then
   exit 1
 fi
 
+protected_target_role="dusema_ci_protected_target"
+if run_bootstrap oficina_nitida "$protected_target_role" >/dev/null; then
+  echo "Bootstrap unexpectedly accepted the protected production database for a new runtime role." >&2
+  exit 1
+fi
+protected_target_role_exists="$(psql_as_admin -d postgres -Atqc "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$protected_target_role')")"
+if [[ "$protected_target_role_exists" != "f" ]]; then
+  echo "Rejected bootstrap left a new runtime role behind on the protected database." >&2
+  exit 1
+fi
+
 echo "PostgreSQL runtime role bootstrap isolation checks passed."
