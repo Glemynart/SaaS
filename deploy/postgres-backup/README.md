@@ -2,13 +2,15 @@
 
 Esta carpeta contiene los artefactos locales para un backup lógico cifrado de PostgreSQL 17. Una inspección SSH de solo lectura del 23 de octubre de 2026 encontró `dusema-postgres-backup.timer` habilitado y activo; el servicio tuvo última ejecución ese día a las 07:00:11 UTC, terminó con `Result=success` y código 0, y la siguiente estaba prevista para el 24 de octubre a las 07:00 UTC. El journal de esa ejecución informó la carga del objeto y la verificación de checksum. La unidad y el script instalados en el VPS no se compararon byte a byte con estos archivos locales; este directorio no prueba qué revisión exacta está instalada.
 
-Una inspección SSH de solo lectura del 24 de octubre confirmó una ejecución programada a las 07:00:04 UTC; `dusema-postgres-backup.service` terminó a las 07:00:05 UTC con `Result=success` y estado 0. El journal informó la carga de `postgres/dusema-oficina_nitida-20261024T020004-0500-yGA63y.dump.gpg`, SHA-256 `844e36ff4d8a1979a4fbd507214d069e82a610fa36bd449b41f9668c7627f067`, aceptación de OCI y verificación de checksum por el script. No se comprobó la accesibilidad actual del objeto ni se revisó evidencia independiente de restauración. La identidad byte a byte de la unidad y el script instalados con estos archivos locales sigue sin comprobarse.
+Una inspección SSH de solo lectura del 24 de octubre confirmó una ejecución programada a las 07:00:04 UTC; `dusema-postgres-backup.service` terminó a las 07:00:05 UTC con `Result=success` y estado 0. El journal informó la carga de `postgres/dusema-oficina_nitida-20261024T020004-0500-yGA63y.dump.gpg`, SHA-256 `844e36ff4d8a1979a4fbd507214d069e82a610fa36bd449b41f9668c7627f067`, aceptación de OCI y verificación de checksum por el script. No se comprobó la accesibilidad actual del objeto ni se revisó evidencia independiente de restauración.
+
+Una comparación SSH de solo lectura posterior, también del 24 de octubre, confirmó que el ejecutable y ambas unidades instaladas coinciden byte a byte con estos archivos locales: se compararon sus SHA-256 y los tres pares fueron iguales. Systemd muestra los archivos bajo `/etc/systemd/system/`, sin drop-ins; el timer está habilitado y activo, tuvo su última activación a las 07:00:04 UTC del 24 y la siguiente está prevista para las 07:00 UTC del 25. El servicio informa `Result=success`, código 0 y ejecución de 07:00:04 a 07:00:05 UTC. Esto acredita la identidad de los artefactos y el estado observado del timer/servicio, pero no el acceso actual al objeto ni una restauración independiente.
 
 El operador reportó que el 23 de octubre descargó el objeto cifrado de esa ejecución, verificó su SHA-256, lo descifró y lo restauró manualmente en PostgreSQL 17 local: la restauración terminó con código 0, produjo 52 tablas y ocupó aproximadamente 12 MB. Este es un resultado reportado por el operador y no fue repetido ni inspeccionado independientemente durante la actualización de este documento. La restauración de PostgreSQL no verifica la recuperación de uploads.
 
 ## Configuración y evidencia disponible
 
-Los valores históricos siguientes proceden de la inspección del 22 de octubre y de las verificaciones del 23 de octubre de 2026. Los detalles del script y las unidades describen los archivos locales; la identidad byte a byte con los instalados no se comprobó. Revalidar las rutas y la configuración efectiva antes de cambiar o reinstalar el proceso.
+Los valores históricos siguientes proceden de las inspecciones de solo lectura del 22, 23 y 24 de octubre de 2026. El 24 de octubre se compararon por SHA-256 el script y las dos unidades instaladas con estos archivos locales; los hashes coincidieron. Revalidar las rutas y la configuración efectiva antes de cambiar o reinstalar el proceso.
 
 | Elemento | Valor / estado |
 | --- | --- |
@@ -24,12 +26,15 @@ Los valores históricos siguientes proceden de la inspección del 22 de octubre 
 | Clave privada de recuperación | Debe permanecer fuera del VPS; no la requiere el proceso de backup |
 | Frecuencia observada | El timer estaba habilitado/activo; última activación 2026-10-24 07:00:04 UTC; siguiente 2026-10-25 07:00:00 UTC |
 | Último servicio observado | `Result=success`, `ExecMainStatus=0`; ejecución 2026-10-24 07:00:04–07:00:05 UTC |
+| SHA-256 del script instalado/local | `bf8b20301c0fe451f3d731473e61fc289cf9f00f9eafa76c1c400356a22ebadb` (coincide) |
+| SHA-256 de la unidad service instalada/local | `117a6a09951ef1ac0053e5c1511b7c836108453fb285b3240c81dac409eb17f7` (coincide) |
+| SHA-256 de la unidad timer instalada/local | `e740350347328206a641be0f2a4c9d48aaa07fa055edcdde040d0c94ce1663b0` (coincide) |
 | Objeto informado | `postgres/dusema-oficina_nitida-20261024T020004-0500-yGA63y.dump.gpg` |
 | SHA-256 informado | `844e36ff4d8a1979a4fbd507214d069e82a610fa36bd449b41f9668c7627f067` |
 | Restauración manual | Reportada por el operador el 2026-10-23: PostgreSQL 17 local, código 0, 52 tablas, aprox. 12 MB; no repetida en esta revisión |
 | Uploads | No incluidos en el dump; su recuperación sigue sin verificarse |
-| Estado y lock | `/var/lib/dusema-postgres-backup`, modo previsto `0700` |
-| Temporales | `/var/lib/dusema-postgres-backup/tmp`, modo previsto `0700` |
+| Directorio de estado | `/var/lib/dusema-postgres-backup`, observado `0700`, propietario/grupo `ubuntu:ubuntu` |
+| Directorio temporal | `/var/lib/dusema-postgres-backup/tmp`, observado `0700`, propietario/grupo `ubuntu:ubuntu` |
 
 La inspección anterior encontró `/usr/bin/docker`, `/usr/bin/gpg` y `/home/ubuntu/bin/oci`. El archivo de unidad local coloca primero las rutas de sistema en `PATH` y `/home/ubuntu/bin` al final para que los ejecutables de usuario no suplanten herramientas del sistema. Antes de cambiar o reinstalar el proceso, el operador debe comprobar las rutas efectivas de `docker`, `gpg`, `oci`, `date`, `mktemp`, `sha256sum`, `flock`, `mkdir`, `chmod` y `rm`, además de la propiedad y permisos de los directorios. No todas esas rutas se han confirmado.
 
@@ -61,9 +66,9 @@ Este dump cubre una base; no incluye roles globales, tablespaces, Redis ni uploa
 
 La inspección del 23 de octubre observó aproximadamente 33 GiB libres en el VPS. No se midieron el tamaño lógico del dump ni la duración de la ejecución programada; los aproximadamente 12 MB reportados corresponden al tamaño de la base restaurada localmente, no al tamaño del dump. El archivo cifrado queda temporalmente en el filesystem local hasta que OCI termine el upload. Un filesystem lleno puede afectar otros servicios.
 
-El archivo de unidad local fija `TimeoutStartSec=6h` como límite provisional; no se confirmó que la unidad instalada tenga ese mismo valor. Seis horas no es una duración garantizada ni está respaldada por una medición. Si se modifica el proceso, medir dump y upload en una corrida aprobada y validar la respuesta de systemd al timeout. Los handlers INT/TERM/HUP del script local están presentes, pero la limpieza bajo señales y el ciclo de terminación de la unidad instalada no se han validado en Ubuntu.
+Systemd reporta `TimeoutStartUSec=6h`, que coincide con la unidad instalada verificada por SHA-256. Seis horas sigue siendo un límite provisional, no una duración garantizada ni respaldada por mediciones. Si se modifica el proceso, medir dump y upload en una corrida aprobada y validar la respuesta de systemd al timeout. Los handlers INT/TERM/HUP del script local están presentes, pero la limpieza bajo señales y el ciclo de terminación de la unidad instalada no se han validado en Ubuntu.
 
-El archivo de unidad local declara `Persistent=false` y `AccuracySec=1min`, pero su contenido no se comparó con la unidad instalada. La inspección de systemd sí confirmó una ejecución programada y la próxima hora de activación indicada en la tabla. No inferir la configuración efectiva completa del timer a partir de estos archivos locales.
+La comparación de SHA-256 del 24 de octubre confirmó que el timer instalado corresponde al archivo local. Systemd reportó `Persistent=no`, `AccuracyUSec=1min`, `RandomizedDelayUSec=0`, el timer habilitado/activo y la próxima activación a las 07:00 UTC del 25 de octubre. La inspección de solo lectura encontró `DropInPaths` vacío para timer y servicio. La hora de activación observada también coincide con la línea de tiempo de la tabla.
 
 El servicio deja resultados en journald. No se confirmó ningún canal de alerta externo; por ello no se afirma que haya notificación ante fallos. Definir y probar una alerta requiere una decisión operativa posterior.
 
@@ -130,8 +135,9 @@ La VPS actual ya tiene el timer habilitado y una ejecución programada exitosa
 observada. Los comandos de esta sección son solo una plantilla para un host
 nuevo después de una autorización operativa; no deben repetirse en la VPS
 existente ni usarse para volver a habilitar el timer. La ruta del checkout en el
-servidor y la correspondencia entre estos artefactos locales y las unidades
-instaladas no están verificadas.
+servidor no se confirmó. La correspondencia entre estos artefactos y el
+ejecutable/unidades instalados sí se confirmó por SHA-256 el 24 de octubre; sus
+hashes están registrados en la tabla.
 
 Primero un operador debe elegir y verificar cómo transferir este directorio al VPS. La ruta remota del checkout/paquete no se confirmó. Antes de instalar debe volver a comprobar, sin revelar valores sensibles: identidad del servidor; rutas actuales de Compose/servicios y contenedor; versión de OCI CLI y existencia de `--no-overwrite`; rutas/propietarios/permisos de herramientas y directorios; espacio libre; versión `pg_dump`; autenticación local no interactiva; rol/permisos; clave GPG pública y fingerprint; política de permisos de OCI; y procedimiento de rollback de los archivos instalados. La identidad IAM debe tener solo lo necesario para subir a `postgres/*` y no debe poder borrar copias retenidas.
 
