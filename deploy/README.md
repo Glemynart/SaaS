@@ -459,7 +459,7 @@ export GOAL01_RUNTIME_DB_ROLE=REPLACE_WITH_DEDICATED_STAGING_RUNTIME_ROLE
     -e GOAL01_RUNTIME_DB_ROLE \
     -e GOAL01_RUNTIME_DB_PASSWORD \
     postgres psql -U REPLACE_WITH_STAGING_MIGRATION_ROLE -d REPLACE_WITH_APPROVED_STAGING_DATABASE \
-    -v ON_ERROR_STOP=1 < deploy/postgres/bootstrap-runtime-role.sql
+    -v ON_ERROR_STOP=1 < /home/ubuntu/la-oficina-nitida/staging-isolated/postgres/bootstrap-runtime-role.sql
 )
 ```
 
