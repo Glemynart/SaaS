@@ -1,6 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 
-async function expectContractPdfDownloadFromExpediente(page: Page, employeeId: string) {
+async function expectContractPdfDownloadFromExpediente(
+  page: Page,
+  employeeId: string,
+  expectedFilenameFragment?: string,
+) {
   await page.goto(`/empleados/${employeeId}`);
 
   const expedienteResponsePromise = page.waitForResponse(
@@ -27,12 +31,16 @@ async function expectContractPdfDownloadFromExpediente(page: Page, employeeId: s
     throw new Error('El contrato generado no apareció en el expediente del empleado.');
   }
   expect(publishedContract.tamanoBytes).toBeGreaterThan(0);
+  if (expectedFilenameFragment) {
+    expect(publishedContract.nombre).toContain(expectedFilenameFragment);
+  }
 
   const contractRow = page.getByRole('row').filter({ hasText: publishedContract.nombre });
   await expect(contractRow).toBeVisible();
   const downloadPromise = page.waitForEvent('download');
   await contractRow.getByRole('button', { name: `Descargar ${publishedContract.nombre}` }).click();
   const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe(`${publishedContract.nombre}.pdf`);
   const downloadStream = await download.createReadStream();
   if (!downloadStream) {
     throw new Error('No se pudo leer el PDF descargado desde el expediente.');
@@ -194,8 +202,8 @@ test('crea un perfil contractual y lo vincula a un empleado desde la UI', async 
 
   const individualEmployeeDialog = page.getByRole('dialog', { name: 'Nuevo empleado' });
   await individualEmployeeDialog.locator('[name="cedula"]').fill(individualCedula);
-  await individualEmployeeDialog.locator('[name="primerNombre"]').fill('Lucia');
-  await individualEmployeeDialog.locator('[name="primerApellido"]').fill('Individual');
+  await individualEmployeeDialog.locator('[name="primerNombre"]').fill('Lucía');
+  await individualEmployeeDialog.locator('[name="primerApellido"]').fill('Gómez');
   await individualEmployeeDialog.locator('[name="cargo"]').fill('Docente individual E2E');
   await individualEmployeeDialog.locator('[name="salario"]').fill('2800000');
   await individualEmployeeDialog
@@ -203,7 +211,7 @@ test('crea un perfil contractual y lo vincula a un empleado desde la UI', async 
     .click();
 
   const individualEmployeeRow = page.getByRole('row').filter({ hasText: individualCedula });
-  await expect(individualEmployeeRow).toContainText('Lucia Individual');
+  await expect(individualEmployeeRow).toContainText('Lucía Gómez');
   const individualEmployeeHref = await individualEmployeeRow
     .getByRole('link', { name: /Ver detalle/ })
     .getAttribute('href');
@@ -223,7 +231,7 @@ test('crea un perfil contractual y lo vincula a un empleado desde la UI', async 
 
   const individualContractRow = page.getByRole('row').filter({ hasText: individualCedula });
   await expect(individualContractRow).toContainText('VIGENTE');
-  await individualContractRow.getByRole('link', { name: 'Lucia Individual' }).click();
+  await individualContractRow.getByRole('link', { name: 'Lucía Gómez' }).click();
   await expect(page).toHaveURL(/\/contratos\/[0-9a-f-]+$/);
   await expect(page.getByRole('button', { name: 'Generar documento', exact: true })).toBeVisible();
 
@@ -240,7 +248,7 @@ test('crea un perfil contractual y lo vincula a un empleado desde la UI', async 
   const individualGenerationResponse = await individualGenerationResponsePromise;
   expect(individualGenerationResponse.ok()).toBeTruthy();
 
-  await expectContractPdfDownloadFromExpediente(page, individualEmployeeId);
+  await expectContractPdfDownloadFromExpediente(page, individualEmployeeId, 'Gómez');
 
   await page.goto('/documentos/configuracion');
   await expect(page.getByRole('heading', { name: /Configuraci.n documental/ })).toBeVisible();
