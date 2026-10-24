@@ -1626,9 +1626,10 @@ El volumen de datos no justificó flags de activación. La reversibilidad se gar
 
 ### Metadata de PDFs generados
 
-La generación persiste en `GeneratedDocument` y `ExpedienteDoc` la misma clave
-canónica y el tamaño devueltos por el proveedor de almacenamiento. No se vuelve
-a leer el PDF para obtener su tamaño ni se guarda `tamanoBytes = 0`.
+Al generar un PDF nuevo, `GeneratedDocument` y `ExpedienteDoc` persisten la
+misma clave canónica y el tamaño devueltos por el proveedor de almacenamiento;
+no se guarda `tamanoBytes = 0`. La ruta que materializa un PDF cuyo objeto ya
+existe puede medirlo mediante una lectura del objeto.
 
 ---
 
