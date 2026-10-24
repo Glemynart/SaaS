@@ -21,6 +21,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
+import { buildContentDispositionHeader } from '../common/content-disposition';
 import { ExpedienteDocsService } from './expediente-docs.service';
 import { MAX_MANUAL_DOCUMENT_SIZE } from './manual-document-validation';
 import { UploadExpedienteDocDto } from './dto/upload-expediente-doc.dto';
@@ -67,7 +68,7 @@ export class ExpedienteDocsController {
     res.setHeader('Cache-Control', 'private, no-store');
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="${this.toSafeFilename(doc.nombre)}"`,
+      buildContentDispositionHeader('attachment', doc.nombre),
     );
     res.send(doc.body);
   }
@@ -103,9 +104,5 @@ export class ExpedienteDocsController {
   @Delete('expediente-docs/:id')
   remove(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
     return this.service.remove(user.tenantId, id);
-  }
-
-  private toSafeFilename(nombre: string): string {
-    return nombre.replace(/[\\/\r\n"]/g, '_');
   }
 }
