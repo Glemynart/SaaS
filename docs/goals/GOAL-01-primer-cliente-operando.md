@@ -73,7 +73,11 @@ Este Goal solo puede redefinirse si cambia la estrategia del producto. Nuevas id
   porque las invitaciones y la recuperación requieren correo real;
 - E4.1 ya permite crear, resolver y confirmar campañas inteligentes desde la UI;
 - E4.2 ya procesa planes confirmados; E4.3, E4.4, E4.6 y E5.1 están fusionadas;
-- el flujo exitoso de campaña inteligente hasta la descarga del PDF desde el expediente se verifica en `e2e/contractual-profiles-smoke.spec.ts`; snapshots confirmados y exclusiones también se comprueban en pruebas del API;
+- el flujo de campaña inteligente desde resolución y confirmación hasta contrato,
+  expediente y descarga se verifica en `e2e/contractual-profiles-smoke.spec.ts`;
+  las pruebas API también cubren snapshots confirmados y exclusiones. Los valores
+  legales de empresa del PDF provienen del snapshot contractual, no de una lectura
+  en vivo. La validación en staging/producción sigue pendiente de M1;
 - la generación documental individual está disponible desde el detalle del contrato; la prueba browser incorporada en PR #125 recorre la generación, publicación en el expediente y descarga del PDF con nombre Unicode;
 - el expediente ya permite carga manual, clasificación, descarga e historial/versionado;
   la auditoría e integración consistente del expediente quedaron entregadas en E5.4.
@@ -249,12 +253,20 @@ heredaría ese permiso y el bootstrap lo rechaza. No se modificaron ACLs. El pro
 mantener bloqueada la creación de base/rol hasta revisión DBA, que deberá aprobar el mecanismo de
 aislamiento antes de cualquier escritura. El detalle está en [`deploy/README.md`](../../deploy/README.md).
 
-La revalidación Vercel posterior del 2026-10-24 confirma que `staging.dusema.com` aún apunta al
+La revalidación Vercel posterior del 2026-10-24 confirmó que `staging.dusema.com` apuntaba al
 deployment `Production` `dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`. El HEAD `054203bf117d89c55dce8cb8da39e9dd1f59e5ab`
-de PR #124 sí tiene un deployment `Preview` `READY` (`dpl_AqG1T1LodrsMJoxq12oScZKV92GE`), pero un
-GET anónimo redirige a SSO y no se verificó su backend. El propietario indicó que el alias debe usar
-`Preview` y autorizó preparar, no ejecutar, su reasignación. No se cambió el alias; el Preview de la
-rama abierta no se considera fuente estable ni evidencia de smoke funcional. M1 continúa bloqueado.
+de PR #124 tenía un deployment `Preview` `READY` (`dpl_AqG1T1LodrsMJoxq12oScZKV92GE`), pero un
+GET anónimo redirigía a SSO y no se verificó su backend. El propietario indicó que el alias debe usar
+`Preview` y autorizó preparar, no ejecutar, su reasignación. No se cambió el alias en esa observación;
+ese Preview de rama no era una fuente estable ni evidencia de smoke funcional.
+
+Revalidación Vercel posterior a la fusión de PR #131 (2026-10-24): GitHub registró el deployment
+`7305566758` para el SHA `7307292e324a8f1a6c91313e4d03c701c389db5f`, entorno `Production`, con
+resultado `success` y URL `saa-s-39qo9akw7-glemynarts-projects.vercel.app`. `vercel inspect` confirmó
+que ese deployment `READY` (`dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`) incluye el alias
+`staging.dusema.com`; el alias actualmente sirve un deployment `Production`. No se ejecutó una
+reasignación manual. El propietario había autorizado preparar, no realizar, el cambio a `Preview`;
+por tanto ese cambio sigue pendiente de autorización operativa y M1 continúa bloqueado.
 
 - [ ] E1.1 — Staging reproducible, configuración y secretos.
 - [x] E1.2 — Migraciones, seed y rol PostgreSQL runtime no privilegiado.

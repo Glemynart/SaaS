@@ -106,6 +106,15 @@ anónimo devolvió HTTP 302 y no se siguió la redirección. El dominio `staging
 se consultaron; la rama de la PR y el deployment puntual no son una fuente estable aprobada. No se
 reasignó el alias.
 
+Revalidación posterior a la fusión de PR #131 (2026-10-24): GitHub registró el deployment
+`7305566758` para el SHA `7307292e324a8f1a6c91313e4d03c701c389db5f`, entorno `Production`, con
+resultado `success` y URL `saa-s-39qo9akw7-glemynarts-projects.vercel.app`. Vercel confirmó que
+`staging.dusema.com` ahora apunta al deployment `READY` `dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`, target
+`production`. La fusión produjo este deployment automático; no se ejecutó `vercel alias set` ni se
+reasignó manualmente el dominio. El propietario había autorizado preparar, no ejecutar, el cambio
+a `Preview`; no reasignes el alias hasta obtener la autorización correspondiente y verificar una
+fuente Preview estable con API aislada.
+
 La inspección SSH de solo lectura del mismo momento confirmó que el contenedor
 `la-oficina-nitida-staging-api-1` sigue ejecutando el digest
 `sha256:c03c3f11f75ed1c4cd4fca2a54941956de645e34bd0465995b2a222acade2b19`, con revisión OCI

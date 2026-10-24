@@ -308,6 +308,14 @@ metadata del listado vincula el deployment al SHA y a la rama
 `dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`. No se leyeron valores de configuración API ni se reasignó el
 alias; la Preview puntual de una rama de PR no es una fuente estable y M1 sigue abierto.
 
+Revalidación posterior a la fusión de PR #131 (2026-10-24): GitHub registró el deployment
+`7305566758` para el SHA `7307292e324a8f1a6c91313e4d03c701c389db5f`, entorno `Production`, con
+resultado `success` y URL `saa-s-39qo9akw7-glemynarts-projects.vercel.app`. La inspección Vercel
+`vercel inspect staging.dusema.com --json` mostró el deployment `READY`
+`dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`, target `production`, con el alias `staging.dusema.com`. No se
+ejecutó una reasignación manual. El propietario había autorizado preparar, no realizar, el cambio del
+alias a `Preview`; el dominio continúa sirviendo Production y no debe tratarse como staging aislado.
+
 La inspección de red y catálogo PostgreSQL del 2026-10-24 19:51 UTC confirma que la red Docker
 compartida conecta PostgreSQL, Redis, la API actual y Caddy, y que `PUBLIC` todavía tiene
 `CONNECT` sobre `oficina_nitida`. La API nueva podría alcanzar el servidor PostgreSQL; un rol
