@@ -75,6 +75,20 @@ devolvió HTTP 302 a `vercel.com/sso-api`. La inspección Vercel del dominio con
 `staging.dusema.com` permanece en `dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`, `READY`, target
 `production`. No se reasignó el alias.
 
+Revalidación posterior del 2026-10-24: Vercel confirma que `staging.dusema.com` continúa en
+`dpl_Bt5rJx8JEvYozAu83ojogVBJV3np` (`saa-s-nn9yf611j-glemynarts-projects.vercel.app`), `READY`,
+target `production`. Para el HEAD `054203bf117d89c55dce8cb8da39e9dd1f59e5ab` de la rama abierta
+`codex/reconcile-goal01-m1-runtime-evidence`, el deployment Preview candidato es
+`dpl_AqG1T1LodrsMJoxq12oScZKV92GE`
+(`saa-s-i28wtm98u-glemynarts-projects.vercel.app`), `READY`, creado a las 19:58:24 UTC y sin el
+alias de staging. Los checks `verify`, `browser`, `Vercel` y `Vercel Preview Comments` de PR #124
+terminaron correctamente antes de las 20:02:17 UTC. Un GET anónimo al deployment Preview devolvió
+HTTP 302 hacia la protección SSO de Vercel; se omitieron parámetros de la redirección. El propietario
+confirmó que el dominio debe usar `Preview` y autorizó preparar, pero no ejecutar, la reasignación.
+Este deployment sigue ligado a una rama de PR, el acceso SSO no está resuelto para el operador del
+cliente y no se verificó que la configuración Preview de API apunte a un backend aislado. Por tanto,
+no es todavía un destino estable aprobado; el alias no se modificó y M1 sigue abierto.
+
 La inspección SSH de solo lectura del mismo momento confirmó que el contenedor
 `la-oficina-nitida-staging-api-1` sigue ejecutando el digest
 `sha256:c03c3f11f75ed1c4cd4fca2a54941956de645e34bd0465995b2a222acade2b19`, con revisión OCI

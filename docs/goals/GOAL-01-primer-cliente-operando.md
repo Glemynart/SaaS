@@ -240,6 +240,13 @@ heredaría ese permiso y el bootstrap lo rechaza. No se modificaron ACLs; sigue 
 decisión del DBA entre una revocación cuidadosamente acotada y un cluster separado. El detalle
 está en [`deploy/README.md`](../../deploy/README.md).
 
+La revalidación Vercel posterior del 2026-10-24 confirma que `staging.dusema.com` aún apunta al
+deployment `Production` `dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`. El HEAD `054203bf117d89c55dce8cb8da39e9dd1f59e5ab`
+de PR #124 sí tiene un deployment `Preview` `READY` (`dpl_AqG1T1LodrsMJoxq12oScZKV92GE`), pero un
+GET anónimo redirige a SSO y no se verificó su backend. El propietario indicó que el alias debe usar
+`Preview` y autorizó preparar, no ejecutar, su reasignación. No se cambió el alias; el Preview de la
+rama abierta no se considera fuente estable ni evidencia de smoke funcional. M1 continúa bloqueado.
+
 - [ ] E1.1 — Staging reproducible, configuración y secretos.
 - [x] E1.2 — Migraciones, seed y rol PostgreSQL runtime no privilegiado.
 - [ ] E1.3 — R2, correo real y health/readiness checks.
