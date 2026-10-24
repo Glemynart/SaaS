@@ -51,8 +51,11 @@ psql_as_admin -d postgres -c 'CREATE DATABASE oficina_nitida' >/dev/null
 psql_as_admin -d postgres -c "CREATE ROLE $migration_role LOGIN CREATEROLE" >/dev/null
 psql_as_admin -d postgres -c "CREATE DATABASE $staging_database OWNER $migration_role" >/dev/null
 
-if run_bootstrap_as_migration_role "$staging_database" >/dev/null 2>&1; then
-  echo "Bootstrap unexpectedly accepted CONNECT inherited from PUBLIC." >&2
+run_bootstrap_as_migration_role "$staging_database" >/dev/null
+
+public_connect_grant="$(psql_as_admin -d postgres -Atqc "SELECT EXISTS (SELECT 1 FROM pg_database AS db CROSS JOIN LATERAL aclexplode(COALESCE(db.datacl, acldefault('d', db.datdba))) AS acl_entry WHERE db.datname = '$staging_database' AND acl_entry.grantee = 0 AND acl_entry.privilege_type = 'CONNECT')::text")"
+if [[ "$public_connect_grant" != 'false' ]]; then
+  echo "Bootstrap left CONNECT granted to PUBLIC on the staging database." >&2
   exit 1
 fi
 
