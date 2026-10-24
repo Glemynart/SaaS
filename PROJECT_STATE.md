@@ -212,8 +212,18 @@ y resultado `success` (2026-10-24 09:50 UTC). Esto sustituye la observación ant
 `saa-s-r7pp8dsxi-glemynarts-projects.vercel.app` asociado a `98960492e6e40307f12f51593bca3ea54875f3de`
 era el alias observado antes de la fusión; el deployment `14da89e6d3f8ab19b38b8696776651fc6da79466`
 estaba entonces `CANCELED`. El target actual de Vercel sigue clasificado `Production`, no como un
-Preview aislado; la intención de producto para `staging.dusema.com` no está confirmada. PR #123 no
-modificó archivos de `apps/web`. El workflow `.github/workflows/api-image.yml` publica la imagen
+Preview aislado. El propietario confirmó el 2026-10-24 que `staging.dusema.com` debe apuntar a un
+deployment Vercel `Preview` y autorizó preparar la reasignación, no ejecutarla. La inspección actual
+sigue confirmando el alias hacia `dpl_xYJbtaq17GGjRqtSkGUQe1fib8Kz`
+(`saa-s-alde58gmf-glemynarts-projects.vercel.app`), con target `Production`. La Preview
+`dpl_FKhfAdH2qkd4PTsV84HaLpxz3F7R` (`saa-s-9dl7o9t6q-glemynarts-projects.vercel.app`) está `READY`
+para el commit `2bc9c8258ac69ba5f04114280e74aac8a727b511` de la rama de PR #124; es un deployment de
+PR, no una fuente estable de staging. La consulta de solo lectura no encontró una rama GitHub
+`staging`. La lista del entorno Vercel Preview contiene `API_URL`, `NEXT_PUBLIC_API_URL` y
+`NEXT_PUBLIC_SITE_URL`, pero no se leyeron sus valores, por lo que no está verificado que el frontend
+use una API aislada. Como la API actual comparte `oficina_nitida`, la reasignación debe esperar a que
+se verifiquen una API/base aisladas y la URL efectiva de Preview. PR #123 no modificó archivos de
+`apps/web`. El workflow `.github/workflows/api-image.yml` publica la imagen
 API a GHCR al hacer push a `main`, pero no despliega el stack en la VPS. El run `40083400008` de
 `Publish API image`, para el SHA `0aa157e4f3593795d43568eabfbd3d80f778aea8`, terminó correctamente;
 su log de build/push reportó el tag
