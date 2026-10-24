@@ -34,12 +34,13 @@ SELECT format(
   :'runtime_role'
 ) \gexec
 
--- Do not normalize an existing administrative role into the staging runtime
--- identity. The bootstrap operates at cluster scope and the password/role
--- attributes would otherwise be changed before the remaining guards run.
+-- Only reconfigure roles already marked by this bootstrap. This prevents an
+-- arbitrary pre-existing role from being adopted and having its password or
+-- administrative attributes changed accidentally.
 SELECT format(
-  'DO $guard$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = %L AND (rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls)) THEN RAISE EXCEPTION ''runtime role must not reuse an identity with administrative attributes''; END IF; END $guard$;',
-  :'runtime_role'
+  'DO $guard$ DECLARE existing_role oid; existing_comment text; BEGIN SELECT oid, shobj_description(oid, ''pg_authid'') INTO existing_role, existing_comment FROM pg_roles WHERE rolname = %L; IF existing_role IS NOT NULL AND existing_comment IS DISTINCT FROM %L THEN RAISE EXCEPTION ''runtime role already exists and is not managed by this bootstrap''; END IF; END $guard$;',
+  :'runtime_role',
+  'dusema:goal01-staging-runtime'
 ) \gexec
 
 SELECT format(
@@ -49,6 +50,14 @@ SELECT format(
 )
 WHERE NOT EXISTS (
   SELECT 1 FROM pg_roles WHERE rolname = :'runtime_role'
+) \gexec
+
+-- A non-secret comment marks the role as owned by this bootstrap and allows a
+-- later run to repair its attributes without adopting another cluster role.
+SELECT format(
+  'COMMENT ON ROLE %I IS %L',
+  :'runtime_role',
+  'dusema:goal01-staging-runtime'
 ) \gexec
 
 -- Re-apply the security attributes on every run so an accidental privilege

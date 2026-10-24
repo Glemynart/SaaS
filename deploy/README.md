@@ -143,10 +143,11 @@ continuar, el DBA debe proporcionar una base separada y verificar que el rol
 runtime de staging no puede leer ni modificar `oficina_nitida`. No ejecutes
 migraciones, seed ni el bootstrap contra la base o el rol del entorno actual.
 Crear una base y roles dentro de la instancia compartida requiere un
-procedimiento aprobado. El script de bootstrap crea o altera roles de ámbito
-de instancia y también cambia privilegios del esquema en la base seleccionada;
-no debe ejecutarse contra el PostgreSQL compartido sin que el DBA revise y
-apruebe explícitamente sus efectos.
+procedimiento aprobado. El bootstrap crea el rol runtime en su primera ejecución
+y lo marca con un comentario no secreto; en ejecuciones posteriores solo
+reconfigura un rol existente si conserva esa marca. También cambia privilegios
+del esquema en la base seleccionada. No debe ejecutarse contra el PostgreSQL
+compartido sin que el DBA revise y apruebe explícitamente sus efectos.
 
 El Compose usa la red externa ya existente:
 
@@ -320,9 +321,10 @@ explícita al rol runtime y falla si `saas_api_runtime` conserva acceso directo.
 También rechaza un rol runtime preexistente que sea miembro directo o indirecto
 de otro rol: `NOINHERIT` por sí solo no retira la capacidad de `SET ROLE` que
 permite una membresía ([documentación oficial](https://www.postgresql.org/docs/17/role-membership.html)).
-Antes de alterar un rol existente, falla si tiene `SUPERUSER`, `CREATEDB`,
-`CREATEROLE`, `REPLICATION` o `BYPASSRLS`; así no degrada por accidente otra
-identidad privilegiada del clúster. También reserva explícitamente el rol
+El comentario `dusema:goal01-staging-runtime` identifica el rol creado por el
+bootstrap: un rol preexistente sin esa marca se rechaza antes de cambiar su
+contraseña o atributos. Una ejecución posterior puede volver a normalizar los
+atributos de seguridad del rol marcado. También reserva explícitamente el rol
 observado `oficina`.
 También falla si el runtime ya es propietario del esquema `public` o de sus
 relaciones, y revoca `CREATE` directo de `PUBLIC` y del rol runtime. También

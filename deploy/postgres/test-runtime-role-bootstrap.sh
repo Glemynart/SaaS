@@ -68,6 +68,12 @@ psql_as_admin -d postgres -c 'REVOKE CONNECT ON DATABASE oficina_nitida FROM PUB
 psql_as_admin -d postgres -c 'CREATE ROLE saas_api_runtime NOLOGIN' >/dev/null
 run_bootstrap "$staging_database" >/dev/null
 
+runtime_role_marker="$(psql_as_admin -d postgres -Atqc "SELECT shobj_description(oid, 'pg_authid') FROM pg_roles WHERE rolname = '$runtime_role'")"
+if [[ "$runtime_role_marker" != 'dusema:goal01-staging-runtime' ]]; then
+  echo "Bootstrap did not mark the runtime role it created." >&2
+  exit 1
+fi
+
 privileged_role="dusema_ci_privileged_collision"
 psql_as_admin -d postgres -c "CREATE ROLE $privileged_role LOGIN CREATEROLE" >/dev/null
 if run_bootstrap "$staging_database" "$privileged_role" >/dev/null 2>&1; then
