@@ -216,6 +216,28 @@ describe('Generated document private delivery', () => {
     });
   });
 
+  it('descarga nombres Unicode con un Content-Disposition HTTP válido', async () => {
+    const document = documents.get('contract-001');
+    if (!document) throw new Error('No se encontró el documento de prueba.');
+
+    const originalName = document.nombre;
+    document.nombre = 'Contrato laboral — Ana Gómez';
+
+    try {
+      const response = await request(app.getHttpServer())
+        .get('/generated-documents/contract-001/download')
+        .set('Authorization', 'Bearer test-token')
+        .expect(200)
+        .expect('Content-Type', /application\/pdf/);
+
+      expect(response.headers['content-disposition']).toBe(
+        'attachment; filename="Contrato laboral _ Ana Gomez.pdf"; filename*=UTF-8\'\'Contrato%20laboral%20%E2%80%94%20Ana%20G%C3%B3mez.pdf',
+      );
+    } finally {
+      document.nombre = originalName;
+    }
+  });
+
   it('mantiene el endpoint PDF legado con entrega inline', async () => {
     const response = await request(app.getHttpServer())
       .get('/generated-documents/contract-001/pdf')
