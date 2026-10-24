@@ -212,9 +212,14 @@ Compose no crea aislamiento de red y la API podría alcanzar el servicio Postgre
 Una consulta de solo lectura al catálogo de PostgreSQL confirmó que `oficina_nitida` conserva la
 ACL `{=Tc/oficina,oficina=CTc/oficina,saas_api_runtime=c/oficina}`: `PUBLIC` todavía tiene
 `CONNECT` y `TEMPORARY`. Por eso un rol runtime nuevo en el mismo cluster heredaría `CONNECT` y el
-bootstrap lo rechaza. No se modificó ninguna ACL. Antes de crear la base o el rol de staging, el
-DBA debe aprobar y verificar una ACL por base que quite ese acceso heredado conservando los grants
-operativos explícitos, o el propietario debe elegir un cluster PostgreSQL separado.
+bootstrap lo rechaza. Una consulta de catálogo adicional (19:57 UTC) mostró solo dos roles
+`LOGIN`: `oficina` (superuser) y `saas_api_runtime` (sin `SUPERUSER`, `CREATEDB`, `CREATEROLE` ni
+`BYPASSRLS`); ambos tienen grants explícitos de `CONNECT`. Esto acota el impacto observable actual
+de una revocación, pero el DBA debe validar también los consumidores operativos antes de decidir.
+No se modificó ninguna ACL. Antes de crear la base o el rol de
+staging, el DBA debe aprobar y verificar una ACL por base que quite el acceso heredado de
+`PUBLIC` conservando los grants operativos explícitos, o el propietario debe elegir un cluster
+PostgreSQL separado.
 
 ## Archivos en el VPS
 
