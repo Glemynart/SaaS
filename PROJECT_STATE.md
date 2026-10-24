@@ -203,12 +203,17 @@ Hitos recientes fusionados a `main`:
 La inspección de solo lectura del 2026-10-24 confirmó que existe una API pública llamada staging:
 `/health` y `/readiness` respondieron HTTP 200. La API corre en la única VPS clasificada como
 producción, comparte red Docker con PostgreSQL y usa `STORAGE_PROVIDER=local`; inspecciones previas
-del mismo entorno identificaron `oficina_nitida` como base compartida. El alias Web
-`staging.dusema.com` apunta a `saa-s-r7pp8dsxi-glemynarts-projects.vercel.app`, un deployment
-`Production` en estado `READY`. La lista de deployments asocia ese mismo URL con la rama `main`,
-SHA `98960492e6e40307f12f51593bca3ea54875f3de`, creado el 2026-09-02. El deployment del merge
-commit `14da89e6d3f8ab19b38b8696776651fc6da79466` figura `CANCELED`; por tanto, el alias sigue
-sirviendo el deployment anterior. El workflow `.github/workflows/api-image.yml` publica la imagen
+del mismo entorno identificaron `oficina_nitida` como base compartida. Una consulta posterior a la
+fusión de PR #123 confirmó que Vercel deployment `dpl_xYJbtaq17GGjRqtSkGUQe1fib8Kz`
+(`saa-s-alde58gmf-glemynarts-projects.vercel.app`) está `READY`, tiene target `Production` y su
+lista de aliases incluye `staging.dusema.com`. El registro de deployment de GitHub `7296998166`
+vincula el SHA `0aa157e4f3593795d43568eabfbd3d80f778aea8` con ese mismo URL, entorno `Production`
+y resultado `success` (2026-10-24 09:50 UTC). Esto sustituye la observación anterior: el deployment
+`saa-s-r7pp8dsxi-glemynarts-projects.vercel.app` asociado a `98960492e6e40307f12f51593bca3ea54875f3de`
+era el alias observado antes de la fusión; el deployment `14da89e6d3f8ab19b38b8696776651fc6da79466`
+estaba entonces `CANCELED`. El target actual de Vercel sigue clasificado `Production`, no como un
+Preview aislado; la intención de producto para `staging.dusema.com` no está confirmada. PR #123 no
+modificó archivos de `apps/web`. El workflow `.github/workflows/api-image.yml` publica la imagen
 API a GHCR al hacer push a `main`, pero no despliega el stack en la VPS. La existencia de URL,
 checks HTTP y artefactos no demuestra staging aislado ni reproducible. E1.1/E1.3 siguen pendientes
 por aislamiento, R2 privado, correo real y smoke autenticado sobre el entorno correcto; la
