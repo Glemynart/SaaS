@@ -270,6 +270,33 @@ privilegios del esquema en la base seleccionada. Sustituye la base y el rol de
 staging por valores aprobados antes de ejecutar cualquier comando. El SQL es
 idempotente y no recrea PostgreSQL:
 
+En PostgreSQL 17, las bases conceden `CONNECT` y `TEMPORARY` a `PUBLIC` por
+defecto ([documentación oficial de privilegios](https://www.postgresql.org/docs/17/ddl-priv.html)).
+Por eso una base y un rol separados no garantizan por sí solos que el runtime no
+pueda conectarse a `oficina_nitida`. El bootstrap ahora se ejecuta en una
+transacción y falla si el destino es `oficina_nitida`, si se intenta reutilizar
+`saas_api_runtime` o si el rol de staging todavía tiene `CONNECT` a la base
+protegida.
+
+El bootstrap comprueba esta condición dentro de la transacción antes de
+confirmar los cambios. Después de que termine correctamente y antes de migrar o
+desplegar, repítela desde una sesión de solo lectura en el clúster PostgreSQL:
+
+```sql
+SELECT has_database_privilege(
+         'REPLACE_WITH_STAGING_RUNTIME_ROLE',
+         'oficina_nitida',
+         'CONNECT'
+       ) AS can_connect_to_production;
+```
+
+El resultado requerido para `can_connect_to_production` es `false`. Si devuelve
+`true`, detén el procedimiento. Para conservar el mismo clúster, el DBA debe
+evaluar el efecto de revocar `CONNECT` a `PUBLIC` en `oficina_nitida` y otorgarlo
+explícitamente a las identidades productivas autorizadas. No ejecutes esa
+revocación sin ese inventario y aprobación; si el cambio no es seguro, la
+separación requiere otro clúster PostgreSQL.
+
 ```bash
 export GOAL01_RUNTIME_DB_ROLE=REPLACE_WITH_DEDICATED_STAGING_RUNTIME_ROLE
 export GOAL01_RUNTIME_DB_PASSWORD='<runtime-password>'

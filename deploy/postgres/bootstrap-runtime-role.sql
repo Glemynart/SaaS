@@ -23,10 +23,13 @@ SELECT format(
   :'runtime_password'
 ) \gexec
 
--- Never allow the bootstrap to target the administrative session itself or a
--- known provider superuser name by mistake.
+-- Fail closed for the protected database, administrative identities, and the
+-- production runtime identity before changing any role or database privileges.
+BEGIN;
+
 SELECT format(
-  'DO $guard$ BEGIN IF %L IN (''postgres'', ''rdsadmin'') OR %L = current_user THEN RAISE EXCEPTION ''runtime role must be distinct from the administrative role''; END IF; END $guard$;',
+  'DO $guard$ BEGIN IF current_database() = %L THEN RAISE EXCEPTION ''runtime bootstrap cannot target the protected production database''; END IF; IF %L IN (''postgres'', ''rdsadmin'', ''saas_api_runtime'') OR %L = current_user THEN RAISE EXCEPTION ''runtime role must be distinct from the administrative role and production runtime role''; END IF; END $guard$;',
+  'oficina_nitida',
   :'runtime_role',
   :'runtime_role'
 ) \gexec
@@ -54,6 +57,12 @@ SELECT format(
   :'runtime_role'
 ) \gexec
 
+SELECT format(
+  'DO $guard$ BEGIN IF has_database_privilege(%L, %L, ''CONNECT'') THEN RAISE EXCEPTION ''staging runtime role must not connect to protected database oficina_nitida''; END IF; END $guard$;',
+  :'runtime_role',
+  'oficina_nitida'
+) \gexec
+
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO :"runtime_role";
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO :"runtime_role";
@@ -73,3 +82,5 @@ SELECT format(
   current_user,
   :'runtime_role'
 ) \gexec
+
+COMMIT;
