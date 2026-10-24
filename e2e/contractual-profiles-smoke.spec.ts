@@ -1,4 +1,51 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+async function expectContractPdfDownloadFromExpediente(page: Page, employeeId: string) {
+  await page.goto(`/empleados/${employeeId}`);
+
+  const expedienteResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'GET' &&
+      response.url().endsWith(`/api/employees/${employeeId}/expediente`),
+  );
+  await page.getByRole('link', { name: 'Expediente', exact: true }).click();
+  const expedienteResponse = await expedienteResponsePromise;
+  await expect(page.getByRole('heading', { name: 'Expediente digital' })).toBeVisible();
+  expect(expedienteResponse.ok()).toBeTruthy();
+
+  const expediente = (await expedienteResponse.json()) as {
+    docs: Array<{
+      nombre: string;
+      tamanoBytes: number;
+      generatedDocument: { tipo: string } | null;
+    }>;
+  };
+  const publishedContract = expediente.docs.find(
+    (document) => document.generatedDocument?.tipo === 'CONTRACT',
+  );
+  if (!publishedContract) {
+    throw new Error('El contrato generado no apareció en el expediente del empleado.');
+  }
+  expect(publishedContract.tamanoBytes).toBeGreaterThan(0);
+
+  const contractRow = page.getByRole('row').filter({ hasText: publishedContract.nombre });
+  await expect(contractRow).toBeVisible();
+  const downloadPromise = page.waitForEvent('download');
+  await contractRow.getByRole('button', { name: `Descargar ${publishedContract.nombre}` }).click();
+  const download = await downloadPromise;
+  const downloadStream = await download.createReadStream();
+  if (!downloadStream) {
+    throw new Error('No se pudo leer el PDF descargado desde el expediente.');
+  }
+
+  const downloadedChunks: Buffer[] = [];
+  for await (const chunk of downloadStream) {
+    downloadedChunks.push(Buffer.from(chunk));
+  }
+  const downloadedPdf = Buffer.concat(downloadedChunks);
+  expect(downloadedPdf.subarray(0, 5).toString('ascii')).toBe('%PDF-');
+  expect(downloadedPdf.length).toBe(publishedContract.tamanoBytes);
+}
 
 test('crea un perfil contractual y lo vincula a un empleado desde la UI', async ({ page }) => {
   const suffix = Date.now().toString().slice(-8);
@@ -138,48 +185,62 @@ test('crea un perfil contractual y lo vincula a un empleado desde la UI', async 
     throw new Error('No se pudo identificar el empleado de la campaña.');
   }
 
-  const expedienteResponsePromise = page.waitForResponse(
+  await expectContractPdfDownloadFromExpediente(page, employeeId);
+
+  const individualSuffix = Date.now().toString().slice(-8);
+  const individualCedula = `E4E6${individualSuffix}`;
+  await page.goto('/empleados');
+  await page.getByRole('button', { name: 'Nuevo empleado', exact: true }).click();
+
+  const individualEmployeeDialog = page.getByRole('dialog', { name: 'Nuevo empleado' });
+  await individualEmployeeDialog.locator('[name="cedula"]').fill(individualCedula);
+  await individualEmployeeDialog.locator('[name="primerNombre"]').fill('Lucia');
+  await individualEmployeeDialog.locator('[name="primerApellido"]').fill('Individual');
+  await individualEmployeeDialog.locator('[name="cargo"]').fill('Docente individual E2E');
+  await individualEmployeeDialog.locator('[name="salario"]').fill('2800000');
+  await individualEmployeeDialog
+    .getByRole('button', { name: 'Crear empleado', exact: true })
+    .click();
+
+  const individualEmployeeRow = page.getByRole('row').filter({ hasText: individualCedula });
+  await expect(individualEmployeeRow).toContainText('Lucia Individual');
+  const individualEmployeeHref = await individualEmployeeRow
+    .getByRole('link', { name: /Ver detalle/ })
+    .getAttribute('href');
+  const individualEmployeeId = individualEmployeeHref?.match(/\/empleados\/([^/]+)$/)?.[1];
+  if (!individualEmployeeId) {
+    throw new Error('No se pudo identificar el empleado del contrato individual.');
+  }
+
+  await page.goto('/contratos');
+  await page.getByRole('button', { name: 'Nuevo contrato', exact: true }).click();
+  const individualContractDialog = page.getByRole('dialog', { name: 'Nuevo contrato' });
+  await individualContractDialog.locator('select').nth(0).selectOption(individualEmployeeId);
+  await individualContractDialog.locator('select').nth(1).selectOption('TERMINO_INDEFINIDO');
+  await individualContractDialog.locator('input[type="number"]').fill('2800000');
+  await individualContractDialog.locator('input:not([type])').fill('Docente individual E2E');
+  await individualContractDialog.getByRole('button', { name: 'Crear contrato' }).click();
+
+  const individualContractRow = page.getByRole('row').filter({ hasText: individualCedula });
+  await expect(individualContractRow).toContainText('VIGENTE');
+  await individualContractRow.getByRole('link', { name: 'Lucia Individual' }).click();
+  await expect(page).toHaveURL(/\/contratos\/[0-9a-f-]+$/);
+  await expect(page.getByRole('button', { name: 'Generar documento', exact: true })).toBeVisible();
+
+  const individualContractId = new URL(page.url()).pathname.match(/\/contratos\/([^/]+)/)?.[1];
+  if (!individualContractId) {
+    throw new Error('No se pudo identificar el contrato individual.');
+  }
+  const individualGenerationResponsePromise = page.waitForResponse(
     (response) =>
-      response.request().method() === 'GET' &&
-      response.url().endsWith(`/api/employees/${employeeId}/expediente`),
+      response.request().method() === 'POST' &&
+      response.url().endsWith(`/api/contracts/${individualContractId}/generate-document`),
   );
-  await page.getByRole('link', { name: 'Expediente', exact: true }).click();
-  const expedienteResponse = await expedienteResponsePromise;
-  await expect(page.getByRole('heading', { name: 'Expediente digital' })).toBeVisible();
-  expect(expedienteResponse.ok()).toBeTruthy();
+  await page.getByRole('button', { name: 'Generar documento', exact: true }).click();
+  const individualGenerationResponse = await individualGenerationResponsePromise;
+  expect(individualGenerationResponse.ok()).toBeTruthy();
 
-  const expediente = (await expedienteResponse.json()) as {
-    docs: Array<{
-      nombre: string;
-      tamanoBytes: number;
-      generatedDocument: { tipo: string } | null;
-    }>;
-  };
-  const publishedContract = expediente.docs.find(
-    (document) => document.generatedDocument?.tipo === 'CONTRACT',
-  );
-  if (!publishedContract) {
-    throw new Error('El contrato generado no apareció en el expediente del empleado.');
-  }
-  expect(publishedContract.tamanoBytes).toBeGreaterThan(0);
-
-  const contractRow = page.getByRole('row').filter({ hasText: publishedContract.nombre });
-  await expect(contractRow).toBeVisible();
-  const downloadPromise = page.waitForEvent('download');
-  await contractRow.getByRole('button', { name: `Descargar ${publishedContract.nombre}` }).click();
-  const download = await downloadPromise;
-  const downloadStream = await download.createReadStream();
-  if (!downloadStream) {
-    throw new Error('No se pudo leer el PDF descargado desde el expediente.');
-  }
-
-  const downloadedChunks: Buffer[] = [];
-  for await (const chunk of downloadStream) {
-    downloadedChunks.push(Buffer.from(chunk));
-  }
-  const downloadedPdf = Buffer.concat(downloadedChunks);
-  expect(downloadedPdf.subarray(0, 5).toString('ascii')).toBe('%PDF-');
-  expect(downloadedPdf.length).toBe(publishedContract.tamanoBytes);
+  await expectContractPdfDownloadFromExpediente(page, individualEmployeeId);
 
   await page.goto('/documentos/configuracion');
   await expect(page.getByRole('heading', { name: /Configuraci.n documental/ })).toBeVisible();
