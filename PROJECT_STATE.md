@@ -574,11 +574,13 @@ Convención oficial de `storageKey`:
 {tenantId}/expediente/{empleadoId}/{categoria}/{id}_v{version}.{ext}
 ```
 
-Para documentos generados desde el motor documental:
+Esta convención aplica a archivos subidos manualmente. Para PDFs generados,
+`GeneratedDocument.pdfStorageKey` es la clave canónica
+`pdfs/{tenantId}-{generatedDocumentId}.pdf`; `ExpedienteDoc.storageKey` debe
+referenciar exactamente el mismo objeto.
 
-```
-{tenantId}/expediente/{empleadoId}/{categoria}/gen_{generatedDocId}_v1.pdf
-```
+El PR #123 también propaga a `ExpedienteDoc.tamanoBytes` el tamaño devuelto por
+el proveedor de almacenamiento junto con esa clave.
 
 ---
 
@@ -1622,9 +1624,11 @@ No desarrollar nuevas funcionalidades sobre `EmployeeFile`.
 
 El volumen de datos no justificó flags de activación. La reversibilidad se garantizó a nivel de código en cada fase.
 
-### `tamanoBytes = 0` para PDFs generados
+### Metadata de PDFs generados
 
-El tamaño real requiere leer el archivo desde el filesystem o R2. Diferido cuando haya almacenamiento real en producción.
+La generación persiste en `GeneratedDocument` y `ExpedienteDoc` la misma clave
+canónica y el tamaño devueltos por el proveedor de almacenamiento. No se vuelve
+a leer el PDF para obtener su tamaño ni se guarda `tamanoBytes = 0`.
 
 ---
 
