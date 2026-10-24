@@ -19,7 +19,6 @@ const documentUpdateMany = jest.fn();
 const contractFindFirst = jest.fn();
 const templateFindFirst = jest.fn();
 const employeeFindFirst = jest.fn();
-const tenantFindFirst = jest.fn();
 const renderPdf = jest.fn();
 const objectExists = jest.fn();
 const getObject = jest.fn();
@@ -49,7 +48,6 @@ function mockPrismaClient() {
     contrato: { findFirst: contractFindFirst },
     documentTemplate: { findFirst: templateFindFirst },
     empleado: { findFirst: employeeFindFirst },
-    tenant: { findFirst: tenantFindFirst },
   };
 }
 
@@ -116,6 +114,33 @@ const employee = {
   sedeRef: { nombre: 'Principal' },
 };
 
+const contractVariablesSnapshot = {
+  empleado: {
+    nombreCompleto: 'Ana López',
+    primerNombre: 'Ana',
+    segundoNombre: null,
+    primerApellido: 'López',
+    segundoApellido: null,
+    tipoDocumento: 'CC',
+    cedula: '123456789',
+  },
+  contrato: {
+    cargo: 'Analista',
+    salario: '2500000',
+    tipo: 'TERMINO_INDEFINIDO',
+    fechaInicio: '2026-01-15T00:00:00.000Z',
+    fechaFin: null,
+  },
+  empresa: {
+    nombre: 'Empresa Uno',
+    razonSocial: null,
+    nit: '900123456',
+    representanteLegal: 'Laura Gómez',
+  },
+  sede: null,
+  metadata: { generatedAt: '2026-01-15T00:00:00.000Z', version: 1 },
+};
+
 const historicalSurname = plan.empleadoSnapshot.primerApellido;
 plan.empleadoSnapshot.primerApellido = employee.primerApellido;
 
@@ -147,21 +172,16 @@ describe('BatchDocumentGenerationService', () => {
       contenidoFinal: 'CONTRATO Ana López - Empresa Uno',
     });
     documentUpdateMany.mockResolvedValue({ count: 1 });
-    contractFindFirst.mockResolvedValue({ id: 'contrato-001' });
+    contractFindFirst.mockResolvedValue({
+      id: 'contrato-001',
+      variablesSnapshot: contractVariablesSnapshot,
+    });
     templateFindFirst.mockResolvedValue({
       id: TEMPLATE,
       nombre: 'Contrato laboral',
       tipo: 'CONTRACT',
     });
     employeeFindFirst.mockResolvedValue(employee);
-    tenantFindFirst.mockResolvedValue({
-      nombre: 'Empresa Uno',
-      razonSocial: null,
-      nit: '900123456',
-      representanteLegal: 'Laura Gómez',
-      logoUrl: null,
-      firmaRepresentanteUrl: null,
-    });
     renderPdf.mockResolvedValue(Buffer.from('PDF-BYTES'));
     objectExists.mockResolvedValue(false);
     getObject.mockResolvedValue(Buffer.from('PDF-BYTES'));
@@ -282,6 +302,10 @@ describe('BatchDocumentGenerationService', () => {
   });
 
   it('reutiliza un documento materializado sin renderizar ni almacenar de nuevo', async () => {
+    contractFindFirst.mockResolvedValue({
+      id: 'contrato-001',
+      variablesSnapshot: {},
+    });
     planFindFirst.mockResolvedValue({
       ...plan,
       estado: BatchDocumentGenerationPlanStatus.CONSUMIDO,
@@ -395,6 +419,11 @@ describe('BatchDocumentGenerationService', () => {
 
     await service.start(LOTE);
 
+    expect(contractFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: { id: true, variablesSnapshot: true },
+      }),
+    );
     expect(documentCreate).toHaveBeenCalledWith(
       objectContaining({
         data: objectContaining({
@@ -413,6 +442,53 @@ describe('BatchDocumentGenerationService', () => {
     const generatedContent = generatedDocumentCall.data.contenidoFinal;
     expect(generatedContent).not.toContain('Analista');
     expect(generatedContent).not.toContain('123456789');
+  });
+
+  it('usa la identidad empresarial del snapshot contractual al generar el plan', async () => {
+    contractFindFirst.mockResolvedValue({
+      id: 'contrato-001',
+      variablesSnapshot: {
+        ...contractVariablesSnapshot,
+        empresa: {
+          nombre: 'Empresa histórica',
+          razonSocial: 'Razón social confirmada S.A.S.',
+          nit: '900000001',
+          representanteLegal: 'Representante confirmado',
+        },
+      },
+    });
+    planFindFirst.mockResolvedValue({
+      ...plan,
+      plantillaSnapshot: {
+        ...plan.plantillaSnapshot,
+        contenido:
+          '{{EMPRESA}}|{{NIT}}|{{REPRESENTANTE_LEGAL}}|{{LOGO_EMPRESA}}|{{FIRMA_REPRESENTANTE}}',
+      },
+    });
+
+    await service.start(LOTE);
+
+    expect(documentCreate).toHaveBeenCalledWith(
+      objectContaining({
+        data: objectContaining({
+          contenidoFinal:
+            'Razón social confirmada S.A.S.|900000001|Representante confirmado||',
+        }),
+      }),
+    );
+  });
+
+  it('rechaza un snapshot empresarial incompatible en vez de usar datos actuales', async () => {
+    contractFindFirst.mockResolvedValue({
+      id: 'contrato-001',
+      variablesSnapshot: { empresa: { nombre: 'Empresa sin NIT' } },
+    });
+
+    await expect(service.start(LOTE)).rejects.toThrow(
+      'variablesSnapshot incompatible con la generación de documentos',
+    );
+
+    expect(documentCreate).not.toHaveBeenCalled();
   });
 
   it('marca el documento como FALLIDO si el render falla y conserva el plan', async () => {

@@ -23,6 +23,13 @@ type PlanTemplateSnapshot = {
   contenido: string;
 };
 
+type ContractCompanySnapshot = {
+  nombre: string;
+  razonSocial: string | null;
+  nit: string;
+  representanteLegal: string | null;
+};
+
 type PreparedDocument = {
   planId: string;
   planStatus: BatchDocumentGenerationPlanStatus;
@@ -204,7 +211,7 @@ export class BatchDocumentGenerationService {
           loteId: plan.loteId,
           empleadoId: plan.empleadoId,
         },
-        select: { id: true },
+        select: { id: true, variablesSnapshot: true },
       });
       if (!contract) {
         throw new NotFoundException(
@@ -236,8 +243,12 @@ export class BatchDocumentGenerationService {
           contratoId: contract.id,
         };
       }
+      const companySnapshot = this.resolveContractCompanySnapshot(
+        contract.variablesSnapshot,
+        contract.id,
+      );
 
-      const [template, employee, tenant] = await Promise.all([
+      const [template, employee] = await Promise.all([
         prisma.documentTemplate.findFirst({
           where: { id: plan.plantillaId, tenantId: context.tenantId },
           select: { id: true, nombre: true, tipo: true },
@@ -250,21 +261,9 @@ export class BatchDocumentGenerationService {
           },
           include: { sedeRef: { select: { nombre: true } } },
         }),
-        prisma.tenant.findFirst({
-          where: { id: context.tenantId },
-          select: {
-            nombre: true,
-            razonSocial: true,
-            nit: true,
-            representanteLegal: true,
-            logoUrl: true,
-            firmaRepresentanteUrl: true,
-          },
-        }),
       ]);
       if (!template) throw new NotFoundException('Plantilla no encontrada');
       if (!employee) throw new NotFoundException('Empleado no encontrado');
-      if (!tenant) throw new NotFoundException('Empresa no encontrada');
 
       const snapshot = this.resolveTemplateSnapshot(
         plan.plantillaSnapshot,
@@ -314,15 +313,12 @@ export class BatchDocumentGenerationService {
             day: 'numeric',
           }),
           SEDE: contractPlanSnapshot.contrato.sede?.nombre ?? '',
-          EMPRESA: tenant.razonSocial ?? tenant.nombre,
-          NIT: tenant.nit,
-          REPRESENTANTE_LEGAL: tenant.representanteLegal ?? 'No definido',
-          LOGO_EMPRESA: tenant.logoUrl
-            ? `<img src="${tenant.logoUrl}" alt="Logo ${tenant.nombre}" />`
-            : '',
-          FIRMA_REPRESENTANTE: tenant.firmaRepresentanteUrl
-            ? `<img src="${tenant.firmaRepresentanteUrl}" alt="Firma representante legal" />`
-            : '',
+          EMPRESA: companySnapshot.razonSocial ?? companySnapshot.nombre,
+          NIT: companySnapshot.nit,
+          REPRESENTANTE_LEGAL:
+            companySnapshot.representanteLegal ?? 'No definido',
+          LOGO_EMPRESA: '',
+          FIRMA_REPRESENTANTE: '',
         }),
         tipo: plan.tipoDocumental,
       };
@@ -566,6 +562,39 @@ export class BatchDocumentGenerationService {
     return snapshot;
   }
 
+  private resolveContractCompanySnapshot(
+    value: Prisma.JsonValue,
+    contractId: string,
+  ): ContractCompanySnapshot {
+    const snapshot = asRecord(value);
+    const company = snapshot && asRecord(snapshot.empresa);
+    const razonSocial = company?.razonSocial ?? null;
+    const representanteLegal = company?.representanteLegal ?? null;
+
+    if (
+      !company ||
+      typeof company.nombre !== 'string' ||
+      typeof company.nit !== 'string' ||
+      (company.razonSocial !== null &&
+        company.razonSocial !== undefined &&
+        typeof company.razonSocial !== 'string') ||
+      (company.representanteLegal !== null &&
+        company.representanteLegal !== undefined &&
+        typeof company.representanteLegal !== 'string')
+    ) {
+      throw new BadRequestException(
+        `El contrato ${contractId} tiene un variablesSnapshot incompatible con la generación de documentos. Contacte soporte.`,
+      );
+    }
+
+    return {
+      nombre: company.nombre,
+      razonSocial: razonSocial as string | null,
+      nit: company.nit,
+      representanteLegal: representanteLegal as string | null,
+    };
+  }
+
   private buildPdfHtml(content: string): string {
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
@@ -603,4 +632,10 @@ img { max-width: 100%; height: auto; }
     };
     return labels[tipo] ?? tipo.replace(/_/g, ' ');
   }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }

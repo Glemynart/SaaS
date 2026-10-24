@@ -73,7 +73,10 @@ Este Goal solo puede redefinirse si cambia la estrategia del producto. Nuevas id
   porque las invitaciones y la recuperación requieren correo real;
 - E4.1 ya permite crear, resolver y confirmar campañas inteligentes desde la UI;
 - E4.2 ya procesa planes confirmados; E4.3, E4.4, E4.6 y E5.1 están fusionadas;
-- la generación basada en planes no completa todavía todos los casos de contrato, snapshots y expediente;
+- la ruta de campaña inteligente tiene un recorrido browser desde resolución y
+  confirmación hasta contrato, expediente y descarga; los valores legales de
+  empresa del PDF provienen del snapshot contractual, no de una lectura en vivo.
+  La validación en staging/producción sigue pendiente de M1;
 - la generación documental individual está disponible desde el detalle del contrato; la prueba browser incorporada en PR #125 recorre la generación, publicación en el expediente y descarga del PDF con nombre Unicode;
 - el expediente ya permite carga manual, clasificación, descarga e historial/versionado;
   la auditoría e integración consistente del expediente quedaron entregadas en E5.4.
