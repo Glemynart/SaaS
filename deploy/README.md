@@ -47,6 +47,15 @@ después de dos redirecciones. La inspección simultánea del alias confirma que
 `staging.dusema.com` sigue en `dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`, target `production`. El estado
 HTTP y `READY` no prueban integración funcional; no se verificó que el Preview use una API aislada.
 
+Revalidación del 2026-10-24 16:46 UTC: para el HEAD `3c6c25306775011d2a8afdabd06ca6f4482e86fe`
+de PR #124, Vercel reporta `dpl_CXe4T5adjgMbyjcv8Z3rEyKhHV4w`
+(`saa-s-78j7dpa9c-glemynarts-projects.vercel.app`) en estado `READY`, target `preview`, sin el
+alias `staging.dusema.com`. El alias continúa en `dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`, target
+`production`, estado `READY`. El listado de variables Preview del proyecto `saa-s-web` muestra
+`API_URL` y `NEXT_PUBLIC_API_URL` dirigidas a Preview y Production, pero no devuelve sus valores;
+por ello no confirma el hostname del backend ni su aislamiento. No reasignes el alias hasta verificar
+el destino de ambas variables por un canal autorizado que no publique sus valores.
+
 Antes de cambiar el alias:
 
 1. Selecciona una revisión estable aprobada para Preview e identifica su SHA,
