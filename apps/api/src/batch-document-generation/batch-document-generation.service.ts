@@ -10,7 +10,6 @@ import {
   LoteEstado,
   Prisma,
 } from '@prisma/client';
-import { formatNombreCompleto } from '@saas/types';
 import { PdfRenderService } from '../pdf-render/pdf-render.service';
 import { StorageService } from '../storage/storage.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
@@ -23,11 +22,25 @@ type PlanTemplateSnapshot = {
   contenido: string;
 };
 
-type ContractCompanySnapshot = {
-  nombre: string;
-  razonSocial: string | null;
-  nit: string;
-  representanteLegal: string | null;
+type ContractGenerationSnapshot = {
+  empleado: {
+    nombreCompleto: string;
+    tipoDocumento: string;
+    cedula: string;
+  };
+  contrato: {
+    cargo: string;
+    salario: string;
+    tipo: string;
+    fechaInicio: string;
+  };
+  empresa: {
+    nombre: string;
+    razonSocial: string | null;
+    nit: string;
+    representanteLegal: string | null;
+  };
+  sede: { nombre: string } | null;
 };
 
 type PreparedDocument = {
@@ -211,7 +224,7 @@ export class BatchDocumentGenerationService {
           loteId: plan.loteId,
           empleadoId: plan.empleadoId,
         },
-        select: { id: true, variablesSnapshot: true },
+        select: { id: true, estado: true, variablesSnapshot: true },
       });
       if (!contract) {
         throw new NotFoundException(
@@ -243,7 +256,12 @@ export class BatchDocumentGenerationService {
           contratoId: contract.id,
         };
       }
-      const companySnapshot = this.resolveContractCompanySnapshot(
+      if (contract.estado !== 'VIGENTE') {
+        throw new BadRequestException(
+          'Solo se puede generar el documento de un contrato VIGENTE.',
+        );
+      }
+      const contractSnapshot = this.resolveContractGenerationSnapshot(
         contract.variablesSnapshot,
         contract.id,
       );
@@ -259,7 +277,7 @@ export class BatchDocumentGenerationService {
             tenantId: context.tenantId,
             deletedAt: null,
           },
-          include: { sedeRef: { select: { nombre: true } } },
+          select: { id: true },
         }),
       ]);
       if (!template) throw new NotFoundException('Plantilla no encontrada');
@@ -275,16 +293,8 @@ export class BatchDocumentGenerationService {
         plan.plantillaId,
         plan.tipoDocumental,
       );
-      const contractPlanSnapshot = parseContractPlanSnapshot(
-        plan.empleadoSnapshot,
-        plan.contratoSnapshot,
-      );
-      const nombreCompleto = formatNombreCompleto({
-        primerNombre: contractPlanSnapshot.empleado.primerNombre,
-        segundoNombre: contractPlanSnapshot.empleado.segundoNombre,
-        primerApellido: contractPlanSnapshot.empleado.primerApellido,
-        segundoApellido: contractPlanSnapshot.empleado.segundoApellido,
-      });
+      parseContractPlanSnapshot(plan.empleadoSnapshot, plan.contratoSnapshot);
+      const nombreCompleto = contractSnapshot.empleado.nombreCompleto;
       const documentData = {
         tenantId: context.tenantId,
         employeeId: employee.id,
@@ -294,29 +304,31 @@ export class BatchDocumentGenerationService {
         nombre: `${snapshot.nombre ?? template.nombre} — ${nombreCompleto}`,
         contenidoFinal: this.replaceVariables(snapshot.contenido, {
           NOMBRE_COMPLETO: nombreCompleto,
-          DOCUMENTO: `${contractPlanSnapshot.empleado.tipoDocumento} ${contractPlanSnapshot.empleado.cedula}`,
-          CARGO: contractPlanSnapshot.contrato.cargo,
+          DOCUMENTO: `${contractSnapshot.empleado.tipoDocumento} ${contractSnapshot.empleado.cedula}`,
+          CARGO: contractSnapshot.contrato.cargo,
           SALARIO: new Intl.NumberFormat('es-CO', {
             style: 'currency',
             currency: 'COP',
             minimumFractionDigits: 0,
             maximumFractionDigits: 0,
-          }).format(Number(contractPlanSnapshot.contrato.salario)),
+          }).format(Number(contractSnapshot.contrato.salario)),
           TIPO_CONTRATO: this.formatTipoContrato(
-            contractPlanSnapshot.contrato.tipo,
+            contractSnapshot.contrato.tipo,
           ),
           FECHA_INGRESO: new Date(
-            contractPlanSnapshot.contrato.fechaInicio,
+            contractSnapshot.contrato.fechaInicio,
           ).toLocaleDateString('es-CO', {
             year: 'numeric',
             month: 'long',
             day: 'numeric',
           }),
-          SEDE: contractPlanSnapshot.contrato.sede?.nombre ?? '',
-          EMPRESA: companySnapshot.razonSocial ?? companySnapshot.nombre,
-          NIT: companySnapshot.nit,
+          SEDE: contractSnapshot.sede?.nombre ?? '',
+          EMPRESA:
+            contractSnapshot.empresa.razonSocial ??
+            contractSnapshot.empresa.nombre,
+          NIT: contractSnapshot.empresa.nit,
           REPRESENTANTE_LEGAL:
-            companySnapshot.representanteLegal ?? 'No definido',
+            contractSnapshot.empresa.representanteLegal ?? 'No definido',
           LOGO_EMPRESA: '',
           FIRMA_REPRESENTANTE: '',
         }),
@@ -562,16 +574,27 @@ export class BatchDocumentGenerationService {
     return snapshot;
   }
 
-  private resolveContractCompanySnapshot(
+  private resolveContractGenerationSnapshot(
     value: Prisma.JsonValue,
     contractId: string,
-  ): ContractCompanySnapshot {
+  ): ContractGenerationSnapshot {
     const snapshot = asRecord(value);
+    const employee = snapshot && asRecord(snapshot.empleado);
+    const contract = snapshot && asRecord(snapshot.contrato);
     const company = snapshot && asRecord(snapshot.empresa);
-    const razonSocial = company?.razonSocial ?? null;
-    const representanteLegal = company?.representanteLegal ?? null;
+    const metadata = snapshot && asRecord(snapshot.metadata);
+    const site = snapshot?.sede === null ? null : asRecord(snapshot?.sede);
 
     if (
+      !employee ||
+      typeof employee.nombreCompleto !== 'string' ||
+      typeof employee.tipoDocumento !== 'string' ||
+      typeof employee.cedula !== 'string' ||
+      !contract ||
+      typeof contract.cargo !== 'string' ||
+      typeof contract.salario !== 'string' ||
+      typeof contract.tipo !== 'string' ||
+      typeof contract.fechaInicio !== 'string' ||
       !company ||
       typeof company.nombre !== 'string' ||
       typeof company.nit !== 'string' ||
@@ -580,19 +603,17 @@ export class BatchDocumentGenerationService {
         typeof company.razonSocial !== 'string') ||
       (company.representanteLegal !== null &&
         company.representanteLegal !== undefined &&
-        typeof company.representanteLegal !== 'string')
+        typeof company.representanteLegal !== 'string') ||
+      !metadata ||
+      typeof metadata.version !== 'number' ||
+      (snapshot.sede !== null && (!site || typeof site.nombre !== 'string'))
     ) {
       throw new BadRequestException(
         `El contrato ${contractId} tiene un variablesSnapshot incompatible con la generación de documentos. Contacte soporte.`,
       );
     }
 
-    return {
-      nombre: company.nombre,
-      razonSocial: razonSocial as string | null,
-      nit: company.nit,
-      representanteLegal: representanteLegal as string | null,
-    };
+    return snapshot as unknown as ContractGenerationSnapshot;
   }
 
   private buildPdfHtml(content: string): string {

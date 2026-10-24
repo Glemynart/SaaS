@@ -174,6 +174,7 @@ describe('BatchDocumentGenerationService', () => {
     documentUpdateMany.mockResolvedValue({ count: 1 });
     contractFindFirst.mockResolvedValue({
       id: 'contrato-001',
+      estado: 'VIGENTE',
       variablesSnapshot: contractVariablesSnapshot,
     });
     templateFindFirst.mockResolvedValue({
@@ -304,6 +305,7 @@ describe('BatchDocumentGenerationService', () => {
   it('reutiliza un documento materializado sin renderizar ni almacenar de nuevo', async () => {
     contractFindFirst.mockResolvedValue({
       id: 'contrato-001',
+      estado: 'VENCIDO',
       variablesSnapshot: {},
     });
     planFindFirst.mockResolvedValue({
@@ -416,12 +418,30 @@ describe('BatchDocumentGenerationService', () => {
       },
     };
     planFindFirst.mockResolvedValue(historicalPlan);
+    contractFindFirst.mockResolvedValue({
+      id: 'contrato-001',
+      estado: 'VIGENTE',
+      variablesSnapshot: {
+        ...contractVariablesSnapshot,
+        empleado: {
+          ...contractVariablesSnapshot.empleado,
+          nombreCompleto: 'Nombre confirmado LÃ³pez',
+          cedula: '111222333',
+        },
+        contrato: {
+          ...contractVariablesSnapshot.contrato,
+          cargo: 'Cargo confirmado',
+          salario: '3200000',
+          fechaInicio: '2026-02-01T00:00:00.000Z',
+        },
+      },
+    });
 
     await service.start(LOTE);
 
     expect(contractFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        select: { id: true, variablesSnapshot: true },
+        select: { id: true, estado: true, variablesSnapshot: true },
       }),
     );
     expect(documentCreate).toHaveBeenCalledWith(
@@ -444,11 +464,21 @@ describe('BatchDocumentGenerationService', () => {
     expect(generatedContent).not.toContain('123456789');
   });
 
-  it('usa la identidad empresarial del snapshot contractual al generar el plan', async () => {
+  it('genera el documento desde el snapshot contractual y no desde datos actuales', async () => {
     contractFindFirst.mockResolvedValue({
       id: 'contrato-001',
+      estado: 'VIGENTE',
       variablesSnapshot: {
         ...contractVariablesSnapshot,
+        empleado: {
+          ...contractVariablesSnapshot.empleado,
+          nombreCompleto: 'Nombre contractual',
+          cedula: '111222333',
+        },
+        contrato: {
+          ...contractVariablesSnapshot.contrato,
+          cargo: 'Cargo contractual',
+        },
         empresa: {
           nombre: 'Empresa histórica',
           razonSocial: 'Razón social confirmada S.A.S.',
@@ -462,7 +492,7 @@ describe('BatchDocumentGenerationService', () => {
       plantillaSnapshot: {
         ...plan.plantillaSnapshot,
         contenido:
-          '{{EMPRESA}}|{{NIT}}|{{REPRESENTANTE_LEGAL}}|{{LOGO_EMPRESA}}|{{FIRMA_REPRESENTANTE}}',
+          '{{NOMBRE_COMPLETO}}|{{DOCUMENTO}}|{{CARGO}}|{{EMPRESA}}|{{NIT}}|{{REPRESENTANTE_LEGAL}}|{{LOGO_EMPRESA}}|{{FIRMA_REPRESENTANTE}}',
       },
     });
 
@@ -472,7 +502,7 @@ describe('BatchDocumentGenerationService', () => {
       objectContaining({
         data: objectContaining({
           contenidoFinal:
-            'Razón social confirmada S.A.S.|900000001|Representante confirmado||',
+            'Nombre contractual|CC 111222333|Cargo contractual|Razón social confirmada S.A.S.|900000001|Representante confirmado||',
         }),
       }),
     );
@@ -481,6 +511,7 @@ describe('BatchDocumentGenerationService', () => {
   it('rechaza un snapshot empresarial incompatible en vez de usar datos actuales', async () => {
     contractFindFirst.mockResolvedValue({
       id: 'contrato-001',
+      estado: 'VIGENTE',
       variablesSnapshot: { empresa: { nombre: 'Empresa sin NIT' } },
     });
 
@@ -489,6 +520,21 @@ describe('BatchDocumentGenerationService', () => {
     );
 
     expect(documentCreate).not.toHaveBeenCalled();
+  });
+
+  it('no genera un documento nuevo para un contrato que ya no está vigente', async () => {
+    contractFindFirst.mockResolvedValue({
+      id: 'contrato-001',
+      estado: 'VENCIDO',
+      variablesSnapshot: contractVariablesSnapshot,
+    });
+
+    await expect(service.start(LOTE)).rejects.toThrow(
+      'Solo se puede generar el documento de un contrato VIGENTE.',
+    );
+
+    expect(documentCreate).not.toHaveBeenCalled();
+    expect(renderPdf).not.toHaveBeenCalled();
   });
 
   it('marca el documento como FALLIDO si el render falla y conserva el plan', async () => {
