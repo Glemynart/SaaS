@@ -311,8 +311,9 @@ alias; la Preview puntual de una rama de PR no es una fuente estable y M1 sigue 
 La inspección de red y catálogo PostgreSQL del 2026-10-24 19:51 UTC confirma que la red Docker
 compartida conecta PostgreSQL, Redis, la API actual y Caddy, y que `PUBLIC` todavía tiene
 `CONNECT` sobre `oficina_nitida`. La API nueva podría alcanzar el servidor PostgreSQL; un rol
-staging nuevo heredaría ese permiso y el bootstrap lo rechaza. No se cambiaron ACLs; hace falta
-decisión del DBA/propietario antes de crear base o rol. Véase [`deploy/README.md`](deploy/README.md).
+staging nuevo heredaría ese permiso y el bootstrap lo rechaza. No se cambiaron ACLs; el propietario
+confirmó mantener bloqueada la creación de base/rol hasta revisión DBA y aprobación del mecanismo
+de aislamiento. Véase [`deploy/README.md`](deploy/README.md).
 
 E7.1 continúa abierta. La consulta SSH de solo lectura confirmó que el timer
 `dusema-postgres-backup.timer` disparó `dusema-postgres-backup.service` el 2026-10-24 07:00:04 UTC;

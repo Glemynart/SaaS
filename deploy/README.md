@@ -251,6 +251,9 @@ No se modificó ninguna ACL. Antes de crear la base o el rol de
 staging, el DBA debe aprobar y verificar una ACL por base que quite el acceso heredado de
 `PUBLIC` conservando los grants operativos explícitos, o el propietario debe elegir un cluster
 PostgreSQL separado.
+El propietario confirmó el 2026-10-24 que la creación permanece bloqueada hasta
+la revisión DBA. No crees una base o un rol ni modifiques ACL antes de que el DBA
+revise los grants operativos y apruebe el mecanismo de aislamiento.
 
 ## Archivos en el VPS
 

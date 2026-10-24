@@ -245,9 +245,9 @@ La revalidación SSH de solo lectura del 2026-10-24 19:51 UTC confirmó que la r
 `la-oficina-nitida_laoficina` conecta PostgreSQL, Redis, la API actual y Caddy; una API nueva que
 use el Compose preparado compartiría esa red. El catálogo de PostgreSQL mostró que `PUBLIC`
 conserva `CONNECT` sobre `oficina_nitida`, por lo que un nuevo rol runtime en el mismo cluster
-heredaría ese permiso y el bootstrap lo rechaza. No se modificaron ACLs; sigue pendiente la
-decisión del DBA entre una revocación cuidadosamente acotada y un cluster separado. El detalle
-está en [`deploy/README.md`](../../deploy/README.md).
+heredaría ese permiso y el bootstrap lo rechaza. No se modificaron ACLs. El propietario confirmó
+mantener bloqueada la creación de base/rol hasta revisión DBA, que deberá aprobar el mecanismo de
+aislamiento antes de cualquier escritura. El detalle está en [`deploy/README.md`](../../deploy/README.md).
 
 La revalidación Vercel posterior del 2026-10-24 confirma que `staging.dusema.com` aún apunta al
 deployment `Production` `dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`. El HEAD `054203bf117d89c55dce8cb8da39e9dd1f59e5ab`
