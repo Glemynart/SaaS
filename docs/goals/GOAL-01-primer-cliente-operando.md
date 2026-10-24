@@ -152,10 +152,13 @@ observado no es staging aislado ni reproducible. La inspección de solo lectura 
 `/readiness`, pero la API corre en la única VPS clasificada como producción, comparte
 la red Docker con PostgreSQL y usa `STORAGE_PROVIDER=local`. Inspecciones previas del
 mismo entorno identificaron `oficina_nitida` como base compartida. El alias
-`staging.dusema.com` apunta a un deployment Vercel `Production` en estado `READY`; la
-consulta disponible no expuso el SHA asociado al alias. El workflow API existente
-publica imágenes a GHCR, pero no despliega el stack de staging. Estos artefactos y
-respuestas HTTP no certifican el entorno. Este estado pertenece a M1; no convierte al
+`staging.dusema.com` apunta al deployment Vercel `Production` `READY` en
+`saa-s-r7pp8dsxi-glemynarts-projects.vercel.app`, asociado a la rama `main` y al SHA
+`98960492e6e40307f12f51593bca3ea54875f3de`, creado el 2026-09-02. El deployment del
+merge commit `14da89e6d3f8ab19b38b8696776651fc6da79466` figura `CANCELED`; el alias
+sigue sirviendo la revisión anterior. El workflow API existente publica imágenes a
+GHCR, pero no despliega el stack de staging. Estos artefactos y respuestas HTTP no
+certifican el entorno. Este estado pertenece a M1; no convierte al
 Goal en bloqueado. GOAL-01 permanece `ACTIVO`.
 
 - [ ] E1.1 — Staging reproducible, configuración y secretos.

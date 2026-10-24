@@ -200,7 +200,22 @@ Hitos recientes fusionados a `main`:
 - ✅ E4.5 — Reintentos selectivos, idempotencia y errores parciales — PR #97 fusionada y verificada por CI/Browser E2E; no dependía de staging, R2, DNS, correo ni una decisión nueva de dominio.
 - ✅ E4.7 — Prueba browser del caso exitoso, parcial y reintentado — PR #99 fusionada y verificada por CI/Browser E2E; no depende de M1.
 
-La inspección de solo lectura del 2026-10-24 confirmó que existe una API pública llamada staging: `/health` y `/readiness` respondieron HTTP 200. La API corre en la única VPS clasificada como producción, comparte red Docker con PostgreSQL y usa `STORAGE_PROVIDER=local`; inspecciones previas del mismo entorno identificaron `oficina_nitida` como base compartida. El alias Web `staging.dusema.com` resuelve a un deployment Vercel `Production` en estado `READY`; la consulta disponible no expuso el SHA del deployment asociado al alias. El workflow `.github/workflows/api-image.yml` publica la imagen API a GHCR al hacer push a `main`, pero no despliega el stack en la VPS. Por tanto, la existencia de URL, checks HTTP y artefactos no demuestra staging aislado ni reproducible. E1.1/E1.3 siguen pendientes por aislamiento, R2 privado, correo real y smoke autenticado sobre el entorno correcto; la separación de secretos tampoco está verificada. Esto bloquea M1, no GOAL-01: el Goal permanece ACTIVO. E2.1, E2.4, E4.2, E4.3, E4.4, E4.5, E4.6, E4.7, E5.1, E5.2, E5.3, E5.4, E6.1, E6.2 y E6.3 quedaron fusionadas por caminos independientes. El checklist operativo de M1 está en [`docs/goals/GOAL-01-M1-infrastructure-checklist.md`](docs/goals/GOAL-01-M1-infrastructure-checklist.md).
+La inspección de solo lectura del 2026-10-24 confirmó que existe una API pública llamada staging:
+`/health` y `/readiness` respondieron HTTP 200. La API corre en la única VPS clasificada como
+producción, comparte red Docker con PostgreSQL y usa `STORAGE_PROVIDER=local`; inspecciones previas
+del mismo entorno identificaron `oficina_nitida` como base compartida. El alias Web
+`staging.dusema.com` apunta a `saa-s-r7pp8dsxi-glemynarts-projects.vercel.app`, un deployment
+`Production` en estado `READY`. La lista de deployments asocia ese mismo URL con la rama `main`,
+SHA `98960492e6e40307f12f51593bca3ea54875f3de`, creado el 2026-09-02. El deployment del merge
+commit `14da89e6d3f8ab19b38b8696776651fc6da79466` figura `CANCELED`; por tanto, el alias sigue
+sirviendo el deployment anterior. El workflow `.github/workflows/api-image.yml` publica la imagen
+API a GHCR al hacer push a `main`, pero no despliega el stack en la VPS. La existencia de URL,
+checks HTTP y artefactos no demuestra staging aislado ni reproducible. E1.1/E1.3 siguen pendientes
+por aislamiento, R2 privado, correo real y smoke autenticado sobre el entorno correcto; la
+separación de secretos tampoco está verificada. Esto bloquea M1, no GOAL-01: el Goal permanece
+ACTIVO. E2.1, E2.4, E4.2, E4.3, E4.4, E4.5, E4.6, E4.7, E5.1, E5.2, E5.3, E5.4, E6.1, E6.2 y
+E6.3 quedaron fusionadas por caminos independientes. El checklist operativo de M1 está en
+[`docs/goals/GOAL-01-M1-infrastructure-checklist.md`](docs/goals/GOAL-01-M1-infrastructure-checklist.md).
 
 E4.2 quedó fusionada y verificada en `main` mediante PR #90. M3 está completado y
 M4 tiene E4.1, E4.2, E4.3, E4.4, E4.5, E4.6 y E4.7 entregadas; E4.7 cerró la evidencia browser separada con PR #99.
