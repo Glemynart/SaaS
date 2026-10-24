@@ -417,7 +417,7 @@ export class GeneratedDocumentsService {
 
     const {
       pdfUrl,
-      storageKey,
+      key: storageKey,
       size: pdfSizeBytes,
     } = await this.renderAndStorePdf(tenantId, id, html);
 
@@ -447,6 +447,7 @@ export class GeneratedDocumentsService {
         result.employeeId,
         result.nombre,
         result.tipo,
+        { key: storageKey, size: pdfSizeBytes },
         tx,
         result.contratoId,
       );

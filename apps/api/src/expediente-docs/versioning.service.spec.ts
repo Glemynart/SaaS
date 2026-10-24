@@ -156,4 +156,30 @@ describe('ExpedienteDocsService document history and download', () => {
       },
     });
   });
+
+  it('downloads a generated document using its canonical storage key', async () => {
+    const storageKey = 'pdfs/tenant-001-generated-document-001.pdf';
+    const pdfBytes = Buffer.from('PDF-BYTES');
+    documentFindFirst.mockResolvedValue({
+      id: 'doc-generated-001',
+      nombre: 'Documento generado',
+      mimeType: 'application/pdf',
+      storageKey,
+      familiaId: 'family-generated-001',
+      version: 1,
+      categoria: 'OTRO',
+      generatedDocumentId: 'generated-document-001',
+      contratoId: null,
+    });
+    getObject.mockResolvedValue(pdfBytes);
+
+    await expect(
+      service.download('tenant-001', 'user-001', 'doc-generated-001'),
+    ).resolves.toMatchObject({
+      nombre: 'Documento generado',
+      mimeType: 'application/pdf',
+      body: pdfBytes,
+    });
+    expect(getObject).toHaveBeenCalledWith(storageKey);
+  });
 });

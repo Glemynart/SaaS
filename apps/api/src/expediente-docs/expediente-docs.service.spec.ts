@@ -7,7 +7,7 @@ import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { ExpedienteDocsService } from './expediente-docs.service';
 
-describe('ExpedienteDocsService.publishGeneratedDocument', () => {
+describe('ExpedienteDocsService generated document indexing', () => {
   let service: ExpedienteDocsService;
 
   const mockGeneratedDocumentFindFirst = jest.fn();
@@ -176,6 +176,50 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
       generatedDocumentId,
     });
   });
+
+  it.each(['LETTER', 'MEMO'] as const)(
+    'persiste la metadata real del almacenamiento para %s',
+    async (tipo) => {
+      const storageMetadata = {
+        key: 'pdfs/tenant-001-generated-document-001.pdf',
+        size: 9876,
+      };
+      const tx = {
+        expedienteDocFamily: { create: mockExpedienteDocFamilyCreate },
+        expedienteDoc: { create: mockExpedienteDocCreate },
+      } as unknown as Prisma.TransactionClient;
+
+      await service.createFromGeneratedDoc(
+        tenantId,
+        generatedDocumentId,
+        'employee-001',
+        'Documento generado',
+        tipo,
+        storageMetadata,
+        tx,
+      );
+
+      expect(mockExpedienteDocFamilyCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          tenantId,
+          empleadoId: 'employee-001',
+          categoria: 'OTRO',
+          nombre: 'Documento generado',
+        }),
+      });
+      expect(mockExpedienteDocCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          tenantId,
+          empleadoId: 'employee-001',
+          generatedDocumentId,
+          categoria: 'OTRO',
+          storageKey: storageMetadata.key,
+          mimeType: 'application/pdf',
+          tamanoBytes: storageMetadata.size,
+        }),
+      });
+    },
+  );
 
   it('publica CERTIFICATION con categoría CERTIFICADO sin requerir contrato', async () => {
     mockGeneratedDocumentFindFirst.mockResolvedValue(
