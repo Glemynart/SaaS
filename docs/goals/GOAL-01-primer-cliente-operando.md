@@ -232,6 +232,14 @@ por Docker no se inspeccionó. Estos artefactos y respuestas HTTP no certifican 
 estado pertenece a M1; no convierte al
 Goal en bloqueado. GOAL-01 permanece `ACTIVO`.
 
+La revalidación SSH de solo lectura del 2026-10-24 19:51 UTC confirmó que la red externa
+`la-oficina-nitida_laoficina` conecta PostgreSQL, Redis, la API actual y Caddy; una API nueva que
+use el Compose preparado compartiría esa red. El catálogo de PostgreSQL mostró que `PUBLIC`
+conserva `CONNECT` sobre `oficina_nitida`, por lo que un nuevo rol runtime en el mismo cluster
+heredaría ese permiso y el bootstrap lo rechaza. No se modificaron ACLs; sigue pendiente la
+decisión del DBA entre una revocación cuidadosamente acotada y un cluster separado. El detalle
+está en [`deploy/README.md`](../../deploy/README.md).
+
 - [ ] E1.1 — Staging reproducible, configuración y secretos.
 - [x] E1.2 — Migraciones, seed y rol PostgreSQL runtime no privilegiado.
 - [ ] E1.3 — R2, correo real y health/readiness checks.

@@ -205,6 +205,17 @@ La API no publica el puerto `4000`. El servicio usa la red externa existente y
 el alias `dusema-staging-api`; Caddy debe apuntar a ese alias solo después de
 validar la API aislada. El Compose de staging no publica puertos del host.
 
+Revalidación SSH de solo lectura del 2026-10-24 19:51 UTC: la red externa
+`la-oficina-nitida_laoficina` existe y conecta `postgres`, `redis`, el contenedor API actual y
+Caddy. El Compose nuevo también conectaría la API de staging a esa red; separar el proyecto
+Compose no crea aislamiento de red y la API podría alcanzar el servicio PostgreSQL existente.
+Una consulta de solo lectura al catálogo de PostgreSQL confirmó que `oficina_nitida` conserva la
+ACL `{=Tc/oficina,oficina=CTc/oficina,saas_api_runtime=c/oficina}`: `PUBLIC` todavía tiene
+`CONNECT` y `TEMPORARY`. Por eso un rol runtime nuevo en el mismo cluster heredaría `CONNECT` y el
+bootstrap lo rechaza. No se modificó ninguna ACL. Antes de crear la base o el rol de staging, el
+DBA debe aprobar y verificar una ACL por base que quite ese acceso heredado conservando los grants
+operativos explícitos, o el propietario debe elegir un cluster PostgreSQL separado.
+
 ## Archivos en el VPS
 
 Una estructura sugerida, sin tocar los directorios de datos existentes, es:
