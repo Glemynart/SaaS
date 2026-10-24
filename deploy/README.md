@@ -489,31 +489,217 @@ docker compose \
 
 No guardes `DATABASE_URL_MIGRATION` en el `.env` permanente de la API.
 
-## Rollback
+## Actualización de API y rollback
 
-El rollback de aplicación consiste en cambiar `API_IMAGE` al tag SHA o digest
-anterior y recrear solamente `api`:
+El contenedor arranca con el comando del Dockerfile y no ejecuta migraciones ni seed al iniciar. El rollback de la imagen no revierte una migración Prisma: las migraciones deben ser compatibles con la versión anterior o la restauración de esquema requiere un procedimiento aprobado.
+
+### Precondiciones y registro del estado anterior
+
+Usa una referencia objetivo fijada al digest OCI esperado. La referencia anterior debe seguir disponible localmente y resolver al mismo ID de imagen que ejecuta el contenedor. Si cualquiera de estas comprobaciones falla, detén el despliegue: no cuentes una futura descarga como rollback garantizado.
+
+Ejecuta este bloque antes de editar el .env. No muestra el contenido del archivo:
 
 ```bash
-docker compose \
-  --project-name dusema-staging-isolated \
-  --env-file /home/ubuntu/la-oficina-nitida/staging-isolated/.env \
-  -f /home/ubuntu/la-oficina-nitida/staging-isolated/docker-compose.staging.yml \
-  up -d api
+set -euo pipefail
+DEPLOY_DIR=/home/ubuntu/la-oficina-nitida/staging-isolated
+ENV_FILE="$DEPLOY_DIR/.env"
+COMPOSE_FILE="$DEPLOY_DIR/docker-compose.staging.yml"
+API_IMAGE_TARGET='ghcr.io/OWNER/REPOSITORY/api@sha256:REPLACE_WITH_64_HEX_DIGEST'
+
+test -f "$ENV_FILE"
+test ! -L "$ENV_FILE"
+test "$(stat -c '%a' "$ENV_FILE")" = 600
+test "$(grep -c '^API_IMAGE=' "$ENV_FILE" || true)" = 1
+PREVIOUS_API_IMAGE="$(awk -F= '$1 == "API_IMAGE" { sub(/^[^=]*=/, ""); print }' "$ENV_FILE")"
+test -n "$PREVIOUS_API_IMAGE"
+
+compose=(docker compose --project-name dusema-staging-isolated --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
+CONTAINER_ID="$("${compose[@]}" ps -q api)"
+test -n "$CONTAINER_ID"
+RUNNING_REF="$(docker inspect --format '{{.Config.Image}}' "$CONTAINER_ID")"
+RUNNING_IMAGE_ID="$(docker inspect --format '{{.Image}}' "$CONTAINER_ID")"
+PREVIOUS_LOCAL_ID="$(docker image inspect --format '{{.Id}}' "$PREVIOUS_API_IMAGE")"
+PREVIOUS_REPO_DIGESTS="$(docker image inspect --format '{{json .RepoDigests}}' "$PREVIOUS_API_IMAGE")"
+test "$RUNNING_REF" = "$PREVIOUS_API_IMAGE"
+test "$RUNNING_IMAGE_ID" = "$PREVIOUS_LOCAL_ID"
+test -n "$PREVIOUS_REPO_DIGESTS"
+test "$PREVIOUS_REPO_DIGESTS" != "[]"
+test "$PREVIOUS_REPO_DIGESTS" != "null"
+[[ "$API_IMAGE_TARGET" =~ @sha256:[0-9a-f]{64}$ ]]
+docker manifest inspect "$API_IMAGE_TARGET" >/dev/null
+
+ROLLBACK_ENV="$DEPLOY_DIR/.env.rollback.$(date -u +%Y%m%dT%H%M%SZ)"
+test ! -e "$ROLLBACK_ENV"
+cp --archive -- "$ENV_FILE" "$ROLLBACK_ENV"
+chmod 600 "$ROLLBACK_ENV"
+cmp --silent "$ENV_FILE" "$ROLLBACK_ENV"
+printf 'Rollback file: %s\nPrevious API_IMAGE: %s\nPrevious local image ID: %s\nPrevious RepoDigests: %s\n' \
+  "$ROLLBACK_ENV" "$PREVIOUS_API_IMAGE" "$RUNNING_IMAGE_ID" "$PREVIOUS_REPO_DIGESTS"
 ```
 
-El rollback de imagen afecta solo al servicio `dusema-staging-isolated-api-1`.
-El Caddy existente, PostgreSQL, Redis y sus datos no se modifican durante este
-rollback. Si ya se hizo el cutover de Caddy y falla la API nueva, restaura el
-destino anterior `api:4000` en el bloque de `staging-api.dusema.com`, valida y
-recarga el Caddy existente. No restaures un Caddyfile completo anterior sin
-comprobar que sus otras rutas no hayan cambiado.
+Registra en el ticket operativo la ruta exacta del respaldo, la referencia anterior, el ID local y los RepoDigests; esos datos no son secretos. El respaldo contiene el .env completo, debe permanecer con modo 600 y no debe copiarse a logs ni Git. No borres el respaldo ni la imagen anterior hasta cerrar la ventana de rollback.
 
-Un rollback de la imagen no revierte migraciones Prisma. Las migraciones deben
-ser compatibles con la versión anterior; si una migración no lo permite, la
-recuperación del esquema requiere restaurar un backup mediante un procedimiento
-operativo aprobado. No uses `latest` ni elimines imágenes anteriores antes de
-validar el despliegue nuevo.
+### Cambio exclusivo de API_IMAGE y recreación
+
+El siguiente bloque copia el .env a un temporal del mismo directorio, cambia exactamente una línea conservando el resto de bytes y el formato de finales de línea, y reemplaza el archivo de forma atómica. La copia temporal hereda propietario, grupo y permisos mediante cp --archive; si falla cualquier comprobación, el .env original queda intacto.
+
+```bash
+set -euo pipefail
+DEPLOY_DIR=/home/ubuntu/la-oficina-nitida/staging-isolated
+ENV_FILE="$DEPLOY_DIR/.env"
+COMPOSE_FILE="$DEPLOY_DIR/docker-compose.staging.yml"
+API_IMAGE_TARGET='ghcr.io/OWNER/REPOSITORY/api@sha256:REPLACE_WITH_64_HEX_DIGEST'
+ROLLBACK_ENV='/home/ubuntu/la-oficina-nitida/staging-isolated/.env.rollback.REPLACE_WITH_RECORDED_UTC_TIMESTAMP'
+
+test -f "$ROLLBACK_ENV"
+test ! -L "$ROLLBACK_ENV"
+cmp --silent "$ROLLBACK_ENV" "$ENV_FILE"
+UPDATE_TMP="$(mktemp "$DEPLOY_DIR/.env.update.XXXXXX")"
+trap 'if [ -n "$UPDATE_TMP" ]; then rm -f -- "$UPDATE_TMP"; fi' EXIT
+cp --archive --remove-destination -- "$ENV_FILE" "$UPDATE_TMP"
+
+python3 - "$UPDATE_TMP" "$API_IMAGE_TARGET" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+image = sys.argv[2]
+digest = image.rsplit("@sha256:", 1)
+if not image.startswith("ghcr.io/") or len(digest) != 2 or len(digest[1]) != 64 or any(c not in "0123456789abcdef" for c in digest[1]):
+    raise SystemExit("API_IMAGE must be pinned to a GHCR manifest digest")
+
+lines = path.read_bytes().splitlines(keepends=True)
+matches = [i for i, line in enumerate(lines) if line.partition(b"=")[0] == b"API_IMAGE"]
+if len(matches) != 1:
+    raise SystemExit("Expected exactly one API_IMAGE assignment")
+
+index = matches[0]
+line = lines[index]
+ending = b""
+if line.endswith(bytes((13, 10))):
+    ending = bytes((13, 10))
+elif line.endswith(bytes((10,))):
+    ending = bytes((10,))
+elif line.endswith(bytes((13,))):
+    ending = bytes((13,))
+lines[index] = b"API_IMAGE=" + image.encode("ascii") + ending
+path.write_bytes(b"".join(lines))
+PY
+
+if cmp --silent "$ROLLBACK_ENV" "$UPDATE_TMP"; then
+  echo "API_IMAGE update produced no change; stopping." >&2
+  exit 1
+fi
+mv -f -- "$UPDATE_TMP" "$ENV_FILE"
+UPDATE_TMP=''
+trap - EXIT
+
+compose=(docker compose --project-name dusema-staging-isolated --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
+"${compose[@]}" config >/dev/null
+"${compose[@]}" pull api
+"${compose[@]}" up -d --no-deps --force-recreate api
+
+CONTAINER_ID="$("${compose[@]}" ps -q api)"
+test -n "$CONTAINER_ID"
+RUNNING_REF="$(docker inspect --format '{{.Config.Image}}' "$CONTAINER_ID")"
+RUNNING_IMAGE_ID="$(docker inspect --format '{{.Image}}' "$CONTAINER_ID")"
+TARGET_LOCAL_ID="$(docker image inspect --format '{{.Id}}' "$API_IMAGE_TARGET")"
+test "$RUNNING_REF" = "$API_IMAGE_TARGET"
+test "$RUNNING_IMAGE_ID" = "$TARGET_LOCAL_ID"
+test "$(docker inspect --format '{{.State.Health.Status}}' "$CONTAINER_ID")" = "healthy"
+echo "Container health: healthy"
+docker image inspect --format '{{json .RepoDigests}}' "$API_IMAGE_TARGET"
+"${compose[@]}" exec -T api node -e '
+Promise.all(["/health", "/readiness"].map(async path => {
+  const response = await fetch("http://127.0.0.1:4000" + path);
+  console.log(path + " " + response.status);
+  if (!response.ok) process.exitCode = 1;
+})).catch(() => {
+  console.error("Local API check failed");
+  process.exitCode = 1;
+});
+'
+```
+
+En la verificación se distinguen tres valores: la referencia .Config.Image debe ser el digest objetivo; el ID .Image del contenedor debe coincidir con el ID local de la imagen resuelta; los RepoDigests son la asociación local con los manifiestos del registry. El ID local no es el digest del manifiesto. Registra los tres sin mostrar configuración del contenedor. El check local de /health y /readiness no certifica correo real, R2 ni el flujo funcional completo. Después del cutover aprobado, comprueba también las URLs públicas.
+
+Después de que el operador haya cambiado y validado la ruta del Caddy existente, ejecuta desde una estación con acceso público para comprobar DNS, TLS y los estados HTTP sin imprimir los cuerpos de respuesta:
+
+```bash
+set -euo pipefail
+for endpoint in /health /readiness; do
+  status="$(curl --silent --show-error --output /dev/null \
+    --write-out '%{http_code}' --connect-timeout 5 --max-time 20 \
+    "https://staging-api.dusema.com${endpoint}")"
+  printf 'https://staging-api.dusema.com%s -> HTTP %s\n' "$endpoint" "$status"
+  test "$status" = 200
+done
+```
+
+La respuesta pública 200 confirma que ese hostname responde por HTTPS, no que el tráfico llegó a la imagen esperada ni que el flujo completo funciona. Confirma la imagen mediante el digest y el ID local del contenedor; valida R2, correo real y el smoke autenticado por separado. Repite esta comprobación después de un rollback si el Caddy ya apunta al servicio aislado.
+
+### Restauración independiente de la sesión SSH
+
+Si falla la actualización, la recreación, health/readiness o se pierde la sesión, vuelve a conectarte y ejecuta este bloque usando la ruta exacta del respaldo registrada antes del cambio. No depende de variables ni funciones de una sesión anterior. La imagen antigua debe seguir localmente disponible como se verificó en el preflight.
+
+```bash
+set -euo pipefail
+DEPLOY_DIR=/home/ubuntu/la-oficina-nitida/staging-isolated
+ENV_FILE="$DEPLOY_DIR/.env"
+COMPOSE_FILE="$DEPLOY_DIR/docker-compose.staging.yml"
+ROLLBACK_ENV='/home/ubuntu/la-oficina-nitida/staging-isolated/.env.rollback.REPLACE_WITH_RECORDED_UTC_TIMESTAMP'
+API_IMAGE_TARGET='ghcr.io/OWNER/REPOSITORY/api@sha256:REPLACE_WITH_64_HEX_DIGEST'
+EXPECTED_PREVIOUS_LOCAL_ID='REPLACE_WITH_RECORDED_PREVIOUS_LOCAL_IMAGE_ID'
+
+test -f "$ROLLBACK_ENV"
+test ! -L "$ROLLBACK_ENV"
+CURRENT_API_IMAGE="$(awk -F= '$1 == "API_IMAGE" { sub(/^[^=]*=/, ""); print }' "$ENV_FILE")"
+PREVIOUS_API_IMAGE="$(awk -F= '$1 == "API_IMAGE" { sub(/^[^=]*=/, ""); print }' "$ROLLBACK_ENV")"
+if [[ "$CURRENT_API_IMAGE" != "$PREVIOUS_API_IMAGE" && "$CURRENT_API_IMAGE" != "$API_IMAGE_TARGET" ]]; then
+  echo "API_IMAGE changed again; stop and reconcile manually." >&2
+  exit 1
+fi
+cmp --silent <(grep -v '^API_IMAGE=' "$ROLLBACK_ENV") <(grep -v '^API_IMAGE=' "$ENV_FILE")
+RESTORED_API_IMAGE="$(awk -F= '$1 == "API_IMAGE" { sub(/^[^=]*=/, ""); print }' "$ROLLBACK_ENV")"
+RESTORED_LOCAL_ID="$(docker image inspect --format '{{.Id}}' "$RESTORED_API_IMAGE")"
+test "$RESTORED_LOCAL_ID" = "$EXPECTED_PREVIOUS_LOCAL_ID"
+RESTORE_TMP="$(mktemp "$DEPLOY_DIR/.env.restore.XXXXXX")"
+trap 'if [ -n "$RESTORE_TMP" ]; then rm -f -- "$RESTORE_TMP"; fi' EXIT
+cp --archive --remove-destination -- "$ROLLBACK_ENV" "$RESTORE_TMP"
+cmp --silent "$ROLLBACK_ENV" "$RESTORE_TMP"
+mv -f -- "$RESTORE_TMP" "$ENV_FILE"
+RESTORE_TMP=''
+trap - EXIT
+
+compose=(docker compose --project-name dusema-staging-isolated --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
+"${compose[@]}" config >/dev/null
+"${compose[@]}" up -d --no-deps --force-recreate --pull never api
+
+CONTAINER_ID="$("${compose[@]}" ps -q api)"
+test -n "$CONTAINER_ID"
+RUNNING_REF="$(docker inspect --format '{{.Config.Image}}' "$CONTAINER_ID")"
+RUNNING_IMAGE_ID="$(docker inspect --format '{{.Image}}' "$CONTAINER_ID")"
+RESTORED_API_IMAGE="$(awk -F= '$1 == "API_IMAGE" { sub(/^[^=]*=/, ""); print }' "$ROLLBACK_ENV")"
+RESTORED_LOCAL_ID="$(docker image inspect --format '{{.Id}}' "$RESTORED_API_IMAGE")"
+test "$RUNNING_REF" = "$RESTORED_API_IMAGE"
+test "$RUNNING_IMAGE_ID" = "$RESTORED_LOCAL_ID"
+test "$(docker inspect --format '{{.State.Health.Status}}' "$CONTAINER_ID")" = "healthy"
+echo "Container health: healthy"
+"${compose[@]}" exec -T api node -e '
+Promise.all(["/health", "/readiness"].map(async path => {
+  const response = await fetch("http://127.0.0.1:4000" + path);
+  console.log(path + " " + response.status);
+  if (!response.ok) process.exitCode = 1;
+})).catch(() => {
+  console.error("Local API check failed");
+  process.exitCode = 1;
+});
+'
+```
+
+El reemplazo atómico deja el .env anterior intacto si se interrumpe antes de mv; si la sesión se pierde después de mv, el respaldo persistente permite repetir la restauración al reconectar. Si el archivo, la imagen local o la referencia no coinciden con el registro, detente y escala al operador responsable. No limpies temporales ni imágenes manualmente durante el incidente.
+
+El rollback de imagen no revierte migraciones Prisma. Antes de migrar, verifica que los cambios de esquema sean compatibles con la imagen anterior; de lo contrario, solo un procedimiento de restauración aprobado puede recuperar el esquema. Si también se cambió Caddy, su rollback sigue siendo separado: restaura únicamente el destino anterior registrado de staging y valida/recarga el Caddy existente; nunca recrees el servicio Caddy ni reemplaces otras rutas.
 
 ## ARM64 y PDF
 
