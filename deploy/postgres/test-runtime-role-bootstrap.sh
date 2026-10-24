@@ -132,7 +132,7 @@ if run_bootstrap_as_migration_role "$staging_database" >/dev/null 2>&1; then
   echo "Bootstrap unexpectedly accepted a runtime role that owns schema public." >&2
   exit 1
 fi
-psql_as_admin -d "$staging_database" -c 'ALTER SCHEMA public OWNER TO postgres' >/dev/null
+psql_as_admin -d "$staging_database" -c "ALTER SCHEMA public OWNER TO $migration_role" >/dev/null
 
 psql_as_admin -d "$staging_database" -c "GRANT CREATE ON SCHEMA public TO $runtime_role" >/dev/null
 run_bootstrap_as_migration_role "$staging_database" >/dev/null
