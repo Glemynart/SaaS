@@ -67,14 +67,12 @@ Este Goal solo puede redefinirse si cambia la estrategia del producto. Nuevas id
 - expediente para documentos publicados y alertas generadas automáticamente;
 - motores avanzados de nómina y contabilidad que no definen el alcance comercial activo.
 
-### Rupturas comprobadas
+### Límites y dependencias pendientes
 
 - E2.1 ya entrega la gestión directa de usuarios; E2.2 y E2.3 siguen pendientes
   porque las invitaciones y la recuperación requieren correo real;
 - E4.1 ya permite crear, resolver y confirmar campañas inteligentes desde la UI;
 - E4.2 ya procesa planes confirmados; E4.3, E4.4, E4.6 y E5.1 están fusionadas;
-- la generación basada en planes no completa todavía todos los casos de contrato, snapshots y expediente;
-- la generación documental del contrato individual no está expuesta desde su UI;
 - el expediente ya permite carga manual, clasificación, descarga e historial/versionado;
   la auditoría e integración consistente del expediente quedaron entregadas en E5.4.
 - E6.1 ya genera diariamente alertas de vencimientos y documentos faltantes; E6.2
@@ -82,9 +80,8 @@ Este Goal solo puede redefinirse si cambia la estrategia del producto. Nuevas id
   visibles fallos, reintentos y auditoría operativa;
 - existen smoke tests browser para recorridos funcionales, pero todavía no una
   única suite que pruebe el recorrido comercial completo en producción;
-- no existe deployment productivo reproducible ni evidencia de Go Live;
-- el formulario público de demo simula el envío sin persistir ni notificar el lead;
-- la base local auditada estaba doce migraciones detrás de `main`.
+- no se ha verificado un deployment aislado y reproducible de staging ni existe
+  evidencia de Go Live.
 
 ### Divergencias documentales
 
