@@ -62,6 +62,23 @@ if [[ "$privileges" != 'false|true' ]]; then
   exit 1
 fi
 
+psql_as_admin -d postgres -c "ALTER ROLE $runtime_role SUPERUSER CREATEDB CREATEROLE INHERIT REPLICATION BYPASSRLS" >/dev/null
+run_bootstrap "$staging_database" >/dev/null
+
+role_attributes="$(psql_as_admin -d postgres -Atqc "SELECT rolsuper::text || '|' || rolcreatedb::text || '|' || rolcreaterole::text || '|' || rolinherit::text || '|' || rolreplication::text || '|' || rolbypassrls::text FROM pg_roles WHERE rolname = '$runtime_role'")"
+if [[ "$role_attributes" != 'false|false|false|false|false|false' ]]; then
+  echo "Unexpected runtime role attributes after bootstrap: $role_attributes" >&2
+  exit 1
+fi
+
+psql_as_admin -d postgres -c 'CREATE ROLE dusema_ci_member_role NOLOGIN' >/dev/null
+psql_as_admin -d postgres -c "GRANT dusema_ci_member_role TO $runtime_role" >/dev/null
+
+if run_bootstrap "$staging_database" >/dev/null; then
+  echo "Bootstrap unexpectedly accepted a runtime role with role memberships." >&2
+  exit 1
+fi
+
 if run_bootstrap oficina_nitida >/dev/null; then
   echo "Bootstrap unexpectedly accepted the protected production database as its target." >&2
   exit 1

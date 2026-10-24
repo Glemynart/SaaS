@@ -35,7 +35,12 @@ SELECT format(
 ) \gexec
 
 SELECT format(
-  'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOBYPASSRLS',
+  'DO $guard$ DECLARE runtime_role_oid oid; BEGIN SELECT oid INTO runtime_role_oid FROM pg_roles WHERE rolname = %L; IF runtime_role_oid IS NOT NULL AND EXISTS (SELECT 1 FROM pg_roles AS candidate WHERE candidate.oid <> runtime_role_oid AND pg_has_role(runtime_role_oid, candidate.oid, ''MEMBER'')) THEN RAISE EXCEPTION ''runtime role must not have membership in other roles''; END IF; END $guard$;',
+  :'runtime_role'
+) \gexec
+
+SELECT format(
+  'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS',
   :'runtime_role',
   :'runtime_password'
 )
@@ -46,7 +51,7 @@ WHERE NOT EXISTS (
 -- Re-apply the security attributes on every run so an accidental privilege
 -- change cannot silently become the production runtime configuration.
 SELECT format(
-  'ALTER ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOBYPASSRLS',
+  'ALTER ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS',
   :'runtime_role',
   :'runtime_password'
 ) \gexec

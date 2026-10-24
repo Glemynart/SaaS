@@ -281,7 +281,9 @@ Por eso una base y un rol separados no garantizan por sí solos que el runtime n
 pueda conectarse a `oficina_nitida`. El bootstrap ahora se ejecuta en una
 transacción y falla si el destino es `oficina_nitida`, si se intenta reutilizar
 `saas_api_runtime` o si el rol de staging todavía tiene `CONNECT` a la base
-protegida.
+protegida. También rechaza un rol runtime preexistente que sea miembro directo o
+indirecto de otro rol: `NOINHERIT` por sí solo no retira la capacidad de `SET ROLE`
+que permite una membresía ([documentación oficial](https://www.postgresql.org/docs/17/role-membership.html)).
 
 El bootstrap comprueba esta condición dentro de la transacción antes de
 confirmar los cambios. Después de que termine correctamente y antes de migrar o
