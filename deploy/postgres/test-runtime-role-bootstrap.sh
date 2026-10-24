@@ -150,14 +150,25 @@ if run_bootstrap "$staging_database" >/dev/null; then
   exit 1
 fi
 
+protected_database_acl_before="$(psql_as_admin -d postgres -Atqc "SELECT COALESCE(datacl::text, '<default>') FROM pg_database WHERE datname = 'oficina_nitida'")"
 if run_bootstrap oficina_nitida >/dev/null; then
   echo "Bootstrap unexpectedly accepted the protected production database as its target." >&2
+  exit 1
+fi
+protected_database_acl_after="$(psql_as_admin -d postgres -Atqc "SELECT COALESCE(datacl::text, '<default>') FROM pg_database WHERE datname = 'oficina_nitida'")"
+if [[ "$protected_database_acl_after" != "$protected_database_acl_before" ]]; then
+  echo "Rejected bootstrap changed the protected database ACL." >&2
   exit 1
 fi
 
 protected_target_role="dusema_ci_protected_target"
 if run_bootstrap oficina_nitida "$protected_target_role" >/dev/null; then
   echo "Bootstrap unexpectedly accepted the protected production database for a new runtime role." >&2
+  exit 1
+fi
+protected_database_acl_after="$(psql_as_admin -d postgres -Atqc "SELECT COALESCE(datacl::text, '<default>') FROM pg_database WHERE datname = 'oficina_nitida'")"
+if [[ "$protected_database_acl_after" != "$protected_database_acl_before" ]]; then
+  echo "Rejected role bootstrap changed the protected database ACL." >&2
   exit 1
 fi
 protected_target_role_exists="$(psql_as_admin -d postgres -Atqc "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$protected_target_role')")"
