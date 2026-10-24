@@ -297,6 +297,17 @@ explícitamente a las identidades productivas autorizadas. No ejecutes esa
 revocación sin ese inventario y aprobación; si el cambio no es seguro, la
 separación requiere otro clúster PostgreSQL.
 
+La inspección de solo lectura del VPS compartido del 2026-10-24 encontró en
+`oficina_nitida` los grants `CONNECT,TEMPORARY` a `PUBLIC`, `CONNECT,TEMPORARY`
+a `oficina` y `CONNECT` explícito a `saas_api_runtime`. En ese momento solo
+existían esos dos roles con `LOGIN`: `oficina` (superusuario) y
+`saas_api_runtime` (login habilitado, sin superusuario, `BYPASSRLS` ni
+replicación). Ambos conservarían `CONNECT` si se revocara el grant de `PUBLIC`:
+`oficina` por ser superusuario y `saas_api_runtime` por su grant explícito.
+No se modificaron ACL. Repite este inventario inmediatamente antes de cualquier
+cambio y confirma con el DBA que ningún servicio depende de otro rol o de los
+privilegios heredados de `PUBLIC`; esta observación no autoriza la revocación.
+
 ```bash
 export GOAL01_RUNTIME_DB_ROLE=REPLACE_WITH_DEDICATED_STAGING_RUNTIME_ROLE
 export GOAL01_RUNTIME_DB_PASSWORD='<runtime-password>'
