@@ -62,6 +62,22 @@ if [[ "$privileges" != 'false|true' ]]; then
   exit 1
 fi
 
+psql_as_admin -d "$staging_database" -c "ALTER SCHEMA public OWNER TO $runtime_role" >/dev/null
+if run_bootstrap "$staging_database" >/dev/null 2>&1; then
+  echo "Bootstrap unexpectedly accepted a runtime role that owns schema public." >&2
+  exit 1
+fi
+psql_as_admin -d "$staging_database" -c 'ALTER SCHEMA public OWNER TO postgres' >/dev/null
+
+psql_as_admin -d "$staging_database" -c "GRANT CREATE ON SCHEMA public TO $runtime_role" >/dev/null
+run_bootstrap "$staging_database" >/dev/null
+
+schema_privileges="$(psql_as_admin -d "$staging_database" -Atqc "SELECT has_schema_privilege('$runtime_role', 'public', 'CREATE')::text")"
+if [[ "$schema_privileges" != 'false' ]]; then
+  echo "Bootstrap left CREATE on schema public for the runtime role: $schema_privileges" >&2
+  exit 1
+fi
+
 psql_as_admin -d postgres -c "ALTER ROLE $runtime_role SUPERUSER CREATEDB CREATEROLE INHERIT REPLICATION BYPASSRLS" >/dev/null
 run_bootstrap "$staging_database" >/dev/null
 

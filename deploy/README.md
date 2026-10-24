@@ -290,6 +290,8 @@ transacción y falla si el destino es `oficina_nitida`, si se intenta reutilizar
 protegida. También rechaza un rol runtime preexistente que sea miembro directo o
 indirecto de otro rol: `NOINHERIT` por sí solo no retira la capacidad de `SET ROLE`
 que permite una membresía ([documentación oficial](https://www.postgresql.org/docs/17/role-membership.html)).
+También falla si el runtime ya es propietario del esquema `public` o de sus
+relaciones, y revoca `CREATE` directo de `PUBLIC` y del rol runtime.
 
 El bootstrap comprueba esta condición dentro de la transacción antes de
 confirmar los cambios. Después de que termine correctamente y antes de migrar o

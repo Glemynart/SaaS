@@ -59,6 +59,11 @@ SELECT format(
 ) \gexec
 
 SELECT format(
+  'DO $guard$ DECLARE runtime_role_oid oid; BEGIN SELECT oid INTO runtime_role_oid FROM pg_roles WHERE rolname = %L; IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = ''public'' AND nspowner = runtime_role_oid) OR EXISTS (SELECT 1 FROM pg_class AS relation JOIN pg_namespace AS schema ON schema.oid = relation.relnamespace WHERE schema.nspname = ''public'' AND relation.relowner = runtime_role_oid) THEN RAISE EXCEPTION ''runtime role must not own the public schema or its relations''; END IF; END $guard$;',
+  :'runtime_role'
+) \gexec
+
+SELECT format(
   'GRANT CONNECT ON DATABASE %I TO %I',
   current_database(),
   :'runtime_role'
@@ -71,6 +76,7 @@ SELECT format(
 ) \gexec
 
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+REVOKE CREATE ON SCHEMA public FROM :"runtime_role";
 GRANT USAGE ON SCHEMA public TO :"runtime_role";
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO :"runtime_role";
 GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO :"runtime_role";
