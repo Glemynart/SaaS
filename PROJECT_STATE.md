@@ -299,6 +299,14 @@ desde el VPS; no está desplegada. `staging.dusema.com` sigue asociado a un depl
 `Production`, y el Preview del HEAD actual de PR #124 está `READY` pero redirige a SSO. El detalle
 de esta revalidación está en [`deploy/README.md`](deploy/README.md#frontend-de-staging-en-vercel).
 
+E7.1 continúa abierta. La consulta SSH de solo lectura confirmó que el timer
+`dusema-postgres-backup.timer` disparó `dusema-postgres-backup.service` el 2026-10-24 07:00:04 UTC;
+el servicio terminó con `Result=success`, y el journal registró la aceptación de OCI y la
+verificación del checksum del objeto cifrado de esa ejecución. No se pudo comprobar su acceso
+actual porque no hay cliente OCI disponible; sigue sin evidencia independiente de restauración.
+La ruta de uploads estaba en `/dev/sda1` bajo `/` y medía 0 bytes en la inspección, pero su
+cobertura y recuperación no están probadas.
+
 E4.2 quedó fusionada y verificada en `main` mediante PR #90. M3 está completado y
 M4 tiene E4.1, E4.2, E4.3, E4.4, E4.5, E4.6 y E4.7 entregadas; E4.7 cerró la evidencia browser separada con PR #99.
 E5.1 quedó fusionada en PR #95. El procesamiento usa planes ya confirmados

@@ -384,6 +384,18 @@ necesidad comercial verificable de adquisición desde la landing.
 - [ ] E7.4 — Onboarding y aceptación del cliente piloto con datos representativos.
 - [ ] E7.5 — Primer tenant productivo listo para operación comercial sostenida.
 
+La consulta SSH de solo lectura del 2026-10-24 confirmó que el timer
+`dusema-postgres-backup.timer` sigue activo y disparó el servicio el 2026-10-24
+07:00:04 UTC. El servicio terminó con `Result=success` y estado de salida 0; el
+journal registra el objeto cifrado `postgres/dusema-oficina_nitida-20261024T020004-0500-yGA63y.dump.gpg`,
+su SHA-256 `844e36ff4d8a1979a4fbd507214d069e82a610fa36bd449b41f9668c7627f067`, aceptación de OCI
+y verificación de checksum por el script. El objeto no se descargó y su acceso actual no se
+verificó: el cliente OCI no está instalado en la VPS ni en el equipo de revisión. No se halló
+evidencia independiente revisable de la restauración manual reportada. La ruta de uploads se
+midió en 0 bytes en esa observación y está en `/dev/sda1` bajo `/`; esto no prueba cobertura ni
+recuperación desde las copias OCI del volumen. E7.1 permanece abierta hasta verificar objeto,
+restauración aislada y protección recuperable de uploads.
+
 ## Criterios de aceptación del Goal
 
 - [ ] existe un primer cliente identificado y autorizado para el piloto;
