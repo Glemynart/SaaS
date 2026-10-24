@@ -477,7 +477,8 @@ const prisma = new PrismaClient();
     run --rm --no-deps \
     -e DATABASE_URL \
     --entrypoint node api \
-    apps/api/node_modules/prisma/build/index.js migrate deploy
+    apps/api/node_modules/prisma/build/index.js migrate deploy \
+    --schema apps/api/prisma/schema.prisma
 )
 ```
 
