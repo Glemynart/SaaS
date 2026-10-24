@@ -204,35 +204,49 @@ La inspección de solo lectura del 2026-10-24 confirmó que existe una API públ
 `/health` y `/readiness` respondieron HTTP 200. La API corre en la única VPS clasificada como
 producción, comparte red Docker con PostgreSQL y usa `STORAGE_PROVIDER=local`; inspecciones previas
 del mismo entorno identificaron `oficina_nitida` como base compartida. Una consulta posterior a la
-fusión de PR #123 confirmó que Vercel deployment `dpl_xYJbtaq17GGjRqtSkGUQe1fib8Kz`
-(`saa-s-alde58gmf-glemynarts-projects.vercel.app`) está `READY`, tiene target `Production` y su
-lista de aliases incluye `staging.dusema.com`. El registro de deployment de GitHub `7296998166`
-vincula el SHA `0aa157e4f3593795d43568eabfbd3d80f778aea8` con ese mismo URL, entorno `Production`
+fusión de PR #123 reportó que Vercel deployment `dpl_xYJbtaq17GGjRqtSkGUQe1fib8Kz`
+(`saa-s-alde58gmf-glemynarts-projects.vercel.app`) estaba `READY`, tenía target `Production` y su
+lista de aliases incluía `staging.dusema.com`. El registro de deployment de GitHub `7296998166`
+vinculó el SHA `0aa157e4f3593795d43568eabfbd3d80f778aea8` con ese URL, entorno `Production`
 y resultado `success` (2026-10-24 09:50 UTC). Esto sustituye la observación anterior: el deployment
 `saa-s-r7pp8dsxi-glemynarts-projects.vercel.app` asociado a `98960492e6e40307f12f51593bca3ea54875f3de`
 era el alias observado antes de la fusión; el deployment `14da89e6d3f8ab19b38b8696776651fc6da79466`
-estaba entonces `CANCELED`. El target actual de Vercel sigue clasificado `Production`, no como un
-Preview aislado. El propietario confirmó el 2026-10-24 que `staging.dusema.com` debe apuntar a un
-deployment Vercel `Preview` y autorizó preparar la reasignación, no ejecutarla. La inspección actual
-sigue confirmando el alias hacia `dpl_xYJbtaq17GGjRqtSkGUQe1fib8Kz`
-(`saa-s-alde58gmf-glemynarts-projects.vercel.app`), con target `Production`. La Preview
+estaba entonces `CANCELED`. La inspección más reciente, después de fusionar PR #125, confirma que
+el deployment actual es `dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`
+(`saa-s-nn9yf611j-glemynarts-projects.vercel.app`), estado `READY`, target `Production`, y que sus
+aliases incluyen `staging.dusema.com`. El deployment de GitHub `7299455677`, creado el
+2026-10-24 13:47:37 UTC, vincula el merge SHA `53a6fb3eb5d6307fc255ddc8661e20ca2c7a6980` al
+entorno `Production`. La relación de ese deployment con el push del merge está respaldada por el SHA
+y la secuencia temporal; no se ejecutó un comando manual de despliegue Vercel. El propietario
+confirmó el 2026-10-24 que `staging.dusema.com` debe apuntar a un deployment Vercel `Preview` y
+autorizó preparar, pero no ejecutar, la reasignación. El Preview del HEAD actual de PR #124, commit
+`c66e0f74adb2e51c3ac818db5ef4a7a6e9ffe95b`, está `READY` en
+`dpl_4mBn7eirb5fLTeFyisLS6WNrDAvJ` (`saa-s-oudqxrvw0-glemynarts-projects.vercel.app`), target
+`preview`, sin el alias `staging.dusema.com`; es un candidato de revisión, no una fuente estable.
+La Preview
 `dpl_FKhfAdH2qkd4PTsV84HaLpxz3F7R` (`saa-s-9dl7o9t6q-glemynarts-projects.vercel.app`) se observó
 `READY` para el commit `2bc9c8258ac69ba5f04114280e74aac8a727b511` de la rama de PR #124. El deployment
-La Preview correspondiente al commit `966bded40b0ba5ae6384cd922f2f109d51705053` de PR #124 se sirvió
+Preview correspondiente al commit `966bded40b0ba5ae6384cd922f2f109d51705053` de PR #124 se sirvió
 desde `https://saa-s-q0bukaijo-glemynarts-projects.vercel.app`; GitHub registró el deployment
 `7298681383` como `success` el 2026-10-24 12:36 UTC. Es un deployment de PR, no una fuente estable
 de staging.
 La consulta de solo lectura no encontró una rama GitHub
-`staging`. La lista del entorno Vercel Preview contiene `API_URL`, `NEXT_PUBLIC_API_URL` y
-`NEXT_PUBLIC_SITE_URL`, pero no se leyeron sus valores, por lo que no está verificado que el frontend
-use una API aislada. Como la API actual comparte `oficina_nitida`, la reasignación debe esperar a que
-se verifiquen una API/base aisladas y la URL efectiva de Preview. PR #123 no modificó archivos de
+`staging`. La lista del entorno Vercel Preview incluye `API_URL`, `NEXT_PUBLIC_API_URL` y
+`NEXT_PUBLIC_SITE_URL`, pero sus valores no se leyeron. La URL `/configuracion/identidad` redirigió a
+`/login` sin sesión; por tanto no se obtuvo evidencia autenticada del host API efectivo. Como la API
+actual comparte `oficina_nitida`, la reasignación debe esperar a verificar una API/base aisladas y la
+URL efectiva de Preview. PR #123 y PR #125 no modificaron archivos de
 `apps/web`. El workflow `.github/workflows/api-image.yml` publica la imagen
 API a GHCR al hacer push a `main`, pero no despliega el stack en la VPS. El run `40083400008` de
 `Publish API image`, para el SHA `0aa157e4f3593795d43568eabfbd3d80f778aea8`, terminó correctamente;
 su log de build/push reportó el tag
 `ghcr.io/glemynart/saas/api:sha-0aa157e4f3593795d43568eabfbd3d80f778aea8` con digest
-`sha256:91d984da4559f95bc109e731b09caa06efb87da672b5ce62f2c8202f7cb941ee`. La inspección SSH de
+`sha256:91d984da4559f95bc109e731b09caa06efb87da672b5ce62f2c8202f7cb941ee`. El run
+`40099584454` de `Publish API image`, para el merge SHA
+`53a6fb3eb5d6307fc255ddc8661e20ca2c7a6980`, también terminó correctamente. El log del push reportó
+el manifiesto del tag
+`ghcr.io/glemynart/saas/api:sha-53a6fb3eb5d6307fc255ddc8661e20ca2c7a6980` con digest
+`sha256:fcdca7a8496be040db458eb8e9905bb66bdd8ebea5d831d43f0f8a6546ae4651`. La inspección SSH de
 solo lectura del 2026-10-24 confirmó que el Compose activo está en
 `/home/ubuntu/la-oficina-nitida/staging/docker-compose.yml` y que
 `la-oficina-nitida-staging-api-1` está `healthy`. Docker reportó como referencia y RepoDigest
@@ -621,11 +635,13 @@ Convención oficial de `storageKey`:
 {tenantId}/expediente/{empleadoId}/{categoria}/{id}_v{version}.{ext}
 ```
 
-Para documentos generados desde el motor documental:
+Esta convención aplica a archivos subidos manualmente. Para PDFs generados,
+`GeneratedDocument.pdfStorageKey` es la clave canónica
+`pdfs/{tenantId}-{generatedDocumentId}.pdf`; `ExpedienteDoc.storageKey` debe
+referenciar exactamente el mismo objeto.
 
-```
-{tenantId}/expediente/{empleadoId}/{categoria}/gen_{generatedDocId}_v1.pdf
-```
+El PR #123 también propaga a `ExpedienteDoc.tamanoBytes` el tamaño devuelto por
+el proveedor de almacenamiento junto con esa clave.
 
 ---
 
@@ -1669,9 +1685,12 @@ No desarrollar nuevas funcionalidades sobre `EmployeeFile`.
 
 El volumen de datos no justificó flags de activación. La reversibilidad se garantizó a nivel de código en cada fase.
 
-### `tamanoBytes = 0` para PDFs generados
+### Metadata de PDFs generados
 
-El tamaño real requiere leer el archivo desde el filesystem o R2. Diferido cuando haya almacenamiento real en producción.
+Al generar un PDF nuevo, `GeneratedDocument` y `ExpedienteDoc` persisten la
+misma clave canónica y el tamaño devueltos por el proveedor de almacenamiento;
+no se guarda `tamanoBytes = 0`. La ruta que materializa un PDF cuyo objeto ya
+existe puede medirlo mediante una lectura del objeto.
 
 ---
 

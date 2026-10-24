@@ -11,6 +11,7 @@ import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { StorageService } from '../storage/storage.service';
 import { StorageObjectNotFoundError } from '../storage/storage.types';
+import type { StorageObjectMetadata } from '../storage/storage.types';
 import type { PdfMaterializationResult } from '../generated-documents/generated-documents.service';
 import { validateManualDocument } from './manual-document-validation';
 import { randomUUID } from 'node:crypto';
@@ -348,12 +349,12 @@ export class ExpedienteDocsService {
     employeeId: string,
     nombre: string,
     tipo: string,
+    storageMetadata: Pick<StorageObjectMetadata, 'key' | 'size'>,
     tx: Prisma.TransactionClient = this.prisma,
     contratoId?: string | null,
   ) {
     const categoria = TIPO_TO_CATEGORIA[tipo] ?? ExpedienteCategoria.OTRO;
     const familiaId = randomUUID();
-    const storageKey = `${tenantId}/expediente/${employeeId}/${categoria}/gen_${generatedDocId}_v1.pdf`;
 
     await tx.expedienteDocFamily.create({
       data: {
@@ -376,9 +377,9 @@ export class ExpedienteDocsService {
         nombre,
         version: 1,
         vigente: true,
-        storageKey,
+        storageKey: storageMetadata.key,
         mimeType: 'application/pdf',
-        tamanoBytes: 0,
+        tamanoBytes: storageMetadata.size,
         subidoPorNombre: 'sistema',
       },
     });

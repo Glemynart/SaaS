@@ -73,6 +73,8 @@ Este Goal solo puede redefinirse si cambia la estrategia del producto. Nuevas id
   porque las invitaciones y la recuperación requieren correo real;
 - E4.1 ya permite crear, resolver y confirmar campañas inteligentes desde la UI;
 - E4.2 ya procesa planes confirmados; E4.3, E4.4, E4.6 y E5.1 están fusionadas;
+- la generación basada en planes no completa todavía todos los casos de contrato, snapshots y expediente;
+- la generación documental individual está disponible desde el detalle del contrato; la prueba browser incorporada en PR #125 recorre la generación, publicación en el expediente y descarga del PDF con nombre Unicode;
 - el expediente ya permite carga manual, clasificación, descarga e historial/versionado;
   la auditoría e integración consistente del expediente quedaron entregadas en E5.4.
 - E6.1 ya genera diariamente alertas de vencimientos y documentos faltantes; E6.2
@@ -152,23 +154,33 @@ observado no es staging aislado ni reproducible. La inspección de solo lectura 
 `/readiness`, pero la API corre en la única VPS clasificada como producción, comparte
 la red Docker con PostgreSQL y usa `STORAGE_PROVIDER=local`. Inspecciones previas del
 mismo entorno identificaron `oficina_nitida` como base compartida. Una consulta posterior a la
-fusión de PR #123 confirmó que el deployment Vercel
-`dpl_xYJbtaq17GGjRqtSkGUQe1fib8Kz` (`saa-s-alde58gmf-glemynarts-projects.vercel.app`) está
-`READY`, tiene target `Production` y su lista de aliases incluye `staging.dusema.com`. El registro
-de deployment de GitHub `7296998166` vincula el SHA
-`0aa157e4f3593795d43568eabfbd3d80f778aea8` con ese URL, entorno `Production` y resultado
-`success` (2026-10-24 09:50 UTC). Esto sustituye la observación anterior: el deployment
-`saa-s-r7pp8dsxi-glemynarts-projects.vercel.app`, asociado a
-`98960492e6e40307f12f51593bca3ea54875f3de`, era el alias observado antes de la fusión; el
-deployment `14da89e6d3f8ab19b38b8696776651fc6da79466` estaba entonces `CANCELED`. El target actual
-de Vercel sigue clasificado `Production`, no como un Preview aislado. El propietario confirmó
-que `staging.dusema.com` debe apuntar a un deployment `Preview` y autorizó preparar, pero no
-ejecutar, la reasignación. PR #123 no modificó archivos de `apps/web`. El
+fusión de PR #123 reportó que el deployment Vercel
+`dpl_xYJbtaq17GGjRqtSkGUQe1fib8Kz` (`saa-s-alde58gmf-glemynarts-projects.vercel.app`) tenía
+target `Production` y el alias `staging.dusema.com`. La inspección más reciente, después de la
+fusión de PR #125, confirma que el deployment actual es
+`dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`
+(`saa-s-nn9yf611j-glemynarts-projects.vercel.app`), estado `READY`, target `Production`, y que
+sus aliases incluyen `staging.dusema.com`. El deployment de GitHub `7299455677`, creado el
+2026-10-24 13:47:37 UTC, vincula el SHA de merge
+`53a6fb3eb5d6307fc255ddc8661e20ca2c7a6980` al entorno `Production`. Esta evidencia vincula el
+deployment al merge de PR #125; no se ejecutó un comando manual de despliegue de Vercel. El
+propietario confirmó que `staging.dusema.com` debe apuntar a un deployment `Preview` y autorizó
+preparar, pero no ejecutar, la reasignación. PR #123 no modificó archivos de `apps/web`. El
+deployment Preview del HEAD actual de PR #124 (`c66e0f74adb2e51c3ac818db5ef4a7a6e9ffe95b`) está
+`READY` en `dpl_4mBn7eirb5fLTeFyisLS6WNrDAvJ`
+(`saa-s-oudqxrvw0-glemynarts-projects.vercel.app`), target `preview`, pero no tiene el alias y no
+se verificó que use una API aislada. La lista de Preview incluye `API_URL` y `NEXT_PUBLIC_API_URL`,
+pero sus valores no se leyeron. PR #125 tampoco modificó archivos de `apps/web`. El
 workflow API existente publica imágenes a GHCR, pero no despliega el stack de staging. El run
 `40083400008` de `Publish API image`, para el SHA `0aa157e4f3593795d43568eabfbd3d80f778aea8`,
 terminó correctamente; su log de build/push reportó el tag
 `ghcr.io/glemynart/saas/api:sha-0aa157e4f3593795d43568eabfbd3d80f778aea8` con digest
-`sha256:91d984da4559f95bc109e731b09caa06efb87da672b5ce62f2c8202f7cb941ee`. La inspección SSH de
+`sha256:91d984da4559f95bc109e731b09caa06efb87da672b5ce62f2c8202f7cb941ee`. El run
+`40099584454` de `Publish API image`, para el merge SHA
+`53a6fb3eb5d6307fc255ddc8661e20ca2c7a6980`, terminó correctamente; el log del push reportó el
+manifiesto del tag
+`ghcr.io/glemynart/saas/api:sha-53a6fb3eb5d6307fc255ddc8661e20ca2c7a6980` con digest
+`sha256:fcdca7a8496be040db458eb8e9905bb66bdd8ebea5d831d43f0f8a6546ae4651`. La inspección SSH de
 solo lectura del 2026-10-24 confirmó que el Compose activo está en
 `/home/ubuntu/la-oficina-nitida/staging/docker-compose.yml`; el contenedor
 `la-oficina-nitida-staging-api-1` está `healthy` y usa el RepoDigest

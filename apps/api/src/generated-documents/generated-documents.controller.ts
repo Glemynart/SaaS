@@ -21,6 +21,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
+import { buildContentDispositionHeader } from '../common/content-disposition';
 
 @UseGuards(JwtAuthGuard, ActiveTenantGuard, RolesGuard)
 @Controller('generated-documents')
@@ -102,12 +103,8 @@ export class GeneratedDocumentsController {
     res.setHeader('Cache-Control', 'private, no-store');
     res.setHeader(
       'Content-Disposition',
-      `${disposition}; filename="${this.toSafeFilename(doc.nombre)}.pdf"`,
+      buildContentDispositionHeader(disposition, `${doc.nombre}.pdf`),
     );
     res.send(doc.body);
-  }
-
-  private toSafeFilename(nombre: string): string {
-    return nombre.replace(/[\\r\\n"]/g, '_');
   }
 }
