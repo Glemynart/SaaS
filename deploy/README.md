@@ -291,7 +291,10 @@ protegida. También rechaza un rol runtime preexistente que sea miembro directo 
 indirecto de otro rol: `NOINHERIT` por sí solo no retira la capacidad de `SET ROLE`
 que permite una membresía ([documentación oficial](https://www.postgresql.org/docs/17/role-membership.html)).
 También falla si el runtime ya es propietario del esquema `public` o de sus
-relaciones, y revoca `CREATE` directo de `PUBLIC` y del rol runtime.
+relaciones, y revoca `CREATE` directo de `PUBLIC` y del rol runtime. También
+revoca `CREATE` del rol sobre la base staging y falla si el permiso efectivo
+persiste; ese privilegio permitiría crear esquemas e instalar extensiones
+confiables ([documentación oficial de privilegios](https://www.postgresql.org/docs/17/ddl-priv.html)).
 
 El bootstrap comprueba esta condición dentro de la transacción antes de
 confirmar los cambios. Después de que termine correctamente y antes de migrar o
@@ -335,9 +338,13 @@ docker exec -i \
 ```
 
 Usa una identidad de migración aprobada para staging y con permisos distintos
-del rol runtime. Debe ejecutarse con el mismo propietario que se usará para las
-migraciones, según el contrato del script de bootstrap. No uses las identidades
-del entorno clasificado como producción.
+del rol runtime. La identidad de bootstrap/migración debe poder crear o alterar
+roles, ser propietaria de la base staging y de los objetos que migrará, y revocar
+los permisos de base y esquema que el script normaliza. Prisma debe migrar como
+esa misma identidad para que los privilegios por defecto coincidan con el
+propietario de los objetos. Si esas condiciones no se cumplen, detén el
+procedimiento y pide al DBA una identidad aprobada; no ejecutes el SQL como el
+rol runtime. No uses las identidades del entorno clasificado como producción.
 
 Después, obtiene `DATABASE_URL_MIGRATION` de la fuente aprobada de secretos; no
 escribas su valor literal en un comando ni lo guardes en el `.env` permanente.

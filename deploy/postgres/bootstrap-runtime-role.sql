@@ -75,6 +75,17 @@ SELECT format(
   'oficina_nitida'
 ) \gexec
 
+SELECT format(
+  'REVOKE CREATE ON DATABASE %I FROM %I',
+  current_database(),
+  :'runtime_role'
+) \gexec
+
+SELECT format(
+  'DO $guard$ BEGIN IF has_database_privilege(%L, current_database(), ''CREATE'') THEN RAISE EXCEPTION ''staging runtime role must not have CREATE on its database''; END IF; END $guard$;',
+  :'runtime_role'
+) \gexec
+
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 REVOKE CREATE ON SCHEMA public FROM :"runtime_role";
 GRANT USAGE ON SCHEMA public TO :"runtime_role";
