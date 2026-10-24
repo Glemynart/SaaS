@@ -230,8 +230,8 @@ Preview correspondiente al commit `966bded40b0ba5ae6384cd922f2f109d51705053` de 
 desde `https://saa-s-q0bukaijo-glemynarts-projects.vercel.app`; GitHub registró el deployment
 `7298681383` como `success` el 2026-10-24 12:36 UTC. Es un deployment de PR, no una fuente estable
 de staging.
-La revalidación del 2026-10-24 encontró para el HEAD actual de PR #124,
-`bc111c930fa9116a74ebf9cabb80f0d40efc65c3`, el deployment `dpl_9NzpXu3RofofqAer279ijnSScDBM`
+En la revalidación del 2026-10-24, el HEAD observado entonces de PR #124 era
+`bc111c930fa9116a74ebf9cabb80f0d40efc65c3`; su deployment era `dpl_9NzpXu3RofofqAer279ijnSScDBM`
 (`saa-s-izym3kh5f-glemynarts-projects.vercel.app`), `READY`, target `preview`, sin el alias de
 staging. El check Vercel asociado a ese HEAD enlaza al deployment; `vercel inspect --json` no
 expuso `gitSource`. Es un Preview de rama, no una fuente estable aprobada para el alias.
@@ -261,7 +261,13 @@ públicas GET a `/health` y `/readiness` dieron HTTP 200. Desde el Docker client
 `docker manifest inspect` pudo leer el digest nuevo como índice OCI con plataformas `linux/amd64`
 y `linux/arm64`, sin descargar capas. Por tanto el artefacto de PR #123 es accesible desde el VPS,
 pero no está desplegado en el contenedor; la identidad concreta usada por Docker no se inspeccionó.
-La existencia de URL, checks HTTP y artefactos no demuestra staging aislado ni reproducible. E1.1/E1.3 siguen pendientes
+Una inspección SSH filtrada adicional (2026-10-24 14:57 UTC) reconfirmó ese digest/revisión,
+`DATABASE_URL` hacia `oficina_nitida` con el rol `saas_api_runtime`, `STORAGE_PROVIDER=local` y el
+bind mount de uploads `/home/ubuntu/la-oficina-nitida/staging/uploads:/app/uploads`. Las cuatro
+variables requeridas de R2 no estaban presentes con valor. Los nombres de configuración SMTP y
+`REQUIRE_REAL_EMAIL` sí estaban presentes, pero no se leyeron valores ni se envió correo; esto no
+verifica entrega SMTP. En ese momento `/health` devolvió HTTP 200 y `/readiness` devolvió HTTP 200
+con estado `ready`. La existencia de URL, checks HTTP y artefactos no demuestra staging aislado ni reproducible. E1.1/E1.3 siguen pendientes
 por aislamiento, R2 privado, correo real y smoke autenticado sobre el entorno correcto; la
 separación de secretos tampoco está verificada. Esto bloquea M1, no GOAL-01: el Goal permanece
 ACTIVO. E2.1, E2.4, E4.2, E4.3, E4.4, E4.5, E4.6, E4.7, E5.1, E5.2, E5.3, E5.4, E6.1, E6.2 y
