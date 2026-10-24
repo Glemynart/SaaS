@@ -21,19 +21,25 @@ un deployment `Preview` y autorizó preparar, pero no ejecutar, la reasignación
 La observación más reciente sigue mostrando ese dominio asociado a un deployment
 `Production`. Los deployments Preview de ramas de PR sirven para revisión, pero
 no se deben tomar automáticamente como fuente estable del dominio de staging.
-El 2026-10-24, el HEAD `bc111c930fa9116a74ebf9cabb80f0d40efc65c3` de PR #124 tuvo el deployment
-`dpl_9NzpXu3RofofqAer279ijnSScDBM` (`saa-s-izym3kh5f-glemynarts-projects.vercel.app`) en estado
-`READY`, target `preview`, sin el alias de staging. El check Vercel de ese HEAD enlazó a este
-deployment; la inspección JSON de Vercel no expuso `gitSource`. Es un Preview de rama y aún no está
-aprobado como destino estable. Tampoco se verificó que su configuración apunte a una API aislada.
+El 2026-10-24, el HEAD `2d71c1b7698f228f1cc72e98e3c1a3f99e1c17db` de PR #124 tuvo el deployment
+`dpl_EVBmciWFFdwCNMokxjN5YpSQoW4T` (`saa-s-3lael1jxt-glemynarts-projects.vercel.app`) en estado
+`READY`, target `preview`, sin el alias de staging. El registro de deployment de GitHub
+`7299996953` vincula ese entorno Preview y esa URL al SHA indicado y reporta `success`; la
+inspección JSON de Vercel no expuso `gitSource`. El GET público de la URL devolvió HTTP 200, lo que
+solo confirma respuesta de la página y no la integración funcional con la API. Es un Preview de
+rama y aún no está aprobado como destino estable. Tampoco se verificó que su configuración apunte a
+una API aislada.
 
 Antes de cambiar el alias:
 
 1. Selecciona una revisión estable aprobada para Preview e identifica su SHA,
    URL, estado `READY` y target `preview` con Vercel.
-2. Confirma en la configuración Preview que `NEXT_PUBLIC_API_URL` apunta a la
-   API aislada de staging. No publiques valores de variables en logs, tickets ni
-   Git. La API no debe conectarse a `oficina_nitida` ni reutilizar su rol runtime.
+2. Confirma en la configuración Preview que `API_URL` y `NEXT_PUBLIC_API_URL`,
+   si están definidas, apuntan a la API aislada de staging. Las rutas server-side
+   usan `API_URL ?? NEXT_PUBLIC_API_URL`, de modo que verificar solo la variable
+   pública no confirma el destino del BFF. No publiques valores de variables en
+   logs, tickets ni Git. La API no debe conectarse a `oficina_nitida` ni reutilizar
+   su rol runtime.
 3. Registra el deployment y alias actuales para poder volver atrás. Comprueba
    que el backend aislado esté listo antes de dirigir usuarios al nuevo frontend.
 4. Después de la autorización operativa para ejecutar el cambio, asigna el
