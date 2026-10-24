@@ -128,8 +128,12 @@ JWT_SECRET=<secret-long-random>
 FRONTEND_URL=https://staging.dusema.com
 BACKEND_URL=https://staging-api.dusema.com
 ALLOWED_ORIGINS=https://staging.dusema.com
-STORAGE_PROVIDER=local
+STORAGE_PROVIDER=r2
 STORAGE_LOCAL_ROOT=/app/uploads
+R2_ENDPOINT=https://REPLACE_WITH_ACCOUNT_ID.r2.cloudflarestorage.com
+R2_ACCESS_KEY_ID=<staging-access-key-id>
+R2_SECRET_ACCESS_KEY=<staging-secret-access-key>
+R2_BUCKET=<private-staging-bucket>
 EMAIL_SMTP_HOST=smtp.email.sa-bogota-1.oci.oraclecloud.com
 EMAIL_SMTP_PORT=587
 EMAIL_SMTP_USER=<smtp-username>
@@ -141,9 +145,10 @@ EMAIL_FROM_NAME=<display-name>
 REQUIRE_REAL_EMAIL=true
 ```
 
-Las credenciales SMTP de OCI deben existir únicamente en el `.env` privado del
-VPS; no deben entrar en Git. `REQUIRE_REAL_EMAIL=true` hace que `/readiness`
-falle si el transporte SMTP no está configurado.
+El Compose versionado fija `STORAGE_PROVIDER=r2`, requiere las cuatro variables
+R2 anteriores y fija `REQUIRE_REAL_EMAIL=true`. El bucket debe ser privado y
+dedicado a staging. Las claves de R2 y las credenciales SMTP de OCI deben
+existir únicamente en el `.env` privado del VPS; no deben entrar en Git.
 
 ## Caddy
 
@@ -204,9 +209,11 @@ El procedimiento debe ejecutarse manualmente en el VPS. No se debe ejecutar
    curl --fail https://staging-api.dusema.com/readiness
    ```
 
-El healthcheck de Compose consulta `/health`. `/readiness` valida PostgreSQL y
-el storage local; con `REQUIRE_REAL_EMAIL=false` no exige un proveedor de
-correo real.
+El healthcheck de Compose consulta `/health`. `/readiness` valida PostgreSQL,
+el proveedor de storage configurado y que exista un transporte SMTP cuando
+`REQUIRE_REAL_EMAIL=true`. Esa respuesta no comprueba la entrega de un mensaje:
+M1 aún requiere enviar y recibir un correo real y validar el acceso autorizado a
+R2 desde el entorno publicado.
 
 ## Migraciones y seed: operación explícita
 
