@@ -38,6 +38,15 @@ solo confirma respuesta de la página y no la integración funcional con la API.
 rama y aún no está aprobado como destino estable. Tampoco se verificó que su configuración apunte a
 una API aislada.
 
+Revalidación del 2026-10-24 15:27 UTC: el HEAD `14dd130ce0cfd15854ebbf72ff55d2c6df75862b` de
+PR #124 está asociado al deployment Vercel `dpl_3mdQChGgPfAQe8CpDNttQdiaEatX`
+(`saa-s-cjomolfb6-glemynarts-projects.vercel.app`), `READY`, target `preview`; el registro de
+deployment de GitHub `7300586669` enlaza ese SHA y URL y reporta `success`. Vercel muestra el alias
+de rama generado, pero no `staging.dusema.com`. Una solicitud HEAD pública terminó en HTTP 200
+después de dos redirecciones. La inspección simultánea del alias confirma que
+`staging.dusema.com` sigue en `dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`, target `production`. El estado
+HTTP y `READY` no prueban integración funcional; no se verificó que el Preview use una API aislada.
+
 Antes de cambiar el alias:
 
 1. Selecciona una revisión estable aprobada para Preview e identifica su SHA,
