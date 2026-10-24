@@ -64,9 +64,18 @@ SELECT format(
 ) \gexec
 
 SELECT format(
+  'REVOKE CONNECT ON DATABASE %I FROM PUBLIC',
+  current_database()
+) \gexec
+
+SELECT format(
   'GRANT CONNECT ON DATABASE %I TO %I',
   current_database(),
   :'runtime_role'
+) \gexec
+
+SELECT format(
+  'DO $guard$ DECLARE production_runtime_oid oid; BEGIN SELECT oid INTO production_runtime_oid FROM pg_roles WHERE rolname = ''saas_api_runtime''; IF production_runtime_oid IS NOT NULL AND has_database_privilege(production_runtime_oid, current_database(), ''CONNECT'') THEN RAISE EXCEPTION ''production runtime role must not connect to the staging database''; END IF; END $guard$;'
 ) \gexec
 
 SELECT format(

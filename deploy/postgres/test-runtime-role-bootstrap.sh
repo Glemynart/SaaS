@@ -54,13 +54,22 @@ if run_bootstrap "$staging_database" saas_api_runtime >/dev/null; then
 fi
 
 psql_as_admin -d postgres -c 'REVOKE CONNECT ON DATABASE oficina_nitida FROM PUBLIC' >/dev/null
+psql_as_admin -d postgres -c 'CREATE ROLE saas_api_runtime NOLOGIN' >/dev/null
 run_bootstrap "$staging_database" >/dev/null
 
-privileges="$(psql_as_admin -d postgres -Atqc "SELECT has_database_privilege('$runtime_role', 'oficina_nitida', 'CONNECT')::text || '|' || has_database_privilege('$runtime_role', '$staging_database', 'CONNECT')::text")"
-if [[ "$privileges" != 'false|true' ]]; then
+privileges="$(psql_as_admin -d postgres -Atqc "SELECT has_database_privilege('$runtime_role', 'oficina_nitida', 'CONNECT')::text || '|' || has_database_privilege('$runtime_role', '$staging_database', 'CONNECT')::text || '|' || has_database_privilege('saas_api_runtime', '$staging_database', 'CONNECT')::text")"
+if [[ "$privileges" != 'false|true|false' ]]; then
   echo "Unexpected runtime database CONNECT privileges: $privileges" >&2
   exit 1
 fi
+
+psql_as_admin -d postgres -c "GRANT CONNECT ON DATABASE $staging_database TO saas_api_runtime" >/dev/null
+if run_bootstrap "$staging_database" >/dev/null 2>&1; then
+  echo "Bootstrap unexpectedly accepted CONNECT for the production runtime role on staging." >&2
+  exit 1
+fi
+psql_as_admin -d postgres -c "REVOKE CONNECT ON DATABASE $staging_database FROM saas_api_runtime" >/dev/null
+run_bootstrap "$staging_database" >/dev/null
 
 psql_as_admin -d postgres -c "GRANT CREATE ON DATABASE $staging_database TO $runtime_role" >/dev/null
 run_bootstrap "$staging_database" >/dev/null

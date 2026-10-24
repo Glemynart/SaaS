@@ -306,9 +306,11 @@ Por eso una base y un rol separados no garantizan por sí solos que el runtime n
 pueda conectarse a `oficina_nitida`. El bootstrap ahora se ejecuta en una
 transacción y falla si el destino es `oficina_nitida`, si se intenta reutilizar
 `saas_api_runtime` o si el rol de staging todavía tiene `CONNECT` a la base
-protegida. También rechaza un rol runtime preexistente que sea miembro directo o
-indirecto de otro rol: `NOINHERIT` por sí solo no retira la capacidad de `SET ROLE`
-que permite una membresía ([documentación oficial](https://www.postgresql.org/docs/17/role-membership.html)).
+protegida. En la base de staging revoca `CONNECT` de `PUBLIC`, otorga conexión
+explícita al rol runtime y falla si `saas_api_runtime` conserva acceso directo.
+También rechaza un rol runtime preexistente que sea miembro directo o indirecto
+de otro rol: `NOINHERIT` por sí solo no retira la capacidad de `SET ROLE` que
+permite una membresía ([documentación oficial](https://www.postgresql.org/docs/17/role-membership.html)).
 También falla si el runtime ya es propietario del esquema `public` o de sus
 relaciones, y revoca `CREATE` directo de `PUBLIC` y del rol runtime. También
 revoca `CREATE` del rol sobre la base staging y falla si el permiso efectivo
