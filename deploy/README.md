@@ -320,6 +320,10 @@ explícita al rol runtime y falla si `saas_api_runtime` conserva acceso directo.
 También rechaza un rol runtime preexistente que sea miembro directo o indirecto
 de otro rol: `NOINHERIT` por sí solo no retira la capacidad de `SET ROLE` que
 permite una membresía ([documentación oficial](https://www.postgresql.org/docs/17/role-membership.html)).
+Antes de alterar un rol existente, falla si tiene `SUPERUSER`, `CREATEDB`,
+`CREATEROLE`, `REPLICATION` o `BYPASSRLS`; así no degrada por accidente otra
+identidad privilegiada del clúster. También reserva explícitamente el rol
+observado `oficina`.
 También falla si el runtime ya es propietario del esquema `public` o de sus
 relaciones, y revoca `CREATE` directo de `PUBLIC` y del rol runtime. También
 revoca `CREATE` del rol sobre la base staging y falla si el permiso efectivo

@@ -28,9 +28,17 @@ SELECT format(
 BEGIN;
 
 SELECT format(
-  'DO $guard$ BEGIN IF current_database() = %L THEN RAISE EXCEPTION ''runtime bootstrap cannot target the protected production database''; END IF; IF %L IN (''postgres'', ''rdsadmin'', ''saas_api_runtime'') OR %L = current_user THEN RAISE EXCEPTION ''runtime role must be distinct from the administrative role and production runtime role''; END IF; END $guard$;',
+  'DO $guard$ BEGIN IF current_database() = %L THEN RAISE EXCEPTION ''runtime bootstrap cannot target the protected production database''; END IF; IF %L IN (''postgres'', ''rdsadmin'', ''oficina'', ''saas_api_runtime'') OR %L = current_user THEN RAISE EXCEPTION ''runtime role must be distinct from the administrative role and production runtime role''; END IF; END $guard$;',
   'oficina_nitida',
   :'runtime_role',
+  :'runtime_role'
+) \gexec
+
+-- Do not normalize an existing administrative role into the staging runtime
+-- identity. The bootstrap operates at cluster scope and the password/role
+-- attributes would otherwise be changed before the remaining guards run.
+SELECT format(
+  'DO $guard$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = %L AND (rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls)) THEN RAISE EXCEPTION ''runtime role must not reuse an identity with administrative attributes''; END IF; END $guard$;',
   :'runtime_role'
 ) \gexec
 

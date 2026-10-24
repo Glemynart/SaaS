@@ -68,6 +68,19 @@ psql_as_admin -d postgres -c 'REVOKE CONNECT ON DATABASE oficina_nitida FROM PUB
 psql_as_admin -d postgres -c 'CREATE ROLE saas_api_runtime NOLOGIN' >/dev/null
 run_bootstrap "$staging_database" >/dev/null
 
+privileged_role="dusema_ci_privileged_collision"
+psql_as_admin -d postgres -c "CREATE ROLE $privileged_role LOGIN CREATEROLE" >/dev/null
+if run_bootstrap "$staging_database" "$privileged_role" >/dev/null 2>&1; then
+  echo "Bootstrap unexpectedly accepted an existing role with administrative attributes." >&2
+  exit 1
+fi
+privileged_attribute="$(psql_as_admin -d postgres -Atqc "SELECT rolcreaterole::text FROM pg_roles WHERE rolname = '$privileged_role'")"
+if [[ "$privileged_attribute" != "true" ]]; then
+  echo "Bootstrap changed the pre-existing administrative role before rejecting it." >&2
+  exit 1
+fi
+psql_as_admin -d postgres -c "DROP ROLE $privileged_role" >/dev/null
+
 privileges="$(psql_as_admin -d postgres -Atqc "SELECT has_database_privilege('$runtime_role', 'oficina_nitida', 'CONNECT')::text || '|' || has_database_privilege('$runtime_role', '$staging_database', 'CONNECT')::text || '|' || has_database_privilege('saas_api_runtime', '$staging_database', 'CONNECT')::text")"
 if [[ "$privileges" != 'false|true|false' ]]; then
   echo "Unexpected runtime database CONNECT privileges: $privileges" >&2
