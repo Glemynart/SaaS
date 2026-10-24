@@ -68,14 +68,15 @@ export class PasswordResetService {
 
     const frontendUrl =
       this.config.get<string>('frontendUrl') ?? 'http://localhost:3000';
-    const resetUrl = `${frontendUrl}/reset-password?token=${tokenEncoded}`;
+    const resetUrl = new URL(`${frontendUrl.replace(/\/+$/, '')}/restablecer`);
+    resetUrl.hash = new URLSearchParams({ token: tokenEncoded }).toString();
 
     await this.emailService.send({
       type: 'password-reset',
       to: email,
       payload: {
         userName: `${user.nombre} ${user.apellido}`.trim(),
-        resetUrl,
+        resetUrl: resetUrl.toString(),
         expiresInHours: RESET_EXPIRY_HOURS,
       },
       auditContext: { tenantId: tenant.id, userId: user.id },

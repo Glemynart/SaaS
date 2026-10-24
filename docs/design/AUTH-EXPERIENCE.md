@@ -269,6 +269,9 @@ No existe capacidad de invitación ni gestión de usuarios (H5). **Prohibido imp
 
 Patrón único para todo enlace con token (hoy: restablecimiento; futuro: invitación):
 
+- Los enlaces nuevos de recuperación transportan el token en el fragmento URL (`#token=…`), que no se envía en la petición HTTP. La interfaz acepta enlaces anteriores con `?token=…` y los convierte a fragmento en el navegador; el primer GET de un enlace anterior aún contiene el query y puede quedar en registros del proveedor, por lo que no se deben reenviar enlaces antiguos. El token sigue llegando al API únicamente en el cuerpo de `POST /auth/reset-password` y conserva el uso único y el vencimiento de una hora.
+- Las páginas `/restablecer` y `/reset-password` envían `Referrer-Policy: no-referrer`.
+
 - La pantalla del token **valida antes de mostrar el formulario**; si el enlace no sirve, muestra el estado terminal — nunca deja al usuario llenar un formulario que fallará al enviar (respeto por el esfuerzo).
 - Mensaje sin culpa y sin tecnicismos: "**Este enlace ya no es válido.** Los enlaces vencen después de 1 hora o al usarse una vez." + salida única y primaria: "Solicitar un enlace nuevo" (→ `/recuperar`, con los valores que se puedan prellenar). Escape: "Volver a iniciar sesión".
 - El mismo estado cubre token ausente, malformado, vencido o consumido: distinguirlos en pantalla no aporta nada al usuario y sí a un atacante.
