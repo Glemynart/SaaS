@@ -34,18 +34,6 @@ psql_as_admin() {
   docker exec "$postgres_container_id" psql -X -v ON_ERROR_STOP=1 -U postgres "$@"
 }
 
-run_bootstrap() {
-  local database="$1"
-  local role="${2:-$runtime_role}"
-  export GOAL01_RUNTIME_DB_ROLE="$role"
-  docker exec -i \
-    -e GOAL01_RUNTIME_DB_ROLE \
-    -e GOAL01_RUNTIME_DB_PASSWORD \
-    "$postgres_container_id" \
-    psql -X -v ON_ERROR_STOP=1 -U postgres -d "$database" \
-    < "$script_dir/bootstrap-runtime-role.sql"
-}
-
 run_bootstrap_as_migration_role() {
   local database="$1"
   export GOAL01_RUNTIME_DB_ROLE="${2:-$runtime_role}"
@@ -74,7 +62,7 @@ if [[ "$role_exists" != "f" ]]; then
   exit 1
 fi
 
-if run_bootstrap "$staging_database" saas_api_runtime >/dev/null; then
+if run_bootstrap_as_migration_role "$staging_database" saas_api_runtime >/dev/null 2>&1; then
   echo "Bootstrap unexpectedly accepted the production runtime role." >&2
   exit 1
 fi
@@ -98,7 +86,7 @@ fi
 
 privileged_role="dusema_ci_privileged_collision"
 psql_as_admin -d postgres -c "CREATE ROLE $privileged_role LOGIN CREATEROLE" >/dev/null
-if run_bootstrap "$staging_database" "$privileged_role" >/dev/null 2>&1; then
+if run_bootstrap_as_migration_role "$staging_database" "$privileged_role" >/dev/null 2>&1; then
   echo "Bootstrap unexpectedly accepted an existing role with administrative attributes." >&2
   exit 1
 fi
@@ -116,15 +104,15 @@ if [[ "$privileges" != 'false|true|false' ]]; then
 fi
 
 psql_as_admin -d postgres -c "GRANT CONNECT ON DATABASE $staging_database TO saas_api_runtime" >/dev/null
-if run_bootstrap "$staging_database" >/dev/null 2>&1; then
+if run_bootstrap_as_migration_role "$staging_database" >/dev/null 2>&1; then
   echo "Bootstrap unexpectedly accepted CONNECT for the production runtime role on staging." >&2
   exit 1
 fi
 psql_as_admin -d postgres -c "REVOKE CONNECT ON DATABASE $staging_database FROM saas_api_runtime" >/dev/null
-run_bootstrap "$staging_database" >/dev/null
+run_bootstrap_as_migration_role "$staging_database" >/dev/null
 
 psql_as_admin -d postgres -c "GRANT CREATE ON DATABASE $staging_database TO $runtime_role" >/dev/null
-run_bootstrap "$staging_database" >/dev/null
+run_bootstrap_as_migration_role "$staging_database" >/dev/null
 
 database_create_privilege="$(psql_as_admin -d postgres -Atqc "SELECT has_database_privilege('$runtime_role', '$staging_database', 'CREATE')::text")"
 if [[ "$database_create_privilege" != 'false' ]]; then
@@ -133,21 +121,21 @@ if [[ "$database_create_privilege" != 'false' ]]; then
 fi
 
 psql_as_admin -d postgres -c "GRANT CREATE ON DATABASE $staging_database TO PUBLIC" >/dev/null
-if run_bootstrap "$staging_database" >/dev/null 2>&1; then
+if run_bootstrap_as_migration_role "$staging_database" >/dev/null 2>&1; then
   echo "Bootstrap unexpectedly accepted CREATE inherited from PUBLIC on the staging database." >&2
   exit 1
 fi
 psql_as_admin -d postgres -c "REVOKE CREATE ON DATABASE $staging_database FROM PUBLIC" >/dev/null
 
 psql_as_admin -d "$staging_database" -c "ALTER SCHEMA public OWNER TO $runtime_role" >/dev/null
-if run_bootstrap "$staging_database" >/dev/null 2>&1; then
+if run_bootstrap_as_migration_role "$staging_database" >/dev/null 2>&1; then
   echo "Bootstrap unexpectedly accepted a runtime role that owns schema public." >&2
   exit 1
 fi
 psql_as_admin -d "$staging_database" -c 'ALTER SCHEMA public OWNER TO postgres' >/dev/null
 
 psql_as_admin -d "$staging_database" -c "GRANT CREATE ON SCHEMA public TO $runtime_role" >/dev/null
-run_bootstrap "$staging_database" >/dev/null
+run_bootstrap_as_migration_role "$staging_database" >/dev/null
 
 schema_privileges="$(psql_as_admin -d "$staging_database" -Atqc "SELECT has_schema_privilege('$runtime_role', 'public', 'CREATE')::text")"
 if [[ "$schema_privileges" != 'false' ]]; then
@@ -156,7 +144,19 @@ if [[ "$schema_privileges" != 'false' ]]; then
 fi
 
 psql_as_admin -d postgres -c "ALTER ROLE $runtime_role SUPERUSER CREATEDB CREATEROLE INHERIT REPLICATION BYPASSRLS" >/dev/null
-run_bootstrap "$staging_database" >/dev/null
+if run_bootstrap_as_migration_role "$staging_database" >/dev/null 2>&1; then
+  echo "Bootstrap unexpectedly accepted runtime attributes that require superuser correction." >&2
+  exit 1
+fi
+
+privileged_runtime_attributes="$(psql_as_admin -d postgres -Atqc "SELECT rolsuper::text || '|' || rolcreatedb::text || '|' || rolcreaterole::text || '|' || rolinherit::text || '|' || rolreplication::text || '|' || rolbypassrls::text FROM pg_roles WHERE rolname = '$runtime_role'")"
+if [[ "$privileged_runtime_attributes" != 'true|true|true|true|true|true' ]]; then
+  echo "Rejected bootstrap changed runtime privileges that require superuser correction: $privileged_runtime_attributes" >&2
+  exit 1
+fi
+
+psql_as_admin -d postgres -c "ALTER ROLE $runtime_role NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS" >/dev/null
+run_bootstrap_as_migration_role "$staging_database" >/dev/null
 
 role_attributes="$(psql_as_admin -d postgres -Atqc "SELECT rolsuper::text || '|' || rolcreatedb::text || '|' || rolcreaterole::text || '|' || rolinherit::text || '|' || rolreplication::text || '|' || rolbypassrls::text FROM pg_roles WHERE rolname = '$runtime_role'")"
 if [[ "$role_attributes" != 'false|false|false|false|false|false' ]]; then
@@ -167,13 +167,13 @@ fi
 psql_as_admin -d postgres -c 'CREATE ROLE dusema_ci_member_role NOLOGIN' >/dev/null
 psql_as_admin -d postgres -c "GRANT dusema_ci_member_role TO $runtime_role" >/dev/null
 
-if run_bootstrap "$staging_database" >/dev/null; then
+if run_bootstrap_as_migration_role "$staging_database" >/dev/null 2>&1; then
   echo "Bootstrap unexpectedly accepted a runtime role with role memberships." >&2
   exit 1
 fi
 
 protected_database_acl_before="$(psql_as_admin -d postgres -Atqc "SELECT COALESCE(datacl::text, '<default>') FROM pg_database WHERE datname = 'oficina_nitida'")"
-if run_bootstrap oficina_nitida >/dev/null; then
+if run_bootstrap_as_migration_role oficina_nitida >/dev/null 2>&1; then
   echo "Bootstrap unexpectedly accepted the protected production database as its target." >&2
   exit 1
 fi
@@ -184,7 +184,7 @@ if [[ "$protected_database_acl_after" != "$protected_database_acl_before" ]]; th
 fi
 
 protected_target_role="dusema_ci_protected_target"
-if run_bootstrap oficina_nitida "$protected_target_role" >/dev/null; then
+if run_bootstrap_as_migration_role oficina_nitida "$protected_target_role" >/dev/null 2>&1; then
   echo "Bootstrap unexpectedly accepted the protected production database for a new runtime role." >&2
   exit 1
 fi

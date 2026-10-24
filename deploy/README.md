@@ -396,9 +396,12 @@ de otro rol: `NOINHERIT` por sí solo no retira la capacidad de `SET ROLE` que
 permite una membresía ([documentación oficial](https://www.postgresql.org/docs/17/role-membership.html)).
 El comentario `dusema:goal01-staging-runtime` identifica el rol creado por el
 bootstrap: un rol preexistente sin esa marca se rechaza antes de cambiar su
-contraseña o atributos. Una ejecución posterior puede volver a normalizar los
-atributos de seguridad del rol marcado. También reserva explícitamente el rol
-observado `oficina`.
+contraseña o atributos. Una ejecución posterior puede rotar la contraseña y
+restablecer los atributos que la identidad `CREATEROLE` puede cambiar. Si el rol
+marcado adquiere `SUPERUSER`, `CREATEDB`, `REPLICATION` o `BYPASSRLS`, el bootstrap
+falla sin mutarlo: un DBA debe revisar y retirar esos atributos con una identidad
+superusuario antes de repetirlo. También reserva explícitamente el rol observado
+`oficina`.
 También falla si el runtime ya es propietario del esquema `public` o de sus
 relaciones, y revoca `CREATE` directo de `PUBLIC` y del rol runtime. También
 revoca `CREATE` del rol sobre la base staging y falla si el permiso efectivo

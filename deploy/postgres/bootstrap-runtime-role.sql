@@ -43,8 +43,16 @@ SELECT format(
   'dusema:goal01-staging-runtime'
 ) \gexec
 
+-- A non-superuser migration identity cannot remove these attributes. Reject a
+-- managed runtime role that acquired them instead of attempting an impossible
+-- ALTER ROLE or partially changing its privileges.
 SELECT format(
-  'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS',
+  'DO $guard$ DECLARE has_superuser_only_attributes boolean; BEGIN SELECT rolsuper OR rolcreatedb OR rolreplication OR rolbypassrls INTO has_superuser_only_attributes FROM pg_roles WHERE rolname = %L; IF COALESCE(has_superuser_only_attributes, false) THEN RAISE EXCEPTION ''managed runtime role has attributes that require DBA correction''; END IF; END $guard$;',
+  :'runtime_role'
+) \gexec
+
+SELECT format(
+  'CREATE ROLE %I LOGIN PASSWORD %L NOINHERIT',
   :'runtime_role',
   :'runtime_password'
 )
@@ -60,10 +68,10 @@ SELECT format(
   'dusema:goal01-staging-runtime'
 ) \gexec
 
--- Re-apply the security attributes on every run so an accidental privilege
--- change cannot silently become the production runtime configuration.
+-- Rotate the password and re-apply attributes a CREATEROLE migration identity
+-- can safely change. Privileged attributes were rejected above.
 SELECT format(
-  'ALTER ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS',
+  'ALTER ROLE %I LOGIN PASSWORD %L NOCREATEROLE NOINHERIT',
   :'runtime_role',
   :'runtime_password'
 ) \gexec
