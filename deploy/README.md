@@ -265,7 +265,7 @@ El procedimiento debe ejecutarse manualmente en el VPS. No se debe ejecutar
      --project-name dusema-staging-isolated \
      --env-file /home/ubuntu/la-oficina-nitida/staging-isolated/.env \
      -f /home/ubuntu/la-oficina-nitida/staging-isolated/docker-compose.staging.yml \
-     config
+     config >/dev/null
    ```
 
 7. Levanta solamente la API aislada. Este comando no ejecuta migraciones ni
