@@ -29,6 +29,14 @@ un deployment `Preview` y autorizó preparar, pero no ejecutar, la reasignación
 La observación más reciente sigue mostrando ese dominio asociado a un deployment
 `Production`. Los deployments Preview de ramas de PR sirven para revisión, pero
 no se deben tomar automáticamente como fuente estable del dominio de staging.
+La inspección de solo lectura de Vercel del 2026-10-24 reportó
+`ssoProtection.deploymentType=all_except_custom_domains`. Trata cualquier alias
+de dominio personalizado a Preview como potencialmente público: las excepciones
+de protección de Vercel pueden omitir Vercel Authentication
+([documentación](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/deployment-protection-exceptions)).
+Antes de reasignar `staging.dusema.com`, valida el login propio de la aplicación
+y que las variables API de Preview apunten a una API aislada; el 302 de SSO en
+la URL `vercel.app` no demuestra que el dominio personalizado quede protegido.
 El 2026-10-24, el HEAD `2d71c1b7698f228f1cc72e98e3c1a3f99e1c17db` de PR #124 tuvo el deployment
 `dpl_EVBmciWFFdwCNMokxjN5YpSQoW4T` (`saa-s-3lael1jxt-glemynarts-projects.vercel.app`) en estado
 `READY`, target `preview`, sin el alias de staging. El registro de deployment de GitHub
