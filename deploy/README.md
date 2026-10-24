@@ -4,6 +4,16 @@ Este directorio contiene el empaquetado reproducible y la operación de staging
 del API NestJS. El despliegue objetivo usa Vercel para el frontend y el VPS
 existente para `apps/api`.
 
+## Aplicabilidad al VPS observado
+
+El único VPS está clasificado como producción. Su Compose activo fue observado
+en `/home/ubuntu/la-oficina-nitida/staging/docker-compose.yml`; el archivo
+versionado de esta guía es `deploy/docker-compose.staging.yml`. No se ha
+verificado que ambos archivos sean equivalentes. La estructura y los comandos
+de esta guía describen el despliegue versionado y no deben ejecutarse contra el
+Compose activo hasta que se revise su configuración completa y el propietario
+apruebe el aislamiento de staging.
+
 ## Alcance
 
 - `deploy/Dockerfile.api` construye la imagen del API y deja Chromium
@@ -40,23 +50,35 @@ realiza con una credencial de solo lectura gestionada fuera del repositorio.
 
 El VPS debe conservar estos contenedores y datos sin recrearlos:
 
-- PostgreSQL: contenedor `postgres`, base inicial `oficina_nitida`.
+- PostgreSQL: contenedor `postgres`. La base observada `oficina_nitida` está
+  compartida con el entorno clasificado como producción; no debe usarse como
+  base de staging.
 - Redis: contenedor `redis`, sin uso por la versión actual del API.
 - Red Docker existente: `la-oficina-nitida_laoficina`.
 
 Antes de iniciar la aplicación, verifica manualmente en el VPS que la red
 exista y que PostgreSQL esté conectado a ella. No crees una red alternativa.
-La URL runtime debe usar el DNS Docker del contenedor existente:
+Staging requiere una base propia y un rol runtime dedicado. No reutilices
+`oficina_nitida` ni el rol existente `saas_api_runtime`: el segundo es una
+identidad de runtime del entorno actual y el bootstrap de este directorio puede
+cambiar la contraseña del rol indicado. El propietario y DBA deben definir y
+verificar las identidades y la base antes de ejecutar los comandos de esta guía.
+La URL runtime tendrá esta forma, con los marcadores sustituidos por valores
+aprobados fuera de Git:
 
 ```text
-postgresql://saas_api_runtime:<password>@postgres:5432/oficina_nitida?schema=public
+postgresql://REPLACE_WITH_STAGING_RUNTIME_ROLE:<password>@postgres:5432/REPLACE_WITH_APPROVED_STAGING_DATABASE?schema=public
 ```
 
-La base `oficina_nitida` no se considera staging automáticamente. Antes de
-ejecutar cualquier migración o seed, confirma explícitamente que esa base es
-la base de staging que se utilizará. Si no lo es, debe seleccionarse una base
-de staging separada dentro del PostgreSQL existente mediante un procedimiento
-operativo aprobado.
+No hay una base de staging confirmada en el PostgreSQL compartido. Antes de
+continuar, el DBA debe proporcionar una base separada y verificar que el rol
+runtime de staging no puede leer ni modificar `oficina_nitida`. No ejecutes
+migraciones, seed ni el bootstrap contra la base o el rol del entorno actual.
+Crear una base y roles dentro de la instancia compartida requiere un
+procedimiento aprobado. El script de bootstrap crea o altera roles de ámbito
+de instancia y también cambia privilegios del esquema en la base seleccionada;
+no debe ejecutarse contra el PostgreSQL compartido sin que el DBA revise y
+apruebe explícitamente sus efectos.
 
 El Compose usa la red externa ya existente:
 
@@ -101,7 +123,7 @@ API_IMAGE=ghcr.io/OWNER/REPOSITORY/api:sha-COMMIT_SHA
 UPLOADS_PATH=/home/ubuntu/la-oficina-nitida/uploads
 NODE_ENV=production
 PORT=4000
-DATABASE_URL=postgresql://saas_api_runtime:<password>@postgres:5432/oficina_nitida?schema=public
+DATABASE_URL=postgresql://REPLACE_WITH_STAGING_RUNTIME_ROLE:<password>@postgres:5432/REPLACE_WITH_APPROVED_STAGING_DATABASE?schema=public
 JWT_SECRET=<secret-long-random>
 FRONTEND_URL=https://staging.dusema.com
 BACKEND_URL=https://staging-api.dusema.com
@@ -148,8 +170,10 @@ El procedimiento debe ejecutarse manualmente en el VPS. No se debe ejecutar
 `docker compose down` sobre el Compose que administra PostgreSQL o Redis.
 
 1. Autentica Docker contra GHCR y descarga la imagen indicada por `API_IMAGE`.
-2. Confirma la arquitectura ARM64, la red Docker existente y el nombre de la
-   base de staging.
+2. Confirma la arquitectura ARM64, la red Docker existente, la base de staging
+   separada y el rol runtime dedicado. Si la base o el rol aún no fueron
+   aprobados y comprobados contra el acceso a `oficina_nitida`, detén el
+   procedimiento.
 3. Confirma que existe un backup utilizable antes de cambiar el esquema.
 4. Crea el directorio persistente de uploads y verifica sus permisos.
 5. Copia el Compose, el Caddyfile, este SQL y el `.env` al directorio de
@@ -190,28 +214,37 @@ No se ejecutan durante `up`. Solo después de confirmar que la base es staging,
 que existe un backup y que las credenciales son correctas, se ejecutan como
 operaciones one-off.
 
-Primero aplica el rol runtime usando una conexión administrativa. El SQL es
+Este procedimiento es una plantilla, no está autorizado para la instancia
+compartida actual. El DBA debe definir el procedimiento y la identidad de
+bootstrap/migración después de revisar los privilegios de ámbito de instancia
+que requiere `CREATE ROLE`; no presupongas que ese privilegio se puede limitar a
+una sola base. No asumas que `oficina` es adecuada ni reutilices
+`saas_api_runtime`; el script crea o altera roles a nivel de instancia y aplica
+privilegios del esquema en la base seleccionada. Sustituye la base y el rol de
+staging por valores aprobados antes de ejecutar cualquier comando. El SQL es
 idempotente y no recrea PostgreSQL:
 
 ```bash
-export GOAL01_RUNTIME_DB_ROLE=saas_api_runtime
+export GOAL01_RUNTIME_DB_ROLE=REPLACE_WITH_DEDICATED_STAGING_RUNTIME_ROLE
 export GOAL01_RUNTIME_DB_PASSWORD='<runtime-password>'
 
 docker exec -i \
   -e GOAL01_RUNTIME_DB_ROLE \
   -e GOAL01_RUNTIME_DB_PASSWORD \
-  postgres psql -U oficina -d oficina_nitida \
+  postgres psql -U REPLACE_WITH_STAGING_MIGRATION_ROLE -d REPLACE_WITH_APPROVED_STAGING_DATABASE \
   -v ON_ERROR_STOP=1 < deploy/postgres/bootstrap-runtime-role.sql
 ```
 
-Usa `oficina` como usuario administrativo solo si su privilegio administrativo
-ha sido confirmado en el VPS. No uses el rol runtime para migrar.
+Usa una identidad de migración aprobada para staging y con permisos distintos
+del rol runtime. Debe ejecutarse con el mismo propietario que se usará para las
+migraciones, según el contrato del script de bootstrap. No uses las identidades
+del entorno clasificado como producción.
 
 Después, define temporalmente la conexión privilegiada en la sesión del
 operador y ejecuta Prisma dentro de la misma imagen:
 
 ```bash
-export DATABASE_URL_MIGRATION='postgresql://oficina:<password>@postgres:5432/oficina_nitida?schema=public'
+export DATABASE_URL_MIGRATION='postgresql://REPLACE_WITH_STAGING_MIGRATION_ROLE:<password>@postgres:5432/REPLACE_WITH_APPROVED_STAGING_DATABASE?schema=public'
 
 docker compose \
   --env-file /home/ubuntu/la-oficina-nitida/app/.env \
