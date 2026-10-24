@@ -1,0 +1,32 @@
+name: PostgreSQL backup script
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/postgres-backup.yml'
+      - 'deploy/postgres-backup/**'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/postgres-backup.yml'
+      - 'deploy/postgres-backup/**'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate Bash syntax
+        run: |
+          bash -n deploy/postgres-backup/backup-postgres.sh
+          bash -n deploy/postgres-backup/test-backup-postgres.sh
+
+      - name: Run mocked backup checks
+        run: bash deploy/postgres-backup/test-backup-postgres.sh
