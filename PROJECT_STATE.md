@@ -219,11 +219,11 @@ aliases incluyen `staging.dusema.com`. El deployment de GitHub `7299455677`, cre
 entorno `Production`. La relación de ese deployment con el push del merge está respaldada por el SHA
 y la secuencia temporal; no se ejecutó un comando manual de despliegue Vercel. El propietario
 confirmó el 2026-10-24 que `staging.dusema.com` debe apuntar a un deployment Vercel `Preview` y
-autorizó preparar, pero no ejecutar, la reasignación. El Preview del HEAD actual de PR #124, commit
-`c66e0f74adb2e51c3ac818db5ef4a7a6e9ffe95b`, está `READY` en
+autorizó preparar, pero no ejecutar, la reasignación. El Preview observado para el commit
+`c66e0f74adb2e51c3ac818db5ef4a7a6e9ffe95b` de PR #124 estaba `READY` en
 `dpl_4mBn7eirb5fLTeFyisLS6WNrDAvJ` (`saa-s-oudqxrvw0-glemynarts-projects.vercel.app`), target
-`preview`, sin el alias `staging.dusema.com`; es un candidato de revisión, no una fuente estable.
-La Preview
+`preview`, sin el alias `staging.dusema.com`; es un deployment anterior a sincronizar la PR con
+`main`, por lo que no debe reutilizarse sin revalidar su SHA y estado. La Preview
 `dpl_FKhfAdH2qkd4PTsV84HaLpxz3F7R` (`saa-s-9dl7o9t6q-glemynarts-projects.vercel.app`) se observó
 `READY` para el commit `2bc9c8258ac69ba5f04114280e74aac8a727b511` de la rama de PR #124. El deployment
 Preview correspondiente al commit `966bded40b0ba5ae6384cd922f2f109d51705053` de PR #124 se sirvió

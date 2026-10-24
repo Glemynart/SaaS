@@ -165,12 +165,14 @@ sus aliases incluyen `staging.dusema.com`. El deployment de GitHub `7299455677`,
 `53a6fb3eb5d6307fc255ddc8661e20ca2c7a6980` al entorno `Production`. Esta evidencia vincula el
 deployment al merge de PR #125; no se ejecutó un comando manual de despliegue de Vercel. El
 propietario confirmó que `staging.dusema.com` debe apuntar a un deployment `Preview` y autorizó
-preparar, pero no ejecutar, la reasignación. PR #123 no modificó archivos de `apps/web`. El
-deployment Preview del HEAD actual de PR #124 (`c66e0f74adb2e51c3ac818db5ef4a7a6e9ffe95b`) está
-`READY` en `dpl_4mBn7eirb5fLTeFyisLS6WNrDAvJ`
-(`saa-s-oudqxrvw0-glemynarts-projects.vercel.app`), target `preview`, pero no tiene el alias y no
-se verificó que use una API aislada. La lista de Preview incluye `API_URL` y `NEXT_PUBLIC_API_URL`,
-pero sus valores no se leyeron. PR #125 tampoco modificó archivos de `apps/web`. El
+preparar, pero no ejecutar, la reasignación. El Preview observado para el commit
+`c66e0f74adb2e51c3ac818db5ef4a7a6e9ffe95b` de PR #124 estaba `READY` en
+`dpl_4mBn7eirb5fLTeFyisLS6WNrDAvJ`
+(`saa-s-oudqxrvw0-glemynarts-projects.vercel.app`), target `preview`, sin el alias; corresponde a
+un commit anterior a sincronizar la PR con `main`, así que debe revalidarse por SHA antes de usarlo.
+No se verificó que la Preview use una API aislada. La lista de Preview incluye `API_URL` y
+`NEXT_PUBLIC_API_URL`, pero sus valores no se leyeron. PR #123 y PR #125 no modificaron archivos de
+`apps/web`. El
 workflow API existente publica imágenes a GHCR, pero no despliega el stack de staging. El run
 `40083400008` de `Publish API image`, para el SHA `0aa157e4f3593795d43568eabfbd3d80f778aea8`,
 terminó correctamente; su log de build/push reportó el tag
