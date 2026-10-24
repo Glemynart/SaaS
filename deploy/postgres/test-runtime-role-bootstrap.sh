@@ -7,10 +7,21 @@ if [[ "${GITHUB_ACTIONS:-}" != "true" ]]; then
 fi
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-postgres_container_id="$(docker ps --filter "ancestor=postgres:16" --format '{{.ID}}' | head -n 1)"
+postgres_container_id="${POSTGRES_SERVICE_CONTAINER_ID:-}"
 
 if [[ -z "$postgres_container_id" ]]; then
-  echo "The PostgreSQL 16 GitHub Actions service container was not found." >&2
+  echo "The PostgreSQL GitHub Actions service container ID is required." >&2
+  exit 1
+fi
+
+if ! docker inspect "$postgres_container_id" >/dev/null 2>&1; then
+  echo "The configured PostgreSQL GitHub Actions service container was not found." >&2
+  exit 1
+fi
+
+postgres_image="$(docker inspect --format '{{.Config.Image}}' "$postgres_container_id")"
+if [[ "$postgres_image" != "postgres:16" ]]; then
+  echo "The configured PostgreSQL service container is not the expected CI image." >&2
   exit 1
 fi
 

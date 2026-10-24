@@ -64,6 +64,8 @@ jobs:
             '
 
       - name: Test PostgreSQL runtime role isolation bootstrap
+        env:
+          POSTGRES_SERVICE_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: bash deploy/postgres/test-runtime-role-bootstrap.sh
 
       - name: Setup pnpm
