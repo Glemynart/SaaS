@@ -149,9 +149,16 @@ Estas exclusiones son limitaciones temporales del roadmap. No se numerarán como
 
 **Resultado verificable:** la aplicación se despliega desde cero en un ambiente representativo y completa un smoke test autenticado.
 
-**Estado del Milestone:** `BLOQUEADO POR INFRAESTRUCTURA EXTERNA` por una dependencia operativa verificable:
-no existe todavía una URL de staging, secretos de entorno ni un workflow de despliegue
-disponible en el repositorio o en GitHub. Este estado pertenece a M1; no convierte al
+**Estado del Milestone:** `BLOQUEADO POR INFRAESTRUCTURA EXTERNA` porque el entorno
+observado no es staging aislado ni reproducible. La inspección de solo lectura del
+2026-10-24 confirmó que `staging-api.dusema.com` responde HTTP 200 en `/health` y
+`/readiness`, pero la API corre en la única VPS clasificada como producción, comparte
+la red Docker con PostgreSQL y usa `STORAGE_PROVIDER=local`. Inspecciones previas del
+mismo entorno identificaron `oficina_nitida` como base compartida. El alias
+`staging.dusema.com` apunta a un deployment Vercel `Production` en estado `READY`; la
+consulta disponible no expuso el SHA asociado al alias. El workflow API existente
+publica imágenes a GHCR, pero no despliega el stack de staging. Estos artefactos y
+respuestas HTTP no certifican el entorno. Este estado pertenece a M1; no convierte al
 Goal en bloqueado. GOAL-01 permanece `ACTIVO`.
 
 - [ ] E1.1 — Staging reproducible, configuración y secretos.
@@ -161,18 +168,20 @@ Goal en bloqueado. GOAL-01 permanece `ACTIVO`.
 
 E1.4 se fusionó en `main` como PR #81, con los checks de CI y Browser E2E
 verdes y auditoría `APROBADO PARA MERGE`. E1.3 también está fusionada y sus
-rutas `/health` y `/readiness` son la base de los smoke tests. La verificación
-real de R2 y correo de E1.3, junto con la validación de staging reproducible de
-E1.1, sigue siendo evidencia operativa pendiente y no se declara cerrada por
-la sola existencia del código. M1 no desbloquea el camino de M2 que requiere
-deployment y correo, pero esta dependencia no bloquea los caminos independientes
-del Goal.
+rutas `/health` y `/readiness` son la base de los smoke tests; ambas respondieron
+HTTP 200 durante la inspección indicada arriba. La verificación real de R2 y correo
+de E1.3, junto con el aislamiento, despliegue reproducible, rollback y smoke
+autenticado de E1.1, sigue pendiente. El HTTP 200 solo confirma la respuesta de esos
+endpoints en ese momento. M1 no desbloquea el camino de M2 que requiere deployment
+y correo, pero esta dependencia no bloquea los caminos independientes del Goal.
 
-La investigación de `main` no encontró una URL de staging, secretos de entorno
-ni un workflow de despliegue disponible en el repositorio o en GitHub. Esta es
-una dependencia operativa externa pendiente, no una decisión de arquitectura.
-La prioridad se reevalúa como un grafo de dependencias: M3 puede avanzar sin
-staging, R2, correo ni una decisión de dominio pendiente.
+La evidencia de 2026-10-24 reemplaza el diagnóstico histórico que decía que no
+existían una URL de staging ni un workflow API: la API pública y el workflow de
+publicación GHCR sí existen, pero no proporcionan staging aislado ni un despliegue
+reproducible del stack. No se verificó que las credenciales estén separadas entre
+entornos. Esta sigue siendo una dependencia operativa externa pendiente, no una
+decisión de arquitectura. La prioridad se reevalúa como un grafo de dependencias:
+M3 puede avanzar sin staging, R2, correo ni una decisión de dominio pendiente.
 
 ### M2 — Gestión de Organizaciones y Usuarios
 
