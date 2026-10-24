@@ -230,6 +230,11 @@ Preview correspondiente al commit `966bded40b0ba5ae6384cd922f2f109d51705053` de 
 desde `https://saa-s-q0bukaijo-glemynarts-projects.vercel.app`; GitHub registró el deployment
 `7298681383` como `success` el 2026-10-24 12:36 UTC. Es un deployment de PR, no una fuente estable
 de staging.
+La revalidación del 2026-10-24 encontró para el HEAD actual de PR #124,
+`bc111c930fa9116a74ebf9cabb80f0d40efc65c3`, el deployment `dpl_9NzpXu3RofofqAer279ijnSScDBM`
+(`saa-s-izym3kh5f-glemynarts-projects.vercel.app`), `READY`, target `preview`, sin el alias de
+staging. El check Vercel asociado a ese HEAD enlaza al deployment; `vercel inspect --json` no
+expuso `gitSource`. Es un Preview de rama, no una fuente estable aprobada para el alias.
 La consulta de solo lectura no encontró una rama GitHub
 `staging`. La lista del entorno Vercel Preview incluye `API_URL`, `NEXT_PUBLIC_API_URL` y
 `NEXT_PUBLIC_SITE_URL`, pero sus valores no se leyeron. La URL `/configuracion/identidad` redirigió a

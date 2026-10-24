@@ -170,6 +170,11 @@ preparar, pero no ejecutar, la reasignación. El Preview observado para el commi
 `dpl_4mBn7eirb5fLTeFyisLS6WNrDAvJ`
 (`saa-s-oudqxrvw0-glemynarts-projects.vercel.app`), target `preview`, sin el alias; corresponde a
 un commit anterior a sincronizar la PR con `main`, así que debe revalidarse por SHA antes de usarlo.
+La revalidación del 2026-10-24 encontró para el HEAD actual de PR #124,
+`bc111c930fa9116a74ebf9cabb80f0d40efc65c3`, el deployment `dpl_9NzpXu3RofofqAer279ijnSScDBM`
+(`saa-s-izym3kh5f-glemynarts-projects.vercel.app`), `READY`, target `preview`, sin el alias de
+staging. El check Vercel asociado a ese HEAD enlaza al deployment; `vercel inspect --json` no
+expuso `gitSource`. Sigue siendo un Preview de rama, no una fuente estable aprobada para el alias.
 No se verificó que la Preview use una API aislada. La lista de Preview incluye `API_URL` y
 `NEXT_PUBLIC_API_URL`, pero sus valores no se leyeron. PR #123 y PR #125 no modificaron archivos de
 `apps/web`. El

@@ -21,6 +21,11 @@ un deployment `Preview` y autorizó preparar, pero no ejecutar, la reasignación
 La observación más reciente sigue mostrando ese dominio asociado a un deployment
 `Production`. Los deployments Preview de ramas de PR sirven para revisión, pero
 no se deben tomar automáticamente como fuente estable del dominio de staging.
+El 2026-10-24, el HEAD `bc111c930fa9116a74ebf9cabb80f0d40efc65c3` de PR #124 tuvo el deployment
+`dpl_9NzpXu3RofofqAer279ijnSScDBM` (`saa-s-izym3kh5f-glemynarts-projects.vercel.app`) en estado
+`READY`, target `preview`, sin el alias de staging. El check Vercel de ese HEAD enlazó a este
+deployment; la inspección JSON de Vercel no expuso `gitSource`. Es un Preview de rama y aún no está
+aprobado como destino estable. Tampoco se verificó que su configuración apunte a una API aislada.
 
 Antes de cambiar el alias:
 
