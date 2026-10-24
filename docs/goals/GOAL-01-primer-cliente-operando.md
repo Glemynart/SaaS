@@ -199,7 +199,12 @@ bind mount de uploads `/home/ubuntu/la-oficina-nitida/staging/uploads:/app/uploa
 variables requeridas de R2 no estaban presentes con valor. Los nombres de configuración SMTP y
 `REQUIRE_REAL_EMAIL` sí estaban presentes, pero no se leyeron valores ni se envió correo; esto no
 verifica entrega SMTP. En ese momento `/health` devolvió HTTP 200 y `/readiness` devolvió HTTP 200
-con estado `ready`.
+con estado `ready`. La inspección SSH del mismo día confirmó que el proyecto Compose activo
+`la-oficina-nitida-staging` contiene API y Caddy; Caddy publica 80/443, monta
+`/home/ubuntu/la-oficina-nitida/staging/Caddyfile` y enruta `staging-api.dusema.com` a `api:4000`.
+La configuración versionada de PR #124 se ajustó para usar el proyecto distinto
+`dusema-staging-isolated`, solo el servicio API y el alias `dusema-staging-api`; aún no está
+desplegada.
 El Docker client del VPS leyó el manifiesto del digest nuevo (`linux/amd64` y `linux/arm64`) sin
 descargar capas; esto confirma acceso al artefacto, no su despliegue. La identidad concreta usada
 por Docker no se inspeccionó. Estos artefactos y respuestas HTTP no certifican el entorno. Este

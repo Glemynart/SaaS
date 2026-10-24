@@ -42,12 +42,18 @@ jobs:
 
       - name: Validate staging Compose configuration
         run: |
-          docker compose --env-file deploy/staging.env.example \
+          docker compose --project-name dusema-staging-isolated \
+            --env-file deploy/staging.env.example \
             -f deploy/docker-compose.staging.yml config --format json |
             jq -e '
-              .services.api.environment as $environment
+              . as $compose
+              | ($compose.services.api.networks["la-oficina-nitida"].aliases // []) as $aliases
+              | $compose.services.api.environment as $environment
               | (
-                  $environment.STORAGE_PROVIDER == "r2"
+                  $compose.name == "dusema-staging-isolated"
+                  and ($compose.services | keys == ["api"])
+                  and ($aliases | index("dusema-staging-api") != null)
+                  and $environment.STORAGE_PROVIDER == "r2"
                   and $environment.REQUIRE_REAL_EMAIL == "true"
                   and ($environment.R2_ENDPOINT // "") != ""
                   and ($environment.R2_ACCESS_KEY_ID // "") != ""

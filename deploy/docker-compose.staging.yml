@@ -1,4 +1,4 @@
-name: la-oficina-nitida-staging
+name: dusema-staging-isolated
 
 services:
   api:
@@ -35,7 +35,9 @@ services:
     expose:
       - '4000'
     networks:
-      - la-oficina-nitida
+      la-oficina-nitida:
+        aliases:
+          - dusema-staging-api
     healthcheck:
       test:
         - CMD
@@ -49,27 +51,6 @@ services:
       retries: 5
       start_period: 20s
     shm_size: 256m
-    logging:
-      driver: json-file
-      options:
-        max-size: 10m
-        max-file: '5'
-
-  caddy:
-    image: caddy:2.10.2-alpine
-    depends_on:
-      api:
-        condition: service_healthy
-    restart: unless-stopped
-    ports:
-      - '80:80'
-      - '443:443'
-      - '443:443/udp'
-    volumes:
-      - /home/ubuntu/la-oficina-nitida/caddy/config:/etc/caddy
-      - /home/ubuntu/la-oficina-nitida/caddy/data:/data
-    networks:
-      - la-oficina-nitida
     logging:
       driver: json-file
       options:

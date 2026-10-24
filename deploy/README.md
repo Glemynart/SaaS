@@ -6,13 +6,21 @@ existente para `apps/api`.
 
 ## Aplicabilidad al VPS observado
 
-El único VPS está clasificado como producción. Su Compose activo fue observado
-en `/home/ubuntu/la-oficina-nitida/staging/docker-compose.yml`; el archivo
-versionado de esta guía es `deploy/docker-compose.staging.yml`. No se ha
-verificado que ambos archivos sean equivalentes. La estructura y los comandos
-de esta guía describen el despliegue versionado y no deben ejecutarse contra el
-Compose activo hasta que se revise su configuración completa y el propietario
-apruebe el aislamiento de staging.
+El único VPS está clasificado como producción. La inspección SSH de solo lectura
+del 2026-10-24 confirmó el proyecto Compose activo `la-oficina-nitida-staging`
+en `/home/ubuntu/la-oficina-nitida/staging/docker-compose.yml`, con API y Caddy.
+Caddy publica los puertos 80/443, monta
+`/home/ubuntu/la-oficina-nitida/staging/Caddyfile` y actualmente enruta
+`staging-api.dusema.com` a `api:4000`.
+
+El Compose versionado usa ahora el proyecto independiente
+`dusema-staging-isolated`, contiene solo la API y le asigna el alias de red
+`dusema-staging-api`. Así puede convivir con el proyecto observado sin
+reemplazar su contenedor API ni intentar publicar de nuevo 80/443. No se ha
+desplegado. La API nueva debe validarse antes de cambiar la ruta del Caddy
+existente; no inicies otro Caddy en este VPS ni ejecutes los comandos de este
+runbook hasta que estén satisfechos los prerrequisitos y exista aprobación
+operativa.
 
 ## Frontend de staging en Vercel
 
@@ -68,7 +76,8 @@ captura el mapeo inmediatamente antes de cada reasignación.
 
 - `deploy/Dockerfile.api` construye la imagen del API y deja Chromium
   disponible para el renderer PDF.
-- `deploy/docker-compose.staging.yml` ejecuta únicamente `api` y Caddy.
+- `deploy/docker-compose.staging.yml` ejecuta únicamente `api`; reutiliza el
+  Caddy existente tras una actualización de ruta aprobada.
 - PostgreSQL y Redis son infraestructura existente y no forman parte del
   Compose de staging.
 - La imagen se publica en GHCR para que el VPS no necesite Git ni un build
@@ -139,8 +148,9 @@ networks:
     name: la-oficina-nitida_laoficina
 ```
 
-La API no publica el puerto `4000`. Caddy es el único servicio que publica
-`80` y `443`.
+La API no publica el puerto `4000`. El servicio usa la red externa existente y
+el alias `dusema-staging-api`; Caddy debe apuntar a ese alias solo después de
+validar la API aislada. El Compose de staging no publica puertos del host.
 
 ## Archivos en el VPS
 
@@ -148,22 +158,19 @@ Una estructura sugerida, sin tocar los directorios de datos existentes, es:
 
 ```text
 /home/ubuntu/la-oficina-nitida/
-├── app/
+├── staging/                         # Compose/Caddy activos; preservar
+│   └── Caddyfile
+├── staging-isolated/                # destino propuesto; aún no creado/verificado
 │   ├── .env
-│   ├── deploy/
-│   │   ├── caddy/Caddyfile
-│   │   └── docker-compose.staging.yml
-│   └── deploy/postgres/bootstrap-runtime-role.sql
-├── uploads/
-├── backups/
-├── caddy/config/Caddyfile
-├── caddy/data/
+│   ├── docker-compose.staging.yml
+│   └── postgres/bootstrap-runtime-role.sql
 ├── postgres/data/
 └── redis/data/
 ```
 
-El archivo `.env` real se crea en el VPS a partir de
-`deploy/staging.env.example` y queda fuera de Git. El Compose versionado fija
+`staging-isolated/` es una ubicación propuesta, no una ruta observada ni creada.
+El archivo `.env` se creará allí, solo con autorización operativa, a partir de
+`deploy/staging.env.example` y quedará fuera de Git. El Compose versionado fija
 R2 como almacenamiento obligatorio y no monta directorios locales de uploads;
 no conectes rutas locales compartidas con el servicio existente o producción.
 
@@ -199,24 +206,22 @@ R2 anteriores y fija `REQUIRE_REAL_EMAIL=true`. El bucket debe ser privado y
 dedicado a staging. Las claves de R2 y las credenciales SMTP de OCI deben
 existir únicamente en el `.env` privado del VPS; no deben entrar en Git.
 
-## Caddy
+## Caddy existente
 
-Instala `deploy/caddy/Caddyfile` en:
+El Caddy activo pertenece al proyecto `la-oficina-nitida-staging`, publica
+80/443 y monta `/home/ubuntu/la-oficina-nitida/staging/Caddyfile` en
+`/etc/caddy/Caddyfile`. La inspección de solo lectura encontró que la ruta de
+`staging-api.dusema.com` usa `reverse_proxy api:4000`. El archivo versionado
+`deploy/caddy/Caddyfile` contiene la ruta deseada hacia
+`dusema-staging-api:4000`; es una referencia para ese bloque, no autorización
+para sobrescribir el Caddyfile activo completo.
 
-```text
-/home/ubuntu/la-oficina-nitida/caddy/config/Caddyfile
-```
-
-El Compose monta esa ruta en `/etc/caddy` y conserva los certificados en:
-
-```text
-/home/ubuntu/la-oficina-nitida/caddy/data
-```
-
-Caddy atiende `staging-api.dusema.com`, termina HTTPS y hace
-`reverse_proxy api:4000`. La emisión automática de certificados requiere que
-DNS y los puertos públicos `80/443` estén preparados; esa configuración queda
-fuera de este repositorio y de esta tarea.
+Después de validar la API nueva en la red interna y obtener aprobación para el
+cutover, el operador debe preservar el Caddyfile actual, modificar únicamente
+el destino `reverse_proxy` del sitio de staging, validar la configuración y
+recargar el Caddy existente. Si falla, debe restaurar el destino anterior
+`api:4000` y recargarlo. No inicies un segundo Caddy ni vuelvas a publicar
+80/443 desde el Compose de staging.
 
 ## Primer despliegue
 
@@ -231,32 +236,46 @@ El procedimiento debe ejecutarse manualmente en el VPS. No se debe ejecutar
 3. Confirma que existe un backup utilizable antes de cambiar el esquema.
 4. Confirma que el bucket R2 privado de staging y su identidad restringida estén
    provisionados y validados para lectura y escritura de objetos.
-5. Copia el Compose, el Caddyfile, este SQL y el `.env` al directorio de
-   aplicación.
+5. Copia el Compose y este SQL al directorio propuesto
+   `/home/ubuntu/la-oficina-nitida/staging-isolated/`, junto con su `.env`
+   privado. No sobrescribas el Compose, `.env` ni `Caddyfile` de `staging/`.
 6. Valida la configuración sin iniciar servicios:
 
    ```bash
    docker compose \
-     --env-file /home/ubuntu/la-oficina-nitida/app/.env \
-     -f /home/ubuntu/la-oficina-nitida/app/deploy/docker-compose.staging.yml \
+     --project-name dusema-staging-isolated \
+     --env-file /home/ubuntu/la-oficina-nitida/staging-isolated/.env \
+     -f /home/ubuntu/la-oficina-nitida/staging-isolated/docker-compose.staging.yml \
      config
    ```
 
-7. Levanta solamente la API y Caddy. Este comando no ejecuta migraciones ni
-   seed:
+7. Levanta solamente la API aislada. Este comando no ejecuta migraciones ni
+   seed y no cambia la ruta pública del Caddy existente:
 
    ```bash
    docker compose \
-     --env-file /home/ubuntu/la-oficina-nitida/app/.env \
-     -f /home/ubuntu/la-oficina-nitida/app/deploy/docker-compose.staging.yml \
-     up -d api caddy
+     --project-name dusema-staging-isolated \
+     --env-file /home/ubuntu/la-oficina-nitida/staging-isolated/.env \
+     -f /home/ubuntu/la-oficina-nitida/staging-isolated/docker-compose.staging.yml \
+     up -d api
    ```
 
-8. Verifica los endpoints:
+8. Verifica el estado de la API aislada y sus endpoints locales sin imprimir
+   los cuerpos de respuesta. El hostname público sigue apuntando a la API
+   anterior hasta un cutover posterior aprobado del Caddy existente:
 
    ```bash
-   curl --fail https://staging-api.dusema.com/health
-   curl --fail https://staging-api.dusema.com/readiness
+   docker compose \
+     --project-name dusema-staging-isolated \
+     --env-file /home/ubuntu/la-oficina-nitida/staging-isolated/.env \
+     -f /home/ubuntu/la-oficina-nitida/staging-isolated/docker-compose.staging.yml \
+     ps
+
+   docker compose \
+     --project-name dusema-staging-isolated \
+     --env-file /home/ubuntu/la-oficina-nitida/staging-isolated/.env \
+     -f /home/ubuntu/la-oficina-nitida/staging-isolated/docker-compose.staging.yml \
+     exec -T api node -e "Promise.all(['/health','/readiness'].map(async path => { const response = await fetch('http://127.0.0.1:4000' + path); console.log(path + ' ' + response.status); if (!response.ok) process.exitCode = 1; })).catch(() => { console.error('Local API check failed'); process.exitCode = 1; })"
    ```
 
 El healthcheck de Compose consulta `/health`. `/readiness` valida PostgreSQL,
@@ -374,8 +393,9 @@ un aislamiento seguro. No omitas el fallo ni cambies ACL como atajo.
   export DATABASE_URL="$DATABASE_URL_MIGRATION"
 
   docker compose \
-    --env-file /home/ubuntu/la-oficina-nitida/app/.env \
-    -f /home/ubuntu/la-oficina-nitida/app/deploy/docker-compose.staging.yml \
+    --project-name dusema-staging-isolated \
+    --env-file /home/ubuntu/la-oficina-nitida/staging-isolated/.env \
+    -f /home/ubuntu/la-oficina-nitida/staging-isolated/docker-compose.staging.yml \
     run --rm --no-deps \
     -e DATABASE_URL \
     -e GOAL01_STAGING_DATABASE \
@@ -434,8 +454,9 @@ const prisma = new PrismaClient();
 '
 
   docker compose \
-    --env-file /home/ubuntu/la-oficina-nitida/app/.env \
-    -f /home/ubuntu/la-oficina-nitida/app/deploy/docker-compose.staging.yml \
+    --project-name dusema-staging-isolated \
+    --env-file /home/ubuntu/la-oficina-nitida/staging-isolated/.env \
+    -f /home/ubuntu/la-oficina-nitida/staging-isolated/docker-compose.staging.yml \
     run --rm --no-deps \
     -e DATABASE_URL \
     --entrypoint node api \
@@ -447,8 +468,9 @@ El seed es también explícito y usa la conexión runtime:
 
 ```bash
 docker compose \
-  --env-file /home/ubuntu/la-oficina-nitida/app/.env \
-  -f /home/ubuntu/la-oficina-nitida/app/deploy/docker-compose.staging.yml \
+  --project-name dusema-staging-isolated \
+  --env-file /home/ubuntu/la-oficina-nitida/staging-isolated/.env \
+  -f /home/ubuntu/la-oficina-nitida/staging-isolated/docker-compose.staging.yml \
   run --rm --no-deps \
   --entrypoint sh api \
   -lc 'cd /app/apps/api && npm run prisma:seed'
@@ -463,12 +485,18 @@ anterior y recrear solamente `api`:
 
 ```bash
 docker compose \
-  --env-file /home/ubuntu/la-oficina-nitida/app/.env \
-  -f /home/ubuntu/la-oficina-nitida/app/deploy/docker-compose.staging.yml \
+  --project-name dusema-staging-isolated \
+  --env-file /home/ubuntu/la-oficina-nitida/staging-isolated/.env \
+  -f /home/ubuntu/la-oficina-nitida/staging-isolated/docker-compose.staging.yml \
   up -d api
 ```
 
-Caddy, PostgreSQL, Redis y sus datos no se modifican durante este rollback.
+El rollback de imagen afecta solo al servicio `dusema-staging-isolated-api-1`.
+El Caddy existente, PostgreSQL, Redis y sus datos no se modifican durante este
+rollback. Si ya se hizo el cutover de Caddy y falla la API nueva, restaura el
+destino anterior `api:4000` en el bloque de `staging-api.dusema.com`, valida y
+recarga el Caddy existente. No restaures un Caddyfile completo anterior sin
+comprobar que sus otras rutas no hayan cambiado.
 
 Un rollback de la imagen no revierte migraciones Prisma. Las migraciones deben
 ser compatibles con la versión anterior; si una migración no lo permite, la
@@ -493,6 +521,7 @@ flags arbitrarios al runtime.
 
 ## Logs y observabilidad
 
-El Compose rota los logs `json-file` de API y Caddy a un máximo de cinco
-archivos de 10 MB. La aplicación conserva `x-request-id` y logs sanitizados;
-no se agrega una plataforma de observabilidad nueva para este staging.
+El Compose rota los logs `json-file` de API a un máximo de cinco archivos de
+10 MB. La política de logs del Caddy existente queda fuera de este Compose. La
+aplicación conserva `x-request-id` y logs sanitizados; no se agrega una
+plataforma de observabilidad nueva para este staging.
