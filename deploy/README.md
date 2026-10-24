@@ -152,14 +152,14 @@ Una estructura sugerida, sin tocar los directorios de datos existentes, es:
 ```
 
 El archivo `.env` real se crea en el VPS a partir de
-`deploy/staging.env.example` y queda fuera de Git. El directorio `uploads`
-debe ser escribible por el usuario `node` de la imagen.
+`deploy/staging.env.example` y queda fuera de Git. El Compose versionado fija
+R2 como almacenamiento obligatorio y no monta directorios locales de uploads;
+no conectes rutas locales compartidas con el servicio existente o producción.
 
 Variables mínimas para staging:
 
 ```env
 API_IMAGE=ghcr.io/OWNER/REPOSITORY/api:sha-COMMIT_SHA
-UPLOADS_PATH=/home/ubuntu/la-oficina-nitida/uploads
 NODE_ENV=production
 PORT=4000
 DATABASE_URL=postgresql://REPLACE_WITH_STAGING_RUNTIME_ROLE:<password>@postgres:5432/REPLACE_WITH_APPROVED_STAGING_DATABASE?schema=public
@@ -168,7 +168,6 @@ FRONTEND_URL=https://staging.dusema.com
 BACKEND_URL=https://staging-api.dusema.com
 ALLOWED_ORIGINS=https://staging.dusema.com
 STORAGE_PROVIDER=r2
-STORAGE_LOCAL_ROOT=/app/uploads
 R2_ENDPOINT=https://REPLACE_WITH_ACCOUNT_ID.r2.cloudflarestorage.com
 R2_ACCESS_KEY_ID=<staging-access-key-id>
 R2_SECRET_ACCESS_KEY=<staging-secret-access-key>
@@ -219,7 +218,8 @@ El procedimiento debe ejecutarse manualmente en el VPS. No se debe ejecutar
    aprobados y comprobados contra el acceso a `oficina_nitida`, detén el
    procedimiento.
 3. Confirma que existe un backup utilizable antes de cambiar el esquema.
-4. Crea el directorio persistente de uploads y verifica sus permisos.
+4. Confirma que el bucket R2 privado de staging y su identidad restringida estén
+   provisionados y validados para lectura y escritura de objetos.
 5. Copia el Compose, el Caddyfile, este SQL y el `.env` al directorio de
    aplicación.
 6. Valida la configuración sin iniciar servicios:

@@ -53,6 +53,7 @@ jobs:
                   and ($environment.R2_ACCESS_KEY_ID // "") != ""
                   and ($environment.R2_SECRET_ACCESS_KEY // "") != ""
                   and ($environment.R2_BUCKET // "") != ""
+                  and ((.services.api.volumes // []) | length == 0)
                 )
             '
 
