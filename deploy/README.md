@@ -14,6 +14,45 @@ de esta guía describen el despliegue versionado y no deben ejecutarse contra el
 Compose activo hasta que se revise su configuración completa y el propietario
 apruebe el aislamiento de staging.
 
+## Frontend de staging en Vercel
+
+El propietario confirmó el 2026-10-24 que `staging.dusema.com` debe apuntar a
+un deployment `Preview` y autorizó preparar, pero no ejecutar, la reasignación.
+La observación más reciente sigue mostrando ese dominio asociado a un deployment
+`Production`. Los deployments Preview de ramas de PR sirven para revisión, pero
+no se deben tomar automáticamente como fuente estable del dominio de staging.
+
+Antes de cambiar el alias:
+
+1. Selecciona una revisión estable aprobada para Preview e identifica su SHA,
+   URL, estado `READY` y target `preview` con Vercel.
+2. Confirma en la configuración Preview que `NEXT_PUBLIC_API_URL` apunta a la
+   API aislada de staging. No publiques valores de variables en logs, tickets ni
+   Git. La API no debe conectarse a `oficina_nitida` ni reutilizar su rol runtime.
+3. Registra el deployment y alias actuales para poder volver atrás. Comprueba
+   que el backend aislado esté listo antes de dirigir usuarios al nuevo frontend.
+4. Después de la autorización operativa para ejecutar el cambio, asigna el
+   alias al deployment Preview elegido y verifica el resultado:
+
+   ```bash
+   vercel alias set "<preview-deployment-url-aprobada>" staging.dusema.com --scope glemynarts-projects
+   vercel inspect staging.dusema.com --json --scope glemynarts-projects
+   ```
+
+   La inspección debe mostrar el deployment esperado con estado `READY` y target
+   `preview`. La respuesta HTTP y TLS por sí solas no prueban el aislamiento del
+   backend ni la configuración de correo y storage.
+
+El rollback del alias usa la URL del deployment que se registró justo antes del
+cambio:
+
+```bash
+vercel alias set "<deployment-anterior-registrado>" staging.dusema.com --scope glemynarts-projects
+```
+
+No uses una URL anotada previamente como rollback si el alias cambió después;
+captura el mapeo inmediatamente antes de cada reasignación.
+
 ## Alcance
 
 - `deploy/Dockerfile.api` construye la imagen del API y deja Chromium
