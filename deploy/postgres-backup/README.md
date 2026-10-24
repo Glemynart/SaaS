@@ -20,7 +20,7 @@ Los valores históricos siguientes proceden de la inspección del 22 de octubre 
 | Namespace / bucket / región | `axfelzrsklz7` / `dusema-backups-prod` / `sa-bogota-1` |
 | Prefijo | `postgres/` |
 | Autenticación OCI prevista | Instance principal; acceso efectivo de lectura/escritura no se verificó con este artefacto |
-| Clave GPG pública prevista | `/home/ubuntu/.gnupg`; fingerprint de destinatario fijado en el script |
+| Clave GPG pública prevista | `/home/ubuntu/.gnupg`; ID largo de la subclave de cifrado fijado en el script |
 | Clave privada de recuperación | Debe permanecer fuera del VPS; no la requiere el proceso de backup |
 | Frecuencia observada | El timer estaba habilitado/activo; última activación 2026-10-24 07:00:04 UTC; siguiente 2026-10-25 07:00:00 UTC |
 | Último servicio observado | `Result=success`, `ExecMainStatus=0`; ejecución 2026-10-24 07:00:04–07:00:05 UTC |
