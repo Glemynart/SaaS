@@ -163,8 +163,14 @@ de deployment de GitHub `7296998166` vincula el SHA
 deployment `14da89e6d3f8ab19b38b8696776651fc6da79466` estaba entonces `CANCELED`. El target actual
 de Vercel sigue clasificado `Production`, no como un Preview aislado; la intención de producto
 para `staging.dusema.com` no está confirmada. PR #123 no modificó archivos de `apps/web`. El
-workflow API existente publica imágenes a GHCR, pero no despliega el stack de staging. Estos
-artefactos y respuestas HTTP no certifican el entorno. Este estado pertenece a M1; no convierte al
+workflow API existente publica imágenes a GHCR, pero no despliega el stack de staging. El run
+`40083400008` de `Publish API image`, para el SHA `0aa157e4f3593795d43568eabfbd3d80f778aea8`,
+terminó correctamente; su log de build/push reportó el tag
+`ghcr.io/glemynart/saas/api:sha-0aa157e4f3593795d43568eabfbd3d80f778aea8` con digest
+`sha256:91d984da4559f95bc109e731b09caa06efb87da672b5ce62f2c8202f7cb941ee`. No se pudo comprobar
+independientemente la metadata del paquete GHCR con la identidad disponible, ni se verificó que
+la VPS ejecute ese digest. Estos artefactos y respuestas HTTP no certifican el entorno. Este
+estado pertenece a M1; no convierte al
 Goal en bloqueado. GOAL-01 permanece `ACTIVO`.
 
 - [ ] E1.1 — Staging reproducible, configuración y secretos.

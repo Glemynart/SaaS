@@ -214,8 +214,14 @@ era el alias observado antes de la fusión; el deployment `14da89e6d3f8ab19b38b8
 estaba entonces `CANCELED`. El target actual de Vercel sigue clasificado `Production`, no como un
 Preview aislado; la intención de producto para `staging.dusema.com` no está confirmada. PR #123 no
 modificó archivos de `apps/web`. El workflow `.github/workflows/api-image.yml` publica la imagen
-API a GHCR al hacer push a `main`, pero no despliega el stack en la VPS. La existencia de URL,
-checks HTTP y artefactos no demuestra staging aislado ni reproducible. E1.1/E1.3 siguen pendientes
+API a GHCR al hacer push a `main`, pero no despliega el stack en la VPS. El run `40083400008` de
+`Publish API image`, para el SHA `0aa157e4f3593795d43568eabfbd3d80f778aea8`, terminó correctamente;
+su log de build/push reportó el tag
+`ghcr.io/glemynart/saas/api:sha-0aa157e4f3593795d43568eabfbd3d80f778aea8` con digest
+`sha256:91d984da4559f95bc109e731b09caa06efb87da672b5ce62f2c8202f7cb941ee`. No se pudo comprobar
+independientemente la metadata del paquete GHCR con la identidad disponible, ni se verificó que
+la VPS ejecute ese digest. La existencia de URL, checks HTTP y artefactos no demuestra staging
+aislado ni reproducible. E1.1/E1.3 siguen pendientes
 por aislamiento, R2 privado, correo real y smoke autenticado sobre el entorno correcto; la
 separación de secretos tampoco está verificada. Esto bloquea M1, no GOAL-01: el Goal permanece
 ACTIVO. E2.1, E2.4, E4.2, E4.3, E4.4, E4.5, E4.6, E4.7, E5.1, E5.2, E5.3, E5.4, E6.1, E6.2 y
