@@ -66,6 +66,30 @@ se consultaron y el host API sigue sin verificarse. Este es un Preview de la ram
 no una fuente estable aprobada. El alias sigue en `dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`, target
 `production`. No se reasignó; la API actual tampoco está aislada de `oficina_nitida`.
 
+Revalidación del 2026-10-24 19:32 UTC: el HEAD `4079226dd439dd53505d3d1cd3b5c43cdb634098`
+de PR #124 está asociado al deployment GitHub `7303372602` y al deployment Vercel
+`dpl_4MKj1jsa7kovczxjft9x36bjTCZb`
+(`saa-s-otkgzv3te-glemynarts-projects.vercel.app`), `READY`, target `preview`. El alias
+generado pertenece a la rama; no es `staging.dusema.com`. Un GET público sin autenticación
+devolvió HTTP 302 a `vercel.com/sso-api`. La inspección Vercel del dominio confirma que
+`staging.dusema.com` permanece en `dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`, `READY`, target
+`production`. No se reasignó el alias.
+
+La inspección SSH de solo lectura del mismo momento confirmó que el contenedor
+`la-oficina-nitida-staging-api-1` sigue ejecutando el digest
+`sha256:c03c3f11f75ed1c4cd4fca2a54941956de645e34bd0465995b2a222acade2b19`, con revisión OCI
+`14da89e6d3f8ab19b38b8696776651fc6da79466`, estado `running` y health `healthy`. GET públicos a
+`/health` y `/readiness` devolvieron HTTP 200. Esto no demuestra aislamiento: el host sigue
+clasificado como producción y la inspección de configuración anterior identificó la base
+compartida `oficina_nitida` y almacenamiento local.
+
+El workflow `Publish API image` (run `40122527410`) terminó correctamente para el merge SHA
+`f426b5668b7f86be1c52ffcd36243ebc8f60f1fd`. La inspección de manifiesto desde el Docker client
+del VPS, sin descargar capas, resolvió el tag SHA de ese commit al digest
+`sha256:70c4aa819a5bd632aba02cd5600ad7a6eabff3453374df8ad6fb684bcc00b753`. El contenedor
+existente continúa en el digest anterior `c03c3f…`; el artefacto nuevo no está desplegado.
+Los valores de `API_URL` y `NEXT_PUBLIC_API_URL` de Vercel Preview siguen sin verificarse.
+
 Antes de cambiar el alias:
 
 1. Selecciona una revisión estable aprobada para Preview e identifica su SHA,

@@ -290,6 +290,15 @@ ACTIVO. E2.1, E2.4, E4.2, E4.3, E4.4, E4.5, E4.6, E4.7, E5.1, E5.2, E5.3, E5.4, 
 E6.3 quedaron fusionadas por caminos independientes. El checklist operativo de M1 está en
 [`docs/goals/GOAL-01-M1-infrastructure-checklist.md`](docs/goals/GOAL-01-M1-infrastructure-checklist.md).
 
+Revalidación del 2026-10-24 19:32 UTC: el contenedor de la VPS continúa en el digest
+`sha256:c03c3f11f75ed1c4cd4fca2a54941956de645e34bd0465995b2a222acade2b19`, revisión `14da89e…`,
+`healthy`; `/health` y `/readiness` responden HTTP 200. El workflow del merge actual de `main`
+`f426b5668b7f86be1c52ffcd36243ebc8f60f1fd` publicó correctamente la imagen cuyo manifiesto
+`sha256:70c4aa819a5bd632aba02cd5600ad7a6eabff3453374df8ad6fb684bcc00b753` pudo inspeccionarse
+desde el VPS; no está desplegada. `staging.dusema.com` sigue asociado a un deployment Vercel
+`Production`, y el Preview del HEAD actual de PR #124 está `READY` pero redirige a SSO. El detalle
+de esta revalidación está en [`deploy/README.md`](deploy/README.md#frontend-de-staging-en-vercel).
+
 E4.2 quedó fusionada y verificada en `main` mediante PR #90. M3 está completado y
 M4 tiene E4.1, E4.2, E4.3, E4.4, E4.5, E4.6 y E4.7 entregadas; E4.7 cerró la evidencia browser separada con PR #99.
 E5.1 quedó fusionada en PR #95. El procesamiento usa planes ya confirmados

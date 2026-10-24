@@ -185,7 +185,17 @@ inspección del alias confirma que `staging.dusema.com` sigue asociado a
 aislada; por ello no es todavía un destino aprobado para el alias.
 Una revalidación posterior del 2026-10-24 19:09 UTC halló el Preview `dpl_4JisJHHvR3GfijTzNxsStLinPV6J`
 `READY`, pero el acceso público redirigió a SSO y el host API no está verificado; sigue sin ser destino aprobado.
-El detalle está en [`deploy/README.md`](../../deploy/README.md#frontend-de-staging-en-vercel).
+La revalidación del 2026-10-24 19:32 UTC confirma que el HEAD `4079226dd439dd53505d3d1cd3b5c43cdb634098`
+de PR #124 tiene el Preview `dpl_4MKj1jsa7kovczxjft9x36bjTCZb`
+(`saa-s-otkgzv3te-glemynarts-projects.vercel.app`), `READY`, pero un GET público sin
+autenticación devuelve HTTP 302 a SSO; el alias `staging.dusema.com` sigue en el deployment
+`Production` `dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`. En el VPS, la API aún ejecuta el digest
+`sha256:c03c3f11f75ed1c4cd4fca2a54941956de645e34bd0465995b2a222acade2b19`, revisión `14da89e…`,
+healthy; health/readiness devuelven HTTP 200, pero el host no es staging aislado. El workflow de
+imagen publicó con éxito el commit `f426b5668b7f86be1c52ffcd36243ebc8f60f1fd`; su manifiesto
+`sha256:70c4aa819a5bd632aba02cd5600ad7a6eabff3453374df8ad6fb684bcc00b753` se pudo inspeccionar
+desde el VPS, aunque no está desplegado. La configuración Preview del backend sigue sin verificar.
+El detalle operativo está en [`deploy/README.md`](../../deploy/README.md#frontend-de-staging-en-vercel).
 La lista de Preview incluye `API_URL` y
 `NEXT_PUBLIC_API_URL`, pero sus valores no se leyeron. PR #123 y PR #125 no modificaron archivos de
 `apps/web`. El
