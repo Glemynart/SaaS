@@ -27,6 +27,7 @@ fi
 
 staging_database="dusema_staging_bootstrap_ci"
 runtime_role="dusema_ci_runtime"
+migration_role="dusema_ci_migration"
 export GOAL01_RUNTIME_DB_PASSWORD='ci-only-bootstrap-password'
 
 psql_as_admin() {
@@ -45,10 +46,24 @@ run_bootstrap() {
     < "$script_dir/bootstrap-runtime-role.sql"
 }
 
-psql_as_admin -d postgres -c 'CREATE DATABASE oficina_nitida' >/dev/null
-psql_as_admin -d postgres -c "CREATE DATABASE $staging_database" >/dev/null
+run_bootstrap_as_migration_role() {
+  local database="$1"
+  export GOAL01_RUNTIME_DB_ROLE="${2:-$runtime_role}"
+  {
+    printf 'SET ROLE %s;\n' "$migration_role"
+    cat "$script_dir/bootstrap-runtime-role.sql"
+  } | docker exec -i \
+    -e GOAL01_RUNTIME_DB_ROLE \
+    -e GOAL01_RUNTIME_DB_PASSWORD \
+    "$postgres_container_id" \
+    psql -X -v ON_ERROR_STOP=1 -U postgres -d "$database"
+}
 
-if run_bootstrap "$staging_database" >/dev/null; then
+psql_as_admin -d postgres -c 'CREATE DATABASE oficina_nitida' >/dev/null
+psql_as_admin -d postgres -c "CREATE ROLE $migration_role LOGIN CREATEROLE" >/dev/null
+psql_as_admin -d postgres -c "CREATE DATABASE $staging_database OWNER $migration_role" >/dev/null
+
+if run_bootstrap_as_migration_role "$staging_database" >/dev/null 2>&1; then
   echo "Bootstrap unexpectedly accepted CONNECT inherited from PUBLIC." >&2
   exit 1
 fi
@@ -66,7 +81,14 @@ fi
 
 psql_as_admin -d postgres -c 'REVOKE CONNECT ON DATABASE oficina_nitida FROM PUBLIC' >/dev/null
 psql_as_admin -d postgres -c 'CREATE ROLE saas_api_runtime NOLOGIN' >/dev/null
-run_bootstrap "$staging_database" >/dev/null
+run_bootstrap_as_migration_role "$staging_database" >/dev/null
+
+psql_as_admin -d "$staging_database" -c "SET ROLE $migration_role; CREATE TABLE goal01_bootstrap_privilege_probe (id serial PRIMARY KEY, value text)" >/dev/null
+default_object_privileges="$(psql_as_admin -d "$staging_database" -Atqc "SELECT has_table_privilege('$runtime_role', 'public.goal01_bootstrap_privilege_probe', 'SELECT')::text || '|' || has_table_privilege('$runtime_role', 'public.goal01_bootstrap_privilege_probe', 'INSERT')::text || '|' || has_sequence_privilege('$runtime_role', 'public.goal01_bootstrap_privilege_probe_id_seq', 'USAGE')::text")"
+if [[ "$default_object_privileges" != 'true|true|true' ]]; then
+  echo "Migration-created objects lack default runtime privileges: $default_object_privileges" >&2
+  exit 1
+fi
 
 runtime_role_marker="$(psql_as_admin -d postgres -Atqc "SELECT shobj_description(oid, 'pg_authid') FROM pg_roles WHERE rolname = '$runtime_role'")"
 if [[ "$runtime_role_marker" != 'dusema:goal01-staging-runtime' ]]; then
