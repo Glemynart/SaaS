@@ -135,20 +135,30 @@ export class PasswordResetService {
 
     const newPasswordHash = await bcrypt.hash(newPassword, 10);
 
-    await this.prisma.$transaction([
-      this.prisma.user.update({
+    await this.prisma.$transaction(async (tx) => {
+      const consumedAt = new Date();
+      const claim = await tx.passwordResetToken.updateMany({
+        where: {
+          id: tokenId,
+          usedAt: null,
+          expiresAt: { gte: consumedAt },
+        },
+        data: { usedAt: consumedAt },
+      });
+
+      if (claim.count !== 1) {
+        throw new BadRequestException(INVALID_TOKEN_MSG);
+      }
+
+      await tx.user.update({
         where: { id: dbToken.userId },
         data: { passwordHash: newPasswordHash },
-      }),
-      this.prisma.passwordResetToken.update({
-        where: { id: tokenId },
-        data: { usedAt: new Date() },
-      }),
-      this.prisma.refreshToken.updateMany({
+      });
+      await tx.refreshToken.updateMany({
         where: { userId: dbToken.userId, revokedAt: null },
-        data: { revokedAt: new Date() },
-      }),
-    ]);
+        data: { revokedAt: consumedAt },
+      });
+    });
 
     await this.auditService
       .log({
