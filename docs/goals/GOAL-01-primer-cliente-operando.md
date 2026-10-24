@@ -167,9 +167,15 @@ workflow API existente publica imágenes a GHCR, pero no despliega el stack de s
 `40083400008` de `Publish API image`, para el SHA `0aa157e4f3593795d43568eabfbd3d80f778aea8`,
 terminó correctamente; su log de build/push reportó el tag
 `ghcr.io/glemynart/saas/api:sha-0aa157e4f3593795d43568eabfbd3d80f778aea8` con digest
-`sha256:91d984da4559f95bc109e731b09caa06efb87da672b5ce62f2c8202f7cb941ee`. No se pudo comprobar
-independientemente la metadata del paquete GHCR con la identidad disponible, ni se verificó que
-la VPS ejecute ese digest. Estos artefactos y respuestas HTTP no certifican el entorno. Este
+`sha256:91d984da4559f95bc109e731b09caa06efb87da672b5ce62f2c8202f7cb941ee`. La inspección SSH de
+solo lectura del 2026-10-24 confirmó que el Compose activo está en
+`/home/ubuntu/la-oficina-nitida/staging/docker-compose.yml`; el contenedor
+`la-oficina-nitida-staging-api-1` está `healthy` y usa el RepoDigest
+`sha256:c03c3f11f75ed1c4cd4fca2a54941956de645e34bd0465995b2a222acade2b19`, con revisión OCI
+`14da89e6d3f8ab19b38b8696776651fc6da79466`. GET a `/health` y `/readiness` respondieron HTTP 200.
+El Docker client del VPS leyó el manifiesto del digest nuevo (`linux/amd64` y `linux/arm64`) sin
+descargar capas; esto confirma acceso al artefacto, no su despliegue. La identidad concreta usada
+por Docker no se inspeccionó. Estos artefactos y respuestas HTTP no certifican el entorno. Este
 estado pertenece a M1; no convierte al
 Goal en bloqueado. GOAL-01 permanece `ACTIVO`.
 

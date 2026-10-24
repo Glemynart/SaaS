@@ -218,10 +218,17 @@ API a GHCR al hacer push a `main`, pero no despliega el stack en la VPS. El run 
 `Publish API image`, para el SHA `0aa157e4f3593795d43568eabfbd3d80f778aea8`, terminó correctamente;
 su log de build/push reportó el tag
 `ghcr.io/glemynart/saas/api:sha-0aa157e4f3593795d43568eabfbd3d80f778aea8` con digest
-`sha256:91d984da4559f95bc109e731b09caa06efb87da672b5ce62f2c8202f7cb941ee`. No se pudo comprobar
-independientemente la metadata del paquete GHCR con la identidad disponible, ni se verificó que
-la VPS ejecute ese digest. La existencia de URL, checks HTTP y artefactos no demuestra staging
-aislado ni reproducible. E1.1/E1.3 siguen pendientes
+`sha256:91d984da4559f95bc109e731b09caa06efb87da672b5ce62f2c8202f7cb941ee`. La inspección SSH de
+solo lectura del 2026-10-24 confirmó que el Compose activo está en
+`/home/ubuntu/la-oficina-nitida/staging/docker-compose.yml` y que
+`la-oficina-nitida-staging-api-1` está `healthy`. Docker reportó como referencia y RepoDigest
+activos `sha256:c03c3f11f75ed1c4cd4fca2a54941956de645e34bd0465995b2a222acade2b19`; la etiqueta OCI
+`org.opencontainers.image.revision` es `14da89e6d3f8ab19b38b8696776651fc6da79466`. Las consultas
+públicas GET a `/health` y `/readiness` dieron HTTP 200. Desde el Docker client del VPS,
+`docker manifest inspect` pudo leer el digest nuevo como índice OCI con plataformas `linux/amd64`
+y `linux/arm64`, sin descargar capas. Por tanto el artefacto de PR #123 es accesible desde el VPS,
+pero no está desplegado en el contenedor; la identidad concreta usada por Docker no se inspeccionó.
+La existencia de URL, checks HTTP y artefactos no demuestra staging aislado ni reproducible. E1.1/E1.3 siguen pendientes
 por aislamiento, R2 privado, correo real y smoke autenticado sobre el entorno correcto; la
 separación de secretos tampoco está verificada. Esto bloquea M1, no GOAL-01: el Goal permanece
 ACTIVO. E2.1, E2.4, E4.2, E4.3, E4.4, E4.5, E4.6, E4.7, E5.1, E5.2, E5.3, E5.4, E6.1, E6.2 y
