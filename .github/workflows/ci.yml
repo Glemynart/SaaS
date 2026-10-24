@@ -40,6 +40,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Validate staging Compose configuration
+        run: |
+          docker compose --env-file deploy/staging.env.example \
+            -f deploy/docker-compose.staging.yml config --format json |
+            jq -e '
+              .services.api.environment as $environment
+              | (
+                  $environment.STORAGE_PROVIDER == "r2"
+                  and $environment.REQUIRE_REAL_EMAIL == "true"
+                  and ($environment.R2_ENDPOINT // "") != ""
+                  and ($environment.R2_ACCESS_KEY_ID // "") != ""
+                  and ($environment.R2_SECRET_ACCESS_KEY // "") != ""
+                  and ($environment.R2_BUCKET // "") != ""
+                )
+            '
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
