@@ -161,8 +161,9 @@ de deployment de GitHub `7296998166` vincula el SHA
 `saa-s-r7pp8dsxi-glemynarts-projects.vercel.app`, asociado a
 `98960492e6e40307f12f51593bca3ea54875f3de`, era el alias observado antes de la fusión; el
 deployment `14da89e6d3f8ab19b38b8696776651fc6da79466` estaba entonces `CANCELED`. El target actual
-de Vercel sigue clasificado `Production`, no como un Preview aislado; la intención de producto
-para `staging.dusema.com` no está confirmada. PR #123 no modificó archivos de `apps/web`. El
+de Vercel sigue clasificado `Production`, no como un Preview aislado. El propietario confirmó
+que `staging.dusema.com` debe apuntar a un deployment `Preview` y autorizó preparar, pero no
+ejecutar, la reasignación. PR #123 no modificó archivos de `apps/web`. El
 workflow API existente publica imágenes a GHCR, pero no despliega el stack de staging. El run
 `40083400008` de `Publish API image`, para el SHA `0aa157e4f3593795d43568eabfbd3d80f778aea8`,
 terminó correctamente; su log de build/push reportó el tag

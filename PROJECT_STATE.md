@@ -216,9 +216,13 @@ Preview aislado. El propietario confirmó el 2026-10-24 que `staging.dusema.com`
 deployment Vercel `Preview` y autorizó preparar la reasignación, no ejecutarla. La inspección actual
 sigue confirmando el alias hacia `dpl_xYJbtaq17GGjRqtSkGUQe1fib8Kz`
 (`saa-s-alde58gmf-glemynarts-projects.vercel.app`), con target `Production`. La Preview
-`dpl_FKhfAdH2qkd4PTsV84HaLpxz3F7R` (`saa-s-9dl7o9t6q-glemynarts-projects.vercel.app`) está `READY`
-para el commit `2bc9c8258ac69ba5f04114280e74aac8a727b511` de la rama de PR #124; es un deployment de
-PR, no una fuente estable de staging. La consulta de solo lectura no encontró una rama GitHub
+`dpl_FKhfAdH2qkd4PTsV84HaLpxz3F7R` (`saa-s-9dl7o9t6q-glemynarts-projects.vercel.app`) se observó
+`READY` para el commit `2bc9c8258ac69ba5f04114280e74aac8a727b511` de la rama de PR #124. El deployment
+Preview más reciente observado para el head actual de PR #124 es
+`https://saa-s-q0bukaijo-glemynarts-projects.vercel.app`, asociado al SHA
+`966bded40b0ba5ae6384cd922f2f109d51705053`; GitHub registró el deployment `7298681383` como
+`success` el 2026-10-24 12:36 UTC. Ambos son deployments de PR, no una fuente estable de staging.
+La consulta de solo lectura no encontró una rama GitHub
 `staging`. La lista del entorno Vercel Preview contiene `API_URL`, `NEXT_PUBLIC_API_URL` y
 `NEXT_PUBLIC_SITE_URL`, pero no se leyeron sus valores, por lo que no está verificado que el frontend
 use una API aislada. Como la API actual comparte `oficina_nitida`, la reasignación debe esperar a que
