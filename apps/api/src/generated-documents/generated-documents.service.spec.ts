@@ -423,36 +423,80 @@ describe('GeneratedDocumentsService.generatePdf', () => {
     );
   });
 
-  it('mantiene el flujo legacy para tipos no contractuales distintos de CERTIFICATION', async () => {
-    mockFindFirst
-      .mockResolvedValueOnce({
+  it.each(['LETTER', 'MEMO'] as const)(
+    'pasa la clave y el tamaño almacenados al índice de expediente para %s',
+    async (tipo) => {
+      const pdfBytes = Buffer.from('PDF-BYTES');
+      const storageKey = 'pdfs/t1-d1.pdf';
+
+      mockPutObject.mockResolvedValueOnce({
+        key: storageKey,
+        size: pdfBytes.length,
+        contentType: 'application/pdf',
+      });
+      mockRenderPdf.mockResolvedValueOnce(pdfBytes);
+      mockFindFirst
+        .mockResolvedValueOnce({
+          id: 'd1',
+          tenantId: 't1',
+          nombre: 'Documento',
+          tipo,
+        })
+        .mockResolvedValueOnce({
+          id: 'd1',
+          tenantId: 't1',
+          contenidoFinal: '<p>Contenido</p>',
+          employee: {
+            primerNombre: 'Ana',
+            segundoNombre: null,
+            primerApellido: 'Gómez',
+            segundoApellido: null,
+            cedula: '123',
+          },
+          tipo,
+          contratoId: null,
+        });
+      mockTxUpdate.mockResolvedValueOnce({
         id: 'd1',
+        pdfUrl: '/uploads/pdfs/t1-d1.pdf',
+        nombre: 'Documento',
+        tipo,
+        employeeId: 'e1',
         tenantId: 't1',
-        nombre: 'Carta',
-        tipo: 'LETTER',
-      })
-      .mockResolvedValueOnce({
-        id: 'd1',
-        tenantId: 't1',
-        contenidoFinal: '<p>Contenido</p>',
-        employee: {
-          primerNombre: 'Ana',
-          segundoNombre: null,
-          primerApellido: 'Gómez',
-          segundoApellido: null,
-          cedula: '123',
-        },
-        tipo: 'LETTER',
         contratoId: null,
       });
 
-    await service.generatePdf('t1', 'u1', 'd1');
+      await service.generatePdf('t1', 'u1', 'd1');
 
-    expect(mockCreateFromGeneratedDoc).toHaveBeenCalledTimes(1);
-    expect(mockAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'PDF_GENERATE' }),
-    );
-  });
+      expect(mockPutObject).toHaveBeenCalledWith({
+        key: storageKey,
+        body: pdfBytes,
+        contentType: 'application/pdf',
+      });
+      expect(mockPutObject).toHaveBeenCalledTimes(1);
+      expect(mockTxUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            pdfStorageKey: storageKey,
+            pdfSizeBytes: pdfBytes.length,
+          }),
+        }),
+      );
+      expect(mockCreateFromGeneratedDoc).toHaveBeenCalledWith(
+        't1',
+        'd1',
+        'e1',
+        'Documento',
+        tipo,
+        { key: storageKey, size: pdfBytes.length },
+        expect.anything(),
+        null,
+      );
+      expect(mockAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PDF_GENERATE' }),
+      );
+    },
+  );
 
   describe('materializePdf', () => {
     it('renderiza únicamente contenidoFinal sin publicar metadata aún', async () => {
