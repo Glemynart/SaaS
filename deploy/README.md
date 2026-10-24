@@ -331,19 +331,101 @@ del rol runtime. Debe ejecutarse con el mismo propietario que se usará para las
 migraciones, según el contrato del script de bootstrap. No uses las identidades
 del entorno clasificado como producción.
 
-Después, define temporalmente la conexión privilegiada en la sesión del
-operador y ejecuta Prisma dentro de la misma imagen:
+Después, obtiene `DATABASE_URL_MIGRATION` de la fuente aprobada de secretos; no
+escribas su valor literal en un comando ni lo guardes en el `.env` permanente.
+Define además los identificadores no secretos de la base y del rol de migración
+aprobados por el DBA:
 
 ```bash
-export DATABASE_URL_MIGRATION='postgresql://REPLACE_WITH_STAGING_MIGRATION_ROLE:<password>@postgres:5432/REPLACE_WITH_APPROVED_STAGING_DATABASE?schema=public'
+export GOAL01_STAGING_DATABASE='<approved-staging-database>'
+export GOAL01_STAGING_MIGRATION_ROLE='<approved-staging-migration-role>'
+```
 
-docker compose \
-  --env-file /home/ubuntu/la-oficina-nitida/app/.env \
-  -f /home/ubuntu/la-oficina-nitida/app/deploy/docker-compose.staging.yml \
-  run --rm --no-deps \
-  -e DATABASE_URL="$DATABASE_URL_MIGRATION" \
-  --entrypoint node api \
-  apps/api/node_modules/prisma/build/index.js migrate deploy
+El siguiente procedimiento pasa las conexiones como variables de entorno, no
+como argumentos con la URL completa. Antes de migrar, un `SELECT` de solo lectura
+comprueba la base y el usuario efectivos, los compara con los identificadores
+aprobados y bloquea `oficina_nitida`, las identidades productivas conocidas, un
+rol superusuario, membresías de otros roles y cualquier acceso `CONNECT` a la
+base protegida. Prisma solo se ejecuta si pasa ese control:
+
+La última observación registrada encontró `CONNECT` concedido a `PUBLIC` en
+`oficina_nitida`; con ese estado el control debe detenerse hasta que DBA confirme
+un aislamiento seguro. No omitas el fallo ni cambies ACL como atajo.
+
+```bash
+: "${DATABASE_URL_MIGRATION:?Load it from the approved secret source first}"
+(
+  set -euo pipefail
+  export DATABASE_URL="$DATABASE_URL_MIGRATION"
+
+  docker compose \
+    --env-file /home/ubuntu/la-oficina-nitida/app/.env \
+    -f /home/ubuntu/la-oficina-nitida/app/deploy/docker-compose.staging.yml \
+    run --rm --no-deps \
+    -e DATABASE_URL \
+    -e GOAL01_STAGING_DATABASE \
+    -e GOAL01_STAGING_MIGRATION_ROLE \
+    --entrypoint node api -e '
+const { PrismaClient } = require("./apps/api/node_modules/@prisma/client");
+const prisma = new PrismaClient();
+
+(async () => {
+  let target;
+  try {
+    [target] = await prisma.$queryRaw`
+      SELECT current_database() AS database_name,
+             current_user AS role_name,
+             role_info.rolsuper AS is_superuser,
+             CASE
+               WHEN EXISTS (
+                 SELECT 1 FROM pg_database WHERE datname = $$oficina_nitida$$
+               )
+               THEN has_database_privilege(
+                 current_user, $$oficina_nitida$$, $$CONNECT$$
+               )
+               ELSE false
+             END AS can_connect_to_protected,
+             EXISTS (
+               SELECT 1 FROM pg_roles AS candidate
+               WHERE candidate.oid <> role_info.oid
+                 AND candidate.rolname <> $$pg_database_owner$$
+                 AND pg_has_role(role_info.oid, candidate.oid, $$MEMBER$$)
+             ) AS has_role_memberships
+      FROM pg_roles AS role_info
+      WHERE role_info.rolname = current_user
+    `;
+  } finally {
+    await prisma.$disconnect();
+  }
+
+  if (
+    !target ||
+    target.database_name !== process.env.GOAL01_STAGING_DATABASE ||
+    target.role_name !== process.env.GOAL01_STAGING_MIGRATION_ROLE ||
+    target.database_name === "oficina_nitida" ||
+    ["oficina", "saas_api_runtime"].includes(target.role_name) ||
+    target.is_superuser ||
+    target.can_connect_to_protected ||
+    target.has_role_memberships
+  ) {
+    throw new Error("Protected or unapproved migration target");
+  }
+
+  console.log("Staging migration target preflight passed.");
+})().catch(() => {
+  console.error("Migration target preflight failed; Prisma migrate was not started.");
+  process.exitCode = 1;
+});
+'
+
+  docker compose \
+    --env-file /home/ubuntu/la-oficina-nitida/app/.env \
+    -f /home/ubuntu/la-oficina-nitida/app/deploy/docker-compose.staging.yml \
+    run --rm --no-deps \
+    -e DATABASE_URL \
+    --entrypoint node api \
+    apps/api/node_modules/prisma/build/index.js migrate deploy
+)
 ```
 
 El seed es también explícito y usa la conexión runtime:
