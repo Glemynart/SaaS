@@ -195,6 +195,15 @@ healthy; health/readiness devuelven HTTP 200, pero el host no es staging aislado
 imagen publicó con éxito el commit `f426b5668b7f86be1c52ffcd36243ebc8f60f1fd`; su manifiesto
 `sha256:70c4aa819a5bd632aba02cd5600ad7a6eabff3453374df8ad6fb684bcc00b753` se pudo inspeccionar
 desde el VPS, aunque no está desplegado. La configuración Preview del backend sigue sin verificar.
+La revalidación Vercel del 2026-10-24 20:40 UTC asocia el HEAD actual
+`e780941bdc9bc36fb11d222a0ea823f39dc159e4` de PR #124 al deployment
+`dpl_9weqH1LJjAqawQG4HUy5TZFUnv2Z`, URL `saa-s-e7i7skujc-glemynarts-projects.vercel.app`,
+estado `READY`, target `preview`, sin alias. La rama asociada es
+`codex/reconcile-goal01-m1-runtime-evidence`; un GET anónimo devolvió HTTP 302. El alias
+`staging.dusema.com` sigue en `dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`, target `Production`. No se
+consultaron valores de API ni se reasignó el alias; la Preview puntual no es destino estable, por lo
+que M1 sigue abierto.
+
 El detalle operativo está en [`deploy/README.md`](../../deploy/README.md#frontend-de-staging-en-vercel).
 La lista de Preview incluye `API_URL` y
 `NEXT_PUBLIC_API_URL`, pero sus valores no se leyeron. PR #123 y PR #125 no modificaron archivos de

@@ -89,6 +89,15 @@ Este deployment sigue ligado a una rama de PR, el acceso SSO no está resuelto p
 cliente y no se verificó que la configuración Preview de API apunte a un backend aislado. Por tanto,
 no es todavía un destino estable aprobado; el alias no se modificó y M1 sigue abierto.
 
+Revalidación del 2026-10-24 20:40 UTC: el HEAD `e780941bdc9bc36fb11d222a0ea823f39dc159e4` de
+esta PR tiene el Preview `dpl_9weqH1LJjAqawQG4HUy5TZFUnv2Z`
+(`saa-s-e7i7skujc-glemynarts-projects.vercel.app`), `READY`, target `preview`, sin alias. El listado
+Vercel vincula el deployment al SHA y a la rama `codex/reconcile-goal01-m1-runtime-evidence`; un GET
+anónimo devolvió HTTP 302 y no se siguió la redirección. El dominio `staging.dusema.com` sigue en
+`dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`, `READY`, target `production`. Los valores de configuración API no
+se consultaron; la rama de la PR y el deployment puntual no son una fuente estable aprobada. No se
+reasignó el alias.
+
 La inspección SSH de solo lectura del mismo momento confirmó que el contenedor
 `la-oficina-nitida-staging-api-1` sigue ejecutando el digest
 `sha256:c03c3f11f75ed1c4cd4fca2a54941956de645e34bd0465995b2a222acade2b19`, con revisión OCI

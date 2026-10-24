@@ -299,6 +299,15 @@ desde el VPS; no está desplegada. `staging.dusema.com` sigue asociado a un depl
 `Production`, y el Preview del HEAD actual de PR #124 está `READY` pero redirige a SSO. El detalle
 de esta revalidación está en [`deploy/README.md`](deploy/README.md#frontend-de-staging-en-vercel).
 
+Revalidación Vercel del 2026-10-24 20:40 UTC: el HEAD `e780941bdc9bc36fb11d222a0ea823f39dc159e4` de
+PR #124 tiene el Preview `dpl_9weqH1LJjAqawQG4HUy5TZFUnv2Z`, URL
+`saa-s-e7i7skujc-glemynarts-projects.vercel.app`, estado `READY`, target `preview`, sin alias. La
+metadata del listado vincula el deployment al SHA y a la rama
+`codex/reconcile-goal01-m1-runtime-evidence`; un GET anónimo devolvió HTTP 302.
+`staging.dusema.com` continúa asociado al deployment `Production`
+`dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`. No se leyeron valores de configuración API ni se reasignó el
+alias; la Preview puntual de una rama de PR no es una fuente estable y M1 sigue abierto.
+
 La inspección de red y catálogo PostgreSQL del 2026-10-24 19:51 UTC confirma que la red Docker
 compartida conecta PostgreSQL, Redis, la API actual y Caddy, y que `PUBLIC` todavía tiene
 `CONNECT` sobre `oficina_nitida`. La API nueva podría alcanzar el servidor PostgreSQL; un rol
