@@ -209,6 +209,18 @@ observó tres sesiones `idle` en `oficina_nitida` como `saas_api_runtime`, sin `
 puntual; no identifica por sí sola el origen de cada sesión ni todos los consumidores productivos.
 No se consultó el texto de consultas ni filas de negocio.
 
+Sondeo HTTP público del 2026-10-25, aproximadamente 22:26 UTC: `GET /health` en
+`https://staging-api.dusema.com/health` respondió `200` en 1,53 s. La ruta
+`/readiness`, consultada con `GET` en `https://staging-api.dusema.com/readiness`, respondió `200` con
+`status=ready` y los estados `database=up`, `storage=up`, `email=up`,
+`checks.email.required=true`. El código consulta la base con `SELECT 1`; el
+proveedor local de storage usa `mkdir` recursivo y `access`, y el estado de email
+refleja si existe un transporter no degradado. La ruta de uploads ya existía en
+la medición anterior. `EmailService.getReadiness()` no verifica la conexión SMTP
+ni envía un correo. Este sondeo no identificó el digest
+servido, no probó R2 ni subidas/descargas, y no certifica aislamiento: no se
+ejecutaron escrituras funcionales contra la base compartida.
+
 Antes de cambiar el alias:
 
 1. Selecciona una revisión estable aprobada para Preview e identifica su SHA,
