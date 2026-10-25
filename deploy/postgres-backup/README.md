@@ -277,6 +277,64 @@ oci os object put --namespace "$OCI_NAMESPACE" --bucket-name "$OCI_BUCKET" \
 
 Guardar `RUN_ID`, nombre de objeto, bytes agregados, SHA-256 cifrado, perfil usado (solo su nombre) y resultado fuera del VPS, en un registro operativo privado. No guardar el manifiesto ni listar sus claves. El comando de arriba no toma el dump de PostgreSQL: generar el dump de la **base aislada correcta** durante la misma ventana sin escrituras mediante un procedimiento revisado para esa base. No reutilizar el servicio actual mientras apunte a `oficina_nitida`.
 
+### Emparejamiento de PostgreSQL y uploads
+
+**Estado: diseño propuesto; no aprobado ni probado como conjunto recuperable.**
+El requisito de usar el mismo `RUN_ID` y la misma ventana sin escrituras no está
+impuesto por los artefactos actuales: el servicio diario de PostgreSQL genera
+su propio nombre de objeto, mientras que el bloque de uploads recibe
+`OCI_OBJECT` por separado. El registro operativo privado ayuda a relacionar una
+ejecución, pero no es un marcador durable que permita rechazar un conjunto
+incompleto o mezclar por error artefactos de ejecuciones distintas.
+
+El mecanismo candidato es un manifiesto privado de conjunto publicado **al
+final**. Hasta que el propietario, DBA y operador aprueben la ventana de captura,
+su ubicación y retención, estos pasos son una propuesta y no autorizan una
+ejecución:
+
+1. Después de demostrar que staging usa su propia base y storage, generar un
+   `BACKUP_SET_ID` UTC único sin nombres de tenants ni personas. Ponerlo en los
+   nombres de ambos objetos y del manifiesto; no reutilizar directamente el
+   nombre independiente del timer actual como identificador común.
+2. Activar una barrera de escritura que afecte únicamente a staging aislado.
+   Mantenerla durante el dump y el archivo de uploads, incluyendo procesos
+   asíncronos que puedan cambiar referencias o archivos. Registrar inicio y fin
+   UTC. El VPS actual no cumple esta precondición porque la API llamada staging
+   comparte `oficina_nitida`.
+3. Con la barrera activa, producir el dump lógico de la base exclusiva de
+   staging y el archivo cifrado de uploads. Mantener el manifiesto por archivo
+   dentro del archivo cifrado; no copiar sus claves a logs ni al manifiesto
+   externo. Calcular y registrar por separado SHA-256 cifrado y tamaño de cada
+   artefacto.
+4. Subir ambos artefactos con nombres únicos y `--no-overwrite`. No publicar aún
+   el marcador del conjunto si cualquiera de las dos cargas o verificaciones
+   falla. `--verify-checksum` durante `put` confirma la carga según la CLI, pero
+   no demuestra que el objeto pueda leerse después.
+5. Publicar el manifiesto del conjunto solo después de que existan ambos
+   objetos. Debe contener únicamente versión del formato, `BACKUP_SET_ID`,
+   intervalo de captura, referencia no sensible al entorno/base, proveedor de
+   storage, revisión de aplicación, claves de los dos objetos, tamaños y hashes
+   SHA-256 cifrados. No incluir credenciales, filas, nombres de archivos ni el
+   manifiesto interno de uploads. Si no existe el manifiesto final, la ejecución
+   se considera incompleta y no constituye un punto de recuperación.
+6. Para certificar accesibilidad, consultar metadata con una identidad que ya
+   tenga `OBJECT_INSPECT`; para confirmar los hashes de contenido, descargar
+   ambos objetos con una identidad que ya tenga `OBJECT_READ` a un destino
+   privado aprobado y comparar SHA-256. No ampliar permisos para completar esta
+   prueba. Aplicar retención al conjunto completo: manifiesto y ambos objetos
+   deben conservarse o expirar juntos.
+7. Restaurar solo conjuntos cuyo manifiesto vincule los dos objetos y cuyos
+   hashes coincidan. Usar una base temporal sin ruta de red al servidor y un
+   directorio uploads vacío. Ejecutar la validación del archivo y el cotejo
+   agregado de referencias descritos abajo contra esa base restaurada; no contra
+   `oficina_nitida`.
+
+Este diseño deja el manifiesto externo como marcador de finalización, no como
+sustituto de la verificación criptográfica ni de la restauración. La secuencia
+de uploads documentada debajo no crea todavía el dump de staging, el manifiesto
+de conjunto ni un mecanismo coordinador; por tanto, aún no acredita una captura
+consistente de ambos tipos de datos.
+
 **Lectura y restauración aislada.** En una estación/entorno de recuperación aprobado, con la identidad OCI de solo lectura existente, `OBJECT_INSPECT` permite consultar metadata y `OBJECT_READ` permite descargar el objeto. Completar con el nombre y checksum registrados en la corrida; no solicitar permisos nuevos. La metadata/head no sustituye el hash del contenido descargado.
 
 ```bash
