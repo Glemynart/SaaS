@@ -117,7 +117,9 @@ Referencias oficiales: [Lifecycle Management de OCI](https://docs.oracle.com/en-
 
 ## Archivos de la aplicación fuera de alcance
 
-La inspección del 23 de octubre de 2026 confirmó el bind mount `/home/ubuntu/la-oficina-nitida/staging/uploads` → `/app/uploads`, modo `0750` y propietario/grupo numéricos `1000:1000`. `du -sh` reportó 4 KiB, pero el usuario SSH recibió `Permission denied` al recorrer la carpeta; por tanto, no se confirmó si contiene archivos ni su tamaño. Una inspección anterior del 22 de octubre había reportado cero entradas en ese momento, lo cual no demuestra el estado actual. La carpeta no se incluye en este backup y su recuperación sigue sin verificarse. No tratarla como vacía ni respaldada.
+La inspección del 23 de octubre de 2026 confirmó el bind mount `/home/ubuntu/la-oficina-nitida/staging/uploads` → `/app/uploads`, modo `0750` y propietario/grupo numéricos `1000:1000`. `du -sh` reportó 4 KiB, pero el usuario SSH recibió `Permission denied` al recorrer la carpeta; por tanto, en esa inspección no se confirmó si contenía archivos ni su tamaño. Una inspección anterior del 22 de octubre había reportado cero entradas en ese momento, lo cual no demuestra el estado posterior.
+
+Una inspección SSH de solo lectura con privilegios de lectura el 25 de octubre de 2026 confirmó que la ruta está en el filesystem raíz (`/`, `/dev/sda1`, ext4), con modo `0750` y propietario/grupo numéricos `1000:1000`. La búsqueda contó cero archivos regulares y 0 bytes en ese momento. Es una medición puntual: no garantiza que el directorio siga vacío ni constituye un respaldo. El backup lógico de PostgreSQL no incluye esta ruta; la recuperación de uploads continúa sin verificarse. Aunque el filesystem raíz parece corresponder al volumen de arranque, no se verificó independientemente desde OCI la cobertura de esta ruta por una copia específica ni se probó su recuperación aislada.
 
 ## Pruebas locales
 
@@ -188,10 +190,10 @@ La retirada de archivos de unidad o ejecutable requiere una decisión de operado
 
 ## Decisiones y verificaciones pendientes
 
-- Comparar, con acceso de solo lectura, las unidades y el script instalados en la VPS con los artefactos locales; no se verificó su identidad byte a byte.
-- Revisar y conservar fuera de la VPS evidencia de las ejecuciones del 23 y 24 de octubre (journal sanitizado, SHA-256 y reporte del operador) sin incluir secretos.
-- La descarga, comparación de SHA-256, descifrado y restauración del objeto específico fueron reportados por el operador; la accesibilidad actual del objeto y los artefactos detallados de la restauración no se verificaron de forma independiente en esta actualización.
-- Medir y proteger uploads con un mecanismo recuperable independiente; el backup PostgreSQL no los incluye y el inventario de archivos no fue posible por permisos.
+- La comparación SSH de solo lectura del 24 y 25 de octubre encontró que el script y ambas unidades instaladas coinciden por SHA-256 con los tres artefactos de este directorio. Repetir esa comparación antes de reinstalar o cambiar las unidades.
+- Conservar fuera de la VPS evidencia sanitizada de las ejecuciones del 23, 24 y 25 de octubre (journal, SHA-256 y resultado), sin incluir secretos.
+- El 25 de octubre, `oci os object head` desde la VPS con la identidad instance principal devolvió `Forbidden`; la CLI OCI no está disponible en el equipo local inspeccionado. Este rechazo no demuestra que el objeto no exista. El operador reportó una descarga, verificación SHA-256, descifrado y restauración manual el 23 de octubre, pero no se revisaron independientemente artefactos de esa restauración. Obtener metadatos del objeto con una identidad de lectura ya autorizada y conservar evidencia revisable de la restauración, sin ampliar permisos ni descargar/descifrar todavía.
+- Proteger uploads con un mecanismo recuperable independiente y probar su restauración. La medición SSH del 25 de octubre encontró cero archivos regulares (0 bytes) en la ruta; no demuestra cobertura ni recuperación. El backup PostgreSQL no los incluye.
 - Revisar la lifecycle policy/versionado y aprobar retención de 30 días antes de cualquier cambio externo.
 - Confirmar autenticación y permisos efectivos del rol usado por el dump sin exponer secretos ni crear roles, si se cambia o vuelve a certificar el procedimiento.
 - Revalidar herramientas, rutas, OCI CLI y soporte de `--no-overwrite` antes de modificar el proceso.
