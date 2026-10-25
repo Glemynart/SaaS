@@ -62,6 +62,22 @@ if [[ "$role_exists" != "f" ]]; then
   exit 1
 fi
 
+system_database_acl_before="$(psql_as_admin -d postgres -Atqc "SELECT COALESCE(datacl::text, '<default>') FROM pg_database WHERE datname = 'postgres'")"
+if run_bootstrap_as_migration_role postgres >/dev/null 2>&1; then
+  echo "Bootstrap unexpectedly accepted the PostgreSQL maintenance database as its target." >&2
+  exit 1
+fi
+system_database_acl_after="$(psql_as_admin -d postgres -Atqc "SELECT COALESCE(datacl::text, '<default>') FROM pg_database WHERE datname = 'postgres'")"
+if [[ "$system_database_acl_after" != "$system_database_acl_before" ]]; then
+  echo "Rejected bootstrap changed the PostgreSQL maintenance database ACL." >&2
+  exit 1
+fi
+role_exists="$(psql_as_admin -d postgres -Atqc "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$runtime_role')")"
+if [[ "$role_exists" != "f" ]]; then
+  echo "The rejected system-database bootstrap left the runtime role behind." >&2
+  exit 1
+fi
+
 if run_bootstrap_as_migration_role "$staging_database" saas_api_runtime >/dev/null 2>&1; then
   echo "Bootstrap unexpectedly accepted the production runtime role." >&2
   exit 1

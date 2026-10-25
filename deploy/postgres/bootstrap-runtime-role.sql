@@ -28,7 +28,7 @@ SELECT format(
 BEGIN;
 
 SELECT format(
-  'DO $guard$ BEGIN IF current_database() = %L THEN RAISE EXCEPTION ''runtime bootstrap cannot target the protected production database''; END IF; IF %L IN (''postgres'', ''rdsadmin'', ''oficina'', ''saas_api_runtime'') OR %L = current_user THEN RAISE EXCEPTION ''runtime role must be distinct from the administrative role and production runtime role''; END IF; END $guard$;',
+  'DO $guard$ BEGIN IF current_database() IN (''postgres'', ''template0'', ''template1'') THEN RAISE EXCEPTION ''runtime bootstrap cannot target a system or template database''; END IF; IF current_database() = %L THEN RAISE EXCEPTION ''runtime bootstrap cannot target the protected production database''; END IF; IF %L IN (''postgres'', ''rdsadmin'', ''oficina'', ''saas_api_runtime'') OR %L = current_user THEN RAISE EXCEPTION ''runtime role must be distinct from the administrative role and production runtime role''; END IF; END $guard$;',
   'oficina_nitida',
   :'runtime_role',
   :'runtime_role'
