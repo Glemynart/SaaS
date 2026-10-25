@@ -636,6 +636,32 @@ seguro retirar el `CONNECT` heredado de `PUBLIC`. Conserva `CONNECT` explícito
 para cada identidad productiva aprobada. Este inventario no autoriza un cambio
 de ACL ni la creación de la base o los roles de staging.
 
+Una revalidación adicional de solo lectura del 2026-10-25, usando una
+transacción `READ ONLY` con `saas_api_runtime`, confirmó PostgreSQL 17.10 y que
+el clúster solo tiene las bases normales `oficina_nitida` y `postgres`; no hay
+una base `staging`. El runtime puede conectarse a ambas: en `oficina_nitida`
+tiene `CONNECT` explícito y en `postgres` lo hereda de `PUBLIC`. `PUBLIC`
+conserva `CONNECT` y `TEMPORARY` en ambas bases. `oficina` tiene `CONNECT`,
+`CREATE` y `TEMPORARY` explícitos en ambas, es propietario de las dos bases y
+es superusuario. La sesión no leyó filas de negocio.
+
+En `oficina_nitida`, `saas_api_runtime` no tiene privilegios administrativos,
+pertenencias a otros roles ni propiedad de la base, esquemas, relaciones,
+funciones, tipos o extensiones inspeccionados; tampoco figura como propietario
+de ACL predeterminadas. No puede crear bases ni objetos en `public`. Tiene
+`USAGE` en `public` y privilegios efectivos
+`SELECT`, `INSERT`, `UPDATE` y `DELETE` en 52 relaciones del esquema; no tiene
+`TRUNCATE`. La única relación observada con RLS es `public.empleados`, con
+`FORCE ROW LEVEL SECURITY` y cuatro políticas. Los privilegios por defecto
+definidos por `oficina` conceden DML a `saas_api_runtime` en tablas y
+secuencias de `public` que cree `oficina` en `oficina_nitida`; esos defaults
+son propios de esa base y no demuestran la configuración de una base nueva.
+
+Esta observación confirma que la separación lógica en el mismo clúster depende
+de revisar con el DBA el `CONNECT` público heredado y los grants productivos
+explícitos antes de cualquier cambio. La conexión del runtime a `postgres` solo
+confirma `CONNECT`; no se inspeccionaron sus objetos ni datos.
+
 ```bash
 export GOAL01_RUNTIME_DB_ROLE=REPLACE_WITH_DEDICATED_STAGING_RUNTIME_ROLE
 
