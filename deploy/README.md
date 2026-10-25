@@ -204,6 +204,11 @@ comparten la red Docker `la-oficina-nitida_laoficina`. Por tanto, el acceso host
 alcance de esa red y autenticación SCRAM, sin TLS entre contenedores. Esta combinación no aísla la
 API de staging de la base compartida ni reemplaza la revisión de ACL del DBA.
 
+Consulta agregada de solo lectura sobre `pg_stat_activity` del 2026-10-25, aproximadamente 22:13 UTC,
+observó tres sesiones `idle` en `oficina_nitida` como `saas_api_runtime`, sin `application_name`. Es una muestra
+puntual; no identifica por sí sola el origen de cada sesión ni todos los consumidores productivos.
+No se consultó el texto de consultas ni filas de negocio.
+
 Antes de cambiar el alias:
 
 1. Selecciona una revisión estable aprobada para Preview e identifica su SHA,
