@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 activo; E7.3 fuera del Goal y ADR-008 aceptado como referencia futura; M1 bloqueado por falta de staging aislado y validación operativa (2026-10-24)
+## Última actualización: GOAL-01 activo; E7.3 fuera del Goal y ADR-008 aceptado como referencia futura; M1 bloqueado por falta de staging aislado y validación operativa (2026-10-25)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -123,6 +123,16 @@ primer cliente: captura prospectos antes del tenant y no participa en el
 onboarding ni en el recorrido laboral-documental. ADR-008 fue aceptado como
 referencia de Platform Evolution; E7.3 queda fuera de GOAL-01 y no se implementó
 código.
+
+Revalidación operativa de solo lectura del 2026-10-25: el alias web `staging.dusema.com` sigue en
+Vercel Production; hay un Preview Ready para PR #124, pero no está asociado al alias y su API
+efectiva no se verificó. La API de la VPS sigue conectada a `oficina_nitida` y usa storage local;
+el rol runtime tiene permisos DML explícitos en las 52 tablas y `PUBLIC` conserva CONNECT a esa
+base. No se probó entrega SMTP ni se validó readiness en esta revalidación. GOAL-01 permanece
+`ACTIVO`; M1 permanece bloqueado hasta demostrar aislamiento, despliegue reproducible, storage/correo
+operativos y smoke autenticado. La evidencia y las siguientes comprobaciones están detalladas en
+[`deploy/README.md`](deploy/README.md#frontend-de-staging-en-vercel) y
+[`docs/goals/GOAL-01-primer-cliente-operando.md`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
 # <a name="estado-general-del-proyecto"></a>Estado General del Proyecto
 

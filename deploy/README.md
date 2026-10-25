@@ -163,6 +163,32 @@ No se reasignó el alias, no se consultó la base ni se modificaron servicios. E
 `healthy` del contenedor no certifica aislamiento, R2, correo real ni el flujo funcional del
 producto.
 
+Revalidación de solo lectura del 2026-10-25 21:46–21:49 UTC:
+
+- `staging.dusema.com` sigue asociado a `dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`, target
+  `Production`. El deployment Production y `main` remoto corresponden al SHA
+  `7307292e324a8f1a6c91313e4d03c701c389db5f`. El Preview de PR #124 está `READY` en
+  `dpl_DsaTkQkigHQ11kq9S9vYdxQ3TYqe`, URL
+  `saa-s-7ejzq9y72-glemynarts-projects.vercel.app`; su asociación con el HEAD
+  `dfb580af85e7cf5bfe284dd3c9fd281e378ac019` proviene del check de PR. Tiene alias de rama, no
+  el alias estable de staging. Los nombres `API_URL`, `NEXT_PUBLIC_API_URL` y
+  `NEXT_PUBLIC_SITE_URL` existen para Preview; no se leyeron sus valores y el backend efectivo
+  sigue sin verificarse.
+- La API `la-oficina-nitida-staging-api-1` está `running` y `healthy`, con RepoDigest
+  `sha256:c03c3f11f75ed1c4cd4fca2a54941956de645e34bd0465995b2a222acade2b19` y revisión
+  `14da89e6d3f8ab19b38b8696776651fc6da79466`. La configuración filtrada confirma PostgreSQL
+  `postgres:5432`, base `oficina_nitida` y rol `saas_api_runtime`. En una transacción de catálogo
+  de solo lectura, ese rol no es superusuario ni puede crear bases/roles, pero tiene permisos
+  explícitos de lectura y escritura en las 52 tablas; `PUBLIC` conserva `CONNECT` y `TEMPORARY`
+  sobre la base. Solo una tabla tiene RLS habilitado y forzado, con cuatro políticas. Esto requiere
+  revisión DBA antes de cualquier prueba que escriba.
+- La API sigue con `STORAGE_PROVIDER=local`; el montaje de uploads es
+  `/home/ubuntu/la-oficina-nitida/staging/uploads` → `/app/uploads`, con escritura habilitada.
+  No están presentes los nombres de configuración R2. Los nombres de configuración SMTP sí están
+  presentes y `REQUIRE_REAL_EMAIL` está habilitado; no se enviaron correos ni se verificó entrega.
+  Docker reporta `healthy`, pero en esta revalidación no se consultaron `/health` ni `/readiness`
+  y no se ejecutó un smoke funcional. M1 sigue bloqueado.
+
 Antes de cambiar el alias:
 
 1. Selecciona una revisión estable aprobada para Preview e identifica su SHA,

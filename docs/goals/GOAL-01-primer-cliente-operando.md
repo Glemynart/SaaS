@@ -314,6 +314,14 @@ Revalidación Vercel del 2026-10-25 19:32 UTC: el check Vercel de PR #124 para H
 No se modificó el alias. La inspección no expuso el SHA de Vercel y no se leyeron valores de
 `API_URL`/`NEXT_PUBLIC_API_URL`; por ello el backend efectivo del Preview no está confirmado.
 
+Revalidación de solo lectura del 2026-10-25 21:46–21:49 UTC: el alias sigue en el deployment
+Production `dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`; el Preview de PR #124 está `READY`, pero solo tiene
+alias de rama y sus valores de API no se leyeron. La API actual continúa conectada a
+`oficina_nitida` como `saas_api_runtime`, con permisos DML explícitos sobre 52 tablas; `PUBLIC`
+conserva `CONNECT`/`TEMPORARY`. La API usa storage local y no se verificó correo real. No se cambió
+el alias ni se ejecutó smoke funcional; M1 permanece bloqueado. El detalle de la evidencia y sus
+límites está en [`deploy/README.md`](../../deploy/README.md#frontend-de-staging-en-vercel).
+
 ### M2 — Gestión de Organizaciones y Usuarios
 
 **Resultado verificable:** un cliente opera con varias personas sin compartir credenciales.
