@@ -138,6 +138,31 @@ Revalidación de solo lectura del 2026-10-25 19:32 UTC: el check Vercel asociado
 `dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`, `READY`, target `production`. No se cambió el alias ni se
 leyeron valores de configuración API; el backend efectivo del Preview sigue pendiente.
 
+Revalidación de solo lectura del 2026-10-25 20:17–20:22 UTC:
+
+- `staging.dusema.com` resolvió mediante `vercel inspect` al deployment
+  `dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`, `READY`, target `production`. El Preview asociado al check
+  Vercel de PR #124 es `dpl_HgtsZBqV1T4JR5yi84KSPjknPtPP`, `READY`, target `preview`, con URL y
+  alias de rama; no es un alias estable de staging. El HEAD actual de la PR es
+  `94b95bc183242fdf3fb2320bb6642223297a343d`. `vercel inspect` no expuso `gitSource`, por lo que
+  no se afirma una relación SHA–deployment independiente de la asociación del check de PR.
+- La lista de metadatos de variables Preview incluye `API_URL`, `NEXT_PUBLIC_API_URL` y
+  `NEXT_PUBLIC_SITE_URL`, con targets `production` y `preview`, tipo `sensitive`. La consulta no
+  devolvió valores y ninguno se leyó. El host de API efectivo para Preview sigue sin verificarse;
+  los nombres compartidos entre targets no demuestran que sus valores sean iguales.
+- La inspección SSH de Docker encontró `la-oficina-nitida-staging-api-1` en estado `running` y
+  `healthy`, configurado con el digest
+  `sha256:c03c3f11f75ed1c4cd4fca2a54941956de645e34bd0465995b2a222acade2b19`. `RepoDigests`
+  confirmó esa referencia inmutable y la etiqueta `org.opencontainers.image.revision` indicó el
+  merge `14da89e6d3f8ab19b38b8696776651fc6da79466` de PR #122. La configuración efectiva, leída
+  sin mostrar la URL ni su contraseña, usa `STORAGE_PROVIDER=local` y apunta a
+  `postgres:5432/oficina_nitida` como `saas_api_runtime`. Esto confirma que la API llamada staging
+  todavía comparte la base del entorno clasificado como producción.
+
+No se reasignó el alias, no se consultó la base ni se modificaron servicios. El healthcheck
+`healthy` del contenedor no certifica aislamiento, R2, correo real ni el flujo funcional del
+producto.
+
 Antes de cambiar el alias:
 
 1. Selecciona una revisión estable aprobada para Preview e identifica su SHA,
