@@ -196,6 +196,14 @@ PR #124 para HEAD `4b4f75f6094df103dd56f5b7c07bdc926714befa` enlaza al deploymen
 expuso `gitSource` ni el SHA; la relación con el HEAD se sustenta en el check de PR. El alias
 `staging.dusema.com` no fue cambiado y el backend de Preview sigue sin verificarse.
 
+Consulta de catálogo de solo lectura del 2026-10-25 22:09 UTC: `pg_hba_file_rules` mostró reglas
+`trust` para socket local y loopback, y `scram-sha-256` para conexiones host con bases/roles/redes
+`all`. `listen_addresses` es `*`, el puerto es `5432` y `ssl` está desactivado. El puerto PostgreSQL
+no está publicado en el host según la inspección Docker previa; la API, PostgreSQL, Redis y Caddy
+comparten la red Docker `la-oficina-nitida_laoficina`. Por tanto, el acceso host queda limitado por
+alcance de esa red y autenticación SCRAM, sin TLS entre contenedores. Esta combinación no aísla la
+API de staging de la base compartida ni reemplaza la revisión de ACL del DBA.
+
 Antes de cambiar el alias:
 
 1. Selecciona una revisión estable aprobada para Preview e identifica su SHA,
