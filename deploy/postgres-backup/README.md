@@ -6,35 +6,37 @@ Una inspección SSH de solo lectura del 24 de octubre confirmó una ejecución p
 
 Una comparación SSH de solo lectura posterior, también del 24 de octubre, confirmó que el ejecutable y ambas unidades instaladas coinciden byte a byte con estos archivos locales: se compararon sus SHA-256 y los tres pares fueron iguales. Systemd muestra los archivos bajo `/etc/systemd/system/`, sin drop-ins; el timer está habilitado y activo, tuvo su última activación a las 07:00:04 UTC del 24 y la siguiente está prevista para las 07:00 UTC del 25. El servicio informa `Result=success`, código 0 y ejecución de 07:00:04 a 07:00:05 UTC. Esto acredita la identidad de los artefactos y el estado observado del timer/servicio, pero no el acceso actual al objeto ni una restauración independiente.
 
+Una inspección SSH de solo lectura del 25 de octubre de 2026 confirmó el timer habilitado y activo: `LastTriggerUSec=2026-10-25 07:00:11 UTC` y `NextElapseUSecRealtime=2026-10-26 07:00:00 UTC`. El servicio inició a las 07:00:11 y terminó a las 07:00:13 UTC con `Result=success`, `ExecMainStatus=0`. El journal registró la carga de `postgres/dusema-oficina_nitida-20261025T020011-0500-OpRYGz.dump.gpg`, SHA-256 `d14e3e392a0050b986e2c8e560fe1a64cb5f4703f1984d4ca1a65f7631dc450a`, y el evento `complete`. En esta misma inspección, el SHA-256 del ejecutable `/usr/local/sbin/dusema-postgres-backup` y de las unidades activas bajo `/etc/systemd/system/` coincidió con los tres artefactos versionados en este directorio; ambos servicios no tienen drop-ins. Dado que el script instalado coincidente registra `complete` solo después de que OCI acepta el objeto, `--verify-checksum` termina correctamente y se eliminan los temporales, esto confirma la ejecución programada y la verificación de checksum durante la carga. No confirma que el objeto siga accesible ahora ni una restauración independiente; tampoco cubre uploads.
+
 El operador reportó que el 23 de octubre descargó el objeto cifrado de esa ejecución, verificó su SHA-256, lo descifró y lo restauró manualmente en PostgreSQL 17 local: la restauración terminó con código 0, produjo 52 tablas y ocupó aproximadamente 12 MB. Este es un resultado reportado por el operador y no fue repetido ni inspeccionado independientemente durante la actualización de este documento. La restauración de PostgreSQL no verifica la recuperación de uploads.
 
 ## Configuración y evidencia disponible
 
-Los valores históricos siguientes proceden de las inspecciones de solo lectura del 22, 23 y 24 de octubre de 2026. El 24 de octubre se compararon por SHA-256 el script y las dos unidades instaladas con estos archivos locales; los hashes coincidieron. Revalidar las rutas y la configuración efectiva antes de cambiar o reinstalar el proceso.
+Los valores históricos siguientes proceden de las inspecciones de solo lectura del 22 al 25 de octubre de 2026. El 24 y el 25 de octubre se compararon por SHA-256 el script y las dos unidades instaladas con estos archivos locales; los hashes coincidieron. Revalidar las rutas y la configuración efectiva antes de cambiar o reinstalar el proceso.
 
-| Elemento | Valor / estado |
-| --- | --- |
-| Contenedor PostgreSQL | `postgres` (nombre observado) |
-| Base | `oficina_nitida` (nombre observado) |
-| Rol solicitado por el dump | `oficina`; rol y permisos efectivos no se verificaron |
-| PostgreSQL / `pg_dump` | PostgreSQL 17.10 observado; el script exige que `pg_dump` en el contenedor sea de major 17 |
-| Formato | Custom, sin owner ni ACL (`--no-owner --no-privileges`) |
-| Namespace / bucket / región | `axfelzrsklz7` / `dusema-backups-prod` / `sa-bogota-1` |
-| Prefijo | `postgres/` |
-| Autenticación OCI prevista | Instance principal; acceso efectivo de lectura/escritura no se verificó con este artefacto |
-| Clave GPG pública prevista | `/home/ubuntu/.gnupg`; ID largo de la subclave de cifrado fijado en el script |
-| Clave privada de recuperación | Debe permanecer fuera del VPS; no la requiere el proceso de backup |
-| Frecuencia observada | El timer estaba habilitado/activo; última activación 2026-10-24 07:00:04 UTC; siguiente 2026-10-25 07:00:00 UTC |
-| Último servicio observado | `Result=success`, `ExecMainStatus=0`; ejecución 2026-10-24 07:00:04–07:00:05 UTC |
-| SHA-256 del script instalado/local | `bf8b20301c0fe451f3d731473e61fc289cf9f00f9eafa76c1c400356a22ebadb` (coincide) |
-| SHA-256 de la unidad service instalada/local | `117a6a09951ef1ac0053e5c1511b7c836108453fb285b3240c81dac409eb17f7` (coincide) |
-| SHA-256 de la unidad timer instalada/local | `e740350347328206a641be0f2a4c9d48aaa07fa055edcdde040d0c94ce1663b0` (coincide) |
-| Objeto informado | `postgres/dusema-oficina_nitida-20261024T020004-0500-yGA63y.dump.gpg` |
-| SHA-256 informado | `844e36ff4d8a1979a4fbd507214d069e82a610fa36bd449b41f9668c7627f067` |
-| Restauración manual | Reportada por el operador el 2026-10-23: PostgreSQL 17 local, código 0, 52 tablas, aprox. 12 MB; no repetida en esta revisión |
-| Uploads | No incluidos en el dump; su recuperación sigue sin verificarse |
-| Directorio de estado | `/var/lib/dusema-postgres-backup`, observado `0700`, propietario/grupo `ubuntu:ubuntu` |
-| Directorio temporal | `/var/lib/dusema-postgres-backup/tmp`, observado `0700`, propietario/grupo `ubuntu:ubuntu` |
+| Elemento                                     | Valor / estado                                                                                                                |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Contenedor PostgreSQL                        | `postgres` (nombre observado)                                                                                                 |
+| Base                                         | `oficina_nitida` (nombre observado)                                                                                           |
+| Rol solicitado por el dump                   | `oficina`; rol y permisos efectivos no se verificaron                                                                         |
+| PostgreSQL / `pg_dump`                       | PostgreSQL 17.10 observado; el script exige que `pg_dump` en el contenedor sea de major 17                                    |
+| Formato                                      | Custom, sin owner ni ACL (`--no-owner --no-privileges`)                                                                       |
+| Namespace / bucket / región                  | `axfelzrsklz7` / `dusema-backups-prod` / `sa-bogota-1`                                                                        |
+| Prefijo                                      | `postgres/`                                                                                                                   |
+| Autenticación OCI prevista                   | Instance principal; acceso efectivo de lectura/escritura no se verificó con este artefacto                                    |
+| Clave GPG pública prevista                   | `/home/ubuntu/.gnupg`; ID largo de la subclave de cifrado fijado en el script                                                 |
+| Clave privada de recuperación                | Debe permanecer fuera del VPS; no la requiere el proceso de backup                                                            |
+| Frecuencia observada                         | El timer estaba habilitado/activo; última activación 2026-10-25 07:00:11 UTC; siguiente 2026-10-26 07:00:00 UTC               |
+| Último servicio observado                    | `Result=success`, `ExecMainStatus=0`; ejecución 2026-10-25 07:00:11–07:00:13 UTC                                              |
+| SHA-256 del script instalado/local           | `bf8b20301c0fe451f3d731473e61fc289cf9f00f9eafa76c1c400356a22ebadb` (coincide)                                                 |
+| SHA-256 de la unidad service instalada/local | `117a6a09951ef1ac0053e5c1511b7c836108453fb285b3240c81dac409eb17f7` (coincide)                                                 |
+| SHA-256 de la unidad timer instalada/local   | `e740350347328206a641be0f2a4c9d48aaa07fa055edcdde040d0c94ce1663b0` (coincide)                                                 |
+| Objeto informado                             | `postgres/dusema-oficina_nitida-20261025T020011-0500-OpRYGz.dump.gpg`                                                         |
+| SHA-256 informado                            | `d14e3e392a0050b986e2c8e560fe1a64cb5f4703f1984d4ca1a65f7631dc450a`                                                            |
+| Restauración manual                          | Reportada por el operador el 2026-10-23: PostgreSQL 17 local, código 0, 52 tablas, aprox. 12 MB; no repetida en esta revisión |
+| Uploads                                      | No incluidos en el dump; su recuperación sigue sin verificarse                                                                |
+| Directorio de estado                         | `/var/lib/dusema-postgres-backup`, observado `0700`, propietario/grupo `ubuntu:ubuntu`                                        |
+| Directorio temporal                          | `/var/lib/dusema-postgres-backup/tmp`, observado `0700`, propietario/grupo `ubuntu:ubuntu`                                    |
 
 La inspección anterior encontró `/usr/bin/docker`, `/usr/bin/gpg` y `/home/ubuntu/bin/oci`. El archivo de unidad local coloca primero las rutas de sistema en `PATH` y `/home/ubuntu/bin` al final para que los ejecutables de usuario no suplanten herramientas del sistema. Antes de cambiar o reinstalar el proceso, el operador debe comprobar las rutas efectivas de `docker`, `gpg`, `oci`, `date`, `mktemp`, `sha256sum`, `flock`, `mkdir`, `chmod` y `rm`, además de la propiedad y permisos de los directorios. No todas esas rutas se han confirmado.
 
