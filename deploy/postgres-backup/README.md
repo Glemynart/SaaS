@@ -294,13 +294,17 @@ ejecución:
 
 1. Después de demostrar que staging usa su propia base y storage, generar un
    `BACKUP_SET_ID` UTC único sin nombres de tenants ni personas. Ponerlo en los
-   nombres de ambos objetos y del manifiesto; no reutilizar directamente el
-   nombre independiente del timer actual como identificador común.
+   nombres de ambos objetos y del manifiesto bajo un prefijo común candidato,
+   por ejemplo `backup-sets/<BACKUP_SET_ID>/`. Validar el prefijo y la regla de
+   retención con el operador; no asumir que esta ruta o política ya existe. No
+   reutilizar directamente el nombre independiente del timer actual como
+   identificador común.
 2. Activar una barrera de escritura que afecte únicamente a staging aislado.
    Mantenerla durante el dump y el archivo de uploads, incluyendo procesos
    asíncronos que puedan cambiar referencias o archivos. Registrar inicio y fin
-   UTC. El VPS actual no cumple esta precondición porque la API llamada staging
-   comparte `oficina_nitida`.
+   UTC, y comprobar que las escrituras y trabajos en vuelo terminaron antes de
+   empezar. El VPS actual no cumple esta precondición porque la API llamada
+   staging comparte `oficina_nitida`.
 3. Con la barrera activa, producir el dump lógico de la base exclusiva de
    staging y el archivo cifrado de uploads. Mantener el manifiesto por archivo
    dentro del archivo cifrado; no copiar sus claves a logs ni al manifiesto
