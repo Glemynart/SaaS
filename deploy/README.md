@@ -221,6 +221,38 @@ ni envía un correo. Este sondeo no identificó el digest
 servido, no probó R2 ni subidas/descargas, y no certifica aislamiento: no se
 ejecutaron escrituras funcionales contra la base compartida.
 
+Inventario PostgreSQL de solo lectura para revisión DBA, 2026-10-25, aprox.
+22:30 UTC:
+
+- `postgres:17` y la API `la-oficina-nitida-staging-api-1` estaban healthy. El
+  puerto `5432` aparece expuesto solo dentro de Docker, sin publicación al host.
+  PostgreSQL, API, Caddy y Redis comparten la red Docker
+  `la-oficina-nitida_laoficina`.
+- La única agrupación de sesiones no locales en `oficina_nitida` fue tres
+  sesiones `idle` de `saas_api_runtime`, sin `application_name`; la dirección
+  observada se mapeó al contenedor de la API mediante la inspección de la red.
+  Es una muestra puntual y no descarta conexiones de otros clientes en otros
+  horarios ni conexiones futuras.
+- El propietario de la base es `oficina`, con `LOGIN`, `SUPERUSER`,
+  `CREATEDB`, `CREATEROLE`, `REPLICATION` y `BYPASSRLS`. `saas_api_runtime` tiene
+  `LOGIN`, no tiene esos atributos administrativos ni membresías de roles; sí
+  posee `CONNECT` directo y permisos `SELECT`, `INSERT`, `UPDATE` y `DELETE` en
+  las 52 relaciones públicas observadas. No posee `CREATE` sobre la base. Una
+  relación tiene RLS habilitado y forzado.
+- En el ACL de la base, `PUBLIC` tiene `CONNECT` y `TEMPORARY`; `oficina` tiene
+  `CONNECT`, `CREATE` y `TEMPORARY`; `saas_api_runtime` tiene `CONNECT`. No se
+  modificó ningún ACL.
+
+Recomendación para DBA: antes de revocar `CONNECT` heredado de `PUBLIC` en
+`oficina_nitida`, inventariar aplicaciones, trabajos programados, tareas de
+backup y accesos administrativos durante una ventana representativa, y
+confirmar qué identidades dependen de ese permiso. Si se aprueba una base lógica
+de staging en este clúster, usar rol runtime y rol de migraciones exclusivos,
+denegar `PUBLIC CONNECT` en la base de staging y verificar que el runtime no
+pueda conectar a `oficina_nitida`. Si no se puede retirar con seguridad el
+acceso heredado a la base actual, evaluar una instancia separada con red
+restringida; no ejecutar el bootstrap ni cambiar ACL hasta la aprobación DBA.
+
 Antes de cambiar el alias:
 
 1. Selecciona una revisión estable aprobada para Preview e identifica su SHA,
