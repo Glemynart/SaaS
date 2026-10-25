@@ -307,6 +307,13 @@ Los nombres de configuración SMTP están presentes y el host se clasificó como
 OCI Email Delivery, pero no se envió correo ni se comprobó entrega. No se ejecutó
 smoke autenticado ni se reasignó el alias; M1 sigue bloqueado.
 
+Revalidación Vercel del 2026-10-25 19:32 UTC: el check Vercel de PR #124 para HEAD
+`ee3649a7a62e121905d4da1dcde82b1869fd0a81` apunta a `dpl_HrX2iCieb4p4WaobyQA2DqkFwE7M`,
+`READY`, target `preview`, URL `saa-s-ae3hragvn-glemynarts-projects.vercel.app`, con alias de rama.
+`staging.dusema.com` sigue apuntando a `dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`, target `production`.
+No se modificó el alias. La inspección no expuso el SHA de Vercel y no se leyeron valores de
+`API_URL`/`NEXT_PUBLIC_API_URL`; por ello el backend efectivo del Preview no está confirmado.
+
 ### M2 — Gestión de Organizaciones y Usuarios
 
 **Resultado verificable:** un cliente opera con varias personas sin compartir credenciales.
@@ -452,6 +459,11 @@ cero archivos regulares (0 bytes); el backup PostgreSQL no incluye esa ruta, y n
 se verificó cobertura ni restauración desde las copias del volumen. E7.1 permanece
 abierta hasta comprobar acceso al objeto, restauración aislada y recuperación de
 uploads.
+
+Revalidación OCI del 2026-10-25 19:33–19:34 UTC: la identidad instance principal de la VPS obtuvo
+HTTP 404 al consultar el objeto conocido y `BucketNotFound` al listar su prefijo; el mensaje del
+servicio admite que el bucket no exista o que la identidad no esté autorizada. Esto no permite
+concluir que el objeto falte. No hubo descarga, verificación independiente del SHA-256 ni restauración.
 
 ## Criterios de aceptación del Goal
 

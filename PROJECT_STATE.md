@@ -336,6 +336,15 @@ y revisión `14da89e6d3f8ab19b38b8696776651fc6da79466`; `/health` y `/readiness`
 como OCI Email Delivery, pero no se enviaron correos ni se validó entrega. No se ejecutó smoke
 funcional ni se cambió el alias; M1 sigue bloqueado.
 
+Revalidación Vercel del 2026-10-25 19:32 UTC: el check Vercel asociado al HEAD
+`ee3649a7a62e121905d4da1dcde82b1869fd0a81` de PR #124 apunta al deployment
+`dpl_HrX2iCieb4p4WaobyQA2DqkFwE7M`, `READY`, target `preview`, URL
+`saa-s-ae3hragvn-glemynarts-projects.vercel.app`; Vercel muestra un alias de rama y no
+`staging.dusema.com`. La inspección directa de ese deployment no expuso `gitSource`.
+`staging.dusema.com` continúa resolviendo al deployment `dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`,
+target `production`. No se reasignó el alias. Los valores de `API_URL` y
+`NEXT_PUBLIC_API_URL` no se leyeron; el backend efectivo del Preview sigue sin verificar.
+
 E7.1 continúa abierta. La consulta SSH de solo lectura confirmó que el timer
 `dusema-postgres-backup.timer` disparó `dusema-postgres-backup.service` el 2026-10-25 07:00:11 UTC;
 el servicio terminó con `Result=success` y código 0. El journal registró `complete`, la carga de
@@ -348,6 +357,12 @@ una restauración manual el 23 de octubre, pero no hay evidencia independiente r
 restauración del objeto del día 25. Una medición SSH del 25 de octubre encontró cero archivos
 regulares y 0 bytes en uploads, modo `0750`, bajo `/` (`/dev/sda1`, ext4). PostgreSQL backup no
 incluye esa ruta y no se verificó cobertura ni recuperación desde copias del volumen.
+
+Revalidación OCI del 2026-10-25 19:33–19:34 UTC: usando `/home/ubuntu/bin/oci` en la VPS con
+instance principal, `object head` del objeto conocido devolvió HTTP 404 y `object list` con su
+prefijo devolvió `BucketNotFound` con el mensaje “el bucket no existe o el solicitante no está
+autorizado”. La respuesta no permite distinguir objeto ausente de falta de acceso. No hubo descarga,
+verificación independiente del SHA-256 ni restauración; E7.1 sigue abierta.
 
 E4.2 quedó fusionada y verificada en `main` mediante PR #90. M3 está completado y
 M4 tiene E4.1, E4.2, E4.3, E4.4, E4.5, E4.6 y E4.7 entregadas; E4.7 cerró la evidencia browser separada con PR #99.

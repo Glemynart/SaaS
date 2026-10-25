@@ -130,6 +130,14 @@ del VPS, sin descargar capas, resolvió el tag SHA de ese commit al digest
 existente continúa en el digest anterior `c03c3f…`; el artefacto nuevo no está desplegado.
 Los valores de `API_URL` y `NEXT_PUBLIC_API_URL` de Vercel Preview siguen sin verificarse.
 
+Revalidación de solo lectura del 2026-10-25 19:32 UTC: el check Vercel asociado al HEAD
+`ee3649a7a62e121905d4da1dcde82b1869fd0a81` de PR #124 apunta a
+`dpl_HrX2iCieb4p4WaobyQA2DqkFwE7M`, `READY`, target `preview`, URL
+`saa-s-ae3hragvn-glemynarts-projects.vercel.app`, con alias de rama. `vercel inspect` no expuso
+`gitSource`. Una inspección por el alias `staging.dusema.com` devuelve el deployment
+`dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`, `READY`, target `production`. No se cambió el alias ni se
+leyeron valores de configuración API; el backend efectivo del Preview sigue pendiente.
+
 Antes de cambiar el alias:
 
 1. Selecciona una revisión estable aprobada para Preview e identifica su SHA,
