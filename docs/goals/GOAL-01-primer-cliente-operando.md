@@ -290,6 +290,23 @@ entornos. Esta sigue siendo una dependencia operativa externa pendiente, no una
 decisión de arquitectura. La prioridad se reevalúa como un grafo de dependencias:
 M3 puede avanzar sin staging, R2, correo ni una decisión de dominio pendiente.
 
+Revalidación de solo lectura del 2026-10-25: `staging.dusema.com` sigue asociado
+al deployment Vercel `dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`, `READY`, target `Production`.
+El Preview `dpl_HMJKrxiRLazM4f49rHypytA2JptW` está `READY` para la rama actual de
+PR #124 y el check Vercel de su HEAD `af28fe09c0537f02ba9d446af7df08635f7af1d9`
+apunta al mismo deployment; Vercel no expuso el SHA en `inspect`. Tiene un alias
+de rama, no el alias `staging.dusema.com`. La variable `API_URL` existe en el
+entorno Preview, pero su valor no se leyó y no se verificó a qué API conecta.
+La API de la VPS conserva el RepoDigest
+`sha256:c03c3f11f75ed1c4cd4fca2a54941956de645e34bd0465995b2a222acade2b19` y la
+revisión `14da89e6d3f8ab19b38b8696776651fc6da79466`; GET a `/health` y
+`/readiness` respondió HTTP 200 (`ready`). La inspección anterior confirma que
+esa API comparte `oficina_nitida` con producción; hoy sigue usando
+`STORAGE_PROVIDER=local` y el bind mount `/home/ubuntu/la-oficina-nitida/staging/uploads`.
+Los nombres de configuración SMTP están presentes y el host se clasificó como
+OCI Email Delivery, pero no se envió correo ni se comprobó entrega. No se ejecutó
+smoke autenticado ni se reasignó el alias; M1 sigue bloqueado.
+
 ### M2 — Gestión de Organizaciones y Usuarios
 
 **Resultado verificable:** un cliente opera con varias personas sin compartir credenciales.
@@ -420,17 +437,21 @@ necesidad comercial verificable de adquisición desde la landing.
 - [ ] E7.4 — Onboarding y aceptación del cliente piloto con datos representativos.
 - [ ] E7.5 — Primer tenant productivo listo para operación comercial sostenida.
 
-La consulta SSH de solo lectura del 2026-10-24 confirmó que el timer
-`dusema-postgres-backup.timer` sigue activo y disparó el servicio el 2026-10-24
-07:00:04 UTC. El servicio terminó con `Result=success` y estado de salida 0; el
-journal registra el objeto cifrado `postgres/dusema-oficina_nitida-20261024T020004-0500-yGA63y.dump.gpg`,
-su SHA-256 `844e36ff4d8a1979a4fbd507214d069e82a610fa36bd449b41f9668c7627f067`, aceptación de OCI
-y verificación de checksum por el script. El objeto no se descargó y su acceso actual no se
-verificó: el cliente OCI no está instalado en la VPS ni en el equipo de revisión. No se halló
-evidencia independiente revisable de la restauración manual reportada. La ruta de uploads se
-midió en 0 bytes en esa observación y está en `/dev/sda1` bajo `/`; esto no prueba cobertura ni
-recuperación desde las copias OCI del volumen. E7.1 permanece abierta hasta verificar objeto,
-restauración aislada y protección recuperable de uploads.
+La inspección SSH de solo lectura del 2026-10-25 confirmó que el timer
+`dusema-postgres-backup.timer` se disparó a las 07:00:11 UTC y que el servicio terminó
+con `Result=success` y código 0. El journal registró `complete`, la carga del objeto
+`postgres/dusema-oficina_nitida-20261025T020011-0500-OpRYGz.dump.gpg` y SHA-256
+`d14e3e392a0050b986e2c8e560fe1a64cb5f4703f1984d4ca1a65f7631dc450a`; los hashes del
+script y las dos unidades instaladas coincidieron con los artefactos revisados. Esto
+confirma la ejecución y la verificación de checksum al cargar, no el acceso actual:
+`HeadObject` desde la VPS devolvió `Forbidden` y el equipo de revisión no dispone de
+OCI CLI. El operador reportó una restauración manual el 23 de octubre, pero no hay
+evidencia independiente revisable ni una restauración del objeto del día 25. El
+25 de octubre la ruta de uploads, en `/` (`/dev/sda1`, ext4), tenía modo `0750` y
+cero archivos regulares (0 bytes); el backup PostgreSQL no incluye esa ruta, y no
+se verificó cobertura ni restauración desde las copias del volumen. E7.1 permanece
+abierta hasta comprobar acceso al objeto, restauración aislada y recuperación de
+uploads.
 
 ## Criterios de aceptación del Goal
 

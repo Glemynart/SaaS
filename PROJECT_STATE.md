@@ -323,13 +323,31 @@ staging nuevo heredaría ese permiso y el bootstrap lo rechaza. No se cambiaron 
 confirmó mantener bloqueada la creación de base/rol hasta revisión DBA y aprobación del mecanismo
 de aislamiento. Véase [`deploy/README.md`](deploy/README.md).
 
+Revalidación de solo lectura del 2026-10-25: `staging.dusema.com` continúa sirviendo el deployment
+Vercel `READY` `dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`, target `Production`. El HEAD vigente de PR #124,
+`af28fe09c0537f02ba9d446af7df08635f7af1d9`, tiene un Preview `READY`
+(`dpl_HMJKrxiRLazM4f49rHypytA2JptW`) asociado por su check Vercel; su alias es de rama, no el
+dominio de staging. Vercel no expuso el SHA del deployment en `inspect`; `API_URL` está configurada
+para Preview, pero su valor no se leyó ni se verificó el backend efectivo. En la VPS, el contenedor
+API sigue con RepoDigest `sha256:c03c3f11f75ed1c4cd4fca2a54941956de645e34bd0465995b2a222acade2b19`
+y revisión `14da89e6d3f8ab19b38b8696776651fc6da79466`; `/health` y `/readiness` respondieron HTTP
+200 (`ready`). El runtime continúa compartiendo `oficina_nitida` con producción y usa
+`STORAGE_PROVIDER=local`. Las variables SMTP requeridas estaban presentes y el host se clasificó
+como OCI Email Delivery, pero no se enviaron correos ni se validó entrega. No se ejecutó smoke
+funcional ni se cambió el alias; M1 sigue bloqueado.
+
 E7.1 continúa abierta. La consulta SSH de solo lectura confirmó que el timer
-`dusema-postgres-backup.timer` disparó `dusema-postgres-backup.service` el 2026-10-24 07:00:04 UTC;
-el servicio terminó con `Result=success`, y el journal registró la aceptación de OCI y la
-verificación del checksum del objeto cifrado de esa ejecución. No se pudo comprobar su acceso
-actual porque no hay cliente OCI disponible; sigue sin evidencia independiente de restauración.
-La ruta de uploads estaba en `/dev/sda1` bajo `/` y medía 0 bytes en la inspección, pero su
-cobertura y recuperación no están probadas.
+`dusema-postgres-backup.timer` disparó `dusema-postgres-backup.service` el 2026-10-25 07:00:11 UTC;
+el servicio terminó con `Result=success` y código 0. El journal registró `complete`, la carga de
+`postgres/dusema-oficina_nitida-20261025T020011-0500-OpRYGz.dump.gpg` y SHA-256
+`d14e3e392a0050b986e2c8e560fe1a64cb5f4703f1984d4ca1a65f7631dc450a`; los hashes del script y las
+unidades instaladas coincidieron con los artefactos versionados. Esto confirma la ejecución y la
+verificación de checksum durante la carga, no el acceso actual. `oci os object head` desde la VPS
+con instance principal devolvió `Forbidden`; el equipo local no tiene OCI CLI. El operador reportó
+una restauración manual el 23 de octubre, pero no hay evidencia independiente revisable ni una
+restauración del objeto del día 25. Una medición SSH del 25 de octubre encontró cero archivos
+regulares y 0 bytes en uploads, modo `0750`, bajo `/` (`/dev/sda1`, ext4). PostgreSQL backup no
+incluye esa ruta y no se verificó cobertura ni recuperación desde copias del volumen.
 
 E4.2 quedó fusionada y verificada en `main` mediante PR #90. M3 está completado y
 M4 tiene E4.1, E4.2, E4.3, E4.4, E4.5, E4.6 y E4.7 entregadas; E4.7 cerró la evidencia browser separada con PR #99.
