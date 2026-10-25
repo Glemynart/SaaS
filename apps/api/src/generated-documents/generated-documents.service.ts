@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
@@ -415,45 +416,82 @@ export class GeneratedDocumentsService {
 
     const html = this.buildPdfHtml(doc.contenidoFinal, tenant, doc.employee);
 
-    const {
-      pdfUrl,
-      key: storageKey,
-      size: pdfSizeBytes,
-    } = await this.renderAndStorePdf(tenantId, id, html);
+    const updated = await this.prisma.$transaction(
+      async (tx) => {
+        // Serialize generation for this document before writing to its canonical
+        // storage key. A retry must reuse the published artifact rather than
+        // overwrite immutable bytes or create a second expediente index.
+        const lockedDocument = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "generated_documents"
+        WHERE "id" = ${id} AND "tenantId" = ${tenantId}
+        FOR UPDATE
+      `;
+        if (lockedDocument.length === 0) {
+          throw new NotFoundException('Documento no encontrado');
+        }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.generatedDocument.update({
-        where: { id },
-        data: {
-          pdfStorageKey: storageKey,
-          pdfSizeBytes,
+        const existingExpedienteDoc = await tx.expedienteDoc.findFirst({
+          where: { tenantId, generatedDocumentId: id },
+          select: { storageKey: true },
+        });
+        if (existingExpedienteDoc) {
+          if (
+            !(await this.storage.objectExists(existingExpedienteDoc.storageKey))
+          ) {
+            throw new ConflictException(
+              'El PDF publicado no está disponible y requiere una reparación controlada.',
+            );
+          }
+
+          return {
+            id: documentReference.id,
+            tenantId,
+            pdfUrl: this.getPdfUrl(existingExpedienteDoc.storageKey),
+            nombre: documentReference.nombre,
+          };
+        }
+
+        const {
           pdfUrl,
-          estado: 'MATERIALIZADO',
-        },
-        select: {
-          id: true,
-          pdfUrl: true,
-          nombre: true,
-          tipo: true,
-          employeeId: true,
-          tenantId: true,
-          contratoId: true,
-        },
-      });
+          key: storageKey,
+          size: pdfSizeBytes,
+        } = await this.renderAndStorePdf(tenantId, id, html);
 
-      await this.expedienteDocsService.createFromGeneratedDoc(
-        result.tenantId,
-        result.id,
-        result.employeeId,
-        result.nombre,
-        result.tipo,
-        { key: storageKey, size: pdfSizeBytes },
-        tx,
-        result.contratoId,
-      );
+        const result = await tx.generatedDocument.update({
+          where: { id },
+          data: {
+            pdfStorageKey: storageKey,
+            pdfSizeBytes,
+            pdfUrl,
+            estado: 'MATERIALIZADO',
+          },
+          select: {
+            id: true,
+            pdfUrl: true,
+            nombre: true,
+            tipo: true,
+            employeeId: true,
+            tenantId: true,
+            contratoId: true,
+          },
+        });
 
-      return result;
-    });
+        await this.expedienteDocsService.createFromGeneratedDoc(
+          result.tenantId,
+          result.id,
+          result.employeeId,
+          result.nombre,
+          result.tipo,
+          { key: storageKey, size: pdfSizeBytes },
+          tx,
+          result.contratoId,
+        );
+
+        return result;
+      },
+      { maxWait: 10_000, timeout: 30_000 },
+    );
 
     this.auditService
       .log({
@@ -462,7 +500,7 @@ export class GeneratedDocumentsService {
         action: 'PDF_GENERATE',
         entityType: 'GeneratedDocument',
         entityId: updated.id,
-        metadata: { pdfUrl },
+        metadata: { pdfUrl: updated.pdfUrl },
       })
       .catch(() => {});
 

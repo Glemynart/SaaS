@@ -21,8 +21,13 @@ describe('GeneratedDocumentsService.generatePdf', () => {
   const mockTenantPrismaExecute = jest.fn();
   const mockTenantFindUnique = jest.fn();
   const mockTransaction = jest.fn();
+  const mockTxQueryRaw = jest.fn<
+    Promise<Array<{ id: string }>>,
+    [TemplateStringsArray, ...unknown[]]
+  >();
   const mockTxCreate = jest.fn();
   const mockTxUpdate = jest.fn();
+  const mockTxExpedienteDocFindFirst = jest.fn();
   const mockGeneratedDocumentUpdate = jest.fn();
   const mockExpedienteDocFindFirst = jest.fn();
   const mockCreateFromGeneratedDoc = jest.fn();
@@ -64,6 +69,8 @@ describe('GeneratedDocumentsService.generatePdf', () => {
       contratoId: null,
     });
     mockTxCreate.mockReset().mockResolvedValue({ id: 'd-certification' });
+    mockTxQueryRaw.mockReset().mockResolvedValue([{ id: 'd1' }]);
+    mockTxExpedienteDocFindFirst.mockReset().mockResolvedValue(null);
     mockTransaction
       .mockReset()
       .mockImplementation((cb: (tx: unknown) => unknown) =>
@@ -72,6 +79,8 @@ describe('GeneratedDocumentsService.generatePdf', () => {
             create: mockTxCreate,
             update: mockTxUpdate,
           },
+          expedienteDoc: { findFirst: mockTxExpedienteDocFindFirst },
+          $queryRaw: mockTxQueryRaw,
         }),
       );
     mockCreateFromGeneratedDoc.mockReset().mockResolvedValue(undefined);
@@ -474,6 +483,14 @@ describe('GeneratedDocumentsService.generatePdf', () => {
         contentType: 'application/pdf',
       });
       expect(mockPutObject).toHaveBeenCalledTimes(1);
+      expect(mockTxQueryRaw).toHaveBeenCalledTimes(1);
+      const [lockQuery, ...lockParams] = mockTxQueryRaw.mock.calls[0];
+      expect(lockQuery.join('')).toContain('FOR UPDATE');
+      expect(lockQuery.join('')).toContain('"tenantId"');
+      expect(lockParams).toEqual(['d1', 't1']);
+      expect(mockTxQueryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        mockPutObject.mock.invocationCallOrder[0],
+      );
       expect(mockTxUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -495,6 +512,93 @@ describe('GeneratedDocumentsService.generatePdf', () => {
       expect(mockAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'PDF_GENERATE' }),
       );
+    },
+  );
+
+  it.each(['LETTER', 'MEMO'] as const)(
+    'reutiliza el PDF publicado en un retry de %s sin volver a escribirlo',
+    async (tipo) => {
+      const storageKey = 'pdfs/t1-d1.pdf';
+      mockFindFirst
+        .mockResolvedValueOnce({
+          id: 'd1',
+          tenantId: 't1',
+          nombre: 'Documento',
+          tipo,
+        })
+        .mockResolvedValueOnce({
+          id: 'd1',
+          tenantId: 't1',
+          contenidoFinal: '<p>Contenido</p>',
+          employee: {
+            primerNombre: 'Ana',
+            segundoNombre: null,
+            primerApellido: 'Gómez',
+            segundoApellido: null,
+            cedula: '123',
+          },
+          tipo,
+          contratoId: null,
+        });
+      mockTxExpedienteDocFindFirst.mockResolvedValueOnce({ storageKey });
+      mockObjectExists.mockResolvedValueOnce(true);
+
+      await expect(service.generatePdf('t1', 'u1', 'd1')).resolves.toEqual({
+        id: 'd1',
+        pdfUrl: `/uploads/${storageKey}`,
+        nombre: 'Documento',
+      });
+
+      expect(mockTxQueryRaw).toHaveBeenCalledTimes(1);
+      expect(mockTxExpedienteDocFindFirst).toHaveBeenCalledWith({
+        where: { tenantId: 't1', generatedDocumentId: 'd1' },
+        select: { storageKey: true },
+      });
+      expect(mockObjectExists).toHaveBeenCalledWith(storageKey);
+      expect(mockRenderPdf).not.toHaveBeenCalled();
+      expect(mockPutObject).not.toHaveBeenCalled();
+      expect(mockTxUpdate).not.toHaveBeenCalled();
+      expect(mockCreateFromGeneratedDoc).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['LETTER', 'MEMO'] as const)(
+    'no sobrescribe un %s indexado cuyo objeto publicado falta',
+    async (tipo) => {
+      mockFindFirst
+        .mockResolvedValueOnce({
+          id: 'd1',
+          tenantId: 't1',
+          nombre: 'Documento',
+          tipo,
+        })
+        .mockResolvedValueOnce({
+          id: 'd1',
+          tenantId: 't1',
+          contenidoFinal: '<p>Contenido</p>',
+          employee: {
+            primerNombre: 'Ana',
+            segundoNombre: null,
+            primerApellido: 'Gómez',
+            segundoApellido: null,
+            cedula: '123',
+          },
+          tipo,
+          contratoId: null,
+        });
+      mockTxExpedienteDocFindFirst.mockResolvedValueOnce({
+        storageKey: 'pdfs/t1-d1.pdf',
+      });
+      mockObjectExists.mockResolvedValueOnce(false);
+
+      await expect(service.generatePdf('t1', 'u1', 'd1')).rejects.toThrow(
+        'El PDF publicado no está disponible y requiere una reparación controlada.',
+      );
+
+      expect(mockRenderPdf).not.toHaveBeenCalled();
+      expect(mockPutObject).not.toHaveBeenCalled();
+      expect(mockTxUpdate).not.toHaveBeenCalled();
+      expect(mockCreateFromGeneratedDoc).not.toHaveBeenCalled();
     },
   );
 
