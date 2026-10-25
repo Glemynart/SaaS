@@ -491,16 +491,73 @@ explícitamente a las identidades productivas autorizadas. No ejecutes esa
 revocación sin ese inventario y aprobación; si el cambio no es seguro, la
 separación requiere otro clúster PostgreSQL.
 
-La inspección de solo lectura del VPS compartido del 2026-10-24 encontró en
+La inspección de solo lectura del VPS compartido del 2026-10-25 confirmó en
 `oficina_nitida` los grants `CONNECT,TEMPORARY` a `PUBLIC`, `CONNECT,TEMPORARY`
-a `oficina` y `CONNECT` explícito a `saas_api_runtime`. En ese momento solo
-existían esos dos roles con `LOGIN`: `oficina` (superusuario) y
-`saas_api_runtime` (login habilitado, sin superusuario, `BYPASSRLS` ni
-replicación). Ambos conservarían `CONNECT` si se revocara el grant de `PUBLIC`:
-`oficina` por ser superusuario y `saas_api_runtime` por su grant explícito.
-No se modificaron ACL. Repite este inventario inmediatamente antes de cualquier
-cambio y confirma con el DBA que ningún servicio depende de otro rol o de los
-privilegios heredados de `PUBLIC`; esta observación no autoriza la revocación.
+a `oficina` y `CONNECT` explícito a `saas_api_runtime`. Solo había dos roles con
+`LOGIN`: `oficina` (superusuario) y `saas_api_runtime` (sin atributos
+administrativos ni `BYPASSRLS`). Ambos tienen `CONNECT` efectivo; `oficina`
+además es superusuario y `saas_api_runtime` conserva un grant explícito. El
+runtime tenía privilegios `SELECT, INSERT, UPDATE, DELETE` sobre las 52 tablas
+del esquema `public`. Una consulta puntual de `pg_stat_activity` encontró una
+sesión idle de `saas_api_runtime`; su dirección de cliente coincidía con la IP
+Docker de `la-oficina-nitida-staging-api-1`. Esto confirma que la API llamada
+staging usaba `oficina_nitida` en esa observación. La ausencia de otras sesiones
+en ese instante no descarta tareas programadas ni conexiones intermitentes.
+No se modificaron ACL.
+
+Antes de cualquier cambio, un DBA debe repetir y revisar este inventario. Usa
+una sesión autorizada de solo lectura conectada a `postgres`; no selecciones
+contraseñas, hashes, filas de negocio ni texto de consultas:
+
+```sql
+BEGIN READ ONLY;
+
+SELECT rolname, rolcanlogin, rolsuper, rolcreaterole, rolcreatedb,
+       rolreplication, rolbypassrls, rolinherit
+FROM pg_roles
+WHERE rolcanlogin
+ORDER BY rolname;
+
+SELECT granted.rolname AS granted_role, member.rolname AS member_role,
+       m.admin_option, m.inherit_option, m.set_option
+FROM pg_auth_members AS m
+JOIN pg_roles AS granted ON granted.oid = m.roleid
+JOIN pg_roles AS member ON member.oid = m.member
+ORDER BY granted.rolname, member.rolname;
+
+SELECT d.datname,
+       CASE WHEN acl.grantee = 0 THEN 'PUBLIC'
+            ELSE COALESCE(r.rolname, acl.grantee::text) END AS grantee,
+       acl.privilege_type, acl.is_grantable
+FROM pg_database AS d
+CROSS JOIN LATERAL aclexplode(
+  COALESCE(d.datacl, acldefault('d', d.datdba))
+) AS acl
+LEFT JOIN pg_roles AS r ON r.oid = acl.grantee
+WHERE d.datname = 'oficina_nitida'
+ORDER BY grantee, acl.privilege_type;
+
+SELECT rolname,
+       has_database_privilege(oid, 'oficina_nitida', 'CONNECT') AS effective_connect
+FROM pg_roles
+WHERE rolcanlogin
+ORDER BY rolname;
+
+SELECT usename, application_name, client_addr::text AS client_addr,
+       state, count(*) AS sessions
+FROM pg_stat_activity
+WHERE datname = 'oficina_nitida' AND backend_type = 'client backend'
+GROUP BY usename, application_name, client_addr, state
+ORDER BY usename, application_name, state;
+
+ROLLBACK;
+```
+
+La vista de sesiones es solo una fotografía. Contrástala con Compose,
+systemd/timers y los propietarios de las integraciones antes de decidir si es
+seguro retirar el `CONNECT` heredado de `PUBLIC`. Conserva `CONNECT` explícito
+para cada identidad productiva aprobada. Este inventario no autoriza un cambio
+de ACL ni la creación de la base o los roles de staging.
 
 ```bash
 export GOAL01_RUNTIME_DB_ROLE=REPLACE_WITH_DEDICATED_STAGING_RUNTIME_ROLE
