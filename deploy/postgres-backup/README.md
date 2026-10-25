@@ -10,6 +10,8 @@ Una inspección SSH de solo lectura del 25 de octubre de 2026 confirmó el timer
 
 El operador reportó que el 23 de octubre descargó el objeto cifrado de esa ejecución, verificó su SHA-256, lo descifró y lo restauró manualmente en PostgreSQL 17 local: la restauración terminó con código 0, produjo 52 tablas y ocupó aproximadamente 12 MB. Este es un resultado reportado por el operador y no fue repetido ni inspeccionado independientemente durante la actualización de este documento. La restauración de PostgreSQL no verifica la recuperación de uploads.
 
+Revalidación SSH de solo lectura del 2026-10-25, aproximadamente 22:03 UTC: el directorio `/home/ubuntu/la-oficina-nitida/staging/uploads` tiene propietario `opc:opc`, modo `0750` y está en `/dev/sda1`. Un conteo agregado con `sudo -n find` no encontró entradas; `du -sb` informó 0 bytes. En ese momento, el filesystem tenía 33,641,213,952 bytes libres. La consulta no mostró nombres ni leyó contenidos. Es una medición puntual: no demuestra que snapshots u otro backup cubran la ruta ni que una restauración de uploads sea posible. E7.1 sigue pendiente de evidencia de cobertura y recuperación.
+
 ## Configuración y evidencia disponible
 
 Los valores históricos siguientes proceden de las inspecciones de solo lectura del 22 al 25 de octubre de 2026. El 24 y el 25 de octubre se compararon por SHA-256 el script y las dos unidades instaladas con estos archivos locales; los hashes coincidieron. Revalidar las rutas y la configuración efectiva antes de cambiar o reinstalar el proceso.
