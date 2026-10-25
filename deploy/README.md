@@ -264,6 +264,50 @@ El propietario confirmó el 2026-10-24 que la creación permanece bloqueada hast
 la revisión DBA. No crees una base o un rol ni modifiques ACL antes de que el DBA
 revise los grants operativos y apruebe el mecanismo de aislamiento.
 
+### Opciones de aislamiento PostgreSQL para staging
+
+Esta comparación prepara la decisión del DBA y del propietario; no autoriza
+crear bases o roles ni cambiar ACL.
+
+**Base lógica y roles separados en el clúster actual**
+
+- **Aislamiento:** separa objetos y credenciales por base. Requiere que el DBA
+  confirme que el rol runtime no puede conectarse a `oficina_nitida`.
+- **Costo y mantenimiento:** no añade otro proceso PostgreSQL ni volumen. Requiere
+  base propia, identidades de migración/runtime, ACL revisada y cobertura de backup.
+- **Riesgos:** comparte proceso, administración, capacidad, disco y dominio de
+  falla con producción. La ACL actual de `oficina_nitida` concede `CONNECT` a
+  `PUBLIC`. El DBA debe inventariar clientes, trabajos y roles antes de retirar
+  ese acceso heredado y mantener grants operativos explícitos. El backup
+  instalado apunta a `oficina_nitida`; una base nueva no queda cubierta sin
+  configuración aprobada aparte.
+- **Rollback:** revertir la API y conservar la base staging. Antes de restaurar
+  la ACL previa de `oficina_nitida`, detener la API de staging, drenar sesiones,
+  poner su rol runtime en `NOLOGIN` y comprobar que no tenga grants explícitos.
+  No borrar base ni roles. La reversión de imagen no revierte migraciones; el
+  DBA debe confirmar compatibilidad o disponer de una restauración aislada.
+
+**Servicio PostgreSQL separado en el mismo VPS**
+
+- **Aislamiento:** usa servicio, base, roles, volumen y red propios; la API de
+  staging debe quedar en una red que no alcance PostgreSQL de producción.
+- **Costo y mantenimiento:** añade servicio, volumen, red, actualizaciones,
+  límites de recursos, monitoreo, backup y restauración propios.
+- **Riesgos:** comparte kernel, host, CPU, memoria, disco y disponibilidad del
+  VPS. No proporciona un dominio de falla independiente.
+- **Rollback:** restaurar la configuración registrada del servicio y la imagen
+  anterior de la API; conservar el volumen. Si el esquema no es compatible,
+  recuperar desde el backup propio de staging. No borrar ni recrear el volumen.
+
+**Recomendación provisional:** mantener bloqueada la opción de clúster compartido hasta
+que el DBA termine el inventario y apruebe por escrito el plan de ACL y la secuencia
+de rollback. Si no puede certificar que se conservan todas las conexiones de
+producción, evaluar el servicio PostgreSQL separado en este VPS como siguiente
+opción reversible; esa ruta también necesita red, volumen, monitoreo y backup
+propios antes de recibir datos. Un segundo VPS se justifica solo si el propietario
+requiere un dominio de falla o capacidad independiente que el host actual no pueda
+ofrecer; la evidencia actual no demuestra ese requisito.
+
 ## Archivos en el VPS
 
 Una estructura sugerida, sin tocar los directorios de datos existentes, es:
