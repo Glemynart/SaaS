@@ -395,6 +395,31 @@ R2 anteriores y fija `REQUIRE_REAL_EMAIL=true`. El bucket debe ser privado y
 dedicado a staging. Las claves de R2 y las credenciales SMTP de OCI deben
 existir únicamente en el `.env` privado del VPS; no deben entrar en Git.
 
+## Migración de objetos local a R2 y reversibilidad
+
+El repositorio incluye `pnpm --filter @saas/api storage:migrate-local-to-r2`.
+Este comando escribe en R2: recorre los archivos regulares bajo
+`STORAGE_LOCAL_ROOT` (o la raíz local predeterminada), crea objetos solo si la
+key todavía no existe, vuelve a leerlos y compara tamaño y SHA-256. No elimina
+los archivos locales. El informe incluye keys y mensajes de error; conserva la
+salida de forma privada y redacta las keys antes de compartirla.
+
+La enumeración y copia no forman una instantánea atómica. Antes de ejecutarlo,
+identifica y respalda la raíz local efectiva y evita escrituras o eliminaciones
+concurrentes; una operación en curso puede dejar diferencias que el informe
+detecta, pero el comando no congela la API ni reconcilia cambios concurrentes.
+No lo uses como verificación de solo lectura ni lo ejecutes hasta tener un
+procedimiento de recuperación probado para los objetos copiados.
+
+El proveedor `r2-migration` no mantiene una copia dual: `put`, `delete`,
+`exists` y readiness operan en R2; solo las lecturas pueden recurrir a LocalDisk
+cuando R2 informa que falta un objeto o tiene un fallo transitorio. Después de
+aceptar escrituras en R2, cambiar únicamente `STORAGE_PROVIDER` a `local` puede
+ocultar esos objetos. El rollback debe conservar R2 como origen de lectura o
+contar con una sincronización R2→LocalDisk revisada y verificada. El repositorio
+no contiene actualmente un migrador inverso; por tanto, ese rollback no está
+demostrado.
+
 ## Caddy existente
 
 El Caddy activo pertenece al proyecto `la-oficina-nitida-staging`, publica
