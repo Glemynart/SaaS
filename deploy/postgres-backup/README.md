@@ -137,6 +137,236 @@ La prueba de recuperación debe restaurar el artefacto en un directorio nuevo, v
 
 **Criterio de aceptación:** proveedor y origen identificados; punto de consistencia documentado; artefacto cifrado accesible con una identidad autorizada de lectura; checksum y descifrado correctos; todos los archivos restaurados coinciden con el manifiesto; conteos agregados de referencias/objetos sin faltantes inexplicados; restauración aislada revisable; y retención/permisos aprobados. Hasta entonces, la cobertura de uploads y E7.1/M7 continúan pendientes.
 
+### Secuencia operativa reproducible (preparada, no ejecutada)
+
+Esta secuencia es exclusivamente para un staging cuya base y storage ya estén aislados. No ejecutarla en el VPS actual: la API comparte `oficina_nitida`, y el servicio PostgreSQL documentado en este directorio respalda precisamente esa base. La copia de DB y uploads debe pertenecer al mismo `RUN_ID` y al mismo intervalo sin escrituras de documentos; el backup diario existente no se presume coordinado con una copia de archivos. Un DBA debe confirmar el destino de la DB aislada y el operador debe aprobar el directorio temporal, destino privado, retención y perfiles OCI antes de empezar.
+
+**Crear artefacto local y manifiesto.** Ejecutar en el host aislado con GNU tar, `python3`, GPG y OCI CLI ya instalados. El manifiesto es información sensible: la carpeta temporal debe estar en almacenamiento cifrado o `tmpfs`, con capacidad libre comprobada de al menos dos veces el tamaño de uploads. No activar `set -x`, no imprimir el manifiesto y no usar valores de credenciales en argumentos.
+
+```bash
+set -Eeuo pipefail
+umask 077
+: "${UPLOADS_ROOT:?ruta absoluta confirmada del storage local aislado}"
+: "${TMP_PARENT:?directorio temporal cifrado aprobado}"
+: "${RUN_ID:?identificador UTC único sin datos de tenant/personas}"
+: "${RECOVERY_RECIPIENT_FINGERPRINT:?fingerprint pública verificada}"
+: "${OCI_NAMESPACE:?namespace confirmado por el operador}"
+: "${OCI_BUCKET:?bucket privado aprobado}"
+: "${OCI_OBJECT:?nombre único bajo el prefijo aprobado}"
+: "${OCI_UPLOAD_PROFILE:?perfil ya configurado para cargar en el destino aprobado}"
+[[ "$RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9Tz._-]{0,63}$ ]]
+[[ "$RECOVERY_RECIPIENT_FINGERPRINT" =~ ^[A-Fa-f0-9]{40,64}$ ]]
+
+test -d "$UPLOADS_ROOT"
+test ! -L "$UPLOADS_ROOT"
+test ! -e "$UPLOADS_ROOT/.dusema-backup-meta"
+test -d "$TMP_PARENT" && test -w "$TMP_PARENT"
+case "$UPLOADS_ROOT" in /*) ;; *) echo 'Abortado: UPLOADS_ROOT debe ser absoluto.' >&2; exit 1 ;; esac
+case "$TMP_PARENT" in /*) ;; *) echo 'Abortado: TMP_PARENT debe ser absoluto.' >&2; exit 1 ;; esac
+UPLOADS_ROOT=$(realpath -e -- "$UPLOADS_ROOT")
+TMP_PARENT=$(realpath -e -- "$TMP_PARENT")
+case "$TMP_PARENT/" in "$UPLOADS_ROOT/"*) echo 'Abortado: el temporal no puede estar dentro de uploads.' >&2; exit 1 ;; esac
+SOURCE_BYTES=$(du -sb -- "$UPLOADS_ROOT" | cut -f1)
+AVAILABLE_BYTES=$(df -B1 --output=avail "$TMP_PARENT" | tail -n1 | tr -d ' ')
+if [ "$AVAILABLE_BYTES" -lt $((SOURCE_BYTES * 2 + 67108864)) ]; then
+  echo 'Abortado: espacio temporal insuficiente.' >&2
+  exit 1
+fi
+WORK=$(mktemp -d "$TMP_PARENT/dusema-uploads-$RUN_ID.XXXXXX")
+chmod 0700 "$WORK"
+
+build_manifest() {
+  python3 - "$1" "$2" <<'PY'
+import csv, hashlib, os, stat, sys
+root, destination = map(os.path.realpath, sys.argv[1:])
+root_device = os.stat(root).st_dev
+rows = []
+def fail_walk(error):
+    raise error
+try:
+    for current, dirs, files in os.walk(root, topdown=True, onerror=fail_walk, followlinks=False):
+        dirs.sort()
+        for name in dirs:
+            info = os.lstat(os.path.join(current, name))
+            if not stat.S_ISDIR(info.st_mode) or info.st_dev != root_device:
+                raise ValueError
+        if current == root:
+            dirs[:] = [name for name in dirs if name != '.dusema-backup-meta']
+        for name in sorted(files):
+            path = os.path.join(current, name)
+            info = os.lstat(path)
+            if not stat.S_ISREG(info.st_mode) or info.st_dev != root_device:
+                raise ValueError
+            key = os.path.relpath(path, root).replace(os.sep, '/')
+            digest = hashlib.sha256()
+            with open(path, 'rb') as source:
+                for chunk in iter(lambda: source.read(1024 * 1024), b''):
+                    digest.update(chunk)
+            rows.append((digest.hexdigest(), str(info.st_size), key))
+    with open(destination, 'x', encoding='utf-8', newline='') as output:
+        writer = csv.writer(output, delimiter='\t', lineterminator='\n')
+        writer.writerows(rows)
+except Exception:
+    print('Manifest abortado; revisar el árbol solo en el entorno autorizado.', file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
+validate_archive() {
+  python3 - "$1" <<'PY'
+import sys, tarfile
+seen = set()
+manifest_seen = False
+try:
+    with tarfile.open(sys.argv[1], 'r:') as archive:
+        for member in archive:
+            raw = member.name
+            if raw.startswith('/'):
+                raise ValueError
+            parts = raw.split('/')
+            if any(part == '..' for part in parts):
+                raise ValueError
+            name = '/'.join(part for part in parts if part not in ('', '.'))
+            if not name:
+                if not member.isdir():
+                    raise ValueError
+                continue
+            if name in seen or not (member.isfile() or member.isdir()):
+                raise ValueError
+            if name == '.dusema-backup-meta/manifest.tsv':
+                if not member.isfile():
+                    raise ValueError
+                manifest_seen = True
+            elif name == '.dusema-backup-meta':
+                if not member.isdir():
+                    raise ValueError
+            elif name.startswith('.dusema-backup-meta/'):
+                raise ValueError
+            seen.add(name)
+    if not manifest_seen:
+        raise ValueError
+except Exception:
+    print('Validación del archivo abortada; revisar el artefacto en el entorno autorizado.', file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
+build_manifest "$UPLOADS_ROOT" "$WORK/manifest.tsv"
+if ! tar --create --one-file-system --file="$WORK/uploads.tar" \
+  --directory="$UPLOADS_ROOT" . 2>"$WORK/tar-create.log"; then
+  echo 'Abortado: tar no pudo leer el árbol de uploads.' >&2
+  exit 1
+fi
+if ! tar --append --file="$WORK/uploads.tar" \
+  --transform='s|^manifest.tsv$|.dusema-backup-meta/manifest.tsv|' \
+  --directory="$WORK" manifest.tsv 2>"$WORK/tar-append.log"; then
+  echo 'Abortado: no se pudo añadir el manifiesto al archivo.' >&2
+  exit 1
+fi
+validate_archive "$WORK/uploads.tar"
+build_manifest "$UPLOADS_ROOT" "$WORK/source-after-archive.tsv"
+cmp --silent "$WORK/manifest.tsv" "$WORK/source-after-archive.tsv"
+gpg --batch --no-tty --trust-model always \
+  --recipient "${RECOVERY_RECIPIENT_FINGERPRINT}!" --encrypt \
+  --output "$WORK/uploads.tar.gpg" "$WORK/uploads.tar"
+UPLOADS_SHA256=$(sha256sum -- "$WORK/uploads.tar.gpg" | cut -d' ' -f1)
+oci os object put --namespace "$OCI_NAMESPACE" --bucket-name "$OCI_BUCKET" \
+  --name "$OCI_OBJECT" --file "$WORK/uploads.tar.gpg" \
+  --verify-checksum --no-overwrite --profile "$OCI_UPLOAD_PROFILE"
+```
+
+Guardar `RUN_ID`, nombre de objeto, bytes agregados, SHA-256 cifrado, perfil usado (solo su nombre) y resultado fuera del VPS, en un registro operativo privado. No guardar el manifiesto ni listar sus claves. El comando de arriba no toma el dump de PostgreSQL: generar el dump de la **base aislada correcta** durante la misma ventana sin escrituras mediante un procedimiento revisado para esa base. No reutilizar el servicio actual mientras apunte a `oficina_nitida`.
+
+**Lectura y restauración aislada.** En una estación/entorno de recuperación aprobado, con la identidad OCI de solo lectura existente, `OBJECT_INSPECT` permite consultar metadata y `OBJECT_READ` permite descargar el objeto. Completar con el nombre y checksum registrados en la corrida; no solicitar permisos nuevos. La metadata/head no sustituye el hash del contenido descargado.
+
+```bash
+set -Eeuo pipefail
+umask 077
+: "${OCI_NAMESPACE:?}"
+: "${OCI_BUCKET:?}"
+: "${OCI_OBJECT:?nombre exacto obtenido del registro de la corrida}"
+: "${OCI_READ_PROFILE:?perfil preexistente autorizado para leer el objeto}"
+: "${EXPECTED_CIPHERTEXT_SHA256:?checksum registrado al crear el objeto}"
+: "${RECOVERY_GNUPGHOME:?GnuPG home con clave privada de recuperación ya disponible}"
+: "${RESTORE_PARENT:?directorio temporal aislado aprobado}"
+[[ "$EXPECTED_CIPHERTEXT_SHA256" =~ ^[A-Fa-f0-9]{64}$ ]]
+
+test -d "$RESTORE_PARENT" && test -w "$RESTORE_PARENT"
+case "$RESTORE_PARENT" in /*) ;; *) echo 'Abortado: RESTORE_PARENT debe ser absoluto.' >&2; exit 1 ;; esac
+RESTORE_PARENT=$(realpath -e -- "$RESTORE_PARENT")
+WORK=$(mktemp -d "$RESTORE_PARENT/dusema-upload-recovery.XXXXXX")
+chmod 0700 "$WORK"
+RESTORE_ROOT=$(mktemp -d "$RESTORE_PARENT/dusema-upload-restore.XXXXXX")
+chmod 0700 "$RESTORE_ROOT"
+OBJECT_BYTES=$(oci os object head --namespace "$OCI_NAMESPACE" --bucket-name "$OCI_BUCKET" \
+  --name "$OCI_OBJECT" --profile "$OCI_READ_PROFILE" \
+  --query '"content-length"' --raw-output)
+case "$OBJECT_BYTES" in ''|*[!0-9]*) echo 'Abortado: metadata de tamaño inválida.' >&2; exit 1 ;; esac
+AVAILABLE_BYTES=$(df -B1 --output=avail "$RESTORE_PARENT" | tail -n1 | tr -d ' ')
+if [ "$AVAILABLE_BYTES" -lt $((OBJECT_BYTES * 3 + 67108864)) ]; then
+  echo 'Abortado: espacio de recuperación insuficiente.' >&2
+  exit 1
+fi
+oci os object get --namespace "$OCI_NAMESPACE" --bucket-name "$OCI_BUCKET" \
+  --name "$OCI_OBJECT" --file "$WORK/uploads.tar.gpg" --profile "$OCI_READ_PROFILE"
+printf '%s  %s\n' "$EXPECTED_CIPHERTEXT_SHA256" "$WORK/uploads.tar.gpg" \
+  | sha256sum --check --status
+gpg --batch --no-tty --homedir "$RECOVERY_GNUPGHOME" \
+  --output "$WORK/uploads.tar" --decrypt "$WORK/uploads.tar.gpg"
+validate_archive "$WORK/uploads.tar"
+if ! tar --extract --file="$WORK/uploads.tar" --directory="$RESTORE_ROOT" \
+  --no-same-owner --no-same-permissions 2>"$WORK/tar-extract.log"; then
+  echo 'Abortado: no se pudo extraer el archivo cifrado validado.' >&2
+  exit 1
+fi
+build_manifest "$RESTORE_ROOT" "$WORK/restored-manifest.tsv"
+cmp --silent "$RESTORE_ROOT/.dusema-backup-meta/manifest.tsv" \
+  "$WORK/restored-manifest.tsv"
+```
+
+En el entorno de recuperación, copiar exactamente las funciones `build_manifest` y `validate_archive` del bloque anterior antes de ejecutar estos comandos. `cmp --silent` no muestra claves: cualquier diferencia falla la prueba. Mantener el directorio restaurado desconectado de la aplicación y del VPS original. Restaurar también el dump emparejado en una instancia temporal sin ruta de red al servidor productivo. Para cotejar referencias, importar el TSV en una tabla temporal dentro de **esa base restaurada aislada** y ejecutar solo esta consulta agregada; no usarla contra `oficina_nitida`.
+
+```sql
+BEGIN;
+CREATE TEMP TABLE restored_upload_manifest (
+  sha256 text NOT NULL,
+  size_bytes bigint NOT NULL,
+  storage_key text PRIMARY KEY
+);
+\copy restored_upload_manifest (sha256,size_bytes,storage_key) FROM '<RESTORE_ROOT>/.dusema-backup-meta/manifest.tsv' WITH (FORMAT csv, DELIMITER E'\t')
+WITH refs AS (
+  SELECT COALESCE("pdfStorageKey", CASE WHEN "pdfUrl" LIKE '/uploads/%'
+    THEN substring("pdfUrl" FROM '^/uploads/(.*)$') END) AS storage_key,
+    "pdfSizeBytes"::bigint AS expected_bytes
+    FROM generated_documents
+  UNION ALL
+  SELECT "storageKey", "tamanoBytes"::bigint FROM expediente_docs
+  UNION ALL
+  SELECT substring("logoUrl" FROM '^/uploads/(.*)$'), NULL::bigint
+    FROM tenants WHERE "logoUrl" LIKE '/uploads/%'
+  UNION ALL
+  SELECT substring("firmaRepresentanteUrl" FROM '^/uploads/(.*)$'), NULL::bigint
+    FROM tenants WHERE "firmaRepresentanteUrl" LIKE '/uploads/%'
+), ref_keys AS (
+  SELECT storage_key, max(expected_bytes) AS expected_bytes,
+    count(DISTINCT expected_bytes) FILTER (WHERE expected_bytes IS NOT NULL) AS size_versions
+    FROM refs WHERE storage_key IS NOT NULL GROUP BY storage_key
+), reference_metrics AS (
+  SELECT count(*) FILTER (WHERE m.storage_key IS NULL) AS missing_references,
+    count(*) FILTER (WHERE m.storage_key IS NOT NULL AND r.expected_bytes IS NOT NULL
+      AND m.size_bytes <> r.expected_bytes) AS size_mismatches,
+    count(*) FILTER (WHERE r.size_versions > 1) AS database_size_conflicts
+    FROM ref_keys r LEFT JOIN restored_upload_manifest m USING (storage_key)
+), orphan_metrics AS (
+  SELECT count(*) AS unreferenced_objects FROM restored_upload_manifest m
+    LEFT JOIN ref_keys r USING (storage_key) WHERE r.storage_key IS NULL
+)
+SELECT * FROM reference_metrics CROSS JOIN orphan_metrics;
+ROLLBACK;
+```
+
+La secuencia solo pasa si el checksum cifrado coincide, GPG y tar terminan correctamente, `cmp` coincide y la consulta retorna cero faltantes, desajustes de tamaño y conflictos; cualquier objeto no referenciado debe quedar explicado sin imprimir sus claves. Capturar únicamente timestamps, identificadores de corrida, hash, conteos y códigos de resultado. No limpiar temporales ni retirar fuentes hasta aceptación del propietario y confirmación de una copia independiente accesible. Si el proveedor efectivo resulta ser R2, detener este procedimiento local: el repositorio no contiene un exportador/restaurador de R2 verificado y se necesita definirlo antes de probar ese camino.
+
 ## Pruebas locales
 
 El test crea un entorno temporal aislado y sustituye Docker, GPG, OCI, `flock`, `mkdir`, `chmod` y `rm` con mocks. Comprueba los argumentos clave de `pg_dump`, GPG y OCI, `--no-overwrite`, conflicto de nombre, errores de preparación, que errores/raw stderr y contenido marcador no llegan a logs, que no se intenta subir si falla dump o cifrado, que un fallo de limpieza posterior al éxito no registra `complete`, que un fallo de limpieza conserva el código original y que artefactos preexistentes permanecen intactos. No valida llamadas OCI, PostgreSQL, GPG, systemd o la restauración reales. Las señales están manejadas por el script, pero no tienen una prueba determinista en este harness Windows; hay que probar ese ciclo en Linux antes de instalar/activar el timer.
