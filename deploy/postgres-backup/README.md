@@ -404,6 +404,10 @@ WITH refs AS (
   UNION ALL
   SELECT "storageKey", "tamanoBytes"::bigint FROM expediente_docs
   UNION ALL
+  SELECT "storageKey", NULL::bigint FROM plantillas
+  UNION ALL
+  SELECT "zipKey", NULL::bigint FROM lotes_contrato
+  UNION ALL
   SELECT substring("logoUrl" FROM '^/uploads/(.*)$'), NULL::bigint
     FROM tenants WHERE "logoUrl" LIKE '/uploads/%'
   UNION ALL
