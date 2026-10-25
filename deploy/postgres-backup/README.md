@@ -408,6 +408,14 @@ WITH refs AS (
   UNION ALL
   SELECT "zipKey", NULL::bigint FROM lotes_contrato
   UNION ALL
+  SELECT "pdfKey", NULL::bigint FROM contratos
+  UNION ALL
+  SELECT "docxKey", NULL::bigint FROM contratos
+  UNION ALL
+  SELECT "xmlKey", NULL::bigint FROM facturas
+  UNION ALL
+  SELECT "pdfKey", NULL::bigint FROM facturas
+  UNION ALL
   SELECT substring("logoUrl" FROM '^/uploads/(.*)$'), NULL::bigint
     FROM tenants WHERE "logoUrl" LIKE '/uploads/%'
   UNION ALL
