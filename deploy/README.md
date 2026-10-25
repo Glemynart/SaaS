@@ -424,9 +424,11 @@ También rechaza un rol runtime preexistente que sea miembro directo o indirecto
 de otro rol: `NOINHERIT` por sí solo no retira la capacidad de `SET ROLE` que
 permite una membresía ([documentación oficial](https://www.postgresql.org/docs/17/role-membership.html)).
 El comentario `dusema:goal01-staging-runtime` identifica el rol creado por el
-bootstrap: un rol preexistente sin esa marca se rechaza antes de cambiar su
-contraseña o atributos. Una ejecución posterior puede rotar la contraseña y
-restablecer los atributos que la identidad `CREATEROLE` puede cambiar. Si el rol
+bootstrap: un rol preexistente sin esa marca se rechaza sin modificarlo. Una
+ejecución posterior restablece los atributos que la identidad
+`CREATEROLE` puede cambiar, pero deja el runtime `NOLOGIN`. Será necesario
+repetir la asignación interactiva de contraseña y `LOGIN`, interrumpiendo la
+conectividad de staging; no la ejecutes como tarea rutinaria. Si el rol
 marcado adquiere `SUPERUSER`, `CREATEDB`, `REPLICATION` o `BYPASSRLS`, el bootstrap
 falla sin mutarlo: un DBA debe revisar y retirar esos atributos con una identidad
 superusuario antes de repetirlo. También reserva explícitamente el rol observado
@@ -438,8 +440,41 @@ persiste; ese privilegio permitiría crear esquemas e instalar extensiones
 confiables ([documentación oficial de privilegios](https://www.postgresql.org/docs/17/ddl-priv.html)).
 
 El bootstrap comprueba esta condición dentro de la transacción antes de
-confirmar los cambios. Después de que termine correctamente y antes de migrar o
-desplegar, repítela desde una sesión de solo lectura en el clúster PostgreSQL:
+confirmar los cambios. Crea o reconfigura el rol runtime como `NOLOGIN`; no
+recibe ni incluye una contraseña en el SQL. PostgreSQL advierte que una
+contraseña pasada en `CREATE ROLE ... PASSWORD` puede quedar en el historial o
+en los logs del servidor ([documentación oficial](https://www.postgresql.org/docs/17/sql-createrole.html)).
+Después de que el bootstrap termine correctamente, el DBA debe confirmar el
+resultado y un operador autorizado debe establecer la contraseña con el comando
+interactivo `\password` de `psql`, que calcula el verificador SCRAM en el cliente
+antes de enviarlo. Solo después se habilita
+`LOGIN`. No ejecutes ese paso hasta contar con la aprobación DBA y una fuente
+segura para la credencial.
+
+Conéctate interactivamente a la base de staging con la identidad de migración
+aprobada. Abre la sesión con este comando:
+
+```bash
+docker exec -it postgres psql -X -U REPLACE_WITH_STAGING_MIGRATION_ROLE -d REPLACE_WITH_APPROVED_STAGING_DATABASE
+```
+
+En el prompt de `psql`, ejecuta las instrucciones del bloque en orden. Si `SHOW`
+no devuelve `scram-sha-256`, detente y consulta al DBA. Solo entonces continúa
+con las dos instrucciones restantes, usando el nombre del rol aprobado:
+
+```text
+SHOW password_encryption;
+\password <approved-staging-runtime-role>
+ALTER ROLE <approved-staging-runtime-role> LOGIN;
+```
+
+`\password` solicita la contraseña de forma interactiva; usa una credencial
+generada y guardada en el gestor de secretos aprobado, y no la pegues en SQL,
+argumentos, historial o logs. Si el paso falla, el rol debe permanecer `NOLOGIN`.
+El verificador SCRAM sigue siendo material de autenticación y los logs de
+PostgreSQL deben conservar control de acceso apropiado.
+Después de establecerla y antes de migrar o desplegar, repite la comprobación de
+solo lectura desde una sesión en el clúster PostgreSQL:
 
 ```sql
 SELECT has_database_privilege(
@@ -470,18 +505,15 @@ privilegios heredados de `PUBLIC`; esta observación no autoriza la revocación.
 ```bash
 export GOAL01_RUNTIME_DB_ROLE=REPLACE_WITH_DEDICATED_STAGING_RUNTIME_ROLE
 
-(
-  read -r -s -p 'Staging runtime DB password: ' GOAL01_RUNTIME_DB_PASSWORD
-  printf '\n'
-  export GOAL01_RUNTIME_DB_PASSWORD
-
-  docker exec -i \
-    -e GOAL01_RUNTIME_DB_ROLE \
-    -e GOAL01_RUNTIME_DB_PASSWORD \
-    postgres psql -U REPLACE_WITH_STAGING_MIGRATION_ROLE -d REPLACE_WITH_APPROVED_STAGING_DATABASE \
-    -v ON_ERROR_STOP=1 < /home/ubuntu/la-oficina-nitida/staging-isolated/postgres/bootstrap-runtime-role.sql
-)
+docker exec -i \
+  -e GOAL01_RUNTIME_DB_ROLE \
+  postgres psql -U REPLACE_WITH_STAGING_MIGRATION_ROLE -d REPLACE_WITH_APPROVED_STAGING_DATABASE \
+  -v ON_ERROR_STOP=1 < /home/ubuntu/la-oficina-nitida/staging-isolated/postgres/bootstrap-runtime-role.sql
 ```
+
+El bootstrap anterior deja el rol `NOLOGIN`. No pases contraseñas al bootstrap;
+habilita `LOGIN` únicamente con el procedimiento interactivo descrito después
+del commit transaccional del script.
 
 Usa una identidad de migración aprobada para staging y con permisos distintos
 del rol runtime. La identidad de bootstrap/migración debe poder crear o alterar

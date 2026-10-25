@@ -19,6 +19,11 @@ if ! docker inspect "$postgres_container_id" >/dev/null 2>&1; then
   exit 1
 fi
 
+if grep -Eq 'GOAL01_RUNTIME_DB_PASSWORD|runtime_password|PASSWORD[[:space:]]+%L' "$script_dir/bootstrap-runtime-role.sql"; then
+  echo "Bootstrap must not interpolate a plaintext runtime password into SQL." >&2
+  exit 1
+fi
+
 postgres_image="$(docker inspect --format '{{.Config.Image}}' "$postgres_container_id")"
 if [[ "$postgres_image" != "postgres:16" ]]; then
   echo "The configured PostgreSQL service container is not the expected CI image." >&2
@@ -28,7 +33,6 @@ fi
 staging_database="dusema_staging_bootstrap_ci"
 runtime_role="dusema_ci_runtime"
 migration_role="dusema_ci_migration"
-export GOAL01_RUNTIME_DB_PASSWORD='ci-only-bootstrap-password'
 
 psql_as_admin() {
   docker exec "$postgres_container_id" psql -X -v ON_ERROR_STOP=1 -U postgres "$@"
@@ -42,7 +46,6 @@ run_bootstrap_as_migration_role() {
     cat "$script_dir/bootstrap-runtime-role.sql"
   } | docker exec -i \
     -e GOAL01_RUNTIME_DB_ROLE \
-    -e GOAL01_RUNTIME_DB_PASSWORD \
     "$postgres_container_id" \
     psql -X -v ON_ERROR_STOP=1 -U postgres -d "$database"
 }
@@ -177,6 +180,12 @@ run_bootstrap_as_migration_role "$staging_database" >/dev/null
 role_attributes="$(psql_as_admin -d postgres -Atqc "SELECT rolsuper::text || '|' || rolcreatedb::text || '|' || rolcreaterole::text || '|' || rolinherit::text || '|' || rolreplication::text || '|' || rolbypassrls::text FROM pg_roles WHERE rolname = '$runtime_role'")"
 if [[ "$role_attributes" != 'false|false|false|false|false|false' ]]; then
   echo "Unexpected runtime role attributes after bootstrap: $role_attributes" >&2
+  exit 1
+fi
+
+runtime_login="$(psql_as_admin -d postgres -Atqc "SELECT rolcanlogin::text FROM pg_roles WHERE rolname = '$runtime_role'")"
+if [[ "$runtime_login" != 'false' ]]; then
+  echo "Bootstrap enabled the runtime role before its password was set interactively." >&2
   exit 1
 fi
 

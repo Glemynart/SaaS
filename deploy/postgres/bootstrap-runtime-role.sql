@@ -1,9 +1,8 @@
 \set ON_ERROR_STOP on
 
--- Read secrets from the process environment so the password is not placed in
--- this file or passed as a command-line argument.
+-- Read the role name from the process environment. The role remains NOLOGIN
+-- until an operator sets its password interactively with psql's \password.
 \getenv runtime_role GOAL01_RUNTIME_DB_ROLE
-\getenv runtime_password GOAL01_RUNTIME_DB_PASSWORD
 
 \if :{?runtime_role}
 \else
@@ -11,16 +10,9 @@
 \quit 1
 \endif
 
-\if :{?runtime_password}
-\else
-\echo 'GOAL01_RUNTIME_DB_PASSWORD is required'
-\quit 1
-\endif
-
 SELECT format(
-  'DO $guard$ BEGIN IF length(%L) = 0 OR length(%L) = 0 THEN RAISE EXCEPTION ''runtime role and password must be non-empty''; END IF; END $guard$;',
-  :'runtime_role',
-  :'runtime_password'
+  'DO $guard$ BEGIN IF length(%L) = 0 THEN RAISE EXCEPTION ''runtime role must be non-empty''; END IF; END $guard$;',
+  :'runtime_role'
 ) \gexec
 
 -- Fail closed for the protected database, administrative identities, and the
@@ -52,9 +44,8 @@ SELECT format(
 ) \gexec
 
 SELECT format(
-  'CREATE ROLE %I LOGIN PASSWORD %L NOINHERIT',
-  :'runtime_role',
-  :'runtime_password'
+  'CREATE ROLE %I NOLOGIN NOINHERIT',
+  :'runtime_role'
 )
 WHERE NOT EXISTS (
   SELECT 1 FROM pg_roles WHERE rolname = :'runtime_role'
@@ -68,12 +59,11 @@ SELECT format(
   'dusema:goal01-staging-runtime'
 ) \gexec
 
--- Rotate the password and re-apply attributes a CREATEROLE migration identity
--- can safely change. Privileged attributes were rejected above.
+-- Keep the role unable to log in until an operator sets a password through
+-- psql's interactive \password command after this transaction commits.
 SELECT format(
-  'ALTER ROLE %I LOGIN PASSWORD %L NOCREATEROLE NOINHERIT',
-  :'runtime_role',
-  :'runtime_password'
+  'ALTER ROLE %I NOLOGIN NOCREATEROLE NOINHERIT',
+  :'runtime_role'
 ) \gexec
 
 -- Check memberships after normalizing role attributes. The transaction rolls
