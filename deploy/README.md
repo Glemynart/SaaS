@@ -189,6 +189,13 @@ Revalidación de solo lectura del 2026-10-25 21:46–21:49 UTC:
   Docker reporta `healthy`, pero en esta revalidación no se consultaron `/health` ni `/readiness`
   y no se ejecutó un smoke funcional. M1 sigue bloqueado.
 
+Revalidación Vercel posterior al push, aproximadamente 2026-10-25 21:57 UTC: el check Vercel de
+PR #124 para HEAD `4b4f75f6094df103dd56f5b7c07bdc926714befa` enlaza al deployment
+`dpl_GPWjq8o6yWaiwP98VCN9oUhuEtBJ`; `vercel inspect` confirma `READY`, target `preview`, URL
+`saa-s-1lhbl6l40-glemynarts-projects.vercel.app` y únicamente un alias de rama. `inspect` no
+expuso `gitSource` ni el SHA; la relación con el HEAD se sustenta en el check de PR. El alias
+`staging.dusema.com` no fue cambiado y el backend de Preview sigue sin verificarse.
+
 Antes de cambiar el alias:
 
 1. Selecciona una revisión estable aprobada para Preview e identifica su SHA,
