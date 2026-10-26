@@ -15,6 +15,8 @@ describe('GeneratedDocumentsService.generatePdf', () => {
   let service: GeneratedDocumentsService;
 
   const mockFindFirst = jest.fn();
+  const mockFindMany = jest.fn();
+  const mockCount = jest.fn();
   const mockDocumentTemplateFindFirst = jest.fn();
   const mockGeneratedDocumentCreate = jest.fn();
   const mockGeneratedDocumentDelete = jest.fn();
@@ -90,7 +92,19 @@ describe('GeneratedDocumentsService.generatePdf', () => {
     mockDocumentTemplateFindFirst.mockReset();
     mockGeneratedDocumentCreate.mockReset();
     mockGeneratedDocumentDelete.mockReset();
-    mockTenantPrismaExecute.mockReset();
+    mockFindMany.mockReset();
+    mockCount.mockReset();
+    mockTenantPrismaExecute
+      .mockReset()
+      .mockImplementation((callback: (prisma: object) => unknown) =>
+        callback({
+          generatedDocument: {
+            findFirst: mockFindFirst,
+            findMany: mockFindMany,
+            count: mockCount,
+          },
+        }),
+      );
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -100,6 +114,8 @@ describe('GeneratedDocumentsService.generatePdf', () => {
           useValue: {
             generatedDocument: {
               findFirst: mockFindFirst,
+              findMany: mockFindMany,
+              count: mockCount,
               update: mockGeneratedDocumentUpdate,
               create: mockGeneratedDocumentCreate,
               delete: mockGeneratedDocumentDelete,
@@ -135,6 +151,45 @@ describe('GeneratedDocumentsService.generatePdf', () => {
     }).compile();
 
     service = moduleRef.get(GeneratedDocumentsService);
+  });
+
+  it('lista documentos con empleados visibles dentro del contexto tenant', async () => {
+    const document = { id: 'd1', employee: { id: 'e1' } };
+    const scopedFindMany = jest.fn().mockResolvedValue([document]);
+    const scopedCount = jest.fn().mockResolvedValue(1);
+    mockFindMany.mockRejectedValue(new Error('Lectura global sin empleado'));
+    mockTenantPrismaExecute.mockImplementation(
+      (callback: (prisma: object) => unknown) =>
+        callback({
+          generatedDocument: { findMany: scopedFindMany, count: scopedCount },
+        }),
+    );
+
+    await expect(service.findAll('t1', {})).resolves.toEqual({
+      data: [document],
+      meta: { total: 1, page: 1, limit: 10, totalPages: 1 },
+    });
+    expect(scopedFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { tenantId: 't1' } }),
+    );
+    expect(scopedCount).toHaveBeenCalledWith({ where: { tenantId: 't1' } });
+    expect(mockFindMany).not.toHaveBeenCalled();
+  });
+
+  it('lee el detalle con empleado dentro del contexto tenant', async () => {
+    const document = { id: 'd1', employee: { id: 'e1' } };
+    const scopedFindFirst = jest.fn().mockResolvedValue(document);
+    mockFindFirst.mockRejectedValue(new Error('Lectura global sin empleado'));
+    mockTenantPrismaExecute.mockImplementation(
+      (callback: (prisma: object) => unknown) =>
+        callback({ generatedDocument: { findFirst: scopedFindFirst } }),
+    );
+
+    await expect(service.findOne('t1', 'd1')).resolves.toEqual(document);
+    expect(scopedFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'd1', tenantId: 't1' } }),
+    );
+    expect(mockFindFirst).not.toHaveBeenCalled();
   });
 
   it('rechaza generar CONTRACT mediante el flujo legacy', async () => {
