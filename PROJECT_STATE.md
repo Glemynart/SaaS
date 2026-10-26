@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 activo; E7.3 fuera del Goal y ADR-008 aceptado como referencia futura; M1 bloqueado por falta de staging aislado y validación operativa (2026-10-25)
+## Última actualización: GOAL-01 activo; E7.3 fuera del Goal y ADR-008 aceptado como referencia futura; M1 bloqueado por falta de staging aislado y validación operativa (2026-10-26)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -373,6 +373,16 @@ instance principal, `object head` del objeto conocido devolvió HTTP 404 y `obje
 prefijo devolvió `BucketNotFound` con el mensaje “el bucket no existe o el solicitante no está
 autorizado”. La respuesta no permite distinguir objeto ausente de falta de acceso. No hubo descarga,
 verificación independiente del SHA-256 ni restauración; E7.1 sigue abierta.
+
+Revalidación del backup programado del 2026-10-26: la consulta SSH de solo lectura observó
+`LastTriggerUSec=2026-10-26 07:00:10 UTC`; `dusema-postgres-backup.service` terminó a las 07:00:12
+con `Result=success` y código 0. El journal registró la finalización, carga y checksum informado
+por el script para `postgres/dusema-oficina_nitida-20261026T020010-0500-ANQ9JZ.dump.gpg`:
+`cf123f4ec03da98363597fb75b55d5b947ea006a6996398556c62289f1796f84`. Usando la identidad
+instance principal y `/home/ubuntu/bin/oci` (fuera del `PATH`), `object head` devolvió HTTP 404;
+esto no distingue objeto ausente de falta de autorización. Una consulta `object list` posterior no
+devolvió resultado dentro del tiempo de observación y fue interrumpida. No se verificaron metadatos
+OCI, lectura de bytes, checksum independiente ni restauración; E7.1 sigue abierta.
 
 E4.2 quedó fusionada y verificada en `main` mediante PR #90. M3 está completado y
 M4 tiene E4.1, E4.2, E4.3, E4.4, E4.5, E4.6 y E4.7 entregadas; E4.7 cerró la evidencia browser separada con PR #99.

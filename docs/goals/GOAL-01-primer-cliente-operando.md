@@ -473,6 +473,15 @@ HTTP 404 al consultar el objeto conocido y `BucketNotFound` al listar su prefijo
 servicio admite que el bucket no exista o que la identidad no esté autorizada. Esto no permite
 concluir que el objeto falte. No hubo descarga, verificación independiente del SHA-256 ni restauración.
 
+Revalidación del backup programado del 2026-10-26: el timer disparó a las 07:00:10 UTC y el servicio
+terminó a las 07:00:12 con `Result=success` y código 0. El journal registró la carga y el checksum
+informado por el script para `postgres/dusema-oficina_nitida-20261026T020010-0500-ANQ9JZ.dump.gpg`:
+`cf123f4ec03da98363597fb75b55d5b947ea006a6996398556c62289f1796f84`. La identidad instance principal,
+usando `/home/ubuntu/bin/oci` (fuera del `PATH`), obtuvo HTTP 404 en `object head`, que no permite
+distinguir ausencia del objeto de falta de autorización. No se obtuvo resultado de una consulta
+`object list`; no hubo descarga, verificación independiente del checksum ni restauración. E7.1 sigue
+abierta.
+
 ## Criterios de aceptación del Goal
 
 - [ ] existe un primer cliente identificado y autorizado para el piloto;
