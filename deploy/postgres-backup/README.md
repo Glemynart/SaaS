@@ -508,6 +508,38 @@ sudo systemctl stop dusema-postgres-backup.service
 
 La retirada de archivos de unidad o ejecutable requiere una decisión de operador. No se debe borrar `/var/lib/dusema-postgres-backup` sin comprobar que solo contiene lock/temporales propios y que no hay un backup en ejecución.
 
+### Inspección de una corrida programada (solo lectura)
+
+Definir una ventana UTC que cubra únicamente la hora esperada del timer. No
+iniciar el servicio manualmente. `systemctl show` entrega estado y timestamps;
+el filtro de journal imprime solo el evento de carga (nombre del objeto y
+SHA-256 cifrado) y `complete`. Si no aparece alguno, registrar esa evidencia
+como ausente; no interpretar una salida vacía como éxito. El evento `complete`
+indica que el script recibió aceptación de OCI, verificó el checksum de subida
+y limpió sus temporales; no demuestra que el objeto sea accesible ahora ni que
+se pueda restaurar.
+
+```bash
+RUN_DATE='YYYY-MM-DD'
+FROM_UTC="${RUN_DATE} 06:55:00 UTC"
+TO_UTC="${RUN_DATE} 07:15:00 UTC"
+sudo systemctl show dusema-postgres-backup.timer \
+  -p LastTriggerUSec -p NextElapseUSecRealtime -p ActiveState -p SubState
+sudo systemctl show dusema-postgres-backup.service \
+  -p Result -p ExecMainStatus -p ExecMainStartTimestamp -p ExecMainExitTimestamp
+sudo journalctl -u dusema-postgres-backup.service \
+  --since "$FROM_UTC" --until "$TO_UTC" --utc --no-pager -o short-iso \
+  | grep -F 'dusema-postgres-backup: upload: sending encrypted artifact object='
+sudo journalctl -u dusema-postgres-backup.service \
+  --since "$FROM_UTC" --until "$TO_UTC" --utc --no-pager -o short-iso \
+  | grep -F 'dusema-postgres-backup: complete:'
+```
+
+Un error de `journalctl` debe investigarse por separado sin volcar el journal
+completo. Tras identificar el nombre exacto, comprobar metadata con una
+identidad que ya tenga `OBJECT_INSPECT`; el checksum del contenido requiere
+`OBJECT_READ` y una descarga a un destino privado aprobado. No ampliar permisos.
+
 ## Decisiones y verificaciones pendientes
 
 - La comparación SSH de solo lectura del 24 y 25 de octubre encontró que el script y ambas unidades instaladas coinciden por SHA-256 con los tres artefactos de este directorio. Repetir esa comparación antes de reinstalar o cambiar las unidades.
