@@ -345,6 +345,12 @@ dominio; M1 sigue abierto.
   del objeto programado del 26 de octubre devolvió HTTP 404. La respuesta no
   distingue objeto ausente de falta de autorización; no se leyeron ni descargaron
   bytes y no se verificó el checksum independientemente. E7.1 sigue abierto.
+- Una medición SSH de solo lectura de las 10:50 UTC del 26 de octubre encontró
+  3 archivos regulares y 43.787 bytes en
+  `/home/ubuntu/la-oficina-nitida/staging/uploads`, con propietario `opc:opc`,
+  modo `0750` y bind mount hacia `/app/uploads`. La observación anterior de 0 bytes
+  del 25 de octubre quedó superada; todavía no hay evidencia de cobertura ni de
+  recuperación de esos archivos.
 
 Antes de cambiar el alias:
 

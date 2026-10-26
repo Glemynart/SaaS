@@ -428,6 +428,13 @@ del backup programado devolvió 404, ambiguo entre ausencia y falta de acceso;
 no se comprobó lectura ni restauración. E1.1, E1.3, M1 y E7.1 permanecen
 abiertos. El detalle verificable está en [`deploy/README.md`](deploy/README.md).
 
+Una medición SSH de solo lectura de uploads, a las 10:50 UTC del 2026-10-26,
+encontró 3 archivos regulares y 43.787 bytes en
+`/home/ubuntu/la-oficina-nitida/staging/uploads` (propietario `opc:opc`, modo
+`0750`, bind mount hacia `/app/uploads`). Esto reemplaza la observación anterior
+de 0 bytes del 25 de octubre, pero no demuestra cobertura de backup ni capacidad
+de restauración; E7.1 sigue abierta.
+
 E4.2 quedó fusionada y verificada en `main` mediante PR #90. M3 está completado y
 M4 tiene E4.1, E4.2, E4.3, E4.4, E4.5, E4.6 y E4.7 entregadas; E4.7 cerró la evidencia browser separada con PR #99.
 E5.1 quedó fusionada en PR #95. El procesamiento usa planes ya confirmados
