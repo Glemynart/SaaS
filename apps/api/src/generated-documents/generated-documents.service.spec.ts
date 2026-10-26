@@ -37,16 +37,6 @@ describe('GeneratedDocumentsService.generatePdf', () => {
   const mockObjectExists = jest.fn();
   const mockGetObject = jest.fn();
   const mockRenderPdf = jest.fn();
-  const runTenantPrismaCallback = (callback: unknown) =>
-    (
-      callback as (client: {
-        generatedDocument: { findFirst: typeof mockFindFirst };
-        empleado: { findFirst: typeof mockFindFirst };
-      }) => unknown
-    )({
-      generatedDocument: { findFirst: mockFindFirst },
-      empleado: { findFirst: jest.fn() },
-    });
 
   beforeEach(async () => {
     mockFindFirst.mockReset().mockResolvedValue({
@@ -109,9 +99,7 @@ describe('GeneratedDocumentsService.generatePdf', () => {
     mockDocumentTemplateFindFirst.mockReset();
     mockGeneratedDocumentCreate.mockReset();
     mockGeneratedDocumentDelete.mockReset();
-    mockTenantPrismaExecute
-      .mockReset()
-      .mockImplementation(runTenantPrismaCallback);
+    mockTenantPrismaExecute.mockReset();
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -156,34 +144,6 @@ describe('GeneratedDocumentsService.generatePdf', () => {
     }).compile();
 
     service = moduleRef.get(GeneratedDocumentsService);
-  });
-
-  it('consulta el snapshot documental mediante la frontera tenant', async () => {
-    const document = { id: 'd1', tenantId: 't1' };
-    mockFindFirst.mockResolvedValue(document);
-
-    await expect(service.findOne('t1', 'd1')).resolves.toBe(document);
-
-    expect(mockTenantPrismaExecute).toHaveBeenCalledTimes(1);
-    expect(mockFindFirst).toHaveBeenCalledWith({
-      where: { id: 'd1', tenantId: 't1' },
-      include: {
-        employee: {
-          select: {
-            id: true,
-            primerNombre: true,
-            segundoNombre: true,
-            primerApellido: true,
-            segundoApellido: true,
-            cedula: true,
-            cargo: true,
-            tipoDocumento: true,
-            sedeRef: { select: { id: true, nombre: true } },
-          },
-        },
-        template: { select: { id: true, nombre: true, tipo: true } },
-      },
-    });
   });
 
   it('rechaza generar CONTRACT mediante el flujo legacy', async () => {

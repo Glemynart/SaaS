@@ -222,29 +222,27 @@ export class GeneratedDocumentsService {
   }
 
   async findOne(tenantId: string, id: string) {
-    const doc = await this.tenantPrisma.execute((prisma) =>
-      prisma.generatedDocument.findFirst({
-        where: { id, tenantId },
-        include: {
-          employee: {
-            select: {
-              id: true,
-              primerNombre: true,
-              segundoNombre: true,
-              primerApellido: true,
-              segundoApellido: true,
-              cedula: true,
-              cargo: true,
-              tipoDocumento: true,
-              sedeRef: { select: { id: true, nombre: true } },
-            },
-          },
-          template: {
-            select: { id: true, nombre: true, tipo: true },
+    const doc = await this.prisma.generatedDocument.findFirst({
+      where: { id, tenantId },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            primerNombre: true,
+            segundoNombre: true,
+            primerApellido: true,
+            segundoApellido: true,
+            cedula: true,
+            cargo: true,
+            tipoDocumento: true,
+            sedeRef: { select: { id: true, nombre: true } },
           },
         },
-      }),
-    );
+        template: {
+          select: { id: true, nombre: true, tipo: true },
+        },
+      },
+    });
 
     if (!doc) {
       throw new NotFoundException('Documento generado no encontrado');
