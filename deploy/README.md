@@ -287,6 +287,27 @@ roles, objetos y direcciones internas: sanitízalo antes de compartirlo. No
 contiene contraseñas, hashes de credenciales ni filas de negocio, y la
 transacción del script es explícitamente `READ ONLY`.
 
+## Revalidación del runtime API — 2026-10-26, 10:28–10:34 UTC
+
+La inspección SSH de solo lectura observó `la-oficina-nitida-staging-api-1` como
+`Up 4 hours (healthy)` en la única VPS clasificada como producción. La referencia
+configurada y `RepoDigests` indican
+`ghcr.io/glemynart/saas/api@sha256:b5e441d62986632b09e301dc1dcbe7fbd067afcf9f6ecbebaa48c3a52a2be6d8`;
+la etiqueta OCI `org.opencontainers.image.revision` indica
+`629375cf0378472f22ade09beda460741a8af6bf`. El workflow `Publish API image`
+para esa revisión terminó correctamente (run `40281285437`). La revisión
+observada desciende del merge de PR #123 (`0aa157e4f3593795d43568eabfbd3d80f778aea8`),
+por lo que incluye la corrección de metadata de PDF. Esto confirma el artefacto
+que ejecuta el contenedor observado, pero no certifica staging aislado.
+
+La inspección filtrada confirmó `STORAGE_PROVIDER=local` y el destino PostgreSQL
+`saas_api_runtime` en `postgres/oficina_nitida`; no se mostraron URL ni contraseña.
+La API llamada staging sigue compartiendo la base del entorno clasificado como
+producción. En esta revalidación no se consultaron datos ni catálogos de PostgreSQL,
+no se llamaron `/health` o `/readiness`, y no se ejecutaron pruebas funcionales.
+El estado `healthy` corresponde al healthcheck del contenedor. No se revisó el
+alias Vercel en esta observación; M1 continúa abierto.
+
 Antes de cambiar el alias:
 
 1. Selecciona una revisión estable aprobada para Preview e identifica su SHA,

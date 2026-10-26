@@ -384,6 +384,28 @@ esto no distingue objeto ausente de falta de autorización. Una consulta `object
 devolvió resultado dentro del tiempo de observación y fue interrumpida. No se verificaron metadatos
 OCI, lectura de bytes, checksum independiente ni restauración; E7.1 sigue abierta.
 
+Revalidación de solo lectura del runtime API, 2026-10-26, 10:28–10:34 UTC:
+
+- `la-oficina-nitida-staging-api-1` está `Up 4 hours (healthy)` en la única VPS
+  clasificada como producción. La referencia y `RepoDigests` muestran
+  `sha256:b5e441d62986632b09e301dc1dcbe7fbd067afcf9f6ecbebaa48c3a52a2be6d8`;
+  la revisión OCI es `629375cf0378472f22ade09beda460741a8af6bf`. El workflow
+  `Publish API image` para esa revisión terminó correctamente (run
+  `40281285437`). La revisión contiene como ancestro el merge de PR #123
+  (`0aa157e4f3593795d43568eabfbd3d80f778aea8`), que incluye la corrección de
+  metadata de PDFs.
+- La configuración filtrada indica `STORAGE_PROVIDER=local` y PostgreSQL
+  `postgres/oficina_nitida` con el rol `saas_api_runtime`. La API llamada staging
+  sigue usando la base del entorno clasificado como producción; esto confirma
+  que el aislamiento requerido por M1 no existe. La salida filtrada no mostró
+  secretos, filas
+  de negocio ni catálogos, y no se hicieron solicitudes HTTP ni escrituras.
+- El health reportado es el del contenedor; `/health`, `/readiness`, el alias
+  Vercel, R2 y la entrega real SMTP no se revalidaron en este ciclo. E1.1 y M1
+  continúan abiertos. El inventario/decisión DBA de PR #124 sigue pendiente; sus
+  checks `verify`, `browser` y Vercel Preview están verdes para HEAD
+  `b43637fda09c9490e565bca17879ffc847d2b167`, sin revisión DBA registrada.
+
 E4.2 quedó fusionada y verificada en `main` mediante PR #90. M3 está completado y
 M4 tiene E4.1, E4.2, E4.3, E4.4, E4.5, E4.6 y E4.7 entregadas; E4.7 cerró la evidencia browser separada con PR #99.
 E5.1 quedó fusionada en PR #95. El procesamiento usa planes ya confirmados
