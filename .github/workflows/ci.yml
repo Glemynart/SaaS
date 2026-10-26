@@ -79,6 +79,14 @@ jobs:
           POSTGRES_SERVICE_CONTAINER_ID: ${{ job.services.postgres17_bootstrap.id }}
         run: bash deploy/postgres/test-runtime-role-bootstrap.sh
 
+      - name: Validate read-only PostgreSQL isolation inventory
+        env:
+          POSTGRES_SERVICE_CONTAINER_ID: ${{ job.services.postgres17_bootstrap.id }}
+        run: |
+          docker exec -i "$POSTGRES_SERVICE_CONTAINER_ID" \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d oficina_nitida \
+            < deploy/postgres/audit-isolation-readonly.sql
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:

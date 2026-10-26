@@ -253,6 +253,18 @@ pueda conectar a `oficina_nitida`. Si no se puede retirar con seguridad el
 acceso heredado a la base actual, evaluar una instancia separada con red
 restringida; no ejecutar el bootstrap ni cambiar ACL hasta la aprobación DBA.
 
+La consulta [`audit-isolation-readonly.sql`](postgres/audit-isolation-readonly.sql)
+produce un inventario de solo lectura de atributos de roles, membresías con
+`INHERIT`/`SET ROLE`, ACL de bases y objetos, privilegios `CONNECT` efectivos y
+sesiones cliente agregadas sin texto SQL. Ejecútala como DBA autorizado contra
+cada base objetivo durante una ventana representativa. Una muestra de
+`pg_stat_activity` es instantánea y no identifica tareas que no estén conectadas
+en ese momento; complétala con los consumidores configurados en Compose,
+Vercel, timers y herramientas operativas. El resultado puede incluir nombres de
+roles, objetos y direcciones internas: sanitízalo antes de compartirlo. No
+contiene contraseñas, hashes de credenciales ni filas de negocio, y la
+transacción del script es explícitamente `READ ONLY`.
+
 Antes de cambiar el alias:
 
 1. Selecciona una revisión estable aprobada para Preview e identifica su SHA,
