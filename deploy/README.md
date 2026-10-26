@@ -243,6 +243,28 @@ Inventario PostgreSQL de solo lectura para revisión DBA, 2026-10-25, aprox.
   `CONNECT`, `CREATE` y `TEMPORARY`; `saas_api_runtime` tiene `CONNECT`. No se
   modificó ningún ACL.
 
+Revalidación de solo lectura con `audit-isolation-readonly.sql`, 2026-10-26,
+aprox. 00:35 UTC:
+
+- PostgreSQL reportó `17.10`; las únicas identidades con `LOGIN` fueron `oficina`
+  y `saas_api_runtime`. `oficina` continúa siendo superusuario;
+  `saas_api_runtime` no tiene atributos administrativos.
+- `pg_auth_members` devolvió solo las tres membresías integradas de
+  `pg_monitor` a `pg_read_all_settings`, `pg_read_all_stats` y
+  `pg_stat_scan_tables`; ninguno de los dos roles `LOGIN` tiene membresías.
+- El ACL de `oficina_nitida` y el `CONNECT` efectivo de ambos roles coinciden
+  con la observación anterior: `PUBLIC` conserva `CONNECT` y `TEMPORARY`, y
+  `saas_api_runtime` puede conectarse. El runtime conserva `SELECT`, `INSERT`,
+  `UPDATE` y `DELETE` en las 52 relaciones; los privilegios por defecto también
+  le dan DML en tablas y `USAGE`/`SELECT`/`UPDATE` en secuencias.
+- La muestra de `pg_stat_activity` incluyó tres sesiones `idle` de
+  `saas_api_runtime` y una `active` de `oficina`. La consulta se ejecutó como
+  `oficina`; el resumen omitió `application_name` y dirección para no publicar
+  esos datos, por lo que no se atribuye la sesión activa a otro consumidor.
+  Sigue siendo una observación puntual, no un inventario completo de clientes.
+- Solo se consultaron catálogos y sesiones agregadas; no se consultaron filas de
+  negocio ni se modificaron roles, ACL o configuración.
+
 Recomendación para DBA: antes de revocar `CONNECT` heredado de `PUBLIC` en
 `oficina_nitida`, inventariar aplicaciones, trabajos programados, tareas de
 backup y accesos administrativos durante una ventana representativa, y
