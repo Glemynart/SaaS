@@ -303,7 +303,7 @@ pero su implementación se traslada a Platform Evolution hasta que exista una
 necesidad comercial verificable de adquisición desde la landing.
 
 - [ ] E7.1 — Backup y restauración probados.
-- [ ] E7.2 — Monitoreo, alertamiento técnico y soporte operativo.
+- [ ] E7.2 — Monitoreo, alertamiento técnico y soporte operativo. La preparación y evidencia se registran con la [guía operativa de monitoreo y soporte](GOAL-01-monitoring-support-runbook.md).
 - [ ] E7.4 — Onboarding y aceptación del cliente piloto con datos representativos.
 - [ ] E7.5 — Primer tenant productivo listo para operación comercial sostenida.
 
