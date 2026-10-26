@@ -564,11 +564,20 @@ que el backup PostgreSQL o una copia recuperable cubran estos archivos.
 
 La CLI no está en el `PATH` de la sesión SSH, pero `/home/ubuntu/bin/oci` existe
 y reporta versión 3.95.1; la CLI OCI no está instalada en la estación local
-inspeccionada. No se ejecutó `object head` en esta revalidación porque no se
-identificó una identidad de lectura ya autorizada. La respuesta `Forbidden` y
-las respuestas ambiguas de `object head`/`object list` del 25 de octubre con la
-identidad instance principal siguen sin demostrar si el objeto existe o es
-accesible para un operador autorizado.
+inspeccionada. A las 11:01 UTC se consultó `object head` para el objeto del 26
+de octubre usando la identidad instance principal; OCI respondió HTTP 404. Como
+no se verificó que esa identidad tenga `OBJECT_INSPECT`, la respuesta no permite
+distinguir entre objeto ausente y falta de autorización. No se descargó el
+objeto ni se identificó una identidad de lectura ya autorizada.
+
+Una consulta `findmnt` a las 11:01 UTC ubicó `/opt/la-oficina-nitida/postgres/data`,
+`/opt/la-oficina-nitida/redis/data` y el directorio de uploads en el mismo
+filesystem raíz `/dev/sda1` (`ext4`). Por tanto, si las copias OCI confirmadas
+por el propietario corresponden al volumen de arranque que respalda `/`, esas
+copias incluyen los tres paths a nivel de bloques; esta cobertura es una
+inferencia pendiente de validar con los metadatos del volumen/snapshot y una
+restauración aislada. El snapshot también puede incluir configuración sensible,
+por lo que requiere control de acceso adecuado.
 
 ## Decisiones y verificaciones pendientes
 
