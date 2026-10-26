@@ -319,6 +319,33 @@ Preview. No se reasignó el alias ni se verificó el SHA del deployment o el hos
 API efectivo de Preview. No dirijas pruebas funcionales con escrituras a este
 dominio; M1 sigue abierto.
 
+## Revalidación de solo lectura del runtime y health — 2026-10-26, 11:55–11:57 UTC
+
+- `vercel inspect staging.dusema.com` volvió a resolver el dominio al deployment
+  `dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`, `READY`, target `production`. Vercel no
+  expuso `gitSource`; no se reasignó el alias.
+- La API `la-oficina-nitida-staging-api-1` está `running` y `healthy`. Su referencia
+  por digest es `ghcr.io/glemynart/saas/api@sha256:b5e441d62986632b09e301dc1dcbe7fbd067afcf9f6ecbebaa48c3a52a2be6d8`,
+  con revisión OCI `629375cf0378472f22ade09beda460741a8af6bf`. El run `40281285437`
+  de `Publish API image` terminó correctamente para esa revisión; su log registra
+  el tag `sha-629375cf0378472f22ade09beda460741a8af6bf` asociado al mismo digest.
+  El merge de PR #122 (`14da89e6d3f8ab19b38b8696776651fc6da79466`) es ancestro de
+  esa revisión. La inspección del código de esa revisión confirma que el logger
+  no recibe `resetUrl` ni el mensaje SMTP arbitrario; no se ejecutó el flujo real
+  de recuperación.
+- Los únicos valores runtime filtrados fueron `NODE_ENV=production`,
+  `STORAGE_PROVIDER=local` y `REQUIRE_REAL_EMAIL=true`; no se imprimieron otras
+  variables. Los GET públicos a `/health` y `/readiness` devolvieron HTTP 200.
+  Readiness reportó base, storage y email `up`, con email `required=true`. El
+  código de readiness usa `SELECT 1` para la base, comprueba el proveedor de
+  storage configurado y considera email `up` cuando existe el transporte SMTP
+  y no está degradado; no envía un mensaje. Por tanto esto no verifica R2, entrega
+  SMTP, autorización de uploads ni aislamiento de la base compartida.
+- `/home/ubuntu/bin/oci` está disponible fuera del `PATH`, pero un `object head`
+  del objeto programado del 26 de octubre devolvió HTTP 404. La respuesta no
+  distingue objeto ausente de falta de autorización; no se leyeron ni descargaron
+  bytes y no se verificó el checksum independientemente. E7.1 sigue abierto.
+
 Antes de cambiar el alias:
 
 1. Selecciona una revisión estable aprobada para Preview e identifica su SHA,

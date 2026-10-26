@@ -414,6 +414,20 @@ alias no se cambió. No se verificó el SHA asociado ni el backend efectivo de
 Preview, así que el dominio no sirve como staging certificado. No ejecutar
 smoke funcional con escrituras contra ese alias.
 
+Revalidación de solo lectura del 2026-10-26, 11:55–11:57 UTC: el contenedor API
+continúa healthy en la VPS clasificada como producción, con digest
+`sha256:b5e441d62986632b09e301dc1dcbe7fbd067afcf9f6ecbebaa48c3a52a2be6d8` y
+revisión `629375cf0378472f22ade09beda460741a8af6bf`; el workflow de publicación
+`40281285437` terminó correctamente y su log vincula ese digest con la etiqueta
+SHA del commit. La revisión contiene el merge de PR #122. Los GET públicos a
+`/health` y `/readiness` respondieron 200; readiness indicó base, storage y
+email `up`, pero el runtime usa storage local y el estado de email solo confirma
+que existe un transporte configurado. No se envió correo ni se verificó R2.
+Vercel continúa sirviendo `staging.dusema.com` desde Production. El `object head`
+del backup programado devolvió 404, ambiguo entre ausencia y falta de acceso;
+no se comprobó lectura ni restauración. E1.1, E1.3, M1 y E7.1 permanecen
+abiertos. El detalle verificable está en [`deploy/README.md`](deploy/README.md).
+
 E4.2 quedó fusionada y verificada en `main` mediante PR #90. M3 está completado y
 M4 tiene E4.1, E4.2, E4.3, E4.4, E4.5, E4.6 y E4.7 entregadas; E4.7 cerró la evidencia browser separada con PR #99.
 E5.1 quedó fusionada en PR #95. El procesamiento usa planes ya confirmados
