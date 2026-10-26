@@ -308,6 +308,17 @@ no se llamaron `/health` o `/readiness`, y no se ejecutaron pruebas funcionales.
 El estado `healthy` corresponde al healthcheck del contenedor. No se revisó el
 alias Vercel en esta observación; M1 continúa abierto.
 
+## Revalidación del alias web — 2026-10-26, aprox. 10:44 UTC
+
+`vercel inspect staging.dusema.com --json --scope glemynarts-projects` devolvió
+el deployment `dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`, URL
+`saa-s-39qo9akw7-glemynarts-projects.vercel.app`, estado `READY`, target
+`production`, con `staging.dusema.com` entre sus aliases. Esto confirma que el
+dominio continúa apuntando a Production, pese a que la intención aprobada es
+Preview. No se reasignó el alias ni se verificó el SHA del deployment o el host
+API efectivo de Preview. No dirijas pruebas funcionales con escrituras a este
+dominio; M1 sigue abierto.
+
 Antes de cambiar el alias:
 
 1. Selecciona una revisión estable aprobada para Preview e identifica su SHA,

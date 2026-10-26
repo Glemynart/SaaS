@@ -406,6 +406,14 @@ Revalidación de solo lectura del runtime API, 2026-10-26, 10:28–10:34 UTC:
   checks `verify`, `browser` y Vercel Preview están verdes para HEAD
   `b43637fda09c9490e565bca17879ffc847d2b167`, sin revisión DBA registrada.
 
+Consulta Vercel de solo lectura del 2026-10-26, aprox. 10:44 UTC: el alias
+`staging.dusema.com` resuelve al deployment `dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`,
+URL `saa-s-39qo9akw7-glemynarts-projects.vercel.app`, estado `READY`, target
+`production`. El propietario ya indicó que el target deseado es `Preview`; el
+alias no se cambió. No se verificó el SHA asociado ni el backend efectivo de
+Preview, así que el dominio no sirve como staging certificado. No ejecutar
+smoke funcional con escrituras contra ese alias.
+
 E4.2 quedó fusionada y verificada en `main` mediante PR #90. M3 está completado y
 M4 tiene E4.1, E4.2, E4.3, E4.4, E4.5, E4.6 y E4.7 entregadas; E4.7 cerró la evidencia browser separada con PR #99.
 E5.1 quedó fusionada en PR #95. El procesamiento usa planes ya confirmados
