@@ -820,6 +820,34 @@ describe('ContractsService', () => {
       expect(mockGeneratedDocumentCreate).not.toHaveBeenCalled();
     });
 
+    it('lee la relación del empleado dentro del contexto tenant', async () => {
+      const existing = { id: 'gendoc-existing', contratoId: 'contract-001' };
+      const scopedFindFirst = jest
+        .fn()
+        .mockResolvedValue(makeDocumentContract());
+      mockContratoFindFirst.mockRejectedValue(
+        new Error('La relación empleado no es visible fuera del tenant'),
+      );
+      mockTenantPrisma.execute.mockImplementationOnce(
+        (work: (client: typeof mockPrisma) => unknown) =>
+          work({
+            ...mockPrisma,
+            contrato: { ...mockPrisma.contrato, findFirst: scopedFindFirst },
+          }),
+      );
+      mockGeneratedDocumentFindFirst.mockResolvedValue(existing);
+
+      await expect(
+        service.ensureGeneratedDocument(TENANT_ID, 'contract-001'),
+      ).resolves.toEqual({ outcome: 'EXISTING', document: existing });
+
+      expect(scopedFindFirst).toHaveBeenCalledWith({
+        where: { id: 'contract-001', tenantId: TENANT_ID },
+        include: { empleado: { select: { deletedAt: true } } },
+      });
+      expect(mockContratoFindFirst).not.toHaveBeenCalled();
+    });
+
     it('recupera un documento existente aunque el contrato ya no esté vigente', async () => {
       const existing = { id: 'gendoc-existing', contratoId: 'contract-001' };
       mockContratoFindFirst.mockResolvedValue(

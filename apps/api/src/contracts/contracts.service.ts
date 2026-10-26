@@ -445,10 +445,12 @@ export class ContractsService {
     contratoId: string,
     templateId?: string,
   ): Promise<EnsureGeneratedDocumentResult> {
-    const contract = await this.prisma.contrato.findFirst({
-      where: { id: contratoId, tenantId },
-      include: { empleado: { select: { deletedAt: true } } },
-    });
+    const contract = await this.tenantPrisma.execute((prisma) =>
+      prisma.contrato.findFirst({
+        where: { id: contratoId, tenantId },
+        include: { empleado: { select: { deletedAt: true } } },
+      }),
+    );
     if (!contract) {
       throw new NotFoundException('Contrato no encontrado');
     }
