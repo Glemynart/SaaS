@@ -31,6 +31,17 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      postgres17_bootstrap:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: saas_bootstrap_ci
+        options: >-
+          --health-cmd "pg_isready -U postgres -d saas_bootstrap_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       NODE_ENV: test
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/saas_ci
@@ -65,7 +76,7 @@ jobs:
 
       - name: Test PostgreSQL runtime role isolation bootstrap
         env:
-          POSTGRES_SERVICE_CONTAINER_ID: ${{ job.services.postgres.id }}
+          POSTGRES_SERVICE_CONTAINER_ID: ${{ job.services.postgres17_bootstrap.id }}
         run: bash deploy/postgres/test-runtime-role-bootstrap.sh
 
       - name: Setup pnpm

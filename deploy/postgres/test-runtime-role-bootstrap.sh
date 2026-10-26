@@ -25,7 +25,7 @@ if grep -Eq 'GOAL01_RUNTIME_DB_PASSWORD|runtime_password|PASSWORD[[:space:]]+%L'
 fi
 
 postgres_image="$(docker inspect --format '{{.Config.Image}}' "$postgres_container_id")"
-if [[ "$postgres_image" != "postgres:16" ]]; then
+if [[ "$postgres_image" != "postgres:17" ]]; then
   echo "The configured PostgreSQL service container is not the expected CI image." >&2
   exit 1
 fi
