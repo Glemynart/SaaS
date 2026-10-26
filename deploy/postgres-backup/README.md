@@ -542,13 +542,41 @@ completo. Tras identificar el nombre exacto, comprobar metadata con una
 identidad que ya tenga `OBJECT_INSPECT`; el checksum del contenido requiere
 `OBJECT_READ` y una descarga a un destino privado aprobado. No ampliar permisos.
 
+### Revalidación SSH de solo lectura — 2026-10-26
+
+A las 10:46 UTC, el timer seguía habilitado y activo. `LastTriggerUSec` fue
+2026-10-26 07:00:10 UTC y `NextElapseUSecRealtime` quedó para el 27 de octubre
+a las 07:00 UTC. El servicio inició a las 07:00:10, terminó a las 07:00:12,
+reportó `Result=success` y `ExecMainStatus=0`. El journal de esa ventana registró
+`postgres/dusema-oficina_nitida-20261026T020010-0500-ANQ9JZ.dump.gpg`, SHA-256
+`cf123f4ec03da98363597fb75b55d5b947ea006a6996398556c62289f1796f84` y el evento
+`complete`. Esto confirma la ejecución programada y la verificación de checksum
+durante la carga informada por el script; no confirma acceso actual al objeto,
+una descarga independiente ni una restauración.
+
+A las 10:50 UTC, una medición sin listar nombres ni leer contenidos encontró
+`/home/ubuntu/la-oficina-nitida/staging/uploads` con propietario `opc:opc`, modo
+`0750`, 43.787 bytes y 3 archivos regulares. Docker confirma que la ruta es un
+bind mount hacia `/app/uploads`; `findmnt` la ubica en `/dev/sda1` (`ext4`), el
+filesystem raíz del VPS. La observación del 25 de octubre que encontró 0 bytes
+era una medición anterior y ya no describe el estado actual. No hay evidencia de
+que el backup PostgreSQL o una copia recuperable cubran estos archivos.
+
+La CLI no está en el `PATH` de la sesión SSH, pero `/home/ubuntu/bin/oci` existe
+y reporta versión 3.95.1; la CLI OCI no está instalada en la estación local
+inspeccionada. No se ejecutó `object head` en esta revalidación porque no se
+identificó una identidad de lectura ya autorizada. La respuesta `Forbidden` y
+las respuestas ambiguas de `object head`/`object list` del 25 de octubre con la
+identidad instance principal siguen sin demostrar si el objeto existe o es
+accesible para un operador autorizado.
+
 ## Decisiones y verificaciones pendientes
 
 - La comparación SSH de solo lectura del 24 y 25 de octubre encontró que el script y ambas unidades instaladas coinciden por SHA-256 con los tres artefactos de este directorio. Repetir esa comparación antes de reinstalar o cambiar las unidades.
-- Conservar fuera de la VPS evidencia sanitizada de las ejecuciones del 23, 24 y 25 de octubre (journal, SHA-256 y resultado), sin incluir secretos.
+- Conservar fuera de la VPS evidencia sanitizada de las ejecuciones del 23, 24, 25 y 26 de octubre (journal, SHA-256 y resultado), sin incluir secretos.
 - El 25 de octubre, `oci os object head` desde la VPS con la identidad instance principal devolvió `Forbidden`; la CLI OCI no está disponible en el equipo local inspeccionado. Este rechazo no demuestra que el objeto no exista. El operador reportó una descarga, verificación SHA-256, descifrado y restauración manual el 23 de octubre, pero no se revisaron independientemente artefactos de esa restauración. Obtener metadatos del objeto con una identidad de lectura ya autorizada y conservar evidencia revisable de la restauración, sin ampliar permisos ni descargar/descifrar todavía.
 - Revalidación OCI de solo lectura el 2026-10-25 19:33–19:34 UTC, usando `/home/ubuntu/bin/oci` y la identidad instance principal: `object head` del objeto del 25 de octubre devolvió HTTP 404; `object list` con el prefijo exacto devolvió `BucketNotFound` y especificó que el bucket puede no existir o que el solicitante no está autorizado. Es una respuesta ambigua y no demuestra ausencia del objeto o del bucket. No se descargó ni descifró el artefacto. Para confirmar metadatos, usar una identidad ya autorizada con `OBJECT_INSPECT` limitada al bucket/objeto; la descarga requiere además `OBJECT_READ`.
-- Proteger uploads con un mecanismo recuperable independiente y probar su restauración. La medición SSH del 25 de octubre encontró cero archivos regulares (0 bytes) en la ruta; no demuestra cobertura ni recuperación. El backup PostgreSQL no los incluye.
+- Proteger uploads con un mecanismo recuperable independiente y probar su restauración. La medición SSH del 26 de octubre encontró 3 archivos regulares y 43.787 bytes en la ruta; no demuestra cobertura ni recuperación. El backup PostgreSQL no los incluye.
 - Revisar la lifecycle policy/versionado y aprobar retención de 30 días antes de cualquier cambio externo.
 - Confirmar autenticación y permisos efectivos del rol usado por el dump sin exponer secretos ni crear roles, si se cambia o vuelve a certificar el procedimiento.
 - Revalidar herramientas, rutas, OCI CLI y soporte de `--no-overwrite` antes de modificar el proceso.
