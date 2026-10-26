@@ -602,6 +602,99 @@ describe('GeneratedDocumentsService.generatePdf', () => {
     },
   );
 
+  it.each(['LETTER', 'MEMO'] as const)(
+    'reutiliza el PDF canónico de %s si falló la transacción anterior',
+    async (tipo) => {
+      const storageKey = 'pdfs/t1-d1.pdf';
+      let storedPdf: Buffer | undefined;
+
+      mockFindFirst.mockResolvedValue({
+        id: 'd1',
+        tenantId: 't1',
+        nombre: 'Documento',
+        contenidoFinal: '<p>Contenido</p>',
+        employee: {
+          primerNombre: 'Ana',
+          segundoNombre: null,
+          primerApellido: 'Gómez',
+          segundoApellido: null,
+          cedula: '123',
+        },
+        tipo,
+        contratoId: null,
+      });
+      mockTxUpdate.mockResolvedValue({
+        id: 'd1',
+        pdfUrl: `/uploads/${storageKey}`,
+        nombre: 'Documento',
+        tipo,
+        employeeId: 'e1',
+        tenantId: 't1',
+        contratoId: null,
+      });
+      mockObjectExists.mockImplementation(() =>
+        Promise.resolve(storedPdf !== undefined),
+      );
+      mockGetObject.mockImplementation(() => Promise.resolve(storedPdf!));
+      mockPutObject.mockImplementation(
+        (input: { key: string; body: Buffer; contentType?: string }) => {
+          storedPdf = Buffer.from(input.body);
+          return Promise.resolve({
+            key: input.key,
+            size: input.body.length,
+            contentType: input.contentType,
+          });
+        },
+      );
+      mockCreateFromGeneratedDoc.mockRejectedValueOnce(
+        new Error('expediente index failure'),
+      );
+
+      await expect(service.generatePdf('t1', 'u1', 'd1')).rejects.toThrow(
+        'expediente index failure',
+      );
+      expect(storedPdf).toEqual(Buffer.from('PDF-BYTES'));
+
+      await expect(service.generatePdf('t1', 'u1', 'd1')).resolves.toEqual({
+        id: 'd1',
+        pdfUrl: `/uploads/${storageKey}`,
+        nombre: 'Documento',
+      });
+
+      expect(mockPutObject).toHaveBeenCalledTimes(1);
+      expect(mockRenderPdf).toHaveBeenCalledTimes(1);
+      expect(mockGetObject).toHaveBeenCalledWith(storageKey);
+      expect(mockTxUpdate).toHaveBeenLastCalledWith({
+        where: { id: 'd1' },
+        data: {
+          pdfStorageKey: storageKey,
+          pdfSizeBytes: Buffer.byteLength('PDF-BYTES'),
+          pdfUrl: `/uploads/${storageKey}`,
+          estado: 'MATERIALIZADO',
+        },
+        select: {
+          id: true,
+          pdfUrl: true,
+          nombre: true,
+          tipo: true,
+          employeeId: true,
+          tenantId: true,
+          contratoId: true,
+        },
+      });
+      expect(mockCreateFromGeneratedDoc).toHaveBeenLastCalledWith(
+        't1',
+        'd1',
+        'e1',
+        'Documento',
+        tipo,
+        { key: storageKey, size: Buffer.byteLength('PDF-BYTES') },
+        expect.anything(),
+        null,
+      );
+    },
+  );
+
   describe('materializePdf', () => {
     it('renderiza únicamente contenidoFinal sin publicar metadata aún', async () => {
       mockFindFirst.mockResolvedValue({

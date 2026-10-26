@@ -452,11 +452,19 @@ export class GeneratedDocumentsService {
           };
         }
 
-        const {
-          pdfUrl,
-          key: storageKey,
-          size: pdfSizeBytes,
-        } = await this.renderAndStorePdf(tenantId, id, html);
+        const storageKey = this.getCanonicalPdfStorageKey(tenantId, id);
+        const pdfUrl = this.getPdfUrl(storageKey);
+        let pdfSizeBytes: number;
+
+        // A previous attempt may have stored the canonical object before its
+        // database transaction failed. Reuse that artifact on retry instead
+        // of overwriting it with a newly rendered PDF.
+        if (await this.storage.objectExists(storageKey)) {
+          pdfSizeBytes = (await this.storage.getObject(storageKey)).length;
+        } else {
+          const stored = await this.renderAndStorePdf(tenantId, id, html);
+          pdfSizeBytes = stored.size;
+        }
 
         const result = await tx.generatedDocument.update({
           where: { id },
