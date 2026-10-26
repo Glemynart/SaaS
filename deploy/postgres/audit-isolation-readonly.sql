@@ -22,7 +22,7 @@ SELECT rolname,
 FROM pg_roles
 ORDER BY rolname;
 
-\echo 'Role memberships, including inherited and SET ROLE paths'
+\echo 'Direct role membership edges (inherit_option and set_option flags)'
 SELECT granted_role.rolname AS granted_role,
        member_role.rolname AS member_role,
        membership.admin_option,
@@ -50,12 +50,16 @@ WHERE db.datallowconn
   AND NOT db.datistemplate
 ORDER BY db.datname, grantee_name, acl.privilege_type;
 
-\echo 'Effective CONNECT for login roles to the connected database'
-SELECT login_role.rolname,
-       has_database_privilege(login_role.rolname, current_database(), 'CONNECT') AS can_connect
-FROM pg_roles AS login_role
-WHERE login_role.rolcanlogin
-ORDER BY login_role.rolname;
+\echo 'Effective CONNECT for every role to each connectable non-template database'
+SELECT role.rolname,
+       role.rolcanlogin,
+       database.datname,
+       has_database_privilege(role.oid, database.oid, 'CONNECT') AS can_connect
+FROM pg_roles AS role
+CROSS JOIN pg_database AS database
+WHERE database.datallowconn
+  AND NOT database.datistemplate
+ORDER BY database.datname, role.rolname;
 
 \echo 'Current client sessions aggregated without query text'
 SELECT COALESCE(activity.datname, '<none>') AS database_name,

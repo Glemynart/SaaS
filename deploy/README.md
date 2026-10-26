@@ -763,11 +763,15 @@ LEFT JOIN pg_roles AS r ON r.oid = acl.grantee
 WHERE d.datname = 'oficina_nitida'
 ORDER BY grantee, acl.privilege_type;
 
-SELECT rolname,
-       has_database_privilege(oid, 'oficina_nitida', 'CONNECT') AS effective_connect
-FROM pg_roles
-WHERE rolcanlogin
-ORDER BY rolname;
+SELECT role.rolname,
+       role.rolcanlogin,
+       database.datname,
+       has_database_privilege(role.oid, database.oid, 'CONNECT') AS effective_connect
+FROM pg_roles AS role
+CROSS JOIN pg_database AS database
+WHERE database.datallowconn
+  AND NOT database.datistemplate
+ORDER BY database.datname, role.rolname;
 
 SELECT usename, application_name, client_addr::text AS client_addr,
        state, count(*) AS sessions
