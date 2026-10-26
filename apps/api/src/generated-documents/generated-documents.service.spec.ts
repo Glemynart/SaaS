@@ -546,6 +546,9 @@ describe('GeneratedDocumentsService.generatePdf', () => {
       expect(mockTxQueryRaw.mock.invocationCallOrder[0]).toBeLessThan(
         mockPutObject.mock.invocationCallOrder[0],
       );
+      expect(mockRenderPdf.mock.invocationCallOrder[0]).toBeLessThan(
+        mockTxQueryRaw.mock.invocationCallOrder[0],
+      );
       expect(mockTxUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -596,6 +599,9 @@ describe('GeneratedDocumentsService.generatePdf', () => {
           contratoId: null,
         });
       mockTxExpedienteDocFindFirst.mockResolvedValueOnce({ storageKey });
+      mockExpedienteDocFindFirst.mockResolvedValueOnce({
+        id: 'expediente-001',
+      });
       mockObjectExists.mockResolvedValueOnce(true);
 
       await expect(service.generatePdf('t1', 'u1', 'd1')).resolves.toEqual({
@@ -643,6 +649,9 @@ describe('GeneratedDocumentsService.generatePdf', () => {
         });
       mockTxExpedienteDocFindFirst.mockResolvedValueOnce({
         storageKey: 'pdfs/t1-d1.pdf',
+      });
+      mockExpedienteDocFindFirst.mockResolvedValueOnce({
+        id: 'expediente-001',
       });
       mockObjectExists.mockResolvedValueOnce(false);
 

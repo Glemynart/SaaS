@@ -419,6 +419,18 @@ export class GeneratedDocumentsService {
     if (!tenant) throw new NotFoundException('Empresa no encontrada');
 
     const html = this.buildPdfHtml(doc.contenidoFinal, tenant, doc.employee);
+    const storageKey = this.getCanonicalPdfStorageKey(tenantId, id);
+    const publishedIndexHint = await this.prisma.expedienteDoc.findFirst({
+      where: { tenantId, generatedDocumentId: id },
+      select: { id: true },
+    });
+    let renderedPdf: Buffer | undefined;
+
+    // Use preflight reads only as hints. The transaction repeats every check
+    // after taking the row lock, but rendering need not hold that lock open.
+    if (!publishedIndexHint && !(await this.storage.objectExists(storageKey))) {
+      renderedPdf = Buffer.from(await this.pdfRender.renderPdf(html));
+    }
 
     const updated = await this.prisma.$transaction(
       async (tx) => {
@@ -456,7 +468,6 @@ export class GeneratedDocumentsService {
           };
         }
 
-        const storageKey = this.getCanonicalPdfStorageKey(tenantId, id);
         const pdfUrl = this.getPdfUrl(storageKey);
         let pdfSizeBytes: number;
 
@@ -466,7 +477,11 @@ export class GeneratedDocumentsService {
         if (await this.storage.objectExists(storageKey)) {
           pdfSizeBytes = (await this.storage.getObject(storageKey)).length;
         } else {
-          const stored = await this.renderAndStorePdf(tenantId, id, html);
+          // A concurrent cleanup can invalidate the preflight hint. Render on
+          // demand in that exceptional case rather than writing an empty PDF.
+          const pdfBuffer =
+            renderedPdf ?? Buffer.from(await this.pdfRender.renderPdf(html));
+          const stored = await this.storePdfBuffer(tenantId, id, pdfBuffer);
           pdfSizeBytes = stored.size;
         }
 
@@ -610,11 +625,19 @@ export class GeneratedDocumentsService {
     documentId: string,
     html: string,
   ) {
+    const pdfBuffer = Buffer.from(await this.pdfRender.renderPdf(html));
+    return this.storePdfBuffer(tenantId, documentId, pdfBuffer);
+  }
+
+  private async storePdfBuffer(
+    tenantId: string,
+    documentId: string,
+    pdfBuffer: Buffer,
+  ) {
     const storageKey = this.getCanonicalPdfStorageKey(tenantId, documentId);
-    const pdfBuffer = await this.pdfRender.renderPdf(html);
     const stored = await this.storage.putObject({
       key: storageKey,
-      body: Buffer.from(pdfBuffer),
+      body: pdfBuffer,
       contentType: 'application/pdf',
     });
 
