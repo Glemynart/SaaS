@@ -6,20 +6,30 @@ test('crea, edita, desactiva y reactiva un usuario desde la UI', async ({ page }
   const adminEmail = `users-admin-${suffix}@example.test`;
   const operatorEmail = `users-operator-${suffix}@example.test`;
   const invitedEmail = `users-invited-${suffix}@example.test`;
+  const revokedEmail = `users-revoked-${suffix}@example.test`;
   const adminPassword = 'E2e-password-123!';
   const operatorPassword = 'Operator-password-123!';
   const invitePassword = 'Invited-password-123!';
-  const invitations: Array<{
-    id: string;
-    createdAt: string;
-    email: string;
-    nombre: string;
-    apellido: string;
-    rol: 'ADMIN' | 'OPERADOR';
-    expiresAt: string;
-    lastSentAt: string;
-  }> = [];
-  let resendCount = 0;
+
+  async function capturedInvitationMessages(email: string) {
+    const response = await fetch(`http://127.0.0.1:8025/messages?to=${encodeURIComponent(email)}`);
+    expect(response.ok).toBeTruthy();
+    const body = (await response.json()) as {
+      messages: Array<{ raw: string }>;
+    };
+    return body.messages;
+  }
+
+  function invitationToken(rawMessage: string) {
+    const decoded = rawMessage
+      .replace(/=\r?\n/g, '')
+      .replace(/=([0-9a-f]{2})/gi, (_, hex: string) =>
+        String.fromCharCode(Number.parseInt(hex, 16)),
+      );
+    const link = decoded.match(/href=["']([^"']*\/aceptar-invitacion#token=[^"']+)["']/i)?.[1];
+    expect(link, 'invitation email contains an acceptance link').toBeTruthy();
+    return new URL(link!).hash.slice('#token='.length);
+  }
 
   await page.goto('/registro');
   await page.getByLabel('NIT', { exact: true }).fill(nit);
@@ -39,57 +49,6 @@ test('crea, edita, desactiva y reactiva un usuario desde la UI', async ({ page }
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 
-  await page.route(/\/api\/users\/invitations(?:\/.*)?$/, async (route) => {
-    const request = route.request();
-    const requestUrl = new URL(request.url());
-    if (request.method() === 'GET' && requestUrl.pathname === '/api/users/invitations') {
-      await route.fulfill({ json: invitations });
-      return;
-    }
-
-    if (request.method() === 'POST' && requestUrl.pathname === '/api/users/invitations') {
-      const payload = JSON.parse(request.postData() ?? '{}') as unknown as {
-        email: string;
-        nombre: string;
-        apellido: string;
-        rol: 'ADMIN' | 'OPERADOR';
-      };
-      const sentAt = new Date().toISOString();
-      const invitation = {
-        id: 'invitation-e2e-1',
-        createdAt: sentAt,
-        email: payload.email.toLowerCase(),
-        nombre: payload.nombre,
-        apellido: payload.apellido,
-        rol: payload.rol,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        lastSentAt: sentAt,
-      };
-      invitations.push(invitation);
-      await route.fulfill({ status: 201, json: invitation });
-      return;
-    }
-
-    const invitationId = requestUrl.pathname.split('/').at(-2);
-    const invitationIndex = invitations.findIndex(({ id }) => id === invitationId);
-    if (invitationIndex < 0) {
-      await route.fulfill({ status: 404, json: { message: 'Invitación no encontrada.' } });
-      return;
-    }
-    if (requestUrl.pathname.endsWith('/resend')) {
-      resendCount += 1;
-      invitations[invitationIndex]!.lastSentAt = new Date().toISOString();
-      await route.fulfill({ status: 200, json: invitations[invitationIndex] });
-      return;
-    }
-    if (requestUrl.pathname.endsWith('/revoke')) {
-      invitations.splice(invitationIndex, 1);
-      await route.fulfill({ status: 200, json: { message: 'Invitación revocada.' } });
-      return;
-    }
-    await route.continue();
-  });
-
   await page.goto('/usuarios');
   await expect(page.getByRole('heading', { name: 'Usuarios' })).toBeVisible();
   await page.getByRole('button', { name: 'Invitar usuario', exact: true }).click();
@@ -103,12 +62,26 @@ test('crea, edita, desactiva y reactiva un usuario desde la UI', async ({ page }
   const invitationRow = () => page.getByRole('row').filter({ hasText: invitedEmail });
   await expect(invitationRow()).toContainText('Sofía Invitada');
   await expect(invitationRow()).toContainText('Operador');
+  await expect.poll(async () => (await capturedInvitationMessages(invitedEmail)).length).toBe(1);
+  const initialToken = invitationToken((await capturedInvitationMessages(invitedEmail))[0]!.raw);
   await invitationRow().getByRole('button', { name: 'Reenviar' }).click();
-  await expect.poll(() => resendCount).toBe(1);
-  await invitationRow().getByRole('button', { name: 'Revocar' }).click();
+  await expect.poll(async () => (await capturedInvitationMessages(invitedEmail)).length).toBe(2);
+  const resentToken = invitationToken((await capturedInvitationMessages(invitedEmail))[1]!.raw);
+  expect(resentToken).not.toBe(initialToken);
+
+  await page.getByRole('button', { name: 'Invitar usuario', exact: true }).click();
+  const revokedInviteDialog = page.getByRole('dialog', { name: 'Invitar usuario' });
+  await revokedInviteDialog.getByLabel('Correo').fill(revokedEmail);
+  await revokedInviteDialog.getByLabel('Nombre').fill('Invitado');
+  await revokedInviteDialog.getByLabel('Apellido').fill('Revocado');
+  await revokedInviteDialog.getByLabel('Rol').selectOption('OPERADOR');
+  await revokedInviteDialog.getByRole('button', { name: 'Enviar invitación' }).click();
+  const revokedInvitationRow = () => page.getByRole('row').filter({ hasText: revokedEmail });
+  await expect(revokedInvitationRow()).toContainText('Invitado Revocado');
+  await revokedInvitationRow().getByRole('button', { name: 'Revocar' }).click();
   const revokeDialog = page.getByRole('alertdialog', { name: 'Revocar invitación' });
   await revokeDialog.getByRole('button', { name: 'Revocar invitación' }).click();
-  await expect(invitationRow()).toHaveCount(0);
+  await expect(revokedInvitationRow()).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Nuevo usuario', exact: true }).first().click();
 
@@ -139,36 +112,30 @@ test('crea, edita, desactiva y reactiva un usuario desde la UI', async ({ page }
   await userRow().getByRole('button', { name: 'Activar', exact: true }).click();
   await expect(userRow()).toContainText('Activo');
 
-  const menuTriggers = page.getByRole('button', { name: 'Menú de usuario' });
-  await menuTriggers.last().click();
+  const invitedMenuTriggers = page.getByRole('button', { name: 'Menú de usuario' });
+  await invitedMenuTriggers.last().click();
   await page.getByRole('menuitem', { name: /Cerrar sesi.n/ }).click();
   await expect(page).toHaveURL(/\/login$/);
 
-  await page.route('**/api/auth/accept-invitation', async (route) => {
-    const payload = JSON.parse(route.request().postData() ?? '{}') as unknown as {
-      token: string;
-      newPassword: string;
-    };
-    expect(payload).toEqual({
-      token: 'e2e-invitation-token',
-      newPassword: invitePassword,
-    });
-    await route.fulfill({
-      status: 200,
-      json: {
-        message: 'Tu cuenta quedó activada. Ya puedes iniciar sesión.',
-        tenantNit: nit,
-        tenantName: 'Usuarios E2E',
-      },
-    });
-  });
-  await page.goto('/aceptar-invitacion#token=e2e-invitation-token');
+  await page.goto(`/aceptar-invitacion#token=${encodeURIComponent(resentToken)}`);
   await page.getByLabel('Contraseña nueva').fill(invitePassword);
   await page.getByLabel('Confirma la contraseña').fill(invitePassword);
   await page.getByRole('button', { name: 'Activar cuenta' }).click();
   await expect(page.getByRole('heading', { name: 'Tu acceso está listo' })).toBeVisible();
   await page.getByRole('link', { name: 'Iniciar sesión' }).click();
   await expect(page.getByLabel('NIT de la empresa')).toHaveValue(nit);
+
+  await page.getByLabel('NIT de la empresa').fill(nit);
+  await page.getByLabel('Correo').fill(invitedEmail);
+  await page.getByRole('textbox', { name: /Contrase.a/ }).fill(invitePassword);
+  await page.getByRole('button', { name: 'Entrar' }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByText(/Hola, Sofía\. Todo al día\./)).toBeVisible();
+
+  const menuTriggers = page.getByRole('button', { name: 'Menú de usuario' });
+  await menuTriggers.last().click();
+  await page.getByRole('menuitem', { name: /Cerrar sesi.n/ }).click();
+  await expect(page).toHaveURL(/\/login$/);
 
   await page.getByLabel('NIT de la empresa').fill(nit);
   await page.getByLabel('Correo').fill(operatorEmail);

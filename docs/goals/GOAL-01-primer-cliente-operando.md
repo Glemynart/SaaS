@@ -46,10 +46,12 @@ persona define su contraseña antes de iniciar sesión. La suite API valida
 expiración y reglas de negocio. Dos integraciones PostgreSQL cubren la
 persistencia del hash, aislamiento tenant, auditoría, consumo concurrente de un
 solo uso y autorización de los endpoints HTTP por rol y tenant. El Browser E2E
-valida la interfaz con las rutas de invitación interceptadas y la aceptación
-simulada; las integraciones HTTP sustituyen el transporte de correo. El ambiente
-local no tiene SMTP configurado: la entrega a un buzón real y la aceptación
-operacional en staging siguen pendientes, por lo que E2.2 permanece sin cerrar.
+recorre la UI, el BFF, la API Nest y PostgreSQL; un SMTP local de prueba captura
+el mensaje, el test extrae el enlace real, acepta la invitación y verifica el
+inicio de sesión de la cuenta creada. También cubre reenvío con rotación de
+token y revocación desde la UI. El SMTP local no demuestra entrega a un buzón
+externo: recibir y aceptar el correo real en staging sigue pendiente, por lo que
+E2.2 permanece sin cerrar.
 
 **Pausa selectiva:** GOAL-01 permanece `ACTIVO` y M1 continúa `BLOQUEADO POR
 INFRAESTRUCTURA EXTERNA`. Las Epics que requieran dominio, DNS, Cloudflare, R2,
@@ -80,9 +82,9 @@ Este Goal solo puede redefinirse si cambia la estrategia del producto. Nuevas id
 
 ### Rupturas comprobadas
 
-- E2.1 ya entrega la gestión directa de usuarios; E2.2 tiene implementación
-  candidata, pero su aceptación con correo real sigue pendiente; E2.3 aún requiere
-  validar recuperación por correo real;
+- E2.1 ya entrega la gestión directa de usuarios; E2.2 ya tiene un recorrido
+  E2E local completo con SMTP de prueba, pero la entrega y aceptación con correo
+  real siguen pendientes; E2.3 aún requiere validar recuperación por correo real;
 - E4.1 ya permite crear, resolver y confirmar campañas inteligentes desde la UI;
 - E4.2 ya procesa planes confirmados; E4.3, E4.4, E4.6 y E5.1 están fusionadas;
 - la ruta de campaña inteligente tiene un recorrido browser desde resolución y
@@ -206,8 +208,9 @@ staging, R2, correo ni una decisión de dominio pendiente.
       edición de datos, roles ADMIN/OPERADOR y activación/desactivación (PR #96
       fusionada y verificada por CI/Browser E2E).
 - [ ] E2.2 — Invitaciones y alta por correo: implementación candidata con gestión
-      ADMIN, aceptación de un solo uso, expiración y aislamiento tenant; falta
-      validar entrega real y aceptación desde el entorno operativo.
+      ADMIN, aceptación de un solo uso, expiración y aislamiento tenant; UI/API/DB
+      pasan el E2E local con SMTP de prueba. Falta validar entrega real y
+      aceptación desde el entorno operativo.
 - [ ] E2.3 — Recuperación de acceso real por correo (depende de correo real).
 - [x] E2.4 — Sedes, identidad y promesa multiempresa coherente con el producto real (PR #110
       fusionada; checks post-merge de CI/Browser E2E verdes).
@@ -407,8 +410,9 @@ la autenticación, persistencia y frontera tenant ya existentes, sin requerir
 staging, R2, correo ni una nueva decisión de dominio. E3.2 expuso el catálogo
 y vínculo laboral del backend desde la interfaz, sin requerir staging, R2,
 correo ni una nueva decisión de dominio, y quedó fusionada en PR #84 con CI y
-Browser E2E verdes. Las invitaciones quedan pendientes porque su recorrido completo
-requiere correo real. E4.1 ya fue implementada, auditada y fusionada en PR
+Browser E2E verdes. Las invitaciones ya tienen un recorrido completo verificado
+localmente con SMTP de prueba; la recepción y aceptación desde un buzón real
+siguen pendientes. E4.1 ya fue implementada, auditada y fusionada en PR
 #89; su recorrido de creación, preview y confirmación total/parcial quedó verificado
 por CI y Browser E2E. E4.2 fue implementada, auditada y fusionada en PR #90:
 el código de `main` rechazaba campañas inteligentes sin `documentTemplateId` y no
