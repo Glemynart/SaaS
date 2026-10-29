@@ -302,7 +302,7 @@ queda definida y aceptada en [ADR-008](../adr/ADR-008-demo-request-capture-bound
 pero su implementación se traslada a Platform Evolution hasta que exista una
 necesidad comercial verificable de adquisición desde la landing.
 
-- [ ] E7.1 — Backup y restauración probados.
+- [ ] E7.1 — Backup y restauración probados. El marcador coordinado DB+uploads está propuesto en [ADR-009](../adr/ADR-009-coordinated-backup-sets.md) y requiere aprobación antes de implementar el runner.
 - [ ] E7.2 — Monitoreo, alertamiento técnico y soporte operativo.
 - [ ] E7.4 — Onboarding y aceptación del cliente piloto con datos representativos.
 - [ ] E7.5 — Primer tenant productivo listo para operación comercial sostenida.

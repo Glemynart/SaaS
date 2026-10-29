@@ -143,6 +143,7 @@ La prueba de CI utiliza archivos sintéticos, GPG efímero y un mock de OCI. Com
 ### Emparejamiento de PostgreSQL y uploads
 
 **Estado: diseño propuesto; no aprobado ni probado como conjunto recuperable.**
+La decisión y aprobación pendientes están registradas en [ADR-009](../../docs/adr/ADR-009-coordinated-backup-sets.md).
 El requisito de usar el mismo `RUN_ID` y la misma ventana sin escrituras no está
 impuesto por los artefactos actuales: el servicio diario de PostgreSQL genera
 su propio nombre de objeto, mientras que el bloque de uploads recibe
