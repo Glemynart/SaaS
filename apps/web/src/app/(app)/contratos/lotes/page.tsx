@@ -3,8 +3,10 @@
 import { useState, useCallback } from 'react';
 import { Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { useLotes, useCreateLote } from '@/features/lotes/hooks/use-lotes';
-import { useEmployees } from '@/features/employees/hooks/use-employees';
+import { loadLoteEmployees } from '@/features/lotes/services/load-lote-employees';
+import { useMe } from '@/features/auth/hooks/use-auth';
 import { useDocumentTemplates } from '@/features/document-templates/hooks/use-document-templates';
 import { useSedes } from '@/features/sedes/hooks/use-sedes';
 import { LotesTable } from '@/features/lotes/components/lotes-table';
@@ -59,7 +61,19 @@ export default function LotesPage() {
   const [form, setForm] = useState(INITIAL_FORM);
 
   const { data, isLoading } = useLotes(filters);
-  const { data: empData } = useEmployees({ limit: 200 });
+  const meQuery = useMe();
+  const {
+    data: employees = [],
+    isFetching: employeesFetching,
+    error: employeesQueryError,
+    refetch: refetchEmployees,
+  } = useQuery({
+    queryKey: ['lote-employees', meQuery.data?.user.tenantId, meQuery.data?.user.id],
+    queryFn: loadLoteEmployees,
+    enabled: open && Boolean(meQuery.data?.user.tenantId),
+  });
+  const employeesLoading = meQuery.isLoading || employeesFetching;
+  const employeesError = meQuery.error ?? employeesQueryError;
   const { data: tplData } = useDocumentTemplates({ tipo: 'CONTRACT', limit: 100 });
   const { data: sedes } = useSedes({ activo: true });
   const createMutation = useCreateLote();
@@ -110,7 +124,15 @@ export default function LotesPage() {
     });
   };
 
-  const employees = empData?.data ?? [];
+  const allEmployeesSelected =
+    employees.length > 0 && employees.every((employee) => form.empleadoIds.includes(employee.id));
+
+  const toggleAllEmployees = () => {
+    setForm((prev) => ({
+      ...prev,
+      empleadoIds: allEmployeesSelected ? [] : employees.map((employee) => employee.id),
+    }));
+  };
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -302,8 +324,42 @@ export default function LotesPage() {
 
             <div className="space-y-1.5">
               <Label>Empleados ({form.empleadoIds.length} seleccionados)</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={toggleAllEmployees}
+                disabled={employeesLoading || !!employeesError || employees.length === 0}
+              >
+                {allEmployeesSelected ? 'Deseleccionar todos' : 'Seleccionar todos'}
+              </Button>
+              {employees.some((employee) => employee.estado !== 'ACTIVO') && (
+                <p className="text-xs text-muted-foreground">
+                  La lista incluye empleados inactivos. Revisa la selección antes de crear el lote.
+                </p>
+              )}
+              {employeesError && (
+                <div role="alert" className="text-sm text-destructive">
+                  {getUserFacingError(employeesError, 'No se pudo cargar la lista de empleados.')}{' '}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => {
+                      if (meQuery.error) {
+                        void meQuery.refetch();
+                      } else {
+                        void refetchEmployees();
+                      }
+                    }}
+                  >
+                    Reintentar
+                  </button>
+                </div>
+              )}
               <div className="max-h-48 overflow-y-auto rounded-md border border-border bg-surface">
-                {employees.length === 0 ? (
+                {employeesLoading ? (
+                  <p className="p-3 text-xs text-muted-foreground">Cargando empleados...</p>
+                ) : employeesError ? null : employees.length === 0 ? (
                   <p className="p-3 text-xs text-muted-foreground">No hay empleados disponibles.</p>
                 ) : (
                   employees.map((emp) => (
@@ -342,6 +398,8 @@ export default function LotesPage() {
               className="flex-1"
               disabled={
                 createMutation.isPending ||
+                employeesLoading ||
+                !!employeesError ||
                 !form.nombre ||
                 (mode === 'MANUAL' && !form.templateId) ||
                 form.empleadoIds.length === 0

@@ -380,7 +380,8 @@ necesidad comercial verificable de adquisición desde la landing.
 | #106    | E6.2  | Dashboard accionable y resolución trazable.                               | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
 | #108    | E6.3  | Fallos, reintentos y auditoría visibles para operación.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
 | #110    | E2.4  | Sedes, identidad y promesa multiempresa coherente con el producto real.   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
-| #134    | E4.4  | Bug: idempotencia de generación concurrente LETTER/MEMO y reintentos.     | ABIERTO    | No; corrige una carrera de la capacidad ya entregada.         |
+| #134    | E4.4  | Bug: idempotencia de generación concurrente LETTER/MEMO y reintentos.     | FUSIONADO  | No; corrige una carrera de la capacidad ya entregada.         |
+| #140    | E4.1  | Selección de todos los empleados cargados por páginas en lotes manuales.  | ABIERTO    | No; mejora el flujo existente para plantas grandes.           |
 | #144    | E2.2  | Invitaciones por tenant y activación segura de cuentas.                   | PENDIENTE  | No; recepción y aceptación del correo real siguen pendientes. |
 | #148    | E2.3  | Prevalidación de tokens antes del formulario de recuperación.             | PENDIENTE  | No; faltan correo real y aceptación en staging.               |
 | #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                   |
