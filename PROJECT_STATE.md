@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 activo; M1 bloqueado por validación operativa externa; PR #124 prepara aislamiento (2026-10-29)
+## Última actualización: GOAL-01 activo; PR #124 fusionada; M1 pendiente de validación operativa (2026-10-29)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -161,7 +161,7 @@ Estado actual:
 
 Goal activo:
 
-- 🟡 GOAL-01 activo — M1 sigue bloqueado por infraestructura externa. E2.2 (PR #144) y E2.3 (PR #148) tienen implementación, pero falta aceptación por correo real; E4.4 (PR #134) y la selección completa de lotes E4.1 (PR #140) están fusionadas y verificadas. E1.1/E1.3 requieren aislamiento y operación real; PR #124 prepara la configuración aislada pero sigue sin validación operativa. E7.1 continúa pendiente de lectura OCI y restauración real.
+- 🟡 GOAL-01 activo — M1 sigue bloqueado por infraestructura externa. E2.2 (PR #144) y E2.3 (PR #148) tienen implementación, pero falta aceptación por correo real; E4.4 (PR #134) y la selección completa de lotes E4.1 (PR #140) están fusionadas y verificadas. E1.1/E1.3 requieren aislamiento y operación real; PR #124 está fusionada y prepara la configuración aislada, pero sigue sin validación operativa. E7.1 tiene implementación sintética DB+uploads en PR #130; la lectura OCI y restauración real continúan pendientes.
 
 - [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
