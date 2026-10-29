@@ -1,4 +1,5 @@
 import type {
+  AcceptInvitationResponse,
   AuthUser,
   ForgotPasswordPayload,
   LoginPayload,
@@ -6,6 +7,8 @@ import type {
   RegisterPayload,
   RegisterResponse,
   ResetPasswordPayload,
+  ValidateResetTokenPayload,
+  ValidateResetTokenResponse,
 } from '@/types/auth';
 
 type ApiEnvelope<T> = T & {
@@ -53,6 +56,16 @@ export const authClient = {
     }),
   resetPassword: (payload: ResetPasswordPayload) =>
     request<MessageResponse>('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  validateResetToken: (payload: ValidateResetTokenPayload) =>
+    request<ValidateResetTokenResponse>('/api/auth/validate-reset-token', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  acceptInvitation: (payload: ResetPasswordPayload) =>
+    request<AcceptInvitationResponse>('/api/auth/accept-invitation', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),

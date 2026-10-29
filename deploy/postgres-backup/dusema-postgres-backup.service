@@ -1,0 +1,21 @@
+[Unit]
+Description=Dusema encrypted PostgreSQL backup to OCI Object Storage
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+SupplementaryGroups=docker
+Environment=HOME=/home/ubuntu
+Environment=GNUPGHOME=/home/ubuntu/.gnupg
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/ubuntu/bin
+Environment=TZ=America/Bogota
+UMask=0077
+StateDirectory=dusema-postgres-backup
+StateDirectoryMode=0700
+PrivateTmp=true
+NoNewPrivileges=true
+TimeoutStartSec=6h
+ExecStart=/usr/local/sbin/dusema-postgres-backup
