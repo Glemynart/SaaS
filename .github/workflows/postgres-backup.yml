@@ -17,8 +17,20 @@ permissions:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-only-backup-test
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -27,6 +39,12 @@ jobs:
         run: |
           bash -n deploy/postgres-backup/backup-postgres.sh
           bash -n deploy/postgres-backup/test-backup-postgres.sh
+          bash -n deploy/postgres-backup/test-backup-restore-roundtrip.sh
 
       - name: Run mocked backup checks
         run: bash deploy/postgres-backup/test-backup-postgres.sh
+
+      - name: Verify encrypted backup restoration in disposable PostgreSQL
+        env:
+          POSTGRES_SERVICE_ID: ${{ job.services.postgres.id }}
+        run: bash deploy/postgres-backup/test-backup-restore-roundtrip.sh
