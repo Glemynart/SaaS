@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 activo; PR #149 abierta; M1 pendiente de validación operativa (2026-10-29)
+## Última actualización: GOAL-01 activo; PR #149 fusionada; M1 pendiente de validación operativa (2026-10-29)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -250,11 +250,12 @@ reservado para el cierre final de despliegue y Go Live.
 
 La auditoría end-to-end del flujo de contratación encontró que los lotes
 aplicaban una sede común y no permitían distinguir contratos de años distintos.
-La PR #149 corrige el flujo con sede activa por empleado e integridad de un
-contrato por empleado y año. Las 132 pruebas API dirigidas y el Browser E2E con
-rol PostgreSQL runtime sin `SUPERUSER` ni `BYPASSRLS` pasaron localmente; los
-checks de GitHub continúan pendientes. La corrección no cierra M4 ni GOAL-01
-hasta quedar fusionada y verificada post-merge.
+La PR #149 quedó fusionada en `main` con el commit `9594d321`. Corrige el flujo
+con sede activa por empleado e integridad de un contrato por empleado y año.
+Las 132 pruebas API dirigidas y el Browser E2E con rol PostgreSQL runtime sin
+`SUPERUSER` ni `BYPASSRLS` pasaron localmente; CI, Browser E2E y la publicación
+de la imagen API pasaron tanto en el PR como post-merge en `main`. Esta corrección
+resuelve el bug de E4.1, pero no cierra M4 ni GOAL-01 por sí sola.
 
 ## <a name="landing-saas"></a>Landing SaaS
 

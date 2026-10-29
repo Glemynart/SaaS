@@ -301,7 +301,7 @@ el año contractual. El empleado debe tener sede activa al registrarse o
 importarse; cada lote usa la sede de la ficha y toma el año de `fechaInicio`.
 La regla aprobada es un contrato por empleado y año, para permitir renovaciones
 en años distintos sin duplicar contratos del mismo año.
-La corrección quedó implementada y validada en la [PR #149](https://github.com/Glemynart/SaaS/pull/149).
+La corrección quedó fusionada y verificada con CI/Browser E2E post-merge en la [PR #149](https://github.com/Glemynart/SaaS/pull/149).
 
 ### M5 — Expediente Digital Operativo
 
@@ -400,7 +400,7 @@ necesidad comercial verificable de adquisición desde la landing.
 | #143    | E7.1  | Backup y restauración aislada de artefactos locales de uploads.           | INTEGRADO EN #130 | No; referencias DB+uploads conciliadas en round-trip sintético; falta OCI real. |
 | #144    | E2.2  | Invitaciones por tenant y activación segura de cuentas.                   | PENDIENTE         | No; recepción y aceptación del correo real siguen pendientes.                   |
 | #148    | E2.3  | Prevalidación de tokens antes del formulario de recuperación.             | PENDIENTE         | No; faltan correo real y aceptación en staging.                                 |
-| #149    | E4.1  | Bug: sede por empleado y contrato anual en lotes.                         | VALIDADA          | Corrige creación, importación y contratación por lotes; CI y Browser E2E pasan. |
+| #149    | E4.1  | Bug: sede por empleado y contrato anual en lotes.                         | FUSIONADO         | Corrección validada con CI/Browser E2E post-merge.                              |
 | #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS        | No; el recorrido inteligente sigue abierto.                                     |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.
