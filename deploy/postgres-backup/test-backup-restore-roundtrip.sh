@@ -11,8 +11,8 @@ fail() {
   exit 1
 }
 
-# This test creates databases only inside the disposable PostgreSQL service
-# created by this GitHub Actions job. The runner removes the service afterward.
+# This test writes only to the disposable PostgreSQL service created by this
+# GitHub Actions job and a second Docker container isolated from every network.
 if [[ "${GITHUB_ACTIONS:-}" != "true" || "${CI:-}" != "true" ]]; then
   fail "run only inside GitHub Actions with its disposable PostgreSQL service"
 fi
@@ -36,10 +36,12 @@ if [[ ! "${GITHUB_RUN_ID:-}" =~ ^[0-9]+$ || ! "${GITHUB_RUN_ATTEMPT:-}" =~ ^[0-9
   fail "GitHub run identity is unavailable"
 fi
 readonly SOURCE_DATABASE="backup_source_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
-readonly RESTORE_DATABASE="backup_restore_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+readonly TARGET_DATABASE="dusema_recovery_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+readonly TARGET_CONTAINER_NAME="dusema-recovery-test-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 readonly WORK_ROOT="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 WORK_DIR=""
 GNUPGHOME=""
+TARGET_CONTAINER_ID=""
 
 cleanup() {
   local status=$?
@@ -57,6 +59,10 @@ cleanup() {
         ;;
       *) cleanup_failed=1 ;;
     esac
+  fi
+
+  if [[ -n "$TARGET_CONTAINER_ID" ]]; then
+    docker stop "$TARGET_CONTAINER_ID" >/dev/null 2>&1 || cleanup_failed=1
   fi
 
   if (( cleanup_failed != 0 )); then
@@ -80,7 +86,26 @@ done
 
 log "setup: creating disposable source and restore databases"
 docker exec "$POSTGRES_SERVICE_ID" createdb --username postgres "$SOURCE_DATABASE" >/dev/null 2>"${WORK_DIR%/}/createdb-source.stderr" || fail "could not create source database"
-docker exec "$POSTGRES_SERVICE_ID" createdb --username postgres "$RESTORE_DATABASE" >/dev/null 2>"${WORK_DIR%/}/createdb-restore.stderr" || fail "could not create restore database"
+
+TARGET_CONTAINER_ID=$(docker run --detach --rm --name "$TARGET_CONTAINER_NAME" \
+  --network none \
+  --label 'dusema.recovery=isolated' \
+  --env POSTGRES_PASSWORD=ci-only-backup-test \
+  postgres:17 2>"${WORK_DIR%/}/restore-container.stderr") || fail "could not create isolated restore container"
+if [[ ! "$TARGET_CONTAINER_ID" =~ ^[[:xdigit:]]{12,64}$ ]]; then
+  fail "isolated restore container ID is invalid"
+fi
+target_ready=false
+for attempt in {1..30}; do
+  if docker exec "$TARGET_CONTAINER_ID" pg_isready --username postgres --dbname postgres >/dev/null 2>&1; then
+    target_ready=true
+    break
+  fi
+  sleep 1
+done
+if [[ "$target_ready" != true ]]; then
+  fail "isolated PostgreSQL restore container did not become ready"
+fi
 
 if ! docker exec -i "$POSTGRES_SERVICE_ID" psql --no-psqlrc --username postgres --dbname "$SOURCE_DATABASE" --set ON_ERROR_STOP=1 >/dev/null 2>"${WORK_DIR%/}/fixture.stderr" <<'SQL'
 CREATE TABLE restore_probe (
@@ -113,7 +138,6 @@ if [[ ! "$fingerprint" =~ ^[[:xdigit:]]{40,64}$ ]]; then
 fi
 
 encrypted_file="${WORK_DIR%/}/backup.dump.gpg"
-dump_file="${WORK_DIR%/}/backup.dump"
 log "backup: exporting and encrypting the synthetic database"
 set +e
 docker exec "$POSTGRES_SERVICE_ID" pg_dump \
@@ -144,24 +168,15 @@ if [[ ! "$encrypted_sha256" =~ ^[[:xdigit:]]{64}$ ]]; then
   fail "encrypted artifact checksum is invalid"
 fi
 
-log "restore: decrypting and restoring into the isolated target database"
-if ! gpg --no-options --homedir "$GNUPGHOME" --batch --no-tty --no-auto-key-retrieve \
-  --output "$dump_file" --decrypt "$encrypted_file" \
-  2>"${WORK_DIR%/}/gpg-decrypt.stderr"; then
-  fail "GPG could not decrypt the backup"
-fi
-if [[ ! -s "$dump_file" ]]; then
-  fail "decryption produced an empty PostgreSQL archive"
-fi
-if ! docker exec -i "$POSTGRES_SERVICE_ID" pg_restore \
-  --username postgres \
-  --dbname "$RESTORE_DATABASE" \
-  --no-owner \
-  --no-privileges \
-  --exit-on-error \
-  <"$dump_file" >/dev/null 2>"${WORK_DIR%/}/pg_restore.stderr"; then
-  cat "${WORK_DIR%/}/pg_restore.stderr" >&2
-  fail "PostgreSQL restore failed"
+log "restore: running the recovery command in the network-isolated target"
+if ! RECOVERY_GNUPGHOME="$GNUPGHOME" \
+  ENCRYPTED_BACKUP_FILE="$encrypted_file" \
+  EXPECTED_CIPHERTEXT_SHA256="$encrypted_sha256" \
+  RESTORE_CONTAINER_ID="$TARGET_CONTAINER_ID" \
+  RESTORE_DATABASE="$TARGET_DATABASE" \
+  RESTORE_TMP_ROOT="$WORK_ROOT" \
+  bash deploy/postgres-backup/restore-postgres-backup.sh; then
+  fail "isolated recovery command failed"
 fi
 
 state_query=$(cat <<'SQL'
@@ -181,8 +196,8 @@ if ! source_state=$(docker exec "$POSTGRES_SERVICE_ID" psql --no-psqlrc --quiet 
   --username postgres --dbname "$SOURCE_DATABASE" --command "$state_query" 2>"${WORK_DIR%/}/source-state.stderr"); then
   fail "could not read synthetic source state"
 fi
-if ! restored_state=$(docker exec "$POSTGRES_SERVICE_ID" psql --no-psqlrc --quiet --tuples-only --no-align \
-  --username postgres --dbname "$RESTORE_DATABASE" --command "$state_query" 2>"${WORK_DIR%/}/restored-state.stderr"); then
+if ! restored_state=$(docker exec "$TARGET_CONTAINER_ID" psql --no-psqlrc --quiet --tuples-only --no-align \
+  --username postgres --dbname "$TARGET_DATABASE" --command "$state_query" 2>"${WORK_DIR%/}/restored-state.stderr"); then
   fail "could not read restored database state"
 fi
 if [[ -z "$source_state" || "$source_state" != "$restored_state" ]]; then

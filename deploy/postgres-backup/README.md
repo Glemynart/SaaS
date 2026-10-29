@@ -450,10 +450,38 @@ El test crea un entorno temporal aislado y sustituye Docker, GPG, OCI, `flock`, 
 ```bash
 bash -n deploy/postgres-backup/backup-postgres.sh
 bash -n deploy/postgres-backup/test-backup-postgres.sh
+bash -n deploy/postgres-backup/restore-postgres-backup.sh
+bash -n deploy/postgres-backup/test-backup-restore-roundtrip.sh
 bash deploy/postgres-backup/test-backup-postgres.sh
 ```
 
 El modo POSIX efectivo de directorios y el comportamiento de systemd deben comprobarse en Ubuntu.
+
+### Restauración PostgreSQL en un destino aislado
+
+`restore-postgres-backup.sh` toma un archivo cifrado ya descargado con una identidad OCI de lectura autorizada, comprueba el SHA-256 registrado, lo descifra con `RECOVERY_GNUPGHOME` y restaura en una base nueva dentro de un contenedor PostgreSQL 17. Rechaza destinos que no estén en `network none`, publiquen puertos, tengan un bind mount del host o carezcan de la etiqueta `dusema.recovery=isolated`. La base usa el prefijo `dusema_recovery_` y nunca se sobrescribe; un fallo durante la restauración elimina solo la base parcial creada por este comando. El contenedor permanece disponible para inspección y no tiene una ruta de red a la aplicación.
+
+Después de descargar el objeto con el nombre exacto de la ejecución y el perfil existente autorizado, conservar su SHA-256 y crear un destino efímero sin acceso de red:
+
+```bash
+RESTORE_CONTAINER_ID=$(docker run --detach --rm \
+  --name "dusema-recovery-$(date -u +%Y%m%d%H%M%S)" \
+  --network none \
+  --label dusema.recovery=isolated \
+  --env POSTGRES_HOST_AUTH_METHOD=trust \
+  postgres:17)
+
+ENCRYPTED_BACKUP_FILE='/ruta/privada/postgres.dump.gpg' \
+EXPECTED_CIPHERTEXT_SHA256='SHA256_CIFRADO_REGISTRADO' \
+RECOVERY_GNUPGHOME='/ruta/privada/gnupg' \
+RESTORE_CONTAINER_ID="$RESTORE_CONTAINER_ID" \
+RESTORE_DATABASE="dusema_recovery_$(date -u +%Y%m%d%H%M%S)" \
+bash deploy/postgres-backup/restore-postgres-backup.sh
+```
+
+El contenedor no publica puertos ni monta rutas del host. `POSTGRES_HOST_AUTH_METHOD=trust` solo se usa dentro de ese contenedor sin red; no reutilizarlo en un servicio publicado. Revisar únicamente los conteos y el tamaño agregados que imprime el comando. Tras aceptar la inspección, `docker stop "$RESTORE_CONTAINER_ID"` elimina el contenedor y su almacenamiento anónimo por la opción `--rm`. No ejecutar la restauración en la VPS actual ni en una base conectada a la aplicación.
+
+CI ejecuta además `test-backup-restore-roundtrip.sh`: crea datos sintéticos en PostgreSQL 17, genera y cifra un dump con los mismos flags de producción, y llama al restaurador contra un segundo contenedor aislado. Comprueba igualdad del digest de filas y del estado de secuencia. Esta prueba no accede a OCI ni a datos operativos; el restaurador actual cubre PostgreSQL, no uploads. E7.1 continúa abierto hasta comprobar el objeto operativo, una restauración revisable y la recuperación de archivos subidos.
 
 ## Instalación para un host nuevo (no ejecutar en la VPS actual)
 
