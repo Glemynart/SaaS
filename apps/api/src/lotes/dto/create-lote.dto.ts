@@ -43,16 +43,12 @@ export class CreateLoteDto {
   empleadoIds: string[];
 
   @IsOptional()
-  @IsUUID()
-  sedeId?: string;
-
-  @IsOptional()
   @IsEnum(ContratoTipo)
   tipoContrato?: ContratoTipo;
 
-  @IsOptional()
   @IsDateString()
-  fechaInicio?: string;
+  @IsNotEmpty()
+  fechaInicio: string;
 
   @IsOptional()
   @IsDateString()

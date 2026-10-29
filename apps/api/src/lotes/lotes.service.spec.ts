@@ -8,6 +8,7 @@ import { LoteProposito } from '@prisma/client';
 import { LotesService } from './lotes.service';
 import { LoteEngineService } from './lote-engine.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateLoteDto } from './dto/create-lote.dto';
 
@@ -15,7 +16,7 @@ import { CreateLoteDto } from './dto/create-lote.dto';
 
 const mockPrisma = {
   documentTemplate: { findFirst: jest.fn() },
-  sede: { findFirst: jest.fn() },
+  empleado: { findMany: jest.fn() },
   loteContrato: {
     create: jest.fn(),
     findMany: jest.fn(),
@@ -26,6 +27,11 @@ const mockPrisma = {
 
 const mockAudit = { log: jest.fn().mockResolvedValue(undefined) };
 const mockEngine = { procesarLote: jest.fn() };
+const mockTenantPrisma = {
+  execute: jest.fn((work: (client: typeof mockPrisma) => unknown) =>
+    work(mockPrisma),
+  ),
+};
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -38,6 +44,7 @@ function makeDto(overrides: Partial<CreateLoteDto> = {}): CreateLoteDto {
     nombre: 'Lote enero 2026',
     templateId: TEMPLATE_ID,
     empleadoIds: ['emp-001', 'emp-002'],
+    fechaInicio: '2026-01-01',
     ...overrides,
   };
 }
@@ -71,10 +78,23 @@ describe('LotesService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPrisma.empleado.findMany.mockResolvedValue([
+      {
+        id: 'emp-001',
+        sedeId: 'sede-001',
+        sedeRef: { id: 'sede-001', tenantId: TENANT_ID, activo: true },
+      },
+      {
+        id: 'emp-002',
+        sedeId: 'sede-002',
+        sedeRef: { id: 'sede-002', tenantId: TENANT_ID, activo: true },
+      },
+    ]);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LotesService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: TenantPrismaService, useValue: mockTenantPrisma },
         { provide: AuditService, useValue: mockAudit },
         { provide: LoteEngineService, useValue: mockEngine },
       ],
@@ -209,16 +229,44 @@ describe('LotesService', () => {
       );
     });
 
-    it('valida sede cuando se proporciona', async () => {
+    it('rechaza empleados que no pertenecen al tenant', async () => {
       mockPrisma.documentTemplate.findFirst.mockResolvedValue(makeTemplate());
-      mockPrisma.sede.findFirst.mockResolvedValue(null);
+      mockPrisma.empleado.findMany.mockResolvedValue([
+        {
+          id: 'emp-001',
+          sedeId: 'sede-001',
+          sedeRef: { id: 'sede-001', tenantId: TENANT_ID, activo: true },
+        },
+      ]);
 
       await expect(
-        service.create(TENANT_ID, USER_ID, makeDto({ sedeId: 'sede-999' })),
-      ).rejects.toThrow(BadRequestException);
+        service.create(TENANT_ID, USER_ID, makeDto()),
+      ).rejects.toThrow(
+        'Uno o más empleados no existen o no pertenecen a esta empresa.',
+      );
+    });
+
+    it('exige una sede activa asignada a cada empleado seleccionado', async () => {
+      mockPrisma.documentTemplate.findFirst.mockResolvedValue(makeTemplate());
+      mockPrisma.empleado.findMany.mockResolvedValue([
+        {
+          id: 'emp-001',
+          sedeId: null,
+          sedeRef: null,
+        },
+        {
+          id: 'emp-002',
+          sedeId: 'sede-002',
+          sedeRef: { id: 'sede-002', tenantId: TENANT_ID, activo: false },
+        },
+      ]);
+
       await expect(
-        service.create(TENANT_ID, USER_ID, makeDto({ sedeId: 'sede-999' })),
-      ).rejects.toThrow('La sede no existe o no pertenece a esta empresa.');
+        service.create(TENANT_ID, USER_ID, makeDto()),
+      ).rejects.toThrow(
+        'Todos los empleados del lote deben tener una sede activa asignada en su ficha.',
+      );
+      expect(mockPrisma.loteContrato.create).not.toHaveBeenCalled();
     });
 
     it('rechaza fechaFin anterior a fechaInicio', async () => {
@@ -264,6 +312,7 @@ describe('LotesService', () => {
       const config = createCall.data.configuracion;
       expect(config.empleadoIds).toEqual(['emp-001', 'emp-002']);
       expect(createCall.data.total).toBe(2);
+      expect(createCall.data.sedeId).toBeNull();
     });
 
     it('emite auditoría LOTE_CREATE', async () => {

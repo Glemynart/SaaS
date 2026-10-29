@@ -240,6 +240,7 @@ describe('LoteEngineService', () => {
         salario: 9999999,
         tipoContrato: 'TERMINO_INDEFINIDO',
         fechaIngreso: new Date('2026-01-01'),
+        sedeId: 'sede-001',
       });
       mockContractsCreate.mockResolvedValue({ id: 'contrato-emp-001' });
       mockBatchDocumentGenerationStart.mockResolvedValue({
@@ -276,6 +277,7 @@ describe('LoteEngineService', () => {
           salario: 3200000,
           fechaInicio: '2026-02-01T00:00:00.000Z',
           fechaFin: '2026-12-15T00:00:00.000Z',
+          sedeId: 'sede-001',
         }),
         LOTE_ID,
         {
@@ -693,6 +695,7 @@ describe('LoteEngineService', () => {
         salario: 3500000,
         tipoContrato: 'TERMINO_FIJO',
         fechaIngreso: new Date('2026-02-01'),
+        sedeId: 'sede-001',
       });
       const persistedContracts = new Set<string>();
       mockContractsCreate

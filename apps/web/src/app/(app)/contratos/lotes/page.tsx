@@ -8,7 +8,6 @@ import { useLotes, useCreateLote } from '@/features/lotes/hooks/use-lotes';
 import { loadLoteEmployees } from '@/features/lotes/services/load-lote-employees';
 import { useMe } from '@/features/auth/hooks/use-auth';
 import { useDocumentTemplates } from '@/features/document-templates/hooks/use-document-templates';
-import { useSedes } from '@/features/sedes/hooks/use-sedes';
 import { LotesTable } from '@/features/lotes/components/lotes-table';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -43,7 +42,6 @@ const INITIAL_FORM = {
   nombre: '',
   templateId: '',
   empleadoIds: [] as string[],
-  sedeId: '',
   tipoContrato: '',
   fechaInicio: '',
   fechaFin: '',
@@ -75,7 +73,6 @@ export default function LotesPage() {
   const employeesLoading = meQuery.isLoading || employeesFetching;
   const employeesError = meQuery.error ?? employeesQueryError;
   const { data: tplData } = useDocumentTemplates({ tipo: 'CONTRACT', limit: 100 });
-  const { data: sedes } = useSedes({ activo: true });
   const createMutation = useCreateLote();
 
   const handleSearch = useCallback((v: string) => {
@@ -109,9 +106,8 @@ export default function LotesPage() {
       ...(mode === 'INTELIGENTE'
         ? { proposito: 'CONTRATACION' as const }
         : { templateId: form.templateId }),
-      ...(form.sedeId ? { sedeId: form.sedeId } : {}),
       ...(form.tipoContrato ? { tipoContrato: form.tipoContrato } : {}),
-      ...(form.fechaInicio ? { fechaInicio: form.fechaInicio } : {}),
+      fechaInicio: form.fechaInicio,
       ...(form.fechaFin ? { fechaFin: form.fechaFin } : {}),
     };
     createMutation.mutate(payload, {
@@ -286,21 +282,6 @@ export default function LotesPage() {
                   ))}
                 </select>
               </div>
-              <div className="space-y-1.5">
-                <Label>Sede</Label>
-                <select
-                  value={form.sedeId}
-                  onChange={(e) => update({ sedeId: e.target.value })}
-                  className={selectClass}
-                >
-                  <option value="">Sin sede</option>
-                  {(sedes ?? []).map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -308,9 +289,13 @@ export default function LotesPage() {
                 <Label>Fecha inicio</Label>
                 <Input
                   type="date"
+                  required
                   value={form.fechaInicio}
                   onChange={(e) => update({ fechaInicio: e.target.value })}
                 />
+                <p className="text-xs text-muted-foreground">
+                  El año de esta fecha permite crear un contrato por empleado para cada año.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label>Fecha fin</Label>
@@ -336,6 +321,16 @@ export default function LotesPage() {
               {employees.some((employee) => employee.estado !== 'ACTIVO') && (
                 <p className="text-xs text-muted-foreground">
                   La lista incluye empleados inactivos. Revisa la selección antes de crear el lote.
+                </p>
+              )}
+              {employees.some(
+                (employee) =>
+                  form.empleadoIds.includes(employee.id) &&
+                  (!employee.sedeId || !employee.sedeRef || employee.sedeRef.activo === false),
+              ) && (
+                <p role="alert" className="text-xs text-destructive">
+                  Todos los empleados seleccionados necesitan una sede activa en su ficha. Actualiza
+                  sus perfiles antes de crear el lote.
                 </p>
               )}
               {employeesError && (
@@ -375,6 +370,11 @@ export default function LotesPage() {
                       />
                       <span>
                         {emp.primerNombre} {emp.primerApellido}
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {emp.sedeRef?.activo !== false
+                            ? (emp.sedeRef?.nombre ?? 'Sin sede asignada')
+                            : `${emp.sedeRef.nombre} (inactiva)`}
+                        </span>
                       </span>
                       <span className="ml-auto text-xs text-muted-foreground">{emp.cedula}</span>
                     </label>
@@ -402,6 +402,12 @@ export default function LotesPage() {
                 !!employeesError ||
                 !form.nombre ||
                 (mode === 'MANUAL' && !form.templateId) ||
+                !form.fechaInicio ||
+                employees.some(
+                  (employee) =>
+                    form.empleadoIds.includes(employee.id) &&
+                    (!employee.sedeId || !employee.sedeRef || employee.sedeRef.activo === false),
+                ) ||
                 form.empleadoIds.length === 0
               }
             >

@@ -8,6 +8,7 @@ import {
 import { LoteEstado, LoteProposito, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { LoteEngineService } from './lote-engine.service';
 import { CreateLoteDto } from './dto/create-lote.dto';
 import { LoteQueryDto } from './dto/lote-query.dto';
@@ -29,6 +30,7 @@ export class LotesService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly tenantPrisma: TenantPrismaService,
     private readonly auditService: AuditService,
     private readonly engine: LoteEngineService,
   ) {}
@@ -72,16 +74,10 @@ export class LotesService {
       }
     }
 
-    if (dto.sedeId) {
-      const sede = await this.prisma.sede.findFirst({
-        where: { id: dto.sedeId, tenantId },
-        select: { id: true },
-      });
-      if (!sede) {
-        throw new BadRequestException(
-          'La sede no existe o no pertenece a esta empresa.',
-        );
-      }
+    if (!dto.fechaInicio) {
+      throw new BadRequestException(
+        'La fecha de inicio es requerida para identificar el año del contrato.',
+      );
     }
 
     if (dto.fechaInicio && dto.fechaFin) {
@@ -93,6 +89,35 @@ export class LotesService {
     }
 
     const empleadoIds = Array.from(new Set(dto.empleadoIds));
+    const empleados = await this.tenantPrisma.execute((prisma) =>
+      prisma.empleado.findMany({
+        where: { tenantId, id: { in: empleadoIds }, deletedAt: null },
+        select: {
+          id: true,
+          sedeId: true,
+          sedeRef: { select: { id: true, tenantId: true, activo: true } },
+        },
+      }),
+    );
+    if (empleados.length !== empleadoIds.length) {
+      throw new BadRequestException(
+        'Uno o más empleados no existen o no pertenecen a esta empresa.',
+      );
+    }
+    if (
+      empleados.some(
+        (empleado) =>
+          !empleado.sedeId ||
+          !empleado.sedeRef ||
+          empleado.sedeRef.id !== empleado.sedeId ||
+          empleado.sedeRef.tenantId !== tenantId ||
+          !empleado.sedeRef.activo,
+      )
+    ) {
+      throw new BadRequestException(
+        'Todos los empleados del lote deben tener una sede activa asignada en su ficha.',
+      );
+    }
 
     const configuracion = {
       empleadoIds,
@@ -100,7 +125,6 @@ export class LotesService {
       tipoContrato: dto.tipoContrato ?? null,
       fechaInicioContrato: dto.fechaInicio ?? null,
       fechaFinContrato: dto.fechaFin ?? null,
-      sedeId: dto.sedeId ?? null,
     };
 
     const lote = await this.prisma.loteContrato.create({
@@ -111,9 +135,10 @@ export class LotesService {
         nombreLote: dto.nombre,
         proposito: dto.proposito ?? null,
         tipoContrato: dto.tipoContrato ?? null,
-        fechaInicioContrato: dto.fechaInicio ? new Date(dto.fechaInicio) : null,
+        fechaInicioContrato: new Date(dto.fechaInicio),
         fechaFinContrato: dto.fechaFin ? new Date(dto.fechaFin) : null,
-        sedeId: dto.sedeId ?? null,
+        // La sede de cada contrato se toma de la ficha de su empleado.
+        sedeId: null,
         estado: LoteEstado.PENDIENTE,
         total: empleadoIds.length,
         configuracion: configuracion,

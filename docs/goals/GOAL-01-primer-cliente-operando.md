@@ -293,6 +293,15 @@ organización desde una misma sesión.
 - [x] E4.6 — Contratación individual completa como flujo alternativo (PR #94 fusionada y verificada por CI/Browser E2E post-merge).
 - [x] E4.7 — Prueba browser del caso exitoso, parcial y reintentado (PR #99 fusionada y verificada por CI/Browser E2E).
 
+#### Corrección funcional de E4.1 — sede por empleado y contrato anual
+
+La auditoría posterior encontró un bug en la generación por lotes: el formulario
+aplicaba una sola sede a todos los empleados y la persistencia no identificaba
+el año contractual. El empleado debe tener sede activa al registrarse o
+importarse; cada lote usa la sede de la ficha y toma el año de `fechaInicio`.
+La regla aprobada es un contrato por empleado y año, para permitir renovaciones
+en años distintos sin duplicar contratos del mismo año.
+
 ### M5 — Expediente Digital Operativo
 
 **Resultado verificable:** el expediente sustituye la carpeta operativa básica del empleado.

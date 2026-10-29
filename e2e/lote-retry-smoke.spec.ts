@@ -20,7 +20,47 @@ async function getAuthenticatedJson<T>(page: Page, path: string): Promise<T> {
   return JSON.parse(response.body) as T;
 }
 
-async function createEmployee(page: Page, cedula: string, firstName: string, lastName: string) {
+async function processLoteFromUi(page: Page, loteId: string) {
+  const responsePromise = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      response.request().method() === 'POST' &&
+      url.pathname === `/api/contracts/lotes/${loteId}/process`
+    );
+  });
+
+  await page.getByRole('button', { name: 'Procesar', exact: true }).click();
+  const response = await responsePromise;
+  expect(response.ok(), await response.text()).toBe(true);
+
+  const lote = (await response.json()) as LotePayload;
+  expect(lote.estado).toBe('COMPLETADO');
+  expect(lote.procesados).toBe(lote.total);
+  return lote;
+}
+
+async function createSede(page: Page, name: string) {
+  await page.goto('/sedes');
+  await expect(page.getByRole('heading', { name: 'Sedes' })).toBeVisible();
+  await page.getByRole('button', { name: 'Nueva sede', exact: true }).click();
+
+  const dialog = page.getByRole('dialog', { name: 'Nueva sede' });
+  await dialog.locator('[name="nombre"]').fill(name);
+  const municipioSelect = dialog.locator('[name="municipioId"]');
+  const municipioValue = await municipioSelect.locator('option').nth(1).getAttribute('value');
+  expect(municipioValue).toBeTruthy();
+  await municipioSelect.selectOption(municipioValue!);
+  await dialog.getByRole('button', { name: 'Crear sede', exact: true }).click();
+  await expect(page.getByRole('row').filter({ hasText: name })).toContainText(name);
+}
+
+async function createEmployee(
+  page: Page,
+  cedula: string,
+  firstName: string,
+  lastName: string,
+  sedeName: string,
+) {
   await page.goto('/empleados');
   await expect(page.getByRole('heading', { name: 'Empleados' })).toBeVisible();
   await page.getByRole('button', { name: 'Nuevo empleado', exact: true }).first().click();
@@ -31,6 +71,7 @@ async function createEmployee(page: Page, cedula: string, firstName: string, las
   await dialog.locator('[name="primerApellido"]').fill(lastName);
   await dialog.locator('[name="cargo"]').fill('Docente E4.7');
   await dialog.locator('[name="salario"]').fill('2500000');
+  await dialog.locator('[name="sedeId"]').selectOption({ label: sedeName });
   await dialog.getByRole('button', { name: 'Crear empleado', exact: true }).click();
 
   await expect(page.getByRole('row').filter({ hasText: cedula })).toContainText(
@@ -44,6 +85,7 @@ async function createManualLote(
   templateId: string,
   employeeCedulas: string[],
   selectAllEmployees = false,
+  fechaInicio = '2026-01-01',
 ) {
   await page.goto('/contratos/lotes');
   await expect(page.getByRole('heading', { name: 'Lotes de contratos' })).toBeVisible();
@@ -52,6 +94,7 @@ async function createManualLote(
   const dialog = page.getByRole('dialog', { name: 'Nuevo lote' });
   await dialog.getByLabel('Nombre del lote').fill(name);
   await dialog.locator('select').nth(1).selectOption(templateId);
+  await dialog.locator('input[type="date"]').first().fill(fechaInicio);
 
   if (selectAllEmployees) {
     await dialog.getByRole('button', { name: 'Seleccionar todos', exact: true }).click();
@@ -93,6 +136,8 @@ test('demuestra procesamiento exitoso, parcial y reintento desde la UI', async (
   const password = 'E2e-password-123!';
   const firstCedula = `E47A${suffix}`;
   const secondCedula = `E47B${suffix}`;
+  const firstSede = `Sede Norte ${suffix}`;
+  const secondSede = `Sede Sur ${suffix}`;
 
   await page.goto('/registro');
   await page.getByLabel('NIT', { exact: true }).fill(nit);
@@ -111,6 +156,9 @@ test('demuestra procesamiento exitoso, parcial y reintento desde la UI', async (
   await page.getByRole('textbox', { name: /Contrase.a/ }).fill(password);
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
+
+  await createSede(page, firstSede);
+  await createSede(page, secondSede);
 
   const retryPage = await page.context().newPage();
   let failMeRequest = true;
@@ -137,8 +185,8 @@ test('demuestra procesamiento exitoso, parcial y reintento desde la UI', async (
   await expect(retryDialog.getByText('No hay empleados disponibles.')).toBeVisible();
   await retryPage.close();
 
-  await createEmployee(page, firstCedula, 'Andrea', 'Exitoso');
-  await createEmployee(page, secondCedula, 'Bruno', 'Reintento');
+  await createEmployee(page, firstCedula, 'Andrea', 'Exitoso', firstSede);
+  await createEmployee(page, secondCedula, 'Bruno', 'Reintento', secondSede);
 
   await page.goto('/documentos/plantillas');
   await page.getByRole('button', { name: /Plantillas base/ }).click();
@@ -172,8 +220,7 @@ test('demuestra procesamiento exitoso, parcial y reintento desde la UI', async (
     [firstCedula, secondCedula],
     true,
   );
-  await page.getByRole('button', { name: 'Procesar', exact: true }).click();
-  await expect(page.getByText('Completado', { exact: true })).toBeVisible({ timeout: 30_000 });
+  await processLoteFromUi(page, successfulLoteId);
   await expect(
     page.locator('dt').filter({ hasText: 'Procesados' }).locator('xpath=following-sibling::dd[1]'),
   ).toHaveText('2');
@@ -182,6 +229,41 @@ test('demuestra procesamiento exitoso, parcial y reintento desde la UI', async (
   ).toHaveText('0');
 
   expect(successfulLoteId).toMatch(/^[0-9a-f-]+$/);
+
+  const secondYearLoteId = await createManualLote(
+    page,
+    `E4.7 año siguiente ${suffix}`,
+    contractTemplate!.id,
+    [firstCedula],
+    false,
+    '2027-01-01',
+  );
+  await processLoteFromUi(page, secondYearLoteId);
+  expect(secondYearLoteId).toMatch(/^[0-9a-f-]+$/);
+
+  const firstEmployeeContracts = await getAuthenticatedJson<{
+    data: Array<{ fechaInicio: string; sede: { nombre: string } | null }>;
+    meta: { total: number; page: number; limit: number; totalPages: number };
+  }>(page, `/api/contracts?employeeId=${firstEmployee!.id}&limit=100`);
+  const firstEmployeeContractYears = firstEmployeeContracts.data.map((contract) =>
+    new Date(contract.fechaInicio).getUTCFullYear(),
+  );
+  expect(
+    firstEmployeeContractYears.sort(),
+    JSON.stringify({
+      employeeId: firstEmployee!.id,
+      meta: firstEmployeeContracts.meta,
+      years: firstEmployeeContractYears,
+    }),
+  ).toEqual([2026, 2027]);
+  expect(firstEmployeeContracts.data.every((contract) => contract.sede?.nombre === firstSede)).toBe(
+    true,
+  );
+
+  const secondEmployeeContracts = await getAuthenticatedJson<{
+    data: Array<{ fechaInicio: string; sede: { nombre: string } | null }>;
+  }>(page, `/api/contracts?employeeId=${secondEmployee!.id}&limit=100`);
+  expect(secondEmployeeContracts.data[0]?.sede?.nombre).toBe(secondSede);
 
   const retryLoteId = await createManualLote(
     page,

@@ -21,6 +21,10 @@ export class EmployeesService {
   ) {}
 
   async create(userId: string, createDto: CreateEmployeeDto) {
+    if (!createDto.sedeId) {
+      throw new BadRequestException('La sede del empleado es requerida.');
+    }
+
     const { employee, tenantId } = await this.tenantPrisma.execute(
       async (prisma, context) => {
         const tenantId = context.tenantId;
@@ -110,7 +114,7 @@ export class EmployeesService {
           take: limit,
           orderBy: { createdAt: 'desc' },
           include: {
-            sedeRef: { select: { id: true, nombre: true } },
+            sedeRef: { select: { id: true, nombre: true, activo: true } },
           },
         }),
         prisma.empleado.count({ where }),
@@ -242,7 +246,7 @@ export class EmployeesService {
         deletedAt: null,
       },
       include: {
-        sedeRef: { select: { id: true, nombre: true } },
+        sedeRef: { select: { id: true, nombre: true, activo: true } },
       },
     });
 
@@ -259,11 +263,11 @@ export class EmployeesService {
     sedeId: string,
   ) {
     const sede = await prisma.sede.findFirst({
-      where: { id: sedeId, tenantId },
+      where: { id: sedeId, tenantId, activo: true },
     });
     if (!sede) {
       throw new BadRequestException(
-        'La sede no existe o no pertenece a esta empresa',
+        'La sede no existe, no está activa o no pertenece a esta empresa',
       );
     }
   }

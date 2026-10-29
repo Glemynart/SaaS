@@ -46,8 +46,12 @@ const employee = {
   salario: '3000000',
   tipoContrato: 'TERMINO_FIJO',
   fechaIngreso: new Date('2026-01-01'),
-  sedeId: null,
-  sedeRef: null,
+  sedeId: 'employee-site',
+  sedeRef: {
+    id: 'employee-site',
+    nombre: 'Sede asignada',
+    activo: true,
+  },
 };
 const relationship = {
   id: 'relationship',
@@ -142,6 +146,55 @@ describe('DocumentResolutionService', () => {
       }),
     );
     expect(execute).toHaveBeenCalledTimes(2);
+  });
+
+  it('toma la sede del empleado en el snapshot, aunque el lote tenga una sede común heredada', async () => {
+    const employeeSite = { id: 'employee-site', nombre: 'Sede asignada' };
+    loteFindFirst.mockResolvedValue({
+      ...lote,
+      sedeId: 'legacy-lote-site',
+      sede: { id: 'legacy-lote-site', nombre: 'Sede común anterior' },
+    });
+    employeeFindMany.mockResolvedValue([
+      {
+        ...employee,
+        sedeId: employeeSite.id,
+        sedeRef: { ...employeeSite, activo: true },
+      },
+    ]);
+    planUpsert.mockResolvedValue({ id: 'plan-site' });
+
+    await confirm();
+
+    expect(planUpsert).toHaveBeenCalledWith(
+      objectContaining({
+        create: objectContaining({
+          empleadoSnapshot: objectContaining({
+            sedeId: employeeSite.id,
+            sede: employeeSite,
+          }),
+          contratoSnapshot: objectContaining({
+            sedeId: employeeSite.id,
+            sede: employeeSite,
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('bloquea la campaña si el empleado no tiene una sede activa', async () => {
+    employeeFindMany.mockResolvedValue([
+      { ...employee, sedeId: null, sedeRef: null },
+    ]);
+
+    await expect(preview()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          estado: 'BLOQUEADO',
+          motivoBloqueo: 'EMPLEADO_SIN_SEDE_ACTIVA',
+        }),
+      ]),
+    );
   });
 
   it('permite una segunda confirmación sin duplicar ni modificar snapshots', async () => {
