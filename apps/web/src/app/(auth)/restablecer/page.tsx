@@ -1,10 +1,5 @@
 import { ResetForm } from '@/features/auth/components/reset-form';
 
-export default async function ResetPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ token?: string }>;
-}) {
-  const { token } = await searchParams;
-  return <ResetForm token={token ?? ''} />;
+export default function ResetPage() {
+  return <ResetForm />;
 }

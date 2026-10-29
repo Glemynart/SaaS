@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { authClient } from '@/lib/auth-client';
@@ -9,6 +10,46 @@ import type {
   RegisterPayload,
   ResetPasswordPayload,
 } from '@/types/auth';
+
+type ResetTokenValidation = 'idle' | 'checking' | 'valid' | 'invalid' | 'error';
+
+export function useResetTokenValidation(token: string, enabled: boolean) {
+  const [attempt, setAttempt] = useState(0);
+  const [result, setResult] = useState<{
+    token: string;
+    status: ResetTokenValidation;
+  }>({ token: '', status: 'idle' });
+
+  useEffect(() => {
+    if (!enabled) return;
+    if (!token) {
+      setResult({ token, status: 'invalid' });
+      return;
+    }
+
+    let current = true;
+    setResult({ token, status: 'checking' });
+    void authClient
+      .validateResetToken({ token })
+      .then(({ valid }) => {
+        if (current) setResult({ token, status: valid ? 'valid' : 'invalid' });
+      })
+      .catch(() => {
+        if (current) setResult({ token, status: 'error' });
+      });
+
+    return () => {
+      current = false;
+    };
+  }, [attempt, enabled, token]);
+
+  const status = result.token === token ? result.status : token ? 'checking' : 'invalid';
+
+  return {
+    status,
+    retry: () => setAttempt((current) => current + 1),
+  };
+}
 
 export function useMe() {
   return useQuery({
@@ -56,6 +97,12 @@ export function useResetPassword() {
     onSuccess: () => {
       router.replace('/login?reset=1');
     },
+  });
+}
+
+export function useAcceptInvitation() {
+  return useMutation({
+    mutationFn: authClient.acceptInvitation,
   });
 }
 

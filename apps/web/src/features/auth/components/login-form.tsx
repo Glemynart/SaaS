@@ -46,6 +46,13 @@ export function LoginForm() {
     },
   });
 
+  useEffect(() => {
+    const tenantNit = searchParams.get('nit');
+    if (tenantNit) {
+      form.setValue('tenantNit', tenantNit);
+    }
+  }, [form, searchParams]);
+
   // Tras un error de credenciales: NIT y correo se conservan, la contraseña
   // se limpia y recibe el foco (AUTH-EXPERIENCE §5.3).
   useEffect(() => {
@@ -82,6 +89,12 @@ export function LoginForm() {
       ) : searchParams.get('registered') ? (
         <div className="mt-6 w-full max-w-md">
           <Alert variant="success">{authCopy.loginRegisteredNotice}</Alert>
+        </div>
+      ) : searchParams.get('invited') ? (
+        <div className="mt-6 w-full max-w-md">
+          <Alert variant="success">
+            Tu cuenta está activa. Inicia sesión con tu correo y contraseña.
+          </Alert>
         </div>
       ) : null}
 

@@ -1,4 +1,4 @@
-import { ExpedienteCategoria } from '@prisma/client';
+import { ExpedienteCategoria, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
@@ -150,7 +150,7 @@ describe('ExpedienteDocsService.uploadManual', () => {
     expect(storedInput?.contentType).toBe('application/pdf');
     expect(storedInput?.key).toMatch(
       new RegExp(
-        `^${tenantId}/expediente/${employeeId}/DOCUMENTO_PERSONAL/.+_v1\\.pdf$`,
+        `^${tenantId}/expediente/${employeeId}/DOCUMENTO_PERSONAL/.+_v1_[0-9a-f-]{36}\\.pdf$`,
       ),
     );
 
@@ -171,15 +171,15 @@ describe('ExpedienteDocsService.uploadManual', () => {
       vigente: true,
       reemplazaId: undefined,
     });
-    expect(expedienteDocFamilyCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        id: expect.any(String),
-        tenantId,
-        empleadoId: employeeId,
-        categoria: ExpedienteCategoria.DOCUMENTO_PERSONAL,
-        nombre: 'cedula.pdf',
-      }),
+    const createdFamilyData =
+      expedienteDocFamilyCreate.mock.calls[0]?.[0]?.data;
+    expect(createdFamilyData).toMatchObject({
+      tenantId,
+      empleadoId: employeeId,
+      categoria: ExpedienteCategoria.DOCUMENTO_PERSONAL,
+      nombre: 'cedula.pdf',
     });
+    expect(typeof createdFamilyData?.id).toBe('string');
     expect(auditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         tenantId,
@@ -237,20 +237,19 @@ describe('ExpedienteDocsService.uploadManual', () => {
 
     expect(putObject.mock.calls[0]?.[0].key).toMatch(
       new RegExp(
-        `^${tenantId}/expediente/${employeeId}/DOCUMENTO_PERSONAL/${familyId}_v2\\.pdf$`,
+        `^${tenantId}/expediente/${employeeId}/DOCUMENTO_PERSONAL/${familyId}_v2_[0-9a-f-]{36}\\.pdf$`,
       ),
     );
     expect(expedienteDocUpdate).toHaveBeenCalledWith({
       where: { id: 'doc-001' },
       data: { vigente: false },
     });
-    expect(expedienteDocCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        familiaId: familyId,
-        reemplazaId: 'doc-001',
-        version: 2,
-        vigente: true,
-      }),
+    const createdRevisionData = expedienteDocCreate.mock.calls[0]?.[0]?.data;
+    expect(createdRevisionData).toMatchObject({
+      familiaId: familyId,
+      reemplazaId: 'doc-001',
+      version: 2,
+      vigente: true,
     });
     expect(expedienteDocFamilyCreate).not.toHaveBeenCalled();
   });
@@ -292,7 +291,99 @@ describe('ExpedienteDocsService.uploadManual', () => {
     ).rejects.toThrow('audit failed');
 
     expect(deleteObject).toHaveBeenCalledWith(
-      expect.stringMatching(/_v1\.pdf$/),
+      expect.stringMatching(/_v1_[0-9a-f-]{36}\.pdf$/),
     );
+  });
+
+  it('keeps the winning object when concurrent uploads race on the same revision', async () => {
+    const familyId = 'family-001';
+    const firstFile = {
+      originalname: 'cedula-a.pdf',
+      buffer: Buffer.from('%PDF-1.7\nprimer contenido'),
+    };
+    const secondFile = {
+      originalname: 'cedula-b.pdf',
+      buffer: Buffer.from('%PDF-1.7\nsegundo contenido distinto'),
+    };
+    familyFindFirst.mockResolvedValue({
+      id: familyId,
+      categoria: ExpedienteCategoria.DOCUMENTO_PERSONAL,
+    });
+    documentFindFirst.mockResolvedValue({
+      id: 'doc-001',
+      version: 1,
+      generatedDocumentId: null,
+    });
+
+    let releaseWrites!: () => void;
+    let writeCount = 0;
+    const bothWritesStarted = new Promise<void>((resolve) => {
+      releaseWrites = resolve;
+    });
+    const storedObjects = new Map<string, Buffer>();
+    putObject.mockImplementation(async ({ key, body }) => {
+      storedObjects.set(key, body);
+      writeCount += 1;
+      if (writeCount === 2) releaseWrites();
+      await bothWritesStarted;
+      return { key, size: body.length, contentType: 'application/pdf' };
+    });
+    deleteObject.mockImplementation((key) => {
+      storedObjects.delete(key);
+      return Promise.resolve();
+    });
+
+    let winningKey: string | undefined;
+    let winningSize: number | undefined;
+    expedienteDocCreate
+      .mockImplementationOnce(({ data }) => {
+        winningKey = String(data.storageKey);
+        winningSize = Number(data.tamanoBytes);
+        return Promise.resolve({ id: 'doc-winner' });
+      })
+      .mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: '5.0.0',
+          meta: { target: ['familiaId', 'version'] },
+        }),
+      );
+
+    const outcomes = await Promise.allSettled([
+      service.uploadManual(
+        tenantId,
+        userId,
+        'admin@example.test',
+        employeeId,
+        ExpedienteCategoria.DOCUMENTO_PERSONAL,
+        firstFile,
+        familyId,
+      ),
+      service.uploadManual(
+        tenantId,
+        userId,
+        'admin@example.test',
+        employeeId,
+        ExpedienteCategoria.DOCUMENTO_PERSONAL,
+        secondFile,
+        familyId,
+      ),
+    ]);
+
+    expect(
+      outcomes.filter((outcome) => outcome.status === 'fulfilled'),
+    ).toHaveLength(1);
+    expect(
+      outcomes.filter((outcome) => outcome.status === 'rejected'),
+    ).toHaveLength(1);
+    const keys = putObject.mock.calls.map(([input]) => input.key);
+    expect(keys).toHaveLength(2);
+    expect(new Set(keys).size).toBe(2);
+    expect(winningKey).toBeDefined();
+    expect(winningSize).toBeDefined();
+    expect(deleteObject).toHaveBeenCalledTimes(1);
+    expect(deleteObject.mock.calls[0]?.[0]).not.toBe(winningKey);
+    expect(storedObjects.get(winningKey!)).toBeDefined();
+    expect(storedObjects.get(winningKey!)?.length).toBe(winningSize);
   });
 });

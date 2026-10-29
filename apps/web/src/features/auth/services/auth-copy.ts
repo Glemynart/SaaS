@@ -21,6 +21,11 @@ export const authCopy = {
   recoverRetry: '¿Datos incorrectos? Intentar de nuevo',
 
   resetTitle: 'Define tu nueva contraseña',
+  resetValidationTitle: 'Comprobando el enlace de recuperación',
+  resetValidationPending: 'Validando el enlace de recuperación…',
+  resetValidationError:
+    'No pudimos comprobar este enlace ahora. Inténtalo de nuevo en unos minutos.',
+  resetValidationRetry: 'Reintentar verificación',
   resetNotice: 'Por seguridad, se cerrarán las sesiones abiertas en otros dispositivos.',
   resetAction: 'Guardar y continuar',
   resetBackToLogin: 'Volver a iniciar sesión',

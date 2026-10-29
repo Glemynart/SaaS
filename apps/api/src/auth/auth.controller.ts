@@ -11,11 +11,13 @@ import {
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { PasswordResetService } from './password-reset.service';
+import { UserInvitationsService } from '../users/user-invitations.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ValidateResetTokenDto } from './dto/validate-reset-token.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { ActiveTenantGuard } from './guards/active-tenant.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -33,6 +35,8 @@ const LOGIN_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 5;
 const REFRESH_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 10;
 const FORGOT_PASSWORD_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 3;
 const RESET_PASSWORD_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 5;
+const VALIDATE_RESET_TOKEN_RATE_LIMIT =
+  process.env.NODE_ENV === 'test' ? 50 : 5;
 
 @Controller('auth')
 export class AuthController {
@@ -40,12 +44,14 @@ export class AuthController {
     private authService: AuthService,
     private passwordResetService: PasswordResetService,
     private auditService: AuditService,
+    private readonly userInvitationsService: UserInvitationsService,
   ) {}
 
   @Unauthenticated()
   @Post('register')
   @UseGuards(ThrottlerGuard)
   @Throttle({ register: { limit: REGISTER_RATE_LIMIT, ttl: 60000 } })
+  @SkipThrottle({ validateResetToken: true })
   async register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
@@ -54,6 +60,7 @@ export class AuthController {
   @Post('login')
   @UseGuards(ThrottlerGuard)
   @Throttle({ login: { limit: LOGIN_RATE_LIMIT, ttl: 60000 } })
+  @SkipThrottle({ validateResetToken: true })
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto, @Req() req: Request, @Ip() ip: string) {
     const userAgent = req.headers['user-agent'];
@@ -80,6 +87,7 @@ export class AuthController {
   @Post('refresh')
   @UseGuards(ThrottlerGuard)
   @Throttle({ refresh: { limit: REFRESH_RATE_LIMIT, ttl: 60000 } })
+  @SkipThrottle({ validateResetToken: true })
   @HttpCode(HttpStatus.OK)
   async refresh(
     @Body() dto: RefreshDto,
@@ -116,6 +124,7 @@ export class AuthController {
     register: true,
     refresh: true,
     resetPassword: true,
+    validateResetToken: true,
   })
   @HttpCode(HttpStatus.OK)
   async forgotPassword(
@@ -133,7 +142,53 @@ export class AuthController {
   }
 
   @Unauthenticated()
+  @Post('validate-reset-token')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({
+    validateResetToken: { limit: VALIDATE_RESET_TOKEN_RATE_LIMIT, ttl: 900000 },
+  })
+  @SkipThrottle({
+    login: true,
+    register: true,
+    refresh: true,
+    forgotPassword: true,
+    resetPassword: true,
+  })
+  @HttpCode(HttpStatus.OK)
+  async validateResetToken(@Body() dto: ValidateResetTokenDto) {
+    return this.passwordResetService.validateResetToken(dto?.token);
+  }
+
+  @Unauthenticated()
   @Post('reset-password')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({
+    resetPassword: { limit: RESET_PASSWORD_RATE_LIMIT, ttl: 900000 },
+  })
+  @SkipThrottle({
+    login: true,
+    register: true,
+    refresh: true,
+    forgotPassword: true,
+    validateResetToken: true,
+  })
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(
+    @Body() dto: ResetPasswordDto,
+    @Req() req: Request,
+    @Ip() ip: string,
+  ) {
+    const userAgent = req.headers['user-agent'];
+    return this.passwordResetService.consumeReset({
+      token: dto.token,
+      newPassword: dto.newPassword,
+      ipAddress: ip,
+      userAgent: String(userAgent ?? ''),
+    });
+  }
+
+  @Unauthenticated()
+  @Post('accept-invitation')
   @UseGuards(ThrottlerGuard)
   @Throttle({
     resetPassword: { limit: RESET_PASSWORD_RATE_LIMIT, ttl: 900000 },
@@ -145,13 +200,13 @@ export class AuthController {
     forgotPassword: true,
   })
   @HttpCode(HttpStatus.OK)
-  async resetPassword(
+  async acceptInvitation(
     @Body() dto: ResetPasswordDto,
     @Req() req: Request,
     @Ip() ip: string,
   ) {
     const userAgent = req.headers['user-agent'];
-    return this.passwordResetService.consumeReset({
+    return this.userInvitationsService.accept({
       token: dto.token,
       newPassword: dto.newPassword,
       ipAddress: ip,

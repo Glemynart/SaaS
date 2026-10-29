@@ -1,6 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const isCI = Boolean(process.env.CI);
+const webPort = process.env.PLAYWRIGHT_WEB_PORT ?? '3000';
+const webUrl = `http://127.0.0.1:${webPort}`;
+// Reuse a local API only when explicitly requested; E2E requires isolated SMTP config.
+const reuseExistingServer = !isCI && process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === 'true';
 
 export default defineConfig({
   testDir: './e2e',
@@ -12,7 +16,7 @@ export default defineConfig({
     ? [['line'], ['html', { outputFolder: 'playwright-report', open: 'never' }]]
     : 'list',
   use: {
-    baseURL: 'http://127.0.0.1:3000',
+    baseURL: webUrl,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -25,18 +29,36 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'pnpm --filter @saas/api start:prod',
-      url: 'http://127.0.0.1:4000/health',
-      env: { NODE_ENV: 'test', PORT: '4000' },
-      timeout: 120_000,
-      reuseExistingServer: !isCI,
+      command: 'node e2e/mail-sink.mjs',
+      url: 'http://127.0.0.1:8025/health',
+      timeout: 30_000,
+      reuseExistingServer,
     },
     {
-      command: 'pnpm --filter @saas/web exec next start -H 127.0.0.1 -p 3000',
-      url: 'http://127.0.0.1:3000/login',
-      env: { PORT: '3000', HOSTNAME: '127.0.0.1' },
+      command: 'pnpm --filter @saas/api start:prod',
+      url: 'http://127.0.0.1:4000/health',
+      env: {
+        NODE_ENV: 'test',
+        PORT: '4000',
+        FRONTEND_URL: webUrl,
+        EMAIL_FROM: 'no-reply@example.test',
+        EMAIL_FROM_NAME: 'La Oficina Nítida E2E',
+        EMAIL_SMTP_HOST: '127.0.0.1',
+        EMAIL_SMTP_PORT: '1025',
+        EMAIL_SMTP_USER: 'e2e-user',
+        EMAIL_SMTP_PASSWORD: 'e2e-password',
+        EMAIL_SMTP_SECURE: 'false',
+        EMAIL_SMTP_REQUIRE_TLS: 'false',
+      },
       timeout: 120_000,
-      reuseExistingServer: !isCI,
+      reuseExistingServer,
+    },
+    {
+      command: `pnpm --filter @saas/web exec next start -H 127.0.0.1 -p ${webPort}`,
+      url: `${webUrl}/login`,
+      env: { PORT: webPort, HOSTNAME: '127.0.0.1' },
+      timeout: 120_000,
+      reuseExistingServer,
     },
   ],
 });

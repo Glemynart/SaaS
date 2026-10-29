@@ -24,13 +24,18 @@ Producto
 
 Solo puede existir un Goal activo. Los posibles resultados futuros permanecen sin numerar en el Backlog hasta ser priorizados.
 
-Estado de implementación vigente: E5.2 fue fusionada en el PR #102, E5.3 en el
-PR #103, E5.4 en el PR #104, E6.1 en el PR #105, E6.2 en el PR #106, E6.3 en
-el PR #108 y E2.4 en el PR #110; sus checks post-merge de CI y Browser E2E están
-verdes. M1 sigue
-BLOQUEADO POR INFRAESTRUCTURA EXTERNA; GOAL-01 permanece ACTIVO. La
-implementación está bloqueada selectivamente, pero la arquitectura y la
-preparación del producto permanecen disponibles mediante [Platform Evolution](../architecture/PLATFORM-EVOLUTION.md).
+Estado de implementación en `main`: E5.2 fue fusionada en el PR #102, E5.3 en
+el PR #103, E5.4 en el PR #104, E6.1 en el PR #105, E6.2 en el PR #106, E6.3
+en el PR #108 y E2.4 en el PR #110; sus checks post-merge de CI y Browser E2E
+están verdes. PR #124 está fusionada, pero M1 continúa bloqueado por aislamiento,
+R2 y correo real pendientes de validación operativa. E2.2 en PR #144 y E2.3 en
+PR #148 tienen implementación; la aceptación de correo real sigue pendiente.
+PR #130 se fusionó tras pasar CI, Browser E2E, workflow de backup y Vercel Preview
+en el HEAD sincronizado; PR #147 se integró en esa rama. No se acreditan lectura
+OCI ni restauración operativa; E7.1 permanece abierta. M2 espera correo
+real y M7 espera a que el producto y la infraestructura externa estén listos.
+GOAL-01 permanece ACTIVO: la implementación está bloqueada selectivamente,
+mientras la arquitectura y la preparación siguen disponibles mediante [Platform Evolution](../architecture/PLATFORM-EVOLUTION.md).
 
 ## Regla de redefinición
 

@@ -31,6 +31,17 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      postgres17_bootstrap:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: saas_bootstrap_ci
+        options: >-
+          --health-cmd "pg_isready -U postgres -d saas_bootstrap_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       NODE_ENV: test
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/saas_ci
@@ -39,6 +50,42 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Validate staging Compose configuration
+        run: |
+          docker compose --project-name dusema-staging-isolated \
+            --env-file deploy/staging.env.example \
+            -f deploy/docker-compose.staging.yml config --format json |
+            jq -e '
+              . as $compose
+              | ($compose.services.api.networks["la-oficina-nitida"].aliases // []) as $aliases
+              | $compose.services.api.environment as $environment
+              | (
+                  $compose.name == "dusema-staging-isolated"
+                  and ($compose.services | keys == ["api"])
+                  and ($aliases | index("dusema-staging-api") != null)
+                  and $environment.STORAGE_PROVIDER == "r2"
+                  and $environment.REQUIRE_REAL_EMAIL == "true"
+                  and ($environment.R2_ENDPOINT // "") != ""
+                  and ($environment.R2_ACCESS_KEY_ID // "") != ""
+                  and ($environment.R2_SECRET_ACCESS_KEY // "") != ""
+                  and ($environment.R2_BUCKET // "") != ""
+                  and ((.services.api.volumes // []) | length == 0)
+                )
+            '
+
+      - name: Test PostgreSQL runtime role isolation bootstrap
+        env:
+          POSTGRES_SERVICE_CONTAINER_ID: ${{ job.services.postgres17_bootstrap.id }}
+        run: bash deploy/postgres/test-runtime-role-bootstrap.sh
+
+      - name: Validate read-only PostgreSQL isolation inventory
+        env:
+          POSTGRES_SERVICE_CONTAINER_ID: ${{ job.services.postgres17_bootstrap.id }}
+        run: |
+          docker exec -i "$POSTGRES_SERVICE_CONTAINER_ID" \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d oficina_nitida \
+            < deploy/postgres/audit-isolation-readonly.sql
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6

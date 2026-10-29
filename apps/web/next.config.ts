@@ -10,6 +10,12 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: workspaceDir,
   },
+  async headers() {
+    return ['/restablecer', '/reset-password'].map((source) => ({
+      source,
+      headers: [{ key: 'Referrer-Policy', value: 'no-referrer' }],
+    }));
+  },
 };
 
 export default nextConfig;
