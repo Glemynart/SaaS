@@ -121,164 +121,25 @@ La política IAM observada para la instancia permite crear objetos bajo `postgre
 
 Referencias oficiales: [Lifecycle Management de OCI](https://docs.oracle.com/en-us/iaas/Content/Object/Tasks/usinglifecyclepolicies.htm), [versionado de Object Storage](https://docs.oracle.com/en-us/iaas/Content/Object/Tasks/usingversioning.htm), [edición de lifecycle policies](https://docs.oracle.com/en-us/iaas/Content/Object/Tasks/usinglifecyclepolicies_topic-To_edit_a_lifecycle_policy_rule.htm), [OCI CLI `object put`](https://docs.oracle.com/en-us/iaas/tools/oci-cli/latest/oci_cli_docs/cmdref/os/object/put.html), [OCI CLI global retry options](https://docs.oracle.com/en-us/iaas/tools/oci-cli/latest/oci_cli_docs/oci.html), [OCI CLI `object head`](https://docs.oracle.com/en-us/iaas/tools/oci-cli/latest/oci_cli_docs/cmdref/os/object/head.html).
 
-## Archivos de la aplicación fuera de alcance
+## Archivos de aplicación no cubiertos por el backup PostgreSQL
 
 La inspección del 23 de octubre de 2026 confirmó el bind mount `/home/ubuntu/la-oficina-nitida/staging/uploads` → `/app/uploads`, modo `0750` y propietario/grupo numéricos `1000:1000`. `du -sh` reportó 4 KiB, pero el usuario SSH recibió `Permission denied` al recorrer la carpeta; por tanto, en esa inspección no se confirmó si contenía archivos ni su tamaño. Una inspección anterior del 22 de octubre había reportado cero entradas en ese momento, lo cual no demuestra el estado posterior.
 
-Una inspección SSH de solo lectura con privilegios de lectura el 25 de octubre de 2026 confirmó que la ruta está en el filesystem raíz (`/`, `/dev/sda1`, ext4), con modo `0750` y propietario/grupo numéricos `1000:1000`. La búsqueda contó cero archivos regulares y 0 bytes en ese momento. Es una medición puntual: no garantiza que el directorio siga vacío ni constituye un respaldo. El backup lógico de PostgreSQL no incluye esta ruta; la recuperación de uploads continúa sin verificarse. Aunque el filesystem raíz parece corresponder al volumen de arranque, no se verificó independientemente desde OCI la cobertura de esta ruta por una copia específica ni se probó su recuperación aislada.
+Una inspección SSH de solo lectura con privilegios de lectura el 25 de octubre de 2026 confirmó que la ruta está en el filesystem raíz (`/`, `/dev/sda1`, ext4), con modo `0750` y propietario/grupo numéricos `1000:1000`. La búsqueda contó cero archivos regulares y 0 bytes en ese momento. Es una medición puntual: no garantiza que el directorio siga vacío ni constituye un respaldo. El backup lógico de PostgreSQL no incluye esta ruta; aún no se ha verificado la recuperación de un objeto operativo desde su destino independiente. Aunque el filesystem raíz parece corresponder al volumen de arranque, no se verificó independientemente desde OCI la cobertura de esta ruta por una copia específica ni se probó su recuperación aislada.
 
-### Procedimiento propuesto de recuperación de uploads (no implementado)
+### Artefactos de uploads: implementación local y límites del conjunto
 
-Antes de respaldar, confirmar el proveedor efectivo y su origen en el staging ya aislado. La ruta local observada no prueba que siga siendo el almacenamiento activo. El destino debe ser privado e independiente del VPS; no se ha confirmado que el bucket PostgreSQL existente ni su identidad IAM sean adecuados para uploads, por lo que no se deben reutilizar sin revisión y aprobación del propietario.
+El backup PostgreSQL no incluye `/app/uploads`; su cobertura operativa sigue pendiente. Antes de usar estos scripts, confirmar en staging aislado el proveedor y origen efectivos, el destino privado e independiente, el perfil OCI aprobado y la retención. No reutilizar el bucket PostgreSQL ni ejecutar sobre el VPS actual: la API comparte `oficina_nitida`.
 
-Para almacenamiento local, coordinar el dump PostgreSQL y los archivos en un mismo punto de consistencia. En staging aislado, pausar temporalmente las operaciones que crean, reemplazan o eliminan archivos y sus referencias, o demostrar que los snapshots de base y filesystem corresponden al mismo punto. Empaquetar la ruta bajo un directorio temporal privado, cifrar el archivo y el manifiesto con la clave pública de recuperación y subirlos con nombre único a un destino aprobado. El manifiesto debe registrar clave relativa, tamaño y SHA-256; como las claves pueden revelar identificadores de tenant o empleado, el manifiesto debe quedar cifrado y nunca imprimirse en logs o reportes compartidos. La identidad de carga debe limitarse al destino aprobado y no poder borrar copias retenidas. La retención requiere aprobación; no está configurada por este procedimiento.
+Para almacenamiento local, `backup-uploads-artifact.sh` produce un manifiesto privado de clave relativa, tamaño y SHA-256; archiva el árbol, valida cada contenido del tar contra el manifiesto, vuelve a comparar el origen, cifra el archivo con la clave pública de recuperación y sube el ciphertext usando `--verify-checksum` y `--no-overwrite`. Requiere `UPLOADS_ROOT`, `UPLOADS_QUIESCED=true`, `TMP_PARENT`, `BACKUP_SET_ID`, `GNUPGHOME`, `RECOVERY_RECIPIENT_FINGERPRINT`, `OCI_NAMESPACE`, `OCI_BUCKET`, `OCI_REGION`, `OCI_OBJECT_PREFIX` y `OCI_UPLOAD_PROFILE`. `OCI_CLI` es opcional. `TMP_PARENT` debe ser almacenamiento cifrado o `tmpfs`, con espacio libre estimado de al menos dos veces el tamaño agregado más 64 MiB; los scripts rechazan padres compartidos con escritura sin sticky bit.
 
-Para almacenamiento R2, el objeto primario no cuenta por sí solo como copia recuperable. Se necesita una copia independiente y privada con acceso y retención revisados. El migrador existente `pnpm --filter @saas/api storage:migrate-local-to-r2` escribe en R2 sin sobrescribir y compara tamaño/SHA-256 al releer, pero su reporte contiene claves y errores; cualquier ejecución futura debe hacerse solo desde un entorno aislado autorizado y guardar el reporte en un canal privado. El migrador no elimina LocalDisk. `r2-migration` tampoco es escritura dual: una vez que se aceptan escrituras en R2, cambiar a `local` puede ocultar objetos nuevos; no existe migrador inverso verificado. No cambiar el proveedor hasta completar y revisar la copia, su lectura y el rollback aplicable.
+`UPLOADS_QUIESCED=true` es una confirmación del operador, no prueba que hayan cesado todos los escritores. La verificación del árbol detecta cambios observados durante el archivo, pero no coordina con el dump PostgreSQL. El mismo `BACKUP_SET_ID` en el nombre del objeto no crea un marcador de conjunto recuperable ni demuestra que DB y archivos correspondan al mismo punto de consistencia.
 
-La prueba de recuperación debe restaurar el artefacto en un directorio nuevo, vacío y restrictivo de un host/entorno aislado, nunca sobre `/app/uploads` ni sobre la ruta activa. Verificar el SHA-256 del artefacto cifrado antes del descifrado, validar la lectura del archivo, y comparar en privado cantidad, bytes y SHA-256 por clave con el manifiesto. Con el dump PostgreSQL restaurado en el mismo entorno aislado, comparar mediante conteos agregados las referencias documentales con los objetos restaurados y reportar solo totales de faltantes/extras; no imprimir claves, nombres ni contenidos. Conservar evidencia sanitizada del destino, timestamp, checksum y resultado. No retirar origen ni temporales hasta que el propietario acepte la prueba y confirme que la copia independiente es accesible.
+Para recuperar, una identidad OCI autorizada de solo lectura debe descargar el objeto y registrar su SHA-256. `restore-uploads-artifact.sh` verifica ese hash, descifra, valida rutas, tipos y contenido de cada archivo, comprueba espacio libre y restaura únicamente en una carpeta nueva bajo `RESTORE_PARENT` con modo `0700`. Requiere `ENCRYPTED_BACKUP_FILE`, `EXPECTED_CIPHERTEXT_SHA256`, `RECOVERY_GNUPGHOME`, `RESTORE_PARENT` y un `RESTORE_DIR_NAME` nuevo con prefijo `dusema-uploads-restored-`; `RESTORE_WORK_PARENT` es opcional. `RESTORE_PARENT` y `RESTORE_WORK_PARENT` deben ser directorios controlados; el temporal de recuperación también debe estar en almacenamiento cifrado o `tmpfs`. Mantener la carpeta restaurada desconectada de la aplicación y no restaurar sobre `/app/uploads`.
 
-**Criterio de aceptación:** proveedor y origen identificados; punto de consistencia documentado; artefacto cifrado accesible con una identidad autorizada de lectura; checksum y descifrado correctos; todos los archivos restaurados coinciden con el manifiesto; conteos agregados de referencias/objetos sin faltantes inexplicados; restauración aislada revisable; y retención/permisos aprobados. Hasta entonces, la cobertura de uploads y E7.1/M7 continúan pendientes.
+Para almacenamiento R2, el objeto primario no cuenta por sí solo como copia recuperable. El migrador `pnpm --filter @saas/api storage:migrate-local-to-r2` verifica tamaño/SHA-256 al releer, pero su reporte contiene claves y errores; cualquier ejecución futura debe realizarse desde un entorno aislado autorizado y guardarse en un canal privado. No elimina LocalDisk. `r2-migration` tampoco es escritura dual, y no existe migrador inverso verificado.
 
-### Secuencia operativa reproducible (preparada, no ejecutada)
-
-Esta secuencia es exclusivamente para un staging cuya base y storage ya estén aislados. No ejecutarla en el VPS actual: la API comparte `oficina_nitida`, y el servicio PostgreSQL documentado en este directorio respalda precisamente esa base. La copia de DB y uploads debe pertenecer al mismo `RUN_ID` y al mismo intervalo sin escrituras de documentos; el backup diario existente no se presume coordinado con una copia de archivos. Un DBA debe confirmar el destino de la DB aislada y el operador debe aprobar el directorio temporal, destino privado, retención y perfiles OCI antes de empezar.
-
-**Crear artefacto local y manifiesto.** Ejecutar en el host aislado con GNU tar, `python3`, GPG y OCI CLI ya instalados. El manifiesto es información sensible: la carpeta temporal debe estar en almacenamiento cifrado o `tmpfs`, con capacidad libre comprobada de al menos dos veces el tamaño de uploads. No activar `set -x`, no imprimir el manifiesto y no usar valores de credenciales en argumentos.
-
-```bash
-set -Eeuo pipefail
-umask 077
-: "${UPLOADS_ROOT:?ruta absoluta confirmada del storage local aislado}"
-: "${TMP_PARENT:?directorio temporal cifrado aprobado}"
-: "${RUN_ID:?identificador UTC único sin datos de tenant/personas}"
-: "${RECOVERY_RECIPIENT_FINGERPRINT:?fingerprint pública verificada}"
-: "${OCI_NAMESPACE:?namespace confirmado por el operador}"
-: "${OCI_BUCKET:?bucket privado aprobado}"
-: "${OCI_OBJECT:?nombre único bajo el prefijo aprobado}"
-: "${OCI_UPLOAD_PROFILE:?perfil ya configurado para cargar en el destino aprobado}"
-[[ "$RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9Tz._-]{0,63}$ ]]
-[[ "$RECOVERY_RECIPIENT_FINGERPRINT" =~ ^[A-Fa-f0-9]{40,64}$ ]]
-
-test -d "$UPLOADS_ROOT"
-test ! -L "$UPLOADS_ROOT"
-test ! -e "$UPLOADS_ROOT/.dusema-backup-meta"
-test -d "$TMP_PARENT" && test -w "$TMP_PARENT"
-case "$UPLOADS_ROOT" in /*) ;; *) echo 'Abortado: UPLOADS_ROOT debe ser absoluto.' >&2; exit 1 ;; esac
-case "$TMP_PARENT" in /*) ;; *) echo 'Abortado: TMP_PARENT debe ser absoluto.' >&2; exit 1 ;; esac
-UPLOADS_ROOT=$(realpath -e -- "$UPLOADS_ROOT")
-TMP_PARENT=$(realpath -e -- "$TMP_PARENT")
-case "$TMP_PARENT/" in "$UPLOADS_ROOT/"*) echo 'Abortado: el temporal no puede estar dentro de uploads.' >&2; exit 1 ;; esac
-SOURCE_BYTES=$(du -sb -- "$UPLOADS_ROOT" | cut -f1)
-AVAILABLE_BYTES=$(df -B1 --output=avail "$TMP_PARENT" | tail -n1 | tr -d ' ')
-if [ "$AVAILABLE_BYTES" -lt $((SOURCE_BYTES * 2 + 67108864)) ]; then
-  echo 'Abortado: espacio temporal insuficiente.' >&2
-  exit 1
-fi
-WORK=$(mktemp -d "$TMP_PARENT/dusema-uploads-$RUN_ID.XXXXXX")
-chmod 0700 "$WORK"
-
-build_manifest() {
-  python3 - "$1" "$2" <<'PY'
-import csv, hashlib, os, stat, sys
-root, destination = map(os.path.realpath, sys.argv[1:])
-root_device = os.stat(root).st_dev
-rows = []
-def fail_walk(error):
-    raise error
-try:
-    for current, dirs, files in os.walk(root, topdown=True, onerror=fail_walk, followlinks=False):
-        dirs.sort()
-        for name in dirs:
-            info = os.lstat(os.path.join(current, name))
-            if not stat.S_ISDIR(info.st_mode) or info.st_dev != root_device:
-                raise ValueError
-        if current == root:
-            dirs[:] = [name for name in dirs if name != '.dusema-backup-meta']
-        for name in sorted(files):
-            path = os.path.join(current, name)
-            info = os.lstat(path)
-            if not stat.S_ISREG(info.st_mode) or info.st_dev != root_device:
-                raise ValueError
-            key = os.path.relpath(path, root).replace(os.sep, '/')
-            digest = hashlib.sha256()
-            with open(path, 'rb') as source:
-                for chunk in iter(lambda: source.read(1024 * 1024), b''):
-                    digest.update(chunk)
-            rows.append((digest.hexdigest(), str(info.st_size), key))
-    with open(destination, 'x', encoding='utf-8', newline='') as output:
-        writer = csv.writer(output, delimiter='\t', lineterminator='\n')
-        writer.writerows(rows)
-except Exception:
-    print('Manifest abortado; revisar el árbol solo en el entorno autorizado.', file=sys.stderr)
-    raise SystemExit(1)
-PY
-}
-
-validate_archive() {
-  python3 - "$1" <<'PY'
-import sys, tarfile
-seen = set()
-manifest_seen = False
-try:
-    with tarfile.open(sys.argv[1], 'r:') as archive:
-        for member in archive:
-            raw = member.name
-            if raw.startswith('/'):
-                raise ValueError
-            parts = raw.split('/')
-            if any(part == '..' for part in parts):
-                raise ValueError
-            name = '/'.join(part for part in parts if part not in ('', '.'))
-            if not name:
-                if not member.isdir():
-                    raise ValueError
-                continue
-            if name in seen or not (member.isfile() or member.isdir()):
-                raise ValueError
-            if name == '.dusema-backup-meta/manifest.tsv':
-                if not member.isfile():
-                    raise ValueError
-                manifest_seen = True
-            elif name == '.dusema-backup-meta':
-                if not member.isdir():
-                    raise ValueError
-            elif name.startswith('.dusema-backup-meta/'):
-                raise ValueError
-            seen.add(name)
-    if not manifest_seen:
-        raise ValueError
-except Exception:
-    print('Validación del archivo abortada; revisar el artefacto en el entorno autorizado.', file=sys.stderr)
-    raise SystemExit(1)
-PY
-}
-
-build_manifest "$UPLOADS_ROOT" "$WORK/manifest.tsv"
-if ! tar --create --one-file-system --file="$WORK/uploads.tar" \
-  --directory="$UPLOADS_ROOT" . 2>"$WORK/tar-create.log"; then
-  echo 'Abortado: tar no pudo leer el árbol de uploads.' >&2
-  exit 1
-fi
-if ! tar --append --file="$WORK/uploads.tar" \
-  --transform='s|^manifest.tsv$|.dusema-backup-meta/manifest.tsv|' \
-  --directory="$WORK" manifest.tsv 2>"$WORK/tar-append.log"; then
-  echo 'Abortado: no se pudo añadir el manifiesto al archivo.' >&2
-  exit 1
-fi
-validate_archive "$WORK/uploads.tar"
-build_manifest "$UPLOADS_ROOT" "$WORK/source-after-archive.tsv"
-cmp --silent "$WORK/manifest.tsv" "$WORK/source-after-archive.tsv"
-gpg --batch --no-tty --trust-model always \
-  --recipient "${RECOVERY_RECIPIENT_FINGERPRINT}!" --encrypt \
-  --output "$WORK/uploads.tar.gpg" "$WORK/uploads.tar"
-UPLOADS_SHA256=$(sha256sum -- "$WORK/uploads.tar.gpg" | cut -d' ' -f1)
-oci os object put --namespace "$OCI_NAMESPACE" --bucket-name "$OCI_BUCKET" \
-  --name "$OCI_OBJECT" --file "$WORK/uploads.tar.gpg" \
-  --verify-checksum --no-overwrite --profile "$OCI_UPLOAD_PROFILE"
-```
-
-Guardar `RUN_ID`, nombre de objeto, bytes agregados, SHA-256 cifrado, perfil usado (solo su nombre) y resultado fuera del VPS, en un registro operativo privado. No guardar el manifiesto ni listar sus claves. El comando de arriba no toma el dump de PostgreSQL: generar el dump de la **base aislada correcta** durante la misma ventana sin escrituras mediante un procedimiento revisado para esa base. No reutilizar el servicio actual mientras apunte a `oficina_nitida`.
-
+La prueba de CI utiliza archivos sintéticos, GPG efímero y un mock de OCI. Comprueba carga simulada, restauración aislada, checksum, rechazo de traversal y corrupción de contenido con tamaño conservado; no accede a OCI ni acredita lectura de un objeto operativo. El manifiesto durable que empareje DB y uploads, la restauración conjunta, la verificación agregada de referencias y la retención aprobada continúan pendientes. Por tanto, E7.1 permanece abierta.
 ### Emparejamiento de PostgreSQL y uploads
 
 **Estado: diseño propuesto; no aprobado ni probado como conjunto recuperable.**
@@ -341,54 +202,8 @@ de uploads documentada debajo no crea todavía el dump de staging, el manifiesto
 de conjunto ni un mecanismo coordinador; por tanto, aún no acredita una captura
 consistente de ambos tipos de datos.
 
-**Lectura y restauración aislada.** En una estación/entorno de recuperación aprobado, con la identidad OCI de solo lectura existente, `OBJECT_INSPECT` permite consultar metadata y `OBJECT_READ` permite descargar el objeto. Completar con el nombre y checksum registrados en la corrida; no solicitar permisos nuevos. La metadata/head no sustituye el hash del contenido descargado.
-
-```bash
-set -Eeuo pipefail
-umask 077
-: "${OCI_NAMESPACE:?}"
-: "${OCI_BUCKET:?}"
-: "${OCI_OBJECT:?nombre exacto obtenido del registro de la corrida}"
-: "${OCI_READ_PROFILE:?perfil preexistente autorizado para leer el objeto}"
-: "${EXPECTED_CIPHERTEXT_SHA256:?checksum registrado al crear el objeto}"
-: "${RECOVERY_GNUPGHOME:?GnuPG home con clave privada de recuperación ya disponible}"
-: "${RESTORE_PARENT:?directorio temporal aislado aprobado}"
-[[ "$EXPECTED_CIPHERTEXT_SHA256" =~ ^[A-Fa-f0-9]{64}$ ]]
-
-test -d "$RESTORE_PARENT" && test -w "$RESTORE_PARENT"
-case "$RESTORE_PARENT" in /*) ;; *) echo 'Abortado: RESTORE_PARENT debe ser absoluto.' >&2; exit 1 ;; esac
-RESTORE_PARENT=$(realpath -e -- "$RESTORE_PARENT")
-WORK=$(mktemp -d "$RESTORE_PARENT/dusema-upload-recovery.XXXXXX")
-chmod 0700 "$WORK"
-RESTORE_ROOT=$(mktemp -d "$RESTORE_PARENT/dusema-upload-restore.XXXXXX")
-chmod 0700 "$RESTORE_ROOT"
-OBJECT_BYTES=$(oci os object head --namespace "$OCI_NAMESPACE" --bucket-name "$OCI_BUCKET" \
-  --name "$OCI_OBJECT" --profile "$OCI_READ_PROFILE" \
-  --query '"content-length"' --raw-output)
-case "$OBJECT_BYTES" in ''|*[!0-9]*) echo 'Abortado: metadata de tamaño inválida.' >&2; exit 1 ;; esac
-AVAILABLE_BYTES=$(df -B1 --output=avail "$RESTORE_PARENT" | tail -n1 | tr -d ' ')
-if [ "$AVAILABLE_BYTES" -lt $((OBJECT_BYTES * 3 + 67108864)) ]; then
-  echo 'Abortado: espacio de recuperación insuficiente.' >&2
-  exit 1
-fi
-oci os object get --namespace "$OCI_NAMESPACE" --bucket-name "$OCI_BUCKET" \
-  --name "$OCI_OBJECT" --file "$WORK/uploads.tar.gpg" --profile "$OCI_READ_PROFILE"
-printf '%s  %s\n' "$EXPECTED_CIPHERTEXT_SHA256" "$WORK/uploads.tar.gpg" \
-  | sha256sum --check --status
-gpg --batch --no-tty --homedir "$RECOVERY_GNUPGHOME" \
-  --output "$WORK/uploads.tar" --decrypt "$WORK/uploads.tar.gpg"
-validate_archive "$WORK/uploads.tar"
-if ! tar --extract --file="$WORK/uploads.tar" --directory="$RESTORE_ROOT" \
-  --no-same-owner --no-same-permissions 2>"$WORK/tar-extract.log"; then
-  echo 'Abortado: no se pudo extraer el archivo cifrado validado.' >&2
-  exit 1
-fi
-build_manifest "$RESTORE_ROOT" "$WORK/restored-manifest.tsv"
-cmp --silent "$RESTORE_ROOT/.dusema-backup-meta/manifest.tsv" \
-  "$WORK/restored-manifest.tsv"
-```
-
-En el entorno de recuperación, copiar exactamente las funciones `build_manifest` y `validate_archive` del bloque anterior antes de ejecutar estos comandos. `cmp --silent` no muestra claves: cualquier diferencia falla la prueba. Mantener el directorio restaurado desconectado de la aplicación y del VPS original. Restaurar también el dump emparejado en una instancia temporal sin ruta de red al servidor productivo. Para cotejar referencias, importar el TSV en una tabla temporal dentro de **esa base restaurada aislada** y ejecutar solo esta consulta agregada; no usarla contra `oficina_nitida`.
+**Lectura y restauración aislada.** En una estación/entorno de recuperación aprobado, usa la identidad OCI de solo lectura ya autorizada. OBJECT_INSPECT permite consultar metadata y OBJECT_READ descargar el objeto; completa con el nombre y checksum registrados en la corrida. La metadata/head no sustituye el hash del contenido descargado. Después de comparar el SHA-256 descargado, ejecutar restore-uploads-artifact.sh con el archivo cifrado, su checksum, la clave de recuperación disponible fuera del VPS, RESTORE_PARENT aprobado y un RESTORE_DIR_NAME nuevo con prefijo dusema-uploads-restored-. RESTORE_ROOT será la carpeta nueva creada bajo RESTORE_PARENT. No restaurar sobre /app/uploads ni conectar esa carpeta a la aplicación durante la validación.
+Para cotejar referencias, importar el TSV en una tabla temporal dentro de **esa base restaurada aislada** y ejecutar solo esta consulta agregada; no usarla contra `oficina_nitida`.
 
 ```sql
 BEGIN;
