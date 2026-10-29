@@ -13,7 +13,8 @@ Convención: decisiones numeradas `AX-Dn`. Todo flujo especificado se apoya en c
 
 **Actualización GOAL-01 (2026-10-29):** esta propuesta conserva el estado y los
 hechos de su fecha original, 2026-07-06. E2.1 ya añadió gestión directa de
-usuarios y E2.2 tiene ahora una implementación candidata, gobernada por
+usuarios y E2.2 tiene ahora una implementación candidata en la
+[PR #144](https://github.com/Glemynart/SaaS/pull/144), gobernada por
 [GOAL-01](../goals/GOAL-01-primer-cliente-operando.md), que incluye invitación
 ADMIN y aceptación de enlace en `/aceptar-invitacion`. Las afirmaciones de H5 y
 §7.2 que prohíben implementar invitaciones están superadas para ese alcance. La
