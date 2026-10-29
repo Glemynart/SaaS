@@ -94,10 +94,10 @@ Este Goal solo puede redefinirse si cambia la estrategia del producto. Nuevas id
 - documentación histórica presenta facturación electrónica como MVP, mientras el código solo ofrece facturación interna sin DIAN;
 - documentación histórica afirma capacidades completas por PR o fase que no siempre son utilizables end-to-end;
 - “multiempresa” implementa aislamiento por tenant, no acceso de un mismo usuario a varias organizaciones;
-- E2.3 exige mostrar el estado terminal antes del formulario, pero el API solo
-  valida el token al cambiar la contraseña. La decisión entre ampliar el API o
-  cambiar la experiencia quedó propuesta en [ADR-010](../adr/ADR-010-password-reset-token-prevalidation.md);
-  no se declara resuelta.
+- E2.3 exige mostrar el estado terminal antes del formulario. [ADR-010](../adr/ADR-010-password-reset-token-prevalidation.md)
+  acepta una validación API de solo lectura; PR #145 implementa el contrato en
+  API, BFF y UI. E2.3 permanece abierta hasta verificar correo real y el flujo
+  en staging.
 
 ## Alcance
 
@@ -189,8 +189,9 @@ staging, R2, correo ni una decisión de dominio pendiente.
       edición de datos, roles ADMIN/OPERADOR y activación/desactivación (PR #96
       fusionada y verificada por CI/Browser E2E).
 - [ ] E2.2 — Invitaciones y alta por correo (depende de correo real).
-- [ ] E2.3 — Recuperación de acceso real por correo (depende de correo real y de
-      la decisión pendiente de [ADR-010](../adr/ADR-010-password-reset-token-prevalidation.md)).
+- [ ] E2.3 — Recuperación de acceso real por correo (PR #145 implementa la
+      prevalidación conforme a [ADR-010](../adr/ADR-010-password-reset-token-prevalidation.md);
+      faltan correo real y validación en staging).
 - [x] E2.4 — Sedes, identidad y promesa multiempresa coherente con el producto real (PR #110
       fusionada; checks post-merge de CI/Browser E2E verdes).
 
@@ -357,6 +358,7 @@ necesidad comercial verificable de adquisición desde la landing.
 | #106    | E6.2  | Dashboard accionable y resolución trazable.                               | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
 | #108    | E6.3  | Fallos, reintentos y auditoría visibles para operación.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
 | #110    | E2.4  | Sedes, identidad y promesa multiempresa coherente con el producto real.   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
+| #145    | E2.3  | Prevalidación del enlace de recuperación de acceso.                       | ABIERTO    | No; faltan correo real y aceptación en staging.            |
 | #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.

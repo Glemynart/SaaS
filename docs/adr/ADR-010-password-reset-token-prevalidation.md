@@ -2,7 +2,7 @@
 
 | Campo           | Valor                                                                                                            |
 | --------------- | ---------------------------------------------------------------------------------------------------------------- |
-| **Estado**      | Propuesto; requiere aprobación de Producto, Arquitectura y Seguridad                                             |
+| **Estado**      | Aceptado                                                                                                         |
 | **Fecha**       | 2026-10-29                                                                                                       |
 | **Ámbito**      | GOAL-01 · M2 · E2.3 · recuperación de contraseña                                                                 |
 | **Relacionado** | [GOAL-01](../goals/GOAL-01-primer-cliente-operando.md), [AUTH-EXPERIENCE](../design/AUTH-EXPERIENCE.md), PR #129 |
@@ -13,8 +13,8 @@ La especificación de autenticación establece dos condiciones simultáneas:
 
 - el enlace inválido, vencido o usado debe mostrar el estado terminal antes de
   que la persona complete el formulario (§7.3);
-- la recuperación consume las rutas existentes y no agrega endpoints (hallazgo
-  H3 y §10).
+- la recuperación consumía las rutas existentes y no tenía un endpoint de
+  prevalidación (hallazgo H3 y §9.5).
 
 El código no puede cumplir ambas condiciones. `ResetForm` conoce si hay un token,
 pero solo recibe la respuesta de validez después de enviar la contraseña a
@@ -23,58 +23,51 @@ de forma atómica, cambia la contraseña y revoca las sesiones. No es seguro
 usarlo como una consulta previa. PR #129 traslada los tokens a fragmentos URL,
 pero no cambia esta limitación de validación.
 
-Por tanto, E2.3 no puede satisfacer el estado de enlace especificado sin elegir
+Por tanto, E2.3 no podía satisfacer el estado de enlace especificado sin elegir
 entre cambiar la experiencia aceptada o ampliar el contrato del API.
 
-## Decisión requerida
+## Decisión
 
-Elegir una de estas alternativas antes de implementar E2.3:
+Se acepta la opción B: agregar `POST /auth/validate-reset-token` como consulta
+de solo lectura. Recibe `{ "token": string }` en el cuerpo y devuelve solo
+`{ "valid": boolean }`. Tokens malformados, inexistentes, usados, vencidos o
+con secreto incorrecto producen la misma respuesta `{ "valid": false }`.
 
-### Opción A — Conservar el API existente
+La comprobación busca el registro por el identificador aleatorio del token,
+comprueba su vigencia y uso, y compara el secreto con el hash almacenado. No
+escribe en la base de datos, no consume el token y no devuelve identidad, correo,
+empresa ni estado interno. El endpoint usa un límite de cinco solicitudes por
+IP cada quince minutos y un límite de 256 caracteres para la entrada.
 
-Actualizar AUTH-EXPERIENCE para permitir que se muestre el formulario antes de
-validar el token. El API comprobará el token al recibir la nueva contraseña; si
-no es válido, la pantalla pasará al estado terminal después del envío.
+La UI enviará el token desde el fragmento del navegador al BFF en el cuerpo de
+una solicitud POST sin caché. La API registra la ruta fija y metadatos HTTP, no
+el cuerpo. El formulario aparece únicamente tras `{ "valid": true }`. Un error
+transitorio muestra una salida de reintento y no revela mensajes crudos.
 
-Esta opción no agrega superficie de API, pero permite que una persona complete
-el formulario antes de saber que el enlace expiró o ya fue usado.
+`POST /auth/reset-password` conserva su validación final y reclamación atómica.
+Si el token vence o se consume después de la consulta previa, el reset final lo
+rechaza y la UI presenta el estado terminal.
 
-### Opción B — Agregar validación de solo lectura (recomendada)
+## Alternativa descartada
 
-Agregar `POST /auth/validate-reset-token`, que reciba el token en el cuerpo y
-devuelva únicamente `{ "valid": boolean }`. El endpoint comprobará que el
-secreto corresponde al token no usado y aún vigente, sin cambiar contraseñas,
-consumir el token, devolver datos de usuario ni incluir el token en una URL.
-La pantalla mostrará el formulario solo después de una respuesta válida.
+La opción A cambiaba la experiencia para permitir llenar el formulario antes de
+validar el enlace. Se descarta porque contradice el requisito vigente de §7.3 y
+traslada el costo de enlaces expirados o usados a la persona usuaria.
 
-La ruta final `POST /auth/reset-password` repetirá la validación y reclamará el
-token atómicamente. Si vence o se consume entre ambas solicitudes, el endpoint
-final rechazará el envío y la UI mostrará el estado terminal.
+## Consecuencias y riesgos
 
-Controles requeridos para esta opción:
-
-- limitar intentos de validación;
-- no registrar el token ni cuerpos de solicitud que lo contengan;
-- responder de forma uniforme, sin revelar correo, usuario o tenant;
-- mantener el token en el fragmento del navegador y transmitirlo solo en el
-  cuerpo HTTPS;
-- cubrir tokens malformados, secretos incorrectos, expirados, usados y válidos.
-
-## Recomendación
-
-Se recomienda la opción B porque conserva la experiencia aprobada en §7.3 y
-permite que la persona sepa que el enlace funciona antes de invertir esfuerzo en
-el formulario. Esta decisión modifica la regla actual de “cero endpoints
-nuevos”; la nueva ruta deberá quedar explícitamente documentada si se aprueba.
-
-## Consecuencias y alcance posterior
-
-Hasta que se apruebe una alternativa, no se implementará un endpoint ni se
-cambiará la experiencia existente. Una vez aprobada la opción B, su Epic deberá
-incluir el servicio de validación, el endpoint y su limitación de intentos, la
-ruta BFF, la validación previa en la UI, las pruebas API y browser, y la
-actualización de AUTH-EXPERIENCE. La aceptación en staging seguirá requiriendo
-entrega y recepción reales del correo de recuperación.
-
-Si se aprueba la opción A, se actualizará la especificación antes de cerrar
-E2.3 para que refleje explícitamente la validación posterior al envío.
+- Se añade una ruta pública de solo lectura, con validación de entrada y
+  limitación de intentos; no requiere migración de datos ni modifica el modelo
+  de tokens.
+- La vigencia puede cambiar entre validación y envío; el endpoint de reset
+  mantiene la autoridad final y la reclamación transaccional.
+- La limitación se basa en la IP observada por el API. La configuración de
+  proxies confiables debe revisarse antes del despliegue para evitar agrupar a
+  muchos clientes bajo una sola dirección.
+- No se reenviarán enlaces antiguos con token en query. Los nuevos enlaces usan
+  fragmento; la UI migra enlaces legados en el navegador y solo transmite el
+  token en el cuerpo.
+- La reversión debe retirar conjuntamente la ruta, su BFF y la validación previa
+  de la UI; la experiencia documentada debe volver a alinearse en el mismo
+  cambio. La aceptación operativa de E2.3 aún exige correo real y validación en
+  staging.
