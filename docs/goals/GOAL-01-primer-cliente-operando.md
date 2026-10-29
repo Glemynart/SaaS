@@ -40,7 +40,7 @@ E2.4 fue fusionada en el PR #110: las sedes y la identidad corporativa se
 prueban desde la UI dentro del tenant autenticado, y la promesa pública describe
 el aislamiento por organización sin prometer cambio de contexto entre empresas.
 
-E2.2 tiene una implementación candidata en la [PR #144](https://github.com/Glemynart/SaaS/pull/144): el ADMIN
+E2.2 tiene una implementación en la [PR #144](https://github.com/Glemynart/SaaS/pull/144): el ADMIN
 gestiona invitaciones por tenant, el correo lleva un enlace de un solo uso y la
 persona define su contraseña antes de iniciar sesión. La suite API valida
 expiración y reglas de negocio. Dos integraciones PostgreSQL cubren la
@@ -207,7 +207,7 @@ staging, R2, correo ni una decisión de dominio pendiente.
 - [x] E2.1 — Gestión directa de usuarios: creación administrada, listado,
       edición de datos, roles ADMIN/OPERADOR y activación/desactivación (PR #96
       fusionada y verificada por CI/Browser E2E).
-- [ ] E2.2 — Invitaciones y alta por correo: implementación candidata con gestión
+- [ ] E2.2 — Invitaciones y alta por correo: implementación con gestión
       ADMIN, aceptación de un solo uso, expiración y aislamiento tenant; UI/API/DB
       pasan el E2E local con SMTP de prueba. Falta validar entrega real y
       aceptación desde el entorno operativo.
@@ -380,7 +380,7 @@ necesidad comercial verificable de adquisición desde la landing.
 | #106    | E6.2  | Dashboard accionable y resolución trazable.                               | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
 | #108    | E6.3  | Fallos, reintentos y auditoría visibles para operación.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
 | #110    | E2.4  | Sedes, identidad y promesa multiempresa coherente con el producto real.   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
-| #144    | E2.2  | Invitaciones por tenant y activación segura de cuentas.                   | ABIERTA    | No; recepción y aceptación del correo real siguen pendientes. |
+| #144    | E2.2  | Invitaciones por tenant y activación segura de cuentas.                   | PENDIENTE  | No; recepción y aceptación del correo real siguen pendientes. |
 | #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                   |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.

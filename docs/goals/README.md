@@ -27,7 +27,7 @@ Solo puede existir un Goal activo. Los posibles resultados futuros permanecen si
 Estado de implementación vigente: E5.2 fue fusionada en el PR #102, E5.3 en el
 PR #103, E5.4 en el PR #104, E6.1 en el PR #105, E6.2 en el PR #106, E6.3 en
 el PR #108 y E2.4 en el PR #110; sus checks post-merge de CI y Browser E2E están
-verdes. E2.2 está en la [PR #144](https://github.com/Glemynart/SaaS/pull/144);
+verdes. E2.2 tiene implementación en la [PR #144](https://github.com/Glemynart/SaaS/pull/144);
 la validación con entrega real de correo permanece pendiente. M1 sigue
 BLOQUEADO POR INFRAESTRUCTURA EXTERNA; GOAL-01 permanece ACTIVO. La
 implementación está bloqueada selectivamente, pero la arquitectura y la
