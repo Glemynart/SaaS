@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { PasswordResetService } from './password-reset.service';
+import { UserInvitationsService } from '../users/user-invitations.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
@@ -40,6 +41,7 @@ export class AuthController {
     private authService: AuthService,
     private passwordResetService: PasswordResetService,
     private auditService: AuditService,
+    private readonly userInvitationsService: UserInvitationsService,
   ) {}
 
   @Unauthenticated()
@@ -152,6 +154,33 @@ export class AuthController {
   ) {
     const userAgent = req.headers['user-agent'];
     return this.passwordResetService.consumeReset({
+      token: dto.token,
+      newPassword: dto.newPassword,
+      ipAddress: ip,
+      userAgent: String(userAgent ?? ''),
+    });
+  }
+
+  @Unauthenticated()
+  @Post('accept-invitation')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({
+    resetPassword: { limit: RESET_PASSWORD_RATE_LIMIT, ttl: 900000 },
+  })
+  @SkipThrottle({
+    login: true,
+    register: true,
+    refresh: true,
+    forgotPassword: true,
+  })
+  @HttpCode(HttpStatus.OK)
+  async acceptInvitation(
+    @Body() dto: ResetPasswordDto,
+    @Req() req: Request,
+    @Ip() ip: string,
+  ) {
+    const userAgent = req.headers['user-agent'];
+    return this.userInvitationsService.accept({
       token: dto.token,
       newPassword: dto.newPassword,
       ipAddress: ip,
