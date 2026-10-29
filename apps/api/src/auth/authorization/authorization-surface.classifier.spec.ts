@@ -23,7 +23,7 @@ describe('AuthorizationSurfaceClassifier', () => {
   it('classifies the complete current HTTP surface without ambiguity', () => {
     const operations = classifier.classifyModuleGraph(AppModule);
 
-    expect(operations).toHaveLength(175);
+    expect(operations).toHaveLength(176);
     expect(new Set(operations.map(({ operationId }) => operationId)).size).toBe(
       operations.length,
     );
@@ -33,14 +33,27 @@ describe('AuthorizationSurfaceClassifier', () => {
       ),
     ).toEqual([]);
     expect(operations.filter(({ policy }) => policy === undefined)).toEqual([]);
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'AuthController.validateResetToken',
+      ),
+    ).toMatchObject({
+      requestMethod: 'POST',
+      operationPath: 'validate-reset-token',
+      policy: AuthorizationPolicyKind.UNAUTHENTICATED,
+      requiresAuthentication: false,
+      requiresActiveTenant: false,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
 
     expect(countBy(operations, 'policy')).toEqual({
-      [AuthorizationPolicyKind.UNAUTHENTICATED]: 11,
+      [AuthorizationPolicyKind.UNAUTHENTICATED]: 12,
       [AuthorizationPolicyKind.AUTHENTICATED]: 60,
       [AuthorizationPolicyKind.RBAC]: 104,
     });
     expect(countBy(operations, 'source')).toEqual({
-      [AuthorizationClassificationSource.EXPLICIT]: 71,
+      [AuthorizationClassificationSource.EXPLICIT]: 72,
       [AuthorizationClassificationSource.EXISTING_RBAC]: 104,
     });
     expect(

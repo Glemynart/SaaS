@@ -211,7 +211,7 @@ staging, R2, correo ni una decisión de dominio pendiente.
       ADMIN, aceptación de un solo uso, expiración y aislamiento tenant; UI/API/DB
       pasan el E2E local con SMTP de prueba. Falta validar entrega real y
       aceptación desde el entorno operativo.
-- [ ] E2.3 — Recuperación de acceso real por correo (depende de correo real).
+- [ ] E2.3 — Recuperación de acceso real por correo. La implementación de prevalidación aprobada en ADR-010 y tokens en fragmento URL está en PR #148; falta validar entrega de correo real y aceptar el recorrido en staging.
 - [x] E2.4 — Sedes, identidad y promesa multiempresa coherente con el producto real (PR #110
       fusionada; checks post-merge de CI/Browser E2E verdes).
 
@@ -381,6 +381,7 @@ necesidad comercial verificable de adquisición desde la landing.
 | #108    | E6.3  | Fallos, reintentos y auditoría visibles para operación.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
 | #110    | E2.4  | Sedes, identidad y promesa multiempresa coherente con el producto real.   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
 | #144    | E2.2  | Invitaciones por tenant y activación segura de cuentas.                   | PENDIENTE  | No; recepción y aceptación del correo real siguen pendientes. |
+| #148    | E2.3  | Prevalidación de tokens antes del formulario de recuperación.             | PENDIENTE  | No; faltan correo real y aceptación en staging.               |
 | #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                   |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.

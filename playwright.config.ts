@@ -3,6 +3,8 @@ import { defineConfig, devices } from '@playwright/test';
 const isCI = Boolean(process.env.CI);
 const webPort = process.env.PLAYWRIGHT_WEB_PORT ?? '3000';
 const webUrl = `http://127.0.0.1:${webPort}`;
+// Reuse a local API only when explicitly requested; E2E requires isolated SMTP config.
+const reuseExistingServer = !isCI && process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === 'true';
 
 export default defineConfig({
   testDir: './e2e',
@@ -30,7 +32,7 @@ export default defineConfig({
       command: 'node e2e/mail-sink.mjs',
       url: 'http://127.0.0.1:8025/health',
       timeout: 30_000,
-      reuseExistingServer: !isCI,
+      reuseExistingServer,
     },
     {
       command: 'pnpm --filter @saas/api start:prod',
@@ -49,14 +51,14 @@ export default defineConfig({
         EMAIL_SMTP_REQUIRE_TLS: 'false',
       },
       timeout: 120_000,
-      reuseExistingServer: !isCI,
+      reuseExistingServer,
     },
     {
       command: `pnpm --filter @saas/web exec next start -H 127.0.0.1 -p ${webPort}`,
       url: `${webUrl}/login`,
       env: { PORT: webPort, HOSTNAME: '127.0.0.1' },
       timeout: 120_000,
-      reuseExistingServer: !isCI,
+      reuseExistingServer,
     },
   ],
 });
