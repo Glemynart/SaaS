@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { createSede } from './helpers/create-sede';
 
 async function expectContractPdfDownloadFromExpediente(
   page: Page,
@@ -107,6 +108,8 @@ test('crea un perfil contractual y lo vincula a un empleado desde la UI', async 
   await profileDialog.getByRole('button', { name: 'Crear perfil', exact: true }).click();
   await expect(page.getByRole('row').filter({ hasText: profileCode })).toContainText(profileName);
 
+  const sedeName = `Sede perfiles ${suffix}`;
+  await createSede(page, sedeName);
   await page.goto('/empleados');
   await page.getByRole('button', { name: 'Nuevo empleado', exact: true }).click();
 
@@ -116,6 +119,7 @@ test('crea un perfil contractual y lo vincula a un empleado desde la UI', async 
   await employeeDialog.locator('[name="primerApellido"]').fill('E3E2');
   await employeeDialog.locator('[name="cargo"]').fill('Docente E2E');
   await employeeDialog.locator('[name="salario"]').fill('2500000');
+  await employeeDialog.locator('[name="sedeId"]').selectOption({ label: sedeName });
   await employeeDialog.getByRole('button', { name: 'Crear empleado', exact: true }).click();
 
   const employeeRow = page.getByRole('row').filter({ hasText: cedula });
@@ -168,6 +172,7 @@ test('crea un perfil contractual y lo vincula a un empleado desde la UI', async 
   const loteDialog = page.getByRole('dialog', { name: 'Nuevo lote' });
   await loteDialog.getByLabel('Tipo de operación').selectOption({ label: 'Campaña inteligente' });
   await loteDialog.getByLabel('Nombre del lote').fill('Campaña inteligente E4.1');
+  await loteDialog.locator('input[type="date"]').first().fill('2026-01-01');
   await loteDialog.locator('input[type="checkbox"]').first().check();
   await loteDialog.getByRole('button', { name: 'Crear campaña', exact: true }).click();
 
@@ -206,6 +211,7 @@ test('crea un perfil contractual y lo vincula a un empleado desde la UI', async 
   await individualEmployeeDialog.locator('[name="primerApellido"]').fill('Gómez');
   await individualEmployeeDialog.locator('[name="cargo"]').fill('Docente individual E2E');
   await individualEmployeeDialog.locator('[name="salario"]').fill('2800000');
+  await individualEmployeeDialog.locator('[name="sedeId"]').selectOption({ label: sedeName });
   await individualEmployeeDialog
     .getByRole('button', { name: 'Crear empleado', exact: true })
     .click();

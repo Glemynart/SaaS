@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { createSede } from './helpers/create-sede';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -29,6 +30,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 
+  await createSede(page, 'Sede Principal');
   await page.goto('/empleados');
   await expect(page.getByRole('heading', { name: 'Empleados' })).toBeVisible();
   await page.getByRole('button', { name: 'Nuevo empleado', exact: true }).first().click();
@@ -39,6 +41,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await createDialog.locator('[name="primerApellido"]').fill('Prueba');
   await createDialog.locator('[name="cargo"]').fill('Docente E2E');
   await createDialog.locator('[name="salario"]').fill('2500000');
+  await createDialog.locator('[name="sedeId"]').selectOption({ label: 'Sede Principal' });
   await createDialog.getByRole('button', { name: 'Crear empleado', exact: true }).click();
 
   const search = page.locator('input[aria-label="Buscar empleados"]');

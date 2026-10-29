@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { createSede } from './helpers/create-sede';
 
 type GeneratedDocumentType = 'LETTER' | 'MEMO';
 
@@ -82,6 +83,8 @@ test('genera LETTER y MEMO y los descarga desde el expediente del empleado', asy
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 
+  const sedeName = `Sede documentos ${suffix}`;
+  await createSede(page, sedeName);
   await page.goto('/empleados');
   await page.getByRole('button', { name: 'Nuevo empleado', exact: true }).first().click();
   const employeeDialog = page.getByRole('dialog', { name: 'Nuevo empleado' });
@@ -90,6 +93,7 @@ test('genera LETTER y MEMO y los descarga desde el expediente del empleado', asy
   await employeeDialog.locator('[name="primerApellido"]').fill('Documentos');
   await employeeDialog.locator('[name="cargo"]').fill('Docente E2E');
   await employeeDialog.locator('[name="salario"]').fill('2500000');
+  await employeeDialog.locator('[name="sedeId"]').selectOption({ label: sedeName });
   await employeeDialog.getByRole('button', { name: 'Crear empleado', exact: true }).click();
 
   const employeeRow = page.getByRole('row').filter({ hasText: cedula });
