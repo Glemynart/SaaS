@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowRight, Link2Off, Loader2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
@@ -14,7 +14,9 @@ import { cn } from '@/lib/utils';
 import { AuthField } from './auth-field';
 import { PasswordInput } from './password-input';
 
-export function ResetForm({ token }: { token: string }) {
+export function ResetForm() {
+  const [token, setToken] = useState('');
+  const [tokenReady, setTokenReady] = useState(false);
   const reset = useResetPassword();
   const terminalRef = useRef<HTMLDivElement | null>(null);
 
@@ -25,6 +27,27 @@ export function ResetForm({ token }: { token: string }) {
 
   const resetError = reset.isError ? mapResetError(reset.error) : null;
 
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const queryToken = url.searchParams.get('token');
+    const fragmentToken = new URLSearchParams(url.hash.slice(1)).get('token');
+    const resolvedToken = (queryToken || fragmentToken || '').replace(/ /g, '+');
+
+    if (resolvedToken) {
+      setToken(resolvedToken);
+      url.searchParams.delete('token');
+      // Keep legacy query links reloadable while moving the token out of HTTP URLs.
+      url.hash = new URLSearchParams({ token: resolvedToken }).toString();
+      window.history.replaceState(
+        window.history.state,
+        '',
+        `${url.pathname}${url.search}${url.hash}`,
+      );
+    }
+
+    setTokenReady(true);
+  }, []);
+
   // Enlace ausente/malformado, o rechazado por el backend como inválido/vencido/usado
   // → estado terminal §7.3 (nunca un formulario que fallará al enviar).
   const showTerminal = !token || (resetError?.invalidToken ?? false);
@@ -32,6 +55,14 @@ export function ResetForm({ token }: { token: string }) {
   useEffect(() => {
     if (showTerminal) terminalRef.current?.focus();
   }, [showTerminal]);
+
+  if (!tokenReady) {
+    return (
+      <div className="product-frame p-6 text-sm text-muted-foreground" role="status">
+        Validando el enlace de recuperación…
+      </div>
+    );
+  }
 
   if (showTerminal) {
     return (
