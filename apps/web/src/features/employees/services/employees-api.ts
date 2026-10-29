@@ -16,7 +16,7 @@ export interface Employee {
   dependencia: string | null;
   sede: string | null;
   sedeId: string | null;
-  sedeRef: { id: string; nombre: string } | null;
+  sedeRef: { id: string; nombre: string; activo?: boolean } | null;
   salario: number;
   tipoContrato: string;
   fechaIngreso: string;

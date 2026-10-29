@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
@@ -79,6 +79,14 @@ describe('EmployeesService tenant isolation contracts', () => {
     );
     expect(mockEmpleadoCount).toHaveBeenCalledWith({ where: expectedWhere });
     expect(mockTenantPrismaExecute).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires a site when registering an employee', async () => {
+    await expect(
+      service.create(USER_A, { sedeId: '' } as never),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(mockTenantPrismaExecute).not.toHaveBeenCalled();
   });
 
   it('searches an individual term across employee fields', async () => {

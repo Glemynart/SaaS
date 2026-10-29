@@ -395,6 +395,7 @@ export class LoteEngineService {
           salario: true,
           tipoContrato: true,
           fechaIngreso: true,
+          sedeId: true,
         },
       }),
     );
@@ -408,6 +409,12 @@ export class LoteEngineService {
     const fechaInicio = contractSnapshot
       ? new Date(contractSnapshot.fechaInicio)
       : (lote.fechaInicioContrato ?? empleado.fechaIngreso);
+    const sedeId = contractSnapshot?.sedeId ?? empleado.sedeId;
+    if (!sedeId) {
+      throw new ConflictException(
+        'Asigna una sede activa al empleado antes de crear su contrato.',
+      );
+    }
 
     const dto: CreateContractDto = {
       employeeId: empleadoId,
@@ -420,7 +427,7 @@ export class LoteEngineService {
       fechaFin: contractSnapshot
         ? (contractSnapshot.fechaFin ?? undefined)
         : lote.fechaFinContrato?.toISOString(),
-      sedeId: contractSnapshot?.sedeId ?? lote.sedeId ?? undefined,
+      sedeId,
     };
 
     try {
@@ -439,8 +446,9 @@ export class LoteEngineService {
       return { id: created.id, empleadoId };
     } catch (error) {
       if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
+        error instanceof ConflictException ||
+        (error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002')
       ) {
         const concurrentContract = await this.prisma.contrato.findFirst({
           where: { tenantId, loteId: lote.id, empleadoId },

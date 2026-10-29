@@ -1,4 +1,8 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Test } from '@nestjs/testing';
 import {
@@ -145,6 +149,7 @@ describe('ContractsService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockContratoFindFirst.mockResolvedValue(null);
     mockGeneratedDocumentFindFirst.mockResolvedValue(null);
     mockMaterializePdf.mockResolvedValue({
       id: 'gendoc-001',
@@ -630,6 +635,49 @@ describe('ContractsService', () => {
           }),
         ),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('permite crear otro contrato del mismo empleado en un año posterior', async () => {
+      mockEmpleadoFindFirst.mockResolvedValue(makeEmployee());
+      mockContratoFindFirst.mockImplementation(({ where }) =>
+        where.anioContrato === 2026 ? { id: 'contrato-2026' } : null,
+      );
+      mockTenantFindUnique.mockResolvedValue(makeTenant());
+      mockContratoCreate.mockResolvedValue(makeContract());
+
+      await service.create(
+        TENANT_ID,
+        USER_ID,
+        makeCreateDto({
+          fechaInicio: '2027-01-01',
+          fechaFin: '2027-12-15',
+        }),
+      );
+
+      expect(mockContratoFindFirst).toHaveBeenCalledWith({
+        where: {
+          tenantId: TENANT_ID,
+          empleadoId: 'emp-001',
+          anioContrato: 2027,
+        },
+        select: { id: true },
+      });
+      expect(mockContratoCreate.mock.calls[0]?.[0].data.anioContrato).toBe(
+        2027,
+      );
+    });
+
+    it('rechaza un segundo contrato del empleado en el mismo año', async () => {
+      mockEmpleadoFindFirst.mockResolvedValue(makeEmployee());
+      mockContratoFindFirst.mockResolvedValue({ id: 'contrato-2026' });
+
+      await expect(
+        service.create(TENANT_ID, USER_ID, makeCreateDto()),
+      ).rejects.toThrow(ConflictException);
+      await expect(
+        service.create(TENANT_ID, USER_ID, makeCreateDto()),
+      ).rejects.toThrow('Ya existe un contrato para este empleado en 2026.');
+      expect(mockContratoCreate).not.toHaveBeenCalled();
     });
   });
 

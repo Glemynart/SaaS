@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { createSede } from './helpers/create-sede';
 
 test('muestra y resuelve una alerta desde la bandeja del dashboard', async ({ page }, testInfo) => {
   const suffix = `${Date.now().toString().slice(-7)}${testInfo.retry}`;
@@ -25,6 +26,8 @@ test('muestra y resuelve una alerta desde la bandeja del dashboard', async ({ pa
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 
+  const sedeName = `Sede alertas ${suffix}`;
+  await createSede(page, sedeName);
   await page.goto('/empleados');
   await page.getByRole('button', { name: 'Nuevo empleado', exact: true }).first().click();
   const dialog = page.getByRole('dialog', { name: 'Nuevo empleado' });
@@ -33,17 +36,17 @@ test('muestra y resuelve una alerta desde la bandeja del dashboard', async ({ pa
   await dialog.locator('[name="primerApellido"]').fill('Alerta');
   await dialog.locator('[name="cargo"]').fill('Docente E2E');
   await dialog.locator('[name="salario"]').fill('2500000');
+  await dialog.locator('[name="sedeId"]').selectOption({ label: sedeName });
   await dialog.getByRole('button', { name: 'Crear empleado', exact: true }).click();
   await expect(page.getByRole('row').filter({ hasText: cedula })).toContainText('Andrea Alerta');
 
   await page.goto('/dashboard');
   await page.getByRole('button', { name: 'Actualizar', exact: true }).click();
-  const resolveButton = page.getByRole('button', {
-    name: 'Resolver alerta de Andrea Alerta',
-  });
-  await expect(resolveButton).toBeVisible();
-  await resolveButton.click();
-  await expect(resolveButton).toHaveCount(0);
+  const alertRegion = page.getByRole('region', { name: 'Bandeja del día' });
+  const resolveButtons = alertRegion.getByRole('button', { name: /Resolver alerta/ });
+  await expect(resolveButtons).toHaveCount(1);
+  await resolveButtons.first().click();
+  await expect(resolveButtons).toHaveCount(0);
 
   await page.goto('/alertas');
   await page.locator('select').first().selectOption('RESOLVED');

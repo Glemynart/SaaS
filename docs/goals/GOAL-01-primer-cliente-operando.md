@@ -293,6 +293,16 @@ organización desde una misma sesión.
 - [x] E4.6 — Contratación individual completa como flujo alternativo (PR #94 fusionada y verificada por CI/Browser E2E post-merge).
 - [x] E4.7 — Prueba browser del caso exitoso, parcial y reintentado (PR #99 fusionada y verificada por CI/Browser E2E).
 
+#### Corrección funcional de E4.1 — sede por empleado y contrato anual
+
+La auditoría posterior encontró un bug en la generación por lotes: el formulario
+aplicaba una sola sede a todos los empleados y la persistencia no identificaba
+el año contractual. El empleado debe tener sede activa al registrarse o
+importarse; cada lote usa la sede de la ficha y toma el año de `fechaInicio`.
+La regla aprobada es un contrato por empleado y año, para permitir renovaciones
+en años distintos sin duplicar contratos del mismo año.
+La corrección quedó implementada y validada en la [PR #149](https://github.com/Glemynart/SaaS/pull/149).
+
 ### M5 — Expediente Digital Operativo
 
 **Resultado verificable:** el expediente sustituye la carpeta operativa básica del empleado.
@@ -390,6 +400,7 @@ necesidad comercial verificable de adquisición desde la landing.
 | #143    | E7.1  | Backup y restauración aislada de artefactos locales de uploads.           | INTEGRADO EN #130 | No; referencias DB+uploads conciliadas en round-trip sintético; falta OCI real. |
 | #144    | E2.2  | Invitaciones por tenant y activación segura de cuentas.                   | PENDIENTE         | No; recepción y aceptación del correo real siguen pendientes.                   |
 | #148    | E2.3  | Prevalidación de tokens antes del formulario de recuperación.             | PENDIENTE         | No; faltan correo real y aceptación en staging.                                 |
+| #149    | E4.1  | Bug: sede por empleado y contrato anual en lotes.                         | VALIDADA          | Corrige creación, importación y contratación por lotes; CI y Browser E2E pasan. |
 | #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS        | No; el recorrido inteligente sigue abierto.                                     |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.

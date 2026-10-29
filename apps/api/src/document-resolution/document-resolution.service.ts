@@ -22,7 +22,7 @@ type ResolvedEmployee = {
   tipoContrato: string;
   fechaIngreso: Date;
   sedeId: string | null;
-  sedeRef: { id: string; nombre: string } | null;
+  sedeRef: { id: string; nombre: string; activo: boolean } | null;
 };
 
 const toSnapshot = (value: unknown): Prisma.InputJsonValue =>
@@ -212,7 +212,7 @@ export class DocumentResolutionService {
           tipoContrato: true,
           fechaIngreso: true,
           sedeId: true,
-          sedeRef: { select: { id: true, nombre: true } },
+          sedeRef: { select: { id: true, nombre: true, activo: true } },
         },
       });
       const employeeById = new Map<string, ResolvedEmployee>(
@@ -308,6 +308,9 @@ export class DocumentResolutionService {
       fechaFinContrato: Date | null;
     },
   ) {
+    const employeeSiteSnapshot = employee?.sedeRef
+      ? { id: employee.sedeRef.id, nombre: employee.sedeRef.nombre }
+      : null;
     const empleadoSnapshot = employee
       ? {
           id: employee.id,
@@ -322,7 +325,7 @@ export class DocumentResolutionService {
           tipoContrato: employee.tipoContrato,
           fechaIngreso: employee.fechaIngreso.toISOString(),
           sedeId: employee.sedeId,
-          sede: employee.sedeRef,
+          sede: employeeSiteSnapshot,
         }
       : null;
     const contratoSnapshot = employee
@@ -334,8 +337,8 @@ export class DocumentResolutionService {
             lote.fechaInicioContrato ?? employee.fechaIngreso
           ).toISOString(),
           fechaFin: lote.fechaFinContrato?.toISOString() ?? null,
-          sedeId: lote.sedeId ?? employee.sedeId,
-          sede: lote.sede ?? employee.sedeRef,
+          sedeId: employee.sedeId,
+          sede: employeeSiteSnapshot,
         }
       : null;
     const empleadoPreview = employee
@@ -377,6 +380,12 @@ export class DocumentResolutionService {
         ...base,
         estado: 'BLOQUEADO',
         motivoBloqueo: 'EMPLEADO_INEXISTENTE_O_FUERA_DEL_TENANT',
+      };
+    if (!employee.sedeId || !employee.sedeRef?.activo)
+      return {
+        ...base,
+        estado: 'BLOQUEADO',
+        motivoBloqueo: 'EMPLEADO_SIN_SEDE_ACTIVA',
       };
     if (!relationship)
       return {

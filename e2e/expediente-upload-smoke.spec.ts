@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { createSede } from './helpers/create-sede';
 
 test('sube un documento manual al expediente de un empleado desde la UI', async ({ page }) => {
   const suffix = Date.now().toString().slice(-8);
@@ -25,6 +26,8 @@ test('sube un documento manual al expediente de un empleado desde la UI', async 
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 
+  const sedeName = `Sede expedientes ${suffix}`;
+  await createSede(page, sedeName);
   await page.goto('/empleados');
   await page.getByRole('button', { name: 'Nuevo empleado', exact: true }).first().click();
   const employeeDialog = page.getByRole('dialog', { name: 'Nuevo empleado' });
@@ -33,6 +36,7 @@ test('sube un documento manual al expediente de un empleado desde la UI', async 
   await employeeDialog.locator('[name="primerApellido"]').fill('Expediente');
   await employeeDialog.locator('[name="cargo"]').fill('Docente E2E');
   await employeeDialog.locator('[name="salario"]').fill('2500000');
+  await employeeDialog.locator('[name="sedeId"]').selectOption({ label: sedeName });
   await employeeDialog.getByRole('button', { name: 'Crear empleado', exact: true }).click();
 
   const employeeRow = page.getByRole('row').filter({ hasText: cedula });

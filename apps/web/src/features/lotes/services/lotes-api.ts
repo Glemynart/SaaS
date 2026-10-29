@@ -76,9 +76,8 @@ export interface CreateLotePayload {
   templateId?: string;
   proposito?: 'CONTRATACION';
   empleadoIds: string[];
-  sedeId?: string;
   tipoContrato?: string;
-  fechaInicio?: string;
+  fechaInicio: string;
   fechaFin?: string;
 }
 

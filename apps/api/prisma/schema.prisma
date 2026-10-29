@@ -1444,6 +1444,9 @@ model Contrato {
   tipo        ContratoTipo
   estado      ContratoEstado @default(VIGENTE)
   fechaInicio DateTime
+  // Año contractual derivado de fechaInicio. Es nullable solo para conservar
+  // contratos históricos duplicados que existieran antes de la regla anual.
+  anioContrato Int?
   fechaFin    DateTime? // Null para contratos indefinidos
   cargo       String // Snapshot del cargo al momento del contrato
   salario     Decimal        @db.Decimal(12, 2) // Snapshot del salario
@@ -1475,6 +1478,7 @@ model Contrato {
   @@index([tenantId, sedeId])
   @@index([tenantId, perfilContractualId])
   @@unique([loteId, empleadoId])
+  @@unique([tenantId, empleadoId, anioContrato], map: "contratos_tenantId_empleadoId_anioContrato_key")
   @@map("contratos")
 }
 

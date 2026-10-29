@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { DocumentTemplate, GeneratedDocument, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -214,15 +215,23 @@ export class ContractsService {
       }
     }
 
-    const effectiveContract = historicalContract ?? {
-      cargo: dto.cargo,
-      salario: String(dto.salario),
-      tipo: dto.tipo,
-      fechaInicio: dto.fechaInicio,
-      fechaFin: dto.fechaFin ?? null,
-      sedeId: dto.sedeId ?? null,
-      sede: null,
-    };
+    const effectiveContract = historicalContract
+      ? {
+          ...historicalContract,
+          // Older confirmed plans may predate per-employee site assignment.
+          // Keep a confirmed site when present; otherwise use the employee's
+          // current assigned site supplied by the batch engine.
+          sedeId: historicalContract.sedeId ?? dto.sedeId ?? null,
+        }
+      : {
+          cargo: dto.cargo,
+          salario: String(dto.salario),
+          tipo: dto.tipo,
+          fechaInicio: dto.fechaInicio,
+          fechaFin: dto.fechaFin ?? null,
+          sedeId: dto.sedeId ?? null,
+          sede: null,
+        };
     const salario = Number(effectiveContract.salario);
     if (!Number.isFinite(salario) || salario < 0) {
       throw new BadRequestException('El salario del contrato no es válido.');
@@ -247,6 +256,23 @@ export class ContractsService {
     if (fechaFin && fechaFin <= fechaInicio) {
       throw new BadRequestException(
         'La fecha de fin debe ser posterior a la fecha de inicio.',
+      );
+    }
+
+    const anioContrato = fechaInicio.getUTCFullYear();
+    const existingContractForYear = await this.tenantPrisma.execute((prisma) =>
+      prisma.contrato.findFirst({
+        where: {
+          tenantId,
+          empleadoId: dto.employeeId,
+          anioContrato,
+        },
+        select: { id: true },
+      }),
+    );
+    if (existingContractForYear) {
+      throw new ConflictException(
+        `Ya existe un contrato para este empleado en ${anioContrato}.`,
       );
     }
 
@@ -313,6 +339,7 @@ export class ContractsService {
       salario,
       tipo: effectiveContract.tipo as CreateContractDto['tipo'],
       fechaInicio,
+      anioContrato,
       fechaFin,
       sedeId: effectiveContract.sedeId,
       loteId: loteId ?? null,
@@ -321,7 +348,44 @@ export class ContractsService {
       variablesSnapshot: snapshot as unknown as Prisma.JsonValue,
     } as Prisma.ContratoUncheckedCreateInput;
 
-    const contract = await this.tenantPrisma.execute((prisma) =>
+    const contract = await this.createContractRecord(data).catch(
+      (error: unknown) => {
+        const target =
+          error instanceof Prisma.PrismaClientKnownRequestError
+            ? error.meta?.target
+            : null;
+        const annualUniqueViolation =
+          (Array.isArray(target) && target.includes('anioContrato')) ||
+          (typeof target === 'string' && target.includes('anioContrato'));
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002' &&
+          annualUniqueViolation
+        ) {
+          throw new ConflictException(
+            `Ya existe un contrato para este empleado en ${anioContrato}.`,
+          );
+        }
+        throw error;
+      },
+    );
+
+    this.auditService
+      .log({
+        tenantId,
+        userId,
+        action: 'CONTRACT_CREATE',
+        entityType: 'Contrato',
+        entityId: contract.id,
+        metadata: { cargo: contract.cargo, tipo: contract.tipo },
+      })
+      .catch(() => {});
+
+    return contract;
+  }
+
+  private createContractRecord(data: Prisma.ContratoUncheckedCreateInput) {
+    return this.tenantPrisma.execute((prisma) =>
       prisma.contrato.create({
         data,
         include: {
@@ -337,19 +401,6 @@ export class ContractsService {
         },
       }),
     );
-
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'CONTRACT_CREATE',
-        entityType: 'Contrato',
-        entityId: contract.id,
-        metadata: { cargo: contract.cargo, tipo: contract.tipo },
-      })
-      .catch(() => {});
-
-    return contract;
   }
 
   async updateStatus(

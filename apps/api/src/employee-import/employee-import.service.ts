@@ -148,7 +148,7 @@ const TEMPLATE_HINTS = [
   'Requerido. TERMINO_FIJO | TERMINO_INDEFINIDO | OBRA_LABOR | APRENDIZAJE | PRESTACION_SERVICIOS',
   'Requerido. Formato YYYY-MM-DD. Ej: 2025-01-15',
   'Opcional. ACTIVO | INACTIVO | SUSPENDIDO | RETIRADO. Por defecto: ACTIVO',
-  'Opcional. Nombre exacto de la sede (ej: Sede Principal).',
+  'Requerido. Nombre exacto de una sede activa (ej: Sede Principal).',
   'Opcional. Área o departamento.',
   'Opcional. TRUE o FALSE. Por defecto: FALSE',
   'Opcional. COMPLETA | MEDIA | POR_HORAS',
@@ -184,7 +184,7 @@ export class EmployeeImportService {
         'TERMINO_FIJO',
         '2025-01-15',
         'ACTIVO',
-        '',
+        'Sede Principal',
         '',
         'FALSE',
         'COMPLETA',
@@ -297,7 +297,7 @@ export class EmployeeImportService {
       tipoContrato: ContratoTipo;
       fechaIngreso: Date;
       estado?: ValidEstado;
-      sedeId?: string;
+      sedeId: string;
       dependencia?: string;
       salarioIntegral?: boolean;
       jornadaLaboral?: ValidJornada;
@@ -449,10 +449,16 @@ export class EmployeeImportService {
         });
       }
 
-      // sede (optional, resolve by name)
+      // Every imported employee needs an active site belonging to the tenant.
       const sedeName = str(row.sede);
       let resolvedSedeId: string | undefined;
-      if (sedeName) {
+      if (!sedeName) {
+        errors.push({
+          fila,
+          campo: 'sede',
+          mensaje: 'La sede del empleado es requerida.',
+        });
+      } else {
         resolvedSedeId = sedeMap.get(sedeName.toLowerCase());
         if (!resolvedSedeId) {
           errors.push({
@@ -519,6 +525,7 @@ export class EmployeeImportService {
         tipoContrato &&
         VALID_TIPO_CONTRATO.includes(tipoContrato) &&
         fechaIngresoParsed &&
+        resolvedSedeId &&
         !errors.find((e) => e.fila === fila)
       ) {
         validatedRows.push({

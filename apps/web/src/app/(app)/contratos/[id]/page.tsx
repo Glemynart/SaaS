@@ -36,6 +36,7 @@ const VALID_TRANSITIONS: Record<string, { label: string; estado: string }[]> = {
 
 function formatDate(d: string): string {
   return new Date(d).toLocaleDateString('es-CO', {
+    timeZone: 'UTC',
     year: 'numeric',
     month: 'long',
     day: 'numeric',

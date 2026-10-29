@@ -265,6 +265,10 @@ export default function EmpleadosPage() {
               <Download className="size-4" aria-hidden="true" />
               Descargar plantilla Excel
             </Button>
+            <p className="text-xs text-muted-foreground">
+              Asigna una sede activa a cada empleado en la columna sede; el nombre debe coincidir
+              con una sede de tu organización.
+            </p>
 
             <div className="rounded-(--radius-card) border border-dashed border-border bg-canvas p-6 text-center">
               <input

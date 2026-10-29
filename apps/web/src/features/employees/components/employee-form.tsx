@@ -156,11 +156,12 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
         </FormField>
         <FormField
           label="Sede"
+          required
           error={errors.sedeId?.message}
-          hint="Puedes asignarla o cambiarla más adelante."
+          hint="La sede se asigna a este empleado y se usará al crear contratos por lote."
         >
-          <Select {...register('sedeId')}>
-            <option value="">Sin sede asignada</option>
+          <Select required {...register('sedeId')}>
+            <option value="">Seleccionar sede...</option>
             {(sedes ?? []).map((sede) => (
               <option key={sede.id} value={sede.id}>
                 {sede.nombre}

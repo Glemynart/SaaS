@@ -131,36 +131,40 @@ describe('EmployeeImportService', () => {
     );
   });
 
-  it('rejects invalid rows before issuing any employee write', async () => {
+  it('rejects a row without an assigned site before issuing any employee write', async () => {
+    const missingSite = workbookBuffer([
+      [
+        '1002',
+        'CC',
+        'Ana',
+        '',
+        'Gómez',
+        '',
+        '',
+        '',
+        'Docente',
+        2500000,
+        'TERMINO_FIJO',
+        '2025-01-15',
+        'ACTIVO',
+        '',
+        '',
+        'FALSE',
+        '',
+        '',
+        '',
+      ],
+    ]);
+
     await expect(
-      service.importFromBuffer(
-        TENANT_ID,
-        USER_ID,
-        workbookBuffer([
-          [
-            '1002',
-            'CC',
-            '',
-            '',
-            'Gómez',
-            '',
-            '',
-            '',
-            'Docente',
-            2500000,
-            'TERMINO_FIJO',
-            '2025-01-15',
-            'ACTIVO',
-            '',
-            '',
-            'FALSE',
-            '',
-            '',
-            '',
-          ],
+      service.importFromBuffer(TENANT_ID, USER_ID, missingSite),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        errors: expect.arrayContaining([
+          expect.objectContaining({ campo: 'sede', fila: 2 }),
         ]),
-      ),
-    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      }),
+    });
 
     expect(mockEmpleadoCreate).not.toHaveBeenCalled();
     expect(mockAuditLog).not.toHaveBeenCalled();

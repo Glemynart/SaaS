@@ -33,6 +33,7 @@ const TIPO_LABELS: Record<string, string> = {
 
 const RESOLUTION_REASON_LABELS: Record<string, string> = {
   EMPLEADO_INEXISTENTE_O_FUERA_DEL_TENANT: 'Empleado inexistente o fuera de la empresa',
+  EMPLEADO_SIN_SEDE_ACTIVA: 'El empleado no tiene una sede activa asignada',
   VINCULO_INEXISTENTE_O_FUERA_DE_VIGENCIA: 'No existe un vínculo laboral vigente',
   PERFIL_INACTIVO: 'El perfil contractual está inactivo',
   CONFIGURACION_O_PLANTILLA_NO_VIGENTE: 'No existe una configuración o plantilla vigente',
@@ -57,6 +58,7 @@ function reasonLabel(reason: string | null): string {
 
 function formatDate(d: string): string {
   return new Date(d).toLocaleDateString('es-CO', {
+    timeZone: 'UTC',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -208,8 +210,8 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
             </p>
           </div>
           <div>
-            <span className="text-xs text-muted-foreground">Sede</span>
-            <p className="text-sm">{lote.sede?.nombre ?? '—'}</p>
+            <span className="text-xs text-muted-foreground">Sede de los contratos</span>
+            <p className="text-sm">La sede asignada a cada empleado</p>
           </div>
           <div>
             <span className="text-xs text-muted-foreground">Creado por</span>
