@@ -5,6 +5,8 @@ export const alertKeys = {
   all: ['alerts'] as const,
   lists: () => [...alertKeys.all, 'list'] as const,
   list: (filters: Record<string, unknown>) => [...alertKeys.lists(), filters] as const,
+  generationRuns: () => [...alertKeys.all, 'generation-runs'] as const,
+  latestGenerationRun: () => [...alertKeys.generationRuns(), 'latest'] as const,
 };
 
 export function useAlerts(params?: {
@@ -44,6 +46,24 @@ export function useGenerateMissingDocAlerts() {
   return useMutation({
     mutationFn: () => alertsApi.generateMissingDocAlerts(),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: alertKeys.lists() });
+    },
+  });
+}
+
+export function useLatestAlertGenerationRun() {
+  return useQuery({
+    queryKey: alertKeys.latestGenerationRun(),
+    queryFn: alertsApi.getLatestGenerationRun,
+  });
+}
+
+export function useRetryAlertGenerationRun() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (runId: string) => alertsApi.retryGenerationRun(runId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: alertKeys.generationRuns() });
       queryClient.invalidateQueries({ queryKey: alertKeys.lists() });
     },
   });

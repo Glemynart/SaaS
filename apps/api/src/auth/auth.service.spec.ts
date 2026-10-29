@@ -1,6 +1,6 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { UserRole } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantsService } from '../tenants/tenants.service';
@@ -252,11 +252,18 @@ describe('AuthService authentication security contracts', () => {
       id: 'tenant-1',
       activo: true,
     });
-    prisma.refreshToken.update.mockImplementation(
-      (args: { where: { id: string }; data: { revokedAt: Date } }) => {
+    prisma.$transaction.mockImplementation(
+      (work: (tx: Prisma.TransactionClient) => Promise<unknown>) =>
+        work(prisma as unknown as Prisma.TransactionClient),
+    );
+    prisma.refreshToken.updateMany.mockImplementation(
+      (args: {
+        where: { id: string; revokedAt: null };
+        data: { revokedAt: Date };
+      }) => {
         rotatedTokenId = args.where.id;
         rotatedAt = args.data.revokedAt;
-        return Promise.resolve({});
+        return Promise.resolve({ count: 1 });
       },
     );
     prisma.refreshToken.create.mockImplementation(
@@ -269,6 +276,7 @@ describe('AuthService authentication security contracts', () => {
     const token = Buffer.from(`refresh-1:${currentSecret}`).toString('base64');
     const result = await service.refresh(token, 'test-agent', '127.0.0.1');
 
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(rotatedTokenId).toBe('refresh-1');
     expect(rotatedAt).toBeInstanceOf(Date);
     expect(persistedToken).toBeDefined();
@@ -286,6 +294,92 @@ describe('AuthService authentication security contracts', () => {
     await expect(
       bcrypt.compare(newSecret, persistedToken.tokenHash),
     ).resolves.toBe(true);
+  });
+
+  it('allows only one concurrent refresh to claim a token and revokes its family on reuse', async () => {
+    const currentSecret = 'concurrent-refresh-secret';
+    const currentHash = await bcrypt.hash(
+      currentSecret,
+      APPROVED_BCRYPT_ROUNDS,
+    );
+    prisma.refreshToken.findUnique.mockResolvedValue({
+      id: 'refresh-race',
+      userId: 'user-1',
+      tokenHash: currentHash,
+      revokedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      user: {
+        id: 'user-1',
+        tenantId: 'tenant-1',
+        rol: UserRole.ADMIN,
+        email: 'admin@example.com',
+        activo: true,
+      },
+    });
+    prisma.tenant.findUnique.mockResolvedValue({
+      id: 'tenant-1',
+      activo: true,
+    });
+    let tokenClaimed = false;
+    let queuedTransaction = Promise.resolve();
+    const updateManyCalls: Array<{
+      where: { id?: string; userId?: string };
+      data: { revokedAt: Date };
+    }> = [];
+    prisma.$transaction.mockImplementation(
+      (work: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
+        const currentTransaction = queuedTransaction.then(() =>
+          work(prisma as unknown as Prisma.TransactionClient),
+        );
+        queuedTransaction = currentTransaction.then(
+          () => undefined,
+          () => undefined,
+        );
+        return currentTransaction;
+      },
+    );
+    prisma.refreshToken.updateMany.mockImplementation(
+      (args: (typeof updateManyCalls)[number]) => {
+        updateManyCalls.push(args);
+        if (args.where.id) {
+          if (tokenClaimed) return Promise.resolve({ count: 0 });
+          tokenClaimed = true;
+          return Promise.resolve({ count: 1 });
+        }
+        return Promise.resolve({ count: 1 });
+      },
+    );
+    prisma.refreshToken.create.mockResolvedValue({ id: 'refresh-successor' });
+
+    const token = Buffer.from(`refresh-race:${currentSecret}`).toString(
+      'base64',
+    );
+
+    const results = await Promise.allSettled([
+      service.refresh(token),
+      service.refresh(token),
+    ]);
+
+    expect(
+      results.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
+    expect(
+      results.filter((result) => result.status === 'rejected'),
+    ).toHaveLength(1);
+    expect(updateManyCalls).toHaveLength(3);
+    expect(updateManyCalls[0]?.where).toEqual({
+      id: 'refresh-race',
+      revokedAt: null,
+    });
+    expect(updateManyCalls[1]?.where).toEqual({
+      id: 'refresh-race',
+      revokedAt: null,
+    });
+    expect(updateManyCalls[2]?.where).toEqual({ userId: 'user-1' });
+    expect(
+      updateManyCalls.every(({ data }) => data.revokedAt instanceof Date),
+    ).toBe(true);
+    expect(prisma.refreshToken.create).toHaveBeenCalledTimes(1);
   });
 });
 

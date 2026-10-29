@@ -78,7 +78,7 @@ export function BandejaRow({ item, entering, leaving, resolving, onResolve }: Ba
         >
           <div className="flex min-w-0 flex-1 items-start gap-3">
             <span
-              className="grid size-8 shrink-0 place-items-center rounded-[--radius-control] border border-border bg-surface"
+              className="grid size-8 shrink-0 place-items-center rounded-(--radius-control) border border-border bg-surface"
               aria-hidden="true"
             >
               <Icon className="size-4 text-muted-foreground" />

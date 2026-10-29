@@ -1,10 +1,18 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Resend } from 'resend';
+import { createTransport, type Transporter } from 'nodemailer';
 import { AuditService } from '../audit/audit.service';
 import { passwordResetTemplate } from './templates/password-reset.template';
+import { userInvitationTemplate } from './templates/user-invitation.template';
 
-export type EmailType = 'password-reset';
+export type EmailType = 'password-reset' | 'user-invitation';
+export type EmailDeliveryStatus = 'sent' | 'degraded' | 'failed';
+
+const SMTP_SEND_FAILURE_CATEGORY = 'SMTP_SEND_FAILED';
+
+export interface EmailReadiness {
+  status: 'up' | 'degraded';
+}
 
 export interface PasswordResetPayload {
   userName: string;
@@ -12,8 +20,18 @@ export interface PasswordResetPayload {
   expiresInHours: number;
 }
 
+export interface UserInvitationPayload {
+  userName: string;
+  tenantName: string;
+  tenantNit: string;
+  roleName: string;
+  invitationUrl: string;
+  expiresInDays: number;
+}
+
 type EmailPayloadMap = {
   'password-reset': PasswordResetPayload;
+  'user-invitation': UserInvitationPayload;
 };
 
 interface SendParams<T extends EmailType> {
@@ -29,7 +47,7 @@ interface SendParams<T extends EmailType> {
 @Injectable()
 export class EmailService implements OnModuleInit {
   private readonly logger = new Logger(EmailService.name);
-  private resend: Resend | null = null;
+  private transporter: Transporter | null = null;
   private from: string = 'noreply@laoficinafina.com';
   private fromName: string = 'La Oficina Nítida';
   private degraded = false;
@@ -40,60 +58,74 @@ export class EmailService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    const apiKey = this.config.get<string>('email.apiKey');
     const from = this.config.get<string>('email.from');
     const fromName = this.config.get<string>('email.fromName');
+    const smtpHost = this.config.get<string>('email.smtp.host');
+    const smtpPort = this.config.get<number>('email.smtp.port');
+    const smtpUser = this.config.get<string>('email.smtp.user');
+    const smtpPassword = this.config.get<string>('email.smtp.password');
+    const smtpSecure = this.config.get<boolean>('email.smtp.secure');
+    const smtpRequireTls = this.config.get<boolean>('email.smtp.requireTls');
 
     if (fromName) this.fromName = fromName;
     if (from) this.from = from;
 
-    if (!apiKey) {
+    if (
+      !from ||
+      !smtpHost ||
+      !smtpPort ||
+      !smtpUser ||
+      !smtpPassword ||
+      smtpSecure === undefined ||
+      smtpRequireTls === undefined
+    ) {
       this.logger.error(
-        'RESEND_API_KEY no está definida. EmailService operará en modo degradado (console.log). Configura la variable de entorno para enviar correos reales.',
+        'Configuración SMTP incompleta. EmailService operará en modo degradado. Configura las variables SMTP y EMAIL_FROM para enviar correos reales.',
       );
       this.degraded = true;
       return;
     }
 
-    if (!from) {
-      this.logger.error(
-        'EMAIL_FROM no está definida. EmailService operará en modo degradado. Configura la variable de entorno para enviar correos reales.',
-      );
-      this.degraded = true;
-      return;
-    }
-
-    this.resend = new Resend(apiKey);
+    this.transporter = createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      requireTLS: smtpRequireTls,
+      auth: {
+        user: smtpUser,
+        pass: smtpPassword,
+      },
+    });
     this.logger.log(`EmailService listo — from: ${this.from}`);
   }
 
-  async send<T extends EmailType>(params: SendParams<T>): Promise<void> {
+  async send<T extends EmailType>(
+    params: SendParams<T>,
+  ): Promise<EmailDeliveryStatus> {
     const { type, to, payload, auditContext } = params;
 
     const subject = this.resolveSubject(type);
     const html = this.buildHtml(type, payload);
 
-    if (this.degraded || !this.resend) {
+    if (this.degraded || !this.transporter) {
       this.logger.log(
-        `[EMAIL DEGRADADO] type=${type} to=${to} subject="${subject}"`,
+        `[EMAIL DEGRADADO] type=${type} to=${this.obfuscate(to)} subject="${subject}"`,
       );
-      if (type === 'password-reset') {
-        const p = payload;
-        this.logger.log(`[EMAIL DEGRADADO] resetUrl=${p.resetUrl}`);
-      }
-      return;
+      return 'degraded';
     }
 
     try {
-      await this.resend.emails.send({
+      await this.transporter.sendMail({
         from: `${this.fromName} <${this.from}>`,
         to,
         subject,
         html,
       });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`EMAIL_FAILED type=${type} to=${to} error=${message}`);
+      return 'sent';
+    } catch {
+      this.logger.error(
+        `EMAIL_FAILED type=${type} to=${this.obfuscate(to)} category=${SMTP_SEND_FAILURE_CATEGORY}`,
+      );
 
       await this.audit
         .log({
@@ -104,16 +136,24 @@ export class EmailService implements OnModuleInit {
           metadata: {
             type,
             to: this.obfuscate(to),
-            error: message,
+            category: SMTP_SEND_FAILURE_CATEGORY,
           },
         })
         .catch(() => {});
+      return 'failed';
     }
+  }
+
+  getReadiness(): EmailReadiness {
+    return {
+      status: this.transporter && !this.degraded ? 'up' : 'degraded',
+    };
   }
 
   private resolveSubject(type: EmailType): string {
     const subjects: Record<EmailType, string> = {
       'password-reset': 'Restablece tu contraseña',
+      'user-invitation': 'Invitación a La Oficina Nítida',
     };
     return subjects[type];
   }
@@ -123,11 +163,23 @@ export class EmailService implements OnModuleInit {
     payload: EmailPayloadMap[EmailType],
   ): string {
     if (type === 'password-reset') {
-      const p = payload;
+      const p = payload as PasswordResetPayload;
       return passwordResetTemplate({
         userName: p.userName,
         resetUrl: p.resetUrl,
         expiresInHours: p.expiresInHours,
+        fromName: this.fromName,
+      });
+    }
+    if (type === 'user-invitation') {
+      const p = payload as UserInvitationPayload;
+      return userInvitationTemplate({
+        userName: p.userName,
+        tenantName: p.tenantName,
+        tenantNit: p.tenantNit,
+        roleName: p.roleName,
+        invitationUrl: p.invitationUrl,
+        expiresInDays: p.expiresInDays,
         fromName: this.fromName,
       });
     }

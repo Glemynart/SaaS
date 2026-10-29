@@ -1,8 +1,14 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   BatchDocumentGenerationPlanStatus,
   Contrato,
   LoteContrato,
+  LoteProposito,
   Prisma,
 } from '@prisma/client';
 import { BatchDocumentGenerationService } from '../batch-document-generation/batch-document-generation.service';
@@ -12,6 +18,10 @@ import { ContractsService } from '../contracts/contracts.service';
 import { GeneratedDocumentsService } from '../generated-documents/generated-documents.service';
 import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
 import { CreateContractDto } from '../contracts/dto/create-contract.dto';
+import {
+  ContractPlanSnapshot,
+  parseContractPlanSnapshot,
+} from '../contracts/contract-plan-snapshot';
 
 /**
  * Entrada del erroresLog del lote. Una por empleado fallido.
@@ -20,6 +30,18 @@ interface LoteErrorEntry {
   empleadoId: string;
   cedula: string | null;
   error: string;
+}
+
+interface ConfirmedContractPlan {
+  empleadoId: string;
+  perfilContractualId: string;
+  empleadoSnapshot: Prisma.JsonValue | null;
+  contratoSnapshot: Prisma.JsonValue | null;
+}
+
+interface ProcessLoteOptions {
+  retry?: boolean;
+  employeeIds?: readonly string[];
 }
 
 /**
@@ -57,7 +79,7 @@ export class LoteEngineService {
    * Procesa (reconcilia) un lote completo. Idempotente: re-ejecutar sobre un
    * lote ya procesado delega en la idempotencia de cada etapa documental.
    */
-  async procesarLote(loteId: string) {
+  async procesarLote(loteId: string, options: ProcessLoteOptions = {}) {
     const lote = await this.prisma.loteContrato.findUnique({
       where: { id: loteId },
     });
@@ -72,17 +94,41 @@ export class LoteEngineService {
       return lote;
     }
 
-    const empleadoIds = await this.resolveTargets(lote);
+    const {
+      empleadoIds: allEmployeeIds,
+      hasDocumentGenerationPlans,
+      plansByEmployee,
+    } = await this.resolveProcessingTargets(lote);
+    const isRetry = options.retry === true;
+    const requestedRetryIds = options.employeeIds
+      ? new Set(options.employeeIds)
+      : null;
+    const empleadoIds = requestedRetryIds
+      ? allEmployeeIds.filter((id) => requestedRetryIds.has(id))
+      : allEmployeeIds;
+
+    if (isRetry && requestedRetryIds && empleadoIds.length === 0) {
+      throw new ConflictException(
+        'El lote no tiene empleados pendientes o recuperables para reintentar.',
+      );
+    }
+
+    const previousErrors = this.parseErrorLog(lote.erroresLog);
+    const retryEmployeeIds = requestedRetryIds ? new Set(empleadoIds) : null;
     const acquired = await this.prisma.loteContrato.updateMany({
       where: { id: loteId, estado: lote.estado },
       data: {
         estado: 'EN_PROCESO',
-        total: empleadoIds.length,
+        total: isRetry ? lote.total : empleadoIds.length,
         iniciadoAt: new Date(),
         completadoAt: null,
-        procesados: 0,
-        fallidos: 0,
-        erroresLog: [],
+        ...(isRetry
+          ? {}
+          : {
+              procesados: 0,
+              fallidos: 0,
+              erroresLog: [],
+            }),
       },
     });
 
@@ -94,20 +140,6 @@ export class LoteEngineService {
     }
 
     const userId = lote.creadoPorId ?? 'system';
-    const hasDocumentGenerationPlans =
-      (await this.prisma.batchDocumentGenerationPlan.count({
-        where: {
-          tenantId: lote.tenantId,
-          loteId,
-          estado: {
-            in: [
-              BatchDocumentGenerationPlanStatus.CONFIRMADO,
-              BatchDocumentGenerationPlanStatus.CONSUMIDO,
-            ],
-          },
-        },
-      })) > 0;
-
     const errores: LoteErrorEntry[] = [];
 
     for (const empleadoId of empleadoIds) {
@@ -117,21 +149,25 @@ export class LoteEngineService {
           userId,
           lote,
           empleadoId,
+          plansByEmployee.get(empleadoId),
         );
-        if (!hasDocumentGenerationPlans) {
+        const documentTemplateId = lote.documentTemplateId;
+        if (!hasDocumentGenerationPlans && documentTemplateId) {
           await this.ensureDocumento(
             lote.tenantId,
             userId,
             contrato,
-            lote.documentTemplateId,
+            documentTemplateId,
           );
         }
 
         // Incremento atómico → progreso visible en tiempo real para polling.
-        await this.prisma.loteContrato.update({
-          where: { id: loteId },
-          data: { procesados: { increment: 1 } },
-        });
+        if (!isRetry) {
+          await this.prisma.loteContrato.update({
+            where: { id: loteId },
+            data: { procesados: { increment: 1 } },
+          });
+        }
       } catch (error) {
         const mensaje =
           error instanceof Error ? error.message : 'Error desconocido';
@@ -143,44 +179,89 @@ export class LoteEngineService {
           cedula: await this.safeCedula(lote.tenantId, empleadoId),
           error: mensaje,
         });
-        await this.prisma.loteContrato.update({
-          where: { id: loteId },
-          data: { fallidos: { increment: 1 } },
-        });
+        if (!isRetry) {
+          await this.prisma.loteContrato.update({
+            where: { id: loteId },
+            data: { fallidos: { increment: 1 } },
+          });
+        }
       }
     }
 
     if (hasDocumentGenerationPlans && errores.length === 0) {
       try {
-        await this.batchDocumentGenerationService.start(loteId);
+        if (isRetry && retryEmployeeIds) {
+          await this.batchDocumentGenerationService.start(
+            loteId,
+            userId,
+            empleadoIds,
+          );
+        } else {
+          await this.batchDocumentGenerationService.start(loteId, userId);
+        }
       } catch (error) {
         const mensaje =
           error instanceof Error ? error.message : 'Error desconocido';
         this.logger.warn(
           `Lote ${loteId}: la generación documental falló — ${mensaje}`,
         );
+        const retainedBatchErrors = isRetry
+          ? retryEmployeeIds
+            ? previousErrors.filter(
+                (entry) =>
+                  entry.empleadoId !== 'BATCH_DOCUMENT_GENERATION' &&
+                  !retryEmployeeIds.has(entry.empleadoId),
+              )
+            : []
+          : [];
+        const batchTotal = isRetry ? lote.total : empleadoIds.length;
+        const batchFailed =
+          isRetry && retryEmployeeIds
+            ? Math.min(
+                batchTotal,
+                retainedBatchErrors.length + empleadoIds.length,
+              )
+            : batchTotal;
+        const batchProcessed = Math.max(batchTotal - batchFailed, 0);
+
         return this.prisma.loteContrato.update({
           where: { id: loteId },
           data: {
-            estado: 'FALLIDO',
+            estado: batchProcessed > 0 ? 'COMPLETADO_CON_ERRORES' : 'FALLIDO',
             completadoAt: new Date(),
-            procesados: 0,
-            fallidos: empleadoIds.length,
+            procesados: batchProcessed,
+            fallidos: batchFailed,
             erroresLog: [
+              ...retainedBatchErrors,
               {
                 empleadoId: 'BATCH_DOCUMENT_GENERATION',
                 cedula: null,
                 error: mensaje,
               },
-            ],
+            ] as unknown as Prisma.InputJsonValue,
           },
         });
       }
     }
 
-    const procesados = empleadoIds.length - errores.length;
+    const retainedErrors = isRetry
+      ? retryEmployeeIds
+        ? previousErrors.filter(
+            (entry) =>
+              entry.empleadoId !== 'BATCH_DOCUMENT_GENERATION' &&
+              !retryEmployeeIds.has(entry.empleadoId),
+          )
+        : []
+      : [];
+    const finalErrors = [...retainedErrors, ...errores];
+    const hasBatchFailure = finalErrors.some(
+      (entry) => entry.empleadoId === 'BATCH_DOCUMENT_GENERATION',
+    );
+    const total = isRetry ? lote.total : empleadoIds.length;
+    const fallidos = hasBatchFailure ? total : finalErrors.length;
+    const procesados = hasBatchFailure ? 0 : Math.max(total - fallidos, 0);
     const estado =
-      errores.length === 0
+      fallidos === 0
         ? 'COMPLETADO'
         : procesados > 0
           ? 'COMPLETADO_CON_ERRORES'
@@ -190,10 +271,96 @@ export class LoteEngineService {
       where: { id: loteId },
       data: {
         estado,
+        procesados,
+        fallidos,
         completadoAt: new Date(),
-        erroresLog: errores as unknown as Prisma.InputJsonValue,
+        erroresLog: finalErrors as unknown as Prisma.InputJsonValue,
       },
     });
+  }
+
+  private parseErrorLog(value: Prisma.JsonValue | null): LoteErrorEntry[] {
+    if (!Array.isArray(value)) return [];
+
+    return value.flatMap((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        return [];
+      }
+      const candidate = entry as Record<string, unknown>;
+      if (
+        typeof candidate.empleadoId !== 'string' ||
+        typeof candidate.error !== 'string'
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          empleadoId: candidate.empleadoId,
+          cedula:
+            typeof candidate.cedula === 'string' ? candidate.cedula : null,
+          error: candidate.error,
+        },
+      ];
+    });
+  }
+
+  /**
+   * Determina los objetivos efectivos del procesamiento.
+   *
+   * Los lotes manuales conservan el snapshot de empleados del lote. Una
+   * campaña inteligente, en cambio, sólo puede avanzar sobre los planes que
+   * la resolución confirmó: las filas de exclusión no son objetivos de
+   * contrato ni de documento.
+   */
+  private async resolveProcessingTargets(lote: LoteContrato): Promise<{
+    empleadoIds: string[];
+    hasDocumentGenerationPlans: boolean;
+    plansByEmployee: Map<string, ConfirmedContractPlan>;
+  }> {
+    const plans = await this.prisma.batchDocumentGenerationPlan.findMany({
+      where: {
+        tenantId: lote.tenantId,
+        loteId: lote.id,
+        estado: {
+          in: [
+            BatchDocumentGenerationPlanStatus.CONFIRMADO,
+            BatchDocumentGenerationPlanStatus.CONSUMIDO,
+          ],
+        },
+      },
+      select: {
+        empleadoId: true,
+        perfilContractualId: true,
+        empleadoSnapshot: true,
+        contratoSnapshot: true,
+      },
+    });
+
+    if (!lote.documentTemplateId) {
+      if (lote.proposito !== LoteProposito.CONTRATACION) {
+        throw new ConflictException(
+          'Las campañas inteligentes requieren confirmación antes de procesarse.',
+        );
+      }
+      if (plans.length === 0) {
+        throw new ConflictException(
+          'La campaña inteligente no tiene planes confirmados para procesar.',
+        );
+      }
+
+      return {
+        empleadoIds: Array.from(new Set(plans.map((plan) => plan.empleadoId))),
+        hasDocumentGenerationPlans: true,
+        plansByEmployee: new Map(plans.map((plan) => [plan.empleadoId, plan])),
+      };
+    }
+
+    return {
+      empleadoIds: await this.resolveTargets(lote),
+      hasDocumentGenerationPlans: plans.length > 0,
+      plansByEmployee: new Map(),
+    };
   }
 
   /**
@@ -206,6 +373,7 @@ export class LoteEngineService {
     userId: string,
     lote: LoteContrato,
     empleadoId: string,
+    plan?: ConfirmedContractPlan,
   ): Promise<Pick<Contrato, 'id' | 'empleadoId'>> {
     const existing = await this.prisma.contrato.findFirst({
       where: { tenantId, loteId: lote.id, empleadoId },
@@ -214,6 +382,10 @@ export class LoteEngineService {
     if (existing) {
       return existing;
     }
+
+    const historicalSnapshot: ContractPlanSnapshot | undefined = plan
+      ? parseContractPlanSnapshot(plan.empleadoSnapshot, plan.contratoSnapshot)
+      : undefined;
 
     const empleado = await this.tenantPrisma.execute((prisma) =>
       prisma.empleado.findFirst({
@@ -232,17 +404,23 @@ export class LoteEngineService {
       );
     }
 
-    const fechaInicio = lote.fechaInicioContrato ?? empleado.fechaIngreso;
+    const contractSnapshot = historicalSnapshot?.contrato;
+    const fechaInicio = contractSnapshot
+      ? new Date(contractSnapshot.fechaInicio)
+      : (lote.fechaInicioContrato ?? empleado.fechaIngreso);
 
     const dto: CreateContractDto = {
       employeeId: empleadoId,
-      cargo: empleado.cargo,
-      salario: Number(empleado.salario),
-      tipo: (lote.tipoContrato ??
+      cargo: contractSnapshot?.cargo ?? empleado.cargo,
+      salario: Number(contractSnapshot?.salario ?? empleado.salario),
+      tipo: (contractSnapshot?.tipo ??
+        lote.tipoContrato ??
         empleado.tipoContrato) as CreateContractDto['tipo'],
       fechaInicio: fechaInicio.toISOString(),
-      fechaFin: lote.fechaFinContrato?.toISOString(),
-      sedeId: lote.sedeId ?? undefined,
+      fechaFin: contractSnapshot
+        ? (contractSnapshot.fechaFin ?? undefined)
+        : lote.fechaFinContrato?.toISOString(),
+      sedeId: contractSnapshot?.sedeId ?? lote.sedeId ?? undefined,
     };
 
     try {
@@ -251,6 +429,12 @@ export class LoteEngineService {
         userId,
         dto,
         lote.id,
+        plan && historicalSnapshot
+          ? {
+              perfilContractualId: plan.perfilContractualId,
+              historicalSnapshot,
+            }
+          : undefined,
       );
       return { id: created.id, empleadoId };
     } catch (error) {

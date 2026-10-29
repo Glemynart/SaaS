@@ -91,7 +91,7 @@ export function SidebarNav({ collapsed, role, onNavigate }: SidebarNavProps) {
                     {hasChildren && !collapsed && (
                       <button
                         type="button"
-                        className="flex size-7 shrink-0 items-center justify-center rounded-[--radius-control] text-muted-foreground transition-colors duration-[--duration-fast] hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+                        className="flex size-7 shrink-0 items-center justify-center rounded-(--radius-control) text-muted-foreground transition-colors duration-(--duration-fast) hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
                         aria-expanded={expanded}
                         aria-label={`${expanded ? 'Colapsar' : 'Expandir'} ${item.label}`}
                         onClick={() =>
@@ -100,7 +100,7 @@ export function SidebarNav({ collapsed, role, onNavigate }: SidebarNavProps) {
                       >
                         <ChevronRight
                           className={cn(
-                            'size-4 transition-transform duration-[--duration-fast]',
+                            'size-4 transition-transform duration-(--duration-fast)',
                             expanded && 'rotate-90',
                           )}
                           aria-hidden="true"
@@ -112,7 +112,7 @@ export function SidebarNav({ collapsed, role, onNavigate }: SidebarNavProps) {
                   {hasChildren && !collapsed && (
                     <div
                       className={cn(
-                        'grid transition-[grid-template-rows] duration-[--duration-base] ease-[--ease-out-ui]',
+                        'grid transition-[grid-template-rows] duration-(--duration-base) ease-(--ease-out-ui)',
                         expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
                       )}
                     >
@@ -129,7 +129,7 @@ export function SidebarNav({ collapsed, role, onNavigate }: SidebarNavProps) {
                                     onClick={onNavigate}
                                     aria-current={childActive ? 'page' : undefined}
                                     className={cn(
-                                      'flex h-8 items-center rounded-[--radius-control] px-2.5 text-sm transition-colors duration-[--duration-fast] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
+                                      'flex h-8 items-center rounded-(--radius-control) px-2.5 text-sm transition-colors duration-(--duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
                                       childActive
                                         ? ACTIVE_ITEM_CLASS
                                         : 'text-muted-foreground hover:bg-muted hover:text-foreground',
@@ -182,7 +182,7 @@ function NavLink({
       aria-current={active ? 'page' : undefined}
       aria-label={collapsed ? item.label : undefined}
       className={cn(
-        'group relative flex h-9 flex-1 items-center gap-3 rounded-[--radius-control] px-3 text-sm transition-colors duration-[--duration-fast] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
+        'group relative flex h-9 flex-1 items-center gap-3 rounded-(--radius-control) px-3 text-sm transition-colors duration-(--duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
         collapsed && 'justify-center px-0',
         active ? ACTIVE_ITEM_CLASS : 'text-muted-foreground hover:bg-muted hover:text-foreground',
       )}
@@ -214,7 +214,7 @@ function NavLink({
       {collapsed && (
         <span
           role="tooltip"
-          className="pointer-events-none absolute left-full top-1/2 z-[--z-overlay] ml-2 -translate-y-1/2 whitespace-nowrap rounded-[--radius-control] border border-border bg-surface px-2 py-1 text-xs text-foreground opacity-0 shadow-[--shadow-overlay] transition-opacity duration-[--duration-fast] group-hover:opacity-100 group-focus-visible:opacity-100"
+          className="pointer-events-none absolute left-full top-1/2 z-(--z-overlay) ml-2 -translate-y-1/2 whitespace-nowrap rounded-(--radius-control) border border-border bg-surface px-2 py-1 text-xs text-foreground opacity-0 shadow-(--shadow-overlay) transition-opacity duration-(--duration-fast) group-hover:opacity-100 group-focus-visible:opacity-100"
         >
           {item.label}
         </span>

@@ -36,6 +36,10 @@ yarn-error.log*
 pnpm-debug.log*
 *.log
 
+# Browser E2E evidence
+playwright-report/
+test-results/
+
 # Docker / Local DB Data
 postgres_data/
 

@@ -4,6 +4,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
+import { LoteProposito } from '@prisma/client';
 import { LotesService } from './lotes.service';
 import { LoteEngineService } from './lote-engine.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -105,6 +106,54 @@ describe('LotesService', () => {
         }),
       );
       expect(result).toEqual(makeLote());
+    });
+
+    it('crea campaña inteligente sin plantilla y conserva su propósito', async () => {
+      mockPrisma.loteContrato.create.mockResolvedValue(
+        makeLote({
+          documentTemplateId: null,
+          proposito: LoteProposito.CONTRATACION,
+        }),
+      );
+
+      await service.create(
+        TENANT_ID,
+        USER_ID,
+        makeDto({
+          templateId: undefined,
+          proposito: LoteProposito.CONTRATACION,
+        }),
+      );
+
+      expect(mockPrisma.documentTemplate.findFirst).not.toHaveBeenCalled();
+      expect(mockPrisma.loteContrato.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            documentTemplateId: null,
+            proposito: LoteProposito.CONTRATACION,
+          }),
+        }),
+      );
+    });
+
+    it('exige propósito cuando no se proporciona plantilla', async () => {
+      await expect(
+        service.create(TENANT_ID, USER_ID, makeDto({ templateId: undefined })),
+      ).rejects.toThrow(
+        'Una campaña inteligente requiere el propósito CONTRATACION.',
+      );
+    });
+
+    it('rechaza mezclar plantilla manual y propósito inteligente', async () => {
+      await expect(
+        service.create(
+          TENANT_ID,
+          USER_ID,
+          makeDto({ proposito: LoteProposito.CONTRATACION }),
+        ),
+      ).rejects.toThrow(
+        'Un lote manual no puede combinar plantilla y propósito inteligente.',
+      );
     });
 
     it('rechaza template inexistente', async () => {
@@ -364,7 +413,9 @@ describe('LotesService', () => {
       );
 
       await service.retry(TENANT_ID, USER_ID, 'lote-001');
-      expect(mockEngine.procesarLote).toHaveBeenCalledWith('lote-001');
+      expect(mockEngine.procesarLote).toHaveBeenCalledWith('lote-001', {
+        retry: true,
+      });
     });
 
     it('permite COMPLETADO_CON_ERRORES', async () => {
@@ -376,7 +427,35 @@ describe('LotesService', () => {
       );
 
       await service.retry(TENANT_ID, USER_ID, 'lote-001');
-      expect(mockEngine.procesarLote).toHaveBeenCalledWith('lote-001');
+      expect(mockEngine.procesarLote).toHaveBeenCalledWith('lote-001', {
+        retry: true,
+      });
+    });
+
+    it('reintenta solo los empleados registrados como fallidos', async () => {
+      mockPrisma.loteContrato.findFirst.mockResolvedValue(
+        makeLote({
+          estado: 'COMPLETADO_CON_ERRORES',
+          erroresLog: [
+            { empleadoId: 'emp-002', cedula: '222', error: 'PDF falló' },
+            {
+              empleadoId: 'emp-002',
+              cedula: '222',
+              error: 'PDF falló de nuevo',
+            },
+          ],
+        }),
+      );
+      mockEngine.procesarLote.mockResolvedValue(
+        makeLote({ estado: 'COMPLETADO' }),
+      );
+
+      await service.retry(TENANT_ID, USER_ID, 'lote-001');
+
+      expect(mockEngine.procesarLote).toHaveBeenCalledWith('lote-001', {
+        retry: true,
+        employeeIds: ['emp-002'],
+      });
     });
 
     it('rechaza PENDIENTE', async () => {

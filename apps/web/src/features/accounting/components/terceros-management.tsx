@@ -127,7 +127,7 @@ export function TercerosManagement() {
           </Button>
         )}
       </div>
-      <div className="grid gap-3 rounded-[--radius-card] border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 rounded-(--radius-card) border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-4">
         <Input
           aria-label="Buscar terceros"
           placeholder="Buscar por nombre o documento"

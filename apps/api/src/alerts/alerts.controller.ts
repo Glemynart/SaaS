@@ -8,6 +8,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { AlertsService } from './alerts.service';
+import { AlertsSchedulerService } from './alerts-scheduler.service';
 import { AlertQueryDto } from './dto/alert-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
@@ -20,7 +21,10 @@ import { UserRole } from '@prisma/client';
 @UseGuards(JwtAuthGuard, ActiveTenantGuard, RolesGuard)
 @Controller('alerts')
 export class AlertsController {
-  constructor(private readonly service: AlertsService) {}
+  constructor(
+    private readonly service: AlertsService,
+    private readonly scheduler: AlertsSchedulerService,
+  ) {}
 
   @Get()
   findAll(
@@ -28,6 +32,20 @@ export class AlertsController {
     @Query() query: AlertQueryDto,
   ) {
     return this.service.findAll(user.tenantId, query);
+  }
+
+  @Get('generation-runs/latest')
+  getLatestGenerationRun(@CurrentUser() user: CurrentUserPayload) {
+    return this.scheduler.getLatestForTenant(user.tenantId);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Post('generation-runs/:runId/retry')
+  retryGenerationRun(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('runId') runId: string,
+  ) {
+    return this.scheduler.retryFailedTenant(user.tenantId, runId, user.userId);
   }
 
   @Get(':id')
@@ -38,7 +56,7 @@ export class AlertsController {
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Patch(':id/resolve')
   resolve(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
-    return this.service.resolve(user.tenantId, id);
+    return this.service.resolve(user.tenantId, id, user.userId);
   }
 
   @Roles(UserRole.ADMIN)

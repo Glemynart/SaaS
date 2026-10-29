@@ -25,11 +25,11 @@ export function ToastProvider() {
       toastOptions={{
         classNames: {
           toast:
-            'rounded-[--radius-card] border border-border bg-surface text-foreground shadow-[--shadow-overlay]',
+            'rounded-(--radius-card) border border-border bg-surface text-foreground shadow-(--shadow-overlay)',
           title: 'text-foreground text-sm font-medium',
           description: 'text-muted-foreground text-sm',
-          actionButton: 'bg-primary text-primary-foreground rounded-[--radius-control]',
-          cancelButton: 'bg-muted text-muted-foreground rounded-[--radius-control]',
+          actionButton: 'bg-primary text-primary-foreground rounded-(--radius-control)',
+          cancelButton: 'bg-muted text-muted-foreground rounded-(--radius-control)',
           closeButton: 'border-border bg-surface text-muted-foreground',
         },
       }}

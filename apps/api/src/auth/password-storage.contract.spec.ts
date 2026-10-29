@@ -31,7 +31,11 @@ describe('Password storage security contracts', () => {
         ),
       },
     };
-    const service = new UsersService(prisma as unknown as PrismaService);
+    const auditService = { log: jest.fn().mockResolvedValue(undefined) };
+    const service = new UsersService(
+      prisma as unknown as PrismaService,
+      auditService as unknown as AuditService,
+    );
 
     await service.create({
       tenantId: 'tenant-1',
@@ -59,18 +63,21 @@ describe('Password storage security contracts', () => {
       | undefined;
     let revokedUserId: string | undefined;
     let revokedAt: Date | undefined;
-    const prisma = {
+    type ResetTokenClaim = {
+      where: {
+        id: string;
+        usedAt: null;
+        expiresAt: { gte: Date };
+      };
+      data: { usedAt: Date };
+    };
+    let resetTokenClaim: ResetTokenClaim | undefined;
+    const transactionClient = {
       passwordResetToken: {
-        findUnique: jest.fn().mockResolvedValue({
-          id: 'reset-1',
-          userId: 'user-1',
-          tenantId: 'tenant-1',
-          tokenHash: await bcrypt.hash(resetSecret, APPROVED_BCRYPT_ROUNDS),
-          usedAt: null,
-          expiresAt: new Date(Date.now() + 60_000),
-          user: { id: 'user-1' },
+        updateMany: jest.fn((args: ResetTokenClaim) => {
+          resetTokenClaim = args;
+          return Promise.resolve({ count: 1 });
         }),
-        update: jest.fn().mockReturnValue(Promise.resolve({})),
       },
       user: {
         update: jest.fn(
@@ -94,7 +101,23 @@ describe('Password storage security contracts', () => {
           },
         ),
       },
-      $transaction: jest.fn().mockResolvedValue([]),
+    };
+    const prisma = {
+      passwordResetToken: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'reset-1',
+          userId: 'user-1',
+          tenantId: 'tenant-1',
+          tokenHash: await bcrypt.hash(resetSecret, APPROVED_BCRYPT_ROUNDS),
+          usedAt: null,
+          expiresAt: new Date(Date.now() + 60_000),
+          user: { id: 'user-1' },
+        }),
+      },
+      $transaction: jest.fn(
+        (callback: (tx: typeof transactionClient) => Promise<unknown>) =>
+          callback(transactionClient),
+      ),
     };
     const auditService = { log: jest.fn().mockResolvedValue(undefined) };
     const service = new PasswordResetService(
@@ -111,8 +134,60 @@ describe('Password storage security contracts', () => {
     if (!persistedPassword) throw new Error('Password hash not persisted');
     expect(persistedPassword.passwordPlain).toBeUndefined();
     await expectSecureHash(newPassword, persistedPassword.passwordHash);
+    expect(resetTokenClaim?.where.id).toBe('reset-1');
+    expect(resetTokenClaim?.where.usedAt).toBeNull();
+    expect(resetTokenClaim?.where.expiresAt.gte).toBeInstanceOf(Date);
+    expect(resetTokenClaim?.data.usedAt).toEqual(
+      resetTokenClaim?.where.expiresAt.gte,
+    );
     expect(revokedUserId).toBe('user-1');
     expect(revokedAt).toBeInstanceOf(Date);
+  });
+
+  it('rejects a concurrent second use before changing password or sessions', async () => {
+    const resetSecret = 'concurrent-reset-secret';
+    const passwordUpdate = jest.fn();
+    const revokeSessions = jest.fn();
+    const claimToken = jest.fn().mockResolvedValue({ count: 0 });
+    const transactionClient = {
+      passwordResetToken: { updateMany: claimToken },
+      user: { update: passwordUpdate },
+      refreshToken: { updateMany: revokeSessions },
+    };
+    const prisma = {
+      passwordResetToken: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'reset-race',
+          userId: 'user-1',
+          tenantId: 'tenant-1',
+          tokenHash: await bcrypt.hash(resetSecret, APPROVED_BCRYPT_ROUNDS),
+          usedAt: null,
+          expiresAt: new Date(Date.now() + 60_000),
+          user: { id: 'user-1' },
+        }),
+      },
+      $transaction: jest.fn(
+        (callback: (tx: typeof transactionClient) => Promise<unknown>) =>
+          callback(transactionClient),
+      ),
+    };
+    const auditService = { log: jest.fn().mockResolvedValue(undefined) };
+    const service = new PasswordResetService(
+      prisma as unknown as PrismaService,
+      {} as ConfigService,
+      auditService as unknown as AuditService,
+      {} as EmailService,
+    );
+    const token = Buffer.from(`reset-race:${resetSecret}`).toString('base64');
+
+    await expect(
+      service.consumeReset({ token, newPassword: 'ReplacementPassword!' }),
+    ).rejects.toThrow('Token inválido o expirado.');
+
+    expect(claimToken).toHaveBeenCalledTimes(1);
+    expect(passwordUpdate).not.toHaveBeenCalled();
+    expect(revokeSessions).not.toHaveBeenCalled();
+    expect(auditService.log).not.toHaveBeenCalled();
   });
 });
 

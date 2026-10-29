@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -26,6 +26,7 @@ import { StorageModule } from './storage/storage.module';
 import { PdfRenderModule } from './pdf-render/pdf-render.module';
 import { AccountingModule } from './accounting/accounting.module';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { TenantContextModule } from './tenant-context/tenant-context.module';
 import { TenantPrismaModule } from './tenant-prisma/tenant-prisma.module';
 import { ContractualProfilesModule } from './contractual-profiles/contractual-profiles.module';
@@ -33,6 +34,19 @@ import { LaborRelationshipsModule } from './labor-relationships/labor-relationsh
 import { DocumentProfileConfigurationsModule } from './document-profile-configurations/document-profile-configurations.module';
 import { DocumentResolutionModule } from './document-resolution/document-resolution.module';
 import { BatchDocumentGenerationModule } from './batch-document-generation/batch-document-generation.module';
+import { HealthModule } from './health/health.module';
+import { HttpObservabilityMiddleware } from './observability/http-observability.middleware';
+import { PlatformAdminModule } from './platform-admin/platform-admin.module';
+
+// The browser smoke suite creates four tenants from one local IP. The guard
+// evaluates every global bucket on each auth route, so test-only headroom for
+// registration and login avoids cross-bucket interference without changing
+// production limits.
+const REGISTER_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 3;
+const LOGIN_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 5;
+const FORGOT_PASSWORD_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
+const VALIDATE_RESET_TOKEN_RATE_LIMIT =
+  process.env.NODE_ENV === 'test' ? 50 : 5;
 
 @Module({
   imports: [
@@ -54,8 +68,9 @@ import { BatchDocumentGenerationModule } from './batch-document-generation/batch
     DaneModule,
     SedesModule,
     EmployeeImportModule,
-    ContractsModule,
+    // Register the static /contracts/lotes routes before /contracts/:id.
     LotesModule,
+    ContractsModule,
     EmailModule,
     StorageModule,
     PdfRenderModule,
@@ -67,35 +82,48 @@ import { BatchDocumentGenerationModule } from './batch-document-generation/batch
     DocumentProfileConfigurationsModule,
     DocumentResolutionModule,
     BatchDocumentGenerationModule,
+    HealthModule,
+    PlatformAdminModule,
     ThrottlerModule.forRoot([
       {
         name: 'login',
         ttl: 60000,
-        limit: 5,
+        limit: LOGIN_RATE_LIMIT,
       },
       {
         name: 'register',
         ttl: 60000,
-        limit: 3,
+        limit: REGISTER_RATE_LIMIT,
       },
       {
         name: 'refresh',
         ttl: 60000,
-        limit: 10,
+        limit: process.env.NODE_ENV === 'test' ? 50 : 10,
       },
       {
         name: 'forgotPassword',
         ttl: 3600000,
-        limit: 3,
+        limit:
+          process.env.NODE_ENV === 'test' ? 50 : FORGOT_PASSWORD_RATE_LIMIT,
       },
       {
         name: 'resetPassword',
         ttl: 900000,
-        limit: 5,
+        limit: process.env.NODE_ENV === 'test' ? 50 : 5,
+      },
+      {
+        name: 'validateResetToken',
+        ttl: 900000,
+        limit: VALIDATE_RESET_TOKEN_RATE_LIMIT,
       },
     ]),
+    ScheduleModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(HttpObservabilityMiddleware).forRoutes('*');
+  }
+}

@@ -18,6 +18,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { GeneratedDocumentAccessService } from './generated-document-access.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { GeneratedDocumentsController } from './generated-documents.controller';
 import { GeneratedDocumentsService } from './generated-documents.service';
 
@@ -143,6 +144,16 @@ describe('Generated document private delivery', () => {
           provide: PrismaService,
           useValue: { generatedDocument: { findFirst } },
         },
+        {
+          provide: TenantPrismaService,
+          useValue: {
+            execute: (
+              work: (prisma: {
+                generatedDocument: { findFirst: typeof findFirst };
+              }) => unknown,
+            ) => work({ generatedDocument: { findFirst } }),
+          },
+        },
         { provide: StorageService, useValue: { getObject } },
         { provide: AuditService, useValue: { log: auditLog } },
         RolesGuard,
@@ -214,6 +225,28 @@ describe('Generated document private delivery', () => {
       entityId: 'contract-001',
       metadata: { delivery: 'DOWNLOAD', documentType: 'CONTRACT' },
     });
+  });
+
+  it('descarga nombres Unicode con un Content-Disposition HTTP válido', async () => {
+    const document = documents.get('contract-001');
+    if (!document) throw new Error('No se encontró el documento de prueba.');
+
+    const originalName = document.nombre;
+    document.nombre = 'Contrato laboral — Ana Gómez';
+
+    try {
+      const response = await request(app.getHttpServer())
+        .get('/generated-documents/contract-001/download')
+        .set('Authorization', 'Bearer test-token')
+        .expect(200)
+        .expect('Content-Type', /application\/pdf/);
+
+      expect(response.headers['content-disposition']).toBe(
+        'attachment; filename="Contrato laboral _ Ana Gomez.pdf"; filename*=UTF-8\'\'Contrato%20laboral%20%E2%80%94%20Ana%20G%C3%B3mez.pdf',
+      );
+    } finally {
+      document.nombre = originalName;
+    }
   });
 
   it('mantiene el endpoint PDF legado con entrega inline', async () => {

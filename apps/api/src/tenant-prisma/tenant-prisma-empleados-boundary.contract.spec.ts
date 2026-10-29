@@ -20,6 +20,11 @@ describe('empleados tenant-aware access boundary', () => {
 
       expect(source).toContain('tenantPrisma.execute');
       expect(source).not.toContain('this.prisma.empleado');
+      if (relativePath === '../employee-import/employee-import.service.ts') {
+        expect(source).not.toContain('import { PrismaService }');
+        expect(source).not.toContain('private prisma:');
+        expect(source).not.toContain('this.prisma.');
+      }
     },
   );
 

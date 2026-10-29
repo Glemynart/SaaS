@@ -30,18 +30,24 @@ export const employeeSchema = z.object({
   municipioExpedicionDocId: z.string().optional(),
   sedeId: z.string().optional(),
   salarioIntegral: z.boolean().optional().default(false),
-  jornadaLaboral: z.enum(['COMPLETA', 'MEDIA', 'POR_HORAS'] as const).optional(),
+  jornadaLaboral: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.enum(['COMPLETA', 'MEDIA', 'POR_HORAS'] as const).optional(),
+  ),
   fechaRetiro: z.string().optional(),
-  motivoRetiro: z
-    .enum([
-      'RENUNCIA',
-      'TERMINACION_CONTRATO',
-      'MUTUO_ACUERDO',
-      'JUSTA_CAUSA',
-      'FALLECIMIENTO',
-      'OTRO',
-    ] as const)
-    .optional(),
+  motivoRetiro: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z
+      .enum([
+        'RENUNCIA',
+        'TERMINACION_CONTRATO',
+        'MUTUO_ACUERDO',
+        'JUSTA_CAUSA',
+        'FALLECIMIENTO',
+        'OTRO',
+      ] as const)
+      .optional(),
+  ),
 });
 
 export type EmployeeFormData = z.infer<typeof employeeSchema>;

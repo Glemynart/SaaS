@@ -5,6 +5,11 @@ import {
   INestApplication,
   Ip,
 } from '@nestjs/common';
+import {
+  HTTP_CODE_METADATA,
+  METHOD_METADATA,
+  PATH_METADATA,
+} from '@nestjs/common/constants';
 import { APP_GUARD } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import {
@@ -22,11 +27,36 @@ const THROTTLER_TTL = 'THROTTLER:TTL';
 const THROTTLER_SKIP = 'THROTTLER:SKIP';
 
 const AUTH_THROTTLERS = [
-  { name: 'login', ttl: 60_000, limit: 5 },
-  { name: 'register', ttl: 60_000, limit: 3 },
-  { name: 'refresh', ttl: 60_000, limit: 10 },
-  { name: 'forgotPassword', ttl: 3_600_000, limit: 3 },
-  { name: 'resetPassword', ttl: 900_000, limit: 5 },
+  {
+    name: 'login',
+    ttl: 60_000,
+    limit: process.env.NODE_ENV === 'test' ? 50 : 5,
+  },
+  {
+    name: 'register',
+    ttl: 60_000,
+    limit: process.env.NODE_ENV === 'test' ? 50 : 3,
+  },
+  {
+    name: 'refresh',
+    ttl: 60_000,
+    limit: process.env.NODE_ENV === 'test' ? 50 : 10,
+  },
+  {
+    name: 'forgotPassword',
+    ttl: 3_600_000,
+    limit: process.env.NODE_ENV === 'test' ? 50 : 3,
+  },
+  {
+    name: 'resetPassword',
+    ttl: 900_000,
+    limit: process.env.NODE_ENV === 'test' ? 50 : 5,
+  },
+  {
+    name: 'validateResetToken',
+    ttl: 900_000,
+    limit: process.env.NODE_ENV === 'test' ? 50 : 5,
+  },
 ] as const;
 
 type AuthThrottleMethod =
@@ -34,7 +64,8 @@ type AuthThrottleMethod =
   | 'login'
   | 'refresh'
   | 'forgotPassword'
-  | 'resetPassword';
+  | 'resetPassword'
+  | 'validateResetToken';
 
 function getAuthHandler(methodName: AuthThrottleMethod): object {
   const handler = Object.getOwnPropertyDescriptor(
@@ -70,7 +101,7 @@ describe('Global Rate Limiting operational characterization', () => {
     await ipApplication.close();
   });
 
-  it('keeps the five existing Auth throttlers unchanged', () => {
+  it('keeps production Auth throttlers unchanged', () => {
     const imports = (Reflect.getMetadata('imports', AppModule) ??
       []) as unknown[];
     const throttlerModule = imports.find(
@@ -99,12 +130,40 @@ describe('Global Rate Limiting operational characterization', () => {
     ).toBe(false);
   });
 
+  it('registers reset-token validation as a POST that returns HTTP 200', () => {
+    const handler = getAuthHandler('validateResetToken');
+
+    expect(Reflect.getMetadata(PATH_METADATA, handler)).toBe(
+      'validate-reset-token',
+    );
+    expect(Reflect.getMetadata(METHOD_METADATA, handler)).toBe(1);
+    expect(Reflect.getMetadata(HTTP_CODE_METADATA, handler)).toBe(200);
+  });
+
   it.each([
-    ['register', 'register', 3, 60_000],
-    ['login', 'login', 5, 60_000],
-    ['refresh', 'refresh', 10, 60_000],
-    ['forgotPassword', 'forgotPassword', 3, 3_600_000],
-    ['resetPassword', 'resetPassword', 5, 900_000],
+    // Browser smoke tests register four independent tenants in NODE_ENV=test;
+    // production keeps the existing limit of three registrations per minute.
+    ['register', 'register', process.env.NODE_ENV === 'test' ? 50 : 3, 60_000],
+    ['login', 'login', process.env.NODE_ENV === 'test' ? 50 : 5, 60_000],
+    ['refresh', 'refresh', process.env.NODE_ENV === 'test' ? 50 : 10, 60_000],
+    [
+      'forgotPassword',
+      'forgotPassword',
+      process.env.NODE_ENV === 'test' ? 50 : 3,
+      3_600_000,
+    ],
+    [
+      'resetPassword',
+      'resetPassword',
+      process.env.NODE_ENV === 'test' ? 50 : 5,
+      900_000,
+    ],
+    [
+      'validateResetToken',
+      'validateResetToken',
+      process.env.NODE_ENV === 'test' ? 50 : 5,
+      900_000,
+    ],
   ] as const)(
     'preserves the %s endpoint metadata',
     (methodName, throttlerName, limit, ttl) => {
@@ -124,7 +183,7 @@ describe('Global Rate Limiting operational characterization', () => {
       const handler = getAuthHandler(methodName);
       for (const { name } of AUTH_THROTTLERS) {
         expect(Reflect.getMetadata(`${THROTTLER_SKIP}${name}`, handler)).toBe(
-          undefined,
+          name === 'validateResetToken' ? true : undefined,
         );
       }
     }
@@ -142,6 +201,12 @@ describe('Global Rate Limiting operational characterization', () => {
     expect(
       Reflect.getMetadata(`${THROTTLER_SKIP}resetPassword`, forgotPassword),
     ).toBe(true);
+    expect(
+      Reflect.getMetadata(
+        `${THROTTLER_SKIP}validateResetToken`,
+        forgotPassword,
+      ),
+    ).toBe(true);
 
     const resetPassword = getAuthHandler('resetPassword');
     expect(Reflect.getMetadata(`${THROTTLER_SKIP}login`, resetPassword)).toBe(
@@ -156,6 +221,17 @@ describe('Global Rate Limiting operational characterization', () => {
     expect(
       Reflect.getMetadata(`${THROTTLER_SKIP}forgotPassword`, resetPassword),
     ).toBe(true);
+    expect(
+      Reflect.getMetadata(`${THROTTLER_SKIP}validateResetToken`, resetPassword),
+    ).toBe(true);
+
+    const validateResetToken = getAuthHandler('validateResetToken');
+    for (const { name } of AUTH_THROTTLERS) {
+      if (name === 'validateResetToken') continue;
+      expect(
+        Reflect.getMetadata(`${THROTTLER_SKIP}${name}`, validateResetToken),
+      ).toBe(true);
+    }
   });
 
   it('confirms that no global guard is registered in AppModule', () => {

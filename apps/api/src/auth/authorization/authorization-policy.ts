@@ -2,6 +2,7 @@ import { SetMetadata } from '@nestjs/common';
 
 export const AUTHORIZATION_POLICY_KEY = 'authorization:policy';
 export const AUTHORIZATION_PENDING_KEY = 'authorization:pending';
+export const AUTHENTICATION_GUARD_KEY = 'authorization:authentication-guard';
 
 export enum AuthorizationPolicyKind {
   UNAUTHENTICATED = 'UNAUTHENTICATED',
@@ -45,6 +46,9 @@ export const Unauthenticated = () =>
 
 export const Authenticated = () =>
   SetMetadata(AUTHORIZATION_POLICY_KEY, AuthorizationPolicyKind.AUTHENTICATED);
+
+export const AuthenticationGuard = () =>
+  SetMetadata(AUTHENTICATION_GUARD_KEY, true);
 
 export const AuthorizationDecisionPending = (reason: string) =>
   SetMetadata(AUTHORIZATION_PENDING_KEY, reason);

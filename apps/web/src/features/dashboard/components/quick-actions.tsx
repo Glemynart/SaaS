@@ -52,7 +52,7 @@ export function QuickActions({ rol }: { rol: UserRole }) {
             <Link
               key={action.href}
               href={action.href}
-              className="inline-flex h-9 items-center gap-2 rounded-[--radius-control] border border-border bg-surface px-3 text-sm text-foreground transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:w-auto"
+              className="inline-flex h-9 items-center gap-2 rounded-(--radius-control) border border-border bg-surface px-3 text-sm text-foreground transition-colors duration-150 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:w-auto"
             >
               <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
               {action.label}

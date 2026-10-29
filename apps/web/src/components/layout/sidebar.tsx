@@ -36,7 +36,7 @@ export function Sidebar({ collapsed, onToggleCollapsed, onNavigate }: SidebarPro
         </div>
         {!collapsed && (
           <p className="truncate text-sm font-semibold tracking-[-0.01em]" translate="no">
-            La Oficina Nítida
+            Dusema Gestión
           </p>
         )}
       </div>
@@ -51,7 +51,7 @@ export function Sidebar({ collapsed, onToggleCollapsed, onNavigate }: SidebarPro
             title="Atajo de teclado: ["
             aria-label={collapsed ? 'Expandir navegación' : 'Colapsar navegación'}
             className={cn(
-              'flex h-9 w-full items-center gap-3 rounded-[--radius-control] px-3 text-sm text-muted-foreground transition-colors duration-[--duration-fast] hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
+              'flex h-9 w-full items-center gap-3 rounded-(--radius-control) px-3 text-sm text-muted-foreground transition-colors duration-(--duration-fast) hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
               collapsed && 'justify-center px-0',
             )}
           >
@@ -115,7 +115,7 @@ function SidebarUserCard({ collapsed }: { collapsed: boolean }) {
           type="button"
           {...triggerProps}
           className={cn(
-            'flex w-full items-center gap-2.5 rounded-[--radius-control] p-1.5 text-left transition-colors duration-[--duration-fast] hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
+            'flex w-full items-center gap-2.5 rounded-(--radius-control) p-1.5 text-left transition-colors duration-(--duration-fast) hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
             collapsed && 'justify-center',
             open && 'bg-muted',
           )}

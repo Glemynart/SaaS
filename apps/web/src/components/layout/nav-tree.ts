@@ -3,13 +3,16 @@ import {
   Calculator,
   FileText,
   Files,
+  Link2,
   Landmark,
   LayoutDashboard,
   MapPin,
   Receipt,
   ScrollText,
   Settings,
+  Tags,
   Users,
+  UserCog,
   type LucideIcon,
 } from 'lucide-react';
 import type { UserRole } from '@/types/auth';
@@ -42,6 +45,12 @@ export const NAV_TREE: NavItem[] = [
   { label: 'Alertas', href: '/alertas', icon: Bell, group: null, badge: 'alerts-open-count' },
   { label: 'Empleados', href: '/empleados', icon: Users, group: 'Personal' },
   {
+    label: 'Perfiles contractuales',
+    href: '/perfiles-contractuales',
+    icon: Tags,
+    group: 'Personal',
+  },
+  {
     label: 'Contratos',
     href: '/contratos',
     icon: FileText,
@@ -49,6 +58,12 @@ export const NAV_TREE: NavItem[] = [
     children: [{ label: 'Lotes', href: '/contratos/lotes' }],
   },
   { label: 'Plantillas', href: '/documentos/plantillas', icon: ScrollText, group: 'Documentos' },
+  {
+    label: 'Configuración documental',
+    href: '/documentos/configuracion',
+    icon: Link2,
+    group: 'Documentos',
+  },
   { label: 'Generados', href: '/documentos/generados', icon: Files, group: 'Documentos' },
   {
     label: 'Nómina',
@@ -84,6 +99,13 @@ export const NAV_TREE: NavItem[] = [
     ],
   },
   { label: 'Sedes', href: '/sedes', icon: MapPin, group: 'Organización' },
+  {
+    label: 'Usuarios',
+    href: '/usuarios',
+    icon: UserCog,
+    group: 'Organización',
+    requiredRole: ['ADMIN'],
+  },
   {
     label: 'Identidad corporativa',
     href: '/configuracion/identidad',

@@ -14,6 +14,7 @@ import { ActiveTenantGuard } from '../guards/active-tenant.guard';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import {
+  AUTHENTICATION_GUARD_KEY,
   AUTHORIZATION_PENDING_KEY,
   AuthorizationClassificationSource,
   AuthorizationClassificationStatus,
@@ -36,6 +37,7 @@ interface EffectiveAuthorizationState {
   source?: AuthorizationClassificationSource;
   roles: string[];
   hasJwtGuard: boolean;
+  hasAuthenticationGuard: boolean;
   hasActiveTenantGuard: boolean;
   hasRolesGuard: boolean;
   reasons: string[];
@@ -114,6 +116,8 @@ export class AuthorizationSurfaceClassifier {
   ): EffectiveAuthorizationState {
     const guards = this.getEffectiveGuards(controller, handler);
     const hasJwtGuard = this.hasGuard(guards, JwtAuthGuard);
+    const hasAuthenticationGuard =
+      hasJwtGuard || this.hasMarkedAuthenticationGuard(guards);
     const hasActiveTenantGuard = this.hasGuard(guards, ActiveTenantGuard);
     const hasRolesGuard = this.hasGuard(guards, RolesGuard);
     const resolution = resolveAuthorizationPolicy(controller, handler);
@@ -133,7 +137,7 @@ export class AuthorizationSurfaceClassifier {
       if (!hasJwtGuard) {
         reasons.push('Existen roles declarados sin JwtAuthGuard efectivo.');
       }
-    } else if (hasJwtGuard) {
+    } else if (hasAuthenticationGuard) {
       legacyPolicy = AuthorizationPolicyKind.AUTHENTICATED;
     } else {
       legacyPolicy = AuthorizationPolicyKind.UNAUTHENTICATED;
@@ -166,6 +170,7 @@ export class AuthorizationSurfaceClassifier {
       source,
       roles,
       hasJwtGuard,
+      hasAuthenticationGuard,
       hasActiveTenantGuard,
       hasRolesGuard,
       reasons,
@@ -196,7 +201,7 @@ export class AuthorizationSurfaceClassifier {
       status,
       source: state.source,
       roles: state.roles,
-      requiresAuthentication: state.hasJwtGuard,
+      requiresAuthentication: state.hasAuthenticationGuard,
       requiresActiveTenant: state.hasActiveTenantGuard,
       reasons,
     };
@@ -260,6 +265,16 @@ export class AuthorizationSurfaceClassifier {
         guard === expectedGuard ||
         (typeof guard === 'object' && guard.constructor === expectedGuard),
     );
+  }
+
+  private hasMarkedAuthenticationGuard(guards: GuardReference[]): boolean {
+    return guards.some((guard) => {
+      const target =
+        typeof guard === 'function'
+          ? guard
+          : (guard.constructor as Type<unknown>);
+      return Reflect.getMetadata(AUTHENTICATION_GUARD_KEY, target) === true;
+    });
   }
 
   private getPathMetadata(target: object): string | string[] {

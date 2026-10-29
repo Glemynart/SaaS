@@ -65,6 +65,10 @@ enum LoteEstado {
   FALLIDO
 }
 
+enum LoteProposito {
+  CONTRATACION
+}
+
 enum PlantillaTipo {
   CONTRATO
   PREAVISO
@@ -252,12 +256,15 @@ model Tenant {
 
   // Relaciones
   users              User[]
+  userInvitations    UserInvitation[]
   empleados          Empleado[]
   sedes              Sede[]
   plantillas         Plantilla[]
   documentTemplates  DocumentTemplate[]
   generatedDocuments GeneratedDocument[]
+  expedienteDocFamilies ExpedienteDocFamily[]
   alerts             Alert[]
+  alertGenerationRunTenants AlertGenerationRunTenant[]
   payrollPeriods     PayrollPeriod[]
   payrollRuns        PayrollRun[]
   payrollSnapshots   PayrollSnapshot[]
@@ -271,6 +278,7 @@ model Tenant {
   perfilesContractuales PerfilContractual[]
   configuracionesDocumentalesPerfil ConfiguracionDocumentalPerfil[]
   batchDocumentGenerationPlans BatchDocumentGenerationPlan[]
+  batchDocumentGenerationExclusions BatchDocumentGenerationExclusion[]
   vinculosLaborales  VinculoLaboral[]
   lotes              LoteContrato[]
   expedientes        ExpedienteDoc[]
@@ -323,6 +331,7 @@ model User {
   lastLoginAt              DateTime?
   refreshTokens            RefreshToken[]
   passwordResetTokens      PasswordResetToken[]
+  invitationsCreated       UserInvitation[]     @relation("UserInvitationCreatedBy")
   lotesCreados             LoteContrato[]
   // Actor de aprobación de ProcesoNómina (P1/U1)
   periodosNominaAprobados  PayrollPeriod[]      @relation("PayrollPeriodAprobadoPor")
@@ -388,6 +397,42 @@ model PasswordResetToken {
 }
 
 // =============================================================================
+// USER INVITATION — Alta segura de usuarios por enlace de correo
+// =============================================================================
+// El secreto nunca se persiste. openKey permite una sola invitación pendiente
+// por correo y tenant; NULL conserva las invitaciones aceptadas o revocadas sin
+// impedir invitaciones futuras.
+// =============================================================================
+
+model UserInvitation {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdByUserId String?
+  createdBy       User?   @relation("UserInvitationCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  email      String
+  nombre     String
+  apellido   String
+  rol        UserRole
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  lastSentAt DateTime @default(now())
+  acceptedAt DateTime?
+  revokedAt  DateTime?
+  openKey    String?  @default("OPEN")
+
+  @@unique([tenantId, email, openKey])
+  @@index([tenantId, openKey, createdAt])
+  @@index([expiresAt, acceptedAt, revokedAt])
+  @@map("user_invitations")
+}
+
+// =============================================================================
 // EMPLEADO — Trabajador de la organización
 // =============================================================================
 // Entidad central del módulo de RRHH. Todos los contratos, expedientes
@@ -445,6 +490,7 @@ model Empleado {
   batchDocumentGenerationPlans BatchDocumentGenerationPlan[]
   vinculosLaborales  VinculoLaboral[]
   generatedDocuments GeneratedDocument[]
+  expedienteDocFamilies ExpedienteDocFamily[]
   alerts             Alert[]
   payrollRuns        PayrollRun[]
   payrollSnapshots   PayrollSnapshot[]
@@ -636,6 +682,25 @@ enum AlertStatus {
   RESOLVED
 }
 
+enum AlertGenerationRunStatus {
+  RUNNING
+  SUCCEEDED
+  PARTIAL
+  FAILED
+  SKIPPED
+}
+
+enum AlertGenerationRunTrigger {
+  SCHEDULED
+  MANUAL_RETRY
+}
+
+enum AlertGenerationRunTenantStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
 // =============================================================================
 // ALERT — Alerta de seguimiento documental y contractual (Fase: Alertas)
 // =============================================================================
@@ -666,6 +731,7 @@ model Alert {
   status      AlertStatus   @default(OPEN)
   dueDate     DateTime?
   resolvedAt  DateTime?
+  resolvedById String?
 
   @@index([tenantId])
   @@index([tenantId, status])
@@ -673,7 +739,58 @@ model Alert {
   @@index([tenantId, employeeId])
   @@index([tenantId, dueDate])
   @@index([tenantId, expedienteDocId])
+  @@index([tenantId, resolvedById])
   @@map("alerts_new")
+}
+
+// =============================================================================
+// ALERT GENERATION RUN — Estado operativo del scheduler (E6.3)
+// =============================================================================
+
+model AlertGenerationRun {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  schedulerKey String
+  trigger      AlertGenerationRunTrigger @default(SCHEDULED)
+  parentRunId  String?
+  status       AlertGenerationRunStatus  @default(RUNNING)
+  startedAt    DateTime                  @default(now())
+  finishedAt   DateTime?
+
+  tenantsProcessed        Int @default(0)
+  tenantsFailed           Int @default(0)
+  contractAlertsCreated   Int @default(0)
+  missingDocAlertsCreated Int @default(0)
+
+  tenantResults AlertGenerationRunTenant[]
+
+  @@index([schedulerKey, startedAt])
+  @@index([parentRunId])
+  @@map("alert_generation_runs")
+}
+
+model AlertGenerationRunTenant {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  runId    String
+  run      AlertGenerationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  status                  AlertGenerationRunTenantStatus @default(RUNNING)
+  attemptCount            Int                            @default(0)
+  contractAlertsCreated   Int                            @default(0)
+  missingDocAlertsCreated Int                            @default(0)
+  lastErrorCode           String?
+  startedAt               DateTime                       @default(now())
+  finishedAt              DateTime?
+
+  @@unique([runId, tenantId])
+  @@index([tenantId, startedAt])
+  @@index([runId, status])
+  @@map("alert_generation_run_tenants")
 }
 
 // =============================================================================
@@ -1313,8 +1430,8 @@ model Contrato {
   sedeId String?
   sede   Sede?   @relation(fields: [sedeId], references: [id])
 
-  // Clasificación contractual explícita. Es opcional durante la adopción y no
-  // participa aún en la generación ni en el procesamiento de lotes.
+  // Clasificación contractual confirmada por la resolución precontractual.
+  // El contrato la conserva como evidencia histórica; no resuelve nuevos lotes.
   perfilContractualId String?
   perfilContractual   PerfilContractual? @relation(fields: [perfilContractualId], references: [id], onDelete: Restrict)
 
@@ -1396,8 +1513,8 @@ model PerfilContractual {
 // VINCULO LABORAL — Fuente precontractual del perfil contractual
 // =============================================================================
 // Representa la clasificación vigente del proceso laboral de un empleado antes
-// de generar un contrato. No reemplaza el snapshot histórico del contrato ni
-// participa todavía en la generación documental o en los lotes.
+// de generar un contrato. Produce los snapshots del plan confirmado; la
+// generación posterior usa esos snapshots y no vuelve a consultar el vínculo.
 // =============================================================================
 
 model VinculoLaboral {
@@ -1470,6 +1587,8 @@ model BatchDocumentGenerationPlan {
   perfilSnapshot Json
   configuracionSnapshot Json
   plantillaSnapshot Json
+  empleadoSnapshot Json?
+  contratoSnapshot Json?
   motivoResolucion String
   formatoVersion Int @default(1)
   resueltoAt DateTime
@@ -1478,6 +1597,28 @@ model BatchDocumentGenerationPlan {
   @@unique([loteId, empleadoId, tipoDocumental])
   @@index([tenantId, loteId, estado])
   @@map("batch_document_generation_plans")
+}
+
+model BatchDocumentGenerationExclusion {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  loteId   String
+  lote     LoteContrato @relation(fields: [loteId], references: [id], onDelete: Restrict)
+
+  // Se conserva como valor libre porque un empleado seleccionado puede no
+  // existir o no pertenecer ya al tenant en la fecha de evaluación.
+  empleadoId String
+  tipoDocumental DocumentTemplateType
+  fechaEvaluacion DateTime @db.Date
+  motivoBloqueo String
+  detalle Json?
+
+  @@unique([loteId, empleadoId, tipoDocumental])
+  @@index([tenantId, loteId])
+  @@map("batch_document_generation_exclusions")
 }
 
 // =============================================================================
@@ -1497,8 +1638,8 @@ model LoteContrato {
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  documentTemplateId String
-  documentTemplate   DocumentTemplate @relation(fields: [documentTemplateId], references: [id])
+  documentTemplateId String?
+  documentTemplate   DocumentTemplate? @relation(fields: [documentTemplateId], references: [id])
 
   sedeId String?
   sede   Sede?   @relation(fields: [sedeId], references: [id])
@@ -1508,6 +1649,7 @@ model LoteContrato {
 
   // Metadata del lote
   nombreLote          String?
+  proposito           LoteProposito?
   tipoContrato        ContratoTipo?
   fechaInicioContrato DateTime?
   fechaFinContrato    DateTime?
@@ -1532,6 +1674,7 @@ model LoteContrato {
   // Relaciones
   contratos Contrato[]
   batchDocumentGenerationPlans BatchDocumentGenerationPlan[]
+  batchDocumentGenerationExclusions BatchDocumentGenerationExclusion[]
 
   @@index([tenantId, estado])
   @@index([tenantId, createdAt])
@@ -1541,10 +1684,32 @@ model LoteContrato {
 // =============================================================================
 // EXPEDIENTE DOC — Documento del expediente digital de un empleado
 // =============================================================================
-// Cada fila es un documento almacenado en R2 dentro del expediente
-// de un empleado. Soporta versioning básico mediante el campo `version`.
-// La categoría determina en qué carpeta lógica aparece en la UI.
+// Cada fila es una revisión inmutable almacenada dentro del expediente de un
+// empleado. La familia documental agrupa revisiones del mismo acto; la
+// categoría pertenece a la familia y no puede cambiar entre revisiones.
 // =============================================================================
+
+model ExpedienteDocFamily {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  empleadoId String
+  empleado   Empleado @relation(fields: [empleadoId], references: [id], onDelete: Restrict)
+
+  categoria   ExpedienteCategoria
+  nombre      String
+  descripcion String?
+
+  revisiones ExpedienteDoc[]
+
+  @@index([tenantId, empleadoId])
+  @@index([tenantId, empleadoId, categoria])
+  @@map("expediente_doc_families")
+}
 
 model ExpedienteDoc {
   id        String   @id @default(uuid())
@@ -1557,6 +1722,13 @@ model ExpedienteDoc {
   empleadoId String
   empleado   Empleado @relation(fields: [empleadoId], references: [id])
 
+  familiaId String
+  familia   ExpedienteDocFamily @relation(fields: [familiaId], references: [id], onDelete: Restrict)
+
+  reemplazaId String? @unique
+  reemplaza ExpedienteDoc? @relation("ExpedienteDocRevision", fields: [reemplazaId], references: [id], onDelete: Restrict)
+  reemplazadoPor ExpedienteDoc? @relation("ExpedienteDocRevision")
+
   contratoId String?
   contrato   Contrato? @relation(fields: [contratoId], references: [id])
 
@@ -1567,7 +1739,8 @@ model ExpedienteDoc {
   categoria   ExpedienteCategoria
   nombre      String // Nombre original del archivo
   descripcion String?
-  version     Int                 @default(1) // Incrementa cuando se sube una nueva versión
+  version     Int                 @default(1) // Versión dentro de una familia documental
+  vigente     Boolean             @default(true) // Solo una revisión vigente por familia
 
   // Fechas de vigencia del documento
   fechaDocumento     DateTime?
@@ -1575,7 +1748,7 @@ model ExpedienteDoc {
   requiereRenovacion Boolean?
 
   // Almacenamiento
-  // Ruta: {tenantId}/expediente/{empleadoId}/{categoria}/{id}_v{version}.{ext}
+  // Ruta: {tenantId}/expediente/{empleadoId}/{categoria}/{familiaId}_v{version}_{documentId}.{ext}
   storageKey  String
   mimeType    String // application/pdf, image/jpeg, etc.
   tamanoBytes Int
@@ -1589,6 +1762,8 @@ model ExpedienteDoc {
   @@index([tenantId, empleadoId])
   @@index([tenantId, empleadoId, categoria])
   @@index([tenantId, categoria])
+  @@index([tenantId, familiaId, vigente])
+  @@unique([familiaId, version])
   @@map("expediente_docs")
 }
 

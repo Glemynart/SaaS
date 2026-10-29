@@ -8,6 +8,8 @@ const relationshipFindMany = jest.fn();
 const configurationFindMany = jest.fn();
 const planUpsert = jest.fn();
 const planFindMany = jest.fn();
+const exclusionUpsert = jest.fn();
+const exclusionFindMany = jest.fn();
 const execute = jest.fn();
 const TENANT = 'tenant-001';
 const LOTE = '11111111-1111-4111-8111-111111111111';
@@ -22,13 +24,31 @@ type MockClient = {
     upsert: typeof planUpsert;
     findMany: typeof planFindMany;
   };
+  batchDocumentGenerationExclusion: {
+    upsert: typeof exclusionUpsert;
+    findMany: typeof exclusionFindMany;
+  };
 };
 
 const lote = {
   configuracion: { empleadoIds: [EMPLOYEE] },
   documentTemplate: { tipo: DocumentTemplateType.CONTRACT },
 };
-const employee = { id: EMPLOYEE, primerNombre: 'Ana', primerApellido: 'López' };
+const employee = {
+  id: EMPLOYEE,
+  primerNombre: 'Ana',
+  segundoNombre: null,
+  primerApellido: 'López',
+  segundoApellido: null,
+  tipoDocumento: 'CC',
+  cedula: '123456',
+  cargo: 'Docente',
+  salario: '3000000',
+  tipoContrato: 'TERMINO_FIJO',
+  fechaIngreso: new Date('2026-01-01'),
+  sedeId: null,
+  sedeRef: null,
+};
 const relationship = {
   id: 'relationship',
   empleadoId: EMPLOYEE,
@@ -67,6 +87,7 @@ describe('DocumentResolutionService', () => {
     relationshipFindMany.mockResolvedValue([relationship]);
     configurationFindMany.mockResolvedValue([configuration]);
     planFindMany.mockResolvedValue([]);
+    exclusionFindMany.mockResolvedValue([]);
     execute.mockImplementation(
       (work: (client: MockClient, context: { tenantId: string }) => unknown) =>
         work(
@@ -78,6 +99,10 @@ describe('DocumentResolutionService', () => {
             batchDocumentGenerationPlan: {
               upsert: planUpsert,
               findMany: planFindMany,
+            },
+            batchDocumentGenerationExclusion: {
+              upsert: exclusionUpsert,
+              findMany: exclusionFindMany,
             },
           },
           { tenantId: TENANT },
@@ -94,7 +119,10 @@ describe('DocumentResolutionService', () => {
 
   it('confirma planes con snapshots y el tenant de la transacción', async () => {
     planUpsert.mockResolvedValue({ id: 'plan-1' });
-    await expect(confirm()).resolves.toEqual([{ id: 'plan-1' }]);
+    await expect(confirm()).resolves.toEqual({
+      plans: [{ id: 'plan-1' }],
+      exclusions: [],
+    });
     expect(planUpsert).toHaveBeenCalledWith(
       objectContaining({
         create: objectContaining({
@@ -102,6 +130,14 @@ describe('DocumentResolutionService', () => {
           loteId: LOTE,
           empleadoId: EMPLOYEE,
           perfilSnapshot: relationship.perfilContractual,
+          empleadoSnapshot: objectContaining({
+            id: EMPLOYEE,
+            salario: '3000000',
+          }),
+          contratoSnapshot: objectContaining({
+            tipo: 'TERMINO_FIJO',
+            salario: '3000000',
+          }),
         }),
       }),
     );
@@ -115,8 +151,14 @@ describe('DocumentResolutionService', () => {
     };
     planUpsert.mockResolvedValue(existingPlan);
 
-    await expect(confirm()).resolves.toEqual([existingPlan]);
-    await expect(confirm()).resolves.toEqual([existingPlan]);
+    await expect(confirm()).resolves.toEqual({
+      plans: [existingPlan],
+      exclusions: [],
+    });
+    await expect(confirm()).resolves.toEqual({
+      plans: [existingPlan],
+      exclusions: [],
+    });
 
     expect(planUpsert).toHaveBeenCalledTimes(2);
     expect(planUpsert).toHaveBeenLastCalledWith(
@@ -133,7 +175,10 @@ describe('DocumentResolutionService', () => {
     relationshipFindMany.mockResolvedValue([]);
     configurationFindMany.mockResolvedValue([]);
 
-    await expect(confirm()).resolves.toEqual([existingPlan]);
+    await expect(confirm()).resolves.toEqual({
+      plans: [existingPlan],
+      exclusions: [],
+    });
     expect(employeeFindMany).not.toHaveBeenCalled();
     expect(planUpsert).not.toHaveBeenCalled();
   });
@@ -157,17 +202,56 @@ describe('DocumentResolutionService', () => {
       contenido: 'versión posterior',
     };
 
-    await expect(confirm()).resolves.toEqual([
-      { id: 'plan-1', plantillaSnapshot: historicalSnapshot },
-    ]);
+    await expect(confirm()).resolves.toEqual({
+      plans: [{ id: 'plan-1', plantillaSnapshot: historicalSnapshot }],
+      exclusions: [],
+    });
     expect(planUpsert).toHaveBeenCalledTimes(1);
     expect(configurationFindMany).toHaveBeenCalledTimes(1);
   });
 
-  it('hace rollback lógico sin crear planes si hay una resolución bloqueada', async () => {
+  it('confirma válidos y registra bloqueados como exclusiones', async () => {
     relationshipFindMany.mockResolvedValue([]);
-    await expect(confirm()).rejects.toThrow();
+    exclusionUpsert.mockResolvedValue({ id: 'exclusion-1' });
+
+    await expect(confirm()).resolves.toEqual({
+      plans: [],
+      exclusions: [{ id: 'exclusion-1' }],
+    });
     expect(planUpsert).not.toHaveBeenCalled();
+    expect(exclusionUpsert).toHaveBeenCalledWith(
+      objectContaining({
+        update: {},
+        create: objectContaining({
+          empleadoId: EMPLOYEE,
+          motivoBloqueo: 'VINCULO_INEXISTENTE_O_FUERA_DE_VIGENCIA',
+        }),
+      }),
+    );
+  });
+
+  it('confirma una población parcial y conserva la exclusión del empleado bloqueado', async () => {
+    const second = '33333333-3333-4333-8333-333333333333';
+    employeeFindMany.mockResolvedValue([employee]);
+    relationshipFindMany.mockResolvedValue([relationship]);
+    planUpsert.mockResolvedValue({ id: 'plan-valid' });
+    exclusionUpsert.mockResolvedValue({ id: 'exclusion-blocked' });
+    loteFindFirst.mockResolvedValue({
+      ...lote,
+      configuracion: { empleadoIds: [EMPLOYEE, second] },
+    });
+
+    await expect(confirm()).resolves.toEqual({
+      plans: [{ id: 'plan-valid' }],
+      exclusions: [{ id: 'exclusion-blocked' }],
+    });
+    expect(planUpsert).toHaveBeenCalledTimes(1);
+    expect(exclusionUpsert).toHaveBeenCalledTimes(1);
+    expect(exclusionUpsert).toHaveBeenCalledWith(
+      objectContaining({
+        create: objectContaining({ empleadoId: second }),
+      }),
+    );
   });
 
   it('resuelve una plantilla vigente de forma determinística', async () => {

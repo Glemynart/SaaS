@@ -12,6 +12,13 @@ const migration = readFileSync(
   ),
   'utf8',
 );
+const partialConfirmationMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    'prisma/migrations/20260801000001_pr11b_partial_confirmation/migration.sql',
+  ),
+  'utf8',
+);
 
 describe('BatchDocumentGenerationPlan infrastructure', () => {
   it('persists the complete historical snapshot contract', () => {
@@ -19,10 +26,24 @@ describe('BatchDocumentGenerationPlan infrastructure', () => {
     expect(schema).toContain('perfilSnapshot Json');
     expect(schema).toContain('configuracionSnapshot Json');
     expect(schema).toContain('plantillaSnapshot Json');
+    expect(schema).toContain('empleadoSnapshot Json?');
+    expect(schema).toContain('contratoSnapshot Json?');
     expect(schema).toContain('vinculoLaboralId String');
     expect(schema).toContain('perfilContractualId String');
     expect(schema).toContain('configuracionDocumentalPerfilId String');
     expect(schema).toContain('plantillaId String');
+  });
+
+  it('persists blocked employees as immutable partial-confirmation exclusions', () => {
+    expect(schema).toContain('model BatchDocumentGenerationExclusion');
+    expect(schema).toContain('fechaEvaluacion DateTime @db.Date');
+    expect(schema).toContain('motivoBloqueo String');
+    expect(partialConfirmationMigration).toContain(
+      'CREATE TABLE "batch_document_generation_exclusions"',
+    );
+    expect(partialConfirmationMigration).toContain(
+      'UNIQUE ("loteId", "empleadoId", "tipoDocumental")',
+    );
   });
 
   it('defines lifecycle states and tenant-scoped persistence', () => {

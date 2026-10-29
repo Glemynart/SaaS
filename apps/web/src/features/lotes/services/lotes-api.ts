@@ -1,3 +1,5 @@
+import { getApiErrorMessage } from '@/lib/error-message';
+
 export type LoteEstado =
   | 'PENDIENTE'
   | 'EN_PROCESO'
@@ -15,6 +17,7 @@ export interface Lote {
   id: string;
   tenantId: string;
   nombreLote: string;
+  proposito: 'CONTRATACION' | null;
   estado: LoteEstado;
   total: number;
   procesados: number;
@@ -25,7 +28,7 @@ export interface Lote {
   iniciadoAt: string | null;
   completadoAt: string | null;
   erroresLog: LoteErrorEntry[];
-  documentTemplate: { id: string; nombre: string };
+  documentTemplate: { id: string; nombre: string } | null;
   sede: { id: string; nombre: string } | null;
   creadoPor: { id: string; nombre: string; email: string };
   _count: { contratos: number };
@@ -36,13 +39,14 @@ export interface Lote {
 export interface LoteSummary {
   id: string;
   nombreLote: string;
+  proposito: 'CONTRATACION' | null;
   estado: LoteEstado;
   total: number;
   procesados: number;
   fallidos: number;
   iniciadoAt: string | null;
   completadoAt: string | null;
-  documentTemplate: { id: string; nombre: string };
+  documentTemplate: { id: string; nombre: string } | null;
   sede: { id: string; nombre: string } | null;
   _count: { contratos: number };
   createdAt: string;
@@ -69,7 +73,8 @@ export interface GetLotesParams {
 
 export interface CreateLotePayload {
   nombre: string;
-  templateId: string;
+  templateId?: string;
+  proposito?: 'CONTRATACION';
   empleadoIds: string[];
   sedeId?: string;
   tipoContrato?: string;
@@ -82,7 +87,7 @@ export interface PaginatedResponse<T> {
   meta: { total: number; page: number; limit: number; totalPages: number };
 }
 
-type ApiEnvelope<T> = T & { message?: string };
+type ApiEnvelope<T> = T & { message?: string | string[] };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -90,7 +95,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { 'Content-Type': 'application/json', ...init?.headers },
   });
   const body = (await response.json().catch(() => ({}))) as ApiEnvelope<T>;
-  if (!response.ok) throw new Error(body.message ?? 'No se pudo completar la solicitud.');
+  if (!response.ok) {
+    throw new Error(getApiErrorMessage(body, 'No se pudo completar la solicitud.'));
+  }
   return body as T;
 }
 

@@ -62,6 +62,10 @@ describe('LocalDiskStorageProvider', () => {
     expect(await provider.exists(key)).toBe(true);
   });
 
+  it('confirma que el root local está disponible para el runtime', async () => {
+    await expect(provider.checkReadiness()).resolves.toBeUndefined();
+  });
+
   it('elimina un objeto existente', async () => {
     await provider.put({ key, body: Buffer.from('x') });
     await provider.delete(key);

@@ -1,0 +1,10 @@
+staging-api.dusema.com {
+    encode gzip
+
+    reverse_proxy dusema-staging-api:4000
+
+    log {
+        output stdout
+        format json
+    }
+}

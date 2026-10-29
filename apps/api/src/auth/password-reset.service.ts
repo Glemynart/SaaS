@@ -68,14 +68,15 @@ export class PasswordResetService {
 
     const frontendUrl =
       this.config.get<string>('frontendUrl') ?? 'http://localhost:3000';
-    const resetUrl = `${frontendUrl}/reset-password?token=${tokenEncoded}`;
+    const resetUrl = new URL(`${frontendUrl.replace(/\/+$/, '')}/restablecer`);
+    resetUrl.hash = new URLSearchParams({ token: tokenEncoded }).toString();
 
     await this.emailService.send({
       type: 'password-reset',
       to: email,
       payload: {
         userName: `${user.nombre} ${user.apellido}`.trim(),
-        resetUrl,
+        resetUrl: resetUrl.toString(),
         expiresInHours: RESET_EXPIRY_HOURS,
       },
       auditContext: { tenantId: tenant.id, userId: user.id },
@@ -107,48 +108,35 @@ export class PasswordResetService {
     userAgent?: string;
   }): Promise<{ message: string }> {
     const { token, newPassword, ipAddress, userAgent } = params;
-
-    let tokenId: string;
-    let secret: string;
-    try {
-      const decoded = Buffer.from(token, 'base64').toString('utf8');
-      const parts = decoded.split(':');
-      if (parts.length !== 2) throw new Error();
-      [tokenId, secret] = parts;
-    } catch {
-      throw new BadRequestException(INVALID_TOKEN_MSG);
-    }
-
-    const dbToken = await this.prisma.passwordResetToken.findUnique({
-      where: { id: tokenId },
-      include: { user: true },
-    });
-
+    const dbToken = await this.findValidResetToken(token);
     if (!dbToken) throw new BadRequestException(INVALID_TOKEN_MSG);
-    if (dbToken.usedAt !== null)
-      throw new BadRequestException(INVALID_TOKEN_MSG);
-    if (new Date() > dbToken.expiresAt)
-      throw new BadRequestException(INVALID_TOKEN_MSG);
-
-    const isValid = await bcrypt.compare(secret, dbToken.tokenHash);
-    if (!isValid) throw new BadRequestException(INVALID_TOKEN_MSG);
 
     const newPasswordHash = await bcrypt.hash(newPassword, 10);
 
-    await this.prisma.$transaction([
-      this.prisma.user.update({
+    await this.prisma.$transaction(async (tx) => {
+      const consumedAt = new Date();
+      const claim = await tx.passwordResetToken.updateMany({
+        where: {
+          id: dbToken.id,
+          usedAt: null,
+          expiresAt: { gte: consumedAt },
+        },
+        data: { usedAt: consumedAt },
+      });
+
+      if (claim.count !== 1) {
+        throw new BadRequestException(INVALID_TOKEN_MSG);
+      }
+
+      await tx.user.update({
         where: { id: dbToken.userId },
         data: { passwordHash: newPasswordHash },
-      }),
-      this.prisma.passwordResetToken.update({
-        where: { id: tokenId },
-        data: { usedAt: new Date() },
-      }),
-      this.prisma.refreshToken.updateMany({
+      });
+      await tx.refreshToken.updateMany({
         where: { userId: dbToken.userId, revokedAt: null },
-        data: { revokedAt: new Date() },
-      }),
-    ]);
+        data: { revokedAt: consumedAt },
+      });
+    });
 
     await this.auditService
       .log({
@@ -162,5 +150,59 @@ export class PasswordResetService {
       .catch(() => {});
 
     return { message: 'Contraseña actualizada exitosamente.' };
+  }
+
+  async validateResetToken(token: unknown): Promise<{ valid: boolean }> {
+    return { valid: Boolean(await this.findValidResetToken(token)) };
+  }
+
+  private async findValidResetToken(token: unknown) {
+    const parsed = this.parseResetToken(token);
+    if (!parsed) return null;
+
+    const dbToken = await this.prisma.passwordResetToken.findUnique({
+      where: { id: parsed.tokenId },
+    });
+    if (
+      !dbToken ||
+      dbToken.usedAt !== null ||
+      dbToken.expiresAt <= new Date()
+    ) {
+      return null;
+    }
+
+    return (await bcrypt.compare(parsed.secret, dbToken.tokenHash))
+      ? dbToken
+      : null;
+  }
+
+  private parseResetToken(
+    token: unknown,
+  ): { tokenId: string; secret: string } | null {
+    if (
+      typeof token !== 'string' ||
+      token.length === 0 ||
+      token.length > 256 ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(token)
+    ) {
+      return null;
+    }
+
+    const decoded = Buffer.from(token, 'base64').toString('utf8');
+    if (Buffer.from(decoded, 'utf8').toString('base64') !== token) return null;
+
+    const separator = decoded.indexOf(':');
+    if (
+      separator <= 0 ||
+      separator === decoded.length - 1 ||
+      decoded.indexOf(':', separator + 1) !== -1
+    ) {
+      return null;
+    }
+
+    return {
+      tokenId: decoded.slice(0, separator),
+      secret: decoded.slice(separator + 1),
+    };
   }
 }

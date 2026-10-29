@@ -10,15 +10,37 @@ import {
   LoteEstado,
   Prisma,
 } from '@prisma/client';
-import { formatNombreCompleto } from '@saas/types';
 import { PdfRenderService } from '../pdf-render/pdf-render.service';
 import { StorageService } from '../storage/storage.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
+import { parseContractPlanSnapshot } from '../contracts/contract-plan-snapshot';
+import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
 
 type PlanTemplateSnapshot = {
   id: string;
   nombre?: string;
   contenido: string;
+};
+
+type ContractGenerationSnapshot = {
+  empleado: {
+    nombreCompleto: string;
+    tipoDocumento: string;
+    cedula: string;
+  };
+  contrato: {
+    cargo: string;
+    salario: string;
+    tipo: string;
+    fechaInicio: string;
+  };
+  empresa: {
+    nombre: string;
+    razonSocial: string | null;
+    nit: string;
+    representanteLegal: string | null;
+  };
+  sede: { nombre: string } | null;
 };
 
 type PreparedDocument = {
@@ -29,7 +51,12 @@ type PreparedDocument = {
     id: string;
     estado: GeneratedDocumentStatus;
     contenidoFinal: string;
+    contratoId: string | null;
+    pdfStorageKey: string | null;
+    pdfSizeBytes: number | null;
+    pdfUrl: string | null;
   };
+  contratoId: string;
 };
 
 /**
@@ -45,9 +72,14 @@ export class BatchDocumentGenerationService {
     private readonly tenantPrisma: TenantPrismaService,
     private readonly pdfRender: PdfRenderService,
     private readonly storage: StorageService,
+    private readonly expedienteDocsService: ExpedienteDocsService,
   ) {}
 
-  async start(loteId: string) {
+  async start(
+    loteId: string,
+    userId = 'system',
+    employeeIds?: readonly string[],
+  ) {
     const plans = await this.tenantPrisma.execute(async (prisma, context) => {
       const lote = await prisma.loteContrato.findFirst({
         where: { id: loteId, tenantId: context.tenantId },
@@ -65,6 +97,7 @@ export class BatchDocumentGenerationService {
         where: {
           tenantId: context.tenantId,
           loteId,
+          ...(employeeIds ? { empleadoId: { in: [...employeeIds] } } : {}),
           estado: {
             in: [
               BatchDocumentGenerationPlanStatus.CONFIRMADO,
@@ -84,26 +117,41 @@ export class BatchDocumentGenerationService {
 
     const documents = [];
     for (const plan of plans) {
-      documents.push(await this.generatePlan(plan.id));
+      documents.push(await this.generatePlan(plan.id, userId));
     }
 
     return { loteId, total: documents.length, documents };
   }
 
-  private async generatePlan(planId: string) {
+  private async generatePlan(planId: string, userId: string) {
     const prepared = await this.prepareDocument(planId);
-    const wasMaterialized =
-      prepared.document.estado === GeneratedDocumentStatus.MATERIALIZADO;
+    const wasMaterialized = this.hasMaterializedPdf(prepared.document);
 
     if (wasMaterialized) {
-      if (prepared.planStatus !== BatchDocumentGenerationPlanStatus.CONSUMIDO) {
-        await this.markPlanConsumed(prepared.planId, prepared.tenantId);
+      try {
+        await this.ensureDocumentLinkedToContract(prepared);
+        await this.publishDocument(prepared, userId, {
+          pdfStorageKey: prepared.document.pdfStorageKey!,
+          pdfSizeBytes: prepared.document.pdfSizeBytes!,
+          pdfUrl: prepared.document.pdfUrl!,
+        });
+        if (
+          prepared.planStatus !== BatchDocumentGenerationPlanStatus.CONSUMIDO
+        ) {
+          await this.markPlanConsumed(prepared.planId, prepared.tenantId);
+        }
+        return {
+          planId: prepared.planId,
+          documentId: prepared.document.id,
+          outcome: 'EXISTING',
+        };
+      } catch (error) {
+        await this.markDocumentFailed(
+          prepared.tenantId,
+          prepared.document.id,
+        ).catch(() => undefined);
+        throw error;
       }
-      return {
-        planId: prepared.planId,
-        documentId: prepared.document.id,
-        outcome: 'EXISTING',
-      };
     }
 
     const storageKey = this.getStorageKey(
@@ -113,6 +161,7 @@ export class BatchDocumentGenerationService {
     const pdfUrl = this.getPdfUrl(storageKey);
 
     try {
+      await this.ensureDocumentLinkedToContract(prepared);
       const pdfSizeBytes = await this.ensureStoredPdf(
         storageKey,
         prepared.document.contenidoFinal,
@@ -121,9 +170,15 @@ export class BatchDocumentGenerationService {
         planId: prepared.planId,
         tenantId: prepared.tenantId,
         documentId: prepared.document.id,
+        contratoId: prepared.contratoId,
         storageKey,
         pdfUrl,
         pdfSizeBytes,
+      });
+      await this.publishDocument(prepared, userId, {
+        pdfStorageKey: storageKey,
+        pdfSizeBytes,
+        pdfUrl,
       });
 
       return {
@@ -148,8 +203,11 @@ export class BatchDocumentGenerationService {
           id: true,
           tenantId: true,
           empleadoId: true,
+          loteId: true,
           plantillaId: true,
           plantillaSnapshot: true,
+          empleadoSnapshot: true,
+          contratoSnapshot: true,
           tipoDocumental: true,
           estado: true,
         },
@@ -160,12 +218,34 @@ export class BatchDocumentGenerationService {
         throw new ConflictException('El plan de generación está anulado.');
       }
 
+      const contract = await prisma.contrato.findFirst({
+        where: {
+          tenantId: context.tenantId,
+          loteId: plan.loteId,
+          empleadoId: plan.empleadoId,
+        },
+        select: { id: true, estado: true, variablesSnapshot: true },
+      });
+      if (!contract) {
+        throw new NotFoundException(
+          'El plan confirmado no tiene un contrato asociado.',
+        );
+      }
+
       const existing = await prisma.generatedDocument.findFirst({
         where: {
           tenantId: context.tenantId,
           batchDocumentGenerationPlanId: plan.id,
         },
-        select: { id: true, estado: true, contenidoFinal: true },
+        select: {
+          id: true,
+          estado: true,
+          contenidoFinal: true,
+          contratoId: true,
+          pdfStorageKey: true,
+          pdfSizeBytes: true,
+          pdfUrl: true,
+        },
       });
       if (existing) {
         return {
@@ -173,10 +253,20 @@ export class BatchDocumentGenerationService {
           planStatus: plan.estado,
           tenantId: context.tenantId,
           document: existing,
+          contratoId: contract.id,
         };
       }
+      if (contract.estado !== 'VIGENTE') {
+        throw new BadRequestException(
+          'Solo se puede generar el documento de un contrato VIGENTE.',
+        );
+      }
+      const contractSnapshot = this.resolveContractGenerationSnapshot(
+        contract.variablesSnapshot,
+        contract.id,
+      );
 
-      const [template, employee, tenant] = await Promise.all([
+      const [template, employee] = await Promise.all([
         prisma.documentTemplate.findFirst({
           where: { id: plan.plantillaId, tenantId: context.tenantId },
           select: { id: true, nombre: true, tipo: true },
@@ -187,23 +277,11 @@ export class BatchDocumentGenerationService {
             tenantId: context.tenantId,
             deletedAt: null,
           },
-          include: { sedeRef: { select: { nombre: true } } },
-        }),
-        prisma.tenant.findFirst({
-          where: { id: context.tenantId },
-          select: {
-            nombre: true,
-            razonSocial: true,
-            nit: true,
-            representanteLegal: true,
-            logoUrl: true,
-            firmaRepresentanteUrl: true,
-          },
+          select: { id: true },
         }),
       ]);
       if (!template) throw new NotFoundException('Plantilla no encontrada');
       if (!employee) throw new NotFoundException('Empleado no encontrado');
-      if (!tenant) throw new NotFoundException('Empresa no encontrada');
 
       const snapshot = this.resolveTemplateSnapshot(
         plan.plantillaSnapshot,
@@ -215,43 +293,44 @@ export class BatchDocumentGenerationService {
         plan.plantillaId,
         plan.tipoDocumental,
       );
-      const nombreCompleto = formatNombreCompleto({
-        primerNombre: employee.primerNombre,
-        segundoNombre: employee.segundoNombre,
-        primerApellido: employee.primerApellido,
-        segundoApellido: employee.segundoApellido,
-      });
+      parseContractPlanSnapshot(plan.empleadoSnapshot, plan.contratoSnapshot);
+      const nombreCompleto = contractSnapshot.empleado.nombreCompleto;
       const documentData = {
         tenantId: context.tenantId,
         employeeId: employee.id,
         templateId: template.id,
         batchDocumentGenerationPlanId: plan.id,
+        contratoId: contract.id,
         nombre: `${snapshot.nombre ?? template.nombre} — ${nombreCompleto}`,
         contenidoFinal: this.replaceVariables(snapshot.contenido, {
           NOMBRE_COMPLETO: nombreCompleto,
-          DOCUMENTO: `${employee.tipoDocumento} ${employee.cedula}`,
-          CARGO: employee.cargo,
+          DOCUMENTO: `${contractSnapshot.empleado.tipoDocumento} ${contractSnapshot.empleado.cedula}`,
+          CARGO: contractSnapshot.contrato.cargo,
           SALARIO: new Intl.NumberFormat('es-CO', {
             style: 'currency',
             currency: 'COP',
             minimumFractionDigits: 0,
             maximumFractionDigits: 0,
-          }).format(Number(employee.salario)),
-          TIPO_CONTRATO: this.formatTipoContrato(employee.tipoContrato),
-          FECHA_INGRESO: new Date(employee.fechaIngreso).toLocaleDateString(
-            'es-CO',
-            { year: 'numeric', month: 'long', day: 'numeric' },
+          }).format(Number(contractSnapshot.contrato.salario)),
+          TIPO_CONTRATO: this.formatTipoContrato(
+            contractSnapshot.contrato.tipo,
           ),
-          SEDE: employee.sedeRef?.nombre ?? '',
-          EMPRESA: tenant.razonSocial ?? tenant.nombre,
-          NIT: tenant.nit,
-          REPRESENTANTE_LEGAL: tenant.representanteLegal ?? 'No definido',
-          LOGO_EMPRESA: tenant.logoUrl
-            ? `<img src="${tenant.logoUrl}" alt="Logo ${tenant.nombre}" />`
-            : '',
-          FIRMA_REPRESENTANTE: tenant.firmaRepresentanteUrl
-            ? `<img src="${tenant.firmaRepresentanteUrl}" alt="Firma representante legal" />`
-            : '',
+          FECHA_INGRESO: new Date(
+            contractSnapshot.contrato.fechaInicio,
+          ).toLocaleDateString('es-CO', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          }),
+          SEDE: contractSnapshot.sede?.nombre ?? '',
+          EMPRESA:
+            contractSnapshot.empresa.razonSocial ??
+            contractSnapshot.empresa.nombre,
+          NIT: contractSnapshot.empresa.nit,
+          REPRESENTANTE_LEGAL:
+            contractSnapshot.empresa.representanteLegal ?? 'No definido',
+          LOGO_EMPRESA: '',
+          FIRMA_REPRESENTANTE: '',
         }),
         tipo: plan.tipoDocumental,
       };
@@ -259,13 +338,22 @@ export class BatchDocumentGenerationService {
       try {
         const document = await prisma.generatedDocument.create({
           data: documentData,
-          select: { id: true, estado: true, contenidoFinal: true },
+          select: {
+            id: true,
+            estado: true,
+            contenidoFinal: true,
+            contratoId: true,
+            pdfStorageKey: true,
+            pdfSizeBytes: true,
+            pdfUrl: true,
+          },
         });
         return {
           planId: plan.id,
           planStatus: plan.estado,
           tenantId: context.tenantId,
           document,
+          contratoId: contract.id,
         };
       } catch (error) {
         if (
@@ -277,7 +365,15 @@ export class BatchDocumentGenerationService {
               tenantId: context.tenantId,
               batchDocumentGenerationPlanId: plan.id,
             },
-            select: { id: true, estado: true, contenidoFinal: true },
+            select: {
+              id: true,
+              estado: true,
+              contenidoFinal: true,
+              contratoId: true,
+              pdfStorageKey: true,
+              pdfSizeBytes: true,
+              pdfUrl: true,
+            },
           });
           if (concurrent) {
             return {
@@ -285,6 +381,7 @@ export class BatchDocumentGenerationService {
               planStatus: plan.estado,
               tenantId: context.tenantId,
               document: concurrent,
+              contratoId: contract.id,
             };
           }
         }
@@ -316,6 +413,7 @@ export class BatchDocumentGenerationService {
     planId: string;
     tenantId: string;
     documentId: string;
+    contratoId: string;
     storageKey: string;
     pdfUrl: string;
     pdfSizeBytes: number;
@@ -327,6 +425,7 @@ export class BatchDocumentGenerationService {
           pdfStorageKey: input.storageKey,
           pdfUrl: input.pdfUrl,
           pdfSizeBytes: input.pdfSizeBytes,
+          contratoId: input.contratoId,
           estado: GeneratedDocumentStatus.MATERIALIZADO,
         },
       });
@@ -372,6 +471,78 @@ export class BatchDocumentGenerationService {
     );
   }
 
+  private hasMaterializedPdf(document: PreparedDocument['document']): boolean {
+    return Boolean(
+      document.estado === GeneratedDocumentStatus.MATERIALIZADO &&
+      document.pdfStorageKey &&
+      document.pdfUrl &&
+      document.pdfSizeBytes !== null,
+    );
+  }
+
+  private async ensureDocumentLinkedToContract(
+    prepared: PreparedDocument,
+  ): Promise<void> {
+    if (prepared.document.contratoId === prepared.contratoId) return;
+
+    await this.tenantPrisma.execute(async (prisma, context) => {
+      const document = await prisma.generatedDocument.findFirst({
+        where: { id: prepared.document.id, tenantId: context.tenantId },
+        select: { contratoId: true },
+      });
+      if (!document) {
+        throw new NotFoundException('Documento generado no encontrado');
+      }
+      if (document.contratoId === prepared.contratoId) return;
+      if (document.contratoId) {
+        throw new ConflictException(
+          'El documento generado ya estÃ¡ vinculado a otro contrato.',
+        );
+      }
+
+      const updated = await prisma.generatedDocument.updateMany({
+        where: {
+          id: prepared.document.id,
+          tenantId: context.tenantId,
+          contratoId: null,
+        },
+        data: { contratoId: prepared.contratoId },
+      });
+      if (updated.count === 1) return;
+
+      const concurrent = await prisma.generatedDocument.findFirst({
+        where: { id: prepared.document.id, tenantId: context.tenantId },
+        select: { contratoId: true },
+      });
+      if (concurrent?.contratoId !== prepared.contratoId) {
+        throw new ConflictException(
+          'No se pudo vincular el documento al contrato confirmado.',
+        );
+      }
+    });
+  }
+
+  private async publishDocument(
+    prepared: PreparedDocument,
+    userId: string,
+    materialization: {
+      pdfStorageKey: string;
+      pdfSizeBytes: number;
+      pdfUrl: string;
+    },
+  ): Promise<void> {
+    await this.expedienteDocsService.publishGeneratedDocument(
+      prepared.tenantId,
+      userId,
+      prepared.document.id,
+      {
+        id: prepared.document.id,
+        ...materialization,
+        materialized: false,
+      },
+    );
+  }
+
   private resolveTemplateSnapshot(
     value: Prisma.JsonValue,
     template: { id: string; nombre: string; tipo: string },
@@ -401,6 +572,48 @@ export class BatchDocumentGenerationService {
       );
     }
     return snapshot;
+  }
+
+  private resolveContractGenerationSnapshot(
+    value: Prisma.JsonValue,
+    contractId: string,
+  ): ContractGenerationSnapshot {
+    const snapshot = asRecord(value);
+    const employee = snapshot && asRecord(snapshot.empleado);
+    const contract = snapshot && asRecord(snapshot.contrato);
+    const company = snapshot && asRecord(snapshot.empresa);
+    const metadata = snapshot && asRecord(snapshot.metadata);
+    const site = snapshot?.sede === null ? null : asRecord(snapshot?.sede);
+
+    if (
+      !employee ||
+      typeof employee.nombreCompleto !== 'string' ||
+      typeof employee.tipoDocumento !== 'string' ||
+      typeof employee.cedula !== 'string' ||
+      !contract ||
+      typeof contract.cargo !== 'string' ||
+      typeof contract.salario !== 'string' ||
+      typeof contract.tipo !== 'string' ||
+      typeof contract.fechaInicio !== 'string' ||
+      !company ||
+      typeof company.nombre !== 'string' ||
+      typeof company.nit !== 'string' ||
+      (company.razonSocial !== null &&
+        company.razonSocial !== undefined &&
+        typeof company.razonSocial !== 'string') ||
+      (company.representanteLegal !== null &&
+        company.representanteLegal !== undefined &&
+        typeof company.representanteLegal !== 'string') ||
+      !metadata ||
+      typeof metadata.version !== 'number' ||
+      (snapshot.sede !== null && (!site || typeof site.nombre !== 'string'))
+    ) {
+      throw new BadRequestException(
+        `El contrato ${contractId} tiene un variablesSnapshot incompatible con la generación de documentos. Contacte soporte.`,
+      );
+    }
+
+    return snapshot as unknown as ContractGenerationSnapshot;
   }
 
   private buildPdfHtml(content: string): string {
@@ -440,4 +653,10 @@ img { max-width: 100%; height: auto; }
     };
     return labels[tipo] ?? tipo.replace(/_/g, ' ');
   }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }

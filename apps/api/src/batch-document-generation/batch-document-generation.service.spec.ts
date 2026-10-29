@@ -6,6 +6,7 @@ import {
 import { PdfRenderService } from '../pdf-render/pdf-render.service';
 import { StorageService } from '../storage/storage.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
+import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
 import { BatchDocumentGenerationService } from './batch-document-generation.service';
 
 const loteFindFirst = jest.fn();
@@ -15,13 +16,14 @@ const planUpdateMany = jest.fn();
 const documentFindFirst = jest.fn();
 const documentCreate = jest.fn();
 const documentUpdateMany = jest.fn();
+const contractFindFirst = jest.fn();
 const templateFindFirst = jest.fn();
 const employeeFindFirst = jest.fn();
-const tenantFindFirst = jest.fn();
 const renderPdf = jest.fn();
 const objectExists = jest.fn();
 const getObject = jest.fn();
 const putObject = jest.fn();
+const mockPublishGeneratedDocument = jest.fn();
 
 const TENANT = 'tenant-001';
 const LOTE = '11111111-1111-4111-8111-111111111111';
@@ -43,9 +45,9 @@ function mockPrismaClient() {
       create: documentCreate,
       updateMany: documentUpdateMany,
     },
+    contrato: { findFirst: contractFindFirst },
     documentTemplate: { findFirst: templateFindFirst },
     empleado: { findFirst: employeeFindFirst },
-    tenant: { findFirst: tenantFindFirst },
   };
 }
 
@@ -62,11 +64,36 @@ const plan = {
   id: PLAN,
   tenantId: TENANT,
   empleadoId: EMPLOYEE,
+  loteId: LOTE,
   plantillaId: TEMPLATE,
   plantillaSnapshot: {
     id: TEMPLATE,
     nombre: 'Contrato laboral',
     contenido: 'CONTRATO {{NOMBRE_COMPLETO}} - {{EMPRESA}}',
+  },
+  empleadoSnapshot: {
+    id: EMPLOYEE,
+    primerNombre: 'Ana',
+    segundoNombre: null,
+    primerApellido: 'LÃ³pez',
+    segundoApellido: null,
+    tipoDocumento: 'CC',
+    cedula: '123456789',
+    cargo: 'Analista',
+    salario: '2500000',
+    tipoContrato: 'TERMINO_INDEFINIDO',
+    fechaIngreso: '2026-01-15T00:00:00.000Z',
+    sedeId: null,
+    sede: null,
+  },
+  contratoSnapshot: {
+    cargo: 'Analista',
+    salario: '2500000',
+    tipo: 'TERMINO_INDEFINIDO',
+    fechaInicio: '2026-01-15T00:00:00.000Z',
+    fechaFin: null,
+    sedeId: null,
+    sede: null,
   },
   tipoDocumental: 'CONTRACT' as const,
   estado: BatchDocumentGenerationPlanStatus.CONFIRMADO,
@@ -87,8 +114,42 @@ const employee = {
   sedeRef: { nombre: 'Principal' },
 };
 
+const contractVariablesSnapshot = {
+  empleado: {
+    nombreCompleto: 'Ana López',
+    primerNombre: 'Ana',
+    segundoNombre: null,
+    primerApellido: 'López',
+    segundoApellido: null,
+    tipoDocumento: 'CC',
+    cedula: '123456789',
+  },
+  contrato: {
+    cargo: 'Analista',
+    salario: '2500000',
+    tipo: 'TERMINO_INDEFINIDO',
+    fechaInicio: '2026-01-15T00:00:00.000Z',
+    fechaFin: null,
+  },
+  empresa: {
+    nombre: 'Empresa Uno',
+    razonSocial: null,
+    nit: '900123456',
+    representanteLegal: 'Laura Gómez',
+  },
+  sede: null,
+  metadata: { generatedAt: '2026-01-15T00:00:00.000Z', version: 1 },
+};
+
+const historicalSurname = plan.empleadoSnapshot.primerApellido;
+plan.empleadoSnapshot.primerApellido = employee.primerApellido;
+
 function objectContaining<T extends object>(expected: T): T {
   return expect.objectContaining(expected) as T;
+}
+
+function stringContaining(value: string): unknown {
+  return expect.stringContaining(value);
 }
 
 describe('BatchDocumentGenerationService', () => {
@@ -104,23 +165,24 @@ describe('BatchDocumentGenerationService', () => {
     documentCreate.mockResolvedValue({
       id: DOCUMENT,
       estado: GeneratedDocumentStatus.PENDIENTE_MATERIALIZACION,
+      contratoId: 'contrato-001',
+      pdfStorageKey: null,
+      pdfSizeBytes: null,
+      pdfUrl: null,
       contenidoFinal: 'CONTRATO Ana López - Empresa Uno',
     });
     documentUpdateMany.mockResolvedValue({ count: 1 });
+    contractFindFirst.mockResolvedValue({
+      id: 'contrato-001',
+      estado: 'VIGENTE',
+      variablesSnapshot: contractVariablesSnapshot,
+    });
     templateFindFirst.mockResolvedValue({
       id: TEMPLATE,
       nombre: 'Contrato laboral',
       tipo: 'CONTRACT',
     });
     employeeFindFirst.mockResolvedValue(employee);
-    tenantFindFirst.mockResolvedValue({
-      nombre: 'Empresa Uno',
-      razonSocial: null,
-      nit: '900123456',
-      representanteLegal: 'Laura Gómez',
-      logoUrl: null,
-      firmaRepresentanteUrl: null,
-    });
     renderPdf.mockResolvedValue(Buffer.from('PDF-BYTES'));
     objectExists.mockResolvedValue(false);
     getObject.mockResolvedValue(Buffer.from('PDF-BYTES'));
@@ -129,10 +191,14 @@ describe('BatchDocumentGenerationService', () => {
       size: 9,
       contentType: 'application/pdf',
     });
+    mockPublishGeneratedDocument.mockResolvedValue({ outcome: 'CREATED' });
     service = new BatchDocumentGenerationService(
       { execute } as unknown as TenantPrismaService,
       { renderPdf } as unknown as PdfRenderService,
       { objectExists, getObject, putObject } as unknown as StorageService,
+      {
+        publishGeneratedDocument: mockPublishGeneratedDocument,
+      } as unknown as ExpedienteDocsService,
     );
   });
 
@@ -152,6 +218,7 @@ describe('BatchDocumentGenerationService', () => {
           employeeId: EMPLOYEE,
           templateId: TEMPLATE,
           batchDocumentGenerationPlanId: PLAN,
+          contratoId: 'contrato-001',
           contenidoFinal: 'CONTRATO Ana López - Empresa Uno',
           tipo: 'CONTRACT',
         }),
@@ -165,6 +232,15 @@ describe('BatchDocumentGenerationService', () => {
       body: Buffer.from('PDF-BYTES'),
       contentType: 'application/pdf',
     });
+    expect(mockPublishGeneratedDocument).toHaveBeenCalledWith(
+      TENANT,
+      'system',
+      DOCUMENT,
+      expect.objectContaining({
+        id: DOCUMENT,
+        pdfStorageKey: `pdfs/${TENANT}-${DOCUMENT}.pdf`,
+      }),
+    );
   });
 
   it('actualiza GeneratedDocument y consume el plan después de almacenar', async () => {
@@ -176,6 +252,7 @@ describe('BatchDocumentGenerationService', () => {
         pdfStorageKey: `pdfs/${TENANT}-${DOCUMENT}.pdf`,
         pdfUrl: `/uploads/pdfs/${TENANT}-${DOCUMENT}.pdf`,
         pdfSizeBytes: 9,
+        contratoId: 'contrato-001',
         estado: GeneratedDocumentStatus.MATERIALIZADO,
       },
     });
@@ -183,6 +260,18 @@ describe('BatchDocumentGenerationService', () => {
       where: { id: PLAN, tenantId: TENANT },
       data: { estado: BatchDocumentGenerationPlanStatus.CONSUMIDO },
     });
+  });
+
+  it('filtra los planes cuando el reintento es selectivo', async () => {
+    await service.start(LOTE, 'user-001', [EMPLOYEE]);
+
+    expect(planFindMany).toHaveBeenCalledWith(
+      objectContaining({
+        where: objectContaining({
+          empleadoId: { in: [EMPLOYEE] },
+        }),
+      }),
+    );
   });
 
   it('no consume el plan si no se materializa exactamente un documento', async () => {
@@ -214,6 +303,11 @@ describe('BatchDocumentGenerationService', () => {
   });
 
   it('reutiliza un documento materializado sin renderizar ni almacenar de nuevo', async () => {
+    contractFindFirst.mockResolvedValue({
+      id: 'contrato-001',
+      estado: 'VENCIDO',
+      variablesSnapshot: {},
+    });
     planFindFirst.mockResolvedValue({
       ...plan,
       estado: BatchDocumentGenerationPlanStatus.CONSUMIDO,
@@ -221,6 +315,10 @@ describe('BatchDocumentGenerationService', () => {
     documentFindFirst.mockResolvedValue({
       id: DOCUMENT,
       estado: GeneratedDocumentStatus.MATERIALIZADO,
+      contratoId: 'contrato-001',
+      pdfStorageKey: `pdfs/${TENANT}-${DOCUMENT}.pdf`,
+      pdfSizeBytes: 9,
+      pdfUrl: `/uploads/pdfs/${TENANT}-${DOCUMENT}.pdf`,
       contenidoFinal: 'snapshot existente',
     });
 
@@ -233,6 +331,12 @@ describe('BatchDocumentGenerationService', () => {
     expect(putObject).not.toHaveBeenCalled();
     expect(documentUpdateMany).not.toHaveBeenCalled();
     expect(planUpdateMany).not.toHaveBeenCalled();
+    expect(mockPublishGeneratedDocument).toHaveBeenCalledWith(
+      TENANT,
+      'system',
+      DOCUMENT,
+      expect.objectContaining({ id: DOCUMENT }),
+    );
   });
 
   it('recupera un documento fallido usando el artefacto ya almacenado', async () => {
@@ -261,6 +365,176 @@ describe('BatchDocumentGenerationService', () => {
         }),
       }),
     );
+  });
+
+  it('reconcilia el contrato en documentos materializados por E4.2', async () => {
+    planFindFirst.mockResolvedValue({
+      ...plan,
+      estado: BatchDocumentGenerationPlanStatus.CONSUMIDO,
+    });
+    documentFindFirst.mockResolvedValue({
+      id: DOCUMENT,
+      estado: GeneratedDocumentStatus.MATERIALIZADO,
+      contratoId: null,
+      pdfStorageKey: `pdfs/${TENANT}-${DOCUMENT}.pdf`,
+      pdfSizeBytes: 9,
+      pdfUrl: `/uploads/pdfs/${TENANT}-${DOCUMENT}.pdf`,
+      contenidoFinal: 'snapshot existente',
+    });
+
+    await service.start(LOTE, 'user-001');
+
+    expect(documentUpdateMany).toHaveBeenCalledWith({
+      where: { id: DOCUMENT, tenantId: TENANT, contratoId: null },
+      data: { contratoId: 'contrato-001' },
+    });
+    expect(mockPublishGeneratedDocument).toHaveBeenCalledWith(
+      TENANT,
+      'user-001',
+      DOCUMENT,
+      expect.objectContaining({ id: DOCUMENT }),
+    );
+  });
+
+  it('renderiza usando los snapshots confirmados aunque cambie el empleado', async () => {
+    const historicalPlan = {
+      ...plan,
+      plantillaSnapshot: {
+        ...plan.plantillaSnapshot,
+        contenido:
+          '{{NOMBRE_COMPLETO}}|{{DOCUMENTO}}|{{CARGO}}|{{SALARIO}}|{{FECHA_INGRESO}}',
+      },
+      empleadoSnapshot: {
+        ...plan.empleadoSnapshot,
+        primerNombre: 'Nombre confirmado',
+        primerApellido: historicalSurname,
+        cedula: '111222333',
+      },
+      contratoSnapshot: {
+        ...plan.contratoSnapshot,
+        cargo: 'Cargo confirmado',
+        salario: '3200000',
+        fechaInicio: '2026-02-01T00:00:00.000Z',
+      },
+    };
+    planFindFirst.mockResolvedValue(historicalPlan);
+    contractFindFirst.mockResolvedValue({
+      id: 'contrato-001',
+      estado: 'VIGENTE',
+      variablesSnapshot: {
+        ...contractVariablesSnapshot,
+        empleado: {
+          ...contractVariablesSnapshot.empleado,
+          nombreCompleto: 'Nombre confirmado LÃ³pez',
+          cedula: '111222333',
+        },
+        contrato: {
+          ...contractVariablesSnapshot.contrato,
+          cargo: 'Cargo confirmado',
+          salario: '3200000',
+          fechaInicio: '2026-02-01T00:00:00.000Z',
+        },
+      },
+    });
+
+    await service.start(LOTE);
+
+    expect(contractFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: { id: true, estado: true, variablesSnapshot: true },
+      }),
+    );
+    expect(documentCreate).toHaveBeenCalledWith(
+      objectContaining({
+        data: objectContaining({
+          contenidoFinal: stringContaining(
+            'Nombre confirmado LÃ³pez|CC 111222333|Cargo confirmado',
+          ),
+        }),
+      }),
+    );
+    const documentCalls = documentCreate.mock.calls as unknown as Array<
+      unknown[]
+    >;
+    const generatedDocumentCall = documentCalls[0]?.[0] as {
+      data: { contenidoFinal: string };
+    };
+    const generatedContent = generatedDocumentCall.data.contenidoFinal;
+    expect(generatedContent).not.toContain('Analista');
+    expect(generatedContent).not.toContain('123456789');
+  });
+
+  it('genera el documento desde el snapshot contractual y no desde datos actuales', async () => {
+    contractFindFirst.mockResolvedValue({
+      id: 'contrato-001',
+      estado: 'VIGENTE',
+      variablesSnapshot: {
+        ...contractVariablesSnapshot,
+        empleado: {
+          ...contractVariablesSnapshot.empleado,
+          nombreCompleto: 'Nombre contractual',
+          cedula: '111222333',
+        },
+        contrato: {
+          ...contractVariablesSnapshot.contrato,
+          cargo: 'Cargo contractual',
+        },
+        empresa: {
+          nombre: 'Empresa histórica',
+          razonSocial: 'Razón social confirmada S.A.S.',
+          nit: '900000001',
+          representanteLegal: 'Representante confirmado',
+        },
+      },
+    });
+    planFindFirst.mockResolvedValue({
+      ...plan,
+      plantillaSnapshot: {
+        ...plan.plantillaSnapshot,
+        contenido:
+          '{{NOMBRE_COMPLETO}}|{{DOCUMENTO}}|{{CARGO}}|{{EMPRESA}}|{{NIT}}|{{REPRESENTANTE_LEGAL}}|{{LOGO_EMPRESA}}|{{FIRMA_REPRESENTANTE}}',
+      },
+    });
+
+    await service.start(LOTE);
+
+    expect(documentCreate).toHaveBeenCalledWith(
+      objectContaining({
+        data: objectContaining({
+          contenidoFinal:
+            'Nombre contractual|CC 111222333|Cargo contractual|Razón social confirmada S.A.S.|900000001|Representante confirmado||',
+        }),
+      }),
+    );
+  });
+
+  it('rechaza un snapshot empresarial incompatible en vez de usar datos actuales', async () => {
+    contractFindFirst.mockResolvedValue({
+      id: 'contrato-001',
+      estado: 'VIGENTE',
+      variablesSnapshot: { empresa: { nombre: 'Empresa sin NIT' } },
+    });
+
+    await expect(service.start(LOTE)).rejects.toThrow(
+      'variablesSnapshot incompatible con la generación de documentos',
+    );
+
+    expect(documentCreate).not.toHaveBeenCalled();
+  });
+
+  it('no genera un documento nuevo para un contrato que ya no está vigente', async () => {
+    contractFindFirst.mockResolvedValue({
+      id: 'contrato-001',
+      estado: 'VENCIDO',
+      variablesSnapshot: contractVariablesSnapshot,
+    });
+
+    await expect(service.start(LOTE)).rejects.toThrow(
+      'Solo se puede generar el documento de un contrato VIGENTE.',
+    );
+
+    expect(documentCreate).not.toHaveBeenCalled();
+    expect(renderPdf).not.toHaveBeenCalled();
   });
 
   it('marca el documento como FALLIDO si el render falla y conserva el plan', async () => {

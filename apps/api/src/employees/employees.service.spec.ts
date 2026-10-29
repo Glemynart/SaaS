@@ -14,7 +14,20 @@ const mockAuditLog = jest.fn();
 const mockTenantPrismaExecute = jest.fn();
 
 const TENANT_A = 'tenant-a';
+const USER_A = 'user-a';
 const TENANT_B_EMPLOYEE = 'employee-from-tenant-b';
+
+const expectedSearchConditions = (terms: string[]) =>
+  terms.map((term) => ({
+    OR: [
+      { primerNombre: { contains: term, mode: 'insensitive' } },
+      { segundoNombre: { contains: term, mode: 'insensitive' } },
+      { primerApellido: { contains: term, mode: 'insensitive' } },
+      { segundoApellido: { contains: term, mode: 'insensitive' } },
+      { cedula: { contains: term, mode: 'insensitive' } },
+      { email: { contains: term, mode: 'insensitive' } },
+    ],
+  }));
 
 describe('EmployeesService tenant isolation contracts', () => {
   let service: EmployeesService;
@@ -68,6 +81,51 @@ describe('EmployeesService tenant isolation contracts', () => {
     expect(mockTenantPrismaExecute).toHaveBeenCalledTimes(1);
   });
 
+  it('searches an individual term across employee fields', async () => {
+    await service.findAll({ page: 1, limit: 10, search: 'Empleado' });
+
+    const [findManyArgs] = mockEmpleadoFindMany.mock.calls;
+    const where = findManyArgs?.[0]?.where;
+    expect(where).toMatchObject({
+      tenantId: TENANT_A,
+      deletedAt: null,
+    });
+    expect(where?.AND).toEqual(expectedSearchConditions(['Empleado']));
+  });
+
+  it('matches every term in a compound employee search across the fields', async () => {
+    await service.findAll({
+      page: 1,
+      limit: 10,
+      search: 'Empleado Prueba',
+    });
+
+    const [findManyArgs] = mockEmpleadoFindMany.mock.calls;
+    const where = findManyArgs?.[0]?.where;
+    expect(where?.AND).toEqual(
+      expectedSearchConditions(['Empleado', 'Prueba']),
+    );
+  });
+
+  it('returns an empty result when an employee search has no matches', async () => {
+    mockEmpleadoFindMany.mockResolvedValue([]);
+    mockEmpleadoCount.mockResolvedValue(0);
+
+    const result = await service.findAll({
+      page: 1,
+      limit: 10,
+      search: 'No existe',
+    });
+
+    const [findManyArgs] = mockEmpleadoFindMany.mock.calls;
+    const where = findManyArgs?.[0]?.where;
+    expect(where?.AND).toEqual(expectedSearchConditions(['No', 'existe']));
+    expect(result).toEqual({
+      data: [],
+      meta: { total: 0, page: 1, limit: 10, totalPages: 0 },
+    });
+  });
+
   it('does not read an employee belonging to another tenant', async () => {
     mockEmpleadoFindFirst.mockResolvedValue(null);
 
@@ -90,7 +148,7 @@ describe('EmployeesService tenant isolation contracts', () => {
     mockEmpleadoFindFirst.mockResolvedValue(null);
 
     await expect(
-      service.update(TENANT_B_EMPLOYEE, { primerNombre: 'Ataque' }),
+      service.update(USER_A, TENANT_B_EMPLOYEE, { primerNombre: 'Ataque' }),
     ).rejects.toBeInstanceOf(NotFoundException);
 
     expect(mockEmpleadoFindFirst).toHaveBeenCalledWith(
@@ -108,9 +166,9 @@ describe('EmployeesService tenant isolation contracts', () => {
   it('rejects a cross-tenant deletion before issuing a write', async () => {
     mockEmpleadoFindFirst.mockResolvedValue(null);
 
-    await expect(service.remove(TENANT_B_EMPLOYEE)).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.remove(USER_A, TENANT_B_EMPLOYEE),
+    ).rejects.toBeInstanceOf(NotFoundException);
 
     expect(mockEmpleadoFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -122,5 +180,66 @@ describe('EmployeesService tenant isolation contracts', () => {
       }),
     );
     expect(mockEmpleadoUpdate).not.toHaveBeenCalled();
+  });
+
+  it('audits an update after the tenant-scoped write succeeds', async () => {
+    mockEmpleadoFindFirst.mockResolvedValue({ id: 'employee-a' });
+    mockEmpleadoUpdate.mockResolvedValue({ id: 'employee-a' });
+
+    await service.update(USER_A, 'employee-a', { cargo: 'Coordinador' });
+
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: TENANT_A,
+        userId: USER_A,
+        action: 'EMPLOYEE_UPDATE',
+        entityType: 'Employee',
+        entityId: 'employee-a',
+        metadata: { fields: ['cargo'] },
+      }),
+    );
+  });
+
+  it('clears an optional retirement date when the edit form sends an empty value', async () => {
+    mockEmpleadoFindFirst.mockResolvedValue({ id: 'employee-a' });
+    mockEmpleadoUpdate.mockResolvedValue({ id: 'employee-a' });
+
+    await service.update(USER_A, 'employee-a', { fechaRetiro: '' });
+
+    const [updateQuery] = mockEmpleadoUpdate.mock.calls as [
+      [{ data: { fechaRetiro: Date | null } }],
+    ];
+    expect(updateQuery?.[0].data.fechaRetiro).toBeNull();
+  });
+
+  it('clears an optional municipality when the edit form sends an empty value', async () => {
+    mockEmpleadoFindFirst.mockResolvedValue({ id: 'employee-a' });
+    mockEmpleadoUpdate.mockResolvedValue({ id: 'employee-a' });
+
+    await service.update(USER_A, 'employee-a', {
+      municipioExpedicionDocId: '',
+    });
+
+    const [updateQuery] = mockEmpleadoUpdate.mock.calls as [
+      [{ data: { municipioExpedicionDocId: string | null } }],
+    ];
+    expect(updateQuery?.[0].data.municipioExpedicionDocId).toBeNull();
+  });
+
+  it('audits a soft delete after the tenant-scoped write succeeds', async () => {
+    mockEmpleadoFindFirst.mockResolvedValue({ id: 'employee-a' });
+    mockEmpleadoUpdate.mockResolvedValue({ id: 'employee-a' });
+
+    await service.remove(USER_A, 'employee-a');
+
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: TENANT_A,
+        userId: USER_A,
+        action: 'EMPLOYEE_DELETE',
+        entityType: 'Employee',
+        entityId: 'employee-a',
+      }),
+    );
   });
 });

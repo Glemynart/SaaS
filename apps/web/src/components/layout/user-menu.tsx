@@ -98,7 +98,7 @@ export function UserMenu({ align, renderTrigger }: UserMenuProps) {
           role="menu"
           aria-label="Menú de usuario"
           className={cn(
-            'absolute z-[--z-overlay] w-60 rounded-[--radius-card] border border-border bg-surface p-1.5 shadow-[--shadow-overlay]',
+            'absolute z-(--z-overlay) w-60 rounded-(--radius-card) border border-border bg-surface p-1.5 shadow-(--shadow-overlay)',
             align === 'bottom'
               ? 'right-0 top-[calc(100%+0.5rem)]'
               : 'bottom-[calc(100%+0.5rem)] left-0',
@@ -120,7 +120,7 @@ export function UserMenu({ align, renderTrigger }: UserMenuProps) {
             role="menuitem"
             href="/perfil"
             onClick={close}
-            className="flex h-9 items-center gap-2.5 rounded-[--radius-control] px-2.5 text-sm text-foreground transition-colors duration-[--duration-fast] hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            className="flex h-9 items-center gap-2.5 rounded-(--radius-control) px-2.5 text-sm text-foreground transition-colors duration-(--duration-fast) hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
             <UserRound className="size-4 text-muted-foreground" aria-hidden="true" />
             Perfil
@@ -131,7 +131,7 @@ export function UserMenu({ align, renderTrigger }: UserMenuProps) {
             type="button"
             onClick={() => logout.mutate()}
             disabled={logout.isPending}
-            className="flex h-9 w-full items-center gap-2.5 rounded-[--radius-control] px-2.5 text-left text-sm text-foreground transition-colors duration-[--duration-fast] hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-50"
+            className="flex h-9 w-full items-center gap-2.5 rounded-(--radius-control) px-2.5 text-left text-sm text-foreground transition-colors duration-(--duration-fast) hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-50"
           >
             {logout.isPending ? (
               <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />

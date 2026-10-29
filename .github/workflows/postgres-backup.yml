@@ -1,0 +1,73 @@
+name: PostgreSQL backup script
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/postgres-backup.yml'
+      - 'deploy/postgres-backup/**'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/postgres-backup.yml'
+      - 'deploy/postgres-backup/**'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-only-backup-test
+          POSTGRES_DB: postgres
+        options: >-
+          --label dusema.backup.environment=staging
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate Bash syntax
+        run: |
+          bash -n deploy/postgres-backup/backup-postgres.sh
+          bash -n deploy/postgres-backup/test-backup-postgres.sh
+          bash -n deploy/postgres-backup/restore-postgres-backup.sh
+          bash -n deploy/postgres-backup/test-backup-restore-roundtrip.sh
+          bash -n deploy/postgres-backup/test-backup-set-roundtrip.sh
+          bash -n deploy/postgres-backup/backup-uploads-artifact.sh
+          bash -n deploy/postgres-backup/restore-uploads-artifact.sh
+          bash -n deploy/postgres-backup/backup-set-postgres-artifact.sh
+          bash -n deploy/postgres-backup/backup-set.sh
+          bash -n deploy/postgres-backup/restore-backup-set.sh
+          bash -n deploy/postgres-backup/test-uploads-backup-restore-roundtrip.sh
+          python3 -c "import ast, pathlib; [ast.parse(pathlib.Path(path).read_text(encoding='utf-8')) for path in ('deploy/postgres-backup/uploads-archive.py', 'deploy/postgres-backup/backup-set-manifest.py', 'deploy/postgres-backup/test-backup-set-manifest.py', 'deploy/postgres-backup/test-backup-set.py')]"
+
+      - name: Run mocked backup checks
+        run: bash deploy/postgres-backup/test-backup-postgres.sh
+
+      - name: Verify encrypted backup restoration in disposable PostgreSQL
+        env:
+          POSTGRES_SERVICE_ID: ${{ job.services.postgres.id }}
+        run: bash deploy/postgres-backup/test-backup-restore-roundtrip.sh
+
+      - name: Verify encrypted uploads backup and restoration with synthetic data
+        run: bash deploy/postgres-backup/test-uploads-backup-restore-roundtrip.sh
+
+      - name: Verify coordinated backup set round trip in disposable PostgreSQL
+        env:
+          POSTGRES_SERVICE_ID: ${{ job.services.postgres.id }}
+        run: bash deploy/postgres-backup/test-backup-set-roundtrip.sh
+
+      - name: Verify coordinated PostgreSQL and uploads backup sets
+        run: |
+          python3 deploy/postgres-backup/test-backup-set-manifest.py
+          python3 deploy/postgres-backup/test-backup-set.py

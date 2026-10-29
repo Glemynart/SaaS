@@ -39,7 +39,7 @@ const backLink = (
 
 function SectionCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-[--radius-card] border border-border bg-surface p-5 shadow-[--shadow-card]">
+    <section className="rounded-(--radius-card) border border-border bg-surface p-5 shadow-(--shadow-card)">
       <h2 className="text-base font-semibold text-foreground">{title}</h2>
       {children}
     </section>

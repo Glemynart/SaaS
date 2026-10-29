@@ -1,8 +1,10 @@
-﻿# <a name="project_state.md"></a>PROJECT_STATE.md
+# <a name="project_state.md"></a>PROJECT_STATE.md
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: Security Hardening v3 completada (2026-07-29)
+## Última actualización: GOAL-01 activo; PR #124 fusionada; M1 pendiente de validación operativa (2026-10-29)
+
+> Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -49,6 +51,16 @@ La propuesta de valor actual es:
 
 “Centralizar la gestión laboral, documental y operativa de operadores educativos colombianos.”
 
+## Investigación de posicionamiento y branding
+
+La investigación de branding quedó cerrada el 2026-08-03. `La Oficina Nítida`
+continúa siendo un nombre de trabajo; no existe una marca comercial aprobada.
+El posicionamiento y los territorios conceptuales conservados están documentados
+en [`docs/branding/BRAND-POSITIONING-AND-TERRITORIES.md`](docs/branding/BRAND-POSITIONING-AND-TERRITORIES.md).
+
+Esta decisión no redefine GOAL-01, no cambia el roadmap, no crea una Epic y no
+autoriza nuevas generaciones de nombres.
+
 ---
 
 # <a name="stack-tecnológico"></a>Stack Tecnológico
@@ -67,8 +79,8 @@ Backend:
 Servicios:
 
 - Renderizado PDF con Puppeteer.
-- Almacenamiento local configurable mediante el proveedor de storage.
-- Resend para correo transaccional, con modo degradado cuando no está configurado.
+- Almacenamiento local o Cloudflare R2 configurable mediante el proveedor de storage.
+- Nodemailer hacia OCI SMTP para correo transaccional, con modo degradado cuando no está configurado.
 
 ---
 
@@ -85,11 +97,75 @@ Servicios:
 
 ---
 
+# <a name="estado-operativo-goal-01"></a>Estado operativo de GOAL-01
+
+- **GOAL-01:** `ACTIVO`.
+- **Implementación:** `BLOQUEADA SELECTIVAMENTE` por M1/M7 y correo real en
+  M2; esto no equivale a bloquear el Goal.
+- **Arquitectura y preparación:** `DISPONIBLE` mediante
+  [`Platform Evolution`](docs/architecture/PLATFORM-EVOLUTION.md).
+
+La metodología permite continuar con arquitectura, planificación,
+investigación y preparación mientras una ruta de implementación espera una
+dependencia externa. GOAL-01 solo podrá pasar a `BLOQUEADO` cuando una
+auditoría demuestre que no existe ninguna actividad útil en esas categorías ni
+en implementación.
+
+La regla vigente distingue explícitamente el estado del Goal del estado de sus
+rutas: `GOAL ACTIVO`, `IMPLEMENTACIÓN BLOQUEADA` y `ARQUITECTURA DISPONIBLE`.
+Un Milestone bloqueado por infraestructura no bloquea el Goal completo. La
+auditoría debe revisar todos los Milestones, Epics, ADRs y actividades de
+arquitectura, planificación, investigación y preparación antes de declarar
+`GOAL BLOQUEADO`.
+
+La auditoría de negocio determinó que E7.3 no es necesaria para tener operando al
+primer cliente: captura prospectos antes del tenant y no participa en el
+onboarding ni en el recorrido laboral-documental. ADR-008 fue aceptado como
+referencia de Platform Evolution; E7.3 queda fuera de GOAL-01 y no se implementó
+código.
+
 # <a name="estado-general-del-proyecto"></a>Estado General del Proyecto
+
+## Estado de E2.4, E5.2, E5.3, E5.4, E6.1, E6.2 y E6.3
+
+E5.2 fue fusionada en el PR #102, con familias documentales explícitas,
+revisiones append-only, consulta tenant-scoped, descarga autenticada e
+historial v1/v2. Sus checks post-merge de CI y Browser E2E están verdes.
+
+E5.3 fue fusionada en el PR #103. Las publicaciones del expediente son
+append-only: no se pueden eliminar documentos generados ni manuales; las rutas
+de lectura, detalle e historial exigen `ADMIN`/`OPERADOR`, y la UI ya no ofrece
+una acción destructiva. Sus checks post-merge de CI y Browser E2E están verdes.
+E5.4 fue fusionada en el PR #104. Las descargas directas desde el expediente
+registran el actor, tenant, familia, versión, categoría y origen documental
+después de leer exitosamente el objeto. La integración de contratos y
+certificaciones continúa usando la publicación documental común y sus eventos
+de auditoría. Sus checks post-merge de CI y Browser E2E están verdes.
+
+E6.1 fue fusionada en el PR #105. El API ejecuta diariamente, a las 02:00,
+la generación de alertas de contratos por vencer y empleados sin contrato para
+tenants activos. La ejecución usa el contexto tenant-aware, una transacción
+PostgreSQL y un advisory lock para evitar concurrencia entre instancias. Sus
+checks post-merge de CI y Browser E2E están verdes. E6.2 fue fusionada en el PR
+#106: la resolución de alertas conserva actor, fecha y evento de auditoría en
+una transacción y su Browser E2E está verde. ADR-007 fue aprobado y fusionado
+en el PR #107; E6.3 fue fusionada en el PR #108 con checks post-merge de CI y
+Browser E2E verdes, y M6 queda completado.
+E2.4 fue fusionada en el PR #110 con checks post-merge de CI y Browser E2E
+verdes; sus sedes, identidad corporativa y promesa multiempresa quedaron
+alineadas con el aislamiento por tenant.
 
 Estado actual:
 
-✅ Plataforma operativa con gestión de empleados, contratos, expediente digital, pipeline documental canónico, seguridad endurecida y contabilidad v1.
+🟡 Plataforma con capacidades base avanzadas, todavía sin operación comercial end-to-end verificada.
+
+Goal activo:
+
+- 🟡 GOAL-01 activo — M1 sigue bloqueado por infraestructura externa. E2.2 (PR #144) y E2.3 (PR #148) tienen implementación, pero falta aceptación por correo real; E4.4 (PR #134) y la selección completa de lotes E4.1 (PR #140) están fusionadas y verificadas. E1.1/E1.3 requieren aislamiento y operación real; PR #124 está fusionada y prepara la configuración aislada, pero sigue sin validación operativa. E7.1 tiene implementación sintética DB+uploads fusionada en PR #130; falta validar lectura OCI, aislamiento y restauración real.
+
+- [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md).
+
+La auditoría de código confirmó empleados, sedes, autenticación, documentos, certificaciones, seguridad y motores internos importantes. E2.4 quedó cerrada con sedes, identidad corporativa y promesa pública alineada con el aislamiento por tenant. Permanecen pendientes la aceptación operacional de invitaciones por correo, la recuperación real, el deployment reproducible y Go Live.
 
 Hitos recientes fusionados a `main`:
 
@@ -98,18 +174,97 @@ Hitos recientes fusionados a `main`:
 - ✅ Accounting v1.
 - ✅ Fase 6C — Contratos Documentales — PR #65.
 - ✅ Fase 7 — Certificaciones Laborales — PR #67.
+- ✅ Contratación Inteligente PR11.1/PR11.2 — PR #76; E4.2/PR11.3 fusionada en PR #90 y verificada.
+- ✅ E1.2 — Migraciones, seed y rol PostgreSQL runtime no privilegiado — PR #79.
+- 🟡 E1.3 — R2, correo real y health/readiness checks — PR #80 fusionada; validación real de staging pendiente.
+- ✅ E1.4 — CI, observabilidad y base de pruebas browser end-to-end — PR #81 fusionada, checks verdes y auditoría `APROBADO PARA MERGE`; M1 sigue pendiente de la evidencia operativa de E1.1/E1.3.
+- ✅ E3.1 — Empleados CRUD, búsqueda e importación XLSX — PR #83 fusionada y verificada browser; no depende de staging, R2, correo ni E3.2.
+- ✅ E3.2 — Perfiles contractuales y vínculos laborales precontractuales — PR #84 fusionada y verificada por CI/Browser E2E; usa las bases backend existentes y no depende de staging, R2, correo ni E3.3.
+- ✅ E3.3 — Configuración perfil → tipo documental → plantilla — PR #86 fusionada y verificada por CI/Browser E2E post-merge.
+- ✅ E3.4 — Feedback accionable para errores, bloqueos y reintentos — PR #88 fusionada y verificada por CI/Browser E2E post-merge.
+- ✅ E4.1 — Creación, preview y confirmación total/parcial desde frontend — PR #89 fusionada y verificada por CI/Browser E2E post-merge.
+- ✅ E4.2 — Procesamiento de planes confirmados y exclusiones — PR #90 fusionada y verificada por CI/Browser E2E.
+
+- ✅ E4.3 — Perfil y snapshots confirmados preservados en contrato y documento — PR #92 fusionada y verificada.
+- ✅ E4.4 — PDF canónico vinculado al contrato y publicado en expediente — PR #93 fusionada y verificada por CI/Browser E2E post-merge.
+- ✅ E4.6 — Contratación individual completa como flujo alternativo — PR #94 fusionada y verificada por CI/Browser E2E post-merge.
+- ✅ E5.1 — Subida manual y validación de archivos — PR #95 fusionada y verificada por CI/Browser E2E; independiente de M1.
+- ✅ E5.2 — Familias documentales, revisiones, consulta, descarga e historial — PR #102 fusionada y verificada por CI/Browser E2E.
+- ✅ E5.3 — Inmutabilidad de documentos publicados y permisos por rol — PR #103 fusionada y verificada por CI/Browser E2E.
+- ✅ E5.4 — Auditoría de descargas e integración documental — PR #104 fusionada y verificada por CI/Browser E2E; M5 queda completado.
+- ✅ E6.1 — Scheduler de vencimientos y documentos faltantes — PR #105 fusionada y verificada por CI/Browser E2E.
+- ✅ E6.2 — Dashboard accionable y resolución trazable — PR #106 fusionada y verificada por CI/Browser E2E.
+- ✅ E6.3 — Fallos, reintentos y auditoría visibles para operación — PR #108 fusionada y verificada por CI/Browser E2E; M6 queda completado.
+- ✅ E2.4 — Sedes, identidad y promesa multiempresa coherente con el producto real — PR #110 fusionada y verificada por CI/Browser E2E; no depende de staging ni correo real.
+- ✅ E2.1 — Gestión directa de usuarios — PR #96 fusionada y verificada por CI/Browser E2E; las invitaciones quedan separadas por su dependencia de correo real.
+- ✅ E4.5 — Reintentos selectivos, idempotencia y errores parciales — PR #97 fusionada y verificada por CI/Browser E2E; no dependía de staging, R2, DNS, correo ni una decisión nueva de dominio.
+- ✅ E4.7 — Prueba browser del caso exitoso, parcial y reintentado — PR #99 fusionada y verificada por CI/Browser E2E; no depende de M1.
+- ✅ E4.4 — Idempotencia de generación PDF LETTER/MEMO y reintentos — PR #134 fusionada; CI y Browser E2E post-merge verdes.
+- ✅ E4.1 — Selección completa y paginada de empleados para lotes — PR #140 fusionada; CI y Browser E2E post-merge verdes.
+
+La comprobación externa de solo lectura del 2026-10-29 obtuvo HTTP 200 en `https://staging.dusema.com` y en `/health` y `/readiness` de `staging-api.dusema.com`. Readiness reportó database, storage y email `up`; el check de email sólo acredita transporte configurado y el de storage no identifica el proveedor. No se verificaron entrega de correo, R2, despliegue reproducible ni rollback, así que E1.1/E1.3 siguen abiertas y M1 `BLOQUEADO POR INFRAESTRUCTURA EXTERNA`. Esto bloquea M1, no GOAL-01: el Goal permanece ACTIVO. E2.1, E2.4, E4.2, E4.3, E4.4, E4.5, E4.6, E4.7, E5.1, E5.2, E5.3, E5.4, E6.1, E6.2 y E6.3 quedaron fusionadas por caminos independientes. El checklist operativo de M1 está en [`docs/goals/GOAL-01-M1-infrastructure-checklist.md`](docs/goals/GOAL-01-M1-infrastructure-checklist.md).
+La inspección de solo lectura registrada en PR #124 encontró que la API llamada staging compartía la VPS y la base `oficina_nitida` clasificadas como producción y usaba storage local; el Compose activo no coincidía con el versionado. PR #124 prepara el proyecto Compose aislado, exige las cuatro variables R2 y `REQUIRE_REAL_EMAIL=true`, y valida el bootstrap PostgreSQL en un servicio efímero de CI. La base, el rol, las ACL, el alias DNS, R2, el correo y el despliegue activo no se modificaron; la revisión DBA y la validación operativa siguen pendientes.
+
+E4.2 quedó fusionada y verificada en `main` mediante PR #90. M3 está completado y
+M4 tiene E4.1, E4.2, E4.3, E4.4, E4.5, E4.6 y E4.7 entregadas; E4.7 cerró la evidencia browser separada con PR #99.
+E5.1 quedó fusionada en PR #95. El procesamiento usa planes ya confirmados
+desde PostgreSQL, respeta las exclusiones
+persistidas y usa la abstracción de storage existente. Su validación local no
+requiere staging ni un proveedor R2 concreto.
+
+## <a name="goal-01-current-decision"></a>GOAL-01 — Decisión de prioridad vigente
+
+Tras fusionar E4.3 en PR #92, E4.4 en PR #93, E5.1 en PR #95, E2.1 en PR #96,
+E4.5 en PR #97, E4.7 en PR #99, ADR-006 en PR #101, E5.2 en PR #102, E5.3 en
+PR #103, E5.4 en PR #104, E6.1 en PR #105, E6.2 en PR #106, ADR-007 en PR
+#107 y E2.4 en PR #110, la revisión del código y del grafo de dependencias mantiene M1
+`BLOQUEADO POR INFRAESTRUCTURA EXTERNA`, pero GOAL-01 permanece `ACTIVO`.
+M5 queda completado con E5.1, E5.2, E5.3 y E5.4. M6 queda completado con E6.1,
+E6.2 y E6.3 fusionadas; M2 queda parcial con E2.1 y E2.4 cerradas, mientras
+E2.2 y E2.3 siguen dependiendo del correo real. ADR-007 está aprobado y gobierna
+la operación del scheduler implementada en E6.3.
+
+La revisión de dependencias de E4.2 concluyó:
+
+- dominio: consume el modelo y las decisiones ya aprobadas de lote, perfil,
+  configuración, contrato y snapshot; no introduce una decisión nueva;
+- DNS, Cloudflare y OCI Email Delivery: no son usados por el motor de procesamiento;
+- R2: no es una dependencia específica; el código depende de `StorageService`, cuyo
+  proveedor local es el predeterminado y cuyo adaptador R2 es intercambiable;
+- staging y variables de producción: no son necesarios para implementar ni probar
+  la selección de planes confirmados y exclusiones.
+
+La inconsistencia encontrada en `main` era que una campaña inteligente se crea sin
+`documentTemplateId`, pero `LoteEngineService` la rechazaba antes de consultar sus
+planes. Además, recorría todos los empleados seleccionados y podía crear contratos
+para empleados guardados como exclusiones. E4.2 corrige únicamente esas dos
+rupturas: usa los planes `CONFIRMADO`/`CONSUMIDO` como objetivos efectivos y deja
+fuera las exclusiones; el flujo manual permanece sin cambios.
+
+E4.7 quedó fusionada en PR #99. La revisión del código confirma que su alcance fue
+evidencia browser de los casos exitoso, parcial y reintentado sobre el flujo de
+lotes ya fusionado. No requirió dominio, DNS, Cloudflare, R2, OCI Email Delivery,
+variables de producción ni staging. La semántica de versionado e inmutabilidad
+quedó aprobada en ADR-006; E5.2, E5.3 y E5.4 ya están fusionadas. M7 queda
+reservado para el cierre final de despliegue y Go Live.
 
 ## <a name="landing-saas"></a>Landing SaaS
 
 Estado:
 
-✅ Completada
+✅ Superficie informativa completada; captura real de prospectos pendiente fuera
+de GOAL-01.
 
-Objetivo:
+Objetivo de la superficie actual:
 
-- Captación de leads.
-- Solicitud de demos.
+- Presentación del producto.
+- Solicitud de demo simulada.
 - SEO.
+
+La landing y el formulario de demo pertenecen al canal de adquisición comercial,
+no al resultado mínimo de GOAL-01. La captura real de prospectos queda en
+Platform Evolution bajo ADR-008; el formulario actual continúa siendo una
+superficie demostrativa hasta que esa iniciativa sea priorizada.
 
 Commit principal:
 
@@ -422,11 +577,13 @@ Convención oficial de `storageKey`:
 {tenantId}/expediente/{empleadoId}/{categoria}/{id}_v{version}.{ext}
 ```
 
-Para documentos generados desde el motor documental:
+Esta convención aplica a archivos subidos manualmente. Para PDFs generados,
+`GeneratedDocument.pdfStorageKey` es la clave canónica
+`pdfs/{tenantId}-{generatedDocumentId}.pdf`; `ExpedienteDoc.storageKey` debe
+referenciar exactamente el mismo objeto.
 
-```
-{tenantId}/expediente/{empleadoId}/{categoria}/gen_{generatedDocId}_v1.pdf
-```
+El PR #123 también propaga a `ExpedienteDoc.tamanoBytes` el tamaño devuelto por
+el proveedor de almacenamiento junto con esa clave.
 
 ---
 
@@ -1470,9 +1627,12 @@ No desarrollar nuevas funcionalidades sobre `EmployeeFile`.
 
 El volumen de datos no justificó flags de activación. La reversibilidad se garantizó a nivel de código en cada fase.
 
-### `tamanoBytes = 0` para PDFs generados
+### Metadata de PDFs generados
 
-El tamaño real requiere leer el archivo desde el filesystem o R2. Diferido cuando haya almacenamiento real en producción.
+Al generar un PDF nuevo, `GeneratedDocument` y `ExpedienteDoc` persisten la
+misma clave canónica y el tamaño devueltos por el proveedor de almacenamiento;
+no se guarda `tamanoBytes = 0`. La ruta que materializa un PDF cuyo objeto ya
+existe puede medirlo mediante una lectura del objeto.
 
 ---
 
@@ -1949,11 +2109,22 @@ Validación de cierre:
 - Pruebas de entrega documental privada y autenticación aprobadas.
 - Sanitización documental: 19/19 pruebas aprobadas.
 - Lint y typecheck aprobados.
-- El build web permanece condicionado por la disponibilidad externa de Google Fonts para descargar Geist y Geist Mono.
+- El build web no depende de una descarga externa de fuentes; usa una pila de fuentes del sistema.
 
 ---
 
 # <a name="roadmap-futuro"></a>Roadmap Futuro
+
+La referencia arquitectónica vigente para la evolución del producto es
+[`Platform Evolution`](docs/architecture/PLATFORM-EVOLUTION.md). Organiza las
+capacidades futuras por dominio y dependencia; no crea un Goal nuevo ni cambia
+la regla de un único Goal activo.
+
+## Goal activo
+
+- [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md): operación laboral y documental del primer cliente en producción.
+
+Sus Milestones son Deployment verificable, Gestión de Organizaciones y Usuarios, Preparación Laboral, Contratación Inteligente, Expediente Digital, Seguimiento Operativo y Go Live Comercial.
 
 Hitos cerrados recientemente:
 
@@ -1961,7 +2132,7 @@ Hitos cerrados recientemente:
 - ✅ Security Hardening v2 — headers, frontera tenant-aware y RLS piloto.
 - ✅ Accounting v1 — Ledger, reporting, cierre contable e integración explícita con Payroll.
 
-Módulos planificados:
+Candidatos futuros sin número de Goal:
 
 - Nómina electrónica.
 - Facturación electrónica.
@@ -1970,39 +2141,28 @@ Módulos planificados:
 - Gestión documental avanzada.
 - Multiempresa avanzado.
 - Multisede avanzado.
+- Inteligencia artificial.
 
 Importante:
 
 Las capacidades futuras NO deben introducir sobreingeniería temprana.
 
-Se implementarán únicamente cuando exista una necesidad real de negocio.
+Se implementarán únicamente cuando exista una necesidad real de negocio y sean priorizadas después del Goal activo. Un Goal solo puede redefinirse cuando cambie la estrategia del producto, no por nuevas ideas, módulos o mejoras.
 
 ---
 
 # <a name="forma-de-trabajo"></a>Forma de Trabajo
 
-ChatGPT:
+El desarrollo sigue la metodología definida en [`docs/goals/README.md`](docs/goals/README.md):
 
-- Arquitectura.
-- Auditorías.
-- Diseño.
-- Priorización.
-- Revisión técnica.
-- Generación de prompts para Claude.
+- un solo Goal activo;
+- capacidades funcionales por Milestones y Epics end-to-end;
+- PRs como unidades de entrega, no como objetivos;
+- código y comportamiento verificable como fuente de verdad;
+- documentación tratada como hipótesis;
+- estado del Goal separado del estado de implementación: `GOAL ACTIVO`,
+  `IMPLEMENTACIÓN BLOQUEADA` y `ARQUITECTURA DISPONIBLE`;
+- auditoría basada en la pregunta “¿un cliente podría utilizar esta capacidad hoy?”;
+- Codex como Lead Engineer responsable de investigar, implementar, verificar y preparar el PR; con checks verdes y auditoría `APROBADO PARA MERGE`, puede realizar el merge y volver a `main` para sincronizar el estado.
 
-Claude:
-
-- Implementación.
-- Refactors.
-- Migraciones.
-- Walkthroughs técnicos.
-
-Regla principal:
-
-Primero arquitectura.
-
-Luego planificación.
-
-Luego implementación.
-
-Nunca al revés.
+Regla principal: primero evidencia, luego arquitectura y dependencias, después el siguiente paso mínimo y finalmente verificación completa.

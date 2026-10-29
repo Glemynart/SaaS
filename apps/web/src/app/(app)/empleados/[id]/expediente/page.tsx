@@ -1,25 +1,40 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Download, FolderOpen, SearchX, Trash2 } from 'lucide-react';
+import {
+  Download,
+  FolderOpen,
+  History as HistoryIcon,
+  Loader2,
+  RefreshCw,
+  SearchX,
+  Upload,
+} from 'lucide-react';
 import { useEmployee } from '@/features/employees/hooks/use-employees';
 import {
   useExpedienteDocs,
-  useDeleteExpedienteDoc,
+  useExpedienteDocHistory,
+  useUploadExpedienteDoc,
 } from '@/features/expediente-docs/hooks/use-expediente-docs';
-import type { ExpedienteDoc } from '@/features/expediente-docs/services/expediente-docs-api';
+import {
+  expedienteDocsApi,
+  type ExpedienteDoc,
+} from '@/features/expediente-docs/services/expediente-docs-api';
 import { generatedDocumentsApi } from '@/features/generated-documents/services/generated-documents-api';
 import { formatNombreCompleto } from '@saas/types';
 import { DOCUMENT_TEMPLATE_TYPE_LABELS } from '@/features/document-templates/schemas/document-template-schemas';
 import { ArrowLeft } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SideSheet } from '@/components/ui/side-sheet';
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 
@@ -32,6 +47,16 @@ const CATEGORY_LABELS: Record<string, string> = {
   TERMINACION: 'Terminación',
   OTRO: 'Otro',
 };
+
+const UPLOAD_CATEGORIES = [
+  'CONTRATO',
+  'AFILIACION',
+  'CERTIFICADO',
+  'DOCUMENTO_PERSONAL',
+  'PREAVISO',
+  'TERMINACION',
+  'OTRO',
+] as const;
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('es-CO', {
@@ -59,7 +84,7 @@ function StatTile({
   size?: 'lg' | 'sm';
 }) {
   return (
-    <div className="rounded-[--radius-card] border border-border bg-surface p-4 shadow-[--shadow-card]">
+    <div className="rounded-(--radius-card) border border-border bg-surface p-4 shadow-(--shadow-card)">
       <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
       <p
         className={cn(
@@ -77,12 +102,57 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
   const { id } = use(params);
   const { data: employee, isLoading: empLoading } = useEmployee(id);
   const { data: docsData, isLoading: docsLoading } = useExpedienteDocs(id);
-  const deleteMutation = useDeleteExpedienteDoc();
-  const [pendingDelete, setPendingDelete] = useState<ExpedienteDoc | null>(null);
+  const uploadMutation = useUploadExpedienteDoc();
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadCategory, setUploadCategory] = useState<(typeof UPLOAD_CATEGORIES)[number]>('OTRO');
+  const [uploadFamiliaId, setUploadFamiliaId] = useState<string | null>(null);
+  const [historyDoc, setHistoryDoc] = useState<ExpedienteDoc | null>(null);
+  const { data: historyData, isLoading: historyLoading } = useExpedienteDocHistory(
+    historyDoc?.id ?? '',
+  );
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isLoading = empLoading || docsLoading;
   const docs = docsData?.docs ?? [];
   const stats = docsData?.stats;
+
+  const resetUpload = () => {
+    setUploadFile(null);
+    setUploadCategory('OTRO');
+    setUploadFamiliaId(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const openUpload = (
+    familiaId: string | null = null,
+    categoria: (typeof UPLOAD_CATEGORIES)[number] = 'OTRO',
+  ) => {
+    resetUpload();
+    setUploadFamiliaId(familiaId);
+    setUploadCategory(categoria);
+    setUploadOpen(true);
+  };
+
+  const handleUpload = () => {
+    if (!uploadFile) return;
+    uploadMutation.mutate(
+      {
+        employeeId: id,
+        file: uploadFile,
+        categoria: uploadCategory,
+        familiaId: uploadFamiliaId,
+      },
+      {
+        onSuccess: () => {
+          toast.success('Documento subido al expediente.');
+          setUploadOpen(false);
+          resetUpload();
+        },
+        onError: (error) => toast.error(error.message),
+      },
+    );
+  };
 
   const backLink = (
     <Link
@@ -166,6 +236,11 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
       render: (doc) => <span className="text-muted-foreground">{formatSize(doc.tamanoBytes)}</span>,
     },
     {
+      key: 'version',
+      header: 'Versión',
+      render: (doc) => <Badge variant={doc.vigente ? 'success' : 'neutral'}>v{doc.version}</Badge>,
+    },
+    {
       key: 'agregado',
       header: 'Agregado',
       render: (doc) => <span className="text-muted-foreground">{formatDate(doc.createdAt)}</span>,
@@ -177,28 +252,44 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
       cellClassName: 'text-right',
       render: (doc) => (
         <div className="flex items-center justify-end gap-1">
-          {doc.generatedDocumentId && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-muted-foreground hover:text-foreground"
+            onClick={() => setHistoryDoc(doc)}
+          >
+            <HistoryIcon className="size-3.5" aria-hidden="true" />
+            <span className="sr-only">Ver historial de {doc.nombre}</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-muted-foreground hover:text-foreground"
+            onClick={() =>
+              window.open(
+                doc.generatedDocumentId
+                  ? generatedDocumentsApi.getPdfUrl(doc.generatedDocumentId)
+                  : expedienteDocsApi.getDownloadUrl(doc.id),
+                '_blank',
+              )
+            }
+          >
+            <Download className="size-3.5" aria-hidden="true" />
+            <span className="sr-only">Descargar {doc.nombre}</span>
+          </Button>
+          {!doc.generatedDocumentId && (
             <Button
               variant="ghost"
               size="sm"
               className="h-8 px-2 text-muted-foreground hover:text-foreground"
               onClick={() =>
-                window.open(generatedDocumentsApi.getPdfUrl(doc.generatedDocumentId!), '_blank')
+                openUpload(doc.familiaId, doc.categoria as (typeof UPLOAD_CATEGORIES)[number])
               }
             >
-              <Download className="size-3.5" aria-hidden="true" />
-              <span className="sr-only">Descargar {doc.nombre}</span>
+              <RefreshCw className="size-3.5" aria-hidden="true" />
+              <span className="sr-only">Crear nueva versiÃ³n de {doc.nombre}</span>
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2 text-destructive hover:bg-destructive/8 hover:text-destructive"
-            onClick={() => setPendingDelete(doc)}
-          >
-            <Trash2 className="size-3.5" aria-hidden="true" />
-            <span className="sr-only">Quitar {doc.nombre} del expediente</span>
-          </Button>
         </div>
       ),
     },
@@ -213,6 +304,12 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
         description={formatNombreCompleto(employee)}
         width="standard"
         className="max-w-none"
+        actions={
+          <Button size="sm" onClick={() => openUpload()}>
+            <Upload className="size-4" aria-hidden="true" />
+            Subir documento
+          </Button>
+        }
       >
         {stats && (
           <div className="mb-6 grid gap-4 sm:grid-cols-4">
@@ -241,29 +338,131 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
         />
       </PageHeader>
 
-      <ConfirmDialog
-        level={1}
-        open={pendingDelete !== null}
+      <SideSheet
+        open={uploadOpen}
         onOpenChange={(open) => {
-          if (!open) setPendingDelete(null);
+          setUploadOpen(open);
+          if (!open && !uploadMutation.isPending) resetUpload();
         }}
-        title="Quitar documento del expediente"
+        title={uploadFamiliaId ? 'Crear nueva versiÃ³n' : 'Subir documento'}
         description={
-          pendingDelete
-            ? `"${pendingDelete.nombre}" dejará de aparecer en el expediente del empleado.`
-            : ''
+          uploadFamiliaId
+            ? 'La nueva revisiÃ³n conservarÃ¡ la familia documental actual.'
+            : 'Agrega un PDF o una imagen al expediente del empleado.'
         }
-        confirmLabel="Quitar documento"
-        onConfirm={() => {
-          if (pendingDelete) {
-            deleteMutation.mutate(pendingDelete.id, {
-              onSuccess: () => toast.success('Documento quitado del expediente.'),
-              onError: () => toast.error('No se pudo quitar el documento. Inténtalo de nuevo.'),
-            });
-          }
-          setPendingDelete(null);
+      >
+        <div className="flex h-full flex-col">
+          <div className="flex-1 space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="expediente-file">Archivo</Label>
+              <Input
+                ref={fileInputRef}
+                id="expediente-file"
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
+              />
+              <p className="text-xs text-muted-foreground">PDF, JPG, PNG o WebP. Máximo 5 MB.</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="expediente-category">Categoría</Label>
+              <Select
+                id="expediente-category"
+                value={uploadCategory}
+                onChange={(event) =>
+                  setUploadCategory(event.target.value as (typeof UPLOAD_CATEGORIES)[number])
+                }
+                disabled={!!uploadFamiliaId}
+              >
+                {UPLOAD_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>
+                    {CATEGORY_LABELS[category] ?? category}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+
+          <div className="mt-6 flex items-center gap-3 border-t border-border pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setUploadOpen(false)}
+              disabled={uploadMutation.isPending}
+              className="flex-1"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleUpload}
+              disabled={!uploadFile || uploadMutation.isPending}
+              className="flex-1"
+            >
+              {uploadMutation.isPending && (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              )}
+              {uploadFamiliaId ? 'Crear versiÃ³n' : 'Subir documento'}
+            </Button>
+          </div>
+        </div>
+      </SideSheet>
+
+      <SideSheet
+        open={historyDoc !== null}
+        onOpenChange={(open) => {
+          if (!open) setHistoryDoc(null);
         }}
-      />
+        title="Historial documental"
+        description={historyData?.family.nombre ?? historyDoc?.nombre}
+      >
+        {historyLoading && (
+          <div className="space-y-3">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        )}
+        {!historyLoading && historyData && (
+          <div className="space-y-3">
+            {historyData.revisions.map((revision) => (
+              <div
+                key={revision.id}
+                className="flex items-center justify-between gap-3 rounded-md border border-border p-3"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={revision.vigente ? 'success' : 'neutral'}>
+                      v{revision.version}
+                    </Badge>
+                    {revision.vigente && (
+                      <span className="text-xs text-muted-foreground">Vigente</span>
+                    )}
+                  </div>
+                  <p className="mt-1 truncate text-sm font-medium text-foreground">
+                    {revision.nombre}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{formatDate(revision.createdAt)}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() =>
+                    window.open(
+                      revision.generatedDocumentId
+                        ? generatedDocumentsApi.getPdfUrl(revision.generatedDocumentId)
+                        : expedienteDocsApi.getDownloadUrl(revision.id),
+                      '_blank',
+                    )
+                  }
+                >
+                  <Download className="size-3.5" aria-hidden="true" />
+                  Descargar
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </SideSheet>
     </div>
   );
 }

@@ -38,4 +38,14 @@ export class StorageService {
   objectExists(key: string): Promise<boolean> {
     return this.provider.exists(key);
   }
+
+  /** Comprueba conectividad del backend sin leer datos de un tenant. */
+  async checkReadiness(): Promise<void> {
+    if (this.provider.checkReadiness) {
+      await this.provider.checkReadiness();
+      return;
+    }
+
+    await this.provider.exists('__health__/storage-probe');
+  }
 }

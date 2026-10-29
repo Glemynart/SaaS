@@ -19,6 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/toast';
 import { formatNombreCompleto } from '@saas/types';
 import { cn } from '@/lib/utils';
+import { LaborRelationshipPanel } from '@/features/labor-relationships/components/labor-relationship-panel';
 
 const TIPO_CONTRATO_LABEL: Record<string, string> = {
   TERMINO_FIJO: 'Término fijo',
@@ -71,7 +72,7 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
 
 function SectionCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-[--radius-card] border border-border bg-surface p-5 shadow-[--shadow-card]">
+    <section className="rounded-(--radius-card) border border-border bg-surface p-5 shadow-(--shadow-card)">
       <h2 className="text-base font-semibold text-foreground">{title}</h2>
       <dl className="mt-2 divide-y divide-border-soft">{children}</dl>
     </section>
@@ -222,7 +223,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
             <Field label="Fecha de nacimiento" value={formatDate(employee.fechaNacimiento)} />
           </SectionCard>
 
-          <section className="rounded-[--radius-card] border border-border bg-surface p-5 shadow-[--shadow-card] sm:col-span-2">
+          <section className="rounded-(--radius-card) border border-border bg-surface p-5 shadow-(--shadow-card) sm:col-span-2">
             <h2 className="text-base font-semibold text-foreground">Información laboral</h2>
             <dl className="mt-2 gap-x-10 divide-y divide-border-soft sm:grid sm:grid-cols-2 sm:divide-y-0">
               <div className="divide-y divide-border-soft">
@@ -268,6 +269,8 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
           )}
         </div>
       </PageHeader>
+
+      <LaborRelationshipPanel employeeId={id} />
 
       {employee && (
         <GenerateDocumentForm

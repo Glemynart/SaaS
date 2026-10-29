@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { AlertQueryDto } from './dto/alert-query.dto';
 import { Prisma } from '@prisma/client';
 import { formatNombreCompleto } from '@saas/types';
@@ -10,6 +11,7 @@ export class AlertsService {
   constructor(
     private prisma: PrismaService,
     private readonly tenantPrisma: TenantPrismaService,
+    private readonly auditService: AuditService,
   ) {}
 
   async findAll(tenantId: string, query: AlertQueryDto) {
@@ -79,15 +81,87 @@ export class AlertsService {
     return alert;
   }
 
-  async resolve(tenantId: string, id: string) {
-    const alert = await this.findOne(tenantId, id);
-    return this.prisma.alert.update({
-      where: { id: alert.id },
-      data: { status: 'RESOLVED', resolvedAt: new Date() },
+  async resolve(tenantId: string, id: string, userId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const alert = await tx.alert.findFirst({
+        where: { id, tenantId },
+      });
+
+      if (!alert) throw new NotFoundException('Alerta no encontrada');
+      if (alert.status === 'RESOLVED') return alert;
+
+      const resolvedAt = new Date();
+      const updateResult = await tx.alert.updateMany({
+        where: { id: alert.id, tenantId, status: 'OPEN' },
+        data: { status: 'RESOLVED', resolvedAt, resolvedById: userId },
+      });
+
+      if (updateResult.count === 0) {
+        const current = await tx.alert.findFirst({
+          where: { id: alert.id, tenantId },
+        });
+        if (!current) throw new NotFoundException('Alerta no encontrada');
+        return current;
+      }
+
+      const resolved = await tx.alert.findFirst({
+        where: { id: alert.id, tenantId },
+      });
+      if (!resolved) throw new NotFoundException('Alerta no encontrada');
+
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'ALERT_RESOLVED',
+          entityType: 'Alert',
+          entityId: alert.id,
+          metadata: {
+            previousStatus: alert.status,
+            resolvedAt: resolvedAt.toISOString(),
+          },
+        },
+        tx,
+      );
+
+      return resolved;
     });
   }
 
   async generateContractAlerts(tenantId: string) {
+    return this.tenantPrisma.execute((prisma) =>
+      this.generateContractAlertsWithClient(tenantId, prisma),
+    );
+  }
+
+  async generateMissingDocAlerts(tenantId: string) {
+    return this.tenantPrisma.execute((prisma) =>
+      this.generateMissingDocAlertsWithClient(tenantId, prisma),
+    );
+  }
+
+  /**
+   * Runs both automatic alert detectors in the scheduler's tenant-scoped
+   * transaction. The caller owns the transaction and has already installed
+   * the tenant context in PostgreSQL.
+   */
+  async generateForTenant(tenantId: string, prisma: Prisma.TransactionClient) {
+    const contractAlerts = await this.generateContractAlertsWithClient(
+      tenantId,
+      prisma,
+    );
+    const missingDocAlerts = await this.generateMissingDocAlertsWithClient(
+      tenantId,
+      prisma,
+    );
+
+    return { contractAlerts, missingDocAlerts };
+  }
+
+  private async generateContractAlertsWithClient(
+    tenantId: string,
+    prisma: Prisma.TransactionClient,
+  ) {
     const created: unknown[] = [];
     const now = new Date();
     const thresholds = [
@@ -98,32 +172,30 @@ export class AlertsService {
     const lookahead = new Date(now);
     lookahead.setDate(lookahead.getDate() + 30);
 
-    const contratos = await this.tenantPrisma.execute((prisma) =>
-      prisma.contrato.findMany({
-        where: {
-          tenantId,
-          estado: { in: ['VIGENTE', 'RENOVADO'] },
-          fechaFin: { gte: now, lte: lookahead },
-        },
-        include: {
-          empleado: {
-            select: {
-              id: true,
-              primerNombre: true,
-              segundoNombre: true,
-              primerApellido: true,
-              segundoApellido: true,
-            },
-          },
-          expedienteDocs: {
-            where: { categoria: 'CONTRATO' },
-            orderBy: { version: 'desc' },
-            select: { id: true },
-            take: 1,
+    const contratos = await prisma.contrato.findMany({
+      where: {
+        tenantId,
+        estado: { in: ['VIGENTE', 'RENOVADO'] },
+        fechaFin: { gte: now, lte: lookahead },
+      },
+      include: {
+        empleado: {
+          select: {
+            id: true,
+            primerNombre: true,
+            segundoNombre: true,
+            primerApellido: true,
+            segundoApellido: true,
           },
         },
-      }),
-    );
+        expedienteDocs: {
+          where: { categoria: 'CONTRATO' },
+          orderBy: { version: 'desc' },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    });
 
     for (const contrato of contratos) {
       const diasRestantes = Math.floor(
@@ -149,12 +221,12 @@ export class AlertsService {
               titulo: `Contrato próximo a vencer (${threshold.label})`,
             };
 
-        const exists = await this.prisma.alert.findFirst({
+        const exists = await prisma.alert.findFirst({
           where: dedupeWhere,
         });
         if (exists) continue;
 
-        const alert = await this.prisma.alert.create({
+        const alert = await prisma.alert.create({
           data: {
             tenantId,
             employeeId: contrato.empleadoId,
@@ -175,23 +247,24 @@ export class AlertsService {
     };
   }
 
-  async generateMissingDocAlerts(tenantId: string) {
-    const employees = await this.tenantPrisma.execute((prisma) =>
-      prisma.empleado.findMany({
-        where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
-        select: {
-          id: true,
-          primerNombre: true,
-          segundoNombre: true,
-          primerApellido: true,
-          segundoApellido: true,
-        },
-      }),
-    );
+  private async generateMissingDocAlertsWithClient(
+    tenantId: string,
+    prisma: Prisma.TransactionClient,
+  ) {
+    const employees = await prisma.empleado.findMany({
+      where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
+      select: {
+        id: true,
+        primerNombre: true,
+        segundoNombre: true,
+        primerApellido: true,
+        segundoApellido: true,
+      },
+    });
 
     let created = 0;
     for (const emp of employees) {
-      const hasContract = await this.prisma.contrato.findFirst({
+      const hasContract = await prisma.contrato.findFirst({
         where: {
           tenantId,
           empleadoId: emp.id,
@@ -201,7 +274,7 @@ export class AlertsService {
       });
       if (hasContract) continue;
 
-      const exists = await this.prisma.alert.findFirst({
+      const exists = await prisma.alert.findFirst({
         where: {
           tenantId,
           employeeId: emp.id,
@@ -211,7 +284,7 @@ export class AlertsService {
       });
       if (exists) continue;
 
-      await this.prisma.alert.create({
+      await prisma.alert.create({
         data: {
           tenantId,
           employeeId: emp.id,

@@ -6,6 +6,12 @@ export default () => ({
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
   },
+  platformS2s: {
+    issuer: process.env.PLATFORM_S2S_ISSUER,
+    audience: process.env.PLATFORM_S2S_AUDIENCE,
+    publicKey: process.env.PLATFORM_S2S_PUBLIC_KEY,
+    kid: process.env.PLATFORM_S2S_KID,
+  },
   frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:3000',
   backendUrl: process.env.BACKEND_URL ?? 'http://localhost:4000',
   allowedOrigins: (process.env.ALLOWED_ORIGINS ?? 'http://localhost:3000')
@@ -23,8 +29,24 @@ export default () => ({
     apiKey: process.env.MATIAS_API_KEY,
   },
   email: {
-    apiKey: process.env.RESEND_API_KEY,
     from: process.env.EMAIL_FROM,
     fromName: process.env.EMAIL_FROM_NAME ?? 'La Oficina Nítida',
+    requireReal: process.env.REQUIRE_REAL_EMAIL === 'true',
+    smtp: {
+      host: process.env.EMAIL_SMTP_HOST,
+      port: process.env.EMAIL_SMTP_PORT
+        ? parseInt(process.env.EMAIL_SMTP_PORT, 10)
+        : undefined,
+      user: process.env.EMAIL_SMTP_USER,
+      password: process.env.EMAIL_SMTP_PASSWORD,
+      secure:
+        process.env.EMAIL_SMTP_SECURE === undefined
+          ? undefined
+          : process.env.EMAIL_SMTP_SECURE === 'true',
+      requireTls:
+        process.env.EMAIL_SMTP_REQUIRE_TLS === undefined
+          ? undefined
+          : process.env.EMAIL_SMTP_REQUIRE_TLS === 'true',
+    },
   },
 });

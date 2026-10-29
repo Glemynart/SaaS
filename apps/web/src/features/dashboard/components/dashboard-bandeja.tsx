@@ -188,7 +188,7 @@ export function DashboardBandeja() {
 
       <div className="space-y-6">
         {errorTotal ? (
-          <div className="rounded-[--radius-card] border border-border bg-surface px-6 py-10 text-center shadow-[--shadow-card]">
+          <div className="rounded-(--radius-card) border border-border bg-surface px-6 py-10 text-center shadow-(--shadow-card)">
             <p role="alert" className="text-sm text-foreground">
               No se pudo cargar tu bandeja. Revisa tu conexión e inténtalo de nuevo.
             </p>
@@ -215,7 +215,7 @@ export function DashboardBandeja() {
         ) : (
           <section
             aria-label="Bandeja del día"
-            className="rounded-[--radius-card] border border-border bg-surface py-2 shadow-[--shadow-card]"
+            className="rounded-(--radius-card) border border-border bg-surface py-2 shadow-(--shadow-card)"
           >
             <div className="space-y-6">
               {bandas.map((banda) => (

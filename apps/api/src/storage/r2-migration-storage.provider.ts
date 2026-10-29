@@ -50,6 +50,10 @@ export class R2MigrationStorageProvider implements StorageProvider {
     return this.r2.exists(key);
   }
 
+  checkReadiness(): Promise<void> {
+    return this.r2.checkReadiness();
+  }
+
   private canFallback(error: unknown): boolean {
     return (
       error instanceof StorageObjectNotFoundError ||

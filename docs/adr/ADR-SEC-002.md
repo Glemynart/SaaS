@@ -22,9 +22,15 @@ El inventario de seguridad actual incluye:
 
 - **Autenticación:** JWT (HS256, 15 min) + refresh tokens rotativos con detección de reuso.
 - **Autorización:** RBAC plano de 3 roles (`ADMIN`, `OPERADOR`, `VIEWER`).
-- **Aislamiento multi-tenant:** `tenantId` en toda consulta, forzado por disciplina de aplicación (sin RLS).
+- **Aislamiento multi-tenant:** `tenantId` en toda consulta, forzado por disciplina de aplicación, con RLS activa únicamente sobre `empleados`.
 - **Validación de entrada:** `ValidationPipe` global con `whitelist` + `forbidNonWhitelisted`.
-- **Rate limiting:** Solo en endpoints de auth (`@nestjs/throttler`).
+- **Rate limiting:** Solo en endpoints de auth (`@nestjs/throttler`); el límite
+  global permanece deliberadamente sin activar hasta resolver sus prerrequisitos
+  operativos.
+- **Headers HTTP:** Helmet está aplicado en el bootstrap del API con una política
+  CSP explícita y headers de transporte/anti-sniffing.
+- **RLS:** Activa únicamente sobre `empleados`; los filtros `tenantId` de la
+  aplicación se conservan como defensa en profundidad.
 - **Auditoría:** `AuditLog` central con `AuditService` global (fire-and-forget).
 - **CORS:** Configurable por variable de entorno.
 
@@ -52,7 +58,7 @@ El inventario de seguridad actual incluye:
 │    │                                                       │
 │    ▼                                                       │
 │  ┌──────────────────────────────────────────────────────┐ │
-│  │ Capa de transporte (CORS, futuro Helmet)              │ │
+│  │ Capa de transporte (CORS, Helmet)                     │ │
 │  │  │                                                    │ │
 │  │  ▼                                                    │ │
 │  │ ┌──────────────────────────────────────────────────┐ │ │
@@ -76,7 +82,7 @@ El inventario de seguridad actual incluye:
 │  │ │ │ │ │ │  │                                │ │ │ │ │ │ │
 │  │ │ │ │ │ │  ▼                                │ │ │ │ │ │ │
 │  │ │ │ │ │ │ ┌──────────────────────────────┐ │ │ │ │ │ │ │
-│  │ │ │ │ │ │ │ PostgreSQL (sin RLS hoy)      │ │ │ │ │ │ │ │
+│  │ │ │ │ │ │ │ PostgreSQL (RLS: empleados)   │ │ │ │ │ │ │ │
 │  │ │ │ │ │ │ │ Auditoría (AuditLog)          │ │ │ │ │ │ │ │
 │  │ │ │ │ │ │ └──────────────────────────────┘ │ │ │ │ │ │ │
 │  │ │ │ │ │ └──────────────────────────────────┘ │ │ │ │ │ │
@@ -91,7 +97,7 @@ El inventario de seguridad actual incluye:
 ### 2.3 Sesgo arquitectónico
 
 - **Stateless siempre que sea posible.** El access token JWT es stateless; no se consulta la base de datos en cada request para autorización básica.
-- **Application-layer sobre DB-layer para tenant isolation.** Hoy la disciplina de `tenantId` en cada `WHERE` es la única barrera. Migrar a RLS es una decisión de madurez futura, no un requisito inmediato.
+- **Application-layer sobre DB-layer para tenant isolation.** La disciplina de `tenantId` en cada `WHERE` se conserva como defensa en profundidad; RLS protege actualmente la cohorte `empleados` y su expansión requiere migraciones y pruebas independientes.
 - **Rate limiting progresivo.** Auth tiene throttling estricto; los endpoints de datos se protegen con throttling global moderado en una fase posterior.
 
 ---
@@ -100,21 +106,21 @@ El inventario de seguridad actual incluye:
 
 ### 3.1 Pertenece a la arquitectura de seguridad
 
-| Capacidad                          | Estado actual      | Prioridad |
-| ---------------------------------- | ------------------ | --------- |
-| Autenticación JWT + refresh tokens | Implementado       | —         |
-| RBAC de 3 roles                    | Implementado       | —         |
-| Aislamiento multi-tenant           | Implementado (app) | —         |
-| Validación de entrada (DTOs)       | Implementado       | —         |
-| Rate limiting en auth              | Implementado       | —         |
-| Auditoría centralizada             | Implementado       | —         |
-| CORS configurable                  | Implementado       | —         |
-| Security headers (Helmet)          | Pendiente          | Alta      |
-| Rate limiting global               | Pendiente          | Alta      |
-| RLS en PostgreSQL                  | Diferido           | Media     |
-| Tests de guards de seguridad       | Pendiente          | Alta      |
-| Rotación de refresh tokens         | Implementado       | —         |
-| Detección de reuso de tokens       | Implementado       | —         |
+| Capacidad                          | Estado actual       | Prioridad |
+| ---------------------------------- | ------------------- | --------- |
+| Autenticación JWT + refresh tokens | Implementado        | —         |
+| RBAC de 3 roles                    | Implementado        | —         |
+| Aislamiento multi-tenant           | Implementado (app)  | —         |
+| Validación de entrada (DTOs)       | Implementado        | —         |
+| Rate limiting en auth              | Implementado        | —         |
+| Auditoría centralizada             | Implementado        | —         |
+| CORS configurable                  | Implementado        | —         |
+| Security headers (Helmet)          | Implementado        | —         |
+| Rate limiting global               | Pendiente           | Alta      |
+| RLS en PostgreSQL                  | Parcial (empleados) | Media     |
+| Tests de guards de seguridad       | Pendiente           | Alta      |
+| Rotación de refresh tokens         | Implementado        | —         |
+| Detección de reuso de tokens       | Implementado        | —         |
 
 ### 3.2 NO pertenece a SEC (se difiere o vive en otro ámbito)
 
@@ -212,7 +218,7 @@ POST /auth/login ──► { accessToken, refreshToken }
 
 ### 6.2 Riesgo aceptado
 
-Un bug de omisión de `tenantId` en una consulta expone datos entre tenants. La mitigación actual es **disciplina de código + revisión en PR + tests de aislamiento**. La migración a RLS es una decisión de madurez que este ADR reconoce pero difiere (ver §9).
+Un bug de omisión de `tenantId` en una consulta expone datos entre tenants. La mitigación actual es **disciplina de código + revisión en PR + tests de aislamiento**, con RLS activa sobre `empleados` como defensa adicional. La expansión de RLS a otras tablas requiere unidades independientes (ver §9).
 
 ### 6.3 Soft delete
 
@@ -304,17 +310,21 @@ Cada fase es independiente, mergeable y desplegable por sí misma. El orden refl
 - Una operación sin política válida queda denegada.
 - `RBAC`, `AUTHENTICATED` y `UNAUTHENTICATED` conservan su comportamiento previo.
 
-### Fase siguiente — Security headers + Rate limiting global
+### Fase parcialmente completada — Security headers + Rate limiting global
 
-**Estado:** Pendiente
+**Estado:** Helmet completado; rate limiting global pendiente por prerrequisitos
+operativos.
 
 **Alcance:**
 
-- Instalar y configurar `helmet` con defaults seguros (HSTS, X-Frame-Options, X-Content-Type-Options, CSP básico).
+- Helmet está instalado y configurado con HSTS, X-Frame-Options,
+  X-Content-Type-Options y CSP explícita en `apps/api/src/security/security-headers.ts`.
 - Extender `ThrottlerGuard` como guard global con límite moderado por defecto (ej. 100 req/min por IP).
 - Mantener los límites estrictos existentes en auth.
 
-**Validación:** headers de seguridad presentes en todas las respuestas; rate limiting activo en endpoints de datos.
+**Validación:** headers de seguridad presentes en todas las respuestas; la
+activación del rate limiting global queda pendiente hasta verificar sus
+prerrequisitos operativos.
 
 ### Fase siguiente — Tests de seguridad
 
@@ -334,7 +344,7 @@ Cada fase es independiente, mergeable y desplegable por sí misma. El orden refl
 
 **Alcance:**
 
-- Activar RLS en PostgreSQL para tablas con datos multi-tenant.
+- Expandir RLS progresivamente a tablas multi-tenant adicionales mediante migraciones y pruebas independientes.
 - Migrar la política de tenant del código de aplicación a la base de datos como defensa en profundidad.
 - Mantener el `tenantId` en las consultas de aplicación (doble capa).
 
@@ -361,8 +371,7 @@ Cada fase es independiente, mergeable y desplegable por sí misma. El orden refl
 | #   | Riesgo                                                                | Impacto | Mitigación actual                                                                                | Plan                                                               |
 | --- | --------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
 | R1  | Omisión de `tenantId` en una consulta → fuga de datos entre tenants.  | Alto    | Disciplina de código, revisión en PR, tests de aislamiento.                                      | Fase 3: RLS como defensa en profundidad.                           |
-| R2  | Sin Helmet → headers de seguridad ausentes.                           | Medio   | Ninguna hoy.                                                                                     | Fase 1.                                                            |
-| R3  | Sin rate limiting en endpoints de datos → fuerza bruta en mutaciones. | Medio   | Rate limiting solo en auth.                                                                      | Fase 1: throttling global.                                         |
+| R2  | Rate limiting global aún no activado en endpoints de datos.           | Medio   | Límites estrictos en auth y caracterización operativa documentada.                               | Activar sólo con prerrequisitos de infraestructura verificados.    |
 | R4  | Access token no revocable → ventana de 15 min tras logout/compromiso. | Bajo    | TTL corta (15 min).                                                                              | Aceptado. Blacklist añadiría estado global a un sistema stateless. |
 | R5  | Secretos en `.env` en texto plano.                                    | Medio   | `.env` en `.gitignore`. Acceso al servidor restringido.                                          | Aceptado para la escala actual.                                    |
 | R6  | `VIEWER` definido pero no implementado.                               | Bajo    | No hay usuarios VIEWER hoy.                                                                      | Fase 4 si hay demanda.                                             |
@@ -374,8 +383,8 @@ Cada fase es independiente, mergeable y desplegable por sí misma. El orden refl
 | #   | Riesgo                                                                       | Impacto | Mitigación                                                                                  |
 | --- | ---------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------- |
 | RA1 | Scope creep de seguridad: perseguir certificaciones antes de tener producto. | Alto    | Principio de proporcionalidad (§2.1.7). Cada control nuevo se justifica contra una amenaza. |
-| RA2 | Implementar RLS y romper queries existentes.                                 | Medio   | Fase 3 se implementa con feature flag y tests exhaustivos antes de activar en producción.   |
-| RA3 | Depender de `helmet` sin entender sus defaults → romper funcionalidad.       | Bajo    | Fase 1 incluye revisión de cada header y su impacto en la app antes de activar.             |
+| RA2 | Expandir RLS y romper queries existentes.                                    | Medio   | Cada expansión requiere migración y tests exhaustivos sobre la cohorte afectada.            |
+| RA3 | Activar throttling global sin conocer la cadena de proxies.                  | Bajo    | Caracterización operativa y activación diferida hasta contar con evidencia.                 |
 
 ---
 

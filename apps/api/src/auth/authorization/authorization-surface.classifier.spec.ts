@@ -5,7 +5,9 @@ import { Roles } from '../decorators/roles.decorator';
 import { ActiveTenantGuard } from '../guards/active-tenant.guard';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
+import { PlatformS2sGuard } from '../../platform-admin/guards/platform-s2s.guard';
 import {
+  AUTHENTICATION_GUARD_KEY,
   Authenticated,
   AuthorizationClassificationSource,
   AuthorizationClassificationStatus,
@@ -21,7 +23,7 @@ describe('AuthorizationSurfaceClassifier', () => {
   it('classifies the complete current HTTP surface without ambiguity', () => {
     const operations = classifier.classifyModuleGraph(AppModule);
 
-    expect(operations).toHaveLength(159);
+    expect(operations).toHaveLength(176);
     expect(new Set(operations.map(({ operationId }) => operationId)).size).toBe(
       operations.length,
     );
@@ -31,15 +33,28 @@ describe('AuthorizationSurfaceClassifier', () => {
       ),
     ).toEqual([]);
     expect(operations.filter(({ policy }) => policy === undefined)).toEqual([]);
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'AuthController.validateResetToken',
+      ),
+    ).toMatchObject({
+      requestMethod: 'POST',
+      operationPath: 'validate-reset-token',
+      policy: AuthorizationPolicyKind.UNAUTHENTICATED,
+      requiresAuthentication: false,
+      requiresActiveTenant: false,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
 
     expect(countBy(operations, 'policy')).toEqual({
-      [AuthorizationPolicyKind.UNAUTHENTICATED]: 8,
+      [AuthorizationPolicyKind.UNAUTHENTICATED]: 12,
       [AuthorizationPolicyKind.AUTHENTICATED]: 60,
-      [AuthorizationPolicyKind.RBAC]: 91,
+      [AuthorizationPolicyKind.RBAC]: 104,
     });
     expect(countBy(operations, 'source')).toEqual({
-      [AuthorizationClassificationSource.EXPLICIT]: 68,
-      [AuthorizationClassificationSource.EXISTING_RBAC]: 91,
+      [AuthorizationClassificationSource.EXPLICIT]: 72,
+      [AuthorizationClassificationSource.EXISTING_RBAC]: 104,
     });
     expect(
       operations.filter(
@@ -47,6 +62,21 @@ describe('AuthorizationSurfaceClassifier', () => {
           source === AuthorizationClassificationSource.LEGACY_INFERRED,
       ),
     ).toEqual([]);
+
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'ExpedienteDocsController.uploadManual',
+      ),
+    ).toMatchObject({
+      requestMethod: 'POST',
+      operationPath: 'employees/:id/expediente',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN, UserRole.OPERADOR],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
   });
 
   it('detects a declaration that contradicts the effective legacy policy', () => {
@@ -118,6 +148,30 @@ describe('AuthorizationSurfaceClassifier', () => {
         status: AuthorizationClassificationStatus.CLASSIFIED,
       },
     ]);
+  });
+
+  it('classifies PlatformS2sGuard as authentication for deny-by-default', () => {
+    expect(
+      Reflect.getMetadata(AUTHENTICATION_GUARD_KEY, PlatformS2sGuard),
+    ).toBe(true);
+
+    const operation = classifier
+      .classifyModuleGraph(AppModule)
+      .find(
+        ({ operationId }) =>
+          operationId === 'PlatformTenantsController.findOne',
+      );
+
+    expect(operation).toMatchObject({
+      requestMethod: 'GET',
+      controllerPath: 'platform/admin/v1/tenants',
+      operationPath: ':tenantId',
+      policy: AuthorizationPolicyKind.AUTHENTICATED,
+      source: AuthorizationClassificationSource.EXPLICIT,
+      requiresAuthentication: true,
+      requiresActiveTenant: false,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
   });
 });
 

@@ -32,7 +32,17 @@ export const resetSchema = z.object({
     .max(100, 'La contraseña no puede superar 100 caracteres.'),
 });
 
+export const acceptInvitationSchema = resetSchema
+  .extend({
+    confirmPassword: z.string().min(1, 'Confirma tu contraseña.'),
+  })
+  .refine((values) => values.newPassword === values.confirmPassword, {
+    message: 'Las contraseñas no coinciden.',
+    path: ['confirmPassword'],
+  });
+
 export type LoginFormValues = z.infer<typeof loginSchema>;
 export type RegisterFormValues = z.infer<typeof registerSchema>;
 export type RecoverFormValues = z.infer<typeof recoverSchema>;
 export type ResetFormValues = z.infer<typeof resetSchema>;
+export type AcceptInvitationFormValues = z.infer<typeof acceptInvitationSchema>;

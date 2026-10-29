@@ -201,7 +201,7 @@ export function ManualJournalManagement() {
             {lineas.map((line, index) => (
               <div
                 key={line.key}
-                className="space-y-3 rounded-[--radius-card] border border-border p-3"
+                className="space-y-3 rounded-(--radius-card) border border-border p-3"
               >
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium text-foreground">Línea {index + 1}</p>

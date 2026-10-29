@@ -1,6 +1,9 @@
 @import 'tailwindcss';
 
 :root {
+  --font-geist-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-geist-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   --background: oklch(0.982 0.006 248);
   --canvas: oklch(0.955 0.008 248);
   --surface: oklch(0.998 0 0);

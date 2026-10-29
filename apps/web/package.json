@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "build": "pnpm --filter @saas/types build && next build --turbopack",
     "start": "next start",
     "lint": "eslint",
     "test": "pnpm --dir ../api exec jest --config ../web/jest.config.mjs --runInBand",
@@ -33,6 +33,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "1.55.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

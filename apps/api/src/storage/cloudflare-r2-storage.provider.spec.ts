@@ -137,6 +137,14 @@ describe('CloudflareR2StorageProvider', () => {
       CloudflareR2StorageConfigurationError,
     );
   });
+
+  it('comprueba la disponibilidad de R2 sin leer objetos de negocio', async () => {
+    send.mockResolvedValueOnce({});
+    const provider = new CloudflareR2StorageProvider();
+
+    await expect(provider.checkReadiness()).resolves.toBeUndefined();
+    expect(send).toHaveBeenCalledTimes(1);
+  });
 });
 
 function s3Error(name: string, statusCode?: number): Error {

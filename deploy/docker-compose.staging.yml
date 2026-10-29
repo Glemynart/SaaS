@@ -1,0 +1,63 @@
+name: dusema-staging-isolated
+
+services:
+  api:
+    image: ${API_IMAGE:?API_IMAGE is required}
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-4000}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      PLATFORM_S2S_ISSUER: ${PLATFORM_S2S_ISSUER:-}
+      PLATFORM_S2S_AUDIENCE: ${PLATFORM_S2S_AUDIENCE:-}
+      PLATFORM_S2S_KID: ${PLATFORM_S2S_KID:-}
+      PLATFORM_S2S_PUBLIC_KEY: ${PLATFORM_S2S_PUBLIC_KEY:-}
+      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
+      BACKEND_URL: ${BACKEND_URL:?BACKEND_URL is required}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?ALLOWED_ORIGINS is required}
+      STORAGE_PROVIDER: r2
+      R2_ENDPOINT: ${R2_ENDPOINT:?R2_ENDPOINT is required}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:?R2_ACCESS_KEY_ID is required}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:?R2_SECRET_ACCESS_KEY is required}
+      R2_BUCKET: ${R2_BUCKET:?R2_BUCKET is required}
+      EMAIL_SMTP_HOST: ${EMAIL_SMTP_HOST:-}
+      EMAIL_SMTP_PORT: ${EMAIL_SMTP_PORT:-}
+      EMAIL_SMTP_USER: ${EMAIL_SMTP_USER:-}
+      EMAIL_SMTP_PASSWORD: ${EMAIL_SMTP_PASSWORD:-}
+      EMAIL_SMTP_SECURE: ${EMAIL_SMTP_SECURE:-false}
+      EMAIL_SMTP_REQUIRE_TLS: ${EMAIL_SMTP_REQUIRE_TLS:-true}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-}
+      REQUIRE_REAL_EMAIL: 'true'
+    restart: unless-stopped
+    expose:
+      - '4000'
+    networks:
+      la-oficina-nitida:
+        aliases:
+          - dusema-staging-api
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:4000/health').then(response =>
+          process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    shm_size: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '5'
+
+networks:
+  la-oficina-nitida:
+    external: true
+    name: la-oficina-nitida_laoficina

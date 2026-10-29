@@ -39,13 +39,13 @@ export function LandingNav({ onDemoOpen }: LandingNavProps) {
           <Link
             href="/"
             className="flex items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            aria-label="La Oficina Nítida — Inicio"
+            aria-label="Dusema Gestión — Inicio"
           >
             <div className="brand-mark brand-mark-compact" aria-hidden="true">
               <span>1</span>
             </div>
             <span className="hidden text-sm font-semibold tracking-[-0.01em] text-foreground sm:block">
-              La Oficina Nítida
+              Dusema Gestión
             </span>
           </Link>
 
@@ -106,7 +106,7 @@ export function LandingNav({ onDemoOpen }: LandingNavProps) {
                 <div className="brand-mark brand-mark-compact" aria-hidden="true">
                   <span>1</span>
                 </div>
-                <span className="text-sm font-semibold text-foreground">La Oficina Nítida</span>
+                <span className="text-sm font-semibold text-foreground">Dusema Gestión</span>
               </div>
               <button
                 onClick={() => setMobileOpen(false)}

@@ -4,15 +4,17 @@ import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { ExpedienteDocsService } from './expediente-docs.service';
 
-describe('ExpedienteDocsService.publishGeneratedDocument', () => {
+describe('ExpedienteDocsService generated document indexing', () => {
   let service: ExpedienteDocsService;
 
   const mockGeneratedDocumentFindFirst = jest.fn();
   const mockGeneratedDocumentUpdate = jest.fn();
   const mockExpedienteDocFindFirst = jest.fn();
   const mockExpedienteDocCreate = jest.fn();
+  const mockExpedienteDocFamilyCreate = jest.fn();
   const mockExpedienteDocDelete = jest.fn();
   const mockTransaction = jest.fn();
   const mockAuditLog = jest.fn();
@@ -54,6 +56,7 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
     mockGeneratedDocumentUpdate.mockResolvedValue({ id: generatedDocumentId });
     mockExpedienteDocFindFirst.mockResolvedValue(null);
     mockExpedienteDocCreate.mockResolvedValue({ id: 'expediente-001' });
+    mockExpedienteDocFamilyCreate.mockResolvedValue({ id: 'family-001' });
     mockExpedienteDocDelete.mockReset();
     mockTenantPrismaExecute.mockImplementation((work) =>
       work({
@@ -68,6 +71,7 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
           findFirst: mockExpedienteDocFindFirst,
           create: mockExpedienteDocCreate,
         },
+        expedienteDocFamily: { create: mockExpedienteDocFamilyCreate },
       }),
     );
 
@@ -85,6 +89,7 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
               findFirst: mockExpedienteDocFindFirst,
               delete: mockExpedienteDocDelete,
             },
+            expedienteDocFamily: { create: mockExpedienteDocFamilyCreate },
             $transaction: mockTransaction,
           },
         },
@@ -93,52 +98,40 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
           useValue: { execute: mockTenantPrismaExecute },
         },
         { provide: AuditService, useValue: { log: mockAuditLog } },
+        {
+          provide: StorageService,
+          useValue: { putObject: jest.fn(), deleteObject: jest.fn() },
+        },
       ],
     }).compile();
 
     service = moduleRef.get(ExpedienteDocsService);
   });
 
-  it('impide eliminar un ExpedienteDoc asociado a CONTRACT publicado', async () => {
+  it('impide eliminar cualquier documento publicado, incluso uno contractual', async () => {
     mockExpedienteDocFindFirst.mockResolvedValue({
       id: 'expediente-001',
       generatedDocument: { id: generatedDocumentId, tipo: 'CONTRACT' },
     });
 
     await expect(service.remove(tenantId, 'expediente-001')).rejects.toThrow(
-      'Los documentos CONTRACT publicados son inmutables',
+      'Los documentos publicados son inmutables',
     );
 
     expect(mockExpedienteDocDelete).not.toHaveBeenCalled();
   });
 
-  it('impide eliminar un ExpedienteDoc asociado a CERTIFICATION publicado', async () => {
+  it('impide eliminar un documento manual publicado', async () => {
     mockExpedienteDocFindFirst.mockResolvedValue({
       id: 'expediente-001',
-      generatedDocument: { id: generatedDocumentId, tipo: 'CERTIFICATION' },
+      generatedDocument: null,
     });
 
     await expect(service.remove(tenantId, 'expediente-001')).rejects.toThrow(
-      'Los documentos CERTIFICATION publicados son inmutables',
+      'Los documentos publicados son inmutables',
     );
 
     expect(mockExpedienteDocDelete).not.toHaveBeenCalled();
-  });
-
-  it('mantiene la eliminación para ExpedienteDoc no publicado', async () => {
-    mockExpedienteDocFindFirst.mockResolvedValue({
-      id: 'expediente-001',
-      generatedDocument: { id: generatedDocumentId, tipo: 'LETTER' },
-    });
-    mockExpedienteDocDelete.mockResolvedValue({ id: 'expediente-001' });
-
-    await expect(service.remove(tenantId, 'expediente-001')).resolves.toEqual({
-      id: 'expediente-001',
-    });
-
-    expect(mockExpedienteDocDelete).toHaveBeenCalledWith({
-      where: { id: 'expediente-001' },
-    });
   });
 
   it('crea el índice con la clave y tamaño canónicos dentro de la transacción', async () => {
@@ -183,6 +176,50 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
       generatedDocumentId,
     });
   });
+
+  it.each(['LETTER', 'MEMO'] as const)(
+    'persiste la metadata real del almacenamiento para %s',
+    async (tipo) => {
+      const storageMetadata = {
+        key: 'pdfs/tenant-001-generated-document-001.pdf',
+        size: 9876,
+      };
+      const tx = {
+        expedienteDocFamily: { create: mockExpedienteDocFamilyCreate },
+        expedienteDoc: { create: mockExpedienteDocCreate },
+      } as unknown as Prisma.TransactionClient;
+
+      await service.createFromGeneratedDoc(
+        tenantId,
+        generatedDocumentId,
+        'employee-001',
+        'Documento generado',
+        tipo,
+        storageMetadata,
+        tx,
+      );
+
+      expect(mockExpedienteDocFamilyCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          tenantId,
+          empleadoId: 'employee-001',
+          categoria: 'OTRO',
+          nombre: 'Documento generado',
+        }),
+      });
+      expect(mockExpedienteDocCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          tenantId,
+          empleadoId: 'employee-001',
+          generatedDocumentId,
+          categoria: 'OTRO',
+          storageKey: storageMetadata.key,
+          mimeType: 'application/pdf',
+          tamanoBytes: storageMetadata.size,
+        }),
+      });
+    },
+  );
 
   it('publica CERTIFICATION con categoría CERTIFICADO sin requerir contrato', async () => {
     mockGeneratedDocumentFindFirst.mockResolvedValue(
@@ -377,6 +414,7 @@ describe('ExpedienteDocsService.publishGeneratedDocument', () => {
               return stagedExpediente;
             },
           },
+          expedienteDocFamily: { create: async () => ({ id: 'family-001' }) },
         });
         persistedMetadata = stagedMetadata;
         persistedExpediente = stagedExpediente;

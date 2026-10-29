@@ -5,7 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { LoteEstado, Prisma } from '@prisma/client';
+import { LoteEstado, LoteProposito, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { LoteEngineService } from './lote-engine.service';
@@ -40,20 +40,36 @@ export class LotesService {
    * `configuracion` para tener un snapshot completo e inmutable.
    */
   async create(tenantId: string, userId: string, dto: CreateLoteDto) {
-    const template = await this.prisma.documentTemplate.findFirst({
-      where: { id: dto.templateId, tenantId, deletedAt: null },
-      select: { id: true, tipo: true, activo: true },
-    });
-    if (!template) {
+    if (!dto.templateId && dto.proposito !== LoteProposito.CONTRATACION) {
       throw new BadRequestException(
-        'La plantilla no existe o no pertenece a esta empresa.',
+        'Una campaña inteligente requiere el propósito CONTRATACION.',
       );
     }
-    if (template.tipo !== 'CONTRACT') {
-      throw new BadRequestException('La plantilla debe ser de tipo CONTRACT.');
+
+    if (dto.templateId && dto.proposito) {
+      throw new BadRequestException(
+        'Un lote manual no puede combinar plantilla y propósito inteligente.',
+      );
     }
-    if (!template.activo) {
-      throw new BadRequestException('La plantilla está inactiva.');
+
+    if (dto.templateId) {
+      const template = await this.prisma.documentTemplate.findFirst({
+        where: { id: dto.templateId, tenantId, deletedAt: null },
+        select: { id: true, tipo: true, activo: true },
+      });
+      if (!template) {
+        throw new BadRequestException(
+          'La plantilla no existe o no pertenece a esta empresa.',
+        );
+      }
+      if (template.tipo !== 'CONTRACT') {
+        throw new BadRequestException(
+          'La plantilla debe ser de tipo CONTRACT.',
+        );
+      }
+      if (!template.activo) {
+        throw new BadRequestException('La plantilla está inactiva.');
+      }
     }
 
     if (dto.sedeId) {
@@ -80,6 +96,7 @@ export class LotesService {
 
     const configuracion = {
       empleadoIds,
+      proposito: dto.proposito ?? null,
       tipoContrato: dto.tipoContrato ?? null,
       fechaInicioContrato: dto.fechaInicio ?? null,
       fechaFinContrato: dto.fechaFin ?? null,
@@ -89,9 +106,10 @@ export class LotesService {
     const lote = await this.prisma.loteContrato.create({
       data: {
         tenantId,
-        documentTemplateId: dto.templateId,
+        documentTemplateId: dto.templateId ?? null,
         creadoPorId: userId,
         nombreLote: dto.nombre,
+        proposito: dto.proposito ?? null,
         tipoContrato: dto.tipoContrato ?? null,
         fechaInicioContrato: dto.fechaInicio ? new Date(dto.fechaInicio) : null,
         fechaFinContrato: dto.fechaFin ? new Date(dto.fechaFin) : null,
@@ -111,7 +129,8 @@ export class LotesService {
         entityId: lote.id,
         metadata: {
           nombre: dto.nombre,
-          documentTemplateId: dto.templateId,
+          documentTemplateId: dto.templateId ?? null,
+          proposito: dto.proposito ?? null,
           total: empleadoIds.length,
         },
       })
@@ -257,18 +276,41 @@ export class LotesService {
       })
       .catch(() => {});
 
-    return this.engine.procesarLote(id);
+    const retryEmployeeIds = this.getRetryEmployeeIds(lote.erroresLog);
+    return this.engine.procesarLote(id, {
+      retry: true,
+      ...(retryEmployeeIds.length > 0 ? { employeeIds: retryEmployeeIds } : {}),
+    });
   }
 
   /** Carga el lote validando pertenencia al tenant. */
   private async ensureTenantLote(tenantId: string, id: string) {
     const lote = await this.prisma.loteContrato.findFirst({
       where: { id, tenantId },
-      select: { id: true, estado: true },
+      select: { id: true, estado: true, erroresLog: true },
     });
     if (!lote) {
       throw new NotFoundException('Lote no encontrado');
     }
     return lote;
+  }
+
+  private getRetryEmployeeIds(value: Prisma.JsonValue | null): string[] {
+    if (!Array.isArray(value)) return [];
+
+    return Array.from(
+      new Set(
+        value.flatMap((entry) => {
+          if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+            return [];
+          }
+          const empleadoId = (entry as Record<string, unknown>).empleadoId;
+          return typeof empleadoId === 'string' &&
+            empleadoId !== 'BATCH_DOCUMENT_GENERATION'
+            ? [empleadoId]
+            : [];
+        }),
+      ),
+    );
   }
 }

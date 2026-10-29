@@ -94,7 +94,7 @@ export function ComparisonSection({ onDemoOpen }: ComparisonSectionProps) {
                   <th scope="col">Carpetas físicas</th>
                   <th scope="col">ERP tradicional</th>
                   <th scope="col" className="col-highlight">
-                    La Oficina Nítida ✓
+                    Dusema Gestión ✓
                   </th>
                 </tr>
               </thead>
