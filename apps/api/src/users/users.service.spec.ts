@@ -56,6 +56,7 @@ describe('UsersService management', () => {
     });
     const auditLog = jest.fn().mockResolvedValue(undefined);
     const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
       user: { create },
       userInvitation: { findFirst: jest.fn().mockResolvedValue(null) },
     };
@@ -77,6 +78,11 @@ describe('UsersService management', () => {
       rol: UserRole.OPERADOR,
     });
 
+    expect(tx.$executeRaw).toHaveBeenCalledWith(
+      expect.any(Array),
+      'tenant-1',
+      'operador@example.test',
+    );
     expect(createData).toBeDefined();
     if (!createData) throw new Error('Managed user data was not captured');
     expect(createData).toMatchObject({
@@ -104,6 +110,7 @@ describe('UsersService management', () => {
   it('does not create a direct account while that email has an open invitation', async () => {
     const create = jest.fn();
     const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
       user: { create },
       userInvitation: {
         findFirst: jest.fn().mockResolvedValue({ id: 'invitation-1' }),
@@ -129,6 +136,52 @@ describe('UsersService management', () => {
       }),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it('serializes a managed email change against invitations', async () => {
+    const executeRaw = jest.fn().mockResolvedValue(1);
+    const findInvitation = jest.fn().mockResolvedValue(null);
+    const update = jest.fn().mockResolvedValue({
+      ...managedUser,
+      email: 'new@example.test',
+    });
+    const tx = {
+      $executeRaw: executeRaw,
+      user: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: managedUser.id,
+          rol: UserRole.OPERADOR,
+          activo: true,
+          email: managedUser.email,
+        }),
+        update,
+      },
+      userInvitation: { findFirst: findInvitation },
+    };
+    const prisma = {
+      $transaction: jest.fn((callback: (value: typeof tx) => unknown) =>
+        callback(tx),
+      ),
+    };
+    const service = new UsersService(
+      prisma as unknown as PrismaService,
+      {
+        log: jest.fn().mockResolvedValue(undefined),
+      } as unknown as AuditService,
+    );
+
+    await service.updateManaged('tenant-1', 'admin-1', managedUser.id, {
+      email: ' New@Example.Test ',
+    });
+
+    expect(executeRaw).toHaveBeenCalledWith(
+      expect.any(Array),
+      'tenant-1',
+      'new@example.test',
+    );
+    expect(executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      findInvitation.mock.invocationCallOrder[0],
+    );
   });
 
   it('does not allow removing the last active administrator', async () => {

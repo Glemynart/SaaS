@@ -71,6 +71,7 @@ describe('UserInvitationsService', () => {
       openKey: 'OPEN',
     };
     const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
       user: { findUnique: jest.fn().mockResolvedValue(null) },
       tenant: { findUnique: jest.fn().mockResolvedValue(tenant) },
       userInvitation: { create: jest.fn().mockResolvedValue(invitation) },
@@ -95,6 +96,11 @@ describe('UserInvitationsService', () => {
       rol: UserRole.OPERADOR,
     });
 
+    expect(tx.$executeRaw).toHaveBeenCalledWith(
+      expect.any(Array),
+      tenant.id,
+      'ana@example.test',
+    );
     expect(firstMockArg(tx.user.findUnique)).toEqual({
       where: {
         tenantId_email: { tenantId: tenant.id, email: 'ana@example.test' },
@@ -348,6 +354,7 @@ describe('UserInvitationsService', () => {
     const updateMany = jest.fn().mockResolvedValue({ count: 1 });
     const audit = { log: jest.fn().mockResolvedValue(undefined) };
     const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
       user: { findUnique: jest.fn().mockResolvedValue(null) },
       tenant: { findUnique: jest.fn().mockResolvedValue(tenant) },
       userInvitation: {
@@ -415,6 +422,7 @@ describe('UserInvitationsService', () => {
     const createUser = jest.fn().mockResolvedValue({ id: 'new-user-1' });
     const audit = { log: jest.fn().mockResolvedValue(undefined) };
     const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
       userInvitation: { updateMany },
       user: { create: createUser },
     };
@@ -447,6 +455,11 @@ describe('UserInvitationsService', () => {
       tenantName: tenant.nombre,
     });
 
+    expect(tx.$executeRaw).toHaveBeenCalledWith(
+      expect.any(Array),
+      tenant.id,
+      invitation.email,
+    );
     const acceptArgs = firstMockArg<{
       where: {
         id: string;

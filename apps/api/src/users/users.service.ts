@@ -10,6 +10,7 @@ import * as bcrypt from 'bcrypt';
 import { AuditService } from '../audit/audit.service';
 import type { CreateManagedUserDto } from './dto/create-managed-user.dto';
 import type { UpdateManagedUserDto } from './dto/update-managed-user.dto';
+import { lockTenantUserEmailIdentity } from './user-email-lock';
 
 @Injectable()
 export class UsersService {
@@ -94,6 +95,7 @@ export class UsersService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        await lockTenantUserEmailIdentity(tx, tenantId, email);
         const pendingInvitation = await tx.userInvitation.findFirst({
           where: {
             tenantId,
@@ -168,6 +170,7 @@ export class UsersService {
         if (data.email !== undefined) {
           const nextEmail = data.email.trim().toLowerCase();
           if (nextEmail !== current.email) {
+            await lockTenantUserEmailIdentity(tx, tenantId, nextEmail);
             const pendingInvitation = await tx.userInvitation.findFirst({
               where: {
                 tenantId,

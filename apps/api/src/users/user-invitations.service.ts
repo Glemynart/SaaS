@@ -13,6 +13,7 @@ import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CreateUserInvitationDto } from './dto/create-user-invitation.dto';
+import { lockTenantUserEmailIdentity } from './user-email-lock';
 
 const INVITATION_EXPIRY_DAYS = 7;
 const INVITATION_EXPIRY_MS = INVITATION_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
@@ -82,6 +83,7 @@ export class UserInvitationsService {
 
     try {
       const created = await this.prisma.$transaction(async (tx) => {
+        await lockTenantUserEmailIdentity(tx, tenantId, email);
         const existingUser = await tx.user.findUnique({
           where: { tenantId_email: { tenantId, email } },
           select: { id: true },
@@ -311,6 +313,11 @@ export class UserInvitationsService {
 
     try {
       await this.prisma.$transaction(async (tx) => {
+        await lockTenantUserEmailIdentity(
+          tx,
+          invitation.tenantId,
+          invitation.email,
+        );
         const claim = await tx.userInvitation.updateMany({
           where: {
             id: invitation.id,
