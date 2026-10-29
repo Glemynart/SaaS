@@ -161,10 +161,11 @@ Estas exclusiones son limitaciones temporales del roadmap. No se numerarán como
 
 **Resultado verificable:** la aplicación se despliega desde cero en un ambiente representativo y completa un smoke test autenticado.
 
-**Estado del Milestone:** `BLOQUEADO POR INFRAESTRUCTURA EXTERNA` por una dependencia operativa verificable:
-no existe todavía una URL de staging, secretos de entorno ni un workflow de despliegue
-disponible en el repositorio o en GitHub. Este estado pertenece a M1; no convierte al
-Goal en bloqueado. GOAL-01 permanece `ACTIVO`.
+**Estado del Milestone:** `BLOQUEADO POR INFRAESTRUCTURA EXTERNA` porque aún no
+hay evidencia de despliegue reproducible, rollback, R2 y entrega de correo real.
+La URL de staging ya existe y responde; esa evidencia no completa E1.1 ni E1.3.
+Este estado pertenece a M1; no convierte al Goal en bloqueado. GOAL-01 permanece
+`ACTIVO`.
 
 - [ ] E1.1 — Staging reproducible, configuración y secretos.
 - [x] E1.2 — Migraciones, seed y rol PostgreSQL runtime no privilegiado.
@@ -176,14 +177,22 @@ verdes y auditoría `APROBADO PARA MERGE`. E1.3 también está fusionada y sus
 rutas `/health` y `/readiness` son la base de los smoke tests. La verificación
 real de R2 y correo de E1.3, junto con la validación de staging reproducible de
 E1.1, sigue siendo evidencia operativa pendiente y no se declara cerrada por
-la sola existencia del código. M1 no desbloquea el camino de M2 que requiere
-deployment y correo, pero esta dependencia no bloquea los caminos independientes
-del Goal.
+la sola existencia del código. La comprobación externa de solo lectura del
+2026-10-29 obtuvo HTTP 200 en `https://staging.dusema.com`, `/health` y
+`/readiness` de `staging-api.dusema.com`. Readiness reportó database, storage y
+email `up`; el check de email sólo acredita que el transporte está configurado,
+no entrega efectiva, y el check de storage no identifica el proveedor. No se
+probaron R2, recepción de correo, rollback ni despliegue desde cero. La
+aceptación operacional de E2.2 aún requiere recibir y aceptar un correo real;
+readiness no acredita esa entrega. Estas dependencias no bloquean los caminos
+independientes del Goal.
 
-La investigación de `main` no encontró una URL de staging, secretos de entorno
-ni un workflow de despliegue disponible en el repositorio o en GitHub. Esta es
-una dependencia operativa externa pendiente, no una decisión de arquitectura.
-La prioridad se reevalúa como un grafo de dependencias: M3 puede avanzar sin
+La verificación previa que afirmaba que no existía URL de staging quedó
+superada por la respuesta actual del entorno. Sigue sin evidencia verificable
+de un procedimiento repetible de despliegue/rollback ni de la configuración
+segura de sus secretos. Esta es una dependencia operativa externa pendiente,
+no una decisión de arquitectura. La prioridad se reevalúa como un grafo de
+dependencias: M3 puede avanzar sin
 staging, R2, correo ni una decisión de dominio pendiente.
 
 ### M2 — Gestión de Organizaciones y Usuarios
