@@ -93,7 +93,11 @@ Este Goal solo puede redefinirse si cambia la estrategia del producto. Nuevas id
 
 - documentación histórica presenta facturación electrónica como MVP, mientras el código solo ofrece facturación interna sin DIAN;
 - documentación histórica afirma capacidades completas por PR o fase que no siempre son utilizables end-to-end;
-- “multiempresa” implementa aislamiento por tenant, no acceso de un mismo usuario a varias organizaciones.
+- “multiempresa” implementa aislamiento por tenant, no acceso de un mismo usuario a varias organizaciones;
+- E2.3 exige mostrar el estado terminal antes del formulario, pero el API solo
+  valida el token al cambiar la contraseña. La decisión entre ampliar el API o
+  cambiar la experiencia quedó propuesta en [ADR-010](../adr/ADR-010-password-reset-token-prevalidation.md);
+  no se declara resuelta.
 
 ## Alcance
 
@@ -185,7 +189,8 @@ staging, R2, correo ni una decisión de dominio pendiente.
       edición de datos, roles ADMIN/OPERADOR y activación/desactivación (PR #96
       fusionada y verificada por CI/Browser E2E).
 - [ ] E2.2 — Invitaciones y alta por correo (depende de correo real).
-- [ ] E2.3 — Recuperación de acceso real por correo (depende de correo real).
+- [ ] E2.3 — Recuperación de acceso real por correo (depende de correo real y de
+      la decisión pendiente de [ADR-010](../adr/ADR-010-password-reset-token-prevalidation.md)).
 - [x] E2.4 — Sedes, identidad y promesa multiempresa coherente con el producto real (PR #110
       fusionada; checks post-merge de CI/Browser E2E verdes).
 
