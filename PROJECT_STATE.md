@@ -1,8 +1,8 @@
-﻿# <a name="project_state.md"></a>PROJECT_STATE.md
+# <a name="project_state.md"></a>PROJECT_STATE.md
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 activo; E7.3 fuera del Goal y ADR-008 aceptado como referencia futura; M1 bloqueado por falta de staging aislado y validación operativa (2026-10-26)
+## Última actualización: GOAL-01 activo; M1 bloqueado por validación operativa externa; PR #124 prepara aislamiento (2026-10-29)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -124,16 +124,6 @@ onboarding ni en el recorrido laboral-documental. ADR-008 fue aceptado como
 referencia de Platform Evolution; E7.3 queda fuera de GOAL-01 y no se implementó
 código.
 
-Revalidación operativa de solo lectura del 2026-10-25: el alias web `staging.dusema.com` sigue en
-Vercel Production; hay un Preview Ready para PR #124, pero no está asociado al alias y su API
-efectiva no se verificó. La API de la VPS sigue conectada a `oficina_nitida` y usa storage local;
-el rol runtime tiene permisos DML explícitos en las 52 tablas y `PUBLIC` conserva CONNECT a esa
-base. No se probó entrega SMTP ni se validó readiness en esta revalidación. GOAL-01 permanece
-`ACTIVO`; M1 permanece bloqueado hasta demostrar aislamiento, despliegue reproducible, storage/correo
-operativos y smoke autenticado. La evidencia y las siguientes comprobaciones están detalladas en
-[`deploy/README.md`](deploy/README.md#frontend-de-staging-en-vercel) y
-[`docs/goals/GOAL-01-primer-cliente-operando.md`](docs/goals/GOAL-01-primer-cliente-operando.md).
-
 # <a name="estado-general-del-proyecto"></a>Estado General del Proyecto
 
 ## Estado de E2.4, E5.2, E5.3, E5.4, E6.1, E6.2 y E6.3
@@ -171,11 +161,11 @@ Estado actual:
 
 Goal activo:
 
-- 🟡 GOAL-01 activo — M1 está BLOQUEADO POR INFRAESTRUCTURA EXTERNA: E1.1 fusionada como PR #78 y pendiente de validación reproducible; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real de R2/correo; E1.4 fusionada como PR #81 y verificada por CI/Browser E2E. M3 está completado con E3.1, E3.2, E3.3 y E3.4 fusionadas. E4.1 quedó entregada en PR #89, E4.2 en PR #90 y E4.3 en PR #92, todas con checks de CI y Browser E2E verdes. E4.4 quedó fusionada en PR #93, E4.6 en PR #94, E5.1 en PR #95, E2.1 en PR #96, E4.5 en PR #97 y E4.7 en PR #99, todas con checks post-merge verdes. E5.2 quedó fusionada en PR #102, E5.3 en PR #103, E5.4 en PR #104, E6.1 en PR #105, E6.2 en PR #106, E6.3 en PR #108 y E2.4 en PR #110, también con checks post-merge verdes. Las invitaciones quedan separadas por su dependencia de correo real.
+- 🟡 GOAL-01 activo — M1 sigue bloqueado por infraestructura externa. E2.2 (PR #144) y E2.3 (PR #148) tienen implementación, pero falta aceptación por correo real; E4.4 (PR #134) y la selección completa de lotes E4.1 (PR #140) están fusionadas y verificadas. E1.1/E1.3 requieren aislamiento y operación real; PR #124 prepara la configuración aislada pero sigue sin validación operativa. E7.1 continúa pendiente de lectura OCI y restauración real.
 
 - [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
-La auditoría de código confirmó empleados, sedes, autenticación, documentos, certificaciones, seguridad y motores internos importantes. E2.4 quedó cerrada con sedes, identidad corporativa y promesa pública alineada con el aislamiento por tenant. Permanecen abiertas las invitaciones de usuarios, el deployment reproducible y Go Live.
+La auditoría de código confirmó empleados, sedes, autenticación, documentos, certificaciones, seguridad y motores internos importantes. E2.4 quedó cerrada con sedes, identidad corporativa y promesa pública alineada con el aislamiento por tenant. Permanecen pendientes la aceptación operacional de invitaciones por correo, la recuperación real, el deployment reproducible y Go Live.
 
 Hitos recientes fusionados a `main`:
 
@@ -209,231 +199,11 @@ Hitos recientes fusionados a `main`:
 - ✅ E2.1 — Gestión directa de usuarios — PR #96 fusionada y verificada por CI/Browser E2E; las invitaciones quedan separadas por su dependencia de correo real.
 - ✅ E4.5 — Reintentos selectivos, idempotencia y errores parciales — PR #97 fusionada y verificada por CI/Browser E2E; no dependía de staging, R2, DNS, correo ni una decisión nueva de dominio.
 - ✅ E4.7 — Prueba browser del caso exitoso, parcial y reintentado — PR #99 fusionada y verificada por CI/Browser E2E; no depende de M1.
+- ✅ E4.4 — Idempotencia de generación PDF LETTER/MEMO y reintentos — PR #134 fusionada; CI y Browser E2E post-merge verdes.
+- ✅ E4.1 — Selección completa y paginada de empleados para lotes — PR #140 fusionada; CI y Browser E2E post-merge verdes.
 
-La inspección de solo lectura del 2026-10-24 confirmó que existe una API pública llamada staging:
-`/health` y `/readiness` respondieron HTTP 200. La API corre en la única VPS clasificada como
-producción, comparte red Docker con PostgreSQL y usa `STORAGE_PROVIDER=local`; inspecciones previas
-del mismo entorno identificaron `oficina_nitida` como base compartida. Una consulta posterior a la
-fusión de PR #123 reportó que Vercel deployment `dpl_xYJbtaq17GGjRqtSkGUQe1fib8Kz`
-(`saa-s-alde58gmf-glemynarts-projects.vercel.app`) estaba `READY`, tenía target `Production` y su
-lista de aliases incluía `staging.dusema.com`. El registro de deployment de GitHub `7296998166`
-vinculó el SHA `0aa157e4f3593795d43568eabfbd3d80f778aea8` con ese URL, entorno `Production`
-y resultado `success` (2026-10-24 09:50 UTC). Esto sustituye la observación anterior: el deployment
-`saa-s-r7pp8dsxi-glemynarts-projects.vercel.app` asociado a `98960492e6e40307f12f51593bca3ea54875f3de`
-era el alias observado antes de la fusión; el deployment `14da89e6d3f8ab19b38b8696776651fc6da79466`
-estaba entonces `CANCELED`. La inspección más reciente, después de fusionar PR #125, confirma que
-el deployment actual es `dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`
-(`saa-s-nn9yf611j-glemynarts-projects.vercel.app`), estado `READY`, target `Production`, y que sus
-aliases incluyen `staging.dusema.com`. El deployment de GitHub `7299455677`, creado el
-2026-10-24 13:47:37 UTC, vincula el merge SHA `53a6fb3eb5d6307fc255ddc8661e20ca2c7a6980` al
-entorno `Production`. La relación de ese deployment con el push del merge está respaldada por el SHA
-y la secuencia temporal; no se ejecutó un comando manual de despliegue Vercel. El propietario
-confirmó el 2026-10-24 que `staging.dusema.com` debe apuntar a un deployment Vercel `Preview` y
-autorizó preparar, pero no ejecutar, la reasignación. El Preview observado para el commit
-`c66e0f74adb2e51c3ac818db5ef4a7a6e9ffe95b` de PR #124 estaba `READY` en
-`dpl_4mBn7eirb5fLTeFyisLS6WNrDAvJ` (`saa-s-oudqxrvw0-glemynarts-projects.vercel.app`), target
-`preview`, sin el alias `staging.dusema.com`; es un deployment anterior a sincronizar la PR con
-`main`, por lo que no debe reutilizarse sin revalidar su SHA y estado. La Preview
-`dpl_FKhfAdH2qkd4PTsV84HaLpxz3F7R` (`saa-s-9dl7o9t6q-glemynarts-projects.vercel.app`) se observó
-`READY` para el commit `2bc9c8258ac69ba5f04114280e74aac8a727b511` de la rama de PR #124. El deployment
-Preview correspondiente al commit `966bded40b0ba5ae6384cd922f2f109d51705053` de PR #124 se sirvió
-desde `https://saa-s-q0bukaijo-glemynarts-projects.vercel.app`; GitHub registró el deployment
-`7298681383` como `success` el 2026-10-24 12:36 UTC. Es un deployment de PR, no una fuente estable
-de staging.
-En la revalidación del 2026-10-24, el HEAD observado entonces de PR #124 era
-`bc111c930fa9116a74ebf9cabb80f0d40efc65c3`; su deployment era `dpl_9NzpXu3RofofqAer279ijnSScDBM`
-(`saa-s-izym3kh5f-glemynarts-projects.vercel.app`), `READY`, target `preview`, sin el alias de
-staging. El check Vercel asociado a ese HEAD enlaza al deployment; `vercel inspect --json` no
-expuso `gitSource`. Es un Preview de rama, no una fuente estable aprobada para el alias.
-Una revalidación previa, el 2026-10-24 15:27 UTC, vincula el HEAD `14dd130ce0cfd15854ebbf72ff55d2c6df75862b`
-de PR #124 con el deployment Vercel `dpl_3mdQChGgPfAQe8CpDNttQdiaEatX`
-(`saa-s-cjomolfb6-glemynarts-projects.vercel.app`), `READY`, target `preview`; GitHub deployment
-`7300586669` reporta `success` para ese SHA y URL. Vercel muestra un alias de rama generado, no
-`staging.dusema.com`. Una solicitud HEAD pública terminó en HTTP 200 tras dos redirecciones. La
-inspección actual confirma que `staging.dusema.com` sigue asociado a
-`dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`, target `production`. No se verificó que el Preview use una API
-aislada, de modo que no está listo para recibir el alias.
-La revalidación posterior del 2026-10-24 19:09 UTC identificó el Preview `dpl_4JisJHHvR3GfijTzNxsStLinPV6J`
-(`READY`, target `preview`) para el HEAD actual de PR #124; el acceso público redirigió a SSO y el host API
-no se verificó. El detalle operativo está en [`deploy/README.md`](deploy/README.md#frontend-de-staging-en-vercel).
-La consulta de solo lectura no encontró una rama GitHub
-`staging`. La lista del entorno Vercel Preview incluye `API_URL`, `NEXT_PUBLIC_API_URL` y
-`NEXT_PUBLIC_SITE_URL`, pero sus valores no se leyeron. La URL `/configuracion/identidad` redirigió a
-`/login` sin sesión; por tanto no se obtuvo evidencia autenticada del host API efectivo. Como la API
-actual comparte `oficina_nitida`, la reasignación debe esperar a verificar una API/base aisladas y la
-URL efectiva de Preview. PR #123 y PR #125 no modificaron archivos de
-`apps/web`. El workflow `.github/workflows/api-image.yml` publica la imagen
-API a GHCR al hacer push a `main`, pero no despliega el stack en la VPS. El run `40083400008` de
-`Publish API image`, para el SHA `0aa157e4f3593795d43568eabfbd3d80f778aea8`, terminó correctamente;
-su log de build/push reportó el tag
-`ghcr.io/glemynart/saas/api:sha-0aa157e4f3593795d43568eabfbd3d80f778aea8` con digest
-`sha256:91d984da4559f95bc109e731b09caa06efb87da672b5ce62f2c8202f7cb941ee`. El run
-`40099584454` de `Publish API image`, para el merge SHA
-`53a6fb3eb5d6307fc255ddc8661e20ca2c7a6980`, también terminó correctamente. El log del push reportó
-el manifiesto del tag
-`ghcr.io/glemynart/saas/api:sha-53a6fb3eb5d6307fc255ddc8661e20ca2c7a6980` con digest
-`sha256:fcdca7a8496be040db458eb8e9905bb66bdd8ebea5d831d43f0f8a6546ae4651`. La inspección SSH de
-solo lectura del 2026-10-24 confirmó que el Compose activo está en
-`/home/ubuntu/la-oficina-nitida/staging/docker-compose.yml` y que
-`la-oficina-nitida-staging-api-1` está `healthy`. Docker reportó como referencia y RepoDigest
-activos `sha256:c03c3f11f75ed1c4cd4fca2a54941956de645e34bd0465995b2a222acade2b19`; la etiqueta OCI
-`org.opencontainers.image.revision` es `14da89e6d3f8ab19b38b8696776651fc6da79466`. Las consultas
-públicas GET a `/health` y `/readiness` dieron HTTP 200. Desde el Docker client del VPS,
-`docker manifest inspect` pudo leer el digest nuevo como índice OCI con plataformas `linux/amd64`
-y `linux/arm64`, sin descargar capas. Por tanto el artefacto de PR #123 es accesible desde el VPS,
-pero no está desplegado en el contenedor; la identidad concreta usada por Docker no se inspeccionó.
-Una inspección SSH filtrada adicional (2026-10-24 14:57 UTC) reconfirmó ese digest/revisión,
-`DATABASE_URL` hacia `oficina_nitida` con el rol `saas_api_runtime`, `STORAGE_PROVIDER=local` y el
-bind mount de uploads `/home/ubuntu/la-oficina-nitida/staging/uploads:/app/uploads`. Las cuatro
-variables requeridas de R2 no estaban presentes con valor. Los nombres de configuración SMTP y
-`REQUIRE_REAL_EMAIL` sí estaban presentes, pero no se leyeron valores ni se envió correo; esto no
-verifica entrega SMTP. En ese momento `/health` devolvió HTTP 200 y `/readiness` devolvió HTTP 200
-con estado `ready`. La inspección SSH del mismo día confirmó que el proyecto Compose activo
-`la-oficina-nitida-staging` contiene API y Caddy; Caddy publica 80/443, monta
-`/home/ubuntu/la-oficina-nitida/staging/Caddyfile` y enruta `staging-api.dusema.com` a `api:4000`.
-La configuración versionada de PR #124 se ajustó para usar el proyecto distinto
-`dusema-staging-isolated`, solo el servicio API y el alias `dusema-staging-api`; aún no está
-desplegada. La existencia de URL, checks HTTP y artefactos no demuestra staging aislado ni reproducible. E1.1/E1.3 siguen pendientes
-por aislamiento, R2 privado, correo real y smoke autenticado sobre el entorno correcto; la
-separación de secretos tampoco está verificada. Esto bloquea M1, no GOAL-01: el Goal permanece
-ACTIVO. E2.1, E2.4, E4.2, E4.3, E4.4, E4.5, E4.6, E4.7, E5.1, E5.2, E5.3, E5.4, E6.1, E6.2 y
-E6.3 quedaron fusionadas por caminos independientes. El checklist operativo de M1 está en
-[`docs/goals/GOAL-01-M1-infrastructure-checklist.md`](docs/goals/GOAL-01-M1-infrastructure-checklist.md).
-
-Revalidación del 2026-10-24 19:32 UTC: el contenedor de la VPS continúa en el digest
-`sha256:c03c3f11f75ed1c4cd4fca2a54941956de645e34bd0465995b2a222acade2b19`, revisión `14da89e…`,
-`healthy`; `/health` y `/readiness` responden HTTP 200. El workflow del merge actual de `main`
-`f426b5668b7f86be1c52ffcd36243ebc8f60f1fd` publicó correctamente la imagen cuyo manifiesto
-`sha256:70c4aa819a5bd632aba02cd5600ad7a6eabff3453374df8ad6fb684bcc00b753` pudo inspeccionarse
-desde el VPS; no está desplegada. `staging.dusema.com` sigue asociado a un deployment Vercel
-`Production`, y el Preview del HEAD actual de PR #124 está `READY` pero redirige a SSO. El detalle
-de esta revalidación está en [`deploy/README.md`](deploy/README.md#frontend-de-staging-en-vercel).
-
-Revalidación Vercel del 2026-10-24 20:40 UTC: el HEAD `e780941bdc9bc36fb11d222a0ea823f39dc159e4` de
-PR #124 tiene el Preview `dpl_9weqH1LJjAqawQG4HUy5TZFUnv2Z`, URL
-`saa-s-e7i7skujc-glemynarts-projects.vercel.app`, estado `READY`, target `preview`, sin alias. La
-metadata del listado vincula el deployment al SHA y a la rama
-`codex/reconcile-goal01-m1-runtime-evidence`; un GET anónimo devolvió HTTP 302.
-`staging.dusema.com` continúa asociado al deployment `Production`
-`dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`. No se leyeron valores de configuración API ni se reasignó el
-alias; la Preview puntual de una rama de PR no es una fuente estable y M1 sigue abierto.
-
-Revalidación posterior a la fusión de PR #131 (2026-10-24): GitHub registró el deployment
-`7305566758` para el SHA `7307292e324a8f1a6c91313e4d03c701c389db5f`, entorno `Production`, con
-resultado `success` y URL `saa-s-39qo9akw7-glemynarts-projects.vercel.app`. La inspección Vercel
-`vercel inspect staging.dusema.com --json` mostró el deployment `READY`
-`dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`, target `production`, con el alias `staging.dusema.com`. No se
-ejecutó una reasignación manual. El propietario había autorizado preparar, no realizar, el cambio del
-alias a `Preview`; el dominio continúa sirviendo Production y no debe tratarse como staging aislado.
-
-La inspección de red y catálogo PostgreSQL del 2026-10-24 19:51 UTC confirma que la red Docker
-compartida conecta PostgreSQL, Redis, la API actual y Caddy, y que `PUBLIC` todavía tiene
-`CONNECT` sobre `oficina_nitida`. La API nueva podría alcanzar el servidor PostgreSQL; un rol
-staging nuevo heredaría ese permiso y el bootstrap lo rechaza. No se cambiaron ACLs; el propietario
-confirmó mantener bloqueada la creación de base/rol hasta revisión DBA y aprobación del mecanismo
-de aislamiento. Véase [`deploy/README.md`](deploy/README.md).
-
-Revalidación de solo lectura del 2026-10-25: `staging.dusema.com` continúa sirviendo el deployment
-Vercel `READY` `dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`, target `Production`. El HEAD vigente de PR #124,
-`af28fe09c0537f02ba9d446af7df08635f7af1d9`, tiene un Preview `READY`
-(`dpl_HMJKrxiRLazM4f49rHypytA2JptW`) asociado por su check Vercel; su alias es de rama, no el
-dominio de staging. Vercel no expuso el SHA del deployment en `inspect`; `API_URL` está configurada
-para Preview, pero su valor no se leyó ni se verificó el backend efectivo. En la VPS, el contenedor
-API sigue con RepoDigest `sha256:c03c3f11f75ed1c4cd4fca2a54941956de645e34bd0465995b2a222acade2b19`
-y revisión `14da89e6d3f8ab19b38b8696776651fc6da79466`; `/health` y `/readiness` respondieron HTTP
-200 (`ready`). El runtime continúa compartiendo `oficina_nitida` con producción y usa
-`STORAGE_PROVIDER=local`. Las variables SMTP requeridas estaban presentes y el host se clasificó
-como OCI Email Delivery, pero no se enviaron correos ni se validó entrega. No se ejecutó smoke
-funcional ni se cambió el alias; M1 sigue bloqueado.
-
-Revalidación Vercel del 2026-10-25 19:32 UTC: el check Vercel asociado al HEAD
-`ee3649a7a62e121905d4da1dcde82b1869fd0a81` de PR #124 apunta al deployment
-`dpl_HrX2iCieb4p4WaobyQA2DqkFwE7M`, `READY`, target `preview`, URL
-`saa-s-ae3hragvn-glemynarts-projects.vercel.app`; Vercel muestra un alias de rama y no
-`staging.dusema.com`. La inspección directa de ese deployment no expuso `gitSource`.
-`staging.dusema.com` continúa resolviendo al deployment `dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`,
-target `production`. No se reasignó el alias. Los valores de `API_URL` y
-`NEXT_PUBLIC_API_URL` no se leyeron; el backend efectivo del Preview sigue sin verificar.
-
-E7.1 continúa abierta. La consulta SSH de solo lectura confirmó que el timer
-`dusema-postgres-backup.timer` disparó `dusema-postgres-backup.service` el 2026-10-25 07:00:11 UTC;
-el servicio terminó con `Result=success` y código 0. El journal registró `complete`, la carga de
-`postgres/dusema-oficina_nitida-20261025T020011-0500-OpRYGz.dump.gpg` y SHA-256
-`d14e3e392a0050b986e2c8e560fe1a64cb5f4703f1984d4ca1a65f7631dc450a`; los hashes del script y las
-unidades instaladas coincidieron con los artefactos versionados. Esto confirma la ejecución y la
-verificación de checksum durante la carga, no el acceso actual. `oci os object head` desde la VPS
-con instance principal devolvió `Forbidden`; el equipo local no tiene OCI CLI. El operador reportó
-una restauración manual el 23 de octubre, pero no hay evidencia independiente revisable ni una
-restauración del objeto del día 25. Una medición SSH del 25 de octubre encontró cero archivos
-regulares y 0 bytes en uploads, modo `0750`, bajo `/` (`/dev/sda1`, ext4). PostgreSQL backup no
-incluye esa ruta y no se verificó cobertura ni recuperación desde copias del volumen.
-
-Revalidación OCI del 2026-10-25 19:33–19:34 UTC: usando `/home/ubuntu/bin/oci` en la VPS con
-instance principal, `object head` del objeto conocido devolvió HTTP 404 y `object list` con su
-prefijo devolvió `BucketNotFound` con el mensaje “el bucket no existe o el solicitante no está
-autorizado”. La respuesta no permite distinguir objeto ausente de falta de acceso. No hubo descarga,
-verificación independiente del SHA-256 ni restauración; E7.1 sigue abierta.
-
-Revalidación del backup programado del 2026-10-26: la consulta SSH de solo lectura observó
-`LastTriggerUSec=2026-10-26 07:00:10 UTC`; `dusema-postgres-backup.service` terminó a las 07:00:12
-con `Result=success` y código 0. El journal registró la finalización, carga y checksum informado
-por el script para `postgres/dusema-oficina_nitida-20261026T020010-0500-ANQ9JZ.dump.gpg`:
-`cf123f4ec03da98363597fb75b55d5b947ea006a6996398556c62289f1796f84`. Usando la identidad
-instance principal y `/home/ubuntu/bin/oci` (fuera del `PATH`), `object head` devolvió HTTP 404;
-esto no distingue objeto ausente de falta de autorización. Una consulta `object list` posterior no
-devolvió resultado dentro del tiempo de observación y fue interrumpida. No se verificaron metadatos
-OCI, lectura de bytes, checksum independiente ni restauración; E7.1 sigue abierta.
-
-Revalidación de solo lectura del runtime API, 2026-10-26, 10:28–10:34 UTC:
-
-- `la-oficina-nitida-staging-api-1` está `Up 4 hours (healthy)` en la única VPS
-  clasificada como producción. La referencia y `RepoDigests` muestran
-  `sha256:b5e441d62986632b09e301dc1dcbe7fbd067afcf9f6ecbebaa48c3a52a2be6d8`;
-  la revisión OCI es `629375cf0378472f22ade09beda460741a8af6bf`. El workflow
-  `Publish API image` para esa revisión terminó correctamente (run
-  `40281285437`). La revisión contiene como ancestro el merge de PR #123
-  (`0aa157e4f3593795d43568eabfbd3d80f778aea8`), que incluye la corrección de
-  metadata de PDFs.
-- La configuración filtrada indica `STORAGE_PROVIDER=local` y PostgreSQL
-  `postgres/oficina_nitida` con el rol `saas_api_runtime`. La API llamada staging
-  sigue usando la base del entorno clasificado como producción; esto confirma
-  que el aislamiento requerido por M1 no existe. La salida filtrada no mostró
-  secretos, filas
-  de negocio ni catálogos, y no se hicieron solicitudes HTTP ni escrituras.
-- El health reportado es el del contenedor; `/health`, `/readiness`, el alias
-  Vercel, R2 y la entrega real SMTP no se revalidaron en este ciclo. E1.1 y M1
-  continúan abiertos. El inventario/decisión DBA de PR #124 sigue pendiente; sus
-  checks `verify`, `browser` y Vercel Preview están verdes para HEAD
-  `b43637fda09c9490e565bca17879ffc847d2b167`, sin revisión DBA registrada.
-
-Consulta Vercel de solo lectura del 2026-10-26, aprox. 10:44 UTC: el alias
-`staging.dusema.com` resuelve al deployment `dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`,
-URL `saa-s-39qo9akw7-glemynarts-projects.vercel.app`, estado `READY`, target
-`production`. El propietario ya indicó que el target deseado es `Preview`; el
-alias no se cambió. No se verificó el SHA asociado ni el backend efectivo de
-Preview, así que el dominio no sirve como staging certificado. No ejecutar
-smoke funcional con escrituras contra ese alias.
-
-Revalidación de solo lectura del 2026-10-26, 11:55–11:57 UTC: el contenedor API
-continúa healthy en la VPS clasificada como producción, con digest
-`sha256:b5e441d62986632b09e301dc1dcbe7fbd067afcf9f6ecbebaa48c3a52a2be6d8` y
-revisión `629375cf0378472f22ade09beda460741a8af6bf`; el workflow de publicación
-`40281285437` terminó correctamente y su log vincula ese digest con la etiqueta
-SHA del commit. La revisión contiene el merge de PR #122. Los GET públicos a
-`/health` y `/readiness` respondieron 200; readiness indicó base, storage y
-email `up`, pero el runtime usa storage local y el estado de email solo confirma
-que existe un transporte configurado. No se envió correo ni se verificó R2.
-Vercel continúa sirviendo `staging.dusema.com` desde Production. El `object head`
-del backup programado devolvió 404, ambiguo entre ausencia y falta de acceso;
-no se comprobó lectura ni restauración. E1.1, E1.3, M1 y E7.1 permanecen
-abiertos. El detalle verificable está en [`deploy/README.md`](deploy/README.md).
-
-Una medición SSH de solo lectura de uploads, a las 10:50 UTC del 2026-10-26,
-encontró 3 archivos regulares y 43.787 bytes en
-`/home/ubuntu/la-oficina-nitida/staging/uploads` (propietario `opc:opc`, modo
-`0750`, bind mount hacia `/app/uploads`). Esto reemplaza la observación anterior
-de 0 bytes del 25 de octubre, pero no demuestra cobertura de backup ni capacidad
-de restauración; E7.1 sigue abierta.
+La comprobación externa de solo lectura del 2026-10-29 obtuvo HTTP 200 en `https://staging.dusema.com` y en `/health` y `/readiness` de `staging-api.dusema.com`. Readiness reportó database, storage y email `up`; el check de email sólo acredita transporte configurado y el de storage no identifica el proveedor. No se verificaron entrega de correo, R2, despliegue reproducible ni rollback, así que E1.1/E1.3 siguen abiertas y M1 `BLOQUEADO POR INFRAESTRUCTURA EXTERNA`. Esto bloquea M1, no GOAL-01: el Goal permanece ACTIVO. E2.1, E2.4, E4.2, E4.3, E4.4, E4.5, E4.6, E4.7, E5.1, E5.2, E5.3, E5.4, E6.1, E6.2 y E6.3 quedaron fusionadas por caminos independientes. El checklist operativo de M1 está en [`docs/goals/GOAL-01-M1-infrastructure-checklist.md`](docs/goals/GOAL-01-M1-infrastructure-checklist.md).
+La inspección de solo lectura registrada en PR #124 encontró que la API llamada staging compartía la VPS y la base `oficina_nitida` clasificadas como producción y usaba storage local; el Compose activo no coincidía con el versionado. PR #124 prepara el proyecto Compose aislado, exige las cuatro variables R2 y `REQUIRE_REAL_EMAIL=true`, y valida el bootstrap PostgreSQL en un servicio efímero de CI. La base, el rol, las ACL, el alias DNS, R2, el correo y el despliegue activo no se modificaron; la revisión DBA y la validación operativa siguen pendientes.
 
 E4.2 quedó fusionada y verificada en `main` mediante PR #90. M3 está completado y
 M4 tiene E4.1, E4.2, E4.3, E4.4, E4.5, E4.6 y E4.7 entregadas; E4.7 cerró la evidencia browser separada con PR #99.

@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { AuditService } from '../audit/audit.service';
@@ -55,7 +55,11 @@ describe('UsersService management', () => {
       return Promise.resolve(managedUser);
     });
     const auditLog = jest.fn().mockResolvedValue(undefined);
-    const tx = { user: { create } };
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      user: { create },
+      userInvitation: { findFirst: jest.fn().mockResolvedValue(null) },
+    };
     const prisma = {
       $transaction: jest.fn((callback: (value: typeof tx) => unknown) =>
         callback(tx),
@@ -74,6 +78,11 @@ describe('UsersService management', () => {
       rol: UserRole.OPERADOR,
     });
 
+    expect(tx.$executeRaw).toHaveBeenCalledWith(
+      expect.any(Array),
+      'tenant-1',
+      'operador@example.test',
+    );
     expect(createData).toBeDefined();
     if (!createData) throw new Error('Managed user data was not captured');
     expect(createData).toMatchObject({
@@ -95,6 +104,83 @@ describe('UsersService management', () => {
         action: 'USER_CREATED',
       }),
       tx,
+    );
+  });
+
+  it('does not create a direct account while that email has an open invitation', async () => {
+    const create = jest.fn();
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      user: { create },
+      userInvitation: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'invitation-1' }),
+      },
+    };
+    const prisma = {
+      $transaction: jest.fn((callback: (value: typeof tx) => unknown) =>
+        callback(tx),
+      ),
+    };
+    const service = new UsersService(
+      prisma as unknown as PrismaService,
+      {} as AuditService,
+    );
+
+    await expect(
+      service.createManaged('tenant-1', 'admin-1', {
+        email: 'operator@example.test',
+        nombre: 'Ana',
+        apellido: 'Operadora',
+        passwordPlain: 'Secure-password-123!',
+        rol: UserRole.OPERADOR,
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('serializes a managed email change against invitations', async () => {
+    const executeRaw = jest.fn().mockResolvedValue(1);
+    const findInvitation = jest.fn().mockResolvedValue(null);
+    const update = jest.fn().mockResolvedValue({
+      ...managedUser,
+      email: 'new@example.test',
+    });
+    const tx = {
+      $executeRaw: executeRaw,
+      user: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: managedUser.id,
+          rol: UserRole.OPERADOR,
+          activo: true,
+          email: managedUser.email,
+        }),
+        update,
+      },
+      userInvitation: { findFirst: findInvitation },
+    };
+    const prisma = {
+      $transaction: jest.fn((callback: (value: typeof tx) => unknown) =>
+        callback(tx),
+      ),
+    };
+    const service = new UsersService(
+      prisma as unknown as PrismaService,
+      {
+        log: jest.fn().mockResolvedValue(undefined),
+      } as unknown as AuditService,
+    );
+
+    await service.updateManaged('tenant-1', 'admin-1', managedUser.id, {
+      email: ' New@Example.Test ',
+    });
+
+    expect(executeRaw).toHaveBeenCalledWith(
+      expect.any(Array),
+      'tenant-1',
+      'new@example.test',
+    );
+    expect(executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      findInvitation.mock.invocationCallOrder[0],
     );
   });
 

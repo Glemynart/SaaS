@@ -40,6 +40,19 @@ E2.4 fue fusionada en el PR #110: las sedes y la identidad corporativa se
 prueban desde la UI dentro del tenant autenticado, y la promesa pública describe
 el aislamiento por organización sin prometer cambio de contexto entre empresas.
 
+E2.2 tiene una implementación en la [PR #144](https://github.com/Glemynart/SaaS/pull/144): el ADMIN
+gestiona invitaciones por tenant, el correo lleva un enlace de un solo uso y la
+persona define su contraseña antes de iniciar sesión. La suite API valida
+expiración y reglas de negocio. Dos integraciones PostgreSQL cubren la
+persistencia del hash, aislamiento tenant, auditoría, consumo concurrente de un
+solo uso y autorización de los endpoints HTTP por rol y tenant. El Browser E2E
+recorre la UI, el BFF, la API Nest y PostgreSQL; un SMTP local de prueba captura
+el mensaje, el test extrae el enlace real, acepta la invitación y verifica el
+inicio de sesión de la cuenta creada. También cubre reenvío con rotación de
+token y revocación desde la UI. El SMTP local no demuestra entrega a un buzón
+externo: recibir y aceptar el correo real en staging sigue pendiente, por lo que
+E2.2 permanece sin cerrar.
+
 **Pausa selectiva:** GOAL-01 permanece `ACTIVO` y M1 continúa `BLOQUEADO POR
 INFRAESTRUCTURA EXTERNA`. Las Epics que requieran dominio, DNS, Cloudflare, R2,
 OCI Email Delivery, variables de producción o staging permanecen detenidas. E4.2
@@ -67,17 +80,17 @@ Este Goal solo puede redefinirse si cambia la estrategia del producto. Nuevas id
 - expediente para documentos publicados y alertas generadas automáticamente;
 - motores avanzados de nómina y contabilidad que no definen el alcance comercial activo.
 
-### Límites y dependencias pendientes
+### Rupturas comprobadas
 
-- E2.1 ya entrega la gestión directa de usuarios; E2.2 y E2.3 siguen pendientes
-  porque las invitaciones y la recuperación requieren correo real;
+- E2.1 ya entrega la gestión directa de usuarios; E2.2 ya tiene un recorrido
+  E2E local completo con SMTP de prueba, pero la entrega y aceptación con correo
+  real siguen pendientes; E2.3 aún requiere validar recuperación por correo real;
 - E4.1 ya permite crear, resolver y confirmar campañas inteligentes desde la UI;
 - E4.2 ya procesa planes confirmados; E4.3, E4.4, E4.6 y E5.1 están fusionadas;
-- el flujo de campaña inteligente desde resolución y confirmación hasta contrato,
-  expediente y descarga se verifica en `e2e/contractual-profiles-smoke.spec.ts`;
-  las pruebas API también cubren snapshots confirmados y exclusiones. Los valores
-  legales de empresa del PDF provienen del snapshot contractual, no de una lectura
-  en vivo. La validación en staging/producción sigue pendiente de M1;
+- la ruta de campaña inteligente tiene un recorrido browser desde resolución y
+  confirmación hasta contrato, expediente y descarga; los valores legales de
+  empresa del PDF provienen del snapshot contractual, no de una lectura en vivo.
+  La validación en staging/producción sigue pendiente de M1;
 - la generación documental individual está disponible desde el detalle del contrato; la prueba browser incorporada en PR #125 recorre la generación, publicación en el expediente y descarga del PDF con nombre Unicode;
 - el expediente ya permite carga manual, clasificación, descarga e historial/versionado;
   la auditoría e integración consistente del expediente quedaron entregadas en E5.4.
@@ -86,8 +99,9 @@ Este Goal solo puede redefinirse si cambia la estrategia del producto. Nuevas id
   visibles fallos, reintentos y auditoría operativa;
 - existen smoke tests browser para recorridos funcionales, pero todavía no una
   única suite que pruebe el recorrido comercial completo en producción;
-- no se ha verificado un deployment aislado y reproducible de staging ni existe
-  evidencia de Go Live.
+- no existe deployment productivo reproducible ni evidencia de Go Live;
+- el formulario público de demo simula el envío sin persistir ni notificar el lead;
+- la base local auditada estaba doce migraciones detrás de `main`.
 
 ### Divergencias documentales
 
@@ -152,121 +166,11 @@ Estas exclusiones son limitaciones temporales del roadmap. No se numerarán como
 
 **Resultado verificable:** la aplicación se despliega desde cero en un ambiente representativo y completa un smoke test autenticado.
 
-**Estado del Milestone:** `BLOQUEADO POR INFRAESTRUCTURA EXTERNA` porque el entorno
-observado no es staging aislado ni reproducible. La inspección de solo lectura del
-2026-10-24 confirmó que `staging-api.dusema.com` responde HTTP 200 en `/health` y
-`/readiness`, pero la API corre en la única VPS clasificada como producción, comparte
-la red Docker con PostgreSQL y usa `STORAGE_PROVIDER=local`. Inspecciones previas del
-mismo entorno identificaron `oficina_nitida` como base compartida. Una consulta posterior a la
-fusión de PR #123 reportó que el deployment Vercel
-`dpl_xYJbtaq17GGjRqtSkGUQe1fib8Kz` (`saa-s-alde58gmf-glemynarts-projects.vercel.app`) tenía
-target `Production` y el alias `staging.dusema.com`. La inspección más reciente, después de la
-fusión de PR #125, confirma que el deployment actual es
-`dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`
-(`saa-s-nn9yf611j-glemynarts-projects.vercel.app`), estado `READY`, target `Production`, y que
-sus aliases incluyen `staging.dusema.com`. El deployment de GitHub `7299455677`, creado el
-2026-10-24 13:47:37 UTC, vincula el SHA de merge
-`53a6fb3eb5d6307fc255ddc8661e20ca2c7a6980` al entorno `Production`. Esta evidencia vincula el
-deployment al merge de PR #125; no se ejecutó un comando manual de despliegue de Vercel. El
-propietario confirmó que `staging.dusema.com` debe apuntar a un deployment `Preview` y autorizó
-preparar, pero no ejecutar, la reasignación. El Preview observado para el commit
-`c66e0f74adb2e51c3ac818db5ef4a7a6e9ffe95b` de PR #124 estaba `READY` en
-`dpl_4mBn7eirb5fLTeFyisLS6WNrDAvJ`
-(`saa-s-oudqxrvw0-glemynarts-projects.vercel.app`), target `preview`, sin el alias; corresponde a
-un commit anterior a sincronizar la PR con `main`, así que debe revalidarse por SHA antes de usarlo.
-En la revalidación del 2026-10-24, el HEAD observado entonces de PR #124 era
-`bc111c930fa9116a74ebf9cabb80f0d40efc65c3`; su deployment era `dpl_9NzpXu3RofofqAer279ijnSScDBM`
-(`saa-s-izym3kh5f-glemynarts-projects.vercel.app`), `READY`, target `preview`, sin el alias de
-staging. El check Vercel asociado a ese HEAD enlaza al deployment; `vercel inspect --json` no
-expuso `gitSource`. Sigue siendo un Preview de rama, no una fuente estable aprobada para el alias.
-Una revalidación previa, el 2026-10-24 15:27 UTC, vincula el HEAD `14dd130ce0cfd15854ebbf72ff55d2c6df75862b`
-de PR #124 con el deployment Vercel `dpl_3mdQChGgPfAQe8CpDNttQdiaEatX`
-(`saa-s-cjomolfb6-glemynarts-projects.vercel.app`), `READY`, target `preview`; GitHub deployment
-`7300586669` reporta `success` para ese SHA y URL. Vercel muestra un alias de rama generado, no
-`staging.dusema.com`. Una solicitud HEAD pública terminó en HTTP 200 tras dos redirecciones. La
-inspección del alias confirma que `staging.dusema.com` sigue asociado a
-`dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`, target `Production`. No se verificó que el Preview use una API
-aislada; por ello no es todavía un destino aprobado para el alias.
-Una revalidación posterior del 2026-10-24 19:09 UTC halló el Preview `dpl_4JisJHHvR3GfijTzNxsStLinPV6J`
-`READY`, pero el acceso público redirigió a SSO y el host API no está verificado; sigue sin ser destino aprobado.
-La revalidación del 2026-10-24 19:32 UTC confirma que el HEAD `4079226dd439dd53505d3d1cd3b5c43cdb634098`
-de PR #124 tiene el Preview `dpl_4MKj1jsa7kovczxjft9x36bjTCZb`
-(`saa-s-otkgzv3te-glemynarts-projects.vercel.app`), `READY`, pero un GET público sin
-autenticación devuelve HTTP 302 a SSO; el alias `staging.dusema.com` sigue en el deployment
-`Production` `dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`. En el VPS, la API aún ejecuta el digest
-`sha256:c03c3f11f75ed1c4cd4fca2a54941956de645e34bd0465995b2a222acade2b19`, revisión `14da89e…`,
-healthy; health/readiness devuelven HTTP 200, pero el host no es staging aislado. El workflow de
-imagen publicó con éxito el commit `f426b5668b7f86be1c52ffcd36243ebc8f60f1fd`; su manifiesto
-`sha256:70c4aa819a5bd632aba02cd5600ad7a6eabff3453374df8ad6fb684bcc00b753` se pudo inspeccionar
-desde el VPS, aunque no está desplegado. La configuración Preview del backend sigue sin verificar.
-La revalidación Vercel del 2026-10-24 20:40 UTC asocia el HEAD actual
-`e780941bdc9bc36fb11d222a0ea823f39dc159e4` de PR #124 al deployment
-`dpl_9weqH1LJjAqawQG4HUy5TZFUnv2Z`, URL `saa-s-e7i7skujc-glemynarts-projects.vercel.app`,
-estado `READY`, target `preview`, sin alias. La rama asociada es
-`codex/reconcile-goal01-m1-runtime-evidence`; un GET anónimo devolvió HTTP 302. El alias
-`staging.dusema.com` sigue en `dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`, target `Production`. No se
-consultaron valores de API ni se reasignó el alias; la Preview puntual no es destino estable, por lo
-que M1 sigue abierto.
-
-El detalle operativo está en [`deploy/README.md`](../../deploy/README.md#frontend-de-staging-en-vercel).
-La lista de Preview incluye `API_URL` y
-`NEXT_PUBLIC_API_URL`, pero sus valores no se leyeron. PR #123 y PR #125 no modificaron archivos de
-`apps/web`. El
-workflow API existente publica imágenes a GHCR, pero no despliega el stack de staging. El run
-`40083400008` de `Publish API image`, para el SHA `0aa157e4f3593795d43568eabfbd3d80f778aea8`,
-terminó correctamente; su log de build/push reportó el tag
-`ghcr.io/glemynart/saas/api:sha-0aa157e4f3593795d43568eabfbd3d80f778aea8` con digest
-`sha256:91d984da4559f95bc109e731b09caa06efb87da672b5ce62f2c8202f7cb941ee`. El run
-`40099584454` de `Publish API image`, para el merge SHA
-`53a6fb3eb5d6307fc255ddc8661e20ca2c7a6980`, terminó correctamente; el log del push reportó el
-manifiesto del tag
-`ghcr.io/glemynart/saas/api:sha-53a6fb3eb5d6307fc255ddc8661e20ca2c7a6980` con digest
-`sha256:fcdca7a8496be040db458eb8e9905bb66bdd8ebea5d831d43f0f8a6546ae4651`. La inspección SSH de
-solo lectura del 2026-10-24 confirmó que el Compose activo está en
-`/home/ubuntu/la-oficina-nitida/staging/docker-compose.yml`; el contenedor
-`la-oficina-nitida-staging-api-1` está `healthy` y usa el RepoDigest
-`sha256:c03c3f11f75ed1c4cd4fca2a54941956de645e34bd0465995b2a222acade2b19`, con revisión OCI
-`14da89e6d3f8ab19b38b8696776651fc6da79466`. GET a `/health` y `/readiness` respondieron HTTP 200.
-Una inspección SSH filtrada adicional (2026-10-24 14:57 UTC) reconfirmó ese digest/revisión,
-`DATABASE_URL` hacia `oficina_nitida` con el rol `saas_api_runtime`, `STORAGE_PROVIDER=local` y el
-bind mount de uploads `/home/ubuntu/la-oficina-nitida/staging/uploads:/app/uploads`. Las cuatro
-variables requeridas de R2 no estaban presentes con valor. Los nombres de configuración SMTP y
-`REQUIRE_REAL_EMAIL` sí estaban presentes, pero no se leyeron valores ni se envió correo; esto no
-verifica entrega SMTP. En ese momento `/health` devolvió HTTP 200 y `/readiness` devolvió HTTP 200
-con estado `ready`. La inspección SSH del mismo día confirmó que el proyecto Compose activo
-`la-oficina-nitida-staging` contiene API y Caddy; Caddy publica 80/443, monta
-`/home/ubuntu/la-oficina-nitida/staging/Caddyfile` y enruta `staging-api.dusema.com` a `api:4000`.
-La configuración versionada de PR #124 se ajustó para usar el proyecto distinto
-`dusema-staging-isolated`, solo el servicio API y el alias `dusema-staging-api`; aún no está
-desplegada.
-El Docker client del VPS leyó el manifiesto del digest nuevo (`linux/amd64` y `linux/arm64`) sin
-descargar capas; esto confirma acceso al artefacto, no su despliegue. La identidad concreta usada
-por Docker no se inspeccionó. Estos artefactos y respuestas HTTP no certifican el entorno. Este
-estado pertenece a M1; no convierte al
-Goal en bloqueado. GOAL-01 permanece `ACTIVO`.
-
-La revalidación SSH de solo lectura del 2026-10-24 19:51 UTC confirmó que la red externa
-`la-oficina-nitida_laoficina` conecta PostgreSQL, Redis, la API actual y Caddy; una API nueva que
-use el Compose preparado compartiría esa red. El catálogo de PostgreSQL mostró que `PUBLIC`
-conserva `CONNECT` sobre `oficina_nitida`, por lo que un nuevo rol runtime en el mismo cluster
-heredaría ese permiso y el bootstrap lo rechaza. No se modificaron ACLs. El propietario confirmó
-mantener bloqueada la creación de base/rol hasta revisión DBA, que deberá aprobar el mecanismo de
-aislamiento antes de cualquier escritura. El detalle está en [`deploy/README.md`](../../deploy/README.md).
-
-La revalidación Vercel posterior del 2026-10-24 confirmó que `staging.dusema.com` apuntaba al
-deployment `Production` `dpl_Bt5rJx8JEvYozAu83ojogVBJV3np`. El HEAD `054203bf117d89c55dce8cb8da39e9dd1f59e5ab`
-de PR #124 tenía un deployment `Preview` `READY` (`dpl_AqG1T1LodrsMJoxq12oScZKV92GE`), pero un
-GET anónimo redirigía a SSO y no se verificó su backend. El propietario indicó que el alias debe usar
-`Preview` y autorizó preparar, no ejecutar, su reasignación. No se cambió el alias en esa observación;
-ese Preview de rama no era una fuente estable ni evidencia de smoke funcional.
-
-Revalidación Vercel posterior a la fusión de PR #131 (2026-10-24): GitHub registró el deployment
-`7305566758` para el SHA `7307292e324a8f1a6c91313e4d03c701c389db5f`, entorno `Production`, con
-resultado `success` y URL `saa-s-39qo9akw7-glemynarts-projects.vercel.app`. `vercel inspect` confirmó
-que ese deployment `READY` (`dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`) incluye el alias
-`staging.dusema.com`; el alias actualmente sirve un deployment `Production`. No se ejecutó una
-reasignación manual. El propietario había autorizado preparar, no realizar, el cambio a `Preview`;
-por tanto ese cambio sigue pendiente de autorización operativa y M1 continúa bloqueado.
+**Estado del Milestone:** `BLOQUEADO POR INFRAESTRUCTURA EXTERNA` porque aún no
+hay evidencia de despliegue reproducible, rollback, R2 y entrega de correo real.
+La URL de staging ya existe y responde; esa evidencia no completa E1.1 ni E1.3.
+Este estado pertenece a M1; no convierte al Goal en bloqueado. GOAL-01 permanece
+`ACTIVO`.
 
 - [ ] E1.1 — Staging reproducible, configuración y secretos.
 - [x] E1.2 — Migraciones, seed y rol PostgreSQL runtime no privilegiado.
@@ -275,52 +179,28 @@ por tanto ese cambio sigue pendiente de autorización operativa y M1 continúa b
 
 E1.4 se fusionó en `main` como PR #81, con los checks de CI y Browser E2E
 verdes y auditoría `APROBADO PARA MERGE`. E1.3 también está fusionada y sus
-rutas `/health` y `/readiness` son la base de los smoke tests; ambas respondieron
-HTTP 200 durante la inspección indicada arriba. La verificación real de R2 y correo
-de E1.3, junto con el aislamiento, despliegue reproducible, rollback y smoke
-autenticado de E1.1, sigue pendiente. El HTTP 200 solo confirma la respuesta de esos
-endpoints en ese momento. M1 no desbloquea el camino de M2 que requiere deployment
-y correo, pero esta dependencia no bloquea los caminos independientes del Goal.
+rutas `/health` y `/readiness` son la base de los smoke tests. La verificación
+real de R2 y correo de E1.3, junto con la validación de staging reproducible de
+E1.1, sigue siendo evidencia operativa pendiente y no se declara cerrada por
+la sola existencia del código. La comprobación externa de solo lectura del
+2026-10-29 obtuvo HTTP 200 en `https://staging.dusema.com`, `/health` y
+`/readiness` de `staging-api.dusema.com`. Readiness reportó database, storage y
+email `up`; el check de email sólo acredita que el transporte está configurado,
+no entrega efectiva, y el check de storage no identifica el proveedor. No se
+probaron R2, recepción de correo, rollback ni despliegue desde cero. La
+aceptación operacional de E2.2 aún requiere recibir y aceptar un correo real;
+readiness no acredita esa entrega. Estas dependencias no bloquean los caminos
+independientes del Goal.
 
-La evidencia de 2026-10-24 reemplaza el diagnóstico histórico que decía que no
-existían una URL de staging ni un workflow API: la API pública y el workflow de
-publicación GHCR sí existen, pero no proporcionan staging aislado ni un despliegue
-reproducible del stack. No se verificó que las credenciales estén separadas entre
-entornos. Esta sigue siendo una dependencia operativa externa pendiente, no una
-decisión de arquitectura. La prioridad se reevalúa como un grafo de dependencias:
-M3 puede avanzar sin staging, R2, correo ni una decisión de dominio pendiente.
+La verificación previa que afirmaba que no existía URL de staging quedó
+superada por la respuesta actual del entorno. Sigue sin evidencia verificable
+de un procedimiento repetible de despliegue/rollback ni de la configuración
+segura de sus secretos. Esta es una dependencia operativa externa pendiente,
+no una decisión de arquitectura. La prioridad se reevalúa como un grafo de
+dependencias: M3 puede avanzar sin
+staging, R2, correo ni una decisión de dominio pendiente.
 
-Revalidación de solo lectura del 2026-10-25: `staging.dusema.com` sigue asociado
-al deployment Vercel `dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`, `READY`, target `Production`.
-El Preview `dpl_HMJKrxiRLazM4f49rHypytA2JptW` está `READY` para la rama actual de
-PR #124 y el check Vercel de su HEAD `af28fe09c0537f02ba9d446af7df08635f7af1d9`
-apunta al mismo deployment; Vercel no expuso el SHA en `inspect`. Tiene un alias
-de rama, no el alias `staging.dusema.com`. La variable `API_URL` existe en el
-entorno Preview, pero su valor no se leyó y no se verificó a qué API conecta.
-La API de la VPS conserva el RepoDigest
-`sha256:c03c3f11f75ed1c4cd4fca2a54941956de645e34bd0465995b2a222acade2b19` y la
-revisión `14da89e6d3f8ab19b38b8696776651fc6da79466`; GET a `/health` y
-`/readiness` respondió HTTP 200 (`ready`). La inspección anterior confirma que
-esa API comparte `oficina_nitida` con producción; hoy sigue usando
-`STORAGE_PROVIDER=local` y el bind mount `/home/ubuntu/la-oficina-nitida/staging/uploads`.
-Los nombres de configuración SMTP están presentes y el host se clasificó como
-OCI Email Delivery, pero no se envió correo ni se comprobó entrega. No se ejecutó
-smoke autenticado ni se reasignó el alias; M1 sigue bloqueado.
-
-Revalidación Vercel del 2026-10-25 19:32 UTC: el check Vercel de PR #124 para HEAD
-`ee3649a7a62e121905d4da1dcde82b1869fd0a81` apunta a `dpl_HrX2iCieb4p4WaobyQA2DqkFwE7M`,
-`READY`, target `preview`, URL `saa-s-ae3hragvn-glemynarts-projects.vercel.app`, con alias de rama.
-`staging.dusema.com` sigue apuntando a `dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`, target `production`.
-No se modificó el alias. La inspección no expuso el SHA de Vercel y no se leyeron valores de
-`API_URL`/`NEXT_PUBLIC_API_URL`; por ello el backend efectivo del Preview no está confirmado.
-
-Revalidación de solo lectura del 2026-10-25 21:46–21:49 UTC: el alias sigue en el deployment
-Production `dpl_6wSAZscLpF2Qq9ZW9iLFkju81ne9`; el Preview de PR #124 está `READY`, pero solo tiene
-alias de rama y sus valores de API no se leyeron. La API actual continúa conectada a
-`oficina_nitida` como `saas_api_runtime`, con permisos DML explícitos sobre 52 tablas; `PUBLIC`
-conserva `CONNECT`/`TEMPORARY`. La API usa storage local y no se verificó correo real. No se cambió
-el alias ni se ejecutó smoke funcional; M1 permanece bloqueado. El detalle de la evidencia y sus
-límites está en [`deploy/README.md`](../../deploy/README.md#frontend-de-staging-en-vercel).
+La inspección de solo lectura registrada en PR #124 encontró que la API llamada staging compartía la VPS y la base `oficina_nitida` clasificadas como producción y usaba storage local; el Compose activo no coincidía con el versionado. PR #124 prepara un proyecto Compose/API aislado, exige R2 y correo real, y valida el bootstrap PostgreSQL en CI con una base efímera. No se modificaron la VPS, el DNS, la base, el rol, las ACL ni los servicios activos. M1 permanece bloqueado hasta la revisión DBA y la validación operativa de aislamiento, R2 y correo.
 
 ### M2 — Gestión de Organizaciones y Usuarios
 
@@ -329,14 +209,19 @@ límites está en [`deploy/README.md`](../../deploy/README.md#frontend-de-stagin
 - [x] E2.1 — Gestión directa de usuarios: creación administrada, listado,
       edición de datos, roles ADMIN/OPERADOR y activación/desactivación (PR #96
       fusionada y verificada por CI/Browser E2E).
-- [ ] E2.2 — Invitaciones y alta por correo (depende de correo real).
-- [ ] E2.3 — Recuperación de acceso real por correo (depende de correo real).
+- [ ] E2.2 — Invitaciones y alta por correo: implementación con gestión
+      ADMIN, aceptación de un solo uso, expiración y aislamiento tenant; UI/API/DB
+      pasan el E2E local con SMTP de prueba. Falta validar entrega real y
+      aceptación desde el entorno operativo.
+- [ ] E2.3 — Recuperación de acceso real por correo. La implementación de prevalidación aprobada en ADR-010 y tokens en fragmento URL está en PR #148; falta validar entrega de correo real y aceptar el recorrido en staging.
 - [x] E2.4 — Sedes, identidad y promesa multiempresa coherente con el producto real (PR #110
       fusionada; checks post-merge de CI/Browser E2E verdes).
 
 E2.1 no envía correo: un ADMIN crea y administra directamente las cuentas con
-credenciales entregadas por el canal operativo acordado. E2.2 queda separado
-porque el flujo de invitación y activación por enlace requiere correo real.
+credenciales entregadas por el canal operativo acordado. E2.2 agrega el flujo de
+invitación y activación por enlace; el código falla de forma explícita si SMTP
+no está disponible. Su implementación no acredita recepción real ni cierra la
+Epic hasta verificar el enlace recibido en el entorno operativo.
 
 ### M3 — Preparación de la Operación Laboral
 
@@ -452,36 +337,6 @@ necesidad comercial verificable de adquisición desde la landing.
 - [ ] E7.4 — Onboarding y aceptación del cliente piloto con datos representativos.
 - [ ] E7.5 — Primer tenant productivo listo para operación comercial sostenida.
 
-La inspección SSH de solo lectura del 2026-10-25 confirmó que el timer
-`dusema-postgres-backup.timer` se disparó a las 07:00:11 UTC y que el servicio terminó
-con `Result=success` y código 0. El journal registró `complete`, la carga del objeto
-`postgres/dusema-oficina_nitida-20261025T020011-0500-OpRYGz.dump.gpg` y SHA-256
-`d14e3e392a0050b986e2c8e560fe1a64cb5f4703f1984d4ca1a65f7631dc450a`; los hashes del
-script y las dos unidades instaladas coincidieron con los artefactos revisados. Esto
-confirma la ejecución y la verificación de checksum al cargar, no el acceso actual:
-`HeadObject` desde la VPS devolvió `Forbidden` y el equipo de revisión no dispone de
-OCI CLI. El operador reportó una restauración manual el 23 de octubre, pero no hay
-evidencia independiente revisable ni una restauración del objeto del día 25. El
-25 de octubre la ruta de uploads, en `/` (`/dev/sda1`, ext4), tenía modo `0750` y
-cero archivos regulares (0 bytes); el backup PostgreSQL no incluye esa ruta, y no
-se verificó cobertura ni restauración desde las copias del volumen. E7.1 permanece
-abierta hasta comprobar acceso al objeto, restauración aislada y recuperación de
-uploads.
-
-Revalidación OCI del 2026-10-25 19:33–19:34 UTC: la identidad instance principal de la VPS obtuvo
-HTTP 404 al consultar el objeto conocido y `BucketNotFound` al listar su prefijo; el mensaje del
-servicio admite que el bucket no exista o que la identidad no esté autorizada. Esto no permite
-concluir que el objeto falte. No hubo descarga, verificación independiente del SHA-256 ni restauración.
-
-Revalidación del backup programado del 2026-10-26: el timer disparó a las 07:00:10 UTC y el servicio
-terminó a las 07:00:12 con `Result=success` y código 0. El journal registró la carga y el checksum
-informado por el script para `postgres/dusema-oficina_nitida-20261026T020010-0500-ANQ9JZ.dump.gpg`:
-`cf123f4ec03da98363597fb75b55d5b947ea006a6996398556c62289f1796f84`. La identidad instance principal,
-usando `/home/ubuntu/bin/oci` (fuera del `PATH`), obtuvo HTTP 404 en `object head`, que no permite
-distinguir ausencia del objeto de falta de autorización. No se obtuvo resultado de una consulta
-`object list`; no hubo descarga, verificación independiente del checksum ni restauración. E7.1 sigue
-abierta.
-
 ## Criterios de aceptación del Goal
 
 - [ ] existe un primer cliente identificado y autorizado para el piloto;
@@ -501,33 +356,38 @@ abierta.
 
 ## PRs asociados
 
-| PR      | Epic  | Propósito                                                                 | Estado     | ¿Cierra capacidad?                                         |
-| ------- | ----- | ------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------- |
-| #78     | E1.1  | Imágenes reproducibles de staging para API y Web.                         | FUSIONADO  | No; E1.1 requiere verificación de staging.                 |
-| #79     | E1.2  | Migraciones, seed y rol runtime PostgreSQL no privilegiado.               | FUSIONADO  | Sí; E1.2 verificada localmente y en DB limpia.             |
-| #80     | E1.3  | R2, correo real y health/readiness checks.                                | FUSIONADO  | No; requiere verificación real en staging.                 |
-| #81     | E1.4  | CI, observabilidad y base de pruebas browser end-to-end.                  | FUSIONADO  | Sí; CI y Browser E2E verificados; M1 aún requiere staging. |
-| #83     | E3.1  | Verificación browser del CRUD, búsqueda e importación XLSX de empleados.  | FUSIONADO  | Sí; recorrido verificado browser.                          |
-| #84     | E3.2  | Perfiles contractuales y vínculos laborales precontractuales desde la UI. | FUSIONADO  | Sí; recorrido verificado por CI y Browser E2E.             |
-| #86     | E3.3  | Configuración perfil → tipo documental → plantilla desde UI.              | FUSIONADO  | Sí; CI/Browser E2E y checks post-merge verdes.             |
-| #88     | E3.4  | Feedback accionable para errores, bloqueos y reintentos operativos.       | FUSIONADO  | Sí; CI/Browser E2E post-merge verdes.                      |
-| #89     | E4.1  | Creación, preview y confirmación total/parcial desde frontend.            | FUSIONADO  | Sí; CI/Browser E2E post-merge verdes.                      |
-| #90     | E4.2  | Procesamiento de planes confirmados y exclusiones desde la campaña.       | FUSIONADO  | Sí; CI/Browser E2E verdes.                                 |
-| #92     | E4.3  | Perfil y snapshots confirmados preservados en contrato y documento.       | FUSIONADO  | Sí; CI y Browser E2E verdes.                               |
-| #93     | E4.4  | PDF canónico vinculado al contrato y publicado en expediente.             | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #94     | E4.6  | Contratación individual completa desde la UI.                             | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #95     | E5.1  | Subida manual y validación de archivos en expediente.                     | FUSIONADO  | Sí; CI y Browser E2E verdes post-merge.                    |
-| #96     | E2.1  | Gestión directa de usuarios sin invitaciones por correo.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #97     | E4.5  | Reintentos selectivos, idempotencia y errores parciales.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #99     | E4.7  | Prueba browser del caso exitoso, parcial y reintentado.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes; no depende de M1.  |
-| #102    | E5.2  | Familias documentales, revisiones, consulta, descarga e historial.        | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #103    | E5.3  | Inmutabilidad de publicaciones y permisos por rol en expediente.          | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #104    | E5.4  | Auditoría de descargas e integración documental consistente.              | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #105    | E6.1  | Scheduler diario de vencimientos y documentos faltantes.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #106    | E6.2  | Dashboard accionable y resolución trazable.                               | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #108    | E6.3  | Fallos, reintentos y auditoría visibles para operación.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #110    | E2.4  | Sedes, identidad y promesa multiempresa coherente con el producto real.   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                |
+| PR      | Epic  | Propósito                                                                 | Estado     | ¿Cierra capacidad?                                            |
+| ------- | ----- | ------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------- |
+| #78     | E1.1  | Imágenes reproducibles de staging para API y Web.                         | FUSIONADO  | No; E1.1 requiere verificación de staging.                    |
+| #79     | E1.2  | Migraciones, seed y rol runtime PostgreSQL no privilegiado.               | FUSIONADO  | Sí; E1.2 verificada localmente y en DB limpia.                |
+| #80     | E1.3  | R2, correo real y health/readiness checks.                                | FUSIONADO  | No; requiere verificación real en staging.                    |
+| #81     | E1.4  | CI, observabilidad y base de pruebas browser end-to-end.                  | FUSIONADO  | Sí; CI y Browser E2E verificados; M1 aún requiere staging.    |
+| #83     | E3.1  | Verificación browser del CRUD, búsqueda e importación XLSX de empleados.  | FUSIONADO  | Sí; recorrido verificado browser.                             |
+| #84     | E3.2  | Perfiles contractuales y vínculos laborales precontractuales desde la UI. | FUSIONADO  | Sí; recorrido verificado por CI y Browser E2E.                |
+| #86     | E3.3  | Configuración perfil → tipo documental → plantilla desde UI.              | FUSIONADO  | Sí; CI/Browser E2E y checks post-merge verdes.                |
+| #88     | E3.4  | Feedback accionable para errores, bloqueos y reintentos operativos.       | FUSIONADO  | Sí; CI/Browser E2E post-merge verdes.                         |
+| #89     | E4.1  | Creación, preview y confirmación total/parcial desde frontend.            | FUSIONADO  | Sí; CI/Browser E2E post-merge verdes.                         |
+| #90     | E4.2  | Procesamiento de planes confirmados y exclusiones desde la campaña.       | FUSIONADO  | Sí; CI/Browser E2E verdes.                                    |
+| #92     | E4.3  | Perfil y snapshots confirmados preservados en contrato y documento.       | FUSIONADO  | Sí; CI y Browser E2E verdes.                                  |
+| #93     | E4.4  | PDF canónico vinculado al contrato y publicado en expediente.             | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #94     | E4.6  | Contratación individual completa desde la UI.                             | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #95     | E5.1  | Subida manual y validación de archivos en expediente.                     | FUSIONADO  | Sí; CI y Browser E2E verdes post-merge.                       |
+| #96     | E2.1  | Gestión directa de usuarios sin invitaciones por correo.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #97     | E4.5  | Reintentos selectivos, idempotencia y errores parciales.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #99     | E4.7  | Prueba browser del caso exitoso, parcial y reintentado.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes; no depende de M1.     |
+| #102    | E5.2  | Familias documentales, revisiones, consulta, descarga e historial.        | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #103    | E5.3  | Inmutabilidad de publicaciones y permisos por rol en expediente.          | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #104    | E5.4  | Auditoría de descargas e integración documental consistente.              | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #105    | E6.1  | Scheduler diario de vencimientos y documentos faltantes.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #106    | E6.2  | Dashboard accionable y resolución trazable.                               | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #124    | E1.1  | Preparar integraciones de staging aisladas y bootstrap PostgreSQL seguro. | ABIERTO    | No; faltan aislamiento y validación operativa.                |
+| #108    | E6.3  | Fallos, reintentos y auditoría visibles para operación.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #110    | E2.4  | Sedes, identidad y promesa multiempresa coherente con el producto real.   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #134    | E4.4  | Bug: idempotencia de generación concurrente LETTER/MEMO y reintentos.     | FUSIONADO  | No; corrige una carrera de la capacidad ya entregada.         |
+| #140    | E4.1  | Selección de todos los empleados cargados por páginas en lotes manuales.  | FUSIONADO  | No; mejora el flujo existente para plantas grandes.           |
+| #144    | E2.2  | Invitaciones por tenant y activación segura de cuentas.                   | PENDIENTE  | No; recepción y aceptación del correo real siguen pendientes. |
+| #148    | E2.3  | Prevalidación de tokens antes del formulario de recuperación.             | PENDIENTE  | No; faltan correo real y aceptación en staging.               |
+| #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                   |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.
 
@@ -556,8 +416,9 @@ la autenticación, persistencia y frontera tenant ya existentes, sin requerir
 staging, R2, correo ni una nueva decisión de dominio. E3.2 expuso el catálogo
 y vínculo laboral del backend desde la interfaz, sin requerir staging, R2,
 correo ni una nueva decisión de dominio, y quedó fusionada en PR #84 con CI y
-Browser E2E verdes. Las invitaciones quedan pendientes porque su recorrido completo
-requiere correo real. E4.1 ya fue implementada, auditada y fusionada en PR
+Browser E2E verdes. Las invitaciones ya tienen un recorrido completo verificado
+localmente con SMTP de prueba; la recepción y aceptación desde un buzón real
+siguen pendientes. E4.1 ya fue implementada, auditada y fusionada en PR
 #89; su recorrido de creación, preview y confirmación total/parcial quedó verificado
 por CI y Browser E2E. E4.2 fue implementada, auditada y fusionada en PR #90:
 el código de `main` rechazaba campañas inteligentes sin `documentTemplateId` y no

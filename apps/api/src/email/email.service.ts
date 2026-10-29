@@ -3,8 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { createTransport, type Transporter } from 'nodemailer';
 import { AuditService } from '../audit/audit.service';
 import { passwordResetTemplate } from './templates/password-reset.template';
+import { userInvitationTemplate } from './templates/user-invitation.template';
 
-export type EmailType = 'password-reset';
+export type EmailType = 'password-reset' | 'user-invitation';
+export type EmailDeliveryStatus = 'sent' | 'degraded' | 'failed';
 
 const SMTP_SEND_FAILURE_CATEGORY = 'SMTP_SEND_FAILED';
 
@@ -18,8 +20,18 @@ export interface PasswordResetPayload {
   expiresInHours: number;
 }
 
+export interface UserInvitationPayload {
+  userName: string;
+  tenantName: string;
+  tenantNit: string;
+  roleName: string;
+  invitationUrl: string;
+  expiresInDays: number;
+}
+
 type EmailPayloadMap = {
   'password-reset': PasswordResetPayload;
+  'user-invitation': UserInvitationPayload;
 };
 
 interface SendParams<T extends EmailType> {
@@ -87,7 +99,9 @@ export class EmailService implements OnModuleInit {
     this.logger.log(`EmailService listo — from: ${this.from}`);
   }
 
-  async send<T extends EmailType>(params: SendParams<T>): Promise<void> {
+  async send<T extends EmailType>(
+    params: SendParams<T>,
+  ): Promise<EmailDeliveryStatus> {
     const { type, to, payload, auditContext } = params;
 
     const subject = this.resolveSubject(type);
@@ -97,7 +111,7 @@ export class EmailService implements OnModuleInit {
       this.logger.log(
         `[EMAIL DEGRADADO] type=${type} to=${this.obfuscate(to)} subject="${subject}"`,
       );
-      return;
+      return 'degraded';
     }
 
     try {
@@ -107,6 +121,7 @@ export class EmailService implements OnModuleInit {
         subject,
         html,
       });
+      return 'sent';
     } catch {
       this.logger.error(
         `EMAIL_FAILED type=${type} to=${this.obfuscate(to)} category=${SMTP_SEND_FAILURE_CATEGORY}`,
@@ -125,6 +140,7 @@ export class EmailService implements OnModuleInit {
           },
         })
         .catch(() => {});
+      return 'failed';
     }
   }
 
@@ -137,6 +153,7 @@ export class EmailService implements OnModuleInit {
   private resolveSubject(type: EmailType): string {
     const subjects: Record<EmailType, string> = {
       'password-reset': 'Restablece tu contraseña',
+      'user-invitation': 'Invitación a La Oficina Nítida',
     };
     return subjects[type];
   }
@@ -146,11 +163,23 @@ export class EmailService implements OnModuleInit {
     payload: EmailPayloadMap[EmailType],
   ): string {
     if (type === 'password-reset') {
-      const p = payload;
+      const p = payload as PasswordResetPayload;
       return passwordResetTemplate({
         userName: p.userName,
         resetUrl: p.resetUrl,
         expiresInHours: p.expiresInHours,
+        fromName: this.fromName,
+      });
+    }
+    if (type === 'user-invitation') {
+      const p = payload as UserInvitationPayload;
+      return userInvitationTemplate({
+        userName: p.userName,
+        tenantName: p.tenantName,
+        tenantNit: p.tenantNit,
+        roleName: p.roleName,
+        invitationUrl: p.invitationUrl,
+        expiresInDays: p.expiresInDays,
         fromName: this.fromName,
       });
     }
