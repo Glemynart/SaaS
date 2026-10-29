@@ -427,4 +427,4 @@ if grep -En 'synthetic OCI private diagnostic|artifact upload complete' \
   fail "OCI diagnostics leaked or false completion was logged"
 fi
 
-log "PASS: encrypted uploads artifact uploaded, restored, and verified; manifest, checksum, and traversal guards passed"
+log "PASS: encrypted uploads artifact uploaded, restored, and verified; manifest, checksum, traversal, and GPG output limits passed"
