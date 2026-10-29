@@ -344,7 +344,13 @@ export default function LotesPage() {
                   <button
                     type="button"
                     className="underline"
-                    onClick={() => void refetchEmployees()}
+                    onClick={() => {
+                      if (meQuery.error) {
+                        void meQuery.refetch();
+                      } else {
+                        void refetchEmployees();
+                      }
+                    }}
                   >
                     Reintentar
                   </button>

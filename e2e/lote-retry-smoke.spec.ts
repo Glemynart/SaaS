@@ -112,6 +112,31 @@ test('demuestra procesamiento exitoso, parcial y reintento desde la UI', async (
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 
+  const retryPage = await page.context().newPage();
+  let failMeRequest = true;
+  await retryPage.route('**/api/auth/me', async (route) => {
+    if (failMeRequest) {
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'Fallo temporal controlado.' }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+  await retryPage.goto('/contratos/lotes');
+  await expect(retryPage.getByRole('heading', { name: 'Lotes de contratos' })).toBeVisible();
+  await retryPage.getByRole('button', { name: 'Nuevo lote', exact: true }).click();
+  const retryDialog = retryPage.getByRole('dialog', { name: 'Nuevo lote' });
+  const retryAlert = retryDialog.getByRole('alert');
+  await expect(retryAlert).toBeVisible();
+  failMeRequest = false;
+  await retryAlert.getByRole('button', { name: 'Reintentar', exact: true }).click();
+  await expect(retryAlert).not.toBeVisible();
+  await expect(retryDialog.getByText('No hay empleados disponibles.')).toBeVisible();
+  await retryPage.close();
+
   await createEmployee(page, firstCedula, 'Andrea', 'Exitoso');
   await createEmployee(page, secondCedula, 'Bruno', 'Reintento');
 
