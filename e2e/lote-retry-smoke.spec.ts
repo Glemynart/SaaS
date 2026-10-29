@@ -43,6 +43,7 @@ async function createManualLote(
   name: string,
   templateId: string,
   employeeCedulas: string[],
+  selectAllEmployees = false,
 ) {
   await page.goto('/contratos/lotes');
   await expect(page.getByRole('heading', { name: 'Lotes de contratos' })).toBeVisible();
@@ -52,8 +53,27 @@ async function createManualLote(
   await dialog.getByLabel('Nombre del lote').fill(name);
   await dialog.locator('select').nth(1).selectOption(templateId);
 
-  for (const cedula of employeeCedulas) {
-    await dialog.locator('label').filter({ hasText: cedula }).locator('input').check();
+  if (selectAllEmployees) {
+    await dialog.getByRole('button', { name: 'Seleccionar todos', exact: true }).click();
+    await expect(
+      dialog.getByRole('button', { name: 'Deseleccionar todos', exact: true }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByText(`Empleados (${employeeCedulas.length} seleccionados)`),
+    ).toBeVisible();
+    await dialog.getByRole('button', { name: 'Deseleccionar todos', exact: true }).click();
+    await expect(
+      dialog.getByRole('button', { name: 'Seleccionar todos', exact: true }),
+    ).toBeVisible();
+    await expect(dialog.getByText('Empleados (0 seleccionados)')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Seleccionar todos', exact: true }).click();
+    await expect(
+      dialog.getByText(`Empleados (${employeeCedulas.length} seleccionados)`),
+    ).toBeVisible();
+  } else {
+    for (const cedula of employeeCedulas) {
+      await dialog.locator('label').filter({ hasText: cedula }).locator('input').check();
+    }
   }
 
   await dialog.getByRole('button', { name: 'Crear lote', exact: true }).click();
@@ -125,6 +145,7 @@ test('demuestra procesamiento exitoso, parcial y reintento desde la UI', async (
     `E4.7 exito ${suffix}`,
     contractTemplate!.id,
     [firstCedula, secondCedula],
+    true,
   );
   await page.getByRole('button', { name: 'Procesar', exact: true }).click();
   await expect(page.getByText('Completado', { exact: true })).toBeVisible({ timeout: 30_000 });
