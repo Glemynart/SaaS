@@ -1,11 +1,11 @@
 # ADR-010 — Validación previa de tokens de recuperación
 
-| Campo           | Valor                                                                                                            |
-| --------------- | ---------------------------------------------------------------------------------------------------------------- |
-| **Estado**      | Aceptado                                                                                                         |
-| **Fecha**       | 2026-10-29                                                                                                       |
-| **Ámbito**      | GOAL-01 · M2 · E2.3 · recuperación de contraseña                                                                 |
-| **Relacionado** | [GOAL-01](../goals/GOAL-01-primer-cliente-operando.md), [AUTH-EXPERIENCE](../design/AUTH-EXPERIENCE.md), PR #129 |
+| Campo           | Valor                                                                                                                             |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Estado**      | Aceptado                                                                                                                          |
+| **Fecha**       | 2026-10-29                                                                                                                        |
+| **Ámbito**      | GOAL-01 · M2 · E2.3 · recuperación de contraseña                                                                                  |
+| **Relacionado** | [GOAL-01](../goals/GOAL-01-primer-cliente-operando.md), [AUTH-EXPERIENCE](../design/AUTH-EXPERIENCE.md), PR #148 (reemplaza #129) |
 
 ## Contexto
 

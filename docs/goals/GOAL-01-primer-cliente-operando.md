@@ -185,7 +185,7 @@ staging, R2, correo ni una decisión de dominio pendiente.
       edición de datos, roles ADMIN/OPERADOR y activación/desactivación (PR #96
       fusionada y verificada por CI/Browser E2E).
 - [ ] E2.2 — Invitaciones y alta por correo (depende de correo real).
-- [ ] E2.3 — Recuperación de acceso real por correo. ADR-010 aprueba la prevalidación `POST` y el uso del fragmento URL; la entrega de correo real y la aceptación en staging siguen pendientes.
+- [ ] E2.3 — Recuperación de acceso real por correo. PR #148 (abierto; checks CI/Browser E2E/Preview verdes) implementa la prevalidación aprobada en ADR-010 y los tokens en fragmento URL; faltan correo real y aceptación en staging.
 - [x] E2.4 — Sedes, identidad y promesa multiempresa coherente con el producto real (PR #110
       fusionada; checks post-merge de CI/Browser E2E verdes).
 
@@ -352,6 +352,7 @@ necesidad comercial verificable de adquisición desde la landing.
 | #106    | E6.2  | Dashboard accionable y resolución trazable.                               | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
 | #108    | E6.3  | Fallos, reintentos y auditoría visibles para operación.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
 | #110    | E2.4  | Sedes, identidad y promesa multiempresa coherente con el producto real.   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
+| #148    | E2.3  | Prevalidación de tokens antes del formulario de recuperación.             | ABIERTO    | No; faltan correo real y aceptación en staging.            |
 | #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.
