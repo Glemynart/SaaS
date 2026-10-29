@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 activo; PR #124 fusionada; M1 pendiente de validación operativa (2026-10-29)
+## Última actualización: GOAL-01 activo; PR #149 abierta; M1 pendiente de validación operativa (2026-10-29)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -247,6 +247,14 @@ lotes ya fusionado. No requirió dominio, DNS, Cloudflare, R2, OCI Email Deliver
 variables de producción ni staging. La semántica de versionado e inmutabilidad
 quedó aprobada en ADR-006; E5.2, E5.3 y E5.4 ya están fusionadas. M7 queda
 reservado para el cierre final de despliegue y Go Live.
+
+La auditoría end-to-end del flujo de contratación encontró que los lotes
+aplicaban una sede común y no permitían distinguir contratos de años distintos.
+La PR #149 corrige el flujo con sede activa por empleado e integridad de un
+contrato por empleado y año. Las 132 pruebas API dirigidas y el Browser E2E con
+rol PostgreSQL runtime sin `SUPERUSER` ni `BYPASSRLS` pasaron localmente; los
+checks de GitHub continúan pendientes. La corrección no cierra M4 ni GOAL-01
+hasta quedar fusionada y verificada post-merge.
 
 ## <a name="landing-saas"></a>Landing SaaS
 
