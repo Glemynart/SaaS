@@ -48,24 +48,41 @@ describe('EmailService', () => {
   });
 
   it('sends through SMTP using EMAIL_FROM', async () => {
+    const recipient = 'smtp-success-recipient-unique@example.invalid';
+    const token = 'SMTP_SUCCESS_TOKEN_8F31C2';
+    const resetUrl = `https://smtp-success-recovery.invalid/reset-password?token=${token}`;
     const sendMail = jest
       .fn<Promise<void>, [SentMailInput]>()
       .mockResolvedValue(undefined);
     mockTransport(sendMail);
     const service = createService(smtpConfig());
+    const logger = { log: jest.fn(), error: jest.fn() };
+    Object.defineProperty(service, 'logger', { value: logger });
+    const params = passwordResetParams();
+    params.to = recipient;
+    params.payload.resetUrl = resetUrl;
 
     service.onModuleInit();
-    await expect(service.send(passwordResetParams())).resolves.toBe('sent');
+    await expect(service.send(params)).resolves.toBe('sent');
 
     const sentMail = sendMail.mock.calls[0]?.[0];
     expect(sentMail?.subject).toBe('Restablece tu contraseña');
     expect(sentMail?.html).toContain('Restablecer contraseña');
+    expect(sentMail?.html).toContain(resetUrl);
     expect(sendMail).toHaveBeenCalledWith(
       expect.objectContaining({
         from: 'Staging <staging@example.com>',
-        to: 'recipient@example.com',
+        to: recipient,
       }),
     );
+
+    const logs = JSON.stringify([
+      logger.log.mock.calls,
+      logger.error.mock.calls,
+    ]);
+    expect(logs).not.toContain(recipient);
+    expect(logs).not.toContain(resetUrl);
+    expect(logs).not.toContain(token);
   });
 
   it('does not log recovery URLs or complete recipients in degraded mode', async () => {
