@@ -95,9 +95,9 @@ Este Goal solo puede redefinirse si cambia la estrategia del producto. Nuevas id
 - documentación histórica afirma capacidades completas por PR o fase que no siempre son utilizables end-to-end;
 - “multiempresa” implementa aislamiento por tenant, no acceso de un mismo usuario a varias organizaciones;
 - E2.3 exige mostrar el estado terminal antes del formulario. [ADR-010](../adr/ADR-010-password-reset-token-prevalidation.md)
-  acepta una validación API de solo lectura; PR #145 implementa el contrato en
-  API, BFF y UI. E2.3 permanece abierta hasta verificar correo real y el flujo
-  en staging.
+  acepta una validación API de solo lectura; PR #145 implementó el contrato en
+  API, BFF y UI y se integró en la rama de PR #129. E2.3 permanece abierta hasta
+  verificar correo real y el flujo en staging.
 
 ## Alcance
 
@@ -189,8 +189,8 @@ staging, R2, correo ni una decisión de dominio pendiente.
       edición de datos, roles ADMIN/OPERADOR y activación/desactivación (PR #96
       fusionada y verificada por CI/Browser E2E).
 - [ ] E2.2 — Invitaciones y alta por correo (depende de correo real).
-- [ ] E2.3 — Recuperación de acceso real por correo (PR #145 implementa la
-      prevalidación conforme a [ADR-010](../adr/ADR-010-password-reset-token-prevalidation.md);
+- [ ] E2.3 — Recuperación de acceso real por correo (PR #145 integrada en la rama
+      de PR #129; prevalidación conforme a [ADR-010](../adr/ADR-010-password-reset-token-prevalidation.md);
       faltan correo real y validación en staging).
 - [x] E2.4 — Sedes, identidad y promesa multiempresa coherente con el producto real (PR #110
       fusionada; checks post-merge de CI/Browser E2E verdes).
@@ -332,34 +332,34 @@ necesidad comercial verificable de adquisición desde la landing.
 
 ## PRs asociados
 
-| PR      | Epic  | Propósito                                                                 | Estado     | ¿Cierra capacidad?                                         |
-| ------- | ----- | ------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------- |
-| #78     | E1.1  | Imágenes reproducibles de staging para API y Web.                         | FUSIONADO  | No; E1.1 requiere verificación de staging.                 |
-| #79     | E1.2  | Migraciones, seed y rol runtime PostgreSQL no privilegiado.               | FUSIONADO  | Sí; E1.2 verificada localmente y en DB limpia.             |
-| #80     | E1.3  | R2, correo real y health/readiness checks.                                | FUSIONADO  | No; requiere verificación real en staging.                 |
-| #81     | E1.4  | CI, observabilidad y base de pruebas browser end-to-end.                  | FUSIONADO  | Sí; CI y Browser E2E verificados; M1 aún requiere staging. |
-| #83     | E3.1  | Verificación browser del CRUD, búsqueda e importación XLSX de empleados.  | FUSIONADO  | Sí; recorrido verificado browser.                          |
-| #84     | E3.2  | Perfiles contractuales y vínculos laborales precontractuales desde la UI. | FUSIONADO  | Sí; recorrido verificado por CI y Browser E2E.             |
-| #86     | E3.3  | Configuración perfil → tipo documental → plantilla desde UI.              | FUSIONADO  | Sí; CI/Browser E2E y checks post-merge verdes.             |
-| #88     | E3.4  | Feedback accionable para errores, bloqueos y reintentos operativos.       | FUSIONADO  | Sí; CI/Browser E2E post-merge verdes.                      |
-| #89     | E4.1  | Creación, preview y confirmación total/parcial desde frontend.            | FUSIONADO  | Sí; CI/Browser E2E post-merge verdes.                      |
-| #90     | E4.2  | Procesamiento de planes confirmados y exclusiones desde la campaña.       | FUSIONADO  | Sí; CI/Browser E2E verdes.                                 |
-| #92     | E4.3  | Perfil y snapshots confirmados preservados en contrato y documento.       | FUSIONADO  | Sí; CI y Browser E2E verdes.                               |
-| #93     | E4.4  | PDF canónico vinculado al contrato y publicado en expediente.             | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #94     | E4.6  | Contratación individual completa desde la UI.                             | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #95     | E5.1  | Subida manual y validación de archivos en expediente.                     | FUSIONADO  | Sí; CI y Browser E2E verdes post-merge.                    |
-| #96     | E2.1  | Gestión directa de usuarios sin invitaciones por correo.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #97     | E4.5  | Reintentos selectivos, idempotencia y errores parciales.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #99     | E4.7  | Prueba browser del caso exitoso, parcial y reintentado.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes; no depende de M1.  |
-| #102    | E5.2  | Familias documentales, revisiones, consulta, descarga e historial.        | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #103    | E5.3  | Inmutabilidad de publicaciones y permisos por rol en expediente.          | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #104    | E5.4  | Auditoría de descargas e integración documental consistente.              | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #105    | E6.1  | Scheduler diario de vencimientos y documentos faltantes.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #106    | E6.2  | Dashboard accionable y resolución trazable.                               | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #108    | E6.3  | Fallos, reintentos y auditoría visibles para operación.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #110    | E2.4  | Sedes, identidad y promesa multiempresa coherente con el producto real.   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #145    | E2.3  | Prevalidación del enlace de recuperación de acceso.                       | ABIERTO    | No; faltan correo real y aceptación en staging.            |
-| #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                |
+| PR          | Epic  | Propósito                                                                 | Estado     | ¿Cierra capacidad?                                         |
+| ----------- | ----- | ------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------- |
+| #78         | E1.1  | Imágenes reproducibles de staging para API y Web.                         | FUSIONADO  | No; E1.1 requiere verificación de staging.                 |
+| #79         | E1.2  | Migraciones, seed y rol runtime PostgreSQL no privilegiado.               | FUSIONADO  | Sí; E1.2 verificada localmente y en DB limpia.             |
+| #80         | E1.3  | R2, correo real y health/readiness checks.                                | FUSIONADO  | No; requiere verificación real en staging.                 |
+| #81         | E1.4  | CI, observabilidad y base de pruebas browser end-to-end.                  | FUSIONADO  | Sí; CI y Browser E2E verificados; M1 aún requiere staging. |
+| #83         | E3.1  | Verificación browser del CRUD, búsqueda e importación XLSX de empleados.  | FUSIONADO  | Sí; recorrido verificado browser.                          |
+| #84         | E3.2  | Perfiles contractuales y vínculos laborales precontractuales desde la UI. | FUSIONADO  | Sí; recorrido verificado por CI y Browser E2E.             |
+| #86         | E3.3  | Configuración perfil → tipo documental → plantilla desde UI.              | FUSIONADO  | Sí; CI/Browser E2E y checks post-merge verdes.             |
+| #88         | E3.4  | Feedback accionable para errores, bloqueos y reintentos operativos.       | FUSIONADO  | Sí; CI/Browser E2E post-merge verdes.                      |
+| #89         | E4.1  | Creación, preview y confirmación total/parcial desde frontend.            | FUSIONADO  | Sí; CI/Browser E2E post-merge verdes.                      |
+| #90         | E4.2  | Procesamiento de planes confirmados y exclusiones desde la campaña.       | FUSIONADO  | Sí; CI/Browser E2E verdes.                                 |
+| #92         | E4.3  | Perfil y snapshots confirmados preservados en contrato y documento.       | FUSIONADO  | Sí; CI y Browser E2E verdes.                               |
+| #93         | E4.4  | PDF canónico vinculado al contrato y publicado en expediente.             | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
+| #94         | E4.6  | Contratación individual completa desde la UI.                             | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
+| #95         | E5.1  | Subida manual y validación de archivos en expediente.                     | FUSIONADO  | Sí; CI y Browser E2E verdes post-merge.                    |
+| #96         | E2.1  | Gestión directa de usuarios sin invitaciones por correo.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
+| #97         | E4.5  | Reintentos selectivos, idempotencia y errores parciales.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
+| #99         | E4.7  | Prueba browser del caso exitoso, parcial y reintentado.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes; no depende de M1.  |
+| #102        | E5.2  | Familias documentales, revisiones, consulta, descarga e historial.        | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
+| #103        | E5.3  | Inmutabilidad de publicaciones y permisos por rol en expediente.          | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
+| #104        | E5.4  | Auditoría de descargas e integración documental consistente.              | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
+| #105        | E6.1  | Scheduler diario de vencimientos y documentos faltantes.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
+| #106        | E6.2  | Dashboard accionable y resolución trazable.                               | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
+| #108        | E6.3  | Fallos, reintentos y auditoría visibles para operación.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
+| #110        | E2.4  | Sedes, identidad y promesa multiempresa coherente con el producto real.   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
+| #129 + #145 | E2.3  | Token en fragmento, prevalidación y recuperación de acceso.               | ABIERTO    | No; faltan correo real y aceptación en staging.            |
+| #69–#76     | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.
 
