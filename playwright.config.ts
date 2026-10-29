@@ -1,6 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const isCI = Boolean(process.env.CI);
+// A local API may point at a persistent demo database. Set
+// PLAYWRIGHT_REUSE_EXISTING_SERVER=true to reuse local servers intentionally.
+const reuseExistingServer = !isCI && process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === 'true';
 
 export default defineConfig({
   testDir: './e2e',
@@ -29,14 +32,14 @@ export default defineConfig({
       url: 'http://127.0.0.1:4000/health',
       env: { NODE_ENV: 'test', PORT: '4000' },
       timeout: 120_000,
-      reuseExistingServer: !isCI,
+      reuseExistingServer,
     },
     {
       command: 'pnpm --filter @saas/web exec next start -H 127.0.0.1 -p 3000',
       url: 'http://127.0.0.1:3000/login',
       env: { PORT: '3000', HOSTNAME: '127.0.0.1' },
       timeout: 120_000,
-      reuseExistingServer: !isCI,
+      reuseExistingServer,
     },
   ],
 });
