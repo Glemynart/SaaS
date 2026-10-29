@@ -42,12 +42,11 @@ test('muestra y resuelve una alerta desde la bandeja del dashboard', async ({ pa
 
   await page.goto('/dashboard');
   await page.getByRole('button', { name: 'Actualizar', exact: true }).click();
-  const resolveButton = page.getByRole('button', {
-    name: 'Resolver alerta Empleado sin contrato registrado',
-  });
-  await expect(resolveButton).toBeVisible();
-  await resolveButton.click();
-  await expect(resolveButton).toHaveCount(0);
+  const alertRegion = page.getByRole('region', { name: 'Bandeja del día' });
+  const resolveButtons = alertRegion.getByRole('button', { name: /Resolver alerta/ });
+  await expect(resolveButtons).toHaveCount(1);
+  await resolveButtons.first().click();
+  await expect(resolveButtons).toHaveCount(0);
 
   await page.goto('/alertas');
   await page.locator('select').first().selectOption('RESOLVED');
