@@ -1710,7 +1710,7 @@ model ExpedienteDoc {
   requiereRenovacion Boolean?
 
   // Almacenamiento
-  // Ruta: {tenantId}/expediente/{empleadoId}/{categoria}/{id}_v{version}.{ext}
+  // Ruta: {tenantId}/expediente/{empleadoId}/{categoria}/{familiaId}_v{version}_{documentId}.{ext}
   storageKey  String
   mimeType    String // application/pdf, image/jpeg, etc.
   tamanoBytes Int

@@ -256,7 +256,7 @@ export class ExpedienteDocsService {
     )
       .replace(/[\\/]/g, '_')
       .slice(0, 180);
-    const storageKey = `${tenantId}/expediente/${employeeId}/${categoria}/${resolvedFamilyId}_v${version}.${validated.extension}`;
+    const storageKey = `${tenantId}/expediente/${employeeId}/${categoria}/${resolvedFamilyId}_v${version}_${documentId}.${validated.extension}`;
 
     const stored = await this.storage.putObject({
       key: storageKey,
