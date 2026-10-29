@@ -9,6 +9,7 @@ import { TenantsService } from '../tenants/tenants.service';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { PasswordResetService } from './password-reset.service';
+import { UserInvitationsService } from '../users/user-invitations.service';
 
 describe('AuthController reset token validation', () => {
   let app: INestApplication<App>;
@@ -31,6 +32,7 @@ describe('AuthController reset token validation', () => {
           useValue: { validateResetToken },
         },
         { provide: AuditService, useValue: {} },
+        { provide: UserInvitationsService, useValue: {} },
       ],
     }).compile();
 
