@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   browser:
+    # Keep the browser runner on an OS supported by the Playwright version pinned in pnpm-lock.yaml.
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
