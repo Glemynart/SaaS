@@ -332,9 +332,9 @@ queda definida y aceptada en [ADR-008](../adr/ADR-008-demo-request-capture-bound
 pero su implementación se traslada a Platform Evolution hasta que exista una
 necesidad comercial verificable de adquisición desde la landing.
 
-- [ ] E7.1 — Backup y restauración probados. [ADR-009](../adr/ADR-009-coordinated-backup-sets.md) acepta el coordinador sintético DB+uploads implementado en PR #130; PR #147 se integró en esa rama para validar compartimento y privacidad del bucket. La lectura de objetos OCI, el aislamiento operativo, la retención y la restauración real siguen pendientes.
+- [ ] E7.1 — Backup y restauración probados. [ADR-009](../adr/ADR-009-coordinated-backup-sets.md) acepta el coordinador sintético DB+uploads fusionado en PR #130; PR #147 se integró en su rama para validar compartimento y privacidad del bucket. La lectura de objetos OCI, el aislamiento operativo, la retención y la restauración real siguen pendientes.
 - [ ] E7.2 — Monitoreo, alertamiento técnico y soporte operativo.
-- [ ] E7.4 — Onboarding y aceptación del cliente piloto con datos representativos.
+- [ ] E7.4 — Onboarding y aceptación del cliente piloto con datos representativos. La sesión y sus evidencias se registran con la [guía operativa de piloto](GOAL-01-pilot-acceptance-runbook.md).
 - [ ] E7.5 — Primer tenant productivo listo para operación comercial sostenida.
 
 ## Criterios de aceptación del Goal
@@ -381,7 +381,7 @@ necesidad comercial verificable de adquisición desde la landing.
 | #105    | E6.1  | Scheduler diario de vencimientos y documentos faltantes.                  | FUSIONADO         | Sí; CI y Browser E2E post-merge verdes.                                         |
 | #106    | E6.2  | Dashboard accionable y resolución trazable.                               | FUSIONADO         | Sí; CI y Browser E2E post-merge verdes.                                         |
 | #124    | E1.1  | Preparar integraciones de staging aisladas y bootstrap PostgreSQL seguro. | FUSIONADO         | No; faltan aislamiento y validación operativa.                                  |
-| #130    | E7.1  | Backup/restauración PostgreSQL+uploads y marcador coordinado cifrado.     | ABIERTO           | No; round-trip sintético verificado; faltan OCI y recuperación operativa.       |
+| #130    | E7.1  | Backup/restauración PostgreSQL+uploads y marcador coordinado cifrado.     | FUSIONADO         | No; round-trip sintético verificado; faltan OCI y recuperación operativa.       |
 | #108    | E6.3  | Fallos, reintentos y auditoría visibles para operación.                   | FUSIONADO         | Sí; CI y Browser E2E post-merge verdes.                                         |
 | #110    | E2.4  | Sedes, identidad y promesa multiempresa coherente con el producto real.   | FUSIONADO         | Sí; CI y Browser E2E post-merge verdes.                                         |
 | #134    | E4.4  | Bug: idempotencia de generación concurrente LETTER/MEMO y reintentos.     | FUSIONADO         | No; corrige una carrera de la capacidad ya entregada.                           |

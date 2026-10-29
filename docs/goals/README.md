@@ -30,9 +30,9 @@ en el PR #108 y E2.4 en el PR #110; sus checks post-merge de CI y Browser E2E
 están verdes. PR #124 está fusionada, pero M1 continúa bloqueado por aislamiento,
 R2 y correo real pendientes de validación operativa. E2.2 en PR #144 y E2.3 en
 PR #148 tienen implementación; la aceptación de correo real sigue pendiente.
-PR #130 contiene el coordinador sintético DB+uploads para E7.1; PR #147 se integró
-en esa rama. El HEAD sincronizado requiere checks frescos; estos no acreditan
-lectura OCI ni restauración operativa. E7.1 permanece abierta. M2 espera correo
+PR #130 se fusionó tras pasar CI, Browser E2E, workflow de backup y Vercel Preview
+en el HEAD sincronizado; PR #147 se integró en esa rama. No se acreditan lectura
+OCI ni restauración operativa; E7.1 permanece abierta. M2 espera correo
 real y M7 espera a que el producto y la infraestructura externa estén listos.
 GOAL-01 permanece ACTIVO: la implementación está bloqueada selectivamente,
 mientras la arquitectura y la preparación siguen disponibles mediante [Platform Evolution](../architecture/PLATFORM-EVOLUTION.md).

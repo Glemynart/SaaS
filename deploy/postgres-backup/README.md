@@ -181,21 +181,21 @@ el coordinador no detiene por sí mismo la API ni los jobs.
 una sesión privada. Los valores entre `<...>` son referencias de configuración;
 no guardes contraseñas, claves privadas ni tokens en el entorno permanente.
 
-| Variable                                                                            | Uso                                                                    |
-| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `BACKUP_SET_ENVIRONMENT=staging`                                                    | Fija el alcance del runner.                                            |
-| `BACKUP_SET_ISOLATED_CONFIRMED=true`                                                | Atesta que base y storage están aislados de producción.                |
-| `UPLOADS_QUIESCED=true`                                                             | Atesta que no hay escritores ni jobs activos.                          |
-| `BACKUP_SET_APPLICATION_REVISION=<commit>`                                          | Commit desplegado en el staging capturado.                             |
-| `BACKUP_SET_STORAGE_PROVIDER=<provider>`                                            | Referencia corta, por ejemplo `OCI-Object-Storage`.                    |
-| `BACKUP_SET_PG_CONTAINER=<container>`                                               | PostgreSQL 17 con etiqueta `dusema.backup.environment=staging`.        |
-| `BACKUP_SET_PG_DATABASE=<database>` / `BACKUP_SET_PG_ROLE=<role>`                   | Base staging y rol de backup de mínimo privilegio.                     |
-| `UPLOADS_ROOT=<absolute path>`                                                      | Raíz local de uploads del mismo staging.                               |
-| `TMP_PARENT=<private path>`                                                         | Temporal cifrado o `tmpfs` con espacio suficiente para ambas capturas. |
-| `GNUPGHOME=<public key home>` / `RECOVERY_RECIPIENT_FINGERPRINT=<full fingerprint>` | Destinatario público de recuperación.                                  |
-| `OCI_NAMESPACE`, `OCI_BUCKET`, `OCI_REGION`, `OCI_UPLOAD_PROFILE`                   | Destino revisado; el bucket debe identificar `staging`.                |
+| Variable                                                                            | Uso                                                                           |
+| ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `BACKUP_SET_ENVIRONMENT=staging`                                                    | Fija el alcance del runner.                                                   |
+| `BACKUP_SET_ISOLATED_CONFIRMED=true`                                                | Atesta que base y storage están aislados de producción.                       |
+| `UPLOADS_QUIESCED=true`                                                             | Atesta que no hay escritores ni jobs activos.                                 |
+| `BACKUP_SET_APPLICATION_REVISION=<commit>`                                          | Commit desplegado en el staging capturado.                                    |
+| `BACKUP_SET_STORAGE_PROVIDER=<provider>`                                            | Referencia corta, por ejemplo `OCI-Object-Storage`.                           |
+| `BACKUP_SET_PG_CONTAINER=<container>`                                               | PostgreSQL 17 con etiqueta `dusema.backup.environment=staging`.               |
+| `BACKUP_SET_PG_DATABASE=<database>` / `BACKUP_SET_PG_ROLE=<role>`                   | Base staging y rol de backup de mínimo privilegio.                            |
+| `UPLOADS_ROOT=<absolute path>`                                                      | Raíz local de uploads del mismo staging.                                      |
+| `TMP_PARENT=<private path>`                                                         | Temporal cifrado o `tmpfs` con espacio suficiente para ambas capturas.        |
+| `GNUPGHOME=<public key home>` / `RECOVERY_RECIPIENT_FINGERPRINT=<full fingerprint>` | Destinatario público de recuperación.                                         |
+| `OCI_NAMESPACE`, `OCI_BUCKET`, `OCI_REGION`, `OCI_UPLOAD_PROFILE`                   | Destino revisado; el bucket debe identificar `staging`.                       |
 | `OCI_EXPECTED_STAGING_COMPARTMENT_OCID`                                             | OCID aprobado del compartimento aislado; se contrasta con OCI antes de subir. |
-| `OCI_OBJECT_PREFIX=backup-sets`                                                     | Prefijo común requerido por el formato.                                |
+| `OCI_OBJECT_PREFIX=backup-sets`                                                     | Prefijo común requerido por el formato.                                       |
 
 Después de revisar que no se está usando la base compartida conocida ni el
 bucket productivo, ejecuta `bash deploy/postgres-backup/backup-set.sh`. Conserva
