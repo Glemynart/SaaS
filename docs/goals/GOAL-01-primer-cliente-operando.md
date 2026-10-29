@@ -333,7 +333,7 @@ pero su implementación se traslada a Platform Evolution hasta que exista una
 necesidad comercial verificable de adquisición desde la landing.
 
 - [ ] E7.1 — Backup y restauración probados. [ADR-009](../adr/ADR-009-coordinated-backup-sets.md) acepta el coordinador sintético DB+uploads fusionado en PR #130; PR #147 se integró en su rama para validar compartimento y privacidad del bucket. La lectura de objetos OCI, el aislamiento operativo, la retención y la restauración real siguen pendientes.
-- [ ] E7.2 — Monitoreo, alertamiento técnico y soporte operativo.
+- [ ] E7.2 — Monitoreo, alertamiento técnico y soporte operativo. La preparación y evidencia se registran con la [guía operativa de monitoreo y soporte](GOAL-01-monitoring-support-runbook.md).
 - [ ] E7.4 — Onboarding y aceptación del cliente piloto con datos representativos. La sesión y sus evidencias se registran con la [guía operativa de piloto](GOAL-01-pilot-acceptance-runbook.md).
 - [ ] E7.5 — Primer tenant productivo listo para operación comercial sostenida.
 
