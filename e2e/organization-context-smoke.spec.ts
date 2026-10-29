@@ -30,7 +30,11 @@ test('configura sedes e identidad corporativa dentro del tenant autenticado', as
 
   await page.goto('/sedes');
   await expect(page.getByRole('heading', { name: 'Sedes' })).toBeVisible();
-  await page.getByRole('button', { name: 'Nueva sede', exact: true }).click();
+  const createSedeButton = page.getByRole('button', {
+    name: 'Nueva sede',
+    exact: true,
+  });
+  await createSedeButton.first().click();
 
   const createSedeDialog = page.getByRole('dialog', { name: 'Nueva sede' });
   await createSedeDialog.locator('[name="nombre"]').fill(sedeName);
