@@ -40,6 +40,19 @@ E2.4 fue fusionada en el PR #110: las sedes y la identidad corporativa se
 prueban desde la UI dentro del tenant autenticado, y la promesa pública describe
 el aislamiento por organización sin prometer cambio de contexto entre empresas.
 
+E2.2 tiene una implementación en la [PR #144](https://github.com/Glemynart/SaaS/pull/144): el ADMIN
+gestiona invitaciones por tenant, el correo lleva un enlace de un solo uso y la
+persona define su contraseña antes de iniciar sesión. La suite API valida
+expiración y reglas de negocio. Dos integraciones PostgreSQL cubren la
+persistencia del hash, aislamiento tenant, auditoría, consumo concurrente de un
+solo uso y autorización de los endpoints HTTP por rol y tenant. El Browser E2E
+recorre la UI, el BFF, la API Nest y PostgreSQL; un SMTP local de prueba captura
+el mensaje, el test extrae el enlace real, acepta la invitación y verifica el
+inicio de sesión de la cuenta creada. También cubre reenvío con rotación de
+token y revocación desde la UI. El SMTP local no demuestra entrega a un buzón
+externo: recibir y aceptar el correo real en staging sigue pendiente, por lo que
+E2.2 permanece sin cerrar.
+
 **Pausa selectiva:** GOAL-01 permanece `ACTIVO` y M1 continúa `BLOQUEADO POR
 INFRAESTRUCTURA EXTERNA`. Las Epics que requieran dominio, DNS, Cloudflare, R2,
 OCI Email Delivery, variables de producción o staging permanecen detenidas. E4.2
@@ -69,8 +82,9 @@ Este Goal solo puede redefinirse si cambia la estrategia del producto. Nuevas id
 
 ### Rupturas comprobadas
 
-- E2.1 ya entrega la gestión directa de usuarios; E2.2 y E2.3 siguen pendientes
-  porque las invitaciones y la recuperación requieren correo real;
+- E2.1 ya entrega la gestión directa de usuarios; E2.2 ya tiene un recorrido
+  E2E local completo con SMTP de prueba, pero la entrega y aceptación con correo
+  real siguen pendientes; E2.3 aún requiere validar recuperación por correo real;
 - E4.1 ya permite crear, resolver y confirmar campañas inteligentes desde la UI;
 - E4.2 ya procesa planes confirmados; E4.3, E4.4, E4.6 y E5.1 están fusionadas;
 - la ruta de campaña inteligente tiene un recorrido browser desde resolución y
@@ -152,10 +166,11 @@ Estas exclusiones son limitaciones temporales del roadmap. No se numerarán como
 
 **Resultado verificable:** la aplicación se despliega desde cero en un ambiente representativo y completa un smoke test autenticado.
 
-**Estado del Milestone:** `BLOQUEADO POR INFRAESTRUCTURA EXTERNA` por una dependencia operativa verificable:
-no existe todavía una URL de staging, secretos de entorno ni un workflow de despliegue
-disponible en el repositorio o en GitHub. Este estado pertenece a M1; no convierte al
-Goal en bloqueado. GOAL-01 permanece `ACTIVO`.
+**Estado del Milestone:** `BLOQUEADO POR INFRAESTRUCTURA EXTERNA` porque aún no
+hay evidencia de despliegue reproducible, rollback, R2 y entrega de correo real.
+La URL de staging ya existe y responde; esa evidencia no completa E1.1 ni E1.3.
+Este estado pertenece a M1; no convierte al Goal en bloqueado. GOAL-01 permanece
+`ACTIVO`.
 
 - [ ] E1.1 — Staging reproducible, configuración y secretos.
 - [x] E1.2 — Migraciones, seed y rol PostgreSQL runtime no privilegiado.
@@ -167,14 +182,22 @@ verdes y auditoría `APROBADO PARA MERGE`. E1.3 también está fusionada y sus
 rutas `/health` y `/readiness` son la base de los smoke tests. La verificación
 real de R2 y correo de E1.3, junto con la validación de staging reproducible de
 E1.1, sigue siendo evidencia operativa pendiente y no se declara cerrada por
-la sola existencia del código. M1 no desbloquea el camino de M2 que requiere
-deployment y correo, pero esta dependencia no bloquea los caminos independientes
-del Goal.
+la sola existencia del código. La comprobación externa de solo lectura del
+2026-10-29 obtuvo HTTP 200 en `https://staging.dusema.com`, `/health` y
+`/readiness` de `staging-api.dusema.com`. Readiness reportó database, storage y
+email `up`; el check de email sólo acredita que el transporte está configurado,
+no entrega efectiva, y el check de storage no identifica el proveedor. No se
+probaron R2, recepción de correo, rollback ni despliegue desde cero. La
+aceptación operacional de E2.2 aún requiere recibir y aceptar un correo real;
+readiness no acredita esa entrega. Estas dependencias no bloquean los caminos
+independientes del Goal.
 
-La investigación de `main` no encontró una URL de staging, secretos de entorno
-ni un workflow de despliegue disponible en el repositorio o en GitHub. Esta es
-una dependencia operativa externa pendiente, no una decisión de arquitectura.
-La prioridad se reevalúa como un grafo de dependencias: M3 puede avanzar sin
+La verificación previa que afirmaba que no existía URL de staging quedó
+superada por la respuesta actual del entorno. Sigue sin evidencia verificable
+de un procedimiento repetible de despliegue/rollback ni de la configuración
+segura de sus secretos. Esta es una dependencia operativa externa pendiente,
+no una decisión de arquitectura. La prioridad se reevalúa como un grafo de
+dependencias: M3 puede avanzar sin
 staging, R2, correo ni una decisión de dominio pendiente.
 
 ### M2 — Gestión de Organizaciones y Usuarios
@@ -184,14 +207,19 @@ staging, R2, correo ni una decisión de dominio pendiente.
 - [x] E2.1 — Gestión directa de usuarios: creación administrada, listado,
       edición de datos, roles ADMIN/OPERADOR y activación/desactivación (PR #96
       fusionada y verificada por CI/Browser E2E).
-- [ ] E2.2 — Invitaciones y alta por correo (depende de correo real).
+- [ ] E2.2 — Invitaciones y alta por correo: implementación con gestión
+      ADMIN, aceptación de un solo uso, expiración y aislamiento tenant; UI/API/DB
+      pasan el E2E local con SMTP de prueba. Falta validar entrega real y
+      aceptación desde el entorno operativo.
 - [ ] E2.3 — Recuperación de acceso real por correo. La implementación de prevalidación aprobada en ADR-010 y tokens en fragmento URL está en PR #148; falta validar entrega de correo real y aceptar el recorrido en staging.
 - [x] E2.4 — Sedes, identidad y promesa multiempresa coherente con el producto real (PR #110
       fusionada; checks post-merge de CI/Browser E2E verdes).
 
 E2.1 no envía correo: un ADMIN crea y administra directamente las cuentas con
-credenciales entregadas por el canal operativo acordado. E2.2 queda separado
-porque el flujo de invitación y activación por enlace requiere correo real.
+credenciales entregadas por el canal operativo acordado. E2.2 agrega el flujo de
+invitación y activación por enlace; el código falla de forma explícita si SMTP
+no está disponible. Su implementación no acredita recepción real ni cierra la
+Epic hasta verificar el enlace recibido en el entorno operativo.
 
 ### M3 — Preparación de la Operación Laboral
 
@@ -326,34 +354,35 @@ necesidad comercial verificable de adquisición desde la landing.
 
 ## PRs asociados
 
-| PR      | Epic  | Propósito                                                                 | Estado     | ¿Cierra capacidad?                                         |
-| ------- | ----- | ------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------- |
-| #78     | E1.1  | Imágenes reproducibles de staging para API y Web.                         | FUSIONADO  | No; E1.1 requiere verificación de staging.                 |
-| #79     | E1.2  | Migraciones, seed y rol runtime PostgreSQL no privilegiado.               | FUSIONADO  | Sí; E1.2 verificada localmente y en DB limpia.             |
-| #80     | E1.3  | R2, correo real y health/readiness checks.                                | FUSIONADO  | No; requiere verificación real en staging.                 |
-| #81     | E1.4  | CI, observabilidad y base de pruebas browser end-to-end.                  | FUSIONADO  | Sí; CI y Browser E2E verificados; M1 aún requiere staging. |
-| #83     | E3.1  | Verificación browser del CRUD, búsqueda e importación XLSX de empleados.  | FUSIONADO  | Sí; recorrido verificado browser.                          |
-| #84     | E3.2  | Perfiles contractuales y vínculos laborales precontractuales desde la UI. | FUSIONADO  | Sí; recorrido verificado por CI y Browser E2E.             |
-| #86     | E3.3  | Configuración perfil → tipo documental → plantilla desde UI.              | FUSIONADO  | Sí; CI/Browser E2E y checks post-merge verdes.             |
-| #88     | E3.4  | Feedback accionable para errores, bloqueos y reintentos operativos.       | FUSIONADO  | Sí; CI/Browser E2E post-merge verdes.                      |
-| #89     | E4.1  | Creación, preview y confirmación total/parcial desde frontend.            | FUSIONADO  | Sí; CI/Browser E2E post-merge verdes.                      |
-| #90     | E4.2  | Procesamiento de planes confirmados y exclusiones desde la campaña.       | FUSIONADO  | Sí; CI/Browser E2E verdes.                                 |
-| #92     | E4.3  | Perfil y snapshots confirmados preservados en contrato y documento.       | FUSIONADO  | Sí; CI y Browser E2E verdes.                               |
-| #93     | E4.4  | PDF canónico vinculado al contrato y publicado en expediente.             | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #94     | E4.6  | Contratación individual completa desde la UI.                             | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #95     | E5.1  | Subida manual y validación de archivos en expediente.                     | FUSIONADO  | Sí; CI y Browser E2E verdes post-merge.                    |
-| #96     | E2.1  | Gestión directa de usuarios sin invitaciones por correo.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #97     | E4.5  | Reintentos selectivos, idempotencia y errores parciales.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #99     | E4.7  | Prueba browser del caso exitoso, parcial y reintentado.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes; no depende de M1.  |
-| #102    | E5.2  | Familias documentales, revisiones, consulta, descarga e historial.        | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #103    | E5.3  | Inmutabilidad de publicaciones y permisos por rol en expediente.          | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #104    | E5.4  | Auditoría de descargas e integración documental consistente.              | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #105    | E6.1  | Scheduler diario de vencimientos y documentos faltantes.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #106    | E6.2  | Dashboard accionable y resolución trazable.                               | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #108    | E6.3  | Fallos, reintentos y auditoría visibles para operación.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #110    | E2.4  | Sedes, identidad y promesa multiempresa coherente con el producto real.   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
-| #148    | E2.3  | Prevalidación de tokens antes del formulario de recuperación.             | PENDIENTE  | No; faltan correo real y aceptación en staging.            |
-| #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                |
+| PR      | Epic  | Propósito                                                                 | Estado     | ¿Cierra capacidad?                                            |
+| ------- | ----- | ------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------- |
+| #78     | E1.1  | Imágenes reproducibles de staging para API y Web.                         | FUSIONADO  | No; E1.1 requiere verificación de staging.                    |
+| #79     | E1.2  | Migraciones, seed y rol runtime PostgreSQL no privilegiado.               | FUSIONADO  | Sí; E1.2 verificada localmente y en DB limpia.                |
+| #80     | E1.3  | R2, correo real y health/readiness checks.                                | FUSIONADO  | No; requiere verificación real en staging.                    |
+| #81     | E1.4  | CI, observabilidad y base de pruebas browser end-to-end.                  | FUSIONADO  | Sí; CI y Browser E2E verificados; M1 aún requiere staging.    |
+| #83     | E3.1  | Verificación browser del CRUD, búsqueda e importación XLSX de empleados.  | FUSIONADO  | Sí; recorrido verificado browser.                             |
+| #84     | E3.2  | Perfiles contractuales y vínculos laborales precontractuales desde la UI. | FUSIONADO  | Sí; recorrido verificado por CI y Browser E2E.                |
+| #86     | E3.3  | Configuración perfil → tipo documental → plantilla desde UI.              | FUSIONADO  | Sí; CI/Browser E2E y checks post-merge verdes.                |
+| #88     | E3.4  | Feedback accionable para errores, bloqueos y reintentos operativos.       | FUSIONADO  | Sí; CI/Browser E2E post-merge verdes.                         |
+| #89     | E4.1  | Creación, preview y confirmación total/parcial desde frontend.            | FUSIONADO  | Sí; CI/Browser E2E post-merge verdes.                         |
+| #90     | E4.2  | Procesamiento de planes confirmados y exclusiones desde la campaña.       | FUSIONADO  | Sí; CI/Browser E2E verdes.                                    |
+| #92     | E4.3  | Perfil y snapshots confirmados preservados en contrato y documento.       | FUSIONADO  | Sí; CI y Browser E2E verdes.                                  |
+| #93     | E4.4  | PDF canónico vinculado al contrato y publicado en expediente.             | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #94     | E4.6  | Contratación individual completa desde la UI.                             | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #95     | E5.1  | Subida manual y validación de archivos en expediente.                     | FUSIONADO  | Sí; CI y Browser E2E verdes post-merge.                       |
+| #96     | E2.1  | Gestión directa de usuarios sin invitaciones por correo.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #97     | E4.5  | Reintentos selectivos, idempotencia y errores parciales.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #99     | E4.7  | Prueba browser del caso exitoso, parcial y reintentado.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes; no depende de M1.     |
+| #102    | E5.2  | Familias documentales, revisiones, consulta, descarga e historial.        | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #103    | E5.3  | Inmutabilidad de publicaciones y permisos por rol en expediente.          | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #104    | E5.4  | Auditoría de descargas e integración documental consistente.              | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #105    | E6.1  | Scheduler diario de vencimientos y documentos faltantes.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #106    | E6.2  | Dashboard accionable y resolución trazable.                               | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #108    | E6.3  | Fallos, reintentos y auditoría visibles para operación.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #110    | E2.4  | Sedes, identidad y promesa multiempresa coherente con el producto real.   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #144    | E2.2  | Invitaciones por tenant y activación segura de cuentas.                   | PENDIENTE  | No; recepción y aceptación del correo real siguen pendientes. |
+| #148    | E2.3  | Prevalidación de tokens antes del formulario de recuperación.             | PENDIENTE  | No; faltan correo real y aceptación en staging.               |
+| #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                   |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.
 
@@ -382,8 +411,9 @@ la autenticación, persistencia y frontera tenant ya existentes, sin requerir
 staging, R2, correo ni una nueva decisión de dominio. E3.2 expuso el catálogo
 y vínculo laboral del backend desde la interfaz, sin requerir staging, R2,
 correo ni una nueva decisión de dominio, y quedó fusionada en PR #84 con CI y
-Browser E2E verdes. Las invitaciones quedan pendientes porque su recorrido completo
-requiere correo real. E4.1 ya fue implementada, auditada y fusionada en PR
+Browser E2E verdes. Las invitaciones ya tienen un recorrido completo verificado
+localmente con SMTP de prueba; la recepción y aceptación desde un buzón real
+siguen pendientes. E4.1 ya fue implementada, auditada y fusionada en PR
 #89; su recorrido de creación, preview y confirmación total/parcial quedó verificado
 por CI y Browser E2E. E4.2 fue implementada, auditada y fusionada en PR #90:
 el código de `main` rechazaba campañas inteligentes sin `documentTemplateId` y no

@@ -1,4 +1,5 @@
 import type {
+  AcceptInvitationResponse,
   AuthUser,
   ForgotPasswordPayload,
   LoginPayload,
@@ -60,6 +61,11 @@ export const authClient = {
     }),
   validateResetToken: (payload: ValidateResetTokenPayload) =>
     request<ValidateResetTokenResponse>('/api/auth/validate-reset-token', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  acceptInvitation: (payload: ResetPasswordPayload) =>
+    request<AcceptInvitationResponse>('/api/auth/accept-invitation', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
