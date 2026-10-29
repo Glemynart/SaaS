@@ -21,6 +21,7 @@ ENCRYPTED_UPLOADS_FILE="${ENCRYPTED_UPLOADS_FILE:-}"
 RECOVERY_GNUPGHOME="${RECOVERY_GNUPGHOME:-}"
 RESTORE_SET_NAMESPACE="${RESTORE_SET_NAMESPACE:-}"
 RESTORE_SET_BUCKET="${RESTORE_SET_BUCKET:-}"
+RESTORE_SET_COMPARTMENT_OCID="${RESTORE_SET_COMPARTMENT_OCID:-}"
 RESTORE_SET_REGION="${RESTORE_SET_REGION:-}"
 RESTORE_SET_PREFIX="${RESTORE_SET_PREFIX:-backup-sets}"
 RESTORE_CONTAINER_ID="${RESTORE_CONTAINER_ID:-}"
@@ -32,7 +33,7 @@ RESTORE_WORK_PARENT="${RESTORE_WORK_PARENT:-${TMPDIR:-/tmp}}"
 
 if [[ -z "$BACKUP_SET_ID" || -z "$ENCRYPTED_MANIFEST_FILE" || -z "$EXPECTED_MANIFEST_CIPHERTEXT_SHA256" ||
   -z "$ENCRYPTED_POSTGRES_FILE" || -z "$ENCRYPTED_UPLOADS_FILE" || -z "$RECOVERY_GNUPGHOME" ||
-  -z "$RESTORE_SET_NAMESPACE" || -z "$RESTORE_SET_BUCKET" || -z "$RESTORE_SET_REGION" ||
+  -z "$RESTORE_SET_NAMESPACE" || -z "$RESTORE_SET_BUCKET" || -z "$RESTORE_SET_COMPARTMENT_OCID" || -z "$RESTORE_SET_REGION" ||
   -z "$RESTORE_CONTAINER_ID" || -z "$RESTORE_DATABASE" || -z "$RESTORE_PARENT" || -z "$RESTORE_DIR_NAME" ]]; then
   fail 64 "manifest, both artifacts, expected object store, and isolated restore targets are required"
 fi
@@ -41,6 +42,7 @@ if [[ ! "$BACKUP_SET_ID" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{16}$ ||
   "$RESTORE_SET_PREFIX" != "backup-sets" ||
   ! "$RESTORE_SET_NAMESPACE" =~ ^[A-Za-z0-9-]{1,64}$ ||
   ! "$RESTORE_SET_BUCKET" =~ ^[A-Za-z0-9._-]{1,255}$ || "$RESTORE_SET_BUCKET" == "dusema-backups-prod" || "$RESTORE_SET_BUCKET" != *staging* ||
+  ! "$RESTORE_SET_COMPARTMENT_OCID" =~ ^ocid1\.compartment\.[A-Za-z0-9._-]{1,237}$ ||
   ! "$RESTORE_SET_REGION" =~ ^[A-Za-z0-9-]{1,64}$ ]]; then
   fail 64 "backup set ID, ciphertext digest, or expected object-store reference is invalid"
 fi
@@ -130,6 +132,7 @@ if ! python3 "$MANIFEST_HELPER" validate \
   --manifest "$manifest_file" --expected-id "$BACKUP_SET_ID" \
   --prefix "$RESTORE_SET_PREFIX" --namespace "$RESTORE_SET_NAMESPACE" \
   --bucket "$RESTORE_SET_BUCKET" --region "$RESTORE_SET_REGION" \
+  --compartment-ocid "$RESTORE_SET_COMPARTMENT_OCID" \
   --postgres-file "$ENCRYPTED_POSTGRES_FILE" --uploads-file "$ENCRYPTED_UPLOADS_FILE" \
   2>"${workdir%/}/manifest-validation.stderr"; then
   fail 1 "backup set manifest or one of its encrypted artifacts is invalid"

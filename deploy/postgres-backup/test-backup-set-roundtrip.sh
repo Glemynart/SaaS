@@ -150,6 +150,28 @@ fi
 cat >"${MOCK_BIN%/}/oci" <<'MOCK_OCI'
 #!/usr/bin/env bash
 set -Eeuo pipefail
+if [[ "${1:-}" == "os" && "${2:-}" == "bucket" && "${3:-}" == "get" ]]; then
+  shift 3
+  bucket=""
+  namespace=""
+  region=""
+  profile=""
+  while (($#)); do
+    case "$1" in
+      --bucket-name) bucket="$2"; shift 2 ;;
+      --namespace-name) namespace="$2"; shift 2 ;;
+      --region) region="$2"; shift 2 ;;
+      --profile) profile="$2"; shift 2 ;;
+      --output) [[ "$2" == "json" ]]; shift 2 ;;
+      *) exit 94 ;;
+    esac
+  done
+  [[ "$bucket" == "dusema-staging-backups" && "$namespace" == "ci-test" ]]
+  [[ "$region" == "ci-test-1" && "$profile" == "ci-test" ]]
+  printf '{"data":{"name":"%s","namespace":"%s","compartment-id":"%s","public-access-type":"NoPublicAccess"}}\n' \
+    "$bucket" "$namespace" "$OCI_EXPECTED_STAGING_COMPARTMENT_OCID"
+  exit 0
+fi
 [[ "${1:-}" == "os" && "${2:-}" == "object" && "${3:-}" == "put" ]]
 shift 3
 name=""
@@ -198,6 +220,7 @@ if ! backup_output=$(env \
   RECOVERY_RECIPIENT_FINGERPRINT="$fingerprint" \
   OCI_NAMESPACE=ci-test \
   OCI_BUCKET=dusema-staging-backups \
+  OCI_EXPECTED_STAGING_COMPARTMENT_OCID=ocid1.compartment.oc1..syntheticci123 \
   OCI_REGION=ci-test-1 \
   OCI_OBJECT_PREFIX=backup-sets \
   OCI_UPLOAD_PROFILE=ci-test \
@@ -297,6 +320,7 @@ if ! restore_output=$(env \
   RECOVERY_GNUPGHOME="$GNUPGHOME" \
   RESTORE_SET_NAMESPACE=ci-test \
   RESTORE_SET_BUCKET=dusema-staging-backups \
+  RESTORE_SET_COMPARTMENT_OCID=ocid1.compartment.oc1..syntheticci123 \
   RESTORE_SET_REGION=ci-test-1 \
   RESTORE_CONTAINER_ID="$TARGET_CONTAINER_ID" \
   RESTORE_DATABASE="$TARGET_DATABASE" \

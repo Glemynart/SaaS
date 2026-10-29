@@ -105,12 +105,22 @@ else:
     write_executable(
         bin_dir / "oci",
         """#!/usr/bin/env python3
-import os, shutil, sys
+import json, os, shutil, sys
 args = sys.argv[1:]
-if args[:3] != ["os", "object", "put"]:
-    raise SystemExit(94)
 def value(flag):
     return args[args.index(flag) + 1]
+if args[:3] == ["os", "bucket", "get"]:
+    if value("--bucket-name") != "dusema-staging-backups" or value("--namespace-name") != "stagingnamespace" or value("--profile") != "staging":
+        raise SystemExit(94)
+    print(json.dumps({"data": {
+        "name": value("--bucket-name"),
+        "namespace": value("--namespace-name"),
+        "compartment-id": os.environ.get("MOCK_OCI_COMPARTMENT_ID", os.environ["OCI_EXPECTED_STAGING_COMPARTMENT_OCID"]),
+        "public-access-type": os.environ.get("MOCK_OCI_PUBLIC_ACCESS", "NoPublicAccess"),
+    }}))
+    raise SystemExit(0)
+if args[:3] != ["os", "object", "put"]:
+    raise SystemExit(94)
 name = value("--name")
 file = value("--file")
 if value("--bucket-name") != "dusema-staging-backups" or value("--profile") != "staging":
@@ -152,6 +162,7 @@ def env_for(root: Path, bin_dir: Path, remote: Path, calls: Path) -> dict[str, s
             "RECOVERY_RECIPIENT_FINGERPRINT": FINGERPRINT,
             "OCI_NAMESPACE": "stagingnamespace",
             "OCI_BUCKET": "dusema-staging-backups",
+            "OCI_EXPECTED_STAGING_COMPARTMENT_OCID": "ocid1.compartment.oc1..staging1234567890",
             "OCI_REGION": "sa-bogota-1",
             "OCI_OBJECT_PREFIX": "backup-sets",
             "OCI_UPLOAD_PROFILE": "staging",
@@ -212,6 +223,8 @@ def test_backup(root: Path, bin_dir: Path, remote: Path, calls: Path) -> str:
             "dusema-staging-backups",
             "--region",
             "sa-bogota-1",
+            "--compartment-ocid",
+            "ocid1.compartment.oc1..staging1234567890",
             "--postgres-file",
             str(set_dir / "postgres.dump.gpg"),
             "--uploads-file",
@@ -260,10 +273,20 @@ def test_safety_gates(root: Path, bin_dir: Path, remote: Path, calls: Path) -> N
     result = run_backup(env)
     if result.returncode != 64 or "production backup bucket" not in result.stdout:
         fail("coordinator did not reject the known production bucket")
+    env = env_for(root, bin_dir, remote, calls)
+    env["MOCK_OCI_COMPARTMENT_ID"] = "ocid1.compartment.oc1..production123456"
+    result = run_backup(env)
+    if result.returncode != 34 or "approved private staging destination" not in result.stdout:
+        fail("coordinator did not reject a bucket outside the approved staging compartment")
+    env = env_for(root, bin_dir, remote, calls)
+    env["MOCK_OCI_PUBLIC_ACCESS"] = "ObjectRead"
+    result = run_backup(env)
+    if result.returncode != 34 or "approved private staging destination" not in result.stdout:
+        fail("coordinator did not reject a public backup bucket")
     after = len((calls / "oci").read_text(encoding="utf-8").splitlines())
     if before != after:
         fail("safety gates made external calls before rejecting the configuration")
-    print("PASS: isolation and production-bucket gates reject before any upload")
+    print("PASS: isolation, compartment, public-access, and production-bucket gates reject before any upload")
 
 
 def test_restore_wrapper(root: Path, bin_dir: Path, remote: Path, calls: Path, set_id: str) -> None:
@@ -298,6 +321,7 @@ printf '%s:%s\\n' "$kind" "$EXPECTED_CIPHERTEXT_SHA256" >>"$MOCK_RESTORE_CALLS"
             "RECOVERY_GNUPGHOME": shell_path(root / "gnupg"),
             "RESTORE_SET_NAMESPACE": "stagingnamespace",
             "RESTORE_SET_BUCKET": "dusema-staging-backups",
+            "RESTORE_SET_COMPARTMENT_OCID": "ocid1.compartment.oc1..staging1234567890",
             "RESTORE_SET_REGION": "sa-bogota-1",
             "RESTORE_CONTAINER_ID": "abcdef012345",
             "RESTORE_DATABASE": "dusema_recovery_roundtrip",
