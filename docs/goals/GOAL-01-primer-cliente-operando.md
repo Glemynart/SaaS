@@ -185,7 +185,7 @@ staging, R2, correo ni una decisión de dominio pendiente.
       edición de datos, roles ADMIN/OPERADOR y activación/desactivación (PR #96
       fusionada y verificada por CI/Browser E2E).
 - [ ] E2.2 — Invitaciones y alta por correo (depende de correo real).
-- [ ] E2.3 — Recuperación de acceso real por correo (depende de correo real).
+- [ ] E2.3 — Recuperación de acceso real por correo. ADR-010 aprueba la prevalidación `POST` y el uso del fragmento URL; la entrega de correo real y la aceptación en staging siguen pendientes.
 - [x] E2.4 — Sedes, identidad y promesa multiempresa coherente con el producto real (PR #110
       fusionada; checks post-merge de CI/Browser E2E verdes).
 
