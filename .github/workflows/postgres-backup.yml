@@ -39,6 +39,7 @@ jobs:
         run: |
           bash -n deploy/postgres-backup/backup-postgres.sh
           bash -n deploy/postgres-backup/test-backup-postgres.sh
+          bash -n deploy/postgres-backup/restore-postgres-backup.sh
           bash -n deploy/postgres-backup/test-backup-restore-roundtrip.sh
 
       - name: Run mocked backup checks
