@@ -281,7 +281,6 @@ printf '%s:%s\\n' "$kind" "$EXPECTED_CIPHERTEXT_SHA256" >>"$MOCK_RESTORE_CALLS"
     for kind in ("postgres", "uploads"):
         script = restore_dir / ("restore-postgres-backup.sh" if kind == "postgres" else "restore-uploads-artifact.sh")
         script.write_text(stub, encoding="utf-8")
-        script.chmod(0o700)
     manifest_digest = hashlib.sha256((set_dir / "manifest.json.gpg").read_bytes()).hexdigest()
     restore_calls = calls / "restore"
     env = os.environ.copy()

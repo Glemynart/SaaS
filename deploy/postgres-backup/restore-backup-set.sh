@@ -57,7 +57,7 @@ if [[ ! -d "$RESTORE_TMP_ROOT" || -L "$RESTORE_TMP_ROOT" || ! -w "$RESTORE_TMP_R
   fail 64 "restore work directories must exist, be writable, and not be symbolic links"
 fi
 
-for binary in chmod gpg mktemp python3 realpath rm sha256sum stat; do
+for binary in bash chmod gpg mktemp python3 realpath rm sha256sum stat; do
   command -v "$binary" >/dev/null 2>&1 || fail 64 "required executable is unavailable: ${binary}"
 done
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P) || fail 64 "could not resolve script directory"
@@ -147,7 +147,7 @@ if ! ENCRYPTED_BACKUP_FILE="$ENCRYPTED_POSTGRES_FILE" \
   RECOVERY_GNUPGHOME="$RECOVERY_GNUPGHOME" \
   RESTORE_CONTAINER_ID="$RESTORE_CONTAINER_ID" RESTORE_DATABASE="$RESTORE_DATABASE" \
   RESTORE_TMP_ROOT="$RESTORE_TMP_ROOT" \
-  "$POSTGRES_RESTORE_SCRIPT"; then
+  bash "$POSTGRES_RESTORE_SCRIPT"; then
   fail 2 "PostgreSQL artifact restore failed; uploads restore was not started"
 fi
 
@@ -157,7 +157,7 @@ if ! ENCRYPTED_BACKUP_FILE="$ENCRYPTED_UPLOADS_FILE" \
   RECOVERY_GNUPGHOME="$RECOVERY_GNUPGHOME" \
   RESTORE_PARENT="$RESTORE_PARENT" RESTORE_DIR_NAME="$RESTORE_DIR_NAME" \
   RESTORE_WORK_PARENT="$RESTORE_WORK_PARENT" \
-  "$UPLOADS_RESTORE_SCRIPT"; then
+  bash "$UPLOADS_RESTORE_SCRIPT"; then
   fail 3 "uploads artifact restore failed; the PostgreSQL database remains isolated"
 fi
 
