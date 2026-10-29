@@ -26,6 +26,14 @@ export type ResetPasswordPayload = {
   newPassword: string;
 };
 
+export type ValidateResetTokenPayload = {
+  token: string;
+};
+
+export type ValidateResetTokenResponse = {
+  valid: boolean;
+};
+
 export type MessageResponse = {
   message: string;
 };
