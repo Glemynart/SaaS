@@ -352,6 +352,7 @@ necesidad comercial verificable de adquisición desde la landing.
 | #106    | E6.2  | Dashboard accionable y resolución trazable.                               | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
 | #108    | E6.3  | Fallos, reintentos y auditoría visibles para operación.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
 | #110    | E2.4  | Sedes, identidad y promesa multiempresa coherente con el producto real.   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
+| #134    | E4.4  | Bug: idempotencia de generación concurrente LETTER/MEMO y reintentos.     | ABIERTO    | No; corrige una carrera de la capacidad ya entregada.      |
 | #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.
