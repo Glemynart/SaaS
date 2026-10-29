@@ -1,13 +1,13 @@
 # ADR-009 — Conjuntos coordinados de backup PostgreSQL y uploads
 
-| Campo           | Valor                                                                                  |
-| --------------- | -------------------------------------------------------------------------------------- |
-| **Estado**      | Propuesto — requiere aprobación antes de implementar el coordinador                    |
-| **Fecha**       | 2026-10-29                                                                             |
-| **Decisores**   | Producto · Arquitectura · DBA · Operación de infraestructura                            |
-| **Ámbito**      | GOAL-01 · E7.1 · backup y restauración en entornos aislados                             |
+| Campo           | Valor                                                                                                                |
+| --------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Estado**      | Aceptado para implementación aislada; uso operativo externo pendiente                                                |
+| **Fecha**       | 2026-10-29                                                                                                           |
+| **Decisores**   | Producto · Arquitectura · DBA · Operación de infraestructura                                                         |
+| **Ámbito**      | GOAL-01 · E7.1 · backup y restauración en entornos aislados                                                          |
 | **Relacionado** | [GOAL-01](../goals/GOAL-01-primer-cliente-operando.md), [runbook de backups](../../deploy/postgres-backup/README.md) |
-| **Reemplaza**   | —                                                                                      |
+| **Reemplaza**   | —                                                                                                                    |
 
 ## Contexto
 
@@ -25,19 +25,24 @@ probar por sí solo que se detuvieron todos los escritores ni que DB y filesyste
 representen el mismo instante. La aceptación de E7.1 requiere restaurar ambos
 artefactos aislados y cotejar referencias documentales con conteos agregados.
 
-## Decisión propuesta
+## Decisión
 
 Adoptar un conjunto de dos objetos cifrados e inmutables y un manifiesto final
-que actúe como marcador de finalización. Esta propuesta no autoriza ejecutar
-backups ni cambiar la tarea diaria instalada.
+cifrado que actúe como marcador de finalización. Se autoriza implementar y
+probar el coordinador únicamente con datos sintéticos y destinos simulados. Esta
+decisión no autoriza ejecutar backups reales ni cambiar la tarea diaria
+instalada.
 
 1. Un runner separado, habilitado únicamente para staging cuya base y storage
    estén verificados como aislados, genera un `BACKUP_SET_ID` UTC único sin
-   nombres de tenants ni personas. No modifica los destinos fijos del servicio
-   diario de PostgreSQL.
-2. El artefacto PostgreSQL y el de uploads usan el mismo ID y un prefijo común
-   candidato `backup-sets/<BACKUP_SET_ID>/`. El propietario de OCI debe aprobar
-   el prefijo, bucket y retención antes de cualquier uso real.
+   nombres de tenants ni personas. Exige la etiqueta de contenedor
+   `dusema.backup.environment=staging` y rechaza el destino compartido conocido
+   `postgres/oficina_nitida`. No modifica los destinos fijos del servicio diario
+   de PostgreSQL.
+2. El artefacto PostgreSQL y el de uploads usan el mismo ID y el prefijo común
+   `backup-sets/<BACKUP_SET_ID>/`. El coordinador recibe el bucket y la región
+   por configuración explícita; el propietario de OCI debe aprobarlos, junto
+   con la retención, antes de cualquier uso real.
 3. El operador mantiene una barrera de escritura durante ambas capturas y
    registra la hora UTC de inicio/fin, commit de aplicación, proveedor de storage
    y la atestación de quiescencia. No se declara que la aplicación imponga esta
@@ -48,9 +53,10 @@ backups ni cambiar la tarea diaria instalada.
 5. Solo después de ambas cargas, publica con `--no-overwrite` un manifiesto
    `manifest.json.gpg` cifrado para la clave pública de recuperación. La versión
    inicial contiene únicamente el ID, intervalo UTC, referencia no sensible al
-   entorno, commit de aplicación, proveedor de storage y, para cada artefacto,
-   clave OCI, tamaño y SHA-256 del ciphertext. No contiene nombres de archivos,
-   tenant IDs, credenciales ni filas de base de datos.
+   entorno, commit de aplicación, proveedor y referencia del object store y,
+   para cada artefacto, clave OCI, tamaño y SHA-256 del ciphertext. No contiene
+   nombres de archivos internos, tenant IDs, credenciales ni filas de base de
+   datos.
 6. Una recuperación solo acepta un manifiesto descifrable cuyos dos objetos
    compartan el ID esperado y cuyos tamaños y hashes coincidan. Restaura la base
    en PostgreSQL temporal sin red y uploads en un directorio nuevo privado; no
@@ -102,6 +108,10 @@ operativa independiente.
 
 - La quiescencia sigue siendo una atestación hasta que exista una barrera
   verificable de aplicación.
+- Una respuesta OCI fallida durante el `put` final puede ser ambigua: el servicio
+  podría haber creado el objeto aunque el cliente no confirme la respuesta. El
+  runner devuelve error y no declara el conjunto completo; se debe verificar el
+  manifiesto con una identidad `OBJECT_READ` ya autorizada antes de reintentar.
 - El marcador no prueba lectura ni compatibilidad de retención; se necesita una
   identidad `OBJECT_READ` ya autorizada y una restauración revisable.
 - La clave pública cifra, pero no autentica el autor del manifiesto. El control
@@ -118,10 +128,11 @@ reversión consiste en dejar de publicar conjuntos y conservar los artefactos
 inmutables ya creados conforme a la política aprobada. No modifica ni requiere
 revertir el servicio diario PostgreSQL.
 
-## Aprobación requerida
+## Requisitos operativos pendientes
 
-Antes de implementar el coordinador, confirmar el formato del manifiesto, el
-prefijo y bucket candidatos, la atestación de quiescencia, la retención y quién
-proveerá acceso de lectura para la prueba. Mientras falte esa decisión, E7.1
-puede continuar con la restauración aislada de cada tipo de artefacto, pero no se
-declara completo el conjunto recuperable.
+Antes de usar el coordinador en staging, el propietario operativo debe aprobar
+el bucket y la región, la identidad autorizada de lectura y la retención; además
+debe demostrar la base y el storage aislados y aportar una barrera de escritura
+operativa. La implementación no configura IAM, lifecycle ni servicios reales.
+Mientras falte esa evidencia, E7.1 no se declara completo aunque el recorrido
+sintético funcione.

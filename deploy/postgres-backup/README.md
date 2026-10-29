@@ -139,70 +139,92 @@ Para recuperar, una identidad OCI autorizada de solo lectura debe descargar el o
 
 Para almacenamiento R2, el objeto primario no cuenta por sí solo como copia recuperable. El migrador `pnpm --filter @saas/api storage:migrate-local-to-r2` verifica tamaño/SHA-256 al releer, pero su reporte contiene claves y errores; cualquier ejecución futura debe realizarse desde un entorno aislado autorizado y guardarse en un canal privado. No elimina LocalDisk. `r2-migration` tampoco es escritura dual, y no existe migrador inverso verificado.
 
-La prueba de CI utiliza archivos sintéticos, GPG efímero y un mock de OCI. Comprueba carga simulada, restauración aislada, checksum, rechazo de traversal y corrupción de contenido con tamaño conservado; no accede a OCI ni acredita lectura de un objeto operativo. El manifiesto durable que empareje DB y uploads, la restauración conjunta, la verificación agregada de referencias y la retención aprobada continúan pendientes. Por tanto, E7.1 permanece abierta.
+Las pruebas de CI utilizan PostgreSQL, archivos sintéticos, GPG efímero y un mock de OCI. Comprueban los artefactos por separado y el flujo coordinado, incluida la publicación del marcador al final y el rechazo de conjuntos incompletos; no acceden a OCI ni acreditan lectura de un objeto operativo. E7.1 permanece abierta hasta completar las comprobaciones operativas descritas debajo.
 
 ### Emparejamiento de PostgreSQL y uploads
 
-**Estado: diseño propuesto; no aprobado ni probado como conjunto recuperable.**
-La decisión y aprobación pendientes están registradas en [ADR-009](../../docs/adr/ADR-009-coordinated-backup-sets.md).
-El requisito de usar el mismo `RUN_ID` y la misma ventana sin escrituras no está
-impuesto por los artefactos actuales: el servicio diario de PostgreSQL genera
-su propio nombre de objeto, mientras que el bloque de uploads recibe
-`OCI_OBJECT` por separado. El registro operativo privado ayuda a relacionar una
-ejecución, pero no es un marcador durable que permita rechazar un conjunto
-incompleto o mezclar por error artefactos de ejecuciones distintas.
+**Estado: coordinador implementado para ejecución sintética; recuperación operativa pendiente.**
+ADR-009 acepta una implementación separada del servicio diario. `backup-set.sh`
+genera un ID UTC único, ejecuta el backup PostgreSQL y el de uploads con el
+mismo prefijo `backup-sets/<BACKUP_SET_ID>/`, y publica `manifest.json.gpg`
+solo después de que ambas cargas hayan terminado. Cada etapa usa `--no-overwrite`
+y `--verify-checksum`. El servicio instalado `dusema-postgres-backup` y sus
+destinos fijos no se modifican.
 
-El mecanismo candidato es un manifiesto privado de conjunto publicado **al
-final**. Hasta que el propietario, DBA y operador aprueben la ventana de captura,
-su ubicación y retención, estos pasos son una propuesta y no autorizan una
-ejecución:
+El manifiesto cifrado contiene versión, ID, intervalo UTC, referencia `staging`,
+revisión de aplicación, proveedor, namespace/bucket/región y las claves, tamaños
+y hashes de los dos ciphertexts. No contiene credenciales, filas de base de
+datos ni nombres de archivos internos. El log de finalización registra el hash y
+tamaño del ciphertext del manifiesto para su comparación durante una
+recuperación. Si falla una captura o la carga de un artefacto, el coordinador
+devuelve error sin intentar publicar el marcador; los objetos ya cargados quedan
+huérfanos e inmutables. Si OCI devuelve un error ambiguo al publicar el manifiesto,
+el comando no declara el conjunto completo: verifica su presencia con una
+identidad de lectura ya autorizada antes de decidir si reintentas.
 
-1. Después de demostrar que staging usa su propia base y storage, generar un
-   `BACKUP_SET_ID` UTC único sin nombres de tenants ni personas. Ponerlo en los
-   nombres de ambos objetos y del manifiesto bajo un prefijo común candidato,
-   por ejemplo `backup-sets/<BACKUP_SET_ID>/`. Validar el prefijo y la regla de
-   retención con el operador; no asumir que esta ruta o política ya existe. No
-   reutilizar directamente el nombre independiente del timer actual como
-   identificador común.
-2. Activar una barrera de escritura que afecte únicamente a staging aislado.
-   Mantenerla durante el dump y el archivo de uploads, incluyendo procesos
-   asíncronos que puedan cambiar referencias o archivos. Registrar inicio y fin
-   UTC, y comprobar que las escrituras y trabajos en vuelo terminaron antes de
-   empezar. El VPS actual no cumple esta precondición porque la API llamada
-   staging comparte `oficina_nitida`.
-3. Con la barrera activa, producir el dump lógico de la base exclusiva de
-   staging y el archivo cifrado de uploads. Mantener el manifiesto por archivo
-   dentro del archivo cifrado; no copiar sus claves a logs ni al manifiesto
-   externo. Calcular y registrar por separado SHA-256 cifrado y tamaño de cada
-   artefacto.
-4. Subir ambos artefactos con nombres únicos y `--no-overwrite`. No publicar aún
-   el marcador del conjunto si cualquiera de las dos cargas o verificaciones
-   falla. `--verify-checksum` durante `put` confirma la carga según la CLI, pero
-   no demuestra que el objeto pueda leerse después.
-5. Publicar el manifiesto del conjunto solo después de que existan ambos
-   objetos. Debe contener únicamente versión del formato, `BACKUP_SET_ID`,
-   intervalo de captura, referencia no sensible al entorno/base, proveedor de
-   storage, revisión de aplicación, claves de los dos objetos, tamaños y hashes
-   SHA-256 cifrados. No incluir credenciales, filas, nombres de archivos ni el
-   manifiesto interno de uploads. Si no existe el manifiesto final, la ejecución
-   se considera incompleta y no constituye un punto de recuperación.
-6. Para certificar accesibilidad, consultar metadata con una identidad que ya
-   tenga `OBJECT_INSPECT`; para confirmar los hashes de contenido, descargar
-   ambos objetos con una identidad que ya tenga `OBJECT_READ` a un destino
-   privado aprobado y comparar SHA-256. No ampliar permisos para completar esta
-   prueba. Aplicar retención al conjunto completo: manifiesto y ambos objetos
-   deben conservarse o expirar juntos.
-7. Restaurar solo conjuntos cuyo manifiesto vincule los dos objetos y cuyos
-   hashes coincidan. Usar una base temporal sin ruta de red al servidor y un
-   directorio uploads vacío. Ejecutar la validación del archivo y el cotejo
-   agregado de referencias descritos abajo contra esa base restaurada; no contra
-   `oficina_nitida`.
+**Precondiciones de ejecución:** `BACKUP_SET_ENVIRONMENT=staging`,
+`BACKUP_SET_ISOLATED_CONFIRMED=true` y `UPLOADS_QUIESCED=true` son obligatorios.
+El contenedor PostgreSQL debe tener la etiqueta
+`dusema.backup.environment=staging`; el código rechaza el destino conocido
+`postgres/oficina_nitida`, el bucket actual `dusema-backups-prod` y cualquier
+bucket cuyo nombre no identifique `staging`. Requiere una base y un storage
+verificados como aislados, bucket/prefijo aprobados, GPG público disponible y
+un perfil OCI de escritura con mínimo privilegio. La confirmación de aislamiento
+y quiescencia aún es una atestación del operador: el coordinador no detiene por
+sí mismo la API ni los jobs.
 
-Este diseño deja el manifiesto externo como marcador de finalización, no como
-sustituto de la verificación criptográfica ni de la restauración. La secuencia
-de uploads documentada debajo no crea todavía el dump de staging, el manifiesto
-de conjunto ni un mecanismo coordinador; por tanto, aún no acredita una captura
-consistente de ambos tipos de datos.
+**Configuración del runner (solo staging aprobado):** define estas variables en
+una sesión privada. Los valores entre `<...>` son referencias de configuración;
+no guardes contraseñas, claves privadas ni tokens en el entorno permanente.
+
+| Variable                                                                            | Uso                                                                    |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `BACKUP_SET_ENVIRONMENT=staging`                                                    | Fija el alcance del runner.                                            |
+| `BACKUP_SET_ISOLATED_CONFIRMED=true`                                                | Atesta que base y storage están aislados de producción.                |
+| `UPLOADS_QUIESCED=true`                                                             | Atesta que no hay escritores ni jobs activos.                          |
+| `BACKUP_SET_APPLICATION_REVISION=<commit>`                                          | Commit desplegado en el staging capturado.                             |
+| `BACKUP_SET_STORAGE_PROVIDER=<provider>`                                            | Referencia corta, por ejemplo `OCI-Object-Storage`.                    |
+| `BACKUP_SET_PG_CONTAINER=<container>`                                               | PostgreSQL 17 con etiqueta `dusema.backup.environment=staging`.        |
+| `BACKUP_SET_PG_DATABASE=<database>` / `BACKUP_SET_PG_ROLE=<role>`                   | Base staging y rol de backup de mínimo privilegio.                     |
+| `UPLOADS_ROOT=<absolute path>`                                                      | Raíz local de uploads del mismo staging.                               |
+| `TMP_PARENT=<private path>`                                                         | Temporal cifrado o `tmpfs` con espacio suficiente para ambas capturas. |
+| `GNUPGHOME=<public key home>` / `RECOVERY_RECIPIENT_FINGERPRINT=<full fingerprint>` | Destinatario público de recuperación.                                  |
+| `OCI_NAMESPACE`, `OCI_BUCKET`, `OCI_REGION`, `OCI_UPLOAD_PROFILE`                   | Destino revisado; el bucket debe identificar `staging`.                |
+| `OCI_OBJECT_PREFIX=backup-sets`                                                     | Prefijo común requerido por el formato.                                |
+
+Después de revisar que no se está usando la base compartida conocida ni el
+bucket productivo, ejecuta `bash deploy/postgres-backup/backup-set.sh`. Conserva
+en el registro privado el `backup_set_id`, `manifest_sha256` y `manifest_bytes`
+de la línea `complete`; esos datos permiten verificar el manifiesto descargado.
+Un fallo deja sin marcador el conjunto, aunque algún artefacto aislado ya haya
+alcanzado el bucket.
+
+`restore-backup-set.sh` acepta el manifiesto cifrado y ambos ciphertexts ya
+descargados por una identidad autorizada. Exige el checksum registrado del
+manifiesto, descifra con un límite de 1 MiB y verifica ID, destino, claves,
+longitudes y hashes de ambos artefactos antes de iniciar cualquier restauración.
+Después delega a los restauradores existentes, que exigen PostgreSQL 17 en un
+contenedor sin red, sin puertos publicados ni bind mounts, y crean uploads en
+una carpeta nueva privada. Los dos destinos permanecen desconectados de la
+aplicación. Si el segundo restaurador falla, el primer destino aislado puede
+quedar disponible para inspección; el comando no declara éxito conjunto.
+La invocación requiere `BACKUP_SET_ID`, `ENCRYPTED_MANIFEST_FILE`,
+`EXPECTED_MANIFEST_CIPHERTEXT_SHA256`, `ENCRYPTED_POSTGRES_FILE`,
+`ENCRYPTED_UPLOADS_FILE`, `RECOVERY_GNUPGHOME`, `RESTORE_SET_NAMESPACE`,
+`RESTORE_SET_BUCKET`, `RESTORE_SET_REGION`, `RESTORE_CONTAINER_ID`,
+`RESTORE_DATABASE`, `RESTORE_TMP_ROOT`, `RESTORE_PARENT` y un
+`RESTORE_DIR_NAME` nuevo. Completa estas variables solo después de descargar los
+tres objetos con una identidad de solo lectura ya autorizada; luego ejecuta
+`bash deploy/postgres-backup/restore-backup-set.sh` en la estación aprobada.
+
+La prueba sintética no accede a OCI ni prueba la lectura posterior de un objeto.
+Antes de ejecutar en staging, el propietario operativo debe aprobar bucket,
+región, identidad de lectura y retención, demostrar la separación de la base y
+storage, y sostener la barrera de escritura durante ambas capturas. Luego debe
+descargar el conjunto con una identidad que ya tenga `OBJECT_READ`, comparar
+los tres ciphertexts y ejecutar la restauración conjunta y el cotejo agregado de
+referencias documentado abajo. No ampliar permisos para completar estas pruebas
+ni ejecutar sobre el VPS actual porque la API comparte `oficina_nitida`.
 
 **Lectura y restauración aislada.** En una estación/entorno de recuperación aprobado, usa la identidad OCI de solo lectura ya autorizada. OBJECT_INSPECT permite consultar metadata y OBJECT_READ descargar el objeto; completa con el nombre y checksum registrados en la corrida. La metadata/head no sustituye el hash del contenido descargado. Después de comparar el SHA-256 descargado, ejecutar restore-uploads-artifact.sh con el archivo cifrado, su checksum, la clave de recuperación disponible fuera del VPS, RESTORE_PARENT aprobado y un RESTORE_DIR_NAME nuevo con prefijo dusema-uploads-restored-. RESTORE_ROOT será la carpeta nueva creada bajo RESTORE_PARENT. No restaurar sobre /app/uploads ni conectar esa carpeta a la aplicación durante la validación.
 Para cotejar referencias, importar el TSV en una tabla temporal dentro de **esa base restaurada aislada** y ejecutar solo esta consulta agregada; no usarla contra `oficina_nitida`.

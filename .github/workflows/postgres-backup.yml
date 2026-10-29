@@ -27,6 +27,7 @@ jobs:
           POSTGRES_PASSWORD: ci-only-backup-test
           POSTGRES_DB: postgres
         options: >-
+          --label dusema.backup.environment=staging
           --health-cmd "pg_isready -U postgres -d postgres"
           --health-interval 5s
           --health-timeout 5s
@@ -43,8 +44,11 @@ jobs:
           bash -n deploy/postgres-backup/test-backup-restore-roundtrip.sh
           bash -n deploy/postgres-backup/backup-uploads-artifact.sh
           bash -n deploy/postgres-backup/restore-uploads-artifact.sh
+          bash -n deploy/postgres-backup/backup-set-postgres-artifact.sh
+          bash -n deploy/postgres-backup/backup-set.sh
+          bash -n deploy/postgres-backup/restore-backup-set.sh
           bash -n deploy/postgres-backup/test-uploads-backup-restore-roundtrip.sh
-          python3 -c "import ast, pathlib; ast.parse(pathlib.Path('deploy/postgres-backup/uploads-archive.py').read_text(encoding='utf-8'))"
+          python3 -c "import ast, pathlib; [ast.parse(pathlib.Path(path).read_text(encoding='utf-8')) for path in ('deploy/postgres-backup/uploads-archive.py', 'deploy/postgres-backup/backup-set-manifest.py', 'deploy/postgres-backup/test-backup-set-manifest.py', 'deploy/postgres-backup/test-backup-set.py')]"
 
       - name: Run mocked backup checks
         run: bash deploy/postgres-backup/test-backup-postgres.sh
@@ -56,3 +60,8 @@ jobs:
 
       - name: Verify encrypted uploads backup and restoration with synthetic data
         run: bash deploy/postgres-backup/test-uploads-backup-restore-roundtrip.sh
+
+      - name: Verify coordinated PostgreSQL and uploads backup sets
+        run: |
+          python3 deploy/postgres-backup/test-backup-set-manifest.py
+          python3 deploy/postgres-backup/test-backup-set.py

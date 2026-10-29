@@ -25,6 +25,7 @@ OCI_REGION="${OCI_REGION:-}"
 OCI_OBJECT_PREFIX="${OCI_OBJECT_PREFIX:-}"
 OCI_UPLOAD_PROFILE="${OCI_UPLOAD_PROFILE:-}"
 OCI_CLI="${OCI_CLI:-oci}"
+BACKUP_SET_METADATA_FILE="${BACKUP_SET_METADATA_FILE:-}"
 
 if [[ -z "$UPLOADS_ROOT" || -z "$UPLOADS_QUIESCED" || -z "$TMP_PARENT" ||
   -z "$BACKUP_SET_ID" || -z "$GNUPGHOME" ||
@@ -64,6 +65,15 @@ if [[ ! "$TMP_PARENT" = /* || ! -d "$TMP_PARENT" || -L "$TMP_PARENT" || ! -w "$T
 fi
 if [[ ! -d "$GNUPGHOME" || -L "$GNUPGHOME" ]]; then
   fail 64 "GnuPG home must be an existing directory, not a symbolic link"
+fi
+if [[ -n "$BACKUP_SET_METADATA_FILE" ]]; then
+  if [[ ! "$BACKUP_SET_METADATA_FILE" = /* || -e "$BACKUP_SET_METADATA_FILE" || -L "$BACKUP_SET_METADATA_FILE" ]]; then
+    fail 64 "artifact metadata destination must be a new absolute file path"
+  fi
+  metadata_parent=$(dirname -- "$BACKUP_SET_METADATA_FILE") || fail 64 "could not resolve metadata destination"
+  if [[ ! -d "$metadata_parent" || -L "$metadata_parent" || ! -w "$metadata_parent" ]]; then
+    fail 64 "artifact metadata parent must be an existing writable directory"
+  fi
 fi
 
 UPLOADS_ROOT=$(realpath -e -- "$UPLOADS_ROOT") || fail 64 "could not resolve uploads source"
@@ -228,4 +238,15 @@ if "$OCI_CLI" os object put \
 else
   upload_status=$?
   fail 51 "OCI rejected the encrypted uploads artifact (client exit=${upload_status})"
+fi
+if [[ -n "$BACKUP_SET_METADATA_FILE" ]]; then
+  if ! python3 "$SCRIPT_DIR/backup-set-manifest.py" record-artifact \
+    --set-id "$BACKUP_SET_ID" \
+    --prefix "$OCI_OBJECT_PREFIX" \
+    --kind uploads \
+    --artifact "$encrypted_file" \
+    --output "$BACKUP_SET_METADATA_FILE" \
+    2>"${workdir%/}/metadata.stderr"; then
+    fail 52 "could not record uploaded artifact metadata"
+  fi
 fi

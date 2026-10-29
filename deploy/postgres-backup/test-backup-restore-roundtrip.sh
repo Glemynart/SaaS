@@ -42,6 +42,8 @@ readonly WORK_ROOT="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 WORK_DIR=""
 GNUPGHOME=""
 TARGET_CONTAINER_ID=""
+MOCK_BIN=""
+MOCK_POSTGRES_CAPTURE=""
 
 cleanup() {
   local status=$?
@@ -74,13 +76,15 @@ cleanup() {
 
 WORK_DIR=$(mktemp -d "${WORK_ROOT%/}/dusema-backup-restore.XXXXXX") || fail "could not create a private test directory"
 GNUPGHOME="${WORK_DIR%/}/gnupg"
+MOCK_BIN="${WORK_DIR%/}/mock-bin"
+MOCK_POSTGRES_CAPTURE="${WORK_DIR%/}/captured-postgres.dump.gpg"
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
-mkdir -m 0700 -- "$GNUPGHOME" || fail "could not prepare the ephemeral GPG home"
+mkdir -m 0700 -- "$GNUPGHOME" "$MOCK_BIN" || fail "could not prepare private test directories"
 
-for binary in docker gpg mktemp rm sha256sum awk; do
+for binary in chmod date docker gpg mktemp od python3 realpath rm sha256sum stat tr awk; do
   command -v "$binary" >/dev/null 2>&1 || fail "required executable is unavailable: ${binary}"
 done
 
@@ -138,26 +142,87 @@ if [[ ! "$fingerprint" =~ ^[[:xdigit:]]{40,64}$ ]]; then
 fi
 
 encrypted_file="${WORK_DIR%/}/backup.dump.gpg"
-log "backup: exporting and encrypting the synthetic database"
-set +e
-docker exec "$POSTGRES_SERVICE_ID" pg_dump \
-  --format=custom \
-  --no-owner \
-  --no-privileges \
-  --no-password \
-  --username postgres \
-  --dbname "$SOURCE_DATABASE" \
-  2>"${WORK_DIR%/}/pg_dump.stderr" \
-  | gpg --no-options --homedir "$GNUPGHOME" --batch --no-tty --no-auto-key-retrieve \
-      --trust-model always --recipient "${fingerprint}!" --output "$encrypted_file" --encrypt \
-      2>"${WORK_DIR%/}/gpg-encrypt.stderr"
-pipeline_status=("${PIPESTATUS[@]}")
-set -e
-if (( ${pipeline_status[0]:-1} != 0 )); then
-  fail "PostgreSQL export failed"
+cat >"${MOCK_BIN%/}/oci" <<'MOCK_OCI'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+[[ "${1:-}" == "os" && "${2:-}" == "object" && "${3:-}" == "put" ]]
+shift 3
+name=""
+file=""
+bucket=""
+profile=""
+checksum=0
+no_overwrite=0
+while (($#)); do
+  case "$1" in
+    --name) name="$2"; shift 2 ;;
+    --file) file="$2"; shift 2 ;;
+    --bucket-name) bucket="$2"; shift 2 ;;
+    --profile) profile="$2"; shift 2 ;;
+    --verify-checksum) checksum=1; shift ;;
+    --no-overwrite) no_overwrite=1; shift ;;
+    --namespace-name|--region) shift 2 ;;
+    *) exit 94 ;;
+  esac
+done
+[[ "$bucket" == "dusema-staging-backups" && "$profile" == "ci-test" ]]
+[[ "$name" == "backup-sets/${BACKUP_SET_ID}/postgres.dump.gpg" ]]
+[[ -s "$file" && "$checksum" == 1 && "$no_overwrite" == 1 ]]
+cp -- "$file" "$MOCK_POSTGRES_CAPTURE"
+printf '%s\n' "$name" >"$MOCK_POSTGRES_OBJECT_NAME"
+MOCK_OCI
+chmod 0700 -- "${MOCK_BIN%/}/oci" || fail "could not prepare the mocked OCI client"
+
+BACKUP_SET_ID="$(date -u '+%Y%m%dT%H%M%SZ')-$(od -An -N8 -tx1 /dev/urandom | tr -d '[:space:]')"
+log "backup: creating a coordinated PostgreSQL ciphertext from the synthetic database"
+if ! BACKUP_SET_ID="$BACKUP_SET_ID" \
+  BACKUP_SET_ENVIRONMENT=staging \
+  BACKUP_SET_ISOLATED_CONFIRMED=true \
+  BACKUP_SET_WRITES_QUIESCED=true \
+  BACKUP_SET_PG_CONTAINER="$POSTGRES_SERVICE_ID" \
+  BACKUP_SET_PG_DATABASE="$SOURCE_DATABASE" \
+  BACKUP_SET_PG_ROLE=postgres \
+  BACKUP_SET_TMP_PARENT="$WORK_DIR" \
+  BACKUP_SET_METADATA_FILE="${WORK_DIR%/}/postgres-metadata.json" \
+  GNUPGHOME="$GNUPGHOME" \
+  RECOVERY_RECIPIENT_FINGERPRINT="$fingerprint" \
+  OCI_NAMESPACE=ci-test \
+  OCI_BUCKET=dusema-staging-backups \
+  OCI_REGION=ci-test-1 \
+  OCI_OBJECT_PREFIX=backup-sets \
+  OCI_UPLOAD_PROFILE=ci-test \
+  OCI_CLI="${MOCK_BIN%/}/oci" \
+  MOCK_POSTGRES_CAPTURE="$MOCK_POSTGRES_CAPTURE" \
+  MOCK_POSTGRES_OBJECT_NAME="${WORK_DIR%/}/postgres-object-name" \
+  bash deploy/postgres-backup/backup-set-postgres-artifact.sh; then
+  fail "coordinated PostgreSQL backup artifact failed"
 fi
-if (( ${pipeline_status[1]:-1} != 0 )) || [[ ! -s "$encrypted_file" ]]; then
-  fail "GPG did not produce an encrypted backup"
+encrypted_file="$MOCK_POSTGRES_CAPTURE"
+if [[ ! -s "$encrypted_file" || "$(cat "${WORK_DIR%/}/postgres-object-name")" != "backup-sets/${BACKUP_SET_ID}/postgres.dump.gpg" ]]; then
+  fail "mocked OCI did not capture the expected PostgreSQL set artifact"
+fi
+if ! python3 - "$WORK_DIR/postgres-metadata.json" "$encrypted_file" "$BACKUP_SET_ID" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+
+metadata_path = pathlib.Path(sys.argv[1])
+artifact_path = pathlib.Path(sys.argv[2])
+backup_set_id = sys.argv[3]
+artifact_bytes = artifact_path.stat().st_size
+expected = {
+    "backup_set_id": backup_set_id,
+    "artifact_type": "postgres",
+    "key": f"backup-sets/{backup_set_id}/postgres.dump.gpg",
+    "bytes": artifact_bytes,
+    "sha256": hashlib.sha256(artifact_path.read_bytes()).hexdigest(),
+}
+if json.loads(metadata_path.read_text(encoding="utf-8")) != expected:
+    raise SystemExit("artifact metadata does not match the uploaded PostgreSQL ciphertext")
+PY
+then
+  fail "PostgreSQL artifact metadata does not match the uploaded ciphertext"
 fi
 
 if ! checksum_output=$(sha256sum -- "$encrypted_file" 2>/dev/null); then
