@@ -256,6 +256,7 @@ model Tenant {
 
   // Relaciones
   users              User[]
+  userInvitations    UserInvitation[]
   empleados          Empleado[]
   sedes              Sede[]
   plantillas         Plantilla[]
@@ -330,6 +331,7 @@ model User {
   lastLoginAt              DateTime?
   refreshTokens            RefreshToken[]
   passwordResetTokens      PasswordResetToken[]
+  invitationsCreated       UserInvitation[]     @relation("UserInvitationCreatedBy")
   lotesCreados             LoteContrato[]
   // Actor de aprobación de ProcesoNómina (P1/U1)
   periodosNominaAprobados  PayrollPeriod[]      @relation("PayrollPeriodAprobadoPor")
@@ -392,6 +394,42 @@ model PasswordResetToken {
   @@index([userId])
   @@index([tenantId, userId])
   @@map("password_reset_tokens")
+}
+
+// =============================================================================
+// USER INVITATION — Alta segura de usuarios por enlace de correo
+// =============================================================================
+// El secreto nunca se persiste. openKey permite una sola invitación pendiente
+// por correo y tenant; NULL conserva las invitaciones aceptadas o revocadas sin
+// impedir invitaciones futuras.
+// =============================================================================
+
+model UserInvitation {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdByUserId String?
+  createdBy       User?   @relation("UserInvitationCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  email      String
+  nombre     String
+  apellido   String
+  rol        UserRole
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  lastSentAt DateTime @default(now())
+  acceptedAt DateTime?
+  revokedAt  DateTime?
+  openKey    String?  @default("OPEN")
+
+  @@unique([tenantId, email, openKey])
+  @@index([tenantId, openKey, createdAt])
+  @@index([expiresAt, acceptedAt, revokedAt])
+  @@map("user_invitations")
 }
 
 // =============================================================================
@@ -1710,7 +1748,7 @@ model ExpedienteDoc {
   requiereRenovacion Boolean?
 
   // Almacenamiento
-  // Ruta: {tenantId}/expediente/{empleadoId}/{categoria}/{id}_v{version}.{ext}
+  // Ruta: {tenantId}/expediente/{empleadoId}/{categoria}/{familiaId}_v{version}_{documentId}.{ext}
   storageKey  String
   mimeType    String // application/pdf, image/jpeg, etc.
   tamanoBytes Int

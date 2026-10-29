@@ -7,6 +7,7 @@ import { UserRole } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { StorageObjectNotFoundError } from '../storage/storage.types';
 
@@ -49,6 +50,7 @@ const DOCUMENT_READ_ROLES = new Set<string>([
 export class GeneratedDocumentAccessService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly tenantPrisma: TenantPrismaService,
     private readonly storage: StorageService,
     private readonly auditService: AuditService,
   ) {}
@@ -59,35 +61,37 @@ export class GeneratedDocumentAccessService {
   ): Promise<GeneratedDocumentMetadata> {
     this.assertReadPermission(user);
 
-    const document = await this.prisma.generatedDocument.findFirst({
-      where: { id, tenantId: user.tenantId },
-      select: {
-        id: true,
-        employeeId: true,
-        templateId: true,
-        nombre: true,
-        tipo: true,
-        estado: true,
-        pdfStorageKey: true,
-        pdfUrl: true,
-        pdfSizeBytes: true,
-        createdAt: true,
-        employee: {
-          select: {
-            id: true,
-            primerNombre: true,
-            segundoNombre: true,
-            primerApellido: true,
-            segundoApellido: true,
-            cedula: true,
-            cargo: true,
-            tipoDocumento: true,
-            sedeRef: { select: { id: true, nombre: true } },
+    const document = await this.tenantPrisma.execute((prisma) =>
+      prisma.generatedDocument.findFirst({
+        where: { id, tenantId: user.tenantId },
+        select: {
+          id: true,
+          employeeId: true,
+          templateId: true,
+          nombre: true,
+          tipo: true,
+          estado: true,
+          pdfStorageKey: true,
+          pdfUrl: true,
+          pdfSizeBytes: true,
+          createdAt: true,
+          employee: {
+            select: {
+              id: true,
+              primerNombre: true,
+              segundoNombre: true,
+              primerApellido: true,
+              segundoApellido: true,
+              cedula: true,
+              cargo: true,
+              tipoDocumento: true,
+              sedeRef: { select: { id: true, nombre: true } },
+            },
           },
+          template: { select: { id: true, nombre: true, tipo: true } },
         },
-        template: { select: { id: true, nombre: true, tipo: true } },
-      },
-    });
+      }),
+    );
 
     if (!document) {
       throw new NotFoundException('Documento generado no encontrado');

@@ -18,6 +18,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { GeneratedDocumentAccessService } from './generated-document-access.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { GeneratedDocumentsController } from './generated-documents.controller';
 import { GeneratedDocumentsService } from './generated-documents.service';
 
@@ -142,6 +143,16 @@ describe('Generated document private delivery', () => {
         {
           provide: PrismaService,
           useValue: { generatedDocument: { findFirst } },
+        },
+        {
+          provide: TenantPrismaService,
+          useValue: {
+            execute: (
+              work: (prisma: {
+                generatedDocument: { findFirst: typeof findFirst };
+              }) => unknown,
+            ) => work({ generatedDocument: { findFirst } }),
+          },
         },
         { provide: StorageService, useValue: { getObject } },
         { provide: AuditService, useValue: { log: auditLog } },

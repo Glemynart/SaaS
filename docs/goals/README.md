@@ -27,16 +27,15 @@ Solo puede existir un Goal activo. Los posibles resultados futuros permanecen si
 Estado de implementación en `main`: E5.2 fue fusionada en el PR #102, E5.3 en
 el PR #103, E5.4 en el PR #104, E6.1 en el PR #105, E6.2 en el PR #106, E6.3
 en el PR #108 y E2.4 en el PR #110; sus checks post-merge de CI y Browser E2E
-están verdes. El PR abierto #130 contiene el coordinador sintético E7.1; su
-round-trip PostgreSQL+uploads en destinos aislados, CI, Browser E2E y Vercel
-Preview pasaron en el commit funcional `6170d61`. El PR #147, apilado sobre
-#130, verifica los metadatos del bucket privado en el compartimento aprobado y
-registra esa referencia en el manifiesto. Ninguno de esos PR prueba lectura de
-objetos OCI ni recuperación operativa; E7.1 sigue abierta. M1 y M2 permanecen
-bloqueados por infraestructura y correo reales;
-M7 espera a que el producto y la infraestructura externa estén listos. GOAL-01
-permanece ACTIVO: la implementación está bloqueada selectivamente, mientras la
-arquitectura y la preparación siguen disponibles mediante [Platform Evolution](../architecture/PLATFORM-EVOLUTION.md).
+están verdes. PR #124 está fusionada, pero M1 continúa bloqueado por aislamiento,
+R2 y correo real pendientes de validación operativa. E2.2 en PR #144 y E2.3 en
+PR #148 tienen implementación; la aceptación de correo real sigue pendiente.
+PR #130 contiene el coordinador sintético DB+uploads para E7.1; PR #147 se integró
+en esa rama. El HEAD sincronizado requiere checks frescos; estos no acreditan
+lectura OCI ni restauración operativa. E7.1 permanece abierta. M2 espera correo
+real y M7 espera a que el producto y la infraestructura externa estén listos.
+GOAL-01 permanece ACTIVO: la implementación está bloqueada selectivamente,
+mientras la arquitectura y la preparación siguen disponibles mediante [Platform Evolution](../architecture/PLATFORM-EVOLUTION.md).
 
 ## Regla de redefinición
 
