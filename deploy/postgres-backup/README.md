@@ -140,6 +140,7 @@ Para recuperar, una identidad OCI autorizada de solo lectura debe descargar el o
 Para almacenamiento R2, el objeto primario no cuenta por sí solo como copia recuperable. El migrador `pnpm --filter @saas/api storage:migrate-local-to-r2` verifica tamaño/SHA-256 al releer, pero su reporte contiene claves y errores; cualquier ejecución futura debe realizarse desde un entorno aislado autorizado y guardarse en un canal privado. No elimina LocalDisk. `r2-migration` tampoco es escritura dual, y no existe migrador inverso verificado.
 
 La prueba de CI utiliza archivos sintéticos, GPG efímero y un mock de OCI. Comprueba carga simulada, restauración aislada, checksum, rechazo de traversal y corrupción de contenido con tamaño conservado; no accede a OCI ni acredita lectura de un objeto operativo. El manifiesto durable que empareje DB y uploads, la restauración conjunta, la verificación agregada de referencias y la retención aprobada continúan pendientes. Por tanto, E7.1 permanece abierta.
+
 ### Emparejamiento de PostgreSQL y uploads
 
 **Estado: diseño propuesto; no aprobado ni probado como conjunto recuperable.**
@@ -277,6 +278,8 @@ El modo POSIX efectivo de directorios y el comportamiento de systemd deben compr
 
 `restore-postgres-backup.sh` toma un archivo cifrado ya descargado con una identidad OCI de lectura autorizada, comprueba el SHA-256 registrado, lo descifra con `RECOVERY_GNUPGHOME` y restaura en una base nueva dentro de un contenedor PostgreSQL 17. Rechaza destinos que no estén en `network none`, publiquen puertos, tengan un bind mount del host o carezcan de la etiqueta `dusema.recovery=isolated`. La base usa el prefijo `dusema_recovery_` y nunca se sobrescribe; un fallo durante la restauración elimina solo la base parcial creada por este comando. El contenedor permanece disponible para inspección y no tiene una ruta de red a la aplicación.
 
+La salida de GPG queda limitada al espacio libre del directorio temporal menos una reserva de 64 MiB. `RESTORE_MAX_DECRYPTED_BYTES` puede fijar un límite inferior para una ejecución; el script rechaza un valor que exceda el espacio disponible.
+
 Después de descargar el objeto con el nombre exacto de la ejecución y el perfil existente autorizado, conservar su SHA-256 y crear un destino efímero sin acceso de red:
 
 ```bash
@@ -297,7 +300,7 @@ bash deploy/postgres-backup/restore-postgres-backup.sh
 
 El contenedor no publica puertos ni monta rutas del host. `POSTGRES_HOST_AUTH_METHOD=trust` solo se usa dentro de ese contenedor sin red; no reutilizarlo en un servicio publicado. Revisar únicamente los conteos y el tamaño agregados que imprime el comando. Tras aceptar la inspección, `docker stop "$RESTORE_CONTAINER_ID"` elimina el contenedor y su almacenamiento anónimo por la opción `--rm`. No ejecutar la restauración en la VPS actual ni en una base conectada a la aplicación.
 
-CI ejecuta además `test-backup-restore-roundtrip.sh`: crea datos sintéticos en PostgreSQL 17, genera y cifra un dump con los mismos flags de producción, y llama al restaurador contra un segundo contenedor aislado. Comprueba igualdad del digest de filas y del estado de secuencia. Esta prueba no accede a OCI ni a datos operativos; el restaurador actual cubre PostgreSQL, no uploads. E7.1 continúa abierto hasta comprobar el objeto operativo, una restauración revisable y la recuperación de archivos subidos.
+CI ejecuta además `test-backup-restore-roundtrip.sh`: crea datos sintéticos en PostgreSQL 17, genera y cifra un dump con los mismos flags de producción, verifica que un límite de salida GPG de un byte rechace el dump sin crear una base y llama al restaurador contra un segundo contenedor aislado. Comprueba igualdad del digest de filas y del estado de secuencia. Esta prueba no accede a OCI ni a datos operativos; el restaurador actual cubre PostgreSQL, no uploads. E7.1 continúa abierto hasta comprobar el objeto operativo, una restauración revisable y la recuperación de archivos subidos.
 
 ## Instalación para un host nuevo (no ejecutar en la VPS actual)
 

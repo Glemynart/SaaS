@@ -17,6 +17,8 @@ RECOVERY_GNUPGHOME="${RECOVERY_GNUPGHOME:-}"
 RESTORE_CONTAINER_ID="${RESTORE_CONTAINER_ID:-}"
 RESTORE_DATABASE="${RESTORE_DATABASE:-}"
 RESTORE_TMP_ROOT="${RESTORE_TMP_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}}"
+RESTORE_MAX_DECRYPTED_BYTES="${RESTORE_MAX_DECRYPTED_BYTES:-}"
+readonly RESTORE_SPACE_RESERVE_BYTES=67108864
 
 if [[ -z "$ENCRYPTED_BACKUP_FILE" || -z "$EXPECTED_CIPHERTEXT_SHA256" || -z "$RECOVERY_GNUPGHOME" || -z "$RESTORE_CONTAINER_ID" || -z "$RESTORE_DATABASE" ]]; then
   fail "set ENCRYPTED_BACKUP_FILE, EXPECTED_CIPHERTEXT_SHA256, RECOVERY_GNUPGHOME, RESTORE_CONTAINER_ID, and RESTORE_DATABASE"
@@ -44,7 +46,7 @@ ENCRYPTED_BACKUP_FILE=$(realpath -e -- "$ENCRYPTED_BACKUP_FILE") || fail "could 
 RECOVERY_GNUPGHOME=$(realpath -e -- "$RECOVERY_GNUPGHOME") || fail "could not resolve recovery GPG home"
 RESTORE_TMP_ROOT=$(realpath -e -- "$RESTORE_TMP_ROOT") || fail "could not resolve restore temporary root"
 
-for binary in docker gpg mktemp realpath rm sha256sum sleep tr; do
+for binary in df docker gpg mktemp realpath rm sha256sum sleep tail tr; do
   command -v "$binary" >/dev/null 2>&1 || fail "required executable is unavailable: ${binary}"
 done
 
@@ -122,6 +124,24 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
 
+if ! available_bytes=$(LC_ALL=C df -B1 --output=avail -- "$WORK_DIR" 2>/dev/null | tail -n 1 | tr -d '[:space:]'); then
+  fail "could not check free space for the decrypted backup"
+fi
+if [[ ! "$available_bytes" =~ ^[0-9]+$ ]] || (( available_bytes <= RESTORE_SPACE_RESERVE_BYTES )); then
+  fail "restore temporary storage must have more than 64 MiB available"
+fi
+max_decrypted_bytes=$((available_bytes - RESTORE_SPACE_RESERVE_BYTES))
+if [[ -n "$RESTORE_MAX_DECRYPTED_BYTES" ]]; then
+  if [[ ! "$RESTORE_MAX_DECRYPTED_BYTES" =~ ^[1-9][0-9]{0,17}$ ]]; then
+    fail "RESTORE_MAX_DECRYPTED_BYTES must be a positive decimal byte count"
+  fi
+  requested_max_bytes=$((10#$RESTORE_MAX_DECRYPTED_BYTES))
+  if (( requested_max_bytes > max_decrypted_bytes )); then
+    fail "RESTORE_MAX_DECRYPTED_BYTES exceeds available temporary storage"
+  fi
+  max_decrypted_bytes=$requested_max_bytes
+fi
+
 if ! gpg --no-options --homedir "$RECOVERY_GNUPGHOME" --batch --with-colons --list-secret-keys \
   >"${WORK_DIR%/}/secret-keys" 2>/dev/null || [[ ! -s "${WORK_DIR%/}/secret-keys" ]]; then
   fail "recovery GPG home does not contain a usable private key"
@@ -140,6 +160,7 @@ fi
 dump_file="${WORK_DIR%/}/postgres.dump"
 log "decrypt: verifying the encrypted artifact and reading it with the recovery key"
 if ! gpg --no-options --homedir "$RECOVERY_GNUPGHOME" --batch --no-tty --no-auto-key-retrieve \
+  --max-output "$max_decrypted_bytes" \
   --output "$dump_file" --decrypt "$ENCRYPTED_BACKUP_FILE" 2>"${WORK_DIR%/}/gpg-decrypt.stderr"; then
   fail "GPG could not decrypt the backup"
 fi

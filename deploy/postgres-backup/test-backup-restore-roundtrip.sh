@@ -168,6 +168,26 @@ if [[ ! "$encrypted_sha256" =~ ^[[:xdigit:]]{64}$ ]]; then
   fail "encrypted artifact checksum is invalid"
 fi
 
+log "restore: rejecting a decrypted dump above the configured output cap"
+if RECOVERY_GNUPGHOME="$GNUPGHOME" \
+  ENCRYPTED_BACKUP_FILE="$encrypted_file" \
+  EXPECTED_CIPHERTEXT_SHA256="$encrypted_sha256" \
+  RESTORE_CONTAINER_ID="$TARGET_CONTAINER_ID" \
+  RESTORE_DATABASE="$TARGET_DATABASE" \
+  RESTORE_TMP_ROOT="$WORK_ROOT" \
+  RESTORE_MAX_DECRYPTED_BYTES=1 \
+  bash deploy/postgres-backup/restore-postgres-backup.sh \
+  >"${WORK_DIR%/}/bounded-restore.log" 2>&1; then
+  fail "one-byte decrypted-output cap unexpectedly accepted the synthetic dump"
+fi
+bounded_database_count=$(docker exec "$TARGET_CONTAINER_ID" psql --no-psqlrc --quiet --tuples-only --no-align \
+  --username postgres --dbname postgres \
+  --command "SELECT count(*) FROM pg_catalog.pg_database WHERE datname = '${TARGET_DATABASE}';" \
+  2>"${WORK_DIR%/}/bounded-database-check.stderr") || fail "could not verify bounded restore left no database"
+if [[ "$bounded_database_count" != "0" ]]; then
+  fail "bounded restore created a database despite rejecting the dump"
+fi
+
 log "restore: running the recovery command in the network-isolated target"
 if ! RECOVERY_GNUPGHOME="$GNUPGHOME" \
   ENCRYPTED_BACKUP_FILE="$encrypted_file" \
