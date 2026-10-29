@@ -26,9 +26,11 @@ async function expectGeneratedPdfDownloadFromExpediente(
       generatedDocument: { tipo: string } | null;
     }>;
   };
-  const indexedDocument = expediente.docs.find(
+  const indexedDocuments = expediente.docs.filter(
     (document) => document.nombre === expectedName && document.generatedDocument?.tipo === type,
   );
+  expect(indexedDocuments).toHaveLength(1);
+  const indexedDocument = indexedDocuments[0];
   if (!indexedDocument) {
     throw new Error(`El documento ${type} no apareció en el expediente del empleado.`);
   }
@@ -140,14 +142,29 @@ test('genera LETTER y MEMO y los descarga desde el expediente del empleado', asy
       throw new Error(`No se pudo identificar el documento ${document.type}.`);
     }
 
-    const pdfResponsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === 'POST' &&
-        response.url().endsWith(`/api/generated-documents/${generatedDocumentId}/generate-pdf`),
-    );
-    await page.getByRole('button', { name: 'Generar PDF', exact: true }).click();
-    const pdfResponse = await pdfResponsePromise;
-    expect(pdfResponse.ok()).toBeTruthy();
+    const pdfGenerationResults = await page.evaluate(async (path) => {
+      return Promise.all(
+        [0, 1].map(async () => {
+          const response = await fetch(path, { method: 'POST' });
+          const responseBody = await response.text();
+          let id: string | undefined;
+          try {
+            id = (JSON.parse(responseBody) as { id?: string }).id;
+          } catch {
+            // The assertion below includes the response body on failures.
+          }
+          return { status: response.status, id, responseBody };
+        }),
+      );
+    }, `/api/generated-documents/${generatedDocumentId}/generate-pdf`);
+    expect(pdfGenerationResults).toHaveLength(2);
+    for (const result of pdfGenerationResults) {
+      expect(result.status, result.responseBody).toBeGreaterThanOrEqual(200);
+      expect(result.status, result.responseBody).toBeLessThan(300);
+      expect(result.id).toBe(generatedDocumentId);
+    }
+
+    await page.reload();
     await expect(page.getByRole('button', { name: 'Descargar PDF', exact: true })).toBeVisible();
 
     await expectGeneratedPdfDownloadFromExpediente(page, employeeId, document.type, document.name);
