@@ -62,7 +62,7 @@ fi
 if [[ ! "$RECOVERY_RECIPIENT_FINGERPRINT" =~ ^[[:xdigit:]]{40,64}$ ]]; then
   fail 64 "recovery recipient fingerprint is invalid"
 fi
-for binary in chmod date docker env gpg mktemp od python3 realpath rm sha256sum stat tr; do
+for binary in bash chmod date docker env gpg mktemp od python3 realpath rm sha256sum stat tr; do
   command -v "$binary" >/dev/null 2>&1 || fail 64 "required executable is unavailable: ${binary}"
 done
 command -v "$OCI_CLI" >/dev/null 2>&1 || fail 64 "OCI CLI is unavailable"
@@ -143,7 +143,7 @@ common_env=(
 
 log "capture: starting PostgreSQL artifact for staging backup set"
 if ! env "${common_env[@]}" "BACKUP_SET_METADATA_FILE=${workdir%/}/postgres.json" \
-  "$POSTGRES_BACKUP_SCRIPT"; then
+  bash "$POSTGRES_BACKUP_SCRIPT"; then
   fail 21 "PostgreSQL artifact failed; no completion marker was published"
 fi
 
@@ -151,7 +151,7 @@ log "capture: starting uploads artifact for staging backup set"
 if ! env "${common_env[@]}" \
   "UPLOADS_ROOT=$UPLOADS_ROOT" "UPLOADS_QUIESCED=true" "TMP_PARENT=$TMP_PARENT" \
   "BACKUP_SET_METADATA_FILE=${workdir%/}/uploads.json" \
-  "$UPLOADS_BACKUP_SCRIPT"; then
+  bash "$UPLOADS_BACKUP_SCRIPT"; then
   fail 22 "uploads artifact failed; no completion marker was published"
 fi
 
