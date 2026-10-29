@@ -12,8 +12,8 @@ Construir una plataforma SaaS multiempresa para:
 - Alertas
 - Facturación electrónica
 
-La contabilidad NO será desarrollada.
-La contabilidad continuará en Siigo, World Office u otros sistemas.
+La plataforma no desarrollará un ERP contable ni sustituirá Siigo, World Office u otros sistemas; la contabilidad operativa continuará en ellos.
+El núcleo contable interno definido por ADR-001 se limita a infraestructura de causación. PR18 solo conecta una factura electrónica `ACEPTADA` a ese núcleo y no amplía el MVP de facturación.
 
 ---
 
