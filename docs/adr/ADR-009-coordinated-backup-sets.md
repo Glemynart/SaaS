@@ -40,9 +40,11 @@ instalada.
    `postgres/oficina_nitida`. No modifica los destinos fijos del servicio diario
    de PostgreSQL.
 2. El artefacto PostgreSQL y el de uploads usan el mismo ID y el prefijo común
-   `backup-sets/<BACKUP_SET_ID>/`. El coordinador recibe el bucket y la región
-   por configuración explícita; el propietario de OCI debe aprobarlos, junto
-   con la retención, antes de cualquier uso real.
+   `backup-sets/<BACKUP_SET_ID>/`. El coordinador recibe bucket, región y OCID
+   esperado del compartimento de staging por configuración explícita; consulta
+   los metadatos del bucket antes de subir y exige coincidencia de namespace,
+   nombre y compartimento, además de acceso no público. El propietario de OCI
+   debe aprobar esas referencias y la retención antes de cualquier uso real.
 3. El operador mantiene una barrera de escritura durante ambas capturas y
    registra la hora UTC de inicio/fin, commit de aplicación, proveedor de storage
    y la atestación de quiescencia. No se declara que la aplicación imponga esta
@@ -54,9 +56,10 @@ instalada.
    `manifest.json.gpg` cifrado para la clave pública de recuperación. La versión
    inicial contiene únicamente el ID, intervalo UTC, referencia no sensible al
    entorno, commit de aplicación, proveedor y referencia del object store y,
-   para cada artefacto, clave OCI, tamaño y SHA-256 del ciphertext. No contiene
-   nombres de archivos internos, tenant IDs, credenciales ni filas de base de
-   datos.
+   para el object store, namespace, bucket, región, prefijo y OCID del
+   compartimento; para cada artefacto, clave OCI, tamaño y SHA-256 del
+   ciphertext. No contiene nombres de archivos internos, tenant IDs,
+   credenciales ni filas de base de datos.
 6. Una recuperación solo acepta un manifiesto descifrable cuyos dos objetos
    compartan el ID esperado y cuyos tamaños y hashes coincidan. Restaura la base
    en PostgreSQL temporal sin red y uploads en un directorio nuevo privado; no
@@ -114,6 +117,9 @@ operativa independiente.
   manifiesto con una identidad `OBJECT_READ` ya autorizada antes de reintentar.
 - El marcador no prueba lectura ni compatibilidad de retención; se necesita una
   identidad `OBJECT_READ` ya autorizada y una restauración revisable.
+- La consulta de metadatos del bucket requiere `BUCKET_READ`, además de
+  `OBJECT_CREATE` para publicar artefactos; ese permiso de lectura debe limitarse
+  al bucket de staging aprobado y no concede lectura del contenido de objetos.
 - La clave pública cifra, pero no autentica el autor del manifiesto. El control
   de escritura OCI y la verificación de los hashes registrados deben revisarse
   como parte de la operación.
@@ -131,8 +137,9 @@ revertir el servicio diario PostgreSQL.
 ## Requisitos operativos pendientes
 
 Antes de usar el coordinador en staging, el propietario operativo debe aprobar
-el bucket y la región, la identidad autorizada de lectura y la retención; además
-debe demostrar la base y el storage aislados y aportar una barrera de escritura
-operativa. La implementación no configura IAM, lifecycle ni servicios reales.
+el bucket, la región, el OCID del compartimento aislado, la identidad autorizada
+de lectura y la retención; además debe demostrar la base y el storage aislados
+y aportar una barrera de escritura operativa. La implementación no configura
+IAM, lifecycle ni servicios reales.
 Mientras falte esa evidencia, E7.1 no se declara completo aunque el recorrido
 sintético funcione.

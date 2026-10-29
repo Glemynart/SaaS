@@ -169,9 +169,13 @@ El contenedor PostgreSQL debe tener la etiqueta
 `postgres/oficina_nitida`, el bucket actual `dusema-backups-prod` y cualquier
 bucket cuyo nombre no identifique `staging`. Requiere una base y un storage
 verificados como aislados, bucket/prefijo aprobados, GPG público disponible y
-un perfil OCI de escritura con mínimo privilegio. La confirmación de aislamiento
-y quiescencia aún es una atestación del operador: el coordinador no detiene por
-sí mismo la API ni los jobs.
+un perfil OCI de escritura con mínimo privilegio. Antes de capturar, consulta
+solo los metadatos del bucket con `oci os bucket get`: comprueba nombre,
+namespace, el OCID del compartimento de staging aprobado y que el bucket no tenga
+acceso público. `GetBucket` requiere `BUCKET_READ`; limítalo al bucket aprobado
+y conserva `OBJECT_CREATE` solo para los objetos del prefijo de backups. La
+confirmación de aislamiento y quiescencia aún es una atestación del operador:
+el coordinador no detiene por sí mismo la API ni los jobs.
 
 **Configuración del runner (solo staging aprobado):** define estas variables en
 una sesión privada. Los valores entre `<...>` son referencias de configuración;
@@ -190,6 +194,7 @@ no guardes contraseñas, claves privadas ni tokens en el entorno permanente.
 | `TMP_PARENT=<private path>`                                                         | Temporal cifrado o `tmpfs` con espacio suficiente para ambas capturas. |
 | `GNUPGHOME=<public key home>` / `RECOVERY_RECIPIENT_FINGERPRINT=<full fingerprint>` | Destinatario público de recuperación.                                  |
 | `OCI_NAMESPACE`, `OCI_BUCKET`, `OCI_REGION`, `OCI_UPLOAD_PROFILE`                   | Destino revisado; el bucket debe identificar `staging`.                |
+| `OCI_EXPECTED_STAGING_COMPARTMENT_OCID`                                             | OCID aprobado del compartimento aislado; se contrasta con OCI antes de subir. |
 | `OCI_OBJECT_PREFIX=backup-sets`                                                     | Prefijo común requerido por el formato.                                |
 
 Después de revisar que no se está usando la base compartida conocida ni el
@@ -211,16 +216,22 @@ quedar disponible para inspección; el comando no declara éxito conjunto.
 La invocación requiere `BACKUP_SET_ID`, `ENCRYPTED_MANIFEST_FILE`,
 `EXPECTED_MANIFEST_CIPHERTEXT_SHA256`, `ENCRYPTED_POSTGRES_FILE`,
 `ENCRYPTED_UPLOADS_FILE`, `RECOVERY_GNUPGHOME`, `RESTORE_SET_NAMESPACE`,
-`RESTORE_SET_BUCKET`, `RESTORE_SET_REGION`, `RESTORE_CONTAINER_ID`,
+`RESTORE_SET_BUCKET`, `RESTORE_SET_REGION`, `RESTORE_SET_COMPARTMENT_OCID`,
+`RESTORE_CONTAINER_ID`,
 `RESTORE_DATABASE`, `RESTORE_TMP_ROOT`, `RESTORE_PARENT` y un
 `RESTORE_DIR_NAME` nuevo. Completa estas variables solo después de descargar los
 tres objetos con una identidad de solo lectura ya autorizada; luego ejecuta
 `bash deploy/postgres-backup/restore-backup-set.sh` en la estación aprobada.
 
+El manifiesto cifrado registra el OCID del compartimento verificado junto con
+namespace, bucket, región y prefijo; la restauración exige que la referencia
+esperada coincida con ese registro.
+
 La prueba sintética no accede a OCI ni prueba la lectura posterior de un objeto.
 Antes de ejecutar en staging, el propietario operativo debe aprobar bucket,
-región, identidad de lectura y retención, demostrar la separación de la base y
-storage, y sostener la barrera de escritura durante ambas capturas. Luego debe
+región, OCID del compartimento aislado, identidad de lectura y retención,
+demostrar la separación de la base y storage, y sostener la barrera de escritura
+durante ambas capturas. Luego debe
 descargar el conjunto con una identidad que ya tenga `OBJECT_READ`, comparar
 los tres ciphertexts y ejecutar la restauración conjunta y el cotejo agregado de
 referencias documentado abajo. No ampliar permisos para completar estas pruebas

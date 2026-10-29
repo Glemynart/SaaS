@@ -27,6 +27,7 @@ GNUPGHOME="${GNUPGHOME:-}"
 RECOVERY_RECIPIENT_FINGERPRINT="${RECOVERY_RECIPIENT_FINGERPRINT:-}"
 OCI_NAMESPACE="${OCI_NAMESPACE:-}"
 OCI_BUCKET="${OCI_BUCKET:-}"
+OCI_EXPECTED_STAGING_COMPARTMENT_OCID="${OCI_EXPECTED_STAGING_COMPARTMENT_OCID:-}"
 OCI_REGION="${OCI_REGION:-}"
 OCI_OBJECT_PREFIX="${OCI_OBJECT_PREFIX:-}"
 OCI_UPLOAD_PROFILE="${OCI_UPLOAD_PROFILE:-}"
@@ -44,11 +45,12 @@ fi
 if [[ -z "$BACKUP_SET_PG_CONTAINER" || -z "$BACKUP_SET_PG_DATABASE" || -z "$BACKUP_SET_PG_ROLE" ||
   -z "$UPLOADS_ROOT" || -z "$TMP_PARENT" || -z "$GNUPGHOME" ||
   -z "$RECOVERY_RECIPIENT_FINGERPRINT" || -z "$OCI_NAMESPACE" || -z "$OCI_BUCKET" ||
-  -z "$OCI_REGION" || -z "$OCI_UPLOAD_PROFILE" ]]; then
+  -z "$OCI_EXPECTED_STAGING_COMPARTMENT_OCID" || -z "$OCI_REGION" || -z "$OCI_UPLOAD_PROFILE" ]]; then
   fail 64 "staging database, uploads, encryption, and object-storage settings are required"
 fi
 if [[ "$OCI_OBJECT_PREFIX" != "backup-sets" || "$OCI_BUCKET" == "dusema-backups-prod" || "$OCI_BUCKET" != *staging* ||
   ! "$OCI_NAMESPACE" =~ ^[A-Za-z0-9-]{1,64}$ || ! "$OCI_BUCKET" =~ ^[A-Za-z0-9._-]{1,255}$ ||
+  ! "$OCI_EXPECTED_STAGING_COMPARTMENT_OCID" =~ ^ocid1\.compartment\.[A-Za-z0-9._-]{1,237}$ ||
   ! "$OCI_REGION" =~ ^[A-Za-z0-9-]{1,64}$ || ! "$OCI_UPLOAD_PROFILE" =~ ^[A-Za-z0-9._-]{1,64}$ ]]; then
   fail 64 "coordinated backup destination is invalid or points to the production backup bucket"
 fi
@@ -122,6 +124,20 @@ trap 'exit 143' TERM
 trap 'exit 129' HUP
 chmod 0700 -- "$workdir" 2>/dev/null || fail 70 "could not restrict backup set workspace permissions"
 
+bucket_metadata="${workdir%/}/bucket.json"
+if ! "$OCI_CLI" os bucket get \
+  --namespace-name "$OCI_NAMESPACE" --bucket-name "$OCI_BUCKET" \
+  --region "$OCI_REGION" --profile "$OCI_UPLOAD_PROFILE" --output json \
+  >"$bucket_metadata" 2>"${workdir%/}/bucket-oci.stderr"; then
+  fail 34 "OCI could not verify the approved staging bucket before backup"
+fi
+if ! python3 "$MANIFEST_HELPER" validate-bucket \
+  --response "$bucket_metadata" --namespace "$OCI_NAMESPACE" \
+  --bucket "$OCI_BUCKET" --compartment-ocid "$OCI_EXPECTED_STAGING_COMPARTMENT_OCID" \
+  2>"${workdir%/}/bucket-validation.stderr"; then
+  fail 34 "OCI bucket metadata does not match the approved private staging destination"
+fi
+
 common_env=(
   "BACKUP_SET_ID=$BACKUP_SET_ID"
   "BACKUP_SET_ENVIRONMENT=staging"
@@ -135,6 +151,7 @@ common_env=(
   "RECOVERY_RECIPIENT_FINGERPRINT=$RECOVERY_RECIPIENT_FINGERPRINT"
   "OCI_NAMESPACE=$OCI_NAMESPACE"
   "OCI_BUCKET=$OCI_BUCKET"
+  "OCI_EXPECTED_STAGING_COMPARTMENT_OCID=$OCI_EXPECTED_STAGING_COMPARTMENT_OCID"
   "OCI_REGION=$OCI_REGION"
   "OCI_OBJECT_PREFIX=$OCI_OBJECT_PREFIX"
   "OCI_UPLOAD_PROFILE=$OCI_UPLOAD_PROFILE"
@@ -165,6 +182,7 @@ if ! python3 "$MANIFEST_HELPER" create \
   --application-revision "${BACKUP_SET_APPLICATION_REVISION,,}" \
   --storage-provider "$BACKUP_SET_STORAGE_PROVIDER" \
   --namespace "$OCI_NAMESPACE" --bucket "$OCI_BUCKET" --region "$OCI_REGION" \
+  --compartment-ocid "$OCI_EXPECTED_STAGING_COMPARTMENT_OCID" \
   --postgres-metadata "${workdir%/}/postgres.json" \
   --uploads-metadata "${workdir%/}/uploads.json" --output "$manifest_file" \
   2>"${workdir%/}/manifest.stderr"; then

@@ -21,6 +21,7 @@ SET_ID = "20261029T120000Z-0123456789abcdef"
 NAMESPACE = "stagingnamespace"
 BUCKET = "dusema-staging-backups"
 REGION = "sa-bogota-1"
+COMPARTMENT_OCID = "ocid1.compartment.oc1..staging1234567890"
 PREFIX = "backup-sets"
 
 
@@ -66,6 +67,7 @@ class BackupSetManifestTests(unittest.TestCase):
                 namespace=NAMESPACE,
                 bucket=BUCKET,
                 region=REGION,
+                compartment_ocid=COMPARTMENT_OCID,
                 postgres_metadata=str(self.postgres_metadata),
                 uploads_metadata=str(self.uploads_metadata),
                 output=str(self.manifest_file),
@@ -74,12 +76,15 @@ class BackupSetManifestTests(unittest.TestCase):
 
     def validate(self, manifest: dict | None = None) -> None:
         decoded = manifest or manifest_module.read_regular_json(self.manifest_file, "test manifest")
-        manifest_module.validate_manifest(decoded, SET_ID, PREFIX, NAMESPACE, BUCKET, REGION)
+        manifest_module.validate_manifest(
+            decoded, SET_ID, PREFIX, NAMESPACE, BUCKET, REGION, COMPARTMENT_OCID
+        )
 
     def test_records_ciphertext_and_creates_a_minimal_pair_manifest(self) -> None:
         manifest = manifest_module.read_regular_json(self.manifest_file, "test manifest")
         self.validate(manifest)
         self.assertEqual(set(manifest["artifacts"]), {"postgres", "uploads"})
+        self.assertEqual(manifest["object_store"]["compartment_ocid"], COMPARTMENT_OCID)
         self.assertEqual(manifest["artifacts"]["postgres"]["key"], f"{PREFIX}/{SET_ID}/postgres.dump.gpg")
         self.assertEqual(manifest["artifacts"]["uploads"]["key"], f"{PREFIX}/{SET_ID}/uploads.tar.gpg")
         self.assertEqual(manifest["artifacts"]["postgres"]["bytes"], self.postgres_file.stat().st_size)
@@ -95,6 +100,7 @@ class BackupSetManifestTests(unittest.TestCase):
                     namespace=NAMESPACE,
                     bucket=BUCKET,
                     region=REGION,
+                    compartment_ocid=COMPARTMENT_OCID,
                     postgres_file=str(self.postgres_file),
                     uploads_file=str(self.uploads_file),
                 )
@@ -105,6 +111,19 @@ class BackupSetManifestTests(unittest.TestCase):
         manifest["artifacts"]["uploads"]["key"] = "backup-sets/20261029T120001Z-fedcba9876543210/uploads.tar.gpg"
         with self.assertRaisesRegex(manifest_module.ManifestError, "object key"):
             self.validate(manifest)
+
+    def test_rejects_restore_from_an_unapproved_compartment(self) -> None:
+        manifest = manifest_module.read_regular_json(self.manifest_file, "test manifest")
+        with self.assertRaisesRegex(manifest_module.ManifestError, "compartment does not match"):
+            manifest_module.validate_manifest(
+                manifest,
+                SET_ID,
+                PREFIX,
+                NAMESPACE,
+                BUCKET,
+                REGION,
+                "ocid1.compartment.oc1..otherstaging123",
+            )
 
     def test_rejects_production_bucket(self) -> None:
         with self.assertRaisesRegex(manifest_module.ManifestError, "staging object-storage bucket"):
@@ -120,9 +139,60 @@ class BackupSetManifestTests(unittest.TestCase):
                     namespace=NAMESPACE,
                     bucket="dusema-backups-prod",
                     region=REGION,
+                    compartment_ocid=COMPARTMENT_OCID,
                     postgres_metadata=str(self.postgres_metadata),
                     uploads_metadata=str(self.uploads_metadata),
                     output=str(self.root / "unsafe.json"),
+                )
+            )
+
+    def test_rejects_bucket_outside_approved_staging_compartment(self) -> None:
+        response = self.root / "bucket.json"
+        response.write_text(
+            json.dumps(
+                {
+                    "data": {
+                        "name": BUCKET,
+                        "namespace": NAMESPACE,
+                        "compartment-id": "ocid1.compartment.oc1..production123456",
+                        "public-access-type": "NoPublicAccess",
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(manifest_module.ManifestError, "outside the approved staging compartment"):
+            manifest_module.validate_bucket_command(
+                Namespace(
+                    response=str(response),
+                    namespace=NAMESPACE,
+                    bucket=BUCKET,
+                    compartment_ocid=COMPARTMENT_OCID,
+                )
+            )
+
+    def test_rejects_public_backup_bucket(self) -> None:
+        response = self.root / "bucket-public.json"
+        response.write_text(
+            json.dumps(
+                {
+                    "data": {
+                        "name": BUCKET,
+                        "namespace": NAMESPACE,
+                        "compartment-id": COMPARTMENT_OCID,
+                        "public-access-type": "ObjectRead",
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(manifest_module.ManifestError, "must not allow public access"):
+            manifest_module.validate_bucket_command(
+                Namespace(
+                    response=str(response),
+                    namespace=NAMESPACE,
+                    bucket=BUCKET,
+                    compartment_ocid=COMPARTMENT_OCID,
                 )
             )
 

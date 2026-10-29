@@ -23,6 +23,7 @@ PREFIX_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
 NAMESPACE_RE = re.compile(r"^[A-Za-z0-9-]{1,64}$")
 BUCKET_RE = re.compile(r"^[A-Za-z0-9._-]{1,255}$")
 REGION_RE = re.compile(r"^[A-Za-z0-9-]{1,64}$")
+COMPARTMENT_OCID_RE = re.compile(r"^ocid1\.compartment\.[A-Za-z0-9._-]{1,237}$")
 UTC_TIMESTAMP_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
 MANIFEST_FIELDS = {
     "schema_version",
@@ -36,7 +37,7 @@ MANIFEST_FIELDS = {
     "artifacts",
 }
 ARTIFACT_FIELDS = {"key", "bytes", "sha256"}
-OBJECT_STORE_FIELDS = {"namespace", "bucket", "region", "prefix"}
+OBJECT_STORE_FIELDS = {"namespace", "bucket", "region", "prefix", "compartment_ocid"}
 
 
 class ManifestError(ValueError):
@@ -67,6 +68,14 @@ def validate_prefix(value: Any) -> str:
     require(not value.endswith("/") and "//" not in value, "object prefix is invalid")
     require(".." not in value.split("/"), "object prefix contains a traversal segment")
     require(value == "backup-sets", "coordinated backups must use the backup-sets prefix")
+    return value
+
+
+def validate_compartment_ocid(value: Any) -> str:
+    require(
+        isinstance(value, str) and COMPARTMENT_OCID_RE.fullmatch(value) is not None,
+        "staging compartment OCID is invalid",
+    )
     return value
 
 
@@ -160,6 +169,7 @@ def create_manifest(args: argparse.Namespace) -> None:
     require(BUCKET_RE.fullmatch(args.bucket) is not None, "object storage bucket is invalid")
     require(args.bucket != "dusema-backups-prod" and "staging" in args.bucket.lower(), "coordinated sets require a staging object-storage bucket")
     require(REGION_RE.fullmatch(args.region) is not None, "object storage region is invalid")
+    compartment_ocid = validate_compartment_ocid(args.compartment_ocid)
 
     manifest = {
         "schema_version": 1,
@@ -174,6 +184,7 @@ def create_manifest(args: argparse.Namespace) -> None:
             "bucket": args.bucket,
             "region": args.region,
             "prefix": prefix,
+            "compartment_ocid": compartment_ocid,
         },
         "artifacts": {
             "postgres": read_artifact_record(args.postgres_metadata, "postgres", set_id, prefix),
@@ -197,6 +208,7 @@ def validate_manifest(
     expected_namespace: str,
     expected_bucket: str,
     expected_region: str,
+    expected_compartment_ocid: str,
 ) -> dict[str, Any]:
     require(set(manifest) == MANIFEST_FIELDS, "manifest fields are invalid")
     require(manifest["schema_version"] == 1 and type(manifest["schema_version"]) is int, "manifest version is unsupported")
@@ -217,6 +229,11 @@ def validate_manifest(
     require(store["bucket"] == expected_bucket and BUCKET_RE.fullmatch(store["bucket"]) is not None, "manifest object-store bucket does not match")
     require(store["bucket"] != "dusema-backups-prod" and "staging" in store["bucket"].lower(), "coordinated sets require a staging object-storage bucket")
     require(store["region"] == expected_region and REGION_RE.fullmatch(store["region"]) is not None, "manifest object-store region does not match")
+    compartment_ocid = validate_compartment_ocid(store["compartment_ocid"])
+    require(
+        compartment_ocid == validate_compartment_ocid(expected_compartment_ocid),
+        "manifest object-store compartment does not match",
+    )
 
     artifacts = manifest["artifacts"]
     require(isinstance(artifacts, dict) and set(artifacts) == {"postgres", "uploads"}, "manifest must reference PostgreSQL and uploads")
@@ -231,12 +248,33 @@ def validate_manifest(
 
 def validate_command(args: argparse.Namespace) -> None:
     manifest = read_regular_json(args.manifest, "backup set manifest")
-    validate_manifest(manifest, args.expected_id, args.prefix, args.namespace, args.bucket, args.region)
+    validate_manifest(
+        manifest,
+        args.expected_id,
+        args.prefix,
+        args.namespace,
+        args.bucket,
+        args.region,
+        args.compartment_ocid,
+    )
     for kind, path in (("postgres", args.postgres_file), ("uploads", args.uploads_file)):
         byte_count, digest = digest_file(path)
         expected = manifest["artifacts"][kind]
         require(byte_count == expected["bytes"], f"{kind} ciphertext size does not match the manifest")
         require(digest == expected["sha256"], f"{kind} ciphertext SHA-256 does not match the manifest")
+
+
+def validate_bucket_command(args: argparse.Namespace) -> None:
+    response = read_regular_json(args.response, "OCI bucket metadata")
+    data = response.get("data")
+    require(isinstance(data, dict), "OCI bucket metadata is invalid")
+    require(data.get("name") == args.bucket, "OCI bucket name does not match the approved destination")
+    require(data.get("namespace") == args.namespace, "OCI bucket namespace does not match the approved destination")
+    require(
+        data.get("compartment-id") == validate_compartment_ocid(args.compartment_ocid),
+        "OCI bucket is outside the approved staging compartment",
+    )
+    require(data.get("public-access-type") == "NoPublicAccess", "OCI backup bucket must not allow public access")
 
 
 def artifact_field(args: argparse.Namespace) -> None:
@@ -273,6 +311,7 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--namespace", required=True)
     create.add_argument("--bucket", required=True)
     create.add_argument("--region", required=True)
+    create.add_argument("--compartment-ocid", required=True)
     create.add_argument("--postgres-metadata", required=True)
     create.add_argument("--uploads-metadata", required=True)
     create.add_argument("--output", required=True)
@@ -285,9 +324,17 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--namespace", required=True)
     validate.add_argument("--bucket", required=True)
     validate.add_argument("--region", required=True)
+    validate.add_argument("--compartment-ocid", required=True)
     validate.add_argument("--postgres-file", required=True)
     validate.add_argument("--uploads-file", required=True)
     validate.set_defaults(run=validate_command)
+
+    bucket = subparsers.add_parser("validate-bucket")
+    bucket.add_argument("--response", required=True)
+    bucket.add_argument("--namespace", required=True)
+    bucket.add_argument("--bucket", required=True)
+    bucket.add_argument("--compartment-ocid", required=True)
+    bucket.set_defaults(run=validate_bucket_command)
 
     field = subparsers.add_parser("artifact-field")
     field.add_argument("--manifest", required=True)
