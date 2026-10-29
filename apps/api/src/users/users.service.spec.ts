@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { AuditService } from '../audit/audit.service';
@@ -55,7 +55,10 @@ describe('UsersService management', () => {
       return Promise.resolve(managedUser);
     });
     const auditLog = jest.fn().mockResolvedValue(undefined);
-    const tx = { user: { create } };
+    const tx = {
+      user: { create },
+      userInvitation: { findFirst: jest.fn().mockResolvedValue(null) },
+    };
     const prisma = {
       $transaction: jest.fn((callback: (value: typeof tx) => unknown) =>
         callback(tx),
@@ -96,6 +99,36 @@ describe('UsersService management', () => {
       }),
       tx,
     );
+  });
+
+  it('does not create a direct account while that email has an open invitation', async () => {
+    const create = jest.fn();
+    const tx = {
+      user: { create },
+      userInvitation: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'invitation-1' }),
+      },
+    };
+    const prisma = {
+      $transaction: jest.fn((callback: (value: typeof tx) => unknown) =>
+        callback(tx),
+      ),
+    };
+    const service = new UsersService(
+      prisma as unknown as PrismaService,
+      {} as AuditService,
+    );
+
+    await expect(
+      service.createManaged('tenant-1', 'admin-1', {
+        email: 'operator@example.test',
+        nombre: 'Ana',
+        apellido: 'Operadora',
+        passwordPlain: 'Secure-password-123!',
+        rol: UserRole.OPERADOR,
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(create).not.toHaveBeenCalled();
   });
 
   it('does not allow removing the last active administrator', async () => {

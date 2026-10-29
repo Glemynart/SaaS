@@ -59,6 +59,12 @@ export function useResetPassword() {
   });
 }
 
+export function useAcceptInvitation() {
+  return useMutation({
+    mutationFn: authClient.acceptInvitation,
+  });
+}
+
 export function useLogout() {
   const queryClient = useQueryClient();
   const router = useRouter();

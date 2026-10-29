@@ -94,6 +94,22 @@ export class UsersService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        const pendingInvitation = await tx.userInvitation.findFirst({
+          where: {
+            tenantId,
+            email,
+            openKey: 'OPEN',
+            acceptedAt: null,
+            revokedAt: null,
+          },
+          select: { id: true },
+        });
+        if (pendingInvitation) {
+          throw new ConflictException(
+            'Ya existe una invitación pendiente para este correo. Revócala antes de crear la cuenta directamente.',
+          );
+        }
+
         const user = await tx.user.create({
           data: {
             tenantId,
@@ -148,6 +164,27 @@ export class UsersService {
           select: { id: true, rol: true, activo: true, email: true },
         });
         if (!current) throw new NotFoundException('Usuario no encontrado.');
+
+        if (data.email !== undefined) {
+          const nextEmail = data.email.trim().toLowerCase();
+          if (nextEmail !== current.email) {
+            const pendingInvitation = await tx.userInvitation.findFirst({
+              where: {
+                tenantId,
+                email: nextEmail,
+                openKey: 'OPEN',
+                acceptedAt: null,
+                revokedAt: null,
+              },
+              select: { id: true },
+            });
+            if (pendingInvitation) {
+              throw new ConflictException(
+                'Ya existe una invitación pendiente para este correo. Revócala antes de asignar el correo al usuario.',
+              );
+            }
+          }
+        }
 
         const nextRole = data.rol ?? current.rol;
         const nextActive = data.activo ?? current.activo;
