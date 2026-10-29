@@ -194,3 +194,72 @@ test('shows the terminal state if the token is consumed after prevalidation', as
   await expect(page.getByRole('heading', { name: 'Este enlace ya no es válido' })).toBeVisible();
   await expect(page.getByLabel('Contraseña nueva')).not.toBeVisible();
 });
+
+test('completes password recovery through the isolated SMTP sink and authenticated login', async ({
+  page,
+}, testInfo) => {
+  const suffix = `${Date.now().toString().slice(-8)}${testInfo.retry}`;
+  const nit = `9${suffix}`;
+  const email = `reset-e2e-${suffix}@example.test`;
+  const initialPassword = 'E2e-password-123!';
+  const replacementPassword = 'Replacement-password-123!';
+
+  async function capturedResetMessages() {
+    const response = await fetch(`http://127.0.0.1:8025/messages?to=${encodeURIComponent(email)}`);
+    expect(response.ok).toBeTruthy();
+    const body = (await response.json()) as {
+      messages: Array<{ raw: string }>;
+    };
+    return body.messages;
+  }
+
+  function resetLink(rawMessage: string) {
+    const decoded = rawMessage
+      .replace(/=\r?\n/g, '')
+      .replace(/=([0-9a-f]{2})/gi, (_, hex: string) =>
+        String.fromCharCode(Number.parseInt(hex, 16)),
+      );
+    const match = decoded.match(/href=["']([^"']*\/restablecer#token=[^"']+)["']/i);
+    expect(match, 'reset email contains a fragment token link').toBeTruthy();
+
+    const url = new URL(match![1]!);
+    expect(url.pathname).toBe('/restablecer');
+    expect(url.searchParams.has('token')).toBe(false);
+    const token = new URLSearchParams(url.hash.slice(1)).get('token');
+    expect(token).toBeTruthy();
+    return { url, token: token! };
+  }
+
+  await page.goto('/registro');
+  await page.getByLabel('NIT', { exact: true }).fill(nit);
+  await page.getByLabel('Dígito').fill('1');
+  await page.getByLabel('Nombre comercial').fill('Recuperación E2E');
+  await page.getByLabel('Razón social').fill('Recuperación E2E S.A.S.');
+  await page.getByLabel('Nombre administrador').fill('Laura');
+  await page.getByLabel('Apellido').fill('Gómez');
+  await page.getByLabel('Correo administrador').fill(email);
+  await page.getByRole('textbox', { name: 'Contraseña' }).fill(initialPassword);
+  await page.getByRole('button', { name: 'Crear empresa' }).click();
+  await expect(page).toHaveURL(/\/login\?registered=1$/);
+
+  await page.goto('/recuperar');
+  await page.getByLabel('NIT de la empresa').fill(nit);
+  await page.getByLabel('Correo').fill(email);
+  await page.getByRole('button', { name: 'Enviar enlace de recuperación' }).click();
+  await expect(page.getByRole('heading', { name: 'Revisa tu correo' })).toBeVisible();
+  await expect.poll(async () => (await capturedResetMessages()).length).toBe(1);
+
+  const { url } = resetLink((await capturedResetMessages())[0]!.raw);
+  await page.goto(url.toString());
+  await expect(page.getByLabel('Contraseña nueva')).toBeVisible();
+  await page.getByLabel('Contraseña nueva').fill(replacementPassword);
+  await page.getByRole('button', { name: 'Guardar y continuar' }).click();
+  await expect(page).toHaveURL(/\/login\?reset=1$/);
+
+  await page.getByLabel('NIT de la empresa').fill(nit);
+  await page.getByLabel('Correo').fill(email);
+  await page.getByRole('textbox', { name: 'Contraseña' }).fill(replacementPassword);
+  await page.getByRole('button', { name: 'Entrar' }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByText(/Hola, Laura\./)).toBeVisible();
+});
