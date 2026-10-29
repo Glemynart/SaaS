@@ -43,10 +43,13 @@ el aislamiento por organización sin prometer cambio de contexto entre empresas.
 E2.2 tiene una implementación candidata en la [PR #144](https://github.com/Glemynart/SaaS/pull/144): el ADMIN
 gestiona invitaciones por tenant, el correo lleva un enlace de un solo uso y la
 persona define su contraseña antes de iniciar sesión. La suite API valida
-persistencia, expiración, aislamiento y consumo atómico; el Browser E2E recorre
-la gestión y activación con la entrega de correo simulada. El ambiente local no
-tiene SMTP configurado: la entrega a un buzón real y la aceptación operacional
-en staging siguen pendientes, por lo que E2.2 permanece sin cerrar.
+expiración y reglas de negocio. Dos integraciones PostgreSQL cubren la
+persistencia del hash, aislamiento tenant, auditoría, consumo concurrente de un
+solo uso y autorización de los endpoints HTTP por rol y tenant. El Browser E2E
+valida la interfaz con las rutas de invitación interceptadas y la aceptación
+simulada; las integraciones HTTP sustituyen el transporte de correo. El ambiente
+local no tiene SMTP configurado: la entrega a un buzón real y la aceptación
+operacional en staging siguen pendientes, por lo que E2.2 permanece sin cerrar.
 
 **Pausa selectiva:** GOAL-01 permanece `ACTIVO` y M1 continúa `BLOQUEADO POR
 INFRAESTRUCTURA EXTERNA`. Las Epics que requieran dominio, DNS, Cloudflare, R2,
