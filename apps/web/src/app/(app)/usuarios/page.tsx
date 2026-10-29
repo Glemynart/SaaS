@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { AlertTriangle, Plus, UserCog } from 'lucide-react';
+import { AlertTriangle, MailPlus, Plus, RotateCw, UserCog } from 'lucide-react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -13,8 +13,20 @@ import { Select } from '@/components/ui/select';
 import { SideSheet } from '@/components/ui/side-sheet';
 import { toast } from '@/components/ui/toast';
 import { useMe } from '@/features/auth/hooks/use-auth';
-import { useCreateUser, useUpdateUser, useUsers } from '@/features/users/hooks/use-users';
-import type { ManagedUser, ManagedUserRole } from '@/features/users/services/users-api';
+import {
+  useCreateUser,
+  useCreateUserInvitation,
+  useResendUserInvitation,
+  useRevokeUserInvitation,
+  useUpdateUser,
+  useUserInvitations,
+  useUsers,
+} from '@/features/users/hooks/use-users';
+import type {
+  ManagedUser,
+  ManagedUserRole,
+  UserInvitationSummary,
+} from '@/features/users/services/users-api';
 import { getUserFacingError } from '@/lib/error-message';
 
 type UserForm = {
@@ -25,11 +37,20 @@ type UserForm = {
   rol: ManagedUserRole;
 };
 
+type InvitationForm = Omit<UserForm, 'passwordPlain'>;
+
 const EMPTY_FORM: UserForm = {
   email: '',
   nombre: '',
   apellido: '',
   passwordPlain: '',
+  rol: 'OPERADOR',
+};
+
+const EMPTY_INVITATION: InvitationForm = {
+  email: '',
+  nombre: '',
+  apellido: '',
   rol: 'OPERADOR',
 };
 
@@ -45,21 +66,34 @@ function formatLastLogin(value: string | null) {
 export default function UsersPage() {
   const me = useMe();
   const { data, isLoading, isError, error, refetch } = useUsers();
+  const invitationQuery = useUserInvitations();
   const createMutation = useCreateUser();
   const updateMutation = useUpdateUser();
+  const createInvitationMutation = useCreateUserInvitation();
+  const resendInvitationMutation = useResendUserInvitation();
+  const revokeInvitationMutation = useRevokeUserInvitation();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [invitationSheetOpen, setInvitationSheetOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<ManagedUser | null>(null);
   const [pendingStatus, setPendingStatus] = useState<ManagedUser | null>(null);
+  const [pendingInvitation, setPendingInvitation] = useState<UserInvitationSummary | null>(null);
   const [form, setForm] = useState<UserForm>(EMPTY_FORM);
+  const [invitationForm, setInvitationForm] = useState<InvitationForm>(EMPTY_INVITATION);
 
   const currentUserId = me.data?.user.id;
   const mutationError = createMutation.error ?? updateMutation.error;
   const users = data ?? [];
+  const invitations = invitationQuery.data ?? [];
 
   function openCreate() {
     setSelectedUser(null);
     setForm(EMPTY_FORM);
     setSheetOpen(true);
+  }
+
+  function openInvite() {
+    setInvitationForm(EMPTY_INVITATION);
+    setInvitationSheetOpen(true);
   }
 
   function openEdit(user: ManagedUser) {
@@ -76,6 +110,35 @@ export default function UsersPage() {
 
   function updateForm(field: keyof UserForm, value: string) {
     setForm((previous) => ({ ...previous, [field]: value }));
+  }
+
+  function updateInvitationForm(field: keyof InvitationForm, value: string) {
+    setInvitationForm((previous) => ({ ...previous, [field]: value }));
+  }
+
+  function submitInvitation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    createInvitationMutation.mutate(invitationForm, {
+      onSuccess: () => {
+        setInvitationSheetOpen(false);
+        toast.success('Invitación enviada.');
+      },
+      onError: (mutationError) =>
+        toast.error(
+          getUserFacingError(
+            mutationError,
+            'No se pudo enviar la invitación. Revisa el correo transaccional e inténtalo de nuevo.',
+          ),
+        ),
+    });
+  }
+
+  function resendInvitation(invitation: UserInvitationSummary) {
+    resendInvitationMutation.mutate(invitation.id, {
+      onSuccess: () => toast.success('Invitación reenviada.'),
+      onError: (mutationError) =>
+        toast.error(getUserFacingError(mutationError, 'No se pudo reenviar la invitación.')),
+    });
   }
 
   function submitForm(event: FormEvent<HTMLFormElement>) {
@@ -135,10 +198,16 @@ export default function UsersPage() {
       description="Administra las cuentas que pueden operar esta organización."
       width="wide"
       actions={
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="size-4" aria-hidden="true" />
-          Nuevo usuario
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={openInvite}>
+            <MailPlus className="size-4" aria-hidden="true" />
+            Invitar usuario
+          </Button>
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="size-4" aria-hidden="true" />
+            Nuevo usuario
+          </Button>
+        </div>
       }
     >
       {mutationError && (
@@ -168,10 +237,16 @@ export default function UsersPage() {
           title="Aún no hay usuarios adicionales."
           description="Crea una cuenta para que otra persona opere la organización sin compartir credenciales."
           action={
-            <Button size="sm" onClick={openCreate}>
-              <Plus className="size-4" aria-hidden="true" />
-              Nuevo usuario
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={openInvite}>
+                <MailPlus className="size-4" aria-hidden="true" />
+                Invitar usuario
+              </Button>
+              <Button size="sm" onClick={openCreate}>
+                <Plus className="size-4" aria-hidden="true" />
+                Nuevo usuario
+              </Button>
+            </div>
           }
         />
       ) : (
@@ -231,6 +306,97 @@ export default function UsersPage() {
         </div>
       )}
 
+      {invitationQuery.isError && (
+        <Alert variant="destructive" className="mt-6">
+          No pudimos cargar las invitaciones.{' '}
+          <button
+            type="button"
+            className="font-medium underline underline-offset-2"
+            onClick={() => invitationQuery.refetch()}
+          >
+            Reintentar
+          </button>
+        </Alert>
+      )}
+
+      {invitations.length > 0 && (
+        <section className="mt-8 space-y-3" aria-labelledby="pending-invitations-title">
+          <div>
+            <h2 id="pending-invitations-title" className="text-base font-semibold">
+              Invitaciones pendientes
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Reenvía enlaces vencidos o revoca accesos que ya no necesitas.
+            </p>
+          </div>
+          <div className="overflow-hidden rounded-xl border border-border bg-surface">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-border bg-surface/50 text-muted-foreground">
+                <tr>
+                  <th className="px-5 py-3 font-medium">Persona</th>
+                  <th className="px-5 py-3 font-medium">Rol</th>
+                  <th className="px-5 py-3 font-medium">Vencimiento</th>
+                  <th className="px-5 py-3 font-medium">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {invitations.map((invitation) => {
+                  const expired = new Date(invitation.expiresAt).getTime() <= Date.now();
+                  return (
+                    <tr key={invitation.id}>
+                      <td className="px-5 py-3">
+                        <p className="font-medium text-foreground">
+                          {invitation.nombre} {invitation.apellido}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{invitation.email}</p>
+                      </td>
+                      <td className="px-5 py-3 text-muted-foreground">
+                        {invitation.rol === 'ADMIN' ? 'Administrador' : 'Operador'}
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className={expired ? 'text-destructive' : 'text-muted-foreground'}>
+                          {expired ? 'Vencida' : 'Vence'}{' '}
+                          {new Date(invitation.expiresAt).toLocaleDateString('es-CO', {
+                            dateStyle: 'medium',
+                          })}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={
+                              resendInvitationMutation.isPending ||
+                              revokeInvitationMutation.isPending
+                            }
+                            onClick={() => resendInvitation(invitation)}
+                          >
+                            <RotateCw className="size-3.5" aria-hidden="true" />
+                            Reenviar
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={
+                              resendInvitationMutation.isPending ||
+                              revokeInvitationMutation.isPending
+                            }
+                            onClick={() => setPendingInvitation(invitation)}
+                          >
+                            Revocar
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       <SideSheet
         open={sheetOpen}
         onOpenChange={setSheetOpen}
@@ -238,7 +404,7 @@ export default function UsersPage() {
         description={
           selectedUser
             ? 'Actualiza los datos y el rol de la cuenta.'
-            : 'Crea una cuenta directamente. Las invitaciones por correo pertenecen a otra Epic.'
+            : 'Crea la cuenta con una contraseña inicial o envía una invitación personal por correo.'
         }
       >
         <form className="space-y-4" onSubmit={submitForm}>
@@ -321,6 +487,76 @@ export default function UsersPage() {
         </form>
       </SideSheet>
 
+      <SideSheet
+        open={invitationSheetOpen}
+        onOpenChange={setInvitationSheetOpen}
+        title="Invitar usuario"
+        description="Enviaremos un enlace personal para que configure su contraseña y active su acceso."
+      >
+        <form className="space-y-4" onSubmit={submitInvitation}>
+          <div className="space-y-1.5">
+            <Label htmlFor="invitation-email">Correo</Label>
+            <Input
+              id="invitation-email"
+              type="email"
+              autoComplete="email"
+              value={invitationForm.email}
+              onChange={(event) => updateInvitationForm('email', event.target.value)}
+              required
+              maxLength={254}
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="invitation-nombre">Nombre</Label>
+              <Input
+                id="invitation-nombre"
+                value={invitationForm.nombre}
+                onChange={(event) => updateInvitationForm('nombre', event.target.value)}
+                required
+                maxLength={100}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="invitation-apellido">Apellido</Label>
+              <Input
+                id="invitation-apellido"
+                value={invitationForm.apellido}
+                onChange={(event) => updateInvitationForm('apellido', event.target.value)}
+                required
+                maxLength={100}
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="invitation-role">Rol</Label>
+            <Select
+              id="invitation-role"
+              value={invitationForm.rol}
+              onChange={(event) =>
+                updateInvitationForm('rol', event.target.value as ManagedUserRole)
+              }
+            >
+              <option value="OPERADOR">Operador</option>
+              <option value="ADMIN">Administrador</option>
+            </Select>
+          </div>
+          <div className="flex gap-3 border-t border-border pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={() => setInvitationSheetOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" className="flex-1" disabled={createInvitationMutation.isPending}>
+              {createInvitationMutation.isPending ? 'Enviando...' : 'Enviar invitación'}
+            </Button>
+          </div>
+        </form>
+      </SideSheet>
+
       <ConfirmDialog
         level={1}
         open={pendingStatus !== null}
@@ -339,6 +575,32 @@ export default function UsersPage() {
           await updateMutation.mutateAsync({ id: pendingStatus.id, data: { activo: false } });
           setPendingStatus(null);
           toast.success('Usuario desactivado.');
+        }}
+      />
+
+      <ConfirmDialog
+        level={1}
+        open={pendingInvitation !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingInvitation(null);
+        }}
+        title="Revocar invitación"
+        description={
+          pendingInvitation
+            ? pendingInvitation.email +
+              ' ya no podrá usar el enlace de invitación. Puedes enviar otra invitación más adelante.'
+            : ''
+        }
+        confirmLabel="Revocar invitación"
+        onConfirm={async () => {
+          if (!pendingInvitation) return;
+          try {
+            await revokeInvitationMutation.mutateAsync(pendingInvitation.id);
+            setPendingInvitation(null);
+            toast.success('Invitación revocada.');
+          } catch (mutationError) {
+            toast.error(getUserFacingError(mutationError, 'No se pudo revocar la invitación.'));
+          }
         }}
       />
     </PageHeader>

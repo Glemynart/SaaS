@@ -45,6 +45,8 @@ import { PlatformAdminModule } from './platform-admin/platform-admin.module';
 const REGISTER_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 3;
 const LOGIN_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 50 : 5;
 const FORGOT_PASSWORD_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
+const VALIDATE_RESET_TOKEN_RATE_LIMIT =
+  process.env.NODE_ENV === 'test' ? 50 : 5;
 
 @Module({
   imports: [
@@ -108,6 +110,11 @@ const FORGOT_PASSWORD_RATE_LIMIT = process.env.NODE_ENV === 'test' ? 10 : 3;
         name: 'resetPassword',
         ttl: 900000,
         limit: process.env.NODE_ENV === 'test' ? 50 : 5,
+      },
+      {
+        name: 'validateResetToken',
+        ttl: 900000,
+        limit: VALIDATE_RESET_TOKEN_RATE_LIMIT,
       },
     ]),
     ScheduleModule.forRoot(),
