@@ -128,7 +128,7 @@ SQL
 then
   fail "could not prepare synthetic database fixture"
 fi
-mkdir -m 0700 -- "${UPLOADS_ROOT%/}/employees/employee-01" "${UPLOADS_ROOT%/}/policies" \
+mkdir -p -m 0700 -- "${UPLOADS_ROOT%/}/employees/employee-01" "${UPLOADS_ROOT%/}/policies" \
   || fail "could not prepare synthetic uploads directories"
 printf 'synthetic contract bytes\n' >"${UPLOADS_ROOT%/}/employees/employee-01/contract.txt"
 printf 'synthetic retention policy\n' >"${UPLOADS_ROOT%/}/policies/retention.txt"
