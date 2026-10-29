@@ -1,8 +1,8 @@
-﻿# <a name="project_state.md"></a>PROJECT_STATE.md
+# <a name="project_state.md"></a>PROJECT_STATE.md
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 activo; E7.3 fuera del Goal y ADR-008 aceptado como referencia futura; M1 bloqueado por infraestructura externa (2026-08-03)
+## Última actualización: GOAL-01 activo; M1 bloqueado por validación operativa externa; PR #124 prepara aislamiento (2026-10-29)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -161,7 +161,7 @@ Estado actual:
 
 Goal activo:
 
-- 🟡 GOAL-01 activo — M1 está BLOQUEADO POR INFRAESTRUCTURA EXTERNA: E1.1 fusionada como PR #78 y pendiente de validación reproducible; E1.2 fusionada como PR #79 y verificada; E1.3 fusionada como PR #80 y pendiente de validación real de R2/correo; E1.4 fusionada como PR #81 y verificada por CI/Browser E2E. M3 está completado con E3.1, E3.2, E3.3 y E3.4 fusionadas. E4.1 quedó entregada en PR #89, E4.2 en PR #90 y E4.3 en PR #92, todas con checks de CI y Browser E2E verdes. E4.4 quedó fusionada en PR #93, E4.6 en PR #94, E5.1 en PR #95, E2.1 en PR #96, E4.5 en PR #97 y E4.7 en PR #99, todas con checks post-merge verdes. E5.2 quedó fusionada en PR #102, E5.3 en PR #103, E5.4 en PR #104, E6.1 en PR #105, E6.2 en PR #106, E6.3 en PR #108 y E2.4 en PR #110, también con checks post-merge verdes. E2.2 está en la PR #144 abierta; su recepción y aceptación por correo real siguen pendientes. E2.3 y la operación de correo dependen de configuración SMTP y validación en staging.
+- 🟡 GOAL-01 activo — M1 sigue bloqueado por infraestructura externa. E2.2 (PR #144) y E2.3 (PR #148) tienen implementación, pero falta aceptación por correo real; E4.4 (PR #134) y la selección completa de lotes E4.1 (PR #140) están fusionadas y verificadas. E1.1/E1.3 requieren aislamiento y operación real; PR #124 prepara la configuración aislada pero sigue sin validación operativa. E7.1 continúa pendiente de lectura OCI y restauración real.
 
 - [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
@@ -199,8 +199,11 @@ Hitos recientes fusionados a `main`:
 - ✅ E2.1 — Gestión directa de usuarios — PR #96 fusionada y verificada por CI/Browser E2E; las invitaciones quedan separadas por su dependencia de correo real.
 - ✅ E4.5 — Reintentos selectivos, idempotencia y errores parciales — PR #97 fusionada y verificada por CI/Browser E2E; no dependía de staging, R2, DNS, correo ni una decisión nueva de dominio.
 - ✅ E4.7 — Prueba browser del caso exitoso, parcial y reintentado — PR #99 fusionada y verificada por CI/Browser E2E; no depende de M1.
+- ✅ E4.4 — Idempotencia de generación PDF LETTER/MEMO y reintentos — PR #134 fusionada; CI y Browser E2E post-merge verdes.
+- ✅ E4.1 — Selección completa y paginada de empleados para lotes — PR #140 fusionada; CI y Browser E2E post-merge verdes.
 
 La comprobación externa de solo lectura del 2026-10-29 obtuvo HTTP 200 en `https://staging.dusema.com` y en `/health` y `/readiness` de `staging-api.dusema.com`. Readiness reportó database, storage y email `up`; el check de email sólo acredita transporte configurado y el de storage no identifica el proveedor. No se verificaron entrega de correo, R2, despliegue reproducible ni rollback, así que E1.1/E1.3 siguen abiertas y M1 `BLOQUEADO POR INFRAESTRUCTURA EXTERNA`. Esto bloquea M1, no GOAL-01: el Goal permanece ACTIVO. E2.1, E2.4, E4.2, E4.3, E4.4, E4.5, E4.6, E4.7, E5.1, E5.2, E5.3, E5.4, E6.1, E6.2 y E6.3 quedaron fusionadas por caminos independientes. El checklist operativo de M1 está en [`docs/goals/GOAL-01-M1-infrastructure-checklist.md`](docs/goals/GOAL-01-M1-infrastructure-checklist.md).
+La inspección de solo lectura registrada en PR #124 encontró que la API llamada staging compartía la VPS y la base `oficina_nitida` clasificadas como producción y usaba storage local; el Compose activo no coincidía con el versionado. PR #124 prepara el proyecto Compose aislado, exige las cuatro variables R2 y `REQUIRE_REAL_EMAIL=true`, y valida el bootstrap PostgreSQL en un servicio efímero de CI. La base, el rol, las ACL, el alias DNS, R2, el correo y el despliegue activo no se modificaron; la revisión DBA y la validación operativa siguen pendientes.
 
 E4.2 quedó fusionada y verificada en `main` mediante PR #90. M3 está completado y
 M4 tiene E4.1, E4.2, E4.3, E4.4, E4.5, E4.6 y E4.7 entregadas; E4.7 cerró la evidencia browser separada con PR #99.

@@ -200,6 +200,8 @@ no una decisión de arquitectura. La prioridad se reevalúa como un grafo de
 dependencias: M3 puede avanzar sin
 staging, R2, correo ni una decisión de dominio pendiente.
 
+La inspección de solo lectura registrada en PR #124 encontró que la API llamada staging compartía la VPS y la base `oficina_nitida` clasificadas como producción y usaba storage local; el Compose activo no coincidía con el versionado. PR #124 prepara un proyecto Compose/API aislado, exige R2 y correo real, y valida el bootstrap PostgreSQL en CI con una base efímera. No se modificaron la VPS, el DNS, la base, el rol, las ACL ni los servicios activos. M1 permanece bloqueado hasta la revisión DBA y la validación operativa de aislamiento, R2 y correo.
+
 ### M2 — Gestión de Organizaciones y Usuarios
 
 **Resultado verificable:** un cliente opera con varias personas sin compartir credenciales.
@@ -378,10 +380,11 @@ necesidad comercial verificable de adquisición desde la landing.
 | #104    | E5.4  | Auditoría de descargas e integración documental consistente.              | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
 | #105    | E6.1  | Scheduler diario de vencimientos y documentos faltantes.                  | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
 | #106    | E6.2  | Dashboard accionable y resolución trazable.                               | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
+| #124    | E1.1  | Preparar integraciones de staging aisladas y bootstrap PostgreSQL seguro. | ABIERTO    | No; faltan aislamiento y validación operativa.                |
 | #108    | E6.3  | Fallos, reintentos y auditoría visibles para operación.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
 | #110    | E2.4  | Sedes, identidad y promesa multiempresa coherente con el producto real.   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                       |
 | #134    | E4.4  | Bug: idempotencia de generación concurrente LETTER/MEMO y reintentos.     | FUSIONADO  | No; corrige una carrera de la capacidad ya entregada.         |
-| #140    | E4.1  | Selección de todos los empleados cargados por páginas en lotes manuales.  | ABIERTO    | No; mejora el flujo existente para plantas grandes.           |
+| #140    | E4.1  | Selección de todos los empleados cargados por páginas en lotes manuales.  | FUSIONADO  | No; mejora el flujo existente para plantas grandes.           |
 | #144    | E2.2  | Invitaciones por tenant y activación segura de cuentas.                   | PENDIENTE  | No; recepción y aceptación del correo real siguen pendientes. |
 | #148    | E2.3  | Prevalidación de tokens antes del formulario de recuperación.             | PENDIENTE  | No; faltan correo real y aceptación en staging.               |
 | #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                   |
