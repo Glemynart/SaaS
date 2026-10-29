@@ -352,6 +352,9 @@ necesidad comercial verificable de adquisición desde la landing.
 | #106    | E6.2  | Dashboard accionable y resolución trazable.                               | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
 | #108    | E6.3  | Fallos, reintentos y auditoría visibles para operación.                   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
 | #110    | E2.4  | Sedes, identidad y promesa multiempresa coherente con el producto real.   | FUSIONADO  | Sí; CI y Browser E2E post-merge verdes.                    |
+| #130    | E7.1  | Artefactos cifrados y backup PostgreSQL para recuperación.                 | ABIERTO    | No; pendiente de integración a main y validación operativa. |
+| #142    | E7.1  | Restauración PostgreSQL aislada con verificación de contenido.              | INTEGRADO EN #130 | No; solo prueba sintética/local, sin recovery set completo. |
+| #143    | E7.1  | Backup y restauración aislada de artefactos locales de uploads.             | ABIERTO    | No; OCI real y conjunto DB+uploads siguen pendientes.      |
 | #69–#76 | E3/E4 | Fundaciones de resolución, planes, generación y dominio inteligente.      | FUSIONADOS | No; el recorrido inteligente sigue abierto.                |
 
 Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente paso mínimo. El Goal no se organiza como una lista anticipada de implementaciones.

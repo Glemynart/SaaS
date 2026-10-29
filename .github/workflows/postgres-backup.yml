@@ -41,6 +41,10 @@ jobs:
           bash -n deploy/postgres-backup/test-backup-postgres.sh
           bash -n deploy/postgres-backup/restore-postgres-backup.sh
           bash -n deploy/postgres-backup/test-backup-restore-roundtrip.sh
+          bash -n deploy/postgres-backup/backup-uploads-artifact.sh
+          bash -n deploy/postgres-backup/restore-uploads-artifact.sh
+          bash -n deploy/postgres-backup/test-uploads-backup-restore-roundtrip.sh
+          python3 -c "import ast, pathlib; ast.parse(pathlib.Path('deploy/postgres-backup/uploads-archive.py').read_text(encoding='utf-8'))"
 
       - name: Run mocked backup checks
         run: bash deploy/postgres-backup/test-backup-postgres.sh
@@ -49,3 +53,6 @@ jobs:
         env:
           POSTGRES_SERVICE_ID: ${{ job.services.postgres.id }}
         run: bash deploy/postgres-backup/test-backup-restore-roundtrip.sh
+
+      - name: Verify encrypted uploads backup and restoration with synthetic data
+        run: bash deploy/postgres-backup/test-uploads-backup-restore-roundtrip.sh
