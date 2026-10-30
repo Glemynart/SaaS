@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Plus, Loader2, Eye, CheckCircle, XCircle } from 'lucide-react';
 
@@ -53,7 +53,12 @@ export default function FacturasPage() {
     items[i] = { ...items[i], ...f };
     if (f.productServiceId) {
       const prod = (products ?? []).find((p) => p.id === f.productServiceId);
-      if (prod) items[i] = { ...items[i], descripcion: prod.nombre, valorUnitario: prod.precio };
+      if (prod)
+        items[i] = {
+          ...items[i],
+          descripcion: prod.nombre,
+          valorUnitario: Number(prod.precio),
+        };
     }
     setForm({ ...form, items });
   };
@@ -91,7 +96,7 @@ export default function FacturasPage() {
       </div>
 
       {showForm && (
-        <div className="mb-6 rounded-xl border bg-white p-5 shadow-sm space-y-4">
+        <div className="mb-6 rounded-xl border bg-surface p-5 shadow-sm space-y-4">
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
               <Label>Cliente</Label>
@@ -204,7 +209,7 @@ export default function FacturasPage() {
           No hay facturas.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border bg-white">
+        <div className="overflow-hidden rounded-xl border bg-surface">
           <div className="divide-y">
             {(invoices ?? []).map((inv) => (
               <div key={inv.id} className="flex items-center justify-between px-5 py-4">
@@ -216,17 +221,16 @@ export default function FacturasPage() {
                     >
                       {inv.numero}
                     </Link>
-                    <Badge
-                      className={
+                    <StatusBadge
+                      domain="factura"
+                      estado={
                         inv.status === 'DRAFT'
-                          ? 'bg-amber-50 text-amber-700'
+                          ? 'BORRADOR'
                           : inv.status === 'ISSUED'
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-gray-100 text-gray-600'
+                            ? 'EMITIDA'
+                            : 'ANULADA'
                       }
-                    >
-                      {inv.status}
-                    </Badge>
+                    />
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {inv.customer?.razonSocial} — {cop(inv.total)}
@@ -244,7 +248,7 @@ export default function FacturasPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-xs text-emerald-600"
+                        className="text-xs text-success"
                         onClick={() =>
                           updateStatusMutation.mutate({ id: inv.id, status: 'ISSUED' })
                         }
