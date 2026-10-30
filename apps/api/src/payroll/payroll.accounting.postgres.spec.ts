@@ -309,7 +309,7 @@ describe('Payroll accounting PostgreSQL integration', () => {
     ).toEqual(
       expect.arrayContaining([
         {
-          cuentaCodigo: 'T5',
+          cuentaCodigo: 'T10',
           terceroId: null,
           debito: 1_000_000,
           credito: 0,
@@ -321,7 +321,7 @@ describe('Payroll accounting PostgreSQL integration', () => {
           credito: 920_000,
         },
         { cuentaCodigo: 'T2', terceroId: null, debito: 0, credito: 40_000 },
-        { cuentaCodigo: 'T3', terceroId: null, debito: 0, credito: 40_000 },
+        { cuentaCodigo: 'T5', terceroId: null, debito: 0, credito: 40_000 },
       ]),
     );
     expect(persisted.snapshot?.payload).toEqual(snapshotPayload);

@@ -79,6 +79,7 @@ const CALCULATION_TRACE_VERSION = 1;
 
 const PAYROLL_ACCOUNTING_VOUCHER_SELECT = {
   id: true,
+  tenantId: true,
   numero: true,
   fecha: true,
   concepto: true,
@@ -96,6 +97,9 @@ const PAYROLL_ACCOUNTING_VOUCHER_SELECT = {
       centroCosto: { select: { codigo: true, nombre: true } },
     },
   },
+  reversos: {
+    select: { id: true, tenantId: true, estado: true },
+  },
 } satisfies Prisma.ComprobanteContableSelect;
 
 type PayrollAccountingVoucherRecord = Prisma.ComprobanteContableGetPayload<{
@@ -103,12 +107,19 @@ type PayrollAccountingVoucherRecord = Prisma.ComprobanteContableGetPayload<{
 }>;
 
 function mapPayrollAccountingVoucher(voucher: PayrollAccountingVoucherRecord) {
+  const reversado = voucher.reversos.some(
+    (reverso) =>
+      reverso.tenantId === voucher.tenantId &&
+      reverso.estado === 'CONTABILIZADO',
+  );
   return {
     id: voucher.id,
     numero: voucher.numero,
     fecha: voucher.fecha,
     concepto: voucher.concepto,
     estado: voucher.estado,
+    reversado,
+    vigente: voucher.estado === 'CONTABILIZADO' && !reversado,
     totalDebito: Number(voucher.totalDebito),
     totalCredito: Number(voucher.totalCredito),
     movimientos: voucher.movimientos.map((movement) => ({
@@ -244,13 +255,6 @@ export class PayrollService {
     });
     if (!period) throw new NotFoundException('Período de nómina no encontrado');
 
-    const preflight = await this.accountingPreflight.validate(tenantId, {
-      fechaCausacion: period.fechaFin,
-    });
-    if (preflight.status === 'ERROR') {
-      return { status: 'PREFLIGHT_ERROR', preflight };
-    }
-
     return this.tenantPrisma.execute(async (tx) => {
       const current = await tx.payrollPeriod.findFirst({
         where: { id: periodId, tenantId },
@@ -265,15 +269,25 @@ export class PayrollService {
           origenTipo: 'PAYROLL',
           origenId: current.id,
           origenEvento: 'CAUSACION',
-          estado: { not: 'ANULADO' },
         },
-        select: { id: true },
+        select: {
+          id: true,
+          estado: true,
+          reversos: {
+            where: { tenantId, estado: 'CONTABILIZADO' },
+            select: { id: true },
+          },
+        },
       });
 
       if (current.status === PayrollPeriodStatus.CAUSADA) {
-        if (!existing) {
+        if (
+          !existing ||
+          existing.estado !== 'CONTABILIZADO' ||
+          existing.reversos.length > 0
+        ) {
           throw new ConflictException(
-            'El período figura como causado sin comprobante de causación asociado.',
+            'La causación de este período está anulada o revertida; revisa el asiento contable antes de continuar.',
           );
         }
         return {
@@ -289,9 +303,24 @@ export class PayrollService {
         );
       }
       if (existing) {
+        if (
+          existing.estado !== 'CONTABILIZADO' ||
+          existing.reversos.length > 0
+        ) {
+          throw new ConflictException(
+            'Ya existe una causación anulada o revertida para este período; no se puede volver a causar con el mismo origen.',
+          );
+        }
         throw new ConflictException(
           'Ya existe una causación para este período de nómina.',
         );
+      }
+
+      const preflight = await this.accountingPreflight.validate(tenantId, {
+        fechaCausacion: current.fechaFin,
+      });
+      if (preflight.status === 'ERROR') {
+        return { status: 'PREFLIGHT_ERROR' as const, preflight };
       }
 
       const [maps, accountingPeriod, voucherType, runs] = await Promise.all([
@@ -331,7 +360,7 @@ export class PayrollService {
                 tipoDocumento: true,
               },
             },
-            concepts: { select: { codigo: true, valor: true } },
+            concepts: { select: { codigo: true, tipo: true, valor: true } },
           },
         }),
       ]);
@@ -430,6 +459,7 @@ export class PayrollService {
                 : null,
               concepts: run.concepts.map((concept) => ({
                 codigo: concept.codigo,
+                tipo: concept.tipo,
                 valor: Number(concept.valor),
               })),
             })),
@@ -582,7 +612,6 @@ export class PayrollService {
           origenTipo: 'PAYROLL',
           origenId: id,
           origenEvento: 'CAUSACION',
-          estado: { not: 'ANULADO' },
         },
         select: PAYROLL_ACCOUNTING_VOUCHER_SELECT,
       }),
@@ -658,7 +687,6 @@ export class PayrollService {
         origenTipo: 'PAYROLL_CORRECTION',
         origenId: { in: corrections.map((correction) => correction.id) },
         origenEvento: 'AJUSTE',
-        estado: { not: 'ANULADO' },
       },
       select: { ...PAYROLL_ACCOUNTING_VOUCHER_SELECT, origenId: true },
     });

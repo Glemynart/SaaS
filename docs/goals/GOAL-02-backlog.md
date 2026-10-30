@@ -43,6 +43,20 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 - Payroll ya depende del módulo Accounting; Billing no invoca el Ledger en el
   código revisado. Esta diferencia es una señal de integración pendiente, no
   prueba de que la causación de nómina esté lista para demo.
+- `ProductService.impuesto` se configura y se muestra en el catálogo, pero
+  `BillingService.createInvoice` calcula los impuestos con una tasa fija del
+  19%; `InvoiceItem` tampoco conserva una tasa por línea. El smoke de facturación
+  cubre por ahora el caso estándar del 19%. Antes de ofrecer otros tratamientos
+  tributarios en una demo, hay que decidir y snapshotear la regla por línea.
+- Los recorridos Browser E2E incluyen un escenario financiero combinado en un
+  tenant descartable: crea cliente, producto y factura interna, y luego prepara
+  una nómina sintética aprobada, la contabiliza desde la UI y verifica que el
+  comprobante del Ledger y el snapshot sobreviven una recarga. Es cobertura de
+  regresión; no crea un seed reutilizable ni conecta facturas con el Ledger.
+- La primera corrida del recorrido detectó que el precio Decimal de un producto
+  llegaba como texto a `CreateInvoiceDto` y la API respondía 400. El formulario
+  convierte ahora ese precio a número al seleccionar el producto; el recorrido
+  E2E cubre selección, emisión y persistencia de la factura.
 - La entrega local de causación añade a la pantalla de período la acción ADMIN,
   el preflight visible y el comprobante persistido con sus movimientos. La rama
   apilada agrega el ciclo de correcciones post aprobación y la lectura del
@@ -65,21 +79,24 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 - No se inspeccionaron ni modificaron bases de staging o producción. No se
   generaron datos financieros ni se transmitió información a DIAN/UGPP.
 
-## Estado de Goal y dependencias de entrega — 2026-10-30
+## Estado de Goal y dependencias de entrega — 2026-10-30 (actualizado)
 
-- **GOAL ACTIVO:** GOAL-02; GOAL-01 permanece pausado y conservado según
-  `docs/goals/README.md`.
-- **IMPLEMENTACIÓN BLOQUEADA:** los jobs `verify` y `browser` de PR #155, #156
-  y #157 fueron rechazados antes de iniciar runner. GitHub informa pagos
-  recientes fallidos o límite de gasto; esto no es un resultado de las pruebas
-  del código. En PR #157 pasaron localmente typecheck, builds, pruebas de
-  nómina y Playwright, y el Preview de Vercel pasó; CI remoto sigue pendiente.
-- **ESPERANDO_MERGE:** PR #151 y #154–#157 conservan la secuencia de bases
-  vigente: #151 parte de `main`; #154, #155 y #157 de #151; #156 de #155. #151
-  y #154 tienen checks verdes. No se integran cambios a `main` en esta entrega:
-  el Goal Master prohíbe despliegues productivos y el historial operativo de
-  `deploy/README.md` documenta que un merge a `main` puede publicar Production.
-- **ARQUITECTURA DISPONIBLE:** el M0 prioriza demostrar flujos financieros
-  internos. ADR-011 propone contabilizar facturas internas al emitirlas, pero
-  sigue en estado propuesto y requiere resolver las condiciones previas antes
-  de implementar esa integración; no habilita contabilización fiscal ni DIAN.
+- **GOAL ACTIVO:** GOAL-02; GOAL-01 continúa pausado y conservado.
+- **Integración:** #151, #155 y #156 están fusionadas en `main`. La CI y Browser
+  E2E post-merge de #156 pasaron sobre `c4230ac`; #151 y #155 también tuvieron
+  checks post-merge aprobados.
+- **ESPERANDO_MERGE:** #157 está actualizada contra `main` en `c4230ac`. La
+  actualización manual resolvió conflictos de nómina; typecheck y prueba unitaria
+  del mapper pasan localmente. CI y Browser E2E de la rama sincronizada aún deben
+  ejecutarse y revisarse antes de considerarla lista.
+- **Decisión pendiente:** #154 conserva ADR-011 en estado propuesto. La aprobación
+  contable para emisión interna de facturas a Ledger sigue pendiente y bloquea
+  únicamente esa ruta.
+- **Siguiente PR:** #158 permanece pendiente de sincronización después de revisar
+  #157.
+- **Límite operativo:** el historial de `deploy/README.md` documenta que un merge
+  a `main` puede generar un deployment `Production` en Vercel. El Goal Master
+  exige autorización operativa específica para despliegues productivos; por eso
+  una PR lista para merge no se integra hasta resolver esa puerta.
+- No se ejecutó el seed financiero ni se accedió a staging, producción, VPS u
+  OCI; no se transmitió información a DIAN/UGPP.
