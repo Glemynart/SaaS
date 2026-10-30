@@ -306,10 +306,12 @@ function CorrectionVoucher({ correction }: { correction: PayrollCorrection }) {
 export function PayrollCorrectionsPanel({
   periodId,
   periodStatus,
+  hasPayrollVoucher,
   snapshots,
 }: {
   periodId: string;
   periodStatus: string;
+  hasPayrollVoucher: boolean;
   snapshots: PayrollCorrectionTarget[];
 }) {
   const eligible = periodStatus === 'APROBADA' || periodStatus === 'CAUSADA';
@@ -434,7 +436,11 @@ export function PayrollCorrectionsPanel({
             const canDraftActions = correction.status === 'BORRADOR' && canOperate;
             const canReviewActions = correction.status === 'EN_REVISION';
             const canAccount =
-              correction.status === 'APROBADA' && isAdmin && !correction.accountingVoucher;
+              correction.status === 'APROBADA' &&
+              isAdmin &&
+              periodStatus === 'CAUSADA' &&
+              hasPayrollVoucher &&
+              !correction.accountingVoucher;
 
             return (
               <article key={correction.id} className="p-4">
@@ -581,6 +587,15 @@ export function PayrollCorrectionsPanel({
                     </Button>
                   </div>
                 )}
+                {correction.status === 'APROBADA' &&
+                  isAdmin &&
+                  (periodStatus !== 'CAUSADA' || !hasPayrollVoucher) &&
+                  !correction.accountingVoucher && (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      El ajuste se podrá contabilizar cuando la nómina original esté causada y tenga
+                      un comprobante vigente en el Ledger.
+                    </p>
+                  )}
                 <CorrectionVoucher correction={correction} />
               </article>
             );

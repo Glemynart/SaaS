@@ -113,6 +113,33 @@ test('crea, aprueba y contabiliza una corrección post-aprobación con persisten
     );
     await expect(correctionCard.getByText('Aprobada', { exact: true })).toBeVisible();
     await expect(correctionCard.getByText(/\+\s*\$\s*500\.000/)).toBeVisible();
+    await expect(
+      correctionCard.getByText(
+        'El ajuste se podrá contabilizar cuando la nómina original esté causada y tenga un comprobante vigente en el Ledger.',
+      ),
+    ).toBeVisible();
+    await expect(correctionCard.getByRole('button', { name: 'Contabilizar ajuste' })).toHaveCount(
+      0,
+    );
+
+    const payrollAccountingResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+          `/api/payroll/periods/${fixture.periodId}/contabilizar` &&
+        response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Contabilizar en Ledger' }).click();
+    await page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: 'Contabilizar nómina' })
+      .click();
+    const payrollAccountingResponse = await payrollAccountingResponsePromise;
+    expect(payrollAccountingResponse.status()).toBe(200);
+    expect(await payrollAccountingResponse.json()).toMatchObject({
+      status: 'CAUSADA',
+      payrollPeriodId: fixture.periodId,
+    });
+    await expect(correctionCard.getByRole('button', { name: 'Contabilizar ajuste' })).toBeVisible();
 
     const accountingResponsePromise = page.waitForResponse(
       (response) =>
@@ -157,7 +184,7 @@ test('crea, aprueba y contabiliza una corrección post-aprobación con persisten
     await expect(page.getByText(new RegExp(`ID ${accounting.comprobanteId}`))).toBeVisible();
 
     const persisted = await fixture.inspectPersistedState();
-    expect(persisted.periodStatus).toBe('APROBADA');
+    expect(persisted.periodStatus).toBe('CAUSADA');
     expect(persisted.run).toEqual({
       salarioBaseSnapshot: 2_000_000,
       totalDevengos: fixture.originalTotals.devengos,

@@ -86,6 +86,11 @@ La fuente de contraste de este documento es `main` en `ec9cff01` (2026-10-29).
 | Operación                  | scheduler, reintentos, retención, auditoría y alertas conforme a ADR-007                                                                                               | No existe todavía un motor específico de ejecuciones regulatorias.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Integraciones regulatorias | No hay adaptador Matías, DIAN, UGPP ni API pública de proveedores en el código actual                                                                                  | Es una capacidad futura; requiere contratos internos y ADRs antes de implementación.                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
+Los ajustes contables de nómina solo se pueden contabilizar después de que el
+período original esté `CAUSADA` y conserve un comprobante de causación vigente.
+El asiento de diferencia no reemplaza el asiento original; si falta este último,
+el ajuste debe permanecer pendiente.
+
 La existencia de `ClienteFE`, `Factura`, `ItemFactura`, `feTecnicoId`,
 `feTecnicoKey` y referencias a Matías en el schema no demuestra que exista
 facturación electrónica operativa. Tampoco autoriza a extender esos campos como

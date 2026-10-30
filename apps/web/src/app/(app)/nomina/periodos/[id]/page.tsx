@@ -227,6 +227,7 @@ export default function PeriodDetailPage({ params }: { params: Promise<{ id: str
       <PayrollCorrectionsPanel
         periodId={id}
         periodStatus={period.status}
+        hasPayrollVoucher={Boolean(voucher)}
         snapshots={data.snapshots}
       />
 
