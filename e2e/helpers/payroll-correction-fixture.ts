@@ -259,6 +259,21 @@ export async function seedPayrollCorrectionFixture(
           estado: 'ABIERTO',
         },
       });
+      if (
+        periodoDesde.getUTCFullYear() !== fechaFinNomina.getUTCFullYear() ||
+        periodoDesde.getUTCMonth() !== fechaFinNomina.getUTCMonth()
+      ) {
+        await tx.periodoContable.create({
+          data: {
+            tenantId,
+            anio: fechaFinNomina.getUTCFullYear(),
+            mes: fechaFinNomina.getUTCMonth() + 1,
+            fechaInicio: fechaInicioNomina,
+            fechaFin: fechaFinNomina,
+            estado: 'ABIERTO',
+          },
+        });
+      }
 
       for (const [index, role] of ACCOUNT_ROLES.entries()) {
         const isExpense = role.startsWith('GASTO_');
