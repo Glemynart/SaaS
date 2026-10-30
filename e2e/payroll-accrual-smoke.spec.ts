@@ -1,15 +1,9 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
-
-async function json(route: Route, status: number, body: unknown) {
-  await route.fulfill({
-    status,
-    contentType: 'application/json',
-    body: JSON.stringify(body),
-  });
-}
+import { randomInt } from 'node:crypto';
+import { expect, test, type Page } from '@playwright/test';
+import { seedPayrollAccrualFixture } from './helpers/payroll-accounting-fixture';
 
 async function registerAndSignIn(page: Page) {
-  const suffix = Date.now().toString().slice(-8);
+  const suffix = randomInt(10_000_000, 100_000_000).toString();
   const nit = `6${suffix}`;
   const email = `payroll-accrual-${suffix}@example.test`;
   const password = 'E2e-password-123!';
@@ -31,142 +25,80 @@ async function registerAndSignIn(page: Page) {
   await page.getByRole('textbox', { name: 'Contraseña' }).fill(password);
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
+
+  const meResponse = await page.request.get('/api/auth/me');
+  expect(meResponse.status()).toBe(200);
+  const { user } = (await meResponse.json()) as {
+    user: { id: string; tenantId: string; rol: string };
+  };
+  expect(user.rol).toBe('ADMIN');
+  return { tenantId: user.tenantId, userId: user.id };
 }
 
-test('contabiliza una nómina aprobada y muestra el comprobante', async ({ page }) => {
-  await registerAndSignIn(page);
+test('contabiliza una nómina aprobada y confirma el comprobante persistido', async ({ page }) => {
+  const { tenantId, userId } = await registerAndSignIn(page);
+  const fixture = await seedPayrollAccrualFixture(tenantId, userId);
 
-  const periodId = 'period-accrual-ui';
-  let posted = false;
-  let postingRequests = 0;
-  const voucher = {
-    id: 'voucher-accrual-ui',
-    numero: 14,
-    fecha: '2026-03-31T00:00:00.000Z',
-    concepto: 'Causación nómina marzo 2026',
-    estado: 'CONTABILIZADO',
-    totalDebito: 1_000_000,
-    totalCredito: 1_000_000,
-    movimientos: [
-      {
-        linea: 1,
-        descripcion: 'Causación de salarios',
-        debito: 1_000_000,
-        credito: 0,
-        cuentaCodigo: '510506',
-        cuentaNombre: 'Gasto de sueldos',
-        centroCostoCodigo: 'CC-01',
-        centroCostoNombre: 'Sede Centro',
-      },
-      {
-        linea: 2,
-        descripcion: 'Salarios netos por pagar',
-        debito: 0,
-        credito: 920_000,
-        cuentaCodigo: '250505',
-        cuentaNombre: 'Salarios por pagar',
-        centroCostoCodigo: 'CC-01',
-        centroCostoNombre: 'Sede Centro',
-      },
-      {
-        linea: 3,
-        descripcion: 'Aportes de salud por pagar',
-        debito: 0,
-        credito: 40_000,
-        cuentaCodigo: '237005',
-        cuentaNombre: 'Aportes salud por pagar',
-        centroCostoCodigo: 'CC-01',
-        centroCostoNombre: 'Sede Centro',
-      },
-      {
-        linea: 4,
-        descripcion: 'Aportes de nómina por pagar',
-        debito: 0,
-        credito: 40_000,
-        cuentaCodigo: '237010',
-        cuentaNombre: 'Aportes pensión por pagar',
-        centroCostoCodigo: 'CC-01',
-        centroCostoNombre: 'Sede Centro',
-      },
-    ],
-  };
+  try {
+    await page.goto(`/nomina/periodos/${fixture.periodId}`);
+    await expect(page.getByRole('heading', { name: 'Nómina marzo 2026' })).toBeVisible();
+    await expect(page.getByText('Contabilizar en Ledger')).toBeVisible();
+    await expect(page.getByText('Ana Pérez')).toBeVisible();
 
-  await page.route('**/api/payroll/**', async (route) => {
-    const url = new URL(route.request().url());
-    const method = route.request().method();
+    const postingResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+          `/api/payroll/periods/${fixture.periodId}/contabilizar` &&
+        response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Contabilizar en Ledger' }).click();
+    await page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: 'Contabilizar nómina' })
+      .click();
 
-    if (url.pathname === `/api/payroll/periods/${periodId}` && method === 'GET') {
-      await json(route, 200, {
-        period: {
-          id: periodId,
-          tenantId: 'tenant-e2e',
-          nombre: 'Nómina marzo 2026',
-          fechaInicio: '2026-03-01T00:00:00.000Z',
-          fechaFin: '2026-03-31T00:00:00.000Z',
-          status: posted ? 'CAUSADA' : 'APROBADA',
-          empleadosProcesados: 1,
-          createdAt: '2026-03-31T00:00:00.000Z',
-        },
-        runs: [
-          {
-            id: 'run-accrual-ui',
-            employee: {
-              id: 'employee-accrual-ui',
-              primerNombre: 'Ana',
-              segundoNombre: null,
-              primerApellido: 'Pérez',
-              segundoApellido: null,
-              cargo: 'Docente',
-            },
-            totalDevengos: 1_000_000,
-            totalDeducciones: 80_000,
-            netoPagar: 920_000,
-            concepts: [
-              { id: 'concept-salary', tipo: 'EARNING', nombre: 'Salario base', valor: 1_000_000 },
-              { id: 'concept-health', tipo: 'DEDUCTION', nombre: 'Salud empleado', valor: 40_000 },
-              {
-                id: 'concept-pension',
-                tipo: 'DEDUCTION',
-                nombre: 'Pensión empleado',
-                valor: 40_000,
-              },
-            ],
-          },
-        ],
-        totals: { totalDevengos: 1_000_000, totalDeducciones: 80_000, totalNeto: 920_000 },
-        accountingVoucher: posted ? voucher : null,
-      });
-      return;
-    }
+    const postingResponse = await postingResponsePromise;
+    expect(postingResponse.status()).toBe(200);
+    const posting = (await postingResponse.json()) as {
+      status: string;
+      payrollPeriodId: string;
+      comprobanteId: string;
+    };
+    expect(posting).toMatchObject({
+      status: 'CAUSADA',
+      payrollPeriodId: fixture.periodId,
+    });
 
-    if (url.pathname === `/api/payroll/periods/${periodId}/blocks` && method === 'GET') {
-      await json(route, 200, []);
-      return;
-    }
+    await expect(page.getByText('Nómina contabilizada en el Ledger.')).toBeVisible();
+    await expect(page.getByText(/Comprobante \d+/)).toBeVisible();
+    await expect(
+      page.getByText(new RegExp(`ID de comprobante: ${posting.comprobanteId}`)),
+    ).toBeVisible();
+    await expect(page.getByText('Gasto de sueldos')).toBeVisible();
+    await expect(page.getByText('Salarios netos por pagar')).toBeVisible();
 
-    if (url.pathname === `/api/payroll/periods/${periodId}/contabilizar` && method === 'POST') {
-      postingRequests += 1;
-      posted = true;
-      await json(route, 200, {
-        status: 'CAUSADA',
-        payrollPeriodId: periodId,
-        comprobanteId: voucher.id,
-      });
-      return;
-    }
+    const retryResponse = await page.request.post(
+      `/api/payroll/periods/${fixture.periodId}/contabilizar`,
+      { data: {} },
+    );
+    expect(retryResponse.status()).toBe(200);
+    expect(await retryResponse.json()).toEqual({
+      status: 'YA_CAUSADA',
+      payrollPeriodId: fixture.periodId,
+      comprobanteId: posting.comprobanteId,
+    });
 
-    await route.continue();
-  });
+    await page.reload();
+    await expect(
+      page.getByText(new RegExp(`ID de comprobante: ${posting.comprobanteId}`)),
+    ).toBeVisible();
 
-  await page.goto(`/nomina/periodos/${periodId}`);
-  await expect(page.getByRole('heading', { name: 'Nómina marzo 2026' })).toBeVisible();
-  await expect(page.getByText('Contabilizar en Ledger')).toBeVisible();
-  await page.getByRole('button', { name: 'Contabilizar en Ledger' }).click();
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Contabilizar nómina' }).click();
-
-  await expect(page.getByText('Nómina contabilizada en el Ledger.')).toBeVisible();
-  await expect(page.getByText('Comprobante 14')).toBeVisible();
-  await expect(page.getByText(/ID de comprobante: voucher-accrual-ui/)).toBeVisible();
-  await expect(page.getByText(/Gasto de sueldos/)).toBeVisible();
-  expect(postingRequests).toBe(1);
+    const persisted = await fixture.inspectPersistedState();
+    expect(persisted.periodStatus).toBe('CAUSADA');
+    expect(persisted.vouchers).toEqual([{ id: posting.comprobanteId, estado: 'CONTABILIZADO' }]);
+    expect(persisted.snapshotPayload).toEqual(fixture.snapshotPayload);
+    expect(persisted.snapshotStatus).toBe('APROBADA');
+  } finally {
+    await fixture.disconnect();
+  }
 });
