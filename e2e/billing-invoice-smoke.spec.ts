@@ -121,7 +121,7 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
   await page.getByRole('button', { name: 'Emitir' }).click();
   const issueResponse = await issueResponsePromise;
   expect(issueResponse.status()).toBe(200);
-  await expect(page.getByText('ISSUED', { exact: true })).toBeVisible();
+  await expect(page.getByText('Emitida', { exact: true })).toBeVisible();
 
   await page.getByRole('link', { name: invoiceNumber }).click();
   await expect(page.getByRole('heading', { name: `Factura ${invoiceNumber}` })).toBeVisible();
@@ -131,6 +131,6 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
 
   await page.reload();
   await expect(page.getByRole('heading', { name: `Factura ${invoiceNumber}` })).toBeVisible();
-  await expect(page.getByText('ISSUED', { exact: true })).toBeVisible();
+  await expect(page.getByText('Emitida', { exact: true })).toBeVisible();
   await expect(page.getByText(productName, { exact: true })).toBeVisible();
 });

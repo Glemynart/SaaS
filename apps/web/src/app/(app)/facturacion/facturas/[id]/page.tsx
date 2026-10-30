@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useInvoice } from '@/features/billing/hooks/use-billing';
 import { ArrowLeft, FileText } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '@/components/ui/status-badge';
 
 function cop(n: number) {
   return new Intl.NumberFormat('es-CO', {
@@ -39,17 +39,12 @@ export default function FacturaDetailPage({ params }: { params: Promise<{ id: st
         </Link>
         <FileText className="size-5 text-muted-foreground" />
         <h1 className="text-lg font-semibold">Factura {inv.numero}</h1>
-        <Badge
-          className={
-            inv.status === 'DRAFT'
-              ? 'bg-amber-50 text-amber-700'
-              : inv.status === 'ISSUED'
-                ? 'bg-emerald-50 text-emerald-700'
-                : 'bg-gray-100'
+        <StatusBadge
+          domain="factura"
+          estado={
+            inv.status === 'DRAFT' ? 'BORRADOR' : inv.status === 'ISSUED' ? 'EMITIDA' : 'ANULADA'
           }
-        >
-          {inv.status}
-        </Badge>
+        />
       </div>
       <div className="mb-6 rounded-lg border bg-surface/50 p-5 grid gap-3 sm:grid-cols-2">
         <div>
@@ -62,7 +57,7 @@ export default function FacturaDetailPage({ params }: { params: Promise<{ id: st
           <p className="text-sm">{new Date(inv.fechaEmision).toLocaleDateString('es-CO')}</p>
         </div>
       </div>
-      <div className="overflow-hidden rounded-xl border bg-white">
+      <div className="overflow-hidden rounded-xl border bg-surface">
         <table className="w-full text-sm">
           <thead className="border-b bg-surface/50 text-muted-foreground">
             <tr>
@@ -99,7 +94,7 @@ export default function FacturaDetailPage({ params }: { params: Promise<{ id: st
               <td colSpan={3} className="px-4 py-3 text-right font-semibold">
                 Total
               </td>
-              <td className="px-4 py-3 text-right font-semibold text-blue-600">{cop(inv.total)}</td>
+              <td className="px-4 py-3 text-right font-semibold text-primary">{cop(inv.total)}</td>
             </tr>
           </tfoot>
         </table>

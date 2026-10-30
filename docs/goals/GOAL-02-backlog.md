@@ -52,6 +52,10 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   registra cliente y producto, crea y emite una factura, y verifica valores y
   lectura tras recarga. Es cobertura de regresión; no crea un seed reutilizable
   en tenants de demostración.
+- La primera corrida del recorrido detectó que el precio Decimal de un producto
+  llegaba como texto a `CreateInvoiceDto` y la API respondía 400. El formulario
+  convierte ahora ese precio a número al seleccionar el producto; el recorrido
+  E2E cubre selección, emisión y persistencia de la factura.
 - La entrega local de causación añade a la pantalla de período la acción ADMIN,
   el preflight visible y el comprobante persistido con sus movimientos. La rama
   apilada agrega el ciclo de correcciones post aprobación y la lectura del
