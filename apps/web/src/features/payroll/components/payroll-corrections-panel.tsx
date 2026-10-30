@@ -277,10 +277,15 @@ function CorrectionVoucher({ correction }: { correction: PayrollCorrection }) {
     <div className="mt-3 rounded-lg border border-border bg-surface p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-semibold text-foreground">
-          Ajuste contabilizado · Comprobante {voucher.numero ?? 'sin número'}
+          {voucher.vigente
+            ? 'Ajuste contabilizado'
+            : voucher.reversado
+              ? 'Ajuste revertido'
+              : 'Ajuste anulado'}{' '}
+          · Comprobante {voucher.numero ?? 'sin número'}
         </p>
-        <Badge variant="success">
-          {voucher.estado === 'CONTABILIZADO' ? 'Contabilizado' : voucher.estado}
+        <Badge variant={voucher.vigente ? 'success' : 'warning'}>
+          {voucher.vigente ? 'Contabilizado' : voucher.reversado ? 'Revertido' : 'Anulado'}
         </Badge>
       </div>
       <p className="mt-1 text-2xs text-muted-foreground">
@@ -299,6 +304,12 @@ function CorrectionVoucher({ correction }: { correction: PayrollCorrection }) {
           </div>
         ))}
       </div>
+      {!voucher.vigente && (
+        <p className="mt-2 border-t border-warning/25 pt-2 text-2xs text-warning" role="alert">
+          Este asiento ya no está vigente. Si todavía se necesita un ajuste, registra una nueva
+          corrección trazable.
+        </p>
+      )}
     </div>
   );
 }
@@ -307,11 +318,13 @@ export function PayrollCorrectionsPanel({
   periodId,
   periodStatus,
   hasPayrollVoucher,
+  payrollVoucherReversed,
   snapshots,
 }: {
   periodId: string;
   periodStatus: string;
   hasPayrollVoucher: boolean;
+  payrollVoucherReversed: boolean;
   snapshots: PayrollCorrectionTarget[];
 }) {
   const eligible = periodStatus === 'APROBADA' || periodStatus === 'CAUSADA';
@@ -396,6 +409,16 @@ export function PayrollCorrectionsPanel({
           </Button>
         )}
       </div>
+
+      {periodStatus === 'CAUSADA' && payrollVoucherReversed && (
+        <p
+          className="mt-4 rounded-lg border border-warning/25 bg-warning/8 p-3 text-xs text-warning"
+          role="alert"
+        >
+          La causación original fue anulada o revertida. La contabilización de ajustes está
+          bloqueada hasta revisar y regularizar ese asiento contable.
+        </p>
+      )}
 
       {!eligible ? (
         <p className="mt-4 text-xs text-muted-foreground">
@@ -589,6 +612,7 @@ export function PayrollCorrectionsPanel({
                 )}
                 {correction.status === 'APROBADA' &&
                   isAdmin &&
+                  !payrollVoucherReversed &&
                   (periodStatus !== 'CAUSADA' || !hasPayrollVoucher) &&
                   !correction.accountingVoucher && (
                     <p className="mt-3 text-xs text-muted-foreground">

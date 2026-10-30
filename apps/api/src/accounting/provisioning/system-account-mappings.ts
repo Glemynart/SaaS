@@ -70,20 +70,90 @@ export const DEFAULT_SYSTEM_ACCOUNT_MAPPINGS: SystemAccountMapping[] = [
     descripcion: 'Aportes EPS por pagar',
   },
   {
-    rol: 'APORTES_PENSION_POR_PAGAR',
+    rol: 'APORTES_RIESGOS_LABORALES_POR_PAGAR',
+    codigo: '237006',
+    descripcion: 'Aportes ARL por pagar',
+  },
+  {
+    rol: 'APORTES_PARAFISCALES_POR_PAGAR',
     codigo: '237010',
+    descripcion: 'Aportes ICBF, SENA y cajas por pagar',
+  },
+  {
+    rol: 'APORTES_PENSION_POR_PAGAR',
+    codigo: '238030',
     descripcion: 'Aportes fondos de pensiones por pagar',
   },
   {
-    rol: 'PROVISION_PRESTACIONES',
+    rol: 'PROVISION_CESANTIAS_POR_PAGAR',
     codigo: '261005',
-    descripcion: 'Provisión de prestaciones sociales',
+    descripcion: 'Cesantías por pagar',
+  },
+  {
+    rol: 'PROVISION_INTERESES_CESANTIAS_POR_PAGAR',
+    codigo: '261010',
+    descripcion: 'Intereses sobre cesantías por pagar',
+  },
+  {
+    rol: 'PROVISION_VACACIONES_POR_PAGAR',
+    codigo: '261015',
+    descripcion: 'Vacaciones por pagar',
+  },
+  {
+    rol: 'PROVISION_PRIMA_POR_PAGAR',
+    codigo: '261020',
+    descripcion: 'Prima de servicios por pagar',
   },
   { rol: 'GASTO_SUELDOS', codigo: '510506', descripcion: 'Gasto de sueldos' },
   {
-    rol: 'GASTO_APORTES_SOCIALES',
+    rol: 'GASTO_APORTES_SALUD',
     codigo: '510569',
-    descripcion: 'Gasto de aportes sociales y parafiscales',
+    descripcion: 'Aportes a EPS',
+  },
+  {
+    rol: 'GASTO_APORTES_PENSION',
+    codigo: '510570',
+    descripcion: 'Aportes a fondos de pensiones y/o cesantías',
+  },
+  {
+    rol: 'GASTO_APORTES_RIESGOS_LABORALES',
+    codigo: '510568',
+    descripcion: 'Aportes a administradoras de riesgos laborales ARL',
+  },
+  {
+    rol: 'GASTO_APORTES_CAJA',
+    codigo: '510572',
+    descripcion: 'Aportes a cajas de compensación familiar',
+  },
+  {
+    rol: 'GASTO_APORTES_ICBF',
+    codigo: '510575',
+    descripcion: 'Aportes al ICBF',
+  },
+  {
+    rol: 'GASTO_APORTES_SENA',
+    codigo: '510578',
+    descripcion: 'Aportes al SENA',
+  },
+  {
+    rol: 'GASTO_PROVISION_CESANTIAS',
+    codigo: '510530',
+    descripcion: 'Gasto de cesantías',
+  },
+  {
+    rol: 'GASTO_PROVISION_INTERESES_CESANTIAS',
+    codigo: '510533',
+    descripcion: 'Gasto de intereses sobre cesantías',
+  },
+  {
+    rol: 'GASTO_PROVISION_PRIMA',
+    codigo: '510536',
+    descripcion: 'Gasto de prima de servicios',
+  },
+  {
+    rol: 'GASTO_PROVISION_VACACIONES',
+    codigo: '510539',
+    descripcion: 'Gasto de vacaciones',
   },
   // Cierre / ajustes
   //
