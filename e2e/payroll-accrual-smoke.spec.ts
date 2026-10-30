@@ -81,7 +81,7 @@ test('contabiliza una nómina aprobada y confirma el comprobante persistido', as
       page.getByText(new RegExp(`ID de comprobante: ${posting.comprobanteId}`)),
     ).toBeVisible();
     await expect(page.getByText('Gasto de sueldos')).toBeVisible();
-    await expect(page.getByText('Salarios netos por pagar')).toBeVisible();
+    await expect(page.getByText('Salarios netos por pagar', { exact: true })).toBeVisible();
 
     const retryResponse = await page.request.post(
       `/api/payroll/periods/${fixture.periodId}/contabilizar`,
