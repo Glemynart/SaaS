@@ -43,6 +43,15 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 - Payroll ya depende del módulo Accounting; Billing no invoca el Ledger en el
   código revisado. Esta diferencia es una señal de integración pendiente, no
   prueba de que la causación de nómina esté lista para demo.
+- `ProductService.impuesto` se configura y se muestra en el catálogo, pero
+  `BillingService.createInvoice` calcula los impuestos con una tasa fija del
+  19%; `InvoiceItem` tampoco conserva una tasa por línea. El smoke de facturación
+  cubre por ahora el caso estándar del 19%. Antes de ofrecer otros tratamientos
+  tributarios en una demo, hay que decidir y snapshotear la regla por línea.
+- Se añade un recorrido Browser E2E que crea un tenant descartable por la UI,
+  registra cliente y producto, crea y emite una factura, y verifica valores y
+  lectura tras recarga. Es cobertura de regresión; no crea un seed reutilizable
+  en tenants de demostración.
 - La entrega local de causación añade a la pantalla de período la acción ADMIN,
   el preflight visible y el comprobante persistido con sus movimientos. La rama
   apilada agrega el ciclo de correcciones post aprobación y la lectura del
