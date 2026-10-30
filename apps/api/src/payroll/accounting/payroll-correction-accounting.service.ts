@@ -90,11 +90,25 @@ export class PayrollCorrectionAccountingService {
             origenTipo: ORIGIN.type,
             origenId: correction.id,
             origenEvento: ORIGIN.event,
-            estado: { not: 'ANULADO' },
           },
-          select: { id: true },
+          select: {
+            id: true,
+            estado: true,
+            reversos: {
+              where: { tenantId, estado: 'CONTABILIZADO' },
+              select: { id: true },
+            },
+          },
         });
         if (existing) {
+          if (
+            existing.estado !== 'CONTABILIZADO' ||
+            existing.reversos.length > 0
+          ) {
+            throw new ConflictException(
+              'El comprobante de esta corrección está anulado o revertido. Registra una nueva corrección si todavía se requiere un ajuste contable.',
+            );
+          }
           await this.audit.log(
             {
               tenantId,
@@ -131,7 +145,10 @@ export class PayrollCorrectionAccountingService {
             origenTipo: 'PAYROLL',
             origenId: correction.payrollPeriodId,
             origenEvento: 'CAUSACION',
-            estado: { not: 'ANULADO' },
+            estado: 'CONTABILIZADO',
+            reversos: {
+              none: { tenantId, estado: 'CONTABILIZADO' },
+            },
           },
           select: { id: true },
         });
@@ -301,7 +318,10 @@ export class PayrollCorrectionAccountingService {
           origenTipo: ORIGIN.type,
           origenId: { in: dependencyIds },
           origenEvento: ORIGIN.event,
-          estado: { not: 'ANULADO' },
+          estado: 'CONTABILIZADO',
+          reversos: {
+            none: { tenantId, estado: 'CONTABILIZADO' },
+          },
         },
         select: { origenId: true },
       }),
