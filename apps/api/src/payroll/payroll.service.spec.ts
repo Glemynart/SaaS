@@ -59,6 +59,7 @@ const mockComprobanteFindMany = jest.fn();
 const mockCuentaSistemaMapFindMany = jest.fn();
 const mockPeriodoContableFindFirst = jest.fn();
 const mockTipoComprobanteFindFirst = jest.fn();
+const mockTerceroFindMany = jest.fn();
 
 const mockPrisma = {
   payrollPeriod: {
@@ -103,6 +104,7 @@ const mockPrisma = {
   cuentaSistemaMap: { findMany: mockCuentaSistemaMapFindMany },
   periodoContable: { findFirst: mockPeriodoContableFindFirst },
   tipoComprobante: { findFirst: mockTipoComprobanteFindFirst },
+  tercero: { findMany: mockTerceroFindMany },
   $transaction: jest.fn(),
 };
 
@@ -2198,6 +2200,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
   describe('contabilizar — causación contable (ACC-13)', () => {
     const accountingRun = {
       centroCostoId: 'cc-1',
+      employee: { cedula: 'employee-cc-1', tipoDocumento: 'CC' },
       totalDevengos: 100,
       totalDeducciones: 10,
       netoPagar: 90,
@@ -2238,6 +2241,13 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       });
       mockTipoComprobanteFindFirst.mockResolvedValue({ id: 'nom-type' });
       mockPayrollRunFindMany.mockResolvedValue([accountingRun]);
+      mockTerceroFindMany.mockResolvedValue([
+        {
+          id: 'employee-thirdparty-1',
+          tipoDocumento: 'CC',
+          numeroDocumento: 'employee-cc-1',
+        },
+      ]);
     }
 
     it('ejecuta el preflight antes de crear el comprobante', async () => {

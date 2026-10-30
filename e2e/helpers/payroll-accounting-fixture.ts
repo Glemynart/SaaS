@@ -101,11 +101,23 @@ export async function seedPayrollAccrualFixture(
           id: employeeId,
           tenantId,
           cedula: `payroll-accrual-${suffix}`,
+          tipoDocumento: 'CC',
           primerNombre: 'Ana',
           primerApellido: 'Pérez',
           cargo: 'Docente',
           salario: 1_000_000,
           fechaIngreso: new Date('2025-01-01T00:00:00.000Z'),
+        },
+      });
+      await tx.tercero.create({
+        data: {
+          tenantId,
+          tipoDocumento: 'CC',
+          numeroDocumento: `payroll-accrual-${suffix}`,
+          tipoPersona: 'NATURAL',
+          primerNombre: 'Ana',
+          primerApellido: 'Pérez',
+          esEmpleado: true,
         },
       });
       await tx.payrollPeriod.create({
