@@ -256,8 +256,9 @@ test('permite crear, revisar, aprobar y contabilizar una corrección post-aproba
   await expect(page.getByText('En revisión')).toBeVisible();
   await page.getByRole('button', { name: 'Aprobar corrección' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Aprobar corrección' }).click();
-  await expect(page.getByText('Aprobada', { exact: true })).toBeVisible();
-  await expect(page.getByText(/^\+\s*\$\s*500\.000$/)).toBeVisible();
+  const correctionCard = page.getByRole('article').filter({ hasText: 'Diferencia salario base' });
+  await expect(correctionCard.getByText('Aprobada', { exact: true })).toBeVisible();
+  await expect(correctionCard.getByText(/^\+\s*\$\s*500\.000$/)).toBeVisible();
 
   await page.getByRole('button', { name: 'Contabilizar ajuste' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Contabilizar ajuste' }).click();
