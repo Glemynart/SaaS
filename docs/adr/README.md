@@ -9,3 +9,4 @@
 | [ADR-008](ADR-008-demo-request-capture-boundary.md)         | Frontera de plataforma para solicitudes públicas de demo               | accepted | 2026-08-03 |
 | [ADR-009](ADR-009-coordinated-backup-sets.md)               | Conjuntos coordinados de backup PostgreSQL y uploads                   | accepted | 2026-10-29 |
 | [ADR-010](ADR-010-password-reset-token-prevalidation.md)    | Validación previa de tokens de recuperación                            | accepted | 2026-10-29 |
+| [ADR-011](ADR-011-internal-invoice-ledger-boundary.md)      | Frontera de contabilización de facturas internas                       | proposed | 2026-10-30 |
