@@ -5,6 +5,7 @@ export type PayrollPeriodStatus =
   | 'CALCULADA'
   | 'EN_REVISION'
   | 'APROBADA'
+  | 'CAUSADA'
   | 'CERRADA';
 
 export interface PayrollPeriod {
@@ -79,7 +80,51 @@ export interface PeriodDetail {
   period: PayrollPeriod;
   runs: PayrollRun[];
   totals: { totalDevengos: number; totalDeducciones: number; totalNeto: number };
+  accountingVoucher: PayrollAccountingVoucher | null;
 }
+
+export interface PayrollAccountingMovement {
+  linea: number;
+  descripcion: string | null;
+  debito: number;
+  credito: number;
+  cuentaCodigo: string;
+  cuentaNombre: string;
+  centroCostoCodigo: string | null;
+  centroCostoNombre: string | null;
+}
+
+export interface PayrollAccountingVoucher {
+  id: string;
+  numero: number | null;
+  fecha: string;
+  concepto: string;
+  estado: string;
+  totalDebito: number;
+  totalCredito: number;
+  movimientos: PayrollAccountingMovement[];
+}
+
+export interface PayrollAccountingPreflightValidation {
+  code: string;
+  message: string;
+  severity: 'OK' | 'WARNING' | 'ERROR';
+  component: string;
+}
+
+export type PayrollAccountingResult =
+  | {
+      status: 'PREFLIGHT_ERROR';
+      preflight: {
+        status: 'ERROR';
+        validations: PayrollAccountingPreflightValidation[];
+      };
+    }
+  | {
+      status: 'CAUSADA' | 'YA_CAUSADA';
+      payrollPeriodId: string;
+      comprobanteId: string;
+    };
 
 export interface PayrollOperationResult {
   created?: number;
@@ -155,6 +200,11 @@ export const payrollApi = {
     }),
   aprobar: (id: string) =>
     req<PayrollPeriod>(`/api/payroll/periods/${id}/aprobar`, { method: 'POST', body: '{}' }),
+  contabilizar: (id: string) =>
+    req<PayrollAccountingResult>(`/api/payroll/periods/${id}/contabilizar`, {
+      method: 'POST',
+      body: '{}',
+    }),
   rechazar: (id: string, motivo?: string) =>
     req<PayrollPeriod>(`/api/payroll/periods/${id}/rechazar`, {
       method: 'POST',

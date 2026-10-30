@@ -65,6 +65,13 @@ export function useAprobarPayrollPeriod() {
     onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.all }),
   });
 }
+export function useContabilizarPayrollPeriod() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: payrollApi.contabilizar,
+    onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.all }),
+  });
+}
 export function useRechazarPayrollPeriod() {
   const qc = useQueryClient();
   return useMutation({
