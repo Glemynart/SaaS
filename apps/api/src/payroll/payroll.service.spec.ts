@@ -2204,8 +2204,24 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       totalAportesPatronales: 20,
       totalProvisiones: 5,
       concepts: [
-        { codigo: 'SALUD_EMP', valor: 4 },
-        { codigo: 'SALUD_PAT', valor: 8 },
+        { codigo: 'SALARIO_BASE', tipo: 'EARNING', valor: 100 },
+        { codigo: 'SALUD_EMP', tipo: 'DEDUCTION', valor: 4 },
+        { codigo: 'PENSION_EMP', tipo: 'DEDUCTION', valor: 6 },
+        {
+          codigo: 'SALUD_PAT',
+          tipo: 'EMPLOYER_CONTRIBUTION',
+          valor: 8,
+        },
+        {
+          codigo: 'PENSION_PAT',
+          tipo: 'EMPLOYER_CONTRIBUTION',
+          valor: 4,
+        },
+        { codigo: 'ARL', tipo: 'EMPLOYER_CONTRIBUTION', valor: 2 },
+        { codigo: 'CAJA', tipo: 'EMPLOYER_CONTRIBUTION', valor: 3 },
+        { codigo: 'ICBF', tipo: 'EMPLOYER_CONTRIBUTION', valor: 2 },
+        { codigo: 'SENA', tipo: 'EMPLOYER_CONTRIBUTION', valor: 1 },
+        { codigo: 'PROV_PRIMA', tipo: 'PROVISION', valor: 5 },
       ],
     };
 

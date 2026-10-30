@@ -354,7 +354,7 @@ export class PayrollService {
             netoPagar: true,
             totalAportesPatronales: true,
             totalProvisiones: true,
-            concepts: { select: { codigo: true, valor: true } },
+            concepts: { select: { codigo: true, tipo: true, valor: true } },
           },
         }),
       ]);
@@ -405,6 +405,7 @@ export class PayrollService {
                 : null,
               concepts: run.concepts.map((concept) => ({
                 codigo: concept.codigo,
+                tipo: concept.tipo,
                 valor: Number(concept.valor),
               })),
             })),
