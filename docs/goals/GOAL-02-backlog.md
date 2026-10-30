@@ -6,14 +6,14 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 
 ## M0 — Flujos financieros internos demostrables
 
-| Prioridad | Estado                         | Iniciativa                                                                                        | Criterios de aceptación                                                                                                                                                                                                                         | Dependencias y riesgo                                                                                                                                                                                                                                                |
-| --------- | ------------------------------ | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P0        | EN CURSO                       | Validar que cada producto de una factura pertenezca al tenant activo y esté disponible.           | La API acepta productos activos del mismo tenant, rechaza IDs ajenos, inexistentes o inactivos sin crear la factura, conserva líneas manuales y tiene pruebas de regresión.                                                                     | Sin migración ni decisión de dominio; riesgo alto por aislamiento multiempresa.                                                                                                                                                                                      |
-| P1        | PENDIENTE                      | Conectar la emisión interna de facturas con el Ledger.                                            | Un acto interno genera un comprobante balanceado e idempotente con tercero, período y origen trazables; anular/corregir conserva evidencia y usa reversión del Ledger.                                                                          | ADR sobre cliente contable, impuestos, evento de emisión, cuentas y reversión; riesgo financiero alto.                                                                                                                                                               |
-| P1        | EN CURSO                       | Verificar de extremo a extremo la causación de nómina en el Ledger desde la UI.                   | Un período aprobado conserva su snapshot, crea una causación una sola vez, muestra el comprobante y soporta la corrección definida por el dominio. La rama apilada agrega formulario, transiciones RBAC y comprobante de ajuste en la pantalla. | Reutilizar Payroll y Ledger existentes; permisos, preflight, idempotencia y persistencia cuentan con pruebas de servicio; falta integrar las PR apiladas y verificar el recorrido completo con una nómina demostrable antes de cerrar P1.                            |
-| P1        | EN CURSO                       | Preparar un escenario financiero reproducible con datos sintéticos para demo.                     | Un tenant explícitamente de demostración carga clientes, productos, facturas internas, nómina, centro de costo, tercero y causación balanceada; la carga es idempotente, tenant-scoped y se verifica desde la UI.                               | El seed idempotente y su Browser E2E se fusionaron en #157 con CI, E2E y Preview verdes. No está verificado el recorrido con una ejecución del seed en el tenant demo. La factura interna todavía no causa en Ledger ni transmite a DIAN.                            |
-| P1        | EN CURSO                       | Liquidar prima semestral de empleados activos por lote y generar un comprobante PDF por empleado. | Preview muestra períodos y conceptos fuente, base, días y fórmula; aprobación congela snapshots y correcciones; PDF inmutable queda vinculado al Expediente e idempotente ante reintentos.                                                      | Prototipo enero–junio en worktree con migraciones no aplicadas; casos ambiguos se bloquean. Antes del uso operativo/comercial de resultados: revisión de Payroll/asesoría laboral. Pago, Tesorería y Ledger fuera.                                                   |
-| P1        | CRITERIOS LISTOS PARA REVISIÓN | Estructurar afiliaciones/novedades y exportar aportes de nómina a PILA.                           | Afiliaciones con vigencia alimentan archivos tipo 1 y 2; validación local, aceptación del operador, liquidación y pago son estados separados; compatibilidad se prueba operador por operador.                                                   | ADR-013 aprobada con cambios. Los criterios y pruebas normativas están en ADR-013; revisar anexo consolidado efectivo antes de escribir código. Solo dependientes estándar; cotizante 75/especiales fuera; sin mapeo automático de texto libre, transmisión ni pago. |
+| Prioridad | Estado                    | Iniciativa                                                                                        | Criterios de aceptación                                                                                                                                                                                                                         | Dependencias y riesgo                                                                                                                                                                                                                                                             |
+| --------- | ------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0        | EN CURSO                  | Validar que cada producto de una factura pertenezca al tenant activo y esté disponible.           | La API acepta productos activos del mismo tenant, rechaza IDs ajenos, inexistentes o inactivos sin crear la factura, conserva líneas manuales y tiene pruebas de regresión.                                                                     | Sin migración ni decisión de dominio; riesgo alto por aislamiento multiempresa.                                                                                                                                                                                                   |
+| P1        | PENDIENTE                 | Conectar la emisión interna de facturas con el Ledger.                                            | Un acto interno genera un comprobante balanceado e idempotente con tercero, período y origen trazables; anular/corregir conserva evidencia y usa reversión del Ledger.                                                                          | ADR sobre cliente contable, impuestos, evento de emisión, cuentas y reversión; riesgo financiero alto.                                                                                                                                                                            |
+| P1        | EN CURSO                  | Verificar de extremo a extremo la causación de nómina en el Ledger desde la UI.                   | Un período aprobado conserva su snapshot, crea una causación una sola vez, muestra el comprobante y soporta la corrección definida por el dominio. La rama apilada agrega formulario, transiciones RBAC y comprobante de ajuste en la pantalla. | Reutilizar Payroll y Ledger existentes; permisos, preflight, idempotencia y persistencia cuentan con pruebas de servicio; falta integrar las PR apiladas y verificar el recorrido completo con una nómina demostrable antes de cerrar P1.                                         |
+| P1        | EN CURSO                  | Preparar un escenario financiero reproducible con datos sintéticos para demo.                     | Un tenant explícitamente de demostración carga clientes, productos, facturas internas, nómina, centro de costo, tercero y causación balanceada; la carga es idempotente, tenant-scoped y se verifica desde la UI.                               | El seed idempotente y su Browser E2E se fusionaron en #157 con CI, E2E y Preview verdes. No está verificado el recorrido con una ejecución del seed en el tenant demo. La factura interna todavía no causa en Ledger ni transmite a DIAN.                                         |
+| P1        | EN CURSO                  | Liquidar prima semestral de empleados activos por lote y generar un comprobante PDF por empleado. | Preview muestra períodos y conceptos fuente, base, días y fórmula; aprobación congela snapshots y correcciones; PDF inmutable queda vinculado al Expediente e idempotente ante reintentos.                                                      | PR #159 draft; enero–junio recorrió E2E local con PostgreSQL desechable. Sus migraciones solo se aplicaron en esa base, no en demo/staging/producción. Casos ambiguos se bloquean. Revisión de Payroll/asesoría laboral antes del uso operativo; pagos, Tesorería y Ledger fuera. |
+| P1        | LISTA PARA IMPLEMENTACIÓN | Estructurar afiliaciones/novedades y exportar aportes de nómina a PILA.                           | Afiliaciones con vigencia alimentan archivos tipo 1 y 2; validación local, aceptación del operador, liquidación y pago son estados separados; compatibilidad se prueba operador por operador.                                                   | ADR-013 aprobada con cambios y matriz presentada; base normativa AT2 v30 (24-07-2026) verificada hoy en MinSalud. Solo dependientes estándar; cotizante 75/especiales fuera; sin mapeo automático de texto libre, transmisión ni pago.                                            |
 
 ## H1 — Fundación de integraciones regulatorias
 
@@ -57,19 +57,19 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   estructurada ni todos los datos de cotizante y novedades requeridos para
   reconstruir un archivo PILA. No se encontró exportador PILA ejecutable en
   `apps/api` ni en la interfaz web.
-- La página oficial de [PILA del Ministerio de Salud](https://www2.minsalud.gov.co/proteccionsocial/Paginas/pila.aspx)
-  enlaza los anexos técnicos, incluido el Anexo Técnico 2 de cotizantes. El PDF
-  publicado aparece como versión 29 del 6 de enero de 2026; la [Resolución 1529
-  de 2026](https://www.minsalud.gov.co/Normatividad_Nuevo/Resoluci%C3%B3n%20No%201529%20de%202026.pdf)
-  reemplazó el Anexo Técnico 2 y fijó implementación escalonada. La resolución
-  se expidió el 24 y se publicó el 27 de julio en el Diario Oficial 53.566.
-  Adoptó el
-  cotizante 75; sus cambios operativos empiezan el 1 de noviembre de 2026 para
-  pagos del período de salud de noviembre. El proyecto posterior que propone
-  cambiar esos plazos no reemplaza la regla vigente al 2026-10-30. El MVP lo
-  excluye, pero la versión normativa debe seleccionarse por período cotizado y
-  fecha prevista de pago. La primera entrega limita su promesa a operadores
-  cuya carga haya sido probada.
+- La [página oficial de PILA de MinSalud](https://www.minsalud.gov.co/Proteccion-Social/Paginas/pila.aspx)
+  enlaza el Anexo Técnico 2 de cotizantes. Verificado el 2026-10-30, el enlace
+  oficial devuelve AT2 versión 30, fechado el 24 de julio de 2026 y de 336
+  páginas; sus páginas 9–16 definen el archivo tipo 1, 26–30 el encabezado del
+  archivo tipo 2, 81–101 el registro de detalle y 332–335 los hitos 5.84–5.91.
+  AT2 v29 del 6 de enero de 2026 es histórico, no el layout vigente. La
+  [Resolución 1529 de 2026](https://normativa.colpensiones.gov.co/colpens/compilacion/docs/resolucion_minsaludps_1529_2026.htm)
+  modificó el Anexo 2 y fijó implementación escalonada; por ejemplo, 5.87 y
+  5.91 aplican desde pagos del 1 de noviembre de 2026 para salud del período
+  noviembre en el caso especial del cotizante 75. Las reglas se seleccionan
+  por período cotizado y fecha prevista de pago. Ese caso queda fuera del MVP;
+  la primera entrega limita su compatibilidad a operadores cuya carga haya
+  superado una prueba real.
 - Hay evidencia de carga por archivo plano en varios operadores: [SOI](https://www.soi.com.co/empresa-servicios-de-soi),
   [Enlace Operativo/SuAporte](https://www.enlace.com.co/hubfs/Manuales/C%C3%B3mo%20cargar%20un%20archivo%20plano%20en%20SuAporte.pdf?hsLang=es-co)
   y [Aportes en Línea](https://www.aportesenlinea.com/Documents/Instructivo%20Corrector%20por%20Pantalla%20v.1.3.pdf)
@@ -119,17 +119,20 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 - **Decisión pendiente:** #154 conserva ADR-011 en estado propuesto. La aprobación
   contable para emisión interna de facturas a Ledger sigue pendiente y bloquea
   únicamente esa ruta.
-- **Prima y PILA:** ADR-012 está aprobada con condiciones y tiene un prototipo
-  de enero–junio en este worktree. El preview expone períodos/conceptos fuente,
-  cálculo y correcciones congeladas; tests aritméticos y de permisos pasan.
-  Migraciones aún no se aplican y falta la revisión laboral independiente antes
-  de uso operativo. ADR-013 está aprobada con cambios; su matriz de aceptación y
-  pruebas normativas está escrita, pero no se ha iniciado implementación PILA.
+- **Prima y PILA:** ADR-012 está aprobada con condiciones. PR #159 agrega el
+  flujo enero–junio y un Browser E2E local completo; la prueba generó y descargó
+  el PDF desde el Expediente usando PostgreSQL desechable. Las migraciones no
+  se han aplicado a demo/staging/producción; los casos ambiguos se bloquean y
+  la revisión laboral sigue pendiente antes de uso operativo. Vercel Preview
+  está verde; GitHub Actions no inició `browser` ni `verify` por la restricción
+  de facturación de la cuenta, por lo que PR #159 permanece draft y sin merge.
+  ADR-013 está aprobada con cambios y la matriz se presentó; no se transmite ni
+  se paga desde el exportador PILA.
 - **Estado de preparación:** GOAL-02 sigue activo. La prima avanza como
-  prototipo revisable con límites explícitos; los resultados requieren
-  verificación por Payroll antes de usarse para pago. La ruta PILA queda lista
-  para revisar sus criterios antes de crear el primer cambio de dominio. La
-  integración financiera interna restante de facturas tiene su propia decisión
+  prototipo revisable; los resultados requieren verificación de Payroll antes
+  de usarse para pago. La ruta PILA puede iniciar un primer incremento en una
+  rama/PR independiente, con AT2 v30 como línea base y límites de ADR-013. La
+  integración financiera interna restante de facturas conserva su decisión
   pendiente ADR-011.
 - No se ejecutó el seed financiero ni se accedió a staging, producción, VPS u
   OCI; no se transmitió información a DIAN/UGPP.
