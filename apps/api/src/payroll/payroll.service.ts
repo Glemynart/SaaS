@@ -427,27 +427,58 @@ export class PayrollService {
     });
     if (!period) throw new NotFoundException('Período no encontrado');
 
-    const runs = await this.prisma.payrollRun.findMany({
-      where: { tenantId, payrollPeriodId: id },
-      include: {
-        employee: {
-          select: {
-            id: true,
-            primerNombre: true,
-            segundoNombre: true,
-            primerApellido: true,
-            segundoApellido: true,
-            cedula: true,
-            cargo: true,
+    const [runs, voucher] = await Promise.all([
+      this.prisma.payrollRun.findMany({
+        where: { tenantId, payrollPeriodId: id },
+        include: {
+          employee: {
+            select: {
+              id: true,
+              primerNombre: true,
+              segundoNombre: true,
+              primerApellido: true,
+              segundoApellido: true,
+              cedula: true,
+              cargo: true,
+            },
+          },
+          centroCosto: {
+            select: { id: true, codigo: true, nombre: true, sedeId: true },
+          },
+          concepts: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.comprobanteContable.findFirst({
+        where: {
+          tenantId,
+          origenTipo: 'PAYROLL',
+          origenId: id,
+          origenEvento: 'CAUSACION',
+          estado: { not: 'ANULADO' },
+        },
+        select: {
+          id: true,
+          numero: true,
+          fecha: true,
+          concepto: true,
+          estado: true,
+          totalDebito: true,
+          totalCredito: true,
+          movimientos: {
+            orderBy: { linea: 'asc' },
+            select: {
+              linea: true,
+              descripcion: true,
+              debito: true,
+              credito: true,
+              cuenta: { select: { codigo: true, nombre: true } },
+              centroCosto: { select: { codigo: true, nombre: true } },
+            },
           },
         },
-        centroCosto: {
-          select: { id: true, codigo: true, nombre: true, sedeId: true },
-        },
-        concepts: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+      }),
+    ]);
 
     const totalDevengos = runs.reduce((s, r) => s + Number(r.totalDevengos), 0);
     const totalDeducciones = runs.reduce(
@@ -460,6 +491,27 @@ export class PayrollService {
       period,
       runs,
       totals: { totalDevengos, totalDeducciones, totalNeto },
+      accountingVoucher: voucher
+        ? {
+            id: voucher.id,
+            numero: voucher.numero,
+            fecha: voucher.fecha,
+            concepto: voucher.concepto,
+            estado: voucher.estado,
+            totalDebito: Number(voucher.totalDebito),
+            totalCredito: Number(voucher.totalCredito),
+            movimientos: voucher.movimientos.map((movement) => ({
+              linea: movement.linea,
+              descripcion: movement.descripcion,
+              debito: Number(movement.debito),
+              credito: Number(movement.credito),
+              cuentaCodigo: movement.cuenta.codigo,
+              cuentaNombre: movement.cuenta.nombre,
+              centroCostoCodigo: movement.centroCosto?.codigo ?? null,
+              centroCostoNombre: movement.centroCosto?.nombre ?? null,
+            })),
+          }
+        : null,
     };
   }
 

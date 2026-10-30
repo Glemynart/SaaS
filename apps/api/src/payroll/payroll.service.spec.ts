@@ -2196,4 +2196,66 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       expect(mockLedger.registrarComprobante).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('detalle de período y comprobante de nómina', () => {
+    it('devuelve las líneas del comprobante del mismo tenant para mostrar el Ledger', async () => {
+      const fecha = new Date('2026-02-28T00:00:00.000Z');
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CAUSADA'));
+      mockPayrollRunFindMany.mockResolvedValue([]);
+      mockComprobanteFindFirst.mockResolvedValue({
+        id: 'voucher-1',
+        numero: 42,
+        fecha,
+        concepto: 'Causación nómina febrero',
+        estado: 'CONTABILIZADO',
+        totalDebito: 1_000_000,
+        totalCredito: 1_000_000,
+        movimientos: [
+          {
+            linea: 1,
+            descripcion: 'Salarios',
+            debito: 1_000_000,
+            credito: 0,
+            cuenta: { codigo: '510506', nombre: 'Sueldos' },
+            centroCosto: { codigo: 'CC-01', nombre: 'Sede Centro' },
+          },
+        ],
+      });
+
+      const result = await service.findOnePeriod(TENANT, PERIOD_ID);
+
+      expect(mockComprobanteFindFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            tenantId: TENANT,
+            origenTipo: 'PAYROLL',
+            origenId: PERIOD_ID,
+            origenEvento: 'CAUSACION',
+            estado: { not: 'ANULADO' },
+          },
+        }),
+      );
+      expect(result.accountingVoucher).toEqual({
+        id: 'voucher-1',
+        numero: 42,
+        fecha,
+        concepto: 'Causación nómina febrero',
+        estado: 'CONTABILIZADO',
+        totalDebito: 1_000_000,
+        totalCredito: 1_000_000,
+        movimientos: [
+          {
+            linea: 1,
+            descripcion: 'Salarios',
+            debito: 1_000_000,
+            credito: 0,
+            cuentaCodigo: '510506',
+            cuentaNombre: 'Sueldos',
+            centroCostoCodigo: 'CC-01',
+            centroCostoNombre: 'Sede Centro',
+          },
+        ],
+      });
+    });
+  });
 });
