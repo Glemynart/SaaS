@@ -94,6 +94,7 @@ export class BillingService {
   // --- INVOICES ---
   async createInvoice(tenantId: string, dto: CreateInvoiceDto) {
     void (await this.findOneCustomer(tenantId, dto.customerId));
+    await this.validateInvoiceProducts(tenantId, dto.items);
 
     const items = dto.items.map((item) => ({
       productServiceId: item.productServiceId ?? null,
@@ -190,5 +191,29 @@ export class BillingService {
       ),
       totalFacturado: issued.reduce((s, i) => s + Number(i._sum.total ?? 0), 0),
     };
+  }
+
+  private async validateInvoiceProducts(
+    tenantId: string,
+    items: CreateInvoiceDto['items'],
+  ): Promise<void> {
+    const productIds = [
+      ...new Set(
+        items
+          .map((item) => item.productServiceId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    if (productIds.length === 0) return;
+
+    const products = await this.prisma.productService.findMany({
+      where: { tenantId, id: { in: productIds }, activo: true },
+      select: { id: true },
+    });
+    if (products.length !== productIds.length) {
+      throw new BadRequestException(
+        'Uno o más productos no están disponibles para esta empresa.',
+      );
+    }
   }
 }
