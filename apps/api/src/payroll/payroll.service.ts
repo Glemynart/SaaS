@@ -77,6 +77,53 @@ const RECALCULATE_ALLOWED_STATUSES: PayrollPeriodStatus[] =
 const SNAPSHOT_PAYLOAD_VERSION = 1;
 const CALCULATION_TRACE_VERSION = 1;
 
+const PAYROLL_ACCOUNTING_VOUCHER_SELECT = {
+  id: true,
+  numero: true,
+  fecha: true,
+  concepto: true,
+  estado: true,
+  totalDebito: true,
+  totalCredito: true,
+  movimientos: {
+    orderBy: { linea: 'asc' },
+    select: {
+      linea: true,
+      descripcion: true,
+      debito: true,
+      credito: true,
+      cuenta: { select: { codigo: true, nombre: true } },
+      centroCosto: { select: { codigo: true, nombre: true } },
+    },
+  },
+} satisfies Prisma.ComprobanteContableSelect;
+
+type PayrollAccountingVoucherRecord = Prisma.ComprobanteContableGetPayload<{
+  select: typeof PAYROLL_ACCOUNTING_VOUCHER_SELECT;
+}>;
+
+function mapPayrollAccountingVoucher(voucher: PayrollAccountingVoucherRecord) {
+  return {
+    id: voucher.id,
+    numero: voucher.numero,
+    fecha: voucher.fecha,
+    concepto: voucher.concepto,
+    estado: voucher.estado,
+    totalDebito: Number(voucher.totalDebito),
+    totalCredito: Number(voucher.totalCredito),
+    movimientos: voucher.movimientos.map((movement) => ({
+      linea: movement.linea,
+      descripcion: movement.descripcion,
+      debito: Number(movement.debito),
+      credito: Number(movement.credito),
+      cuentaCodigo: movement.cuenta.codigo,
+      cuentaNombre: movement.cuenta.nombre,
+      centroCostoCodigo: movement.centroCosto?.codigo ?? null,
+      centroCostoNombre: movement.centroCosto?.nombre ?? null,
+    })),
+  };
+}
+
 type CostCenterForPayrollTrace = {
   id: string;
   codigo: string;
@@ -427,7 +474,33 @@ export class PayrollService {
     });
     if (!period) throw new NotFoundException('Período no encontrado');
 
-    const [runs, voucher] = await Promise.all([
+    const snapshotsQuery =
+      period.status === PayrollPeriodStatus.APROBADA ||
+      period.status === PayrollPeriodStatus.CAUSADA
+        ? this.prisma.payrollSnapshot.findMany({
+            where: { tenantId, payrollPeriodId: id },
+            select: {
+              id: true,
+              employeeId: true,
+              centroCostoId: true,
+              employee: {
+                select: {
+                  id: true,
+                  primerNombre: true,
+                  segundoNombre: true,
+                  primerApellido: true,
+                  segundoApellido: true,
+                },
+              },
+              centroCosto: {
+                select: { id: true, codigo: true, nombre: true },
+              },
+            },
+            orderBy: [{ createdAt: 'asc' }, { employeeId: 'asc' }],
+          })
+        : Promise.resolve([]);
+
+    const [runs, voucher, snapshots] = await Promise.all([
       this.prisma.payrollRun.findMany({
         where: { tenantId, payrollPeriodId: id },
         include: {
@@ -457,27 +530,9 @@ export class PayrollService {
           origenEvento: 'CAUSACION',
           estado: { not: 'ANULADO' },
         },
-        select: {
-          id: true,
-          numero: true,
-          fecha: true,
-          concepto: true,
-          estado: true,
-          totalDebito: true,
-          totalCredito: true,
-          movimientos: {
-            orderBy: { linea: 'asc' },
-            select: {
-              linea: true,
-              descripcion: true,
-              debito: true,
-              credito: true,
-              cuenta: { select: { codigo: true, nombre: true } },
-              centroCosto: { select: { codigo: true, nombre: true } },
-            },
-          },
-        },
+        select: PAYROLL_ACCOUNTING_VOUCHER_SELECT,
       }),
+      snapshotsQuery,
     ]);
 
     const totalDevengos = runs.reduce((s, r) => s + Number(r.totalDevengos), 0);
@@ -490,28 +545,9 @@ export class PayrollService {
     return {
       period,
       runs,
+      snapshots,
       totals: { totalDevengos, totalDeducciones, totalNeto },
-      accountingVoucher: voucher
-        ? {
-            id: voucher.id,
-            numero: voucher.numero,
-            fecha: voucher.fecha,
-            concepto: voucher.concepto,
-            estado: voucher.estado,
-            totalDebito: Number(voucher.totalDebito),
-            totalCredito: Number(voucher.totalCredito),
-            movimientos: voucher.movimientos.map((movement) => ({
-              linea: movement.linea,
-              descripcion: movement.descripcion,
-              debito: Number(movement.debito),
-              credito: Number(movement.credito),
-              cuentaCodigo: movement.cuenta.codigo,
-              cuentaNombre: movement.cuenta.nombre,
-              centroCostoCodigo: movement.centroCosto?.codigo ?? null,
-              centroCostoNombre: movement.centroCosto?.nombre ?? null,
-            })),
-          }
-        : null,
+      accountingVoucher: voucher ? mapPayrollAccountingVoucher(voucher) : null,
     };
   }
 
@@ -556,9 +592,36 @@ export class PayrollService {
       'Solo se pueden consultar correcciones sobre un período aprobado',
     );
 
-    return this.prisma.payrollCorrection.findMany({
+    const corrections = await this.prisma.payrollCorrection.findMany({
       where: { tenantId, payrollPeriodId: periodId },
       orderBy: [{ createdAt: 'desc' }],
+    });
+    if (corrections.length === 0) return [];
+
+    const vouchers = await this.prisma.comprobanteContable.findMany({
+      where: {
+        tenantId,
+        origenTipo: 'PAYROLL_CORRECTION',
+        origenId: { in: corrections.map((correction) => correction.id) },
+        origenEvento: 'AJUSTE',
+        estado: { not: 'ANULADO' },
+      },
+      select: { ...PAYROLL_ACCOUNTING_VOUCHER_SELECT, origenId: true },
+    });
+    const voucherByCorrectionId = new Map(
+      vouchers
+        .filter((voucher) => voucher.origenId !== null)
+        .map((voucher) => [voucher.origenId!, voucher]),
+    );
+
+    return corrections.map((correction) => {
+      const voucher = voucherByCorrectionId.get(correction.id);
+      return {
+        ...correction,
+        accountingVoucher: voucher
+          ? mapPayrollAccountingVoucher(voucher)
+          : null,
+      };
     });
   }
 

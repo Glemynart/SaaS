@@ -55,6 +55,7 @@ const mockPayrollBlockFindFirst = jest.fn();
 const mockPayrollBlockCreate = jest.fn();
 const mockPayrollBlockUpdate = jest.fn();
 const mockComprobanteFindFirst = jest.fn();
+const mockComprobanteFindMany = jest.fn();
 const mockCuentaSistemaMapFindMany = jest.fn();
 const mockPeriodoContableFindFirst = jest.fn();
 const mockTipoComprobanteFindFirst = jest.fn();
@@ -95,7 +96,10 @@ const mockPrisma = {
     create: mockPayrollBlockCreate,
     update: mockPayrollBlockUpdate,
   },
-  comprobanteContable: { findFirst: mockComprobanteFindFirst },
+  comprobanteContable: {
+    findFirst: mockComprobanteFindFirst,
+    findMany: mockComprobanteFindMany,
+  },
   cuentaSistemaMap: { findMany: mockCuentaSistemaMapFindMany },
   periodoContable: { findFirst: mockPeriodoContableFindFirst },
   tipoComprobante: { findFirst: mockTipoComprobanteFindFirst },
@@ -443,6 +447,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
     mockPayrollBlockCreate.mockResolvedValue({});
     mockPayrollBlockUpdate.mockResolvedValue({});
     mockComprobanteFindFirst.mockResolvedValue(null);
+    mockComprobanteFindMany.mockResolvedValue([]);
     mockCuentaSistemaMapFindMany.mockResolvedValue([]);
     mockPeriodoContableFindFirst.mockResolvedValue({ id: 'accounting-period' });
     mockTipoComprobanteFindFirst.mockResolvedValue({ id: 'nom-type' });
@@ -745,6 +750,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           payrollPeriodId: PERIOD_ID,
           status: PayrollCorrectionStatus.BORRADOR,
           descripcion: 'Falta novedad del periodo',
+          accountingVoucher: null,
         },
       ]);
       expect(mockPayrollCorrectionFindMany).toHaveBeenCalledWith({
@@ -753,6 +759,61 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       });
       expect(mockPayrollRunFindMany).not.toHaveBeenCalled();
       expect(mockPayrollSnapshotCreate).not.toHaveBeenCalled();
+    });
+
+    it('adjunta el ajuste contable de la misma corrección y tenant', async () => {
+      const fecha = new Date('2026-03-10T00:00:00.000Z');
+      mockPayrollPeriodFindFirst.mockResolvedValue(
+        makePeriod('CAUSADA', {
+          aprobadoPorId: 'approver-1',
+          aprobadoEn: new Date('2026-02-01T10:00:00.000Z'),
+        }),
+      );
+      mockPayrollCorrectionFindMany.mockResolvedValue([
+        {
+          id: 'corr-1',
+          payrollPeriodId: PERIOD_ID,
+          status: PayrollCorrectionStatus.APROBADA,
+          descripcion: 'Ajuste de salario',
+        },
+      ]);
+      mockComprobanteFindMany.mockResolvedValue([
+        {
+          id: 'voucher-adjustment',
+          origenId: 'corr-1',
+          numero: 43,
+          fecha,
+          concepto: 'Ajuste nómina: Ajuste de salario',
+          estado: 'CONTABILIZADO',
+          totalDebito: 100_000,
+          totalCredito: 100_000,
+          movimientos: [],
+        },
+      ]);
+
+      const result = await service.findPeriodCorrections(TENANT, PERIOD_ID);
+
+      expect(mockComprobanteFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            tenantId: TENANT,
+            origenTipo: 'PAYROLL_CORRECTION',
+            origenId: { in: ['corr-1'] },
+            origenEvento: 'AJUSTE',
+            estado: { not: 'ANULADO' },
+          },
+        }),
+      );
+      expect(result[0].accountingVoucher).toEqual({
+        id: 'voucher-adjustment',
+        numero: 43,
+        fecha,
+        concepto: 'Ajuste nómina: Ajuste de salario',
+        estado: 'CONTABILIZADO',
+        totalDebito: 100_000,
+        totalCredito: 100_000,
+        movimientos: [],
+      });
     });
 
     it('rechaza listar correcciones de un periodo inexistente', async () => {
@@ -2202,6 +2263,21 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       const fecha = new Date('2026-02-28T00:00:00.000Z');
       mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CAUSADA'));
       mockPayrollRunFindMany.mockResolvedValue([]);
+      mockPayrollSnapshotFindMany.mockResolvedValue([
+        {
+          id: 'snapshot-1',
+          employeeId: 'employee-1',
+          centroCostoId: 'cc-1',
+          employee: {
+            id: 'employee-1',
+            primerNombre: 'Ana',
+            segundoNombre: null,
+            primerApellido: 'Pérez',
+            segundoApellido: null,
+          },
+          centroCosto: { id: 'cc-1', codigo: 'CC-01', nombre: 'Sede Centro' },
+        },
+      ]);
       mockComprobanteFindFirst.mockResolvedValue({
         id: 'voucher-1',
         numero: 42,
@@ -2235,6 +2311,26 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           },
         }),
       );
+      expect(mockPayrollSnapshotFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { tenantId: TENANT, payrollPeriodId: PERIOD_ID },
+        }),
+      );
+      expect(result.snapshots).toEqual([
+        {
+          id: 'snapshot-1',
+          employeeId: 'employee-1',
+          centroCostoId: 'cc-1',
+          employee: {
+            id: 'employee-1',
+            primerNombre: 'Ana',
+            segundoNombre: null,
+            primerApellido: 'Pérez',
+            segundoApellido: null,
+          },
+          centroCosto: { id: 'cc-1', codigo: 'CC-01', nombre: 'Sede Centro' },
+        },
+      ]);
       expect(result.accountingVoucher).toEqual({
         id: 'voucher-1',
         numero: 42,

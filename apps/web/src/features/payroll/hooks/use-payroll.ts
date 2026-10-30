@@ -1,11 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { payrollApi } from '../services/payroll-api';
+import type {
+  PayrollCorrectionAction,
+  PayrollCorrectionIntentPayload,
+} from '../services/payroll-api';
 
 export const payrollKeys = {
   all: ['payroll'] as const,
   dashboard: () => [...payrollKeys.all, 'dashboard'],
   periods: () => [...payrollKeys.all, 'periods'],
   period: (id: string) => [...payrollKeys.periods(), id],
+  corrections: (periodId: string) => [...payrollKeys.period(periodId), 'corrections'],
   blocks: (periodId: string) => [...payrollKeys.period(periodId), 'blocks'],
   novelties: () => [...payrollKeys.all, 'novelties'],
 };
@@ -21,6 +26,13 @@ export function usePayrollPeriod(id: string) {
     queryKey: payrollKeys.period(id),
     queryFn: () => payrollApi.getPeriod(id),
     enabled: !!id,
+  });
+}
+export function usePayrollCorrections(periodId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: payrollKeys.corrections(periodId),
+    queryFn: () => payrollApi.getCorrections(periodId),
+    enabled: !!periodId && enabled,
   });
 }
 export function usePayrollNovelties(employeeId?: string) {
@@ -69,6 +81,27 @@ export function useContabilizarPayrollPeriod() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: payrollApi.contabilizar,
+    onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.all }),
+  });
+}
+export function useCreatePayrollCorrection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      periodId: string;
+      payload: { descripcion: string; intents: PayrollCorrectionIntentPayload[] };
+    }) => payrollApi.createCorrection(input.periodId, input.payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.all }),
+  });
+}
+export function usePayrollCorrectionAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      correctionId: string;
+      action: PayrollCorrectionAction;
+      motivo?: string;
+    }) => payrollApi.transitionCorrection(input.correctionId, input.action, input.motivo),
     onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.all }),
   });
 }
