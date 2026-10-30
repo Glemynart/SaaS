@@ -163,7 +163,7 @@ test('crea, aprueba y contabiliza una corrección post-aprobación con persisten
 
     await expect(page.getByText(/Ajuste contabilizado · Comprobante \d+/)).toBeVisible();
     await expect(page.getByText(new RegExp(`ID ${accounting.comprobanteId}`))).toBeVisible();
-    await expect(page.getByText('Sede Centro')).toBeVisible();
+    await expect(correctionCard).toContainText('Sede Centro');
 
     const retry = await page.evaluate(async (path) => {
       const response = await fetch(path, {
