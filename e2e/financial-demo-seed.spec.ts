@@ -115,7 +115,7 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
       payrollPeriods: 1,
       payrollRuns: 1,
       payrollSnapshots: 1,
-      accountMaps: 6,
+      accountMaps: 20,
     });
 
     const second = await seedAsExplicitTarget(tenant.id, user.id);
@@ -208,7 +208,7 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
     expect(targetData.periods).toHaveLength(1);
     expect(targetData.accountingPeriods.length).toBeGreaterThan(0);
     expect(targetData.accounts.length).toBeGreaterThan(0);
-    expect(targetData.accountMaps).toHaveLength(6);
+    expect(targetData.accountMaps).toHaveLength(20);
     expect(targetData.periods[0].status).toBe('CAUSADA');
     expect(targetData.runs).toHaveLength(1);
     expect(targetData.snapshots).toHaveLength(1);
