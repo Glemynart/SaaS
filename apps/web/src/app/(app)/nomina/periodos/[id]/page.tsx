@@ -155,8 +155,8 @@ export default function PeriodDetailPage({ params }: { params: Promise<{ id: str
                   )}
                 </p>
               </div>
-              <Badge variant="success">
-                {voucher.estado === 'CONTABILIZADO' ? 'Contabilizado' : voucher.estado}
+              <Badge variant={voucher.vigente ? 'success' : 'warning'}>
+                {voucher.vigente ? 'Contabilizado' : voucher.reversado ? 'Revertido' : 'Anulado'}
               </Badge>
             </div>
             <div className="grid gap-3 border-b border-border px-4 py-3 text-xs sm:grid-cols-2">
@@ -202,6 +202,16 @@ export default function PeriodDetailPage({ params }: { params: Promise<{ id: str
               ID de comprobante: {voucher.id}. Si se requiere corregir la nómina, se registra un
               ajuste separado; el comprobante original no se edita.
             </p>
+            {!voucher.vigente && (
+              <p
+                className="border-t border-warning/25 bg-warning/8 px-4 py-3 text-xs text-warning"
+                role="alert"
+              >
+                {voucher.reversado
+                  ? 'Este comprobante fue revertido y ya no respalda la causación. La contabilización de ajustes queda bloqueada hasta revisar y regularizar el asiento.'
+                  : 'Este comprobante fue anulado y ya no respalda la causación. La contabilización de ajustes queda bloqueada hasta revisar y regularizar el asiento.'}
+              </p>
+            )}
           </div>
         ) : period.status === 'CAUSADA' ? (
           <p
@@ -227,7 +237,8 @@ export default function PeriodDetailPage({ params }: { params: Promise<{ id: str
       <PayrollCorrectionsPanel
         periodId={id}
         periodStatus={period.status}
-        hasPayrollVoucher={Boolean(voucher)}
+        hasPayrollVoucher={Boolean(voucher?.vigente)}
+        payrollVoucherReversed={Boolean(voucher && !voucher.vigente)}
         snapshots={data.snapshots}
       />
 
