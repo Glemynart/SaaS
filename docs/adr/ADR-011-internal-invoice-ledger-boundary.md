@@ -1,11 +1,11 @@
 # ADR-011 — Frontera de contabilización de facturas internas
 
-| Campo | Valor |
-| --- | --- |
-| **Estado** | proposed — requiere aprobación de producto y contabilidad |
-| **Fecha** | 2026-10-30 |
-| **Decisores** | Producto · Contabilidad funcional · Arquitectura |
-| **Ámbito** | `Billing.Invoice` interno y su integración con `LedgerService` |
+| Campo           | Valor                                                                                     |
+| --------------- | ----------------------------------------------------------------------------------------- |
+| **Estado**      | proposed — requiere aprobación de producto y contabilidad                                 |
+| **Fecha**       | 2026-10-30                                                                                |
+| **Decisores**   | Producto · Contabilidad funcional · Arquitectura                                          |
+| **Ámbito**      | `Billing.Invoice` interno y su integración con `LedgerService`                            |
 | **Relacionado** | GOAL-02 M0; ADR-001 (contrato implementado del Ledger); ADR-005 (facturación electrónica) |
 
 ## Contexto verificado
