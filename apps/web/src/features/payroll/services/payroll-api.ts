@@ -115,6 +115,8 @@ export interface PayrollAccountingVoucher {
   fecha: string;
   concepto: string;
   estado: string;
+  reversado: boolean;
+  vigente: boolean;
   totalDebito: number;
   totalCredito: number;
   movimientos: PayrollAccountingMovement[];

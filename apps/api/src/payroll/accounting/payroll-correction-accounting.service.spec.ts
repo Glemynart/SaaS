@@ -55,8 +55,16 @@ function lastCallArgument<T>(calls: Array<[T]>): T {
 function createService(overrides?: {
   correction?: unknown;
   periodStatus?: 'APROBADA' | 'CAUSADA';
-  existing?: { id: string } | null;
-  payrollVoucher?: { id: string } | null;
+  existing?: {
+    id: string;
+    estado: 'CONTABILIZADO' | 'ANULADO';
+    reversos: Array<{ id: string }>;
+  } | null;
+  payrollVoucher?: {
+    id: string;
+    estado: 'CONTABILIZADO';
+    reversos: Array<{ id: string }>;
+  } | null;
   ledgerError?: Error;
   dependencies?: unknown[];
   dependencyVouchers?: Array<{ origenId: string | null }>;
@@ -90,7 +98,11 @@ function createService(overrides?: {
           args.where.origenTipo === 'PAYROLL'
             ? Promise.resolve(
                 overrides?.payrollVoucher === undefined
-                  ? { id: 'payroll-voucher-1' }
+                  ? {
+                      id: 'payroll-voucher-1',
+                      estado: 'CONTABILIZADO',
+                      reversos: [],
+                    }
                   : overrides.payrollVoucher,
               )
             : Promise.resolve(overrides?.existing ?? null),
@@ -158,6 +170,29 @@ describe('PayrollCorrectionAccountingService', () => {
     await expect(
       service.contabilizar(tenantId, userId, correctionId),
     ).rejects.toBeInstanceOf(ConflictException);
+    expect(ledger.registrarComprobante).not.toHaveBeenCalled();
+  });
+
+  it('does not post an adjustment when the original accrual has an active reversal', async () => {
+    const { service, tx, ledger } = createService({ payrollVoucher: null });
+
+    await expect(
+      service.contabilizar(tenantId, userId, correctionId),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(tx.comprobanteContable.findFirst).toHaveBeenNthCalledWith(2, {
+      where: {
+        tenantId,
+        origenTipo: 'PAYROLL',
+        origenId: 'payroll-period-1',
+        origenEvento: 'CAUSACION',
+        estado: 'CONTABILIZADO',
+        reversos: {
+          none: { tenantId, estado: 'CONTABILIZADO' },
+        },
+      },
+      select: { id: true },
+    });
     expect(ledger.registrarComprobante).not.toHaveBeenCalled();
   });
 
@@ -301,8 +336,16 @@ describe('PayrollCorrectionAccountingService', () => {
     const { service, tx, ledger } = createService();
     tx.comprobanteContable.findFirst
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: 'payroll-voucher-1' })
-      .mockResolvedValueOnce({ id: 'voucher-1' });
+      .mockResolvedValueOnce({
+        id: 'payroll-voucher-1',
+        estado: 'CONTABILIZADO',
+        reversos: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'voucher-1',
+        estado: 'CONTABILIZADO',
+        reversos: [],
+      });
 
     await service.contabilizar(tenantId, userId, correctionId);
 
@@ -314,6 +357,21 @@ describe('PayrollCorrectionAccountingService', () => {
       comprobanteId: 'voucher-1',
     });
     expect(ledger.registrarComprobante).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not report a reversed correction voucher as an idempotent success', async () => {
+    const { service, ledger } = createService({
+      existing: {
+        id: 'voucher-reversed',
+        estado: 'CONTABILIZADO',
+        reversos: [{ id: 'voucher-reversal' }],
+      },
+    });
+
+    await expect(
+      service.contabilizar(tenantId, userId, correctionId),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(ledger.registrarComprobante).not.toHaveBeenCalled();
   });
 
   it('fails securely when the correction is outside the tenant', async () => {

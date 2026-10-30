@@ -780,6 +780,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       mockComprobanteFindMany.mockResolvedValue([
         {
           id: 'voucher-adjustment',
+          tenantId: TENANT,
           origenId: 'corr-1',
           numero: 43,
           fecha,
@@ -787,6 +788,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           estado: 'CONTABILIZADO',
           totalDebito: 100_000,
           totalCredito: 100_000,
+          reversos: [],
           movimientos: [],
         },
       ]);
@@ -800,7 +802,6 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
             origenTipo: 'PAYROLL_CORRECTION',
             origenId: { in: ['corr-1'] },
             origenEvento: 'AJUSTE',
-            estado: { not: 'ANULADO' },
           },
         }),
       );
@@ -810,6 +811,62 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         fecha,
         concepto: 'Ajuste nómina: Ajuste de salario',
         estado: 'CONTABILIZADO',
+        reversado: false,
+        vigente: true,
+        totalDebito: 100_000,
+        totalCredito: 100_000,
+        movimientos: [],
+      });
+    });
+
+    it('marca como revertido el comprobante de una corrección contabilizada', async () => {
+      const fecha = new Date('2026-03-10T00:00:00.000Z');
+      mockPayrollPeriodFindFirst.mockResolvedValue(
+        makePeriod('CAUSADA', {
+          aprobadoPorId: 'approver-1',
+          aprobadoEn: new Date('2026-02-01T10:00:00.000Z'),
+        }),
+      );
+      mockPayrollCorrectionFindMany.mockResolvedValue([
+        {
+          id: 'corr-1',
+          payrollPeriodId: PERIOD_ID,
+          status: PayrollCorrectionStatus.APROBADA,
+          descripcion: 'Ajuste de salario',
+        },
+      ]);
+      mockComprobanteFindMany.mockResolvedValue([
+        {
+          id: 'voucher-adjustment',
+          tenantId: TENANT,
+          origenId: 'corr-1',
+          numero: 43,
+          fecha,
+          concepto: 'Ajuste nómina: Ajuste de salario',
+          estado: 'CONTABILIZADO',
+          totalDebito: 100_000,
+          totalCredito: 100_000,
+          reversos: [
+            {
+              id: 'voucher-reversal',
+              tenantId: TENANT,
+              estado: 'CONTABILIZADO',
+            },
+          ],
+          movimientos: [],
+        },
+      ]);
+
+      const result = await service.findPeriodCorrections(TENANT, PERIOD_ID);
+
+      expect(result[0].accountingVoucher).toEqual({
+        id: 'voucher-adjustment',
+        numero: 43,
+        fecha,
+        concepto: 'Ajuste nómina: Ajuste de salario',
+        estado: 'CONTABILIZADO',
+        reversado: true,
+        vigente: false,
         totalDebito: 100_000,
         totalCredito: 100_000,
         movimientos: [],
@@ -2179,7 +2236,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         status: 'PREFLIGHT_ERROR',
         preflight: expect.objectContaining({ status: 'ERROR' }),
       });
-      expect(mockTenantPrisma.execute).not.toHaveBeenCalled();
+      expect(mockTenantPrisma.execute).toHaveBeenCalledTimes(1);
       expect(mockLedger.registrarComprobante).not.toHaveBeenCalled();
       expect(mockPayrollPeriodUpdateMany).not.toHaveBeenCalled();
     });
@@ -2233,7 +2290,15 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
 
     it('es idempotente si el período ya está causado y tiene su comprobante', async () => {
       mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CAUSADA'));
-      mockComprobanteFindFirst.mockResolvedValue({ id: 'voucher-existing' });
+      mockComprobanteFindFirst.mockResolvedValue({
+        id: 'voucher-existing',
+        estado: 'CONTABILIZADO',
+        reversos: [],
+      });
+      mockPreflight.validate.mockResolvedValue({
+        status: 'ERROR',
+        validations: [{ code: 'ACCOUNTING_PERIOD_CLOSED' }],
+      });
 
       const result = await service.contabilizar(TENANT, USER, PERIOD_ID);
 
@@ -2244,6 +2309,24 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       });
       expect(mockLedger.registrarComprobante).not.toHaveBeenCalled();
       expect(mockPayrollPeriodUpdateMany).not.toHaveBeenCalled();
+      expect(mockPreflight.validate).not.toHaveBeenCalled();
+    });
+
+    it('bloquea una nómina causada cuyo comprobante fue revertido', async () => {
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CAUSADA'));
+      mockComprobanteFindFirst.mockResolvedValue({
+        id: 'voucher-existing',
+        estado: 'CONTABILIZADO',
+        reversos: [{ id: 'voucher-reversal' }],
+      });
+
+      await expect(
+        service.contabilizar(TENANT, USER, PERIOD_ID),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(mockLedger.registrarComprobante).not.toHaveBeenCalled();
+      expect(mockPayrollPeriodUpdateMany).not.toHaveBeenCalled();
+      expect(mockPreflight.validate).not.toHaveBeenCalled();
     });
 
     it('no crea un segundo comprobante en una segunda solicitud', async () => {
@@ -2251,7 +2334,11 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       await service.contabilizar(TENANT, USER, PERIOD_ID);
 
       mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CAUSADA'));
-      mockComprobanteFindFirst.mockResolvedValue({ id: 'voucher-1' });
+      mockComprobanteFindFirst.mockResolvedValue({
+        id: 'voucher-1',
+        estado: 'CONTABILIZADO',
+        reversos: [],
+      });
       await service.contabilizar(TENANT, USER, PERIOD_ID);
 
       expect(mockLedger.registrarComprobante).toHaveBeenCalledTimes(1);
@@ -2280,10 +2367,12 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       ]);
       mockComprobanteFindFirst.mockResolvedValue({
         id: 'voucher-1',
+        tenantId: TENANT,
         numero: 42,
         fecha,
         concepto: 'Causación nómina febrero',
         estado: 'CONTABILIZADO',
+        reversos: [],
         totalDebito: 1_000_000,
         totalCredito: 1_000_000,
         movimientos: [
@@ -2307,7 +2396,6 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
             origenTipo: 'PAYROLL',
             origenId: PERIOD_ID,
             origenEvento: 'CAUSACION',
-            estado: { not: 'ANULADO' },
           },
         }),
       );
@@ -2337,6 +2425,8 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         fecha,
         concepto: 'Causación nómina febrero',
         estado: 'CONTABILIZADO',
+        reversado: false,
+        vigente: true,
         totalDebito: 1_000_000,
         totalCredito: 1_000_000,
         movimientos: [
@@ -2351,6 +2441,39 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
             centroCostoNombre: 'Sede Centro',
           },
         ],
+      });
+    });
+
+    it('marca como revertida una causación con reverso contabilizado del mismo tenant', async () => {
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CAUSADA'));
+      mockPayrollRunFindMany.mockResolvedValue([]);
+      mockPayrollSnapshotFindMany.mockResolvedValue([]);
+      mockComprobanteFindFirst.mockResolvedValue({
+        id: 'voucher-1',
+        tenantId: TENANT,
+        numero: 42,
+        fecha: new Date('2026-02-28T00:00:00.000Z'),
+        concepto: 'Causación nómina febrero',
+        estado: 'CONTABILIZADO',
+        totalDebito: 1_000_000,
+        totalCredito: 1_000_000,
+        reversos: [
+          {
+            id: 'voucher-reversal',
+            tenantId: TENANT,
+            estado: 'CONTABILIZADO',
+          },
+        ],
+        movimientos: [],
+      });
+
+      const result = await service.findOnePeriod(TENANT, PERIOD_ID);
+
+      expect(result.accountingVoucher).toMatchObject({
+        id: 'voucher-1',
+        estado: 'CONTABILIZADO',
+        reversado: true,
+        vigente: false,
       });
     });
   });
