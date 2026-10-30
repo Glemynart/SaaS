@@ -159,6 +159,51 @@ describe('buildPayrollAccrualLines', () => {
     expect(lines.every((line) => line.centroCostoId === 'center-1')).toBe(true);
   });
 
+  it('conserva el tercero por empleado en la obligación de salarios', () => {
+    const lines = buildPayrollAccrualLines(
+      [
+        {
+          terceroId: 'tercero-ana',
+          centroCostoId: null,
+          totalDevengos: 100,
+          totalDeducciones: 10,
+          netoPagar: 90,
+          totalAportesPatronales: 0,
+          totalProvisiones: 0,
+          concepts: [
+            { codigo: 'SALARIO_BASE', tipo: 'EARNING', valor: 100 },
+            { codigo: 'SALUD_EMP', tipo: 'DEDUCTION', valor: 10 },
+          ],
+        },
+        {
+          terceroId: 'tercero-luis',
+          centroCostoId: null,
+          totalDevengos: 200,
+          totalDeducciones: 20,
+          netoPagar: 180,
+          totalAportesPatronales: 0,
+          totalProvisiones: 0,
+          concepts: [
+            { codigo: 'SALARIO_BASE', tipo: 'EARNING', valor: 200 },
+            { codigo: 'SALUD_EMP', tipo: 'DEDUCTION', valor: 20 },
+          ],
+        },
+      ],
+      accounts,
+    );
+
+    const salaryPayables = lines.filter(
+      (line) => line.cuentaId === accounts.SALARIOS_POR_PAGAR,
+    );
+    expect(salaryPayables).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ terceroId: 'tercero-ana', credito: 90 }),
+        expect.objectContaining({ terceroId: 'tercero-luis', credito: 180 }),
+      ]),
+    );
+    expect(salaryPayables).toHaveLength(2);
+  });
+
   it('rechaza conceptos deducibles sin una clasificación contable', () => {
     expect(() =>
       buildPayrollAccrualLines(
