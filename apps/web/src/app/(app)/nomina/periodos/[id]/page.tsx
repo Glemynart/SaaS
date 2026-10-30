@@ -1,18 +1,23 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import Link from 'next/link';
 import {
+  useContabilizarPayrollPeriod,
   useExcludePayrollBlock,
   usePayrollBlocks,
   usePayrollPeriod,
 } from '@/features/payroll/hooks/use-payroll';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, BookOpenCheck } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useMe } from '@/features/auth/hooks/use-auth';
+import { toast } from 'sonner';
 import { formatNombreCompleto } from '@saas/types';
+import { PayrollCorrectionsPanel } from '@/features/payroll/components/payroll-corrections-panel';
 
 function cop(n: number) {
   return new Intl.NumberFormat('es-CO', {
@@ -24,9 +29,12 @@ function cop(n: number) {
 
 export default function PeriodDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const [confirmAccounting, setConfirmAccounting] = useState(false);
   const { data, isLoading } = usePayrollPeriod(id);
   const { data: blocks } = usePayrollBlocks(id);
+  const { data: me } = useMe();
   const excludeMutation = useExcludePayrollBlock();
+  const accountingMutation = useContabilizarPayrollPeriod();
 
   if (isLoading)
     return (
@@ -39,6 +47,30 @@ export default function PeriodDetailPage({ params }: { params: Promise<{ id: str
     return <div className="py-10 text-center text-muted-foreground">Periodo no encontrado.</div>;
 
   const { period, runs, totals } = data;
+  const voucher = data.accountingVoucher;
+  const preflightError =
+    accountingMutation.data?.status === 'PREFLIGHT_ERROR'
+      ? accountingMutation.data.preflight
+      : null;
+  const isAdmin = me?.user.rol === 'ADMIN';
+
+  async function confirmAccrual() {
+    try {
+      const result = await accountingMutation.mutateAsync(id);
+      setConfirmAccounting(false);
+      if (result.status === 'PREFLIGHT_ERROR') {
+        toast.error('La nómina no se contabilizó. Revisa las validaciones contables.');
+      } else {
+        toast.success(
+          result.status === 'YA_CAUSADA'
+            ? 'La nómina ya tenía un comprobante contable.'
+            : 'Nómina contabilizada en el Ledger.',
+        );
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo contabilizar la nómina.');
+    }
+  }
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -71,6 +103,133 @@ export default function PeriodDetailPage({ params }: { params: Promise<{ id: str
           <p className="mt-1 text-xl font-semibold text-info">{cop(totals.totalNeto)}</p>
         </div>
       </div>
+
+      <section className="mb-6 rounded-xl border border-border bg-surface p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Contabilidad</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              El asiento se genera desde la nómina aprobada y conserva el snapshot histórico.
+            </p>
+          </div>
+          {period.status === 'APROBADA' && !voucher && isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConfirmAccounting(true)}
+              disabled={accountingMutation.isPending}
+            >
+              <BookOpenCheck className="size-4" aria-hidden="true" />
+              Contabilizar en Ledger
+            </Button>
+          )}
+        </div>
+
+        {preflightError && (
+          <div
+            className="mt-4 rounded-lg border border-destructive/40 bg-destructive/5 p-4"
+            role="alert"
+          >
+            <p className="text-sm font-medium text-foreground">
+              La contabilización quedó pendiente por configuración contable.
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+              {preflightError.validations.map((validation) => (
+                <li key={validation.code}>{validation.message}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {voucher ? (
+          <div className="mt-4 overflow-hidden rounded-lg border border-border">
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/40 px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  Comprobante {voucher.numero ?? 'sin número'}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {voucher.concepto} ·{' '}
+                  {new Intl.DateTimeFormat('es-CO', { timeZone: 'UTC' }).format(
+                    new Date(voucher.fecha),
+                  )}
+                </p>
+              </div>
+              <Badge variant="success">
+                {voucher.estado === 'CONTABILIZADO' ? 'Contabilizado' : voucher.estado}
+              </Badge>
+            </div>
+            <div className="grid gap-3 border-b border-border px-4 py-3 text-xs sm:grid-cols-2">
+              <p className="text-muted-foreground">
+                Débitos: <strong className="text-foreground">{cop(voucher.totalDebito)}</strong>
+              </p>
+              <p className="text-muted-foreground">
+                Créditos: <strong className="text-foreground">{cop(voucher.totalCredito)}</strong>
+              </p>
+            </div>
+            <div className="divide-y divide-border">
+              {voucher.movimientos.map((movement) => (
+                <div
+                  key={movement.linea}
+                  className="grid gap-1 px-4 py-3 text-xs sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-5"
+                >
+                  <div>
+                    <p className="font-medium text-foreground">
+                      {movement.cuentaCodigo} · {movement.cuentaNombre}
+                    </p>
+                    {(movement.descripcion || movement.centroCostoNombre) && (
+                      <p className="mt-0.5 text-muted-foreground">
+                        {[
+                          movement.descripcion,
+                          movement.centroCostoNombre &&
+                            `Centro de costo: ${movement.centroCostoCodigo} · ${movement.centroCostoNombre}`,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-muted-foreground">
+                    Débito <strong className="text-foreground">{cop(movement.debito)}</strong>
+                  </p>
+                  <p className="text-muted-foreground">
+                    Crédito <strong className="text-foreground">{cop(movement.credito)}</strong>
+                  </p>
+                </div>
+              ))}
+            </div>
+            <p className="border-t border-border px-4 py-3 text-2xs text-muted-foreground">
+              ID de comprobante: {voucher.id}. Si se requiere corregir la nómina, se registra un
+              ajuste separado; el comprobante original no se edita.
+            </p>
+          </div>
+        ) : period.status === 'CAUSADA' ? (
+          <p
+            className="mt-4 rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive"
+            role="alert"
+          >
+            El período figura como contabilizado, pero no se encontró su comprobante asociado. No se
+            creó otro asiento.
+          </p>
+        ) : period.status === 'APROBADA' ? (
+          <p className="mt-4 text-xs text-muted-foreground">
+            {isAdmin
+              ? 'La nómina está aprobada y lista para causar en el período contable abierto.'
+              : 'La nómina está aprobada. Un usuario administrador puede contabilizarla.'}
+          </p>
+        ) : (
+          <p className="mt-4 text-xs text-muted-foreground">
+            La causación estará disponible cuando el período esté aprobado.
+          </p>
+        )}
+      </section>
+
+      <PayrollCorrectionsPanel
+        periodId={id}
+        periodStatus={period.status}
+        hasPayrollVoucher={Boolean(voucher)}
+        snapshots={data.snapshots}
+      />
 
       {(blocks ?? []).length > 0 && (
         <div className="mb-6 overflow-hidden rounded-xl border border-border bg-surface">
@@ -147,6 +306,18 @@ export default function PeriodDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        level={2}
+        open={confirmAccounting}
+        onOpenChange={setConfirmAccounting}
+        title="Contabilizar nómina"
+        description="Se registrará en el Ledger un comprobante balanceado para esta nómina y el período pasará a estado Contabilizada. La operación es idempotente."
+        correction="La nómina aprobada y su snapshot se conservan inmutables; cualquier diferencia se registra como un ajuste separado."
+        confirmLabel="Contabilizar nómina"
+        confirmVariant="default"
+        onConfirm={confirmAccrual}
+      />
     </div>
   );
 }

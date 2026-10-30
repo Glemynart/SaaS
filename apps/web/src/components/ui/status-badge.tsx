@@ -94,6 +94,7 @@ const STATUS_MAP = {
     CALCULADA: { semantic: 'info', label: 'Calculada' },
     EN_REVISION: { semantic: 'warning', label: 'En revisión' },
     APROBADA: { semantic: 'success', label: 'Aprobada' },
+    CAUSADA: { semantic: 'info', label: 'Contabilizada' },
     CLOSED: { semantic: 'neutral', label: 'Cerrado' },
     CERRADA: { semantic: 'neutral', label: 'Cerrada' },
   },
@@ -101,6 +102,13 @@ const STATUS_MAP = {
     ACTIVE: { semantic: 'danger', label: 'Activo' },
     RESOLVED: { semantic: 'success', label: 'Resuelto' },
     EXCLUDED: { semantic: 'neutral', label: 'Excluido' },
+  },
+  payrollCorrection: {
+    BORRADOR: { semantic: 'neutral', label: 'Borrador' },
+    EN_REVISION: { semantic: 'warning', label: 'En revisión' },
+    APROBADA: { semantic: 'success', label: 'Aprobada' },
+    RECHAZADA: { semantic: 'danger', label: 'Rechazada' },
+    CANCELADA: { semantic: 'neutral', label: 'Cancelada' },
   },
 } as const satisfies Record<string, Record<string, StatusEntry>>;
 
