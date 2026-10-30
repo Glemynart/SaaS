@@ -256,7 +256,7 @@ test('permite crear, revisar, aprobar y contabilizar una corrección post-aproba
   await expect(page.getByText('En revisión')).toBeVisible();
   await page.getByRole('button', { name: 'Aprobar corrección' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Aprobar corrección' }).click();
-  await expect(page.getByText('Aprobada')).toBeVisible();
+  await expect(page.getByText('Aprobada', { exact: true })).toBeVisible();
   await expect(page.getByText(/^\+\s*\$\s*500\.000$/)).toBeVisible();
 
   await page.getByRole('button', { name: 'Contabilizar ajuste' }).click();
