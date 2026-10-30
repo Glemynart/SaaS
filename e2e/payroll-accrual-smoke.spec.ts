@@ -17,7 +17,19 @@ async function registerAndSignIn(page: Page) {
   await page.getByLabel('Apellido').fill('Gómez');
   await page.getByLabel('Correo administrador').fill(email);
   await page.getByRole('textbox', { name: 'Contraseña' }).fill(password);
+  const registrationResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/auth/register' &&
+      response.request().method() === 'POST',
+  );
   await page.getByRole('button', { name: 'Crear empresa' }).click();
+
+  const registrationResponse = await registrationResponsePromise;
+  expect(registrationResponse.status()).toBe(201);
+  const registration = (await registrationResponse.json()) as {
+    tenant: { id: string };
+    user: { id: string };
+  };
 
   await expect(page).toHaveURL(/\/login\?registered=1$/);
   await page.getByLabel('NIT de la empresa').fill(nit);
@@ -26,13 +38,7 @@ async function registerAndSignIn(page: Page) {
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 
-  const meResponse = await page.request.get('/api/auth/me');
-  expect(meResponse.status()).toBe(200);
-  const { user } = (await meResponse.json()) as {
-    user: { id: string; tenantId: string; rol: string };
-  };
-  expect(user.rol).toBe('ADMIN');
-  return { tenantId: user.tenantId, userId: user.id };
+  return { tenantId: registration.tenant.id, userId: registration.user.id };
 }
 
 test('contabiliza una nómina aprobada y confirma el comprobante persistido', async ({ page }) => {
