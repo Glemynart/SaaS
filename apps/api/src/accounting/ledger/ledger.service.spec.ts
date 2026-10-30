@@ -884,5 +884,25 @@ describe('LedgerService', () => {
       expect(mocks.comprobanteCreate).not.toHaveBeenCalled();
       expect(mocks.secuenciaUpsert).not.toHaveBeenCalled();
     });
+
+    it('no marca el original anulado si se reabrió su período tras anular el reverso', async () => {
+      const { service, mocks } = build();
+      const original = comprobanteCreado({
+        estado: 'CONTABILIZADO',
+        periodoId: PERIODO_ID,
+      });
+      mocks.comprobanteFindFirst
+        .mockResolvedValueOnce(original)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 'comp-reverso-anulado' });
+
+      await expect(
+        service.anular(TENANT_ID, USER_ID, original.id, 'reintento'),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mocks.periodoFindUniqueOrThrow).not.toHaveBeenCalled();
+      expect(mocks.comprobanteUpdate).not.toHaveBeenCalled();
+      expect(mocks.comprobanteCreate).not.toHaveBeenCalled();
+    });
   });
 });
