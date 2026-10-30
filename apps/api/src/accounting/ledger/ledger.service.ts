@@ -168,6 +168,16 @@ export class LedgerService {
         );
       }
 
+      const reversoExistente = await tx.comprobanteContable.findFirst({
+        where: {
+          tenantId,
+          reversaAId: comprobante.id,
+          estado: 'CONTABILIZADO',
+        },
+        include: { movimientos: { orderBy: { linea: 'asc' } } },
+      });
+      if (reversoExistente) return reversoExistente;
+
       const periodo = await tx.periodoContable.findUniqueOrThrow({
         where: { id: comprobante.periodoId },
       });
@@ -191,6 +201,20 @@ export class LedgerService {
           .catch(() => {});
 
         return anulado;
+      }
+
+      const reversoAnulado = await tx.comprobanteContable.findFirst({
+        where: {
+          tenantId,
+          reversaAId: comprobante.id,
+          estado: 'ANULADO',
+        },
+        select: { id: true },
+      });
+      if (reversoAnulado) {
+        throw new ConflictException(
+          'El reverso anterior fue anulado. Se requiere una corrección contable explícita antes de volver a revertir este comprobante.',
+        );
       }
 
       // Período CERRADO → comprobante de reverso en período ABIERTO actual
