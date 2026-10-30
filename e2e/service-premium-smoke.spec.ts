@@ -82,7 +82,7 @@ async function seedServicePremiumFixture(tenantId: string, actorId: string) {
           fechaInicio: new Date('2026-01-01T00:00:00.000Z'),
           fechaFin: new Date('2026-12-31T00:00:00.000Z'),
           cargo: 'Analista',
-          salario,
+          salario: salary,
         },
       });
 
@@ -141,7 +141,7 @@ async function seedServicePremiumFixture(tenantId: string, actorId: string) {
                 salarioIntegralUsado: false,
               },
               contract: {
-                contratoId,
+                contratoId: contractId,
                 tipo: 'TERMINO_FIJO',
                 estado: 'VIGENTE',
                 fechaInicio: '2026-01-01T00:00:00.000Z',
@@ -235,7 +235,9 @@ test('liquida prima por lote y publica el PDF inmutable en el expediente', async
 
     await page.getByRole('link', { name: /Ver PDF/ }).click();
     await expect(page).toHaveURL(`/empleados/${fixture.employeeId}/expediente`);
-    await expect(page.getByText('Prima de servicios 2026 S1 v1.pdf')).toBeVisible();
+    await expect(
+      page.getByText('Prima de servicios 2026 S1 v1.pdf', { exact: true }),
+    ).toBeVisible();
 
     const download = await page.evaluate(async (documentId) => {
       const response = await fetch(`/api/expediente-docs/${documentId}/download`);

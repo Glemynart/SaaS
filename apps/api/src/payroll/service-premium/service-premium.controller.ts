@@ -84,6 +84,7 @@ export class ServicePremiumController {
   }
 
   @Get('year/:year')
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   listByYear(
     @CurrentUser() user: CurrentUserPayload,
     @Param('year', ParseIntPipe) year: number,

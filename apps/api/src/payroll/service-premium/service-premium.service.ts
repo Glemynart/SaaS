@@ -363,7 +363,6 @@ export class ServicePremiumService {
           supersedesBatchId: options.supersedesBatchId,
           lines: {
             create: preview.map((line) => ({
-              tenantId,
               employeeId: line.employee.id,
               status: line.status,
               snapshot: line.snapshot as Prisma.InputJsonValue,
