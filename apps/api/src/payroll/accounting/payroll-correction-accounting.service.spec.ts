@@ -1,4 +1,8 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PayrollCorrectionAccountingService } from './payroll-correction-accounting.service';
 
 const tenantId = 'tenant-1';
@@ -34,6 +38,7 @@ function dependency(id: string) {
 function correctionWithDependencies(ids: string[]) {
   return {
     id: correctionId,
+    payrollPeriodId: 'payroll-period-1',
     status: 'APROBADA',
     descripcion: 'Ajuste salarial',
     materialization: { ...materialization, approvedCorrectionIds: ids },
@@ -49,7 +54,17 @@ function lastCallArgument<T>(calls: Array<[T]>): T {
 
 function createService(overrides?: {
   correction?: unknown;
-  existing?: { id: string } | null;
+  periodStatus?: 'APROBADA' | 'CAUSADA';
+  existing?: {
+    id: string;
+    estado: 'CONTABILIZADO' | 'ANULADO';
+    reversos: Array<{ id: string }>;
+  } | null;
+  payrollVoucher?: {
+    id: string;
+    estado: 'CONTABILIZADO';
+    reversos: Array<{ id: string }>;
+  } | null;
   ledgerError?: Error;
   dependencies?: unknown[];
   dependencyVouchers?: Array<{ origenId: string | null }>;
@@ -61,6 +76,7 @@ function createService(overrides?: {
         overrides?.correction === undefined
           ? {
               id: correctionId,
+              payrollPeriodId: 'payroll-period-1',
               status: 'APROBADA',
               descripcion: 'Ajuste salarial',
               materialization,
@@ -70,8 +86,27 @@ function createService(overrides?: {
       ),
       findMany: jest.fn().mockResolvedValue(overrides?.dependencies ?? []),
     },
+    payrollPeriod: {
+      findFirst: jest
+        .fn()
+        .mockResolvedValue({ status: overrides?.periodStatus ?? 'CAUSADA' }),
+    },
     comprobanteContable: {
-      findFirst: jest.fn().mockResolvedValue(overrides?.existing ?? null),
+      findFirst: jest
+        .fn()
+        .mockImplementation((args: { where: { origenTipo: string } }) =>
+          args.where.origenTipo === 'PAYROLL'
+            ? Promise.resolve(
+                overrides?.payrollVoucher === undefined
+                  ? {
+                      id: 'payroll-voucher-1',
+                      estado: 'CONTABILIZADO',
+                      reversos: [],
+                    }
+                  : overrides.payrollVoucher,
+              )
+            : Promise.resolve(overrides?.existing ?? null),
+        ),
       findMany: jest
         .fn()
         .mockResolvedValue(overrides?.dependencyVouchers ?? []),
@@ -80,10 +115,36 @@ function createService(overrides?: {
       findMany: jest.fn().mockResolvedValue([
         { rol: 'SALARIOS_POR_PAGAR', cuentaId: 'salary-payable' },
         { rol: 'APORTES_SALUD_POR_PAGAR', cuentaId: 'health-payable' },
-        { rol: 'APORTES_PENSION_POR_PAGAR', cuentaId: 'contributions-payable' },
-        { rol: 'PROVISION_PRESTACIONES', cuentaId: 'provision-payable' },
+        {
+          rol: 'APORTES_RIESGOS_LABORALES_POR_PAGAR',
+          cuentaId: 'risks-payable',
+        },
+        {
+          rol: 'APORTES_PARAFISCALES_POR_PAGAR',
+          cuentaId: 'parafiscal-payable',
+        },
+        { rol: 'APORTES_PENSION_POR_PAGAR', cuentaId: 'pension-payable' },
+        { rol: 'PROVISION_CESANTIAS_POR_PAGAR', cuentaId: 'severance-payable' },
+        {
+          rol: 'PROVISION_INTERESES_CESANTIAS_POR_PAGAR',
+          cuentaId: 'severance-interest-payable',
+        },
+        { rol: 'PROVISION_VACACIONES_POR_PAGAR', cuentaId: 'vacation-payable' },
+        { rol: 'PROVISION_PRIMA_POR_PAGAR', cuentaId: 'service-bonus-payable' },
         { rol: 'GASTO_SUELDOS', cuentaId: 'salary-expense' },
-        { rol: 'GASTO_APORTES_SOCIALES', cuentaId: 'contributions-expense' },
+        { rol: 'GASTO_APORTES_SALUD', cuentaId: 'health-expense' },
+        { rol: 'GASTO_APORTES_PENSION', cuentaId: 'pension-expense' },
+        { rol: 'GASTO_APORTES_RIESGOS_LABORALES', cuentaId: 'risk-expense' },
+        { rol: 'GASTO_APORTES_CAJA', cuentaId: 'family-fund-expense' },
+        { rol: 'GASTO_APORTES_ICBF', cuentaId: 'icbf-expense' },
+        { rol: 'GASTO_APORTES_SENA', cuentaId: 'sena-expense' },
+        { rol: 'GASTO_PROVISION_CESANTIAS', cuentaId: 'severance-expense' },
+        {
+          rol: 'GASTO_PROVISION_INTERESES_CESANTIAS',
+          cuentaId: 'severance-interest-expense',
+        },
+        { rol: 'GASTO_PROVISION_VACACIONES', cuentaId: 'vacation-expense' },
+        { rol: 'GASTO_PROVISION_PRIMA', cuentaId: 'service-bonus-expense' },
       ]),
     },
     periodoContable: {
@@ -120,6 +181,47 @@ function createService(overrides?: {
 }
 
 describe('PayrollCorrectionAccountingService', () => {
+  it('requires the original payroll accrual before posting a correction', async () => {
+    const { service, ledger } = createService({ periodStatus: 'APROBADA' });
+
+    await expect(
+      service.contabilizar(tenantId, userId, correctionId),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(ledger.registrarComprobante).not.toHaveBeenCalled();
+  });
+
+  it('does not post an adjustment if the original accrual voucher is missing', async () => {
+    const { service, ledger } = createService({ payrollVoucher: null });
+
+    await expect(
+      service.contabilizar(tenantId, userId, correctionId),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(ledger.registrarComprobante).not.toHaveBeenCalled();
+  });
+
+  it('does not post an adjustment when the original accrual has an active reversal', async () => {
+    const { service, tx, ledger } = createService({ payrollVoucher: null });
+
+    await expect(
+      service.contabilizar(tenantId, userId, correctionId),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(tx.comprobanteContable.findFirst).toHaveBeenNthCalledWith(2, {
+      where: {
+        tenantId,
+        origenTipo: 'PAYROLL',
+        origenId: 'payroll-period-1',
+        origenEvento: 'CAUSACION',
+        estado: 'CONTABILIZADO',
+        reversos: {
+          none: { tenantId, estado: 'CONTABILIZADO' },
+        },
+      },
+      select: { id: true },
+    });
+    expect(ledger.registrarComprobante).not.toHaveBeenCalled();
+  });
+
   it('posts a correction without dependencies through LedgerService', async () => {
     const { service, tx, ledger } = createService();
 
@@ -260,7 +362,16 @@ describe('PayrollCorrectionAccountingService', () => {
     const { service, tx, ledger } = createService();
     tx.comprobanteContable.findFirst
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: 'voucher-1' });
+      .mockResolvedValueOnce({
+        id: 'payroll-voucher-1',
+        estado: 'CONTABILIZADO',
+        reversos: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'voucher-1',
+        estado: 'CONTABILIZADO',
+        reversos: [],
+      });
 
     await service.contabilizar(tenantId, userId, correctionId);
 
@@ -272,6 +383,21 @@ describe('PayrollCorrectionAccountingService', () => {
       comprobanteId: 'voucher-1',
     });
     expect(ledger.registrarComprobante).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not report a reversed correction voucher as an idempotent success', async () => {
+    const { service, ledger } = createService({
+      existing: {
+        id: 'voucher-reversed',
+        estado: 'CONTABILIZADO',
+        reversos: [{ id: 'voucher-reversal' }],
+      },
+    });
+
+    await expect(
+      service.contabilizar(tenantId, userId, correctionId),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(ledger.registrarComprobante).not.toHaveBeenCalled();
   });
 
   it('fails securely when the correction is outside the tenant', async () => {

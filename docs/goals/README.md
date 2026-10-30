@@ -18,13 +18,21 @@ Producto
 
 ## Goal activo
 
-| Goal                                                                    | Estado | Resultado                                                                                                                                     |
-| ----------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md) | ACTIVO | Implementación bloqueada selectivamente por M1/M2/M7; arquitectura disponible en [Platform Evolution](../architecture/PLATFORM-EVOLUTION.md). |
+| Goal                                                                                                        | Estado  | Resultado                                                                                                   |
+| ----------------------------------------------------------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| [GOAL-02 — Evolución Financiera y Cumplimiento Electrónico](GOAL-02-base-financial-regulatory-evolution.md) | ACTIVO  | Preparar flujos financieros demostrables e integrados y avanzar hacia cumplimiento electrónico verificable. |
+| [GOAL-01 — Primer Cliente Operando](GOAL-01-primer-cliente-operando.md)                                     | PAUSADO | Conserva su alcance, evidencia y trabajo pendiente; no está cerrado ni se reanuda durante GOAL-02.          |
 
 Solo puede existir un Goal activo. Los posibles resultados futuros permanecen sin numerar en el Backlog hasta ser priorizados.
 
-Estado de implementación en `main`: E5.2 fue fusionada en el PR #102, E5.3 en
+El 2026-10-30, por decisión explícita del usuario, GOAL-01 quedó pausado y
+GOAL-02 pasó a ser el único Goal activo. GOAL-01 no se cerró y sus PR,
+documentos, ramas y trabajo local se conservan. Este cambio responde al nuevo
+objetivo comercial de demostrar a futuros clientes capacidades de nómina,
+facturación y contabilidad. Las integraciones DIAN/UGPP mantienen sus propias
+condiciones de cliente, proveedor, sandbox, seguridad y ADR antes de transmitir.
+
+Estado de implementación en `main` al 2026-10-29: E5.2 fue fusionada en el PR #102, E5.3 en
 el PR #103, E5.4 en el PR #104, E6.1 en el PR #105, E6.2 en el PR #106, E6.3
 en el PR #108 y E2.4 en el PR #110; sus checks post-merge de CI y Browser E2E
 están verdes. PR #124 está fusionada, pero M1 continúa bloqueado por aislamiento,
@@ -33,9 +41,10 @@ PR #148 tienen implementación; la aceptación de correo real sigue pendiente.
 PR #130 se fusionó tras pasar CI, Browser E2E, workflow de backup y Vercel Preview
 en el HEAD sincronizado; PR #147 se integró en esa rama. No se acreditan lectura
 OCI ni restauración operativa; E7.1 permanece abierta. M2 espera correo
-real y M7 espera a que el producto y la infraestructura externa estén listos.
-GOAL-01 permanece ACTIVO: la implementación está bloqueada selectivamente,
-mientras la arquitectura y la preparación siguen disponibles mediante [Platform Evolution](../architecture/PLATFORM-EVOLUTION.md).
+real y M7 esperaba a que el producto y la infraestructura externa estuvieran listos.
+En esa fecha GOAL-01 permanecía activo con implementación bloqueada
+selectivamente; ese estado histórico no reemplaza el cambio del 2026-10-30.
+El estado vigente de ambos Goals está indicado en la tabla superior.
 
 ## Regla de redefinición
 
@@ -200,6 +209,6 @@ Después del cierre puede priorizarse y numerarse el siguiente Goal del producto
 ## Archivos
 
 - `GOAL_TEMPLATE.md`: estructura mínima obligatoria.
-- `GOAL-01-primer-cliente-operando.md`: Goal activo.
-- [`GOAL-02 — Evolución Financiera y Cumplimiento Electrónico`](GOAL-02-base-financial-regulatory-evolution.md): documento base no activo; no abre un segundo Goal.
+- `GOAL-01-primer-cliente-operando.md`: Goal pausado, no cerrado.
+- [`GOAL-02 — Evolución Financiera y Cumplimiento Electrónico`](GOAL-02-base-financial-regulatory-evolution.md): Goal activo.
 - El Backlog conserva candidatos futuros sin convertirlos anticipadamente en Goals.

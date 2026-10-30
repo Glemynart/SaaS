@@ -1,5 +1,11 @@
 # GOAL-01 — Primer Cliente Operando
 
+> **Estado vigente desde 2026-10-30: PAUSADO — NO CERRADO.** GOAL-02 está
+> activo por decisión explícita del usuario. Se conservan el alcance, la
+> evidencia, las ramas, los PR y el trabajo pendiente de GOAL-01. Los estados
+> `ACTIVO` que aparecen en snapshots anteriores describen la situación a la
+> fecha de cada registro.
+
 ## Resultado de negocio
 
 Un operador educativo real puede ser incorporado en producción, configurar su organización y usuarios, cargar su planta de personal y completar el ciclo contratación → documento → expediente → seguimiento con seguridad, trazabilidad y soporte operativo suficientes para usar La Oficina Nítida comercialmente.
@@ -8,15 +14,16 @@ La evidencia final será un primer cliente que complete y acepte el recorrido pr
 
 ## Estado
 
-`ACTIVO`
+`PAUSADO — NO CERRADO`
 
 ### Estado operativo por dimensión
 
-- **GOAL-01:** `ACTIVO`.
-- **Implementación:** `BLOQUEADA SELECTIVAMENTE` por infraestructura externa
-  en M1/M7 y correo real en M2.
-- **Arquitectura y preparación:** `DISPONIBLE` en [Platform Evolution](../architecture/PLATFORM-EVOLUTION.md),
-  sin crear GOAL-02 ni modificar el resultado de negocio vigente.
+- **GOAL-01:** `PAUSADO` por decisión de producto del 2026-10-30.
+- **Implementación:** sin reanudar; los bloqueos de M1/M7 y correo real en M2
+  quedan documentados para cuando el Goal vuelva a priorizarse.
+- **Arquitectura y preparación:** se conserva en [Platform Evolution](../architecture/PLATFORM-EVOLUTION.md)
+  y no se ejecuta durante GOAL-02 salvo que sea necesaria para su seguridad,
+  integridad o funcionamiento.
 
 La ausencia de una Epic implementable no cambia el estado del Goal mientras
 exista trabajo útil de arquitectura, planificación, investigación o
@@ -53,11 +60,11 @@ token y revocación desde la UI. El SMTP local no demuestra entrega a un buzón
 externo: recibir y aceptar el correo real en staging sigue pendiente, por lo que
 E2.2 permanece sin cerrar.
 
-**Pausa selectiva:** GOAL-01 permanece `ACTIVO` y M1 continúa `BLOQUEADO POR
-INFRAESTRUCTURA EXTERNA`. Las Epics que requieran dominio, DNS, Cloudflare, R2,
-OCI Email Delivery, variables de producción o staging permanecen detenidas. E4.2
-quedó fusionada por un camino independiente sin esas dependencias. El
-desbloqueo operativo de M1 se controla con el [checklist de infraestructura](GOAL-01-M1-infrastructure-checklist.md).
+**Snapshot al 2026-10-29:** GOAL-01 permanecía `ACTIVO` y M1 estaba `BLOQUEADO
+POR INFRAESTRUCTURA EXTERNA`. Las Epics que requerían dominio, DNS, Cloudflare,
+R2, OCI Email Delivery, variables de producción o staging estaban detenidas.
+E4.2 quedó fusionada por un camino independiente sin esas dependencias. El
+desbloqueo operativo de M1 se documenta en el [checklist de infraestructura](GOAL-01-M1-infrastructure-checklist.md).
 
 ## Estrategia que lo justifica
 
@@ -409,10 +416,11 @@ Los siguientes PRs se incorporarán por Epic conforme se descubra el siguiente p
 
 **Pregunta:** ¿un cliente podría utilizar hoy la capacidad completa definida por GOAL-01?
 
-**Estado de cierre:** `GOAL ACTIVO — NO COMPLETADO`
+**Estado de cierre:** `GOAL PAUSADO — NO CERRADO`
 
-Motivo: existen slices funcionales importantes, pero permanecen abiertas las
-invitaciones de usuarios, el deployment y la aceptación productiva.
+Motivo: GOAL-01 conserva trabajo pendiente en invitaciones de usuarios,
+deployment y aceptación productiva. Se pausó por priorización comercial de
+GOAL-02; no se considera completado ni se descartan sus pendientes.
 
 Las PR #78, #79, #80, #81, #83, #84, #85, #86, #88, #89, #90, #92, #93, #94,
 #95, #96, #97, #99, #101, #102, #103, #104, #105, #106, #107, #108 y #110 fueron fusionadas. #78 entregó el empaquetado de E1.1,
@@ -422,8 +430,8 @@ comprobaciones de R2, correo real y readiness; su cierre requiere verificación
 real en staging. #81 entregó E1.4, está fusionada y sus checks de CI y Browser
 E2E están verdes. E3.4 fue fusionada en PR #88 y sus checks post-merge de `main`
 están verdes. E4.1 fue fusionada en PR #89 y sus checks post-merge de `main` están
-verdes. GOAL-01 permanece `ACTIVO`; M1 está `BLOQUEADO POR
-INFRAESTRUCTURA EXTERNA` a la espera de la validación operativa de dominio, DNS,
+verdes. En el snapshot del 2026-10-29 GOAL-01 permanecía `ACTIVO`; M1 estaba
+`BLOQUEADO POR INFRAESTRUCTURA EXTERNA` a la espera de la validación operativa de dominio, DNS,
 Cloudflare, R2, correo, secretos, certificados y staging para E1.1 y E1.3. E3.1 entregó el recorrido
 browser de empleados y quedó fusionada en PR #83; su recorrido usó únicamente
 la autenticación, persistencia y frontera tenant ya existentes, sin requerir
@@ -458,7 +466,7 @@ infraestructura externa.
 > la sección post-merge: E2.1, E2.4, E4.3, E4.4, E4.5, E4.6, E5.1, E5.2, E5.3, E5.4
 > y E6.1/E6.2/E6.3 están fusionadas en PR #96, #92, #93, #97, #94, #95, #102,
 > #103, #104, #105, #106, #108, #110 y ADR-007 en PR #107.
-> GOAL-01 permanece `ACTIVO`; M1 sigue `BLOQUEADO POR INFRAESTRUCTURA EXTERNA` y
+> En el snapshot del 2026-10-29, GOAL-01 permanecía `ACTIVO`; M1 seguía `BLOQUEADO POR INFRAESTRUCTURA EXTERNA` y
 > E4.7 quedó fusionada en PR #99. La semántica de versionado e inmutabilidad fue
 > aprobada en ADR-006 y ya gobierna E5.2/E5.3/E5.4. ADR-007 fue aprobado y ya
 > gobierna E6.3. E2.4 quedó cerrada; M5 y M6 quedan completados; M7 queda reservado para el cierre final de

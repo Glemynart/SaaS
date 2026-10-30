@@ -5,6 +5,7 @@ export type PayrollPeriodStatus =
   | 'CALCULADA'
   | 'EN_REVISION'
   | 'APROBADA'
+  | 'CAUSADA'
   | 'CERRADA';
 
 export interface PayrollPeriod {
@@ -78,8 +79,111 @@ export interface PayrollDashboard {
 export interface PeriodDetail {
   period: PayrollPeriod;
   runs: PayrollRun[];
+  snapshots: PayrollCorrectionTarget[];
   totals: { totalDevengos: number; totalDeducciones: number; totalNeto: number };
+  accountingVoucher: PayrollAccountingVoucher | null;
 }
+
+export interface PayrollCorrectionTarget {
+  id: string;
+  employeeId: string;
+  centroCostoId: string | null;
+  employee: {
+    id: string;
+    primerNombre: string;
+    segundoNombre: string | null;
+    primerApellido: string;
+    segundoApellido: string | null;
+  };
+  centroCosto: { id: string; codigo: string; nombre: string } | null;
+}
+
+export interface PayrollAccountingMovement {
+  linea: number;
+  descripcion: string | null;
+  debito: number;
+  credito: number;
+  cuentaCodigo: string;
+  cuentaNombre: string;
+  centroCostoCodigo: string | null;
+  centroCostoNombre: string | null;
+}
+
+export interface PayrollAccountingVoucher {
+  id: string;
+  numero: number | null;
+  fecha: string;
+  concepto: string;
+  estado: string;
+  reversado: boolean;
+  vigente: boolean;
+  totalDebito: number;
+  totalCredito: number;
+  movimientos: PayrollAccountingMovement[];
+}
+
+export interface PayrollAccountingPreflightValidation {
+  code: string;
+  message: string;
+  severity: 'OK' | 'WARNING' | 'ERROR';
+  component: string;
+}
+
+export type PayrollAccountingResult =
+  | {
+      status: 'PREFLIGHT_ERROR';
+      preflight: {
+        status: 'ERROR';
+        validations: PayrollAccountingPreflightValidation[];
+      };
+    }
+  | {
+      status: 'CAUSADA' | 'YA_CAUSADA';
+      payrollPeriodId: string;
+      comprobanteId: string;
+    };
+
+export type PayrollCorrectionStatus =
+  | 'BORRADOR'
+  | 'EN_REVISION'
+  | 'APROBADA'
+  | 'RECHAZADA'
+  | 'CANCELADA';
+
+export type PayrollCorrectionIntentPayload =
+  | {
+      kind: 'SET_CALCULATION_INPUT';
+      snapshotId: string;
+      input: 'SALARIO_BASE' | 'BONUS' | 'OVERTIME';
+      targetAmount: number;
+    }
+  | { kind: 'MOVE_COST_CENTER'; snapshotId: string; targetCostCenterId: string };
+
+export interface PayrollCorrection {
+  id: string;
+  payrollPeriodId: string;
+  status: PayrollCorrectionStatus;
+  descripcion: string;
+  createdAt: string;
+  intent: unknown;
+  materialization: unknown;
+  accountingVoucher?: PayrollAccountingVoucher | null;
+}
+
+export type PayrollCorrectionAction =
+  | 'enviar-revision'
+  | 'aprobar'
+  | 'rechazar'
+  | 'cancelar'
+  | 'contabilizar';
+
+export interface PayrollCorrectionAccountingResult {
+  status: 'AJUSTADA' | 'YA_AJUSTADA';
+  payrollCorrectionId: string;
+  comprobanteId: string;
+}
+
+export type PayrollCorrectionActionResult = PayrollCorrection | PayrollCorrectionAccountingResult;
 
 export interface PayrollOperationResult {
   created?: number;
@@ -138,6 +242,16 @@ export const payrollApi = {
   createPeriod: (d: { nombre: string; fechaInicio: string; fechaFin: string }) =>
     req<PayrollPeriod>('/api/payroll/periods', { method: 'POST', body: JSON.stringify(d) }),
   getPeriod: (id: string) => req<PeriodDetail>(`/api/payroll/periods/${id}`),
+  getCorrections: (periodId: string) =>
+    req<PayrollCorrection[]>(`/api/payroll/periods/${periodId}/corrections`),
+  createCorrection: (
+    periodId: string,
+    payload: { descripcion: string; intents: PayrollCorrectionIntentPayload[] },
+  ) =>
+    req<PayrollCorrection>(`/api/payroll/periods/${periodId}/corrections`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   generatePayroll: (id: string) =>
     req<PayrollOperationResult>(`/api/payroll/periods/${id}/generate`, {
       method: 'POST',
@@ -155,6 +269,16 @@ export const payrollApi = {
     }),
   aprobar: (id: string) =>
     req<PayrollPeriod>(`/api/payroll/periods/${id}/aprobar`, { method: 'POST', body: '{}' }),
+  contabilizar: (id: string) =>
+    req<PayrollAccountingResult>(`/api/payroll/periods/${id}/contabilizar`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  transitionCorrection: (id: string, action: PayrollCorrectionAction, motivo?: string) =>
+    req<PayrollCorrectionActionResult>(`/api/payroll/corrections/${id}/${action}`, {
+      method: 'POST',
+      body: JSON.stringify(motivo ? { motivo } : {}),
+    }),
   rechazar: (id: string, motivo?: string) =>
     req<PayrollPeriod>(`/api/payroll/periods/${id}/rechazar`, {
       method: 'POST',

@@ -2,9 +2,14 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-01 activo; PR #149 fusionada; M1 pendiente de validación operativa (2026-10-29)
+## Última actualización: GOAL-02 activo; GOAL-01 pausado; auditoría financiera iniciada (2026-10-30)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
+
+> **Estado vigente desde 2026-10-30:** GOAL-02 es el único Goal activo por
+> decisión explícita del usuario. GOAL-01 está pausado, no cerrado; sus ramas,
+> PR, documentos y pendientes se conservan. Las menciones de GOAL-01 activo en
+> los snapshots siguientes corresponden a evidencia hasta 2026-10-29.
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
@@ -19,8 +24,10 @@ El objetivo es centralizar:
 - Generación documental.
 - Certificaciones laborales.
 - Gestión multisede.
-- Nómina electrónica (futuro).
-- Facturación electrónica (futuro).
+- Operación interna de nómina.
+- Facturación interna.
+- Contabilidad y Ledger.
+- Nómina electrónica y facturación electrónica DIAN (capacidades regulatorias futuras; aún no se transmiten).
 
 ---
 
@@ -40,16 +47,13 @@ Características habituales:
 
 # <a name="posicionamiento"></a>Posicionamiento
 
-La Oficina Nítida NO se posiciona inicialmente como:
+La demostración financiera puede mostrar nómina operativa, facturación interna
+y contabilidad integrada. Esto no equivale a transmitir nómina electrónica a
+UGPP ni facturas electrónicas a DIAN; esas capacidades siguen pendientes de
+integración y validación regulatoria conforme a GOAL-02.
 
-- software de nómina electrónica
-- software de facturación electrónica
-
-aunque ambos módulos existirán en el futuro.
-
-La propuesta de valor actual es:
-
-“Centralizar la gestión laboral, documental y operativa de operadores educativos colombianos.”
+La propuesta de valor en evolución es centralizar y conectar la gestión laboral,
+documental y financiera de operadores educativos colombianos.
 
 ## Investigación de posicionamiento y branding
 
@@ -97,9 +101,9 @@ Servicios:
 
 ---
 
-# <a name="estado-operativo-goal-01"></a>Estado operativo de GOAL-01
+# <a name="estado-operativo-goal-01"></a>Snapshot histórico de GOAL-01 al 2026-10-29
 
-- **GOAL-01:** `ACTIVO`.
+- **GOAL-01 en esa fecha:** `ACTIVO`; desde el 2026-10-30 está `PAUSADO`.
 - **Implementación:** `BLOQUEADA SELECTIVAMENTE` por M1/M7 y correo real en
   M2; esto no equivale a bloquear el Goal.
 - **Arquitectura y preparación:** `DISPONIBLE` mediante
@@ -159,11 +163,11 @@ Estado actual:
 
 🟡 Plataforma con capacidades base avanzadas, todavía sin operación comercial end-to-end verificada.
 
-Goal activo:
+Goal activo desde el 2026-10-30:
 
-- 🟡 GOAL-01 activo — M1 sigue bloqueado por infraestructura externa. E2.2 (PR #144) y E2.3 (PR #148) tienen implementación, pero falta aceptación por correo real; E4.4 (PR #134) y la selección completa de lotes E4.1 (PR #140) están fusionadas y verificadas. E1.1/E1.3 requieren aislamiento y operación real; PR #124 está fusionada y prepara la configuración aislada, pero sigue sin validación operativa. E7.1 tiene implementación sintética DB+uploads fusionada en PR #130; falta validar lectura OCI, aislamiento y restauración real.
+- 🟡 GOAL-02 activo — evolución financiera y cumplimiento electrónico, con primer foco en flujos internos demostrables de nómina, facturación y contabilidad. El backlog vigente está en [`docs/goals/GOAL-02-backlog.md`](docs/goals/GOAL-02-backlog.md).
 
-- [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md).
+- GOAL-01 está pausado y conserva pendientes de aceptación operativa, correo y despliegue en [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
 La auditoría de código confirmó empleados, sedes, autenticación, documentos, certificaciones, seguridad y motores internos importantes. E2.4 quedó cerrada con sedes, identidad corporativa y promesa pública alineada con el aislamiento por tenant. Permanecen pendientes la aceptación operacional de invitaciones por correo, la recuperación real, el deployment reproducible y Go Live.
 
@@ -202,7 +206,7 @@ Hitos recientes fusionados a `main`:
 - ✅ E4.4 — Idempotencia de generación PDF LETTER/MEMO y reintentos — PR #134 fusionada; CI y Browser E2E post-merge verdes.
 - ✅ E4.1 — Selección completa y paginada de empleados para lotes — PR #140 fusionada; CI y Browser E2E post-merge verdes.
 
-La comprobación externa de solo lectura del 2026-10-29 obtuvo HTTP 200 en `https://staging.dusema.com` y en `/health` y `/readiness` de `staging-api.dusema.com`. Readiness reportó database, storage y email `up`; el check de email sólo acredita transporte configurado y el de storage no identifica el proveedor. No se verificaron entrega de correo, R2, despliegue reproducible ni rollback, así que E1.1/E1.3 siguen abiertas y M1 `BLOQUEADO POR INFRAESTRUCTURA EXTERNA`. Esto bloquea M1, no GOAL-01: el Goal permanece ACTIVO. E2.1, E2.4, E4.2, E4.3, E4.4, E4.5, E4.6, E4.7, E5.1, E5.2, E5.3, E5.4, E6.1, E6.2 y E6.3 quedaron fusionadas por caminos independientes. El checklist operativo de M1 está en [`docs/goals/GOAL-01-M1-infrastructure-checklist.md`](docs/goals/GOAL-01-M1-infrastructure-checklist.md).
+La comprobación externa de solo lectura del 2026-10-29 obtuvo HTTP 200 en `https://staging.dusema.com` y en `/health` y `/readiness` de `staging-api.dusema.com`. Readiness reportó database, storage y email `up`; el check de email sólo acredita transporte configurado y el de storage no identifica el proveedor. No se verificaron entrega de correo, R2, despliegue reproducible ni rollback, así que E1.1/E1.3 seguían abiertas y M1 `BLOQUEADO POR INFRAESTRUCTURA EXTERNA`. En ese snapshot GOAL-01 permanecía activo; desde 2026-10-30 está pausado y GOAL-02 es el Goal activo. E2.1, E2.4, E4.2, E4.3, E4.4, E4.5, E4.6, E4.7, E5.1, E5.2, E5.3, E5.4, E6.1, E6.2 y E6.3 quedaron fusionadas por caminos independientes. El checklist operativo de M1 está en [`docs/goals/GOAL-01-M1-infrastructure-checklist.md`](docs/goals/GOAL-01-M1-infrastructure-checklist.md).
 La inspección de solo lectura registrada en PR #124 encontró que la API llamada staging compartía la VPS y la base `oficina_nitida` clasificadas como producción y usaba storage local; el Compose activo no coincidía con el versionado. PR #124 prepara el proyecto Compose aislado, exige las cuatro variables R2 y `REQUIRE_REAL_EMAIL=true`, y valida el bootstrap PostgreSQL en un servicio efímero de CI. La base, el rol, las ACL, el alias DNS, R2, el correo y el despliegue activo no se modificaron; la revisión DBA y la validación operativa siguen pendientes.
 
 E4.2 quedó fusionada y verificada en `main` mediante PR #90. M3 está completado y
@@ -218,7 +222,7 @@ Tras fusionar E4.3 en PR #92, E4.4 en PR #93, E5.1 en PR #95, E2.1 en PR #96,
 E4.5 en PR #97, E4.7 en PR #99, ADR-006 en PR #101, E5.2 en PR #102, E5.3 en
 PR #103, E5.4 en PR #104, E6.1 en PR #105, E6.2 en PR #106, ADR-007 en PR
 #107 y E2.4 en PR #110, la revisión del código y del grafo de dependencias mantiene M1
-`BLOQUEADO POR INFRAESTRUCTURA EXTERNA`, pero GOAL-01 permanece `ACTIVO`.
+`BLOQUEADO POR INFRAESTRUCTURA EXTERNA`; en este snapshot del 2026-10-29 GOAL-01 permanecía `ACTIVO`.
 M5 queda completado con E5.1, E5.2, E5.3 y E5.4. M6 queda completado con E6.1,
 E6.2 y E6.3 fusionadas; M2 queda parcial con E2.1 y E2.4 cerradas, mientras
 E2.2 y E2.3 siguen dependiendo del correo real. ADR-007 está aprobado y gobierna
@@ -2126,14 +2130,16 @@ Validación de cierre:
 
 La referencia arquitectónica vigente para la evolución del producto es
 [`Platform Evolution`](docs/architecture/PLATFORM-EVOLUTION.md). Organiza las
-capacidades futuras por dominio y dependencia; no crea un Goal nuevo ni cambia
-la regla de un único Goal activo.
+capacidades por dominio y dependencia. Desde el 2026-10-30, GOAL-02 es el único
+Goal activo y usa esta referencia junto con su backlog específico.
 
 ## Goal activo
 
-- [`GOAL-01 — Primer Cliente Operando`](docs/goals/GOAL-01-primer-cliente-operando.md): operación laboral y documental del primer cliente en producción.
+- [`GOAL-02 — Evolución Financiera y Cumplimiento Electrónico`](docs/goals/GOAL-02-base-financial-regulatory-evolution.md): demostrar e integrar los flujos internos de nómina, facturación y contabilidad, y avanzar hacia cumplimiento electrónico verificable.
+- [`GOAL-02 backlog`](docs/goals/GOAL-02-backlog.md): primer incremento, dependencias, riesgos y criterios de aceptación.
+- GOAL-01 — Primer Cliente Operando está pausado, no cerrado; sus pendientes y evidencia permanecen preservados en [`su ficha`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
-Sus Milestones son Deployment verificable, Gestión de Organizaciones y Usuarios, Preparación Laboral, Contratación Inteligente, Expediente Digital, Seguimiento Operativo y Go Live Comercial.
+Los Milestones de GOAL-01 quedan en pausa; GOAL-02 prioriza los flujos financieros demostrables y conserva las puertas regulatorias de dominio, proveedor, seguridad y operación.
 
 Hitos cerrados recientemente:
 
@@ -2141,22 +2147,23 @@ Hitos cerrados recientemente:
 - ✅ Security Hardening v2 — headers, frontera tenant-aware y RLS piloto.
 - ✅ Accounting v1 — Ledger, reporting, cierre contable e integración explícita con Payroll.
 
-Candidatos futuros sin número de Goal:
+Candidatos futuros fuera del Goal activo:
 
-- Nómina electrónica.
-- Facturación electrónica.
-- Gestión financiera.
 - Alertas avanzadas.
 - Gestión documental avanzada.
 - Multiempresa avanzado.
 - Multisede avanzado.
 - Inteligencia artificial.
+- Otros candidatos conservados en Platform Evolution y el Backlog.
 
 Importante:
 
 Las capacidades futuras NO deben introducir sobreingeniería temprana.
 
-Se implementarán únicamente cuando exista una necesidad real de negocio y sean priorizadas después del Goal activo. Un Goal solo puede redefinirse cuando cambie la estrategia del producto, no por nuevas ideas, módulos o mejoras.
+Las iniciativas financieras de GOAL-02 se implementan de acuerdo con su backlog
+y las necesidades de demostración/negocio verificadas. Los candidatos restantes
+se priorizan después del Goal activo. Un Goal solo puede redefinirse cuando
+cambie la estrategia del producto, no por nuevas ideas, módulos o mejoras.
 
 ---
 

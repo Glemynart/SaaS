@@ -60,6 +60,7 @@ export class PayrollCorrectionAccountingService {
           where: { id: correctionId, tenantId },
           select: {
             id: true,
+            payrollPeriodId: true,
             status: true,
             descripcion: true,
             materialization: true,
@@ -89,11 +90,25 @@ export class PayrollCorrectionAccountingService {
             origenTipo: ORIGIN.type,
             origenId: correction.id,
             origenEvento: ORIGIN.event,
-            estado: { not: 'ANULADO' },
           },
-          select: { id: true },
+          select: {
+            id: true,
+            estado: true,
+            reversos: {
+              where: { tenantId, estado: 'CONTABILIZADO' },
+              select: { id: true },
+            },
+          },
         });
         if (existing) {
+          if (
+            existing.estado !== 'CONTABILIZADO' ||
+            existing.reversos.length > 0
+          ) {
+            throw new ConflictException(
+              'El comprobante de esta corrección está anulado o revertido. Registra una nueva corrección si todavía se requiere un ajuste contable.',
+            );
+          }
           await this.audit.log(
             {
               tenantId,
@@ -110,6 +125,37 @@ export class PayrollCorrectionAccountingService {
             payrollCorrectionId: correction.id,
             comprobanteId: existing.id,
           };
+        }
+
+        const payrollPeriod = await tx.payrollPeriod.findFirst({
+          where: { id: correction.payrollPeriodId, tenantId },
+          select: { status: true },
+        });
+        if (!payrollPeriod) {
+          throw new NotFoundException('Período de nómina no encontrado.');
+        }
+        if (payrollPeriod.status !== 'CAUSADA') {
+          throw new BadRequestException(
+            'Solo se puede contabilizar un ajuste cuando la nómina original ya está causada en el Ledger.',
+          );
+        }
+        const payrollVoucher = await tx.comprobanteContable.findFirst({
+          where: {
+            tenantId,
+            origenTipo: 'PAYROLL',
+            origenId: correction.payrollPeriodId,
+            origenEvento: 'CAUSACION',
+            estado: 'CONTABILIZADO',
+            reversos: {
+              none: { tenantId, estado: 'CONTABILIZADO' },
+            },
+          },
+          select: { id: true },
+        });
+        if (!payrollVoucher) {
+          throw new ConflictException(
+            'No se encontró el comprobante vigente de causación original; el ajuste no se contabilizó.',
+          );
         }
 
         await lockPayrollCorrectionDependencies(
@@ -272,7 +318,10 @@ export class PayrollCorrectionAccountingService {
           origenTipo: ORIGIN.type,
           origenId: { in: dependencyIds },
           origenEvento: ORIGIN.event,
-          estado: { not: 'ANULADO' },
+          estado: 'CONTABILIZADO',
+          reversos: {
+            none: { tenantId, estado: 'CONTABILIZADO' },
+          },
         },
         select: { origenId: true },
       }),
