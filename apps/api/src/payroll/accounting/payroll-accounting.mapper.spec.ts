@@ -48,4 +48,43 @@ describe('buildPayrollAccrualLines', () => {
     ).toBe(true);
     expect(lines.every((line) => line.centroCostoId === 'center-1')).toBe(true);
   });
+
+  it('conserva el tercero por empleado en la obligación de salarios', () => {
+    const lines = buildPayrollAccrualLines(
+      [
+        {
+          terceroId: 'tercero-ana',
+          centroCostoId: null,
+          totalDevengos: 100,
+          totalDeducciones: 10,
+          netoPagar: 90,
+          totalAportesPatronales: 0,
+          totalProvisiones: 0,
+          concepts: [],
+        },
+        {
+          terceroId: 'tercero-luis',
+          centroCostoId: null,
+          totalDevengos: 200,
+          totalDeducciones: 20,
+          netoPagar: 180,
+          totalAportesPatronales: 0,
+          totalProvisiones: 0,
+          concepts: [],
+        },
+      ],
+      accounts,
+    );
+
+    const salaryPayables = lines.filter(
+      (line) => line.cuentaId === accounts.SALARIOS_POR_PAGAR,
+    );
+    expect(salaryPayables).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ terceroId: 'tercero-ana', credito: 90 }),
+        expect.objectContaining({ terceroId: 'tercero-luis', credito: 180 }),
+      ]),
+    );
+    expect(salaryPayables).toHaveLength(2);
+  });
 });

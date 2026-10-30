@@ -11,7 +11,7 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 | P0        | EN CURSO  | Validar que cada producto de una factura pertenezca al tenant activo y esté disponible. | La API acepta productos activos del mismo tenant, rechaza IDs ajenos, inexistentes o inactivos sin crear la factura, conserva líneas manuales y tiene pruebas de regresión.                                                                     | Sin migración ni decisión de dominio; riesgo alto por aislamiento multiempresa.                                                                                                                                                           |
 | P1        | PENDIENTE | Conectar la emisión interna de facturas con el Ledger.                                  | Un acto interno genera un comprobante balanceado e idempotente con tercero, período y origen trazables; anular/corregir conserva evidencia y usa reversión del Ledger.                                                                          | ADR sobre cliente contable, impuestos, evento de emisión, cuentas y reversión; riesgo financiero alto.                                                                                                                                    |
 | P1        | EN CURSO  | Verificar de extremo a extremo la causación de nómina en el Ledger desde la UI.         | Un período aprobado conserva su snapshot, crea una causación una sola vez, muestra el comprobante y soporta la corrección definida por el dominio. La rama apilada agrega formulario, transiciones RBAC y comprobante de ajuste en la pantalla. | Reutilizar Payroll y Ledger existentes; permisos, preflight, idempotencia y persistencia cuentan con pruebas de servicio; falta integrar las PR apiladas y verificar el recorrido completo con una nómina demostrable antes de cerrar P1. |
-| P1        | PENDIENTE | Preparar un escenario financiero reproducible con datos sintéticos para demo.           | Un entorno/tenant explícitamente de demostración puede cargar clientes, productos, facturas, períodos y comprobantes coherentes; la carga es idempotente y no modifica datos reales ni tenants existentes.                                      | Definir mecanismo de seed y alcance del tenant demo; riesgo de contaminar datos si se ejecuta fuera del entorno previsto.                                                                                                                 |
+| P1        | EN CURSO  | Preparar un escenario financiero reproducible con datos sintéticos para demo.           | Un tenant explícitamente de demostración carga clientes, productos, facturas internas, nómina, centro de costo, tercero y causación balanceada; la carga es idempotente, tenant-scoped y se verifica desde la UI.                               | Seed local con doble confirmación del tenant; catálogos contables globales preexistentes; factura interna sin integración Ledger/DIAN; el comprobante de nómina es append-only. PR y CI aún pendientes.                                   |
 
 ## H1 — Fundación de integraciones regulatorias
 
@@ -48,6 +48,15 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   apilada agrega el ciclo de correcciones post aprobación y la lectura del
   comprobante de ajuste. P1 continúa EN CURSO hasta integrar las PR y verificar
   el recorrido completo desde una nómina aprobada.
+- La rama `codex/goal02-financial-demo-data` prepara un seed local idempotente
+  para dos clientes, tres productos, tres facturas internas, un empleado y su
+  tercero contable, un centro de costo y una nómina sintética con causación en
+  Ledger. La prueba Browser E2E valida aislamiento frente a otro tenant,
+  persistencia, reejecución sin duplicados y lectura desde Facturación y Nómina.
+  La rama también conecta cada obligación de salarios con el tercero canónico
+  por tipo y número de documento, exigido por la cuenta PUC 250505, y conserva el
+  centro de costo requerido por las cuentas de gasto. El código sigue fuera de
+  `main` hasta completar CI y revisión del PR.
 - `Decisiones de Producto.md`, `ENGINEERING_PLAYBOOK.md` y
   `LA_OFICINA_NITIDA_CONTEXT.md` no existen en la raíz ni aparecen en el
   inventario de archivos del checkout consultado. El plan usa `PROJECT_STATE.md`,

@@ -24,6 +24,7 @@ describe('Payroll accounting PostgreSQL integration', () => {
   const tenantId = randomUUID();
   const actorId = randomUUID();
   const employeeId = randomUUID();
+  const thirdPartyId = randomUUID();
   const payrollPeriodId = randomUUID();
   const payrollRunId = randomUUID();
   const snapshotId = randomUUID();
@@ -102,6 +103,18 @@ describe('Payroll accounting PostgreSQL integration', () => {
           cargo: 'Docente',
           salario: 1_000_000,
           fechaIngreso: new Date('2025-01-01T00:00:00.000Z'),
+        },
+      });
+      await tx.tercero.create({
+        data: {
+          id: thirdPartyId,
+          tenantId,
+          tipoDocumento: 'CC',
+          numeroDocumento: `payroll-accounting-${suffix}`,
+          tipoPersona: 'NATURAL',
+          primerNombre: 'Ana',
+          primerApellido: 'Integración',
+          esEmpleado: true,
         },
       });
       await tx.payrollPeriod.create({
@@ -194,7 +207,7 @@ describe('Payroll accounting PostgreSQL integration', () => {
             nivel: 5,
             imputable: true,
             esCuentaSistema: false,
-            requiereTercero: false,
+            requiereTercero: role === 'SALARIOS_POR_PAGAR',
             requiereCentroCosto: false,
             requiereBase: false,
             activa: true,
@@ -220,6 +233,7 @@ describe('Payroll accounting PostgreSQL integration', () => {
         await tx.cuentaSistemaMap.deleteMany({ where: { tenantId } });
         await tx.cuentaContable.deleteMany({ where: { tenantId } });
         await tx.periodoContable.deleteMany({ where: { tenantId } });
+        await tx.tercero.deleteMany({ where: { tenantId } });
         await tx.empleado.deleteMany({ where: { tenantId } });
         await tx.auditLog.deleteMany({ where: { tenantId } });
         await tx.user.deleteMany({ where: { tenantId } });
@@ -288,15 +302,26 @@ describe('Payroll accounting PostgreSQL integration', () => {
     expect(
       voucher.movimientos.map((movement) => ({
         cuentaCodigo: movement.cuenta.codigo,
+        terceroId: movement.terceroId,
         debito: Number(movement.debito),
         credito: Number(movement.credito),
       })),
     ).toEqual(
       expect.arrayContaining([
-        { cuentaCodigo: 'T5', debito: 1_000_000, credito: 0 },
-        { cuentaCodigo: 'T1', debito: 0, credito: 920_000 },
-        { cuentaCodigo: 'T2', debito: 0, credito: 40_000 },
-        { cuentaCodigo: 'T3', debito: 0, credito: 40_000 },
+        {
+          cuentaCodigo: 'T5',
+          terceroId: null,
+          debito: 1_000_000,
+          credito: 0,
+        },
+        {
+          cuentaCodigo: 'T1',
+          terceroId: thirdPartyId,
+          debito: 0,
+          credito: 920_000,
+        },
+        { cuentaCodigo: 'T2', terceroId: null, debito: 0, credito: 40_000 },
+        { cuentaCodigo: 'T3', terceroId: null, debito: 0, credito: 40_000 },
       ]),
     );
     expect(persisted.snapshot?.payload).toEqual(snapshotPayload);

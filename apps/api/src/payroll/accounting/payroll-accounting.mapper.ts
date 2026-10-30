@@ -6,6 +6,7 @@ import { PAYROLL_ACCOUNTING_REQUIRED_ROLES } from '../accounting-preflight/payro
 type PayrollAccountRole = (typeof PAYROLL_ACCOUNTING_REQUIRED_ROLES)[number];
 
 export interface PayrollRunForAccounting {
+  terceroId?: string | null;
   centroCostoId: string | null;
   totalDevengos: number;
   totalDeducciones: number;
@@ -19,6 +20,7 @@ export type PayrollSystemAccounts = Record<PayrollAccountRole, string>;
 
 type AccumulatedLine = {
   cuentaId: string;
+  terceroId?: string;
   centroCostoId?: string;
   debito: number;
   credito: number;
@@ -55,12 +57,14 @@ export function buildPayrollAccrualLines(
     credito: number,
     centroCostoId: string | null,
     descripcion: string,
+    terceroId?: string | null,
   ) => {
     if (debito === 0 && credito === 0) return;
     const cuentaId = accounts[role];
-    const key = `${cuentaId}:${centroCostoId ?? ''}:${descripcion}`;
+    const key = `${cuentaId}:${terceroId ?? ''}:${centroCostoId ?? ''}:${descripcion}`;
     const current = lines.get(key) ?? {
       cuentaId,
+      terceroId: terceroId ?? undefined,
       centroCostoId: centroCostoId ?? undefined,
       debito: 0,
       credito: 0,
@@ -106,6 +110,7 @@ export function buildPayrollAccrualLines(
       neto,
       run.centroCostoId,
       'Salarios netos por pagar',
+      run.terceroId,
     );
     add(
       'APORTES_SALUD_POR_PAGAR',
@@ -132,6 +137,7 @@ export function buildPayrollAccrualLines(
 
   return [...lines.values()].map((line) => ({
     cuentaId: line.cuentaId,
+    terceroId: line.terceroId,
     centroCostoId: line.centroCostoId,
     debito: line.debito,
     credito: line.credito,
