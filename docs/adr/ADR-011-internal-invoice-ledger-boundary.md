@@ -10,13 +10,14 @@
 
 ## Contexto verificado
 
-Este ADR se prepara sobre el código de la rama `codex/goal02-financial-first-increment`, HEAD `3a8e1c4`.
+Este ADR se prepara sobre el código de la rama `codex/goal02-financial-first-increment`, HEAD `c07a9d7`.
 
 - `Invoice` está documentada en Prisma como factura de venta interna, todavía no DIAN; tiene los estados `DRAFT`, `ISSUED` y `CANCELLED`.
 - `BillingService.createInvoice` crea facturas y líneas; `updateInvoiceStatus` actualiza el estado sin invocar el Ledger.
 - `InvoiceItem` conserva cantidad, precio unitario y subtotal, pero no una tasa, base ni valor de impuesto por línea. `ProductService.impuesto` existe; `createInvoice` no lo consulta y actualmente calcula 19% sobre el subtotal total.
 - `Customer` guarda NIT y razón social, pero no tiene relación con el `Tercero` contable canónico.
 - `LedgerService.registrarComprobante` valida período abierto, cuentas del tenant, partida doble e identidad de origen. `LedgerService.anular` anula en período abierto o crea un reverso si el período original está cerrado.
+- `BillingController` recibe `CurrentUserPayload.userId`, pero actualmente solo pasa `tenantId` a `BillingService`; `BillingModule` tampoco importa `AccountingModule`. `RegistrarComprobanteInput.userId` es obligatorio y `LedgerService` acepta un cliente transaccional.
 - El seed contable incluye los roles `CLIENTES_NACIONALES`, `INGRESOS_OPERACIONALES` e `IVA_GENERADO`. El Ledger exige un `periodoId` y no conoce Billing.
 - ADR-005 mantiene un bounded context separado para facturación electrónica y fija `FACTURA_ACEPTADA` como evento contable de esa ruta. Este ADR no autoriza transmisión DIAN/UGPP ni reemplaza ese contexto.
 
@@ -41,7 +42,7 @@ Esta propuesta **no aprueba tasas ni tratamientos tributarios** y no habilita a�
 1. Producto y contabilidad aprobarán cómo se determina el impuesto de cada línea, su redondeo y el tratamiento de líneas manuales. Las tasas usadas deben provenir de datos explícitos, no del 19% fijo actual ni de una lectura posterior del catálogo vivo.
 2. Se almacenará en cada línea el snapshot suficiente de base, tratamiento/tasa e impuesto calculado para reconstruir el comprobante; se verificará que los totales de línea concilien con los del encabezado. No se recalcularán facturas históricas desde `ProductService`.
 3. `Customer` tendrá un vínculo explícito y tenant-safe con un `Tercero` activo con rol de cliente. No se inferirá ni creará silenciosamente el tercero normalizando el NIT. Clientes históricos sin vínculo podrán permanecer en borrador hasta resolver su correspondencia.
-4. La emisión requerirá período abierto, mapeos de cuenta completos y una identidad canónica del tercero. Todos los cambios de Billing y Ledger compartirán transacción y contexto de tenant.
+4. La emisión requerirá período abierto, mapeos de cuenta completos, una identidad canónica del tercero y el actor autenticado. La API debe propagar `userId` desde `CurrentUserPayload` al caso de uso contable —no recibirlo del body—, conservar el permiso ADMIN actual para cambiar el estado y ejecutar los cambios de Billing y Ledger en la misma transacción y contexto de tenant.
 5. Los caminos de UI/API permitirán al usuario ver el comprobante y el motivo de rechazo; los reintentos serán idempotentes. Cancelación y auditoría se probarán en período abierto y cerrado.
 6. La migración será aditiva y reversible: columnas y vínculo inicialmente opcionales, backfill verificable y sin modificar comprobantes ni facturas históricas. El despliegue no debe hacer backfill financiero automático.
 
