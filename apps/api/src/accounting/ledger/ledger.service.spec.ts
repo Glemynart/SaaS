@@ -589,9 +589,9 @@ describe('LedgerService', () => {
     it('anula comprobante CONTABILIZADO con período ABIERTO', async () => {
       const { service, mocks } = build();
 
-      mocks.comprobanteFindFirst.mockResolvedValue(
-        comprobanteCreado({ estado: 'CONTABILIZADO' }),
-      );
+      mocks.comprobanteFindFirst
+        .mockResolvedValueOnce(comprobanteCreado({ estado: 'CONTABILIZADO' }))
+        .mockResolvedValue(null);
       mocks.periodoFindUniqueOrThrow.mockResolvedValue({
         id: PERIODO_ID,
         estado: 'ABIERTO',
@@ -621,13 +621,15 @@ describe('LedgerService', () => {
     it('bloquea la corrección antes de anular un ajuste de nómina', async () => {
       const { service, mocks } = build();
 
-      mocks.comprobanteFindFirst.mockResolvedValue(
-        comprobanteCreado({
-          origenTipo: 'PAYROLL_CORRECTION',
-          origenId: 'correction-a',
-          origenEvento: 'AJUSTE',
-        }),
-      );
+      mocks.comprobanteFindFirst
+        .mockResolvedValueOnce(
+          comprobanteCreado({
+            origenTipo: 'PAYROLL_CORRECTION',
+            origenId: 'correction-a',
+            origenEvento: 'AJUSTE',
+          }),
+        )
+        .mockResolvedValue(null);
       mocks.periodoFindUniqueOrThrow.mockResolvedValue({
         id: PERIODO_ID,
         estado: 'ABIERTO',
@@ -649,7 +651,9 @@ describe('LedgerService', () => {
         numero: 10,
         concepto: 'Nómina enero',
       });
-      mocks.comprobanteFindFirst.mockResolvedValue(original);
+      mocks.comprobanteFindFirst
+        .mockResolvedValueOnce(original)
+        .mockResolvedValue(null);
       mocks.periodoFindUniqueOrThrow.mockResolvedValue({
         id: PERIODO_ID,
         estado: 'CERRADO',
@@ -720,9 +724,9 @@ describe('LedgerService', () => {
     it('no crea reverso si el período destino se cierra mientras espera su lock', async () => {
       const { service, mocks } = build();
 
-      mocks.comprobanteFindFirst.mockResolvedValue(
-        comprobanteCreado({ estado: 'CONTABILIZADO' }),
-      );
+      mocks.comprobanteFindFirst
+        .mockResolvedValueOnce(comprobanteCreado({ estado: 'CONTABILIZADO' }))
+        .mockResolvedValue(null);
       mocks.periodoFindUniqueOrThrow.mockResolvedValue({
         id: PERIODO_ID,
         estado: 'CERRADO',
@@ -757,7 +761,9 @@ describe('LedgerService', () => {
         numero: 10,
         concepto: 'Nómina enero',
       });
-      mocks.comprobanteFindFirst.mockResolvedValue(original);
+      mocks.comprobanteFindFirst
+        .mockResolvedValueOnce(original)
+        .mockResolvedValue(null);
       mocks.periodoFindUniqueOrThrow.mockResolvedValue({
         id: PERIODO_ID,
         estado: 'CERRADO',
@@ -809,6 +815,94 @@ describe('LedgerService', () => {
           }),
         }),
       );
+    });
+
+    it('devuelve el reverso existente al reintentar una anulación', async () => {
+      const { service, mocks } = build();
+      const original = comprobanteCreado({
+        estado: 'CONTABILIZADO',
+        periodoId: PERIODO_ID,
+      });
+      const reverso = comprobanteCreado({
+        id: 'comp-reverso-001',
+        estado: 'CONTABILIZADO',
+        reversaAId: original.id,
+        periodoId: 'periodo-abierto',
+      });
+      mocks.comprobanteFindFirst
+        .mockResolvedValueOnce(original)
+        .mockResolvedValueOnce(reverso);
+
+      const result = await service.anular(
+        TENANT_ID,
+        USER_ID,
+        original.id,
+        'reintento',
+      );
+
+      expect(result).toEqual(reverso);
+      expect(mocks.comprobanteFindFirst).toHaveBeenNthCalledWith(2, {
+        where: {
+          tenantId: TENANT_ID,
+          reversaAId: original.id,
+          estado: 'CONTABILIZADO',
+        },
+        include: { movimientos: { orderBy: { linea: 'asc' } } },
+      });
+      expect(mocks.periodoFindUniqueOrThrow).not.toHaveBeenCalled();
+      expect(mocks.comprobanteCreate).not.toHaveBeenCalled();
+      expect(mocks.secuenciaUpsert).not.toHaveBeenCalled();
+    });
+
+    it('requiere corrección explícita si el reverso previo fue anulado', async () => {
+      const { service, mocks } = build();
+      const original = comprobanteCreado({
+        estado: 'CONTABILIZADO',
+        periodoId: PERIODO_ID,
+      });
+      mocks.comprobanteFindFirst
+        .mockResolvedValueOnce(original)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 'comp-reverso-anulado' });
+      mocks.periodoFindUniqueOrThrow.mockResolvedValue({
+        id: PERIODO_ID,
+        estado: 'CERRADO',
+      });
+
+      await expect(
+        service.anular(TENANT_ID, USER_ID, original.id, 'reintento'),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mocks.comprobanteFindFirst).toHaveBeenNthCalledWith(3, {
+        where: {
+          tenantId: TENANT_ID,
+          reversaAId: original.id,
+          estado: 'ANULADO',
+        },
+        select: { id: true },
+      });
+      expect(mocks.comprobanteCreate).not.toHaveBeenCalled();
+      expect(mocks.secuenciaUpsert).not.toHaveBeenCalled();
+    });
+
+    it('no marca el original anulado si se reabrió su período tras anular el reverso', async () => {
+      const { service, mocks } = build();
+      const original = comprobanteCreado({
+        estado: 'CONTABILIZADO',
+        periodoId: PERIODO_ID,
+      });
+      mocks.comprobanteFindFirst
+        .mockResolvedValueOnce(original)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 'comp-reverso-anulado' });
+
+      await expect(
+        service.anular(TENANT_ID, USER_ID, original.id, 'reintento'),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mocks.periodoFindUniqueOrThrow).not.toHaveBeenCalled();
+      expect(mocks.comprobanteUpdate).not.toHaveBeenCalled();
+      expect(mocks.comprobanteCreate).not.toHaveBeenCalled();
     });
   });
 });

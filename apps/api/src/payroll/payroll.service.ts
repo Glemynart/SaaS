@@ -354,6 +354,12 @@ export class PayrollService {
             netoPagar: true,
             totalAportesPatronales: true,
             totalProvisiones: true,
+            employee: {
+              select: {
+                cedula: true,
+                tipoDocumento: true,
+              },
+            },
             concepts: { select: { codigo: true, tipo: true, valor: true } },
           },
         }),
@@ -367,6 +373,51 @@ export class PayrollService {
       if (runs.length === 0) {
         throw new BadRequestException(
           'No existen liquidaciones válidas para contabilizar.',
+        );
+      }
+
+      const employeeIdentities = [
+        ...new Map(
+          runs.map((run) => [
+            `${run.employee.tipoDocumento}\u0000${run.employee.cedula}`,
+            {
+              tipoDocumento: run.employee.tipoDocumento,
+              numeroDocumento: run.employee.cedula,
+            },
+          ]),
+        ).values(),
+      ];
+      const thirdParties = await tx.tercero.findMany({
+        where: {
+          tenantId,
+          activo: true,
+          deletedAt: null,
+          esEmpleado: true,
+          OR: employeeIdentities,
+        },
+        select: {
+          id: true,
+          tipoDocumento: true,
+          numeroDocumento: true,
+        },
+      });
+      const thirdPartyByIdentity = new Map(
+        thirdParties.map((thirdParty) => [
+          `${thirdParty.tipoDocumento}\u0000${thirdParty.numeroDocumento}`,
+          thirdParty.id,
+        ]),
+      );
+      const missingThirdParties = runs
+        .filter(
+          (run) =>
+            !thirdPartyByIdentity.has(
+              `${run.employee.tipoDocumento}\u0000${run.employee.cedula}`,
+            ),
+        )
+        .map((run) => run.employee.cedula);
+      if (missingThirdParties.length > 0) {
+        throw new BadRequestException(
+          `Cree o active un tercero contable con el rol empleado para cada documento antes de contabilizar la nómina: ${[...new Set(missingThirdParties)].join(', ')}.`,
         );
       }
 
@@ -393,6 +444,9 @@ export class PayrollService {
           concepto: `Causación nómina ${current.nombre}`,
           lineas: buildPayrollAccrualLines(
             runs.map((run) => ({
+              terceroId: thirdPartyByIdentity.get(
+                `${run.employee.tipoDocumento}\u0000${run.employee.cedula}`,
+              )!,
               centroCostoId: run.centroCostoId,
               totalDevengos: Number(run.totalDevengos),
               totalDeducciones: Number(run.totalDeducciones),
