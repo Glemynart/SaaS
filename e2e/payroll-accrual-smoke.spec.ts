@@ -83,12 +83,16 @@ test('contabiliza una nómina aprobada y confirma el comprobante persistido', as
     await expect(page.getByText('Gasto de sueldos')).toBeVisible();
     await expect(page.getByText('Salarios netos por pagar', { exact: true })).toBeVisible();
 
-    const retryResponse = await page.request.post(
-      `/api/payroll/periods/${fixture.periodId}/contabilizar`,
-      { data: {} },
-    );
-    expect(retryResponse.status()).toBe(200);
-    expect(await retryResponse.json()).toEqual({
+    const retryResponse = await page.evaluate(async (path) => {
+      const response = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      return { status: response.status, body: await response.json() };
+    }, `/api/payroll/periods/${fixture.periodId}/contabilizar`);
+    expect(retryResponse.status).toBe(200);
+    expect(retryResponse.body).toEqual({
       status: 'YA_CAUSADA',
       payrollPeriodId: fixture.periodId,
       comprobanteId: posting.comprobanteId,
