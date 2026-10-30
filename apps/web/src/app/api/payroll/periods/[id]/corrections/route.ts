@@ -32,7 +32,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       { method: 'POST', body: JSON.stringify(payload) },
       auth.token,
     );
-    const response = NextResponse.json(data);
+    const response = NextResponse.json(data, { status: 201 });
     auth.response.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
     return response;
   } catch (error) {
