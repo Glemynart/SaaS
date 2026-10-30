@@ -102,10 +102,11 @@ export function useUpdateTercero() {
   });
 }
 
-export function useCentrosCosto(filters: CentroCostoFilters = {}) {
+export function useCentrosCosto(filters: CentroCostoFilters = {}, enabled = true) {
   return useQuery({
     queryKey: accountingConfigurationKeys.centroCostoList(filters),
     queryFn: () => accountingApi.centrosCosto.getAll(filters),
+    enabled,
   });
 }
 

@@ -1,11 +1,9 @@
 # GOAL-02 — Evolución Financiera y Cumplimiento Electrónico
 
-> **Estado:** documento base de planificación — **NO ES UN GOAL ACTIVO**.
->
-> GOAL-01 continúa siendo el único Goal activo. Este documento no autoriza
-> implementación, no modifica el resultado de GOAL-01 y no convierte sus
-> iniciativas en trabajo priorizado hasta que GOAL-01 se cierre y el producto
-> active explícitamente este Goal.
+> **Estado:** GOAL ACTIVO desde 2026-10-30 por decisión explícita del usuario.
+> GOAL-01 queda PAUSADO — NO CERRADO; su alcance y trabajo pendiente se
+> conservan. La nueva prioridad comercial es poder demostrar nómina,
+> facturación y contabilidad integradas a futuros clientes.
 
 ## Propósito
 
@@ -74,19 +72,24 @@ propios.
 
 ## Evidencia actual contrastada en `main`
 
-La fuente de contraste de este documento es `main` en `1c69924d`.
+La fuente de contraste de este documento es `main` en `ec9cff01` (2026-10-29).
 
-| Capacidad                  | Evidencia real                                                                                                                                                         | Límite actual                                                                                                                                                                                                             |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Multiempresa y seguridad   | `Tenant`, JWT, `ActiveTenantGuard`, RBAC y `TenantPrismaService`                                                                                                       | La integración regulatoria necesitará credenciales y permisos por tenant.                                                                                                                                                 |
-| Empleados y contratos      | `Empleado`, contratos, sedes, perfiles y snapshots                                                                                                                     | Son los insumos laborales; no deben ser modificados por el proveedor.                                                                                                                                                     |
-| Payroll                    | `PayrollPeriod`, `PayrollRun`, `PayrollConcept`, `PayrollSnapshot`, parámetros legales, causación y correcciones                                                       | No existe documento ni transmisión de nómina electrónica.                                                                                                                                                                 |
-| Facturación                | `Customer`, `ProductService`, `Invoice`, `InvoiceItem` y `BillingService`; además existen modelos Prisma reservados `ClienteFE`, `Producto`, `Factura` e `ItemFactura` | Billing opera facturación interna. La cohorte FE del schema contiene campos DIAN/Matías, pero no tiene servicio, adaptador ni transmisión end-to-end; debe tratarse como fundación heredada, no como capacidad entregada. |
-| Contabilidad               | `CuentaContable`, `Tercero`, `ComprobanteContable`, `MovimientoContable`, `LedgerService`, reportes y cierres                                                          | Debe definirse el puente de cada hecho de negocio al Ledger; Billing no transmite ni contabiliza electrónicamente por sí solo.                                                                                            |
-| Documentos                 | `GeneratedDocument`, PDF, Expediente Digital, familias y revisiones inmutables                                                                                         | Puede conservar XML, PDF, acuses y respuestas como evidencia, respetando ADR-006.                                                                                                                                         |
-| Almacenamiento             | `StorageProvider`, disco local, Cloudflare R2 y migración                                                                                                              | R2 y producción requieren validación operativa; el dominio no debe conocer el backend.                                                                                                                                    |
-| Operación                  | scheduler, reintentos, retención, auditoría y alertas conforme a ADR-007                                                                                               | No existe todavía un motor específico de ejecuciones regulatorias.                                                                                                                                                        |
-| Integraciones regulatorias | No hay adaptador Matías, DIAN, UGPP ni API pública de proveedores en el código actual                                                                                  | Es una capacidad futura; requiere contratos internos y ADRs antes de implementación.                                                                                                                                      |
+| Capacidad                  | Evidencia real                                                                                                                                                         | Límite actual                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Multiempresa y seguridad   | `Tenant`, JWT, `ActiveTenantGuard`, RBAC y `TenantPrismaService`                                                                                                       | La integración regulatoria necesitará credenciales y permisos por tenant.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Empleados y contratos      | `Empleado`, contratos, sedes, perfiles y snapshots                                                                                                                     | Son los insumos laborales; no deben ser modificados por el proveedor.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Payroll                    | `PayrollPeriod`, `PayrollRun`, `PayrollConcept`, `PayrollSnapshot`, parámetros legales, causación y correcciones                                                       | En `main`, el endpoint ADMIN de causación registra en Ledger dentro de una transacción tenant-aware e idempotente y tiene pruebas de servicio. Las ramas locales de GOAL-02 añaden al detalle del período la acción de causación, el resultado de preflight, la lectura de snapshots, y la UI/BFF para registrar, revisar, aprobar y contabilizar correcciones con comprobante visible tras recarga; aún deben integrarse y completar la verificación end-to-end antes de marcar P1 como terminada. No existe documento ni transmisión de nómina electrónica. |
+| Facturación                | `Customer`, `ProductService`, `Invoice`, `InvoiceItem` y `BillingService`; además existen modelos Prisma reservados `ClienteFE`, `Producto`, `Factura` e `ItemFactura` | Billing opera facturas internas con estado `ISSUED`, sin posteo a Ledger ni transmisión DIAN. En el `main` contrastado, `createInvoice` no valida que `productServiceId` pertenezca al tenant; este bug de aislamiento está en el primer incremento de GOAL-02. La cohorte FE contiene campos DIAN/Matías, pero no tiene servicio, adaptador ni transmisión end-to-end.                                                                                                                                                                                       |
+| Contabilidad               | `CuentaContable`, `Tercero`, `ComprobanteContable`, `MovimientoContable`, `LedgerService`, reportes y cierres                                                          | Payroll ya tiene un puente explícito para causación. Billing todavía requiere definir tercero, impuestos, evento de registro y corrección antes de contabilizarse. No se propone un segundo Ledger.                                                                                                                                                                                                                                                                                                                                                           |
+| Documentos                 | `GeneratedDocument`, PDF, Expediente Digital, familias y revisiones inmutables                                                                                         | Puede conservar XML, PDF, acuses y respuestas como evidencia, respetando ADR-006.                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Almacenamiento             | `StorageProvider`, disco local, Cloudflare R2 y migración                                                                                                              | R2 y producción requieren validación operativa; el dominio no debe conocer el backend.                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Operación                  | scheduler, reintentos, retención, auditoría y alertas conforme a ADR-007                                                                                               | No existe todavía un motor específico de ejecuciones regulatorias.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Integraciones regulatorias | No hay adaptador Matías, DIAN, UGPP ni API pública de proveedores en el código actual                                                                                  | Es una capacidad futura; requiere contratos internos y ADRs antes de implementación.                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+
+Los ajustes contables de nómina solo se pueden contabilizar después de que el
+período original esté `CAUSADA` y conserve un comprobante de causación vigente.
+El asiento de diferencia no reemplaza el asiento original; si falta este último,
+el ajuste debe permanecer pendiente.
 
 La existencia de `ClienteFE`, `Factura`, `ItemFactura`, `feTecnicoId`,
 `feTecnicoKey` y referencias a Matías en el schema no demuestra que exista
@@ -202,19 +205,20 @@ en reglas de negocio.
   `StorageProvider` y, cuando corresponda, se incorporan al Expediente con su
   familia documental correcta.
 
-## Hitos propuestos
+## Hitos y dependencias
 
-Estos hitos son un mapa de dependencias para un futuro Goal activado. No son
-Epics autorizadas mientras GOAL-01 siga activo.
+Estos hitos ordenan el trabajo del Goal activo. La transmisión regulatoria
+permanece sujeta a sus dependencias de negocio, dominio, seguridad y operación.
 
-### H0 — Activación y decisiones de dominio
+### H0 — Caso de negocio y decisiones regulatorias
 
 **Resultado:** alcance comercial y regulatorio aprobado para un primer caso
 real.
 
-**Dependencias:** cierre verificable de GOAL-01, cliente objetivo, proveedor
-seleccionado o shortlist, obligaciones aplicables, ambiente de pruebas,
-certificados y secretos operativos.
+**Dependencias para la ruta regulatoria:** caso de uso y cliente objetivo,
+proveedor seleccionado o shortlist, obligaciones aplicables, ambiente de
+pruebas, certificados y secretos operativos. El cierre de GOAL-01 no es una
+dependencia; permanece pausado mientras GOAL-02 está activo.
 
 **Trabajo preparatorio:** aprobar ADRs de dominio para factura fiscal, notas,
 identidad de eventos de nómina, correcciones, numeración, retención y relación
@@ -288,7 +292,7 @@ los puntos de reutilización; no se crea un libro paralelo.
 
 ```mermaid
 flowchart TD
-  C["Cierre GOAL-01"] --> H0["H0 Activación y ADRs"]
+  C["GOAL-02 activo"] --> H0["H0 Caso y ADRs regulatorios"]
   H0 --> H1["H1 Fundación de integraciones"]
   H1 --> H2["H2 Facturación Electrónica"]
   H1 --> H3["H3 Nómina Electrónica"]
@@ -354,27 +358,35 @@ como mínimo:
 Si alguna de estas decisiones cambia el alcance o las invariantes del dominio,
 la implementación debe detenerse hasta su aprobación.
 
-## Criterios de activación de GOAL-02
+## Estado de activación y puertas regulatorias
 
-GOAL-02 solo podrá convertirse en el único Goal activo después de cerrar
-GOAL-01 y documentar:
+GOAL-02 quedó activado el 2026-10-30 por instrucción explícita del usuario.
+GOAL-01 se pausa sin cerrarse. El alcance de GOAL-02 conserva su resultado de
+negocio completo: capacidades financieras integradas y transmisión regulatoria
+verificable. El primer milestone prioriza hacer demostrables y coherentes los
+flujos internos existentes de nómina, facturación y contabilidad.
 
-- cliente, obligación y caso de uso que justifican la primera capacidad;
+La activación del Goal no equivale a autorización para transmitir a DIAN o UGPP.
+Antes de cada Epic regulatoria deben documentarse y verificarse:
+
+- cliente, obligación y caso de uso que justifican la transmisión;
 - proveedor elegido o decisión explícita de mantener una abstracción con más de
   un candidato;
 - ambiente sandbox, certificados, secretos y responsables operativos;
 - ADRs de dominio, seguridad e integración aprobados;
-- dependencia de Payroll, Billing y Accounting contrastada nuevamente contra
+- dependencias actuales de Payroll, Billing y Accounting contrastadas contra
   `main`;
-- criterios de aceptación end-to-end y evidencia esperada para el primer tenant.
+- criterios end-to-end y evidencia esperada para el primer tenant.
 
-Hasta entonces, este documento es arquitectura y planificación disponible, no
-una autorización de implementación ni un segundo Goal activo.
+El backlog exclusivo y ordenado de GOAL-02 está en
+[`GOAL-02-backlog.md`](GOAL-02-backlog.md). Las condiciones que faltan para la
+transmisión regulatoria quedan pendientes ahí; no bloquean el trabajo interno
+de demostración que no dependa de ellas.
 
 ## Estado de esta referencia
 
-- `GOAL-01`: único Goal activo.
-- `GOAL-02`: documento base, no activo.
+- `GOAL-01`: pausado, no cerrado.
+- `GOAL-02`: único Goal activo desde 2026-10-30.
 - Facturación Electrónica: planificada, no implementada.
 - Nómina Electrónica: planificada, no implementada.
 - Evolución financiera: parcialmente fundada por Accounting, pero no completa.
