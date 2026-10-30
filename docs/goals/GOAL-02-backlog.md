@@ -48,10 +48,11 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   19%; `InvoiceItem` tampoco conserva una tasa por línea. El smoke de facturación
   cubre por ahora el caso estándar del 19%. Antes de ofrecer otros tratamientos
   tributarios en una demo, hay que decidir y snapshotear la regla por línea.
-- Se añade un recorrido Browser E2E que crea un tenant descartable por la UI,
-  registra cliente y producto, crea y emite una factura, y verifica valores y
-  lectura tras recarga. Es cobertura de regresión; no crea un seed reutilizable
-  en tenants de demostración.
+- Los recorridos Browser E2E incluyen un escenario financiero combinado en un
+  tenant descartable: crea cliente, producto y factura interna, y luego prepara
+  una nómina sintética aprobada, la contabiliza desde la UI y verifica que el
+  comprobante del Ledger y el snapshot sobreviven una recarga. Es cobertura de
+  regresión; no crea un seed reutilizable ni conecta facturas con el Ledger.
 - La primera corrida del recorrido detectó que el precio Decimal de un producto
   llegaba como texto a `CreateInvoiceDto` y la API respondía 400. El formulario
   convierte ahora ese precio a número al seleccionar el producto; el recorrido
