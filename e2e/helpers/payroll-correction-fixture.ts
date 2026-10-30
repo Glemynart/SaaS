@@ -218,11 +218,23 @@ export async function seedPayrollCorrectionFixture(
           id: employeeId,
           tenantId,
           cedula: `payroll-correction-${suffix}`,
+          tipoDocumento: 'CC',
           primerNombre: 'Ana',
           primerApellido: 'Pérez',
           cargo: 'Docente',
           salario: 2_000_000,
           fechaIngreso: new Date('2025-01-01T00:00:00.000Z'),
+        },
+      });
+      await tx.tercero.create({
+        data: {
+          tenantId,
+          tipoDocumento: 'CC',
+          numeroDocumento: `payroll-correction-${suffix}`,
+          tipoPersona: 'NATURAL',
+          primerNombre: 'Ana',
+          primerApellido: 'Pérez',
+          esEmpleado: true,
         },
       });
       await tx.payrollPeriod.create({
