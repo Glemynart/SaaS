@@ -64,3 +64,22 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   esos documentos se recuperen o se confirme que fueron retirados.
 - No se inspeccionaron ni modificaron bases de staging o producción. No se
   generaron datos financieros ni se transmitió información a DIAN/UGPP.
+
+## Estado de Goal y dependencias de entrega — 2026-10-30
+
+- **GOAL ACTIVO:** GOAL-02; GOAL-01 permanece pausado y conservado según
+  `docs/goals/README.md`.
+- **IMPLEMENTACIÓN BLOQUEADA:** los jobs `verify` y `browser` de PR #155, #156
+  y #157 fueron rechazados antes de iniciar runner. GitHub informa pagos
+  recientes fallidos o límite de gasto; esto no es un resultado de las pruebas
+  del código. En PR #157 pasaron localmente typecheck, builds, pruebas de
+  nómina y Playwright, y el Preview de Vercel pasó; CI remoto sigue pendiente.
+- **ESPERANDO_MERGE:** PR #151 y #154–#157 conservan la secuencia de bases
+  vigente: #151 parte de `main`; #154, #155 y #157 de #151; #156 de #155. #151
+  y #154 tienen checks verdes. No se integran cambios a `main` en esta entrega:
+  el Goal Master prohíbe despliegues productivos y el historial operativo de
+  `deploy/README.md` documenta que un merge a `main` puede publicar Production.
+- **ARQUITECTURA DISPONIBLE:** el M0 prioriza demostrar flujos financieros
+  internos. ADR-011 propone contabilizar facturas internas al emitirlas, pero
+  sigue en estado propuesto y requiere resolver las condiciones previas antes
+  de implementar esa integración; no habilita contabilización fiscal ni DIAN.
