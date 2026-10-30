@@ -1,0 +1,1 @@
+ALTER TYPE "ExpedienteCategoria" ADD VALUE 'PRIMA_SERVICIOS';

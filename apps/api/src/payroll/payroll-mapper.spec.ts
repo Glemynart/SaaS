@@ -92,6 +92,7 @@ describe('buildCalculationInput - clasificacion funcional (U4)', () => {
   ): ContratoForPayroll => ({
     id: 'contrato-1',
     empleadoId: 'emp-1',
+    tipo: 'TERMINO_FIJO',
     estado: 'VIGENTE',
     fechaInicio: new Date('2026-01-01'),
     fechaFin: null,

@@ -81,6 +81,7 @@ enum ExpedienteCategoria {
   CONTRATO
   AFILIACION
   CERTIFICADO
+  PRIMA_SERVICIOS
   DOCUMENTO_PERSONAL
   PREAVISO
   TERMINACION
@@ -267,8 +268,10 @@ model Tenant {
   alertGenerationRunTenants AlertGenerationRunTenant[]
   payrollPeriods     PayrollPeriod[]
   payrollRuns        PayrollRun[]
-  payrollSnapshots   PayrollSnapshot[]
-  payrollCorrections PayrollCorrection[]
+  payrollSnapshots     PayrollSnapshot[]
+  servicePremiumBatches ServicePremiumBatch[]
+  servicePremiumLines   ServicePremiumLine[]
+  payrollCorrections   PayrollCorrection[]
   payrollNovelties   PayrollNovelty[]
   payrollBlocks      PayrollBlock[]
   customers          Customer[]
@@ -493,14 +496,16 @@ model Empleado {
   expedienteDocFamilies ExpedienteDocFamily[]
   alerts             Alert[]
   payrollRuns        PayrollRun[]
-  payrollSnapshots   PayrollSnapshot[]
-  payrollNovelties   PayrollNovelty[]
+  payrollSnapshots     PayrollSnapshot[]
+  servicePremiumLines  ServicePremiumLine[]
+  payrollNovelties     PayrollNovelty[]
   payrollBlocks      PayrollBlock[]
   expediente         ExpedienteDoc[]
   alertas            Alerta[]
   liquidations       Liquidation[]
 
   @@unique([tenantId, cedula])
+  @@unique([id, tenantId])
   @@index([tenantId, estado])
   @@index([tenantId, cargo])
   @@index([tenantId, dependencia])
@@ -868,6 +873,26 @@ enum PayrollCorrectionStatus {
   CANCELADA
 }
 
+enum ServicePremiumBatchStatus {
+  BORRADOR
+  APROBADO
+  PROCESANDO
+  COMPLETADO
+  COMPLETADO_CON_BLOQUEOS
+  ERROR
+  ANULADO
+}
+
+enum ServicePremiumLineStatus {
+  LISTA
+  BLOQUEADA
+  NO_APLICA
+  APROBADA
+  PROCESANDO
+  DOCUMENTADA
+  ERROR
+}
+
 // =============================================================================
 // LIQUIDATION STATUS — Estado de la liquidación laboral
 // =============================================================================
@@ -1074,6 +1099,81 @@ model PayrollCorrection {
   @@index([tenantId, payrollPeriodId])
   @@index([tenantId, payrollPeriodId, status])
   @@map("payroll_corrections")
+}
+
+// =============================================================================
+// SERVICE PREMIUM — Prima semestral calculada desde nóminas aprobadas
+// =============================================================================
+
+model ServicePremiumBatch {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  anio                 Int
+  semestre             Int
+  version              Int                       @default(1)
+  formulaVersion       Int
+  status               ServicePremiumBatchStatus @default(BORRADOR)
+  createdById          String
+  correctionReason     String?
+  approvedById         String?
+  approvedAt           DateTime?
+  completedAt          DateTime?
+  processingLeaseOwner String?
+  processingLeaseUntil DateTime?
+  lastErrorCode        String?
+
+  supersedesBatchId String?
+  supersedesBatch   ServicePremiumBatch?  @relation("ServicePremiumBatchCorrection", fields: [supersedesBatchId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  correctedBatches  ServicePremiumBatch[] @relation("ServicePremiumBatchCorrection")
+  lines             ServicePremiumLine[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, anio, semestre, version])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, anio, semestre])
+  @@map("service_premium_batches")
+}
+
+model ServicePremiumLine {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  batchId    String
+  batch      ServicePremiumBatch @relation(fields: [batchId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  employeeId String
+  employee   Empleado            @relation(fields: [employeeId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  status             ServicePremiumLineStatus
+  snapshot           Json
+  sourceFingerprint  String?
+  salaryBase         Decimal?                 @db.Decimal(14, 2)
+  variableSalary     Decimal?                 @db.Decimal(14, 2)
+  transportAllowance Decimal?                 @db.Decimal(14, 2)
+  serviceDays360     Int?
+  amount             Decimal?                 @db.Decimal(14, 2)
+  blockReason        String?
+  processingAttempts Int                      @default(0)
+  lastErrorCode      String?
+  documentStorageKey String?
+  documentSizeBytes  Int?
+  documentSha256     String?
+
+  expedienteDoc ExpedienteDoc? @relation("ServicePremiumDocument")
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, batchId, employeeId])
+  @@index([tenantId, batchId, status])
+  @@index([tenantId, employeeId, createdAt])
+  @@map("service_premium_lines")
 }
 
 // =============================================================================
@@ -1739,6 +1839,9 @@ model ExpedienteDoc {
   generatedDocumentId String?
   generatedDocument   GeneratedDocument? @relation(fields: [generatedDocumentId], references: [id])
 
+  servicePremiumLineId String?             @unique
+  servicePremiumLine   ServicePremiumLine? @relation("ServicePremiumDocument", fields: [servicePremiumLineId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
   // Clasificación del documento
   categoria   ExpedienteCategoria
   nombre      String // Nombre original del archivo
@@ -1768,6 +1871,7 @@ model ExpedienteDoc {
   @@index([tenantId, categoria])
   @@index([tenantId, familiaId, vigente])
   @@unique([familiaId, version])
+  @@unique([servicePremiumLineId, tenantId])
   @@map("expediente_docs")
 }
 
