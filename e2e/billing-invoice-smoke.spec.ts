@@ -85,8 +85,8 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
   await page.locator('select').nth(0).selectOption({ label: customerName });
   await page.getByPlaceholder('FAC-001').fill(invoiceNumber);
   await page.locator('select').nth(1).selectOption({ label: productName });
+  await expect(page.getByPlaceholder('V. Unit')).toHaveValue('120000');
   await page.getByPlaceholder('Cant').fill('1');
-  await page.getByPlaceholder('V. Unit').fill('120000');
 
   const createInvoiceResponsePromise = page.waitForResponse(
     (response) =>
