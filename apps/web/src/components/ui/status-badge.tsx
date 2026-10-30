@@ -103,6 +103,13 @@ const STATUS_MAP = {
     RESOLVED: { semantic: 'success', label: 'Resuelto' },
     EXCLUDED: { semantic: 'neutral', label: 'Excluido' },
   },
+  payrollCorrection: {
+    BORRADOR: { semantic: 'neutral', label: 'Borrador' },
+    EN_REVISION: { semantic: 'warning', label: 'En revisión' },
+    APROBADA: { semantic: 'success', label: 'Aprobada' },
+    RECHAZADA: { semantic: 'danger', label: 'Rechazada' },
+    CANCELADA: { semantic: 'neutral', label: 'Cancelada' },
+  },
 } as const satisfies Record<string, Record<string, StatusEntry>>;
 
 type StatusMap = typeof STATUS_MAP;

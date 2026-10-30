@@ -17,6 +17,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useMe } from '@/features/auth/hooks/use-auth';
 import { toast } from 'sonner';
 import { formatNombreCompleto } from '@saas/types';
+import { PayrollCorrectionsPanel } from '@/features/payroll/components/payroll-corrections-panel';
 
 function cop(n: number) {
   return new Intl.NumberFormat('es-CO', {
@@ -222,6 +223,13 @@ export default function PeriodDetailPage({ params }: { params: Promise<{ id: str
           </p>
         )}
       </section>
+
+      <PayrollCorrectionsPanel
+        periodId={id}
+        periodStatus={period.status}
+        hasPayrollVoucher={Boolean(voucher)}
+        snapshots={data.snapshots}
+      />
 
       {(blocks ?? []).length > 0 && (
         <div className="mb-6 overflow-hidden rounded-xl border border-border bg-surface">

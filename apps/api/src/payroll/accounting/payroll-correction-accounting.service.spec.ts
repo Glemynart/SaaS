@@ -1,4 +1,8 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PayrollCorrectionAccountingService } from './payroll-correction-accounting.service';
 
 const tenantId = 'tenant-1';
@@ -34,6 +38,7 @@ function dependency(id: string) {
 function correctionWithDependencies(ids: string[]) {
   return {
     id: correctionId,
+    payrollPeriodId: 'payroll-period-1',
     status: 'APROBADA',
     descripcion: 'Ajuste salarial',
     materialization: { ...materialization, approvedCorrectionIds: ids },
@@ -49,7 +54,9 @@ function lastCallArgument<T>(calls: Array<[T]>): T {
 
 function createService(overrides?: {
   correction?: unknown;
+  periodStatus?: 'APROBADA' | 'CAUSADA';
   existing?: { id: string } | null;
+  payrollVoucher?: { id: string } | null;
   ledgerError?: Error;
   dependencies?: unknown[];
   dependencyVouchers?: Array<{ origenId: string | null }>;
@@ -61,6 +68,7 @@ function createService(overrides?: {
         overrides?.correction === undefined
           ? {
               id: correctionId,
+              payrollPeriodId: 'payroll-period-1',
               status: 'APROBADA',
               descripcion: 'Ajuste salarial',
               materialization,
@@ -70,8 +78,23 @@ function createService(overrides?: {
       ),
       findMany: jest.fn().mockResolvedValue(overrides?.dependencies ?? []),
     },
+    payrollPeriod: {
+      findFirst: jest
+        .fn()
+        .mockResolvedValue({ status: overrides?.periodStatus ?? 'CAUSADA' }),
+    },
     comprobanteContable: {
-      findFirst: jest.fn().mockResolvedValue(overrides?.existing ?? null),
+      findFirst: jest
+        .fn()
+        .mockImplementation((args: { where: { origenTipo: string } }) =>
+          args.where.origenTipo === 'PAYROLL'
+            ? Promise.resolve(
+                overrides?.payrollVoucher === undefined
+                  ? { id: 'payroll-voucher-1' }
+                  : overrides.payrollVoucher,
+              )
+            : Promise.resolve(overrides?.existing ?? null),
+        ),
       findMany: jest
         .fn()
         .mockResolvedValue(overrides?.dependencyVouchers ?? []),
@@ -120,6 +143,24 @@ function createService(overrides?: {
 }
 
 describe('PayrollCorrectionAccountingService', () => {
+  it('requires the original payroll accrual before posting a correction', async () => {
+    const { service, ledger } = createService({ periodStatus: 'APROBADA' });
+
+    await expect(
+      service.contabilizar(tenantId, userId, correctionId),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(ledger.registrarComprobante).not.toHaveBeenCalled();
+  });
+
+  it('does not post an adjustment if the original accrual voucher is missing', async () => {
+    const { service, ledger } = createService({ payrollVoucher: null });
+
+    await expect(
+      service.contabilizar(tenantId, userId, correctionId),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(ledger.registrarComprobante).not.toHaveBeenCalled();
+  });
+
   it('posts a correction without dependencies through LedgerService', async () => {
     const { service, tx, ledger } = createService();
 
@@ -260,6 +301,7 @@ describe('PayrollCorrectionAccountingService', () => {
     const { service, tx, ledger } = createService();
     tx.comprobanteContable.findFirst
       .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'payroll-voucher-1' })
       .mockResolvedValueOnce({ id: 'voucher-1' });
 
     await service.contabilizar(tenantId, userId, correctionId);
