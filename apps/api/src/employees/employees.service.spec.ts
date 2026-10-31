@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
+import { TipoDocIdentidad } from './dto/create-employee.dto';
 import { EmployeesService } from './employees.service';
 
 const mockEmpleadoFindUnique = jest.fn();
@@ -29,6 +30,19 @@ const expectedSearchConditions = (terms: string[]) =>
       { email: { contains: term, mode: 'insensitive' } },
     ],
   }));
+
+type EmployeeFindManyWhere = {
+  tenantId?: string;
+  deletedAt?: null;
+  AND?: ReturnType<typeof expectedSearchConditions>;
+};
+
+const lastEmployeeFindManyWhere = (): EmployeeFindManyWhere | undefined => {
+  const [args] = mockEmpleadoFindMany.mock.calls as unknown as [
+    [{ where: EmployeeFindManyWhere }],
+  ];
+  return args?.[0]?.where;
+};
 
 describe('EmployeesService tenant isolation contracts', () => {
   let service: EmployeesService;
@@ -137,12 +151,8 @@ describe('EmployeesService tenant isolation contracts', () => {
   it('searches an individual term across employee fields', async () => {
     await service.findAll({ page: 1, limit: 10, search: 'Empleado' });
 
-    const [findManyArgs] = mockEmpleadoFindMany.mock.calls;
-    const where = findManyArgs?.[0]?.where;
-    expect(where).toMatchObject({
-      tenantId: TENANT_A,
-      deletedAt: null,
-    });
+    const where = lastEmployeeFindManyWhere();
+    expect(where).toMatchObject({ tenantId: TENANT_A, deletedAt: null });
     expect(where?.AND).toEqual(expectedSearchConditions(['Empleado']));
   });
 
@@ -153,9 +163,7 @@ describe('EmployeesService tenant isolation contracts', () => {
       search: 'Empleado Prueba',
     });
 
-    const [findManyArgs] = mockEmpleadoFindMany.mock.calls;
-    const where = findManyArgs?.[0]?.where;
-    expect(where?.AND).toEqual(
+    expect(lastEmployeeFindManyWhere()?.AND).toEqual(
       expectedSearchConditions(['Empleado', 'Prueba']),
     );
   });
@@ -170,9 +178,9 @@ describe('EmployeesService tenant isolation contracts', () => {
       search: 'No existe',
     });
 
-    const [findManyArgs] = mockEmpleadoFindMany.mock.calls;
-    const where = findManyArgs?.[0]?.where;
-    expect(where?.AND).toEqual(expectedSearchConditions(['No', 'existe']));
+    expect(lastEmployeeFindManyWhere()?.AND).toEqual(
+      expectedSearchConditions(['No', 'existe']),
+    );
     expect(result).toEqual({
       data: [],
       meta: { total: 0, page: 1, limit: 10, totalPages: 0 },
@@ -251,6 +259,54 @@ describe('EmployeesService tenant isolation contracts', () => {
         metadata: { fields: ['cargo'] },
       }),
     );
+  });
+
+  it.each([
+    {
+      description: 'changing another document type to PC',
+      currentEmployee: {
+        id: 'employee-a',
+        tipoDocumento: TipoDocIdentidad.CC,
+        cedula: '1234567890',
+      },
+      update: { tipoDocumento: TipoDocIdentidad.PC },
+    },
+    {
+      description: 'changing a PC number without resending its type',
+      currentEmployee: {
+        id: 'employee-a',
+        tipoDocumento: TipoDocIdentidad.PC,
+        cedula: '12345678',
+      },
+      update: { cedula: '123456' },
+    },
+  ])(
+    'rejects an invalid PEP-TUTOR identity when $description',
+    async ({ currentEmployee, update }) => {
+      mockEmpleadoFindFirst.mockResolvedValue(currentEmployee);
+
+      await expect(
+        service.update(USER_A, 'employee-a', update),
+      ).rejects.toThrow(
+        'El número PEP-TUTOR (PC) debe contener 7 u 8 dígitos.',
+      );
+
+      expect(mockEmpleadoUpdate).not.toHaveBeenCalled();
+    },
+  );
+
+  it('allows changing a PEP-TUTOR number while preserving the current PC type', async () => {
+    mockEmpleadoFindFirst.mockResolvedValue({
+      id: 'employee-a',
+      tipoDocumento: TipoDocIdentidad.PC,
+      cedula: '12345678',
+    });
+    mockEmpleadoFindUnique.mockResolvedValue(null);
+    mockEmpleadoUpdate.mockResolvedValue({ id: 'employee-a' });
+
+    await service.update(USER_A, 'employee-a', { cedula: '7654321' });
+
+    expect(mockEmpleadoUpdate).toHaveBeenCalledTimes(1);
   });
 
   it('updates the PILA salary type and legacy integral flag together', async () => {

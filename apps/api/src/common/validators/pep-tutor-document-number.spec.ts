@@ -8,6 +8,7 @@ import {
   CreateEmployeeDto,
   TipoDocIdentidad as EmployeeTipoDocIdentidad,
 } from '../../employees/dto/create-employee.dto';
+import { UpdateEmployeeDto } from '../../employees/dto/update-employee.dto';
 
 const CONSTRAINT = 'pepTutorDocumentNumber';
 
@@ -47,6 +48,17 @@ describe('PEP-TUTOR document number validation', () => {
       );
     },
   );
+
+  it('rejects a malformed PC identity in an employee update when both fields are sent', async () => {
+    const dto = Object.assign(new UpdateEmployeeDto(), {
+      tipoDocumento: EmployeeTipoDocIdentidad.PC,
+      cedula: '123456789',
+    });
+
+    await expect(constraintMessage(dto, 'cedula')).resolves.toContain(
+      '7 u 8 dígitos',
+    );
+  });
 
   it.each(['1234567', '12345678'])(
     'accepts a third party PC number with %s digits',

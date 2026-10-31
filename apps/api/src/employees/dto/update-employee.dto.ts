@@ -8,8 +8,10 @@ import {
   IsUUID,
   ValidateIf,
   Min,
+  Validate,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { PepTutorDocumentNumberConstraint } from '../../common/validators/pep-tutor-document-number';
 import {
   EmpleadoEstado,
   ContratoTipo,
@@ -22,6 +24,7 @@ import {
 export class UpdateEmployeeDto {
   @IsString()
   @IsOptional()
+  @Validate(PepTutorDocumentNumberConstraint)
   cedula?: string;
 
   @IsEnum(TipoDocIdentidad)
