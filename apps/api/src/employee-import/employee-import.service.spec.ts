@@ -1,3 +1,4 @@
+import { UnprocessableEntityException } from '@nestjs/common';
 import * as XLSX from 'xlsx';
 import { AuditService } from '../audit/audit.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
@@ -34,6 +35,22 @@ function workbookBuffer(rows: unknown[][], headers = HEADERS) {
   return Buffer.from(
     XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as ArrayBuffer,
   );
+}
+
+function importErrors(error: unknown): Array<{ campo: string; fila: number }> {
+  if (!(error instanceof UnprocessableEntityException)) return [];
+
+  const response = error.getResponse();
+  if (
+    typeof response !== 'object' ||
+    response === null ||
+    !('errors' in response) ||
+    !Array.isArray(response.errors)
+  ) {
+    return [];
+  }
+
+  return response.errors as Array<{ campo: string; fila: number }>;
 }
 
 describe('EmployeeImportService', () => {
@@ -132,6 +149,84 @@ describe('EmployeeImportService', () => {
     );
   });
 
+  it('imports a PEP-TUTOR employee with its official PC document code', async () => {
+    await expect(
+      service.importFromBuffer(
+        TENANT_ID,
+        USER_ID,
+        workbookBuffer([
+          [
+            '12345678',
+            'PC',
+            'Ana',
+            '',
+            'Gómez',
+            '',
+            'ana@example.test',
+            '',
+            'Docente',
+            2500000,
+            'TERMINO_FIJO',
+            '2025-01-15',
+            'ACTIVO',
+            'Sede Principal',
+            '',
+            'F',
+            'COMPLETA',
+            '',
+            '',
+          ],
+        ]),
+      ),
+    ).resolves.toMatchObject({ imported: 1 });
+
+    const [createQuery] = mockEmpleadoCreate.mock.calls as [
+      [{ data: { cedula: string; tipoDocumento: string } }],
+    ];
+    expect(createQuery?.[0].data.cedula).toBe('12345678');
+    expect(createQuery?.[0].data.tipoDocumento).toBe('PC');
+  });
+
+  it('rejects a PEP-TUTOR employee with a malformed document number', async () => {
+    const invalidNumber = workbookBuffer([
+      [
+        '123456',
+        'PC',
+        'Ana',
+        '',
+        'Gómez',
+        '',
+        'ana@example.test',
+        '',
+        'Docente',
+        2500000,
+        'TERMINO_FIJO',
+        '2025-01-15',
+        'ACTIVO',
+        'Sede Principal',
+        '',
+        'F',
+        'COMPLETA',
+        '',
+        '',
+      ],
+    ]);
+
+    const error = await service
+      .importFromBuffer(TENANT_ID, USER_ID, invalidNumber)
+      .then(
+        () => undefined,
+        (reason: unknown) => reason,
+      );
+
+    expect(
+      importErrors(error).some(
+        ({ campo, fila }) => campo === 'cedula' && fila === 2,
+      ),
+    ).toBe(true);
+    expect(mockEmpleadoCreate).not.toHaveBeenCalled();
+  });
+
   it('rejects a row without an assigned site before issuing any employee write', async () => {
     const missingSite = workbookBuffer([
       [
@@ -157,16 +252,18 @@ describe('EmployeeImportService', () => {
       ],
     ]);
 
-    await expect(
-      service.importFromBuffer(TENANT_ID, USER_ID, missingSite),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({
-        errors: expect.arrayContaining([
-          expect.objectContaining({ campo: 'sede', fila: 2 }),
-        ]),
-      }),
-    });
+    const error = await service
+      .importFromBuffer(TENANT_ID, USER_ID, missingSite)
+      .then(
+        () => undefined,
+        (reason: unknown) => reason,
+      );
 
+    expect(
+      importErrors(error).some(
+        ({ campo, fila }) => campo === 'sede' && fila === 2,
+      ),
+    ).toBe(true);
     expect(mockEmpleadoCreate).not.toHaveBeenCalled();
     expect(mockAuditLog).not.toHaveBeenCalled();
   });

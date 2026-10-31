@@ -42,7 +42,7 @@ export type CuentaSistemaMapFormData = z.infer<typeof cuentaSistemaMapSchema>;
 
 export const terceroSchema = z
   .object({
-    tipoDocumento: z.enum(['CC', 'CE', 'TI', 'PA', 'NIT', 'PEP', 'PPT']),
+    tipoDocumento: z.enum(['CC', 'CE', 'TI', 'PA', 'NIT', 'PEP', 'PPT', 'PC']),
     numeroDocumento: z.string().trim().min(1, 'El número de documento es requerido'),
     digitoVerificacion: z.string().trim().optional(),
     tipoPersona: z.enum(['NATURAL', 'JURIDICA']),
@@ -86,6 +86,13 @@ export const terceroSchema = z
         code: z.ZodIssueCode.custom,
         path: ['primerApellido'],
         message: 'El primer apellido es requerido',
+      });
+    }
+    if (data.tipoDocumento === 'PC' && !/^\d{7,8}$/.test(data.numeroDocumento)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['numeroDocumento'],
+        message: 'El número PEP-TUTOR debe contener 7 u 8 dígitos.',
       });
     }
   });

@@ -853,6 +853,8 @@ describe('inspectPilaSnapshotPreparation', () => {
     ['CE', '12345678'],
     ['TI', '123456789012'],
     ['PA', 'A1234567890123456'],
+    ['PC', '123456'],
+    ['PC', '123456789'],
     ['CC', 'A234567890'],
     ['PA', 'AB-123'],
   ])(
@@ -880,6 +882,7 @@ describe('inspectPilaSnapshotPreparation', () => {
     ['CE', '1234567'],
     ['TI', '12345678901'],
     ['PA', 'A123456789012345'],
+    ['PC', '12345678'],
   ])('acepta la longitud máxima AT2 para identificación %s', (type, value) => {
     const source = payload();
     source.employee.tipoDocumento = type;
