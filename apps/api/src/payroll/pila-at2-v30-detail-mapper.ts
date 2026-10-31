@@ -50,12 +50,17 @@ const PILA_AT2_V30_NON_COTIZANTE40_PRINCIPAL_FIELDS_RULE_VERSION =
   'AT2_V30_NON_COTIZANTE40_PRINCIPAL_FIELDS_V1' as const;
 const PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_RULE_VERSION =
   'AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_V1' as const;
+const PILA_AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_RULE_VERSION =
+  'AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_V1' as const;
 
 export const PILA_AT2_V30_STANDARD_DEPENDENT_EMPTY_FIELD_NUMBERS = [
   32, 34, 74, 75,
 ] as const;
 export const PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_FIELD_NUMBERS = [
   76,
+] as const;
+export const PILA_AT2_V30_PRIVATE_EMPLOYER_ESAP_MEN_FIELD_NUMBERS = [
+  70, 71, 72, 73,
 ] as const;
 
 export const PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS = [
@@ -96,6 +101,9 @@ export interface PilaAt2V30DetailCandidate {
       | null;
     confirmedNonExemptCotizante:
       | typeof PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_RULE_VERSION
+      | null;
+    privateEmployerEsapMen:
+      | typeof PILA_AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_RULE_VERSION
       | null;
   };
   values: Partial<Record<number, PilaAt2V30FieldInput>>;
@@ -265,6 +273,7 @@ export function mapPilaAt2V30DetailCandidate(
         noTransferDestinationFields: null,
         nonCotizante40PrincipalFields: null,
         confirmedNonExemptCotizante: null,
+        privateEmployerEsapMen: null,
       },
       values,
       unresolvedFields: [...reasons].map(([fieldNumber, reason]) => ({
@@ -289,6 +298,10 @@ export function mapPilaAt2V30DetailCandidate(
     affiliationCoversPeriod &&
     sourceText(affiliation?.tipoCotizanteCodigo) === '01' &&
     sourceText(affiliation?.subtipoCotizanteCodigo) === '00';
+  const standardPrivateEmployer =
+    standardAffiliation &&
+    sourceText(employerPila.tipoAportante) === '1' &&
+    sourceText(employerPila.naturalezaJuridica) === '2';
   const employeeCoversPeriod = coversPeriod(
     employee?.fechaIngreso,
     employee?.fechaRetiro,
@@ -620,6 +633,30 @@ export function mapPilaAt2V30DetailCandidate(
       95,
       'Falta una base parafiscal congelada con regla CO_PARAFISCAL_BASE_V1 y sin bloqueos.',
     );
+  }
+  if (standardPrivateEmployer) {
+    put(70, '0.00000');
+    put(72, '0.00000');
+    if (Object.hasOwn(values, 95)) {
+      put(71, 0);
+      put(73, 0);
+    } else {
+      unresolved(
+        71,
+        'El valor ESAP requiere el IBC 95 congelado para validar el cálculo con tarifa cero.',
+      );
+      unresolved(
+        73,
+        'El valor MEN requiere el IBC 95 congelado para validar el cálculo con tarifa cero.',
+      );
+    }
+  } else {
+    const privateEmployerReason = standardAffiliation
+      ? 'Los campos ESAP/MEN solo están mapeados aquí para el empleador privado tipo 1; los empleadores públicos y otros tipos están fuera del MVP.'
+      : 'Falta una única afiliación dependiente 01/00 que cubra el período.';
+    for (const fieldNumber of [70, 71, 72, 73]) {
+      unresolved(fieldNumber, privateEmployerReason);
+    }
   }
 
   const contributionConcepts = objectRows(payroll?.concepts);
@@ -1273,6 +1310,9 @@ export function mapPilaAt2V30DetailCandidate(
         : null,
       confirmedNonExemptCotizante: values[76]
         ? PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_RULE_VERSION
+        : null,
+      privateEmployerEsapMen: standardPrivateEmployer
+        ? PILA_AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_RULE_VERSION
         : null,
     },
     values,

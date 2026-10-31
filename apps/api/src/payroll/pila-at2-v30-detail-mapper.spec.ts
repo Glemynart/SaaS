@@ -370,6 +370,72 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     },
   );
 
+  it('maps ESAP and MEN zero fields for a standard private employer with IBC 95', () => {
+    const input = snapshot();
+    const payload = payloadOf(input);
+    payload.employer.pila.tipoAportante = '1';
+    payload.employer.pila.naturalezaJuridica = '2';
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[70]).toEqual({ value: '0.00000' });
+    expect(candidate.values[71]).toEqual({ value: 0 });
+    expect(candidate.values[72]).toEqual({ value: '0.00000' });
+    expect(candidate.values[73]).toEqual({ value: 0 });
+    expect(candidate.normativeRuleVersions.privateEmployerEsapMen).toBe(
+      'AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_V1',
+    );
+  });
+
+  it.each([
+    ['public', '1', '1'],
+    ['unknown nature', '1', null],
+    ['unsupported employer type', '5', '2'],
+  ])(
+    'leaves ESAP and MEN fields pending for %s employers',
+    (_label, employerType, employerNature) => {
+      const input = snapshot();
+      const payload = payloadOf(input);
+      payload.employer.pila.tipoAportante = employerType;
+      payload.employer.pila.naturalezaJuridica = employerNature;
+
+      const candidate = mapPilaAt2V30DetailCandidate(input);
+
+      for (const fieldNumber of [70, 71, 72, 73]) {
+        expect(candidate.values[fieldNumber]).toBeUndefined();
+        expect(candidate.unresolvedFields).toContainEqual(
+          expect.objectContaining({ fieldNumber }),
+        );
+      }
+      expect(candidate.normativeRuleVersions.privateEmployerEsapMen).toBeNull();
+    },
+  );
+
+  it('keeps ESAP and MEN amount candidates pending when field 95 is unavailable', () => {
+    const input = snapshot();
+    const payload = payloadOf(input);
+    payload.employer.pila.tipoAportante = '1';
+    payload.employer.pila.naturalezaJuridica = '2';
+    payload.payroll.ibcPorSubsistema.otrosParafiscales = {
+      valor: null,
+      reglaVersion: 'CO_PARAFISCAL_BASE_V1',
+      bloqueos: ['IBC_NO_DISPONIBLE'],
+    };
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[70]).toEqual({ value: '0.00000' });
+    expect(candidate.values[72]).toEqual({ value: '0.00000' });
+    expect(candidate.values[71]).toBeUndefined();
+    expect(candidate.values[73]).toBeUndefined();
+    expect(candidate.unresolvedFields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ fieldNumber: 71 }),
+        expect.objectContaining({ fieldNumber: 73 }),
+      ]),
+    );
+  });
+
   it.each([
     'ING',
     'RET',

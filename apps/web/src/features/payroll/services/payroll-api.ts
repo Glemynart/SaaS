@@ -159,6 +159,7 @@ export interface PilaPreparationReport {
   detailAbsentEventCandidates: PilaDetailFieldCandidateStatus[];
   detailStandardDependentEmptyCandidates: PilaDetailFieldCandidateStatus[];
   detailNonExemptCotizanteCandidates: PilaDetailFieldCandidateStatus[];
+  detailPrivateEmployerEsapMenCandidates: PilaDetailFieldCandidateStatus[];
   issues: PilaPreparationIssue[];
   archivoGenerable: false;
   estadoArchivo: 'NO_IMPLEMENTADO';

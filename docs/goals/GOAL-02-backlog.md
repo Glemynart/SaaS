@@ -653,19 +653,20 @@ verdes al 2026-10-31.
   aprobados y limita el MVP a dependientes estándar. Trabajo apilado sobre #204
   en `codex/goal02-pila-non-exempt-cotizante-field`.
 
-### Campos ESAP/MEN 70–73 — codificación pendiente
+### Campos ESAP/MEN 70–73 para empleador privado — 2026-10-31
 
-- La Ley 21 de 1982 asigna aportes ESAP y escuelas técnicas a entidades del
-  sector público señaladas en sus artículos 8 y 11; el artículo 12 enumera una
-  distribución distinta para establecimientos públicos, empresas industriales
-  y comerciales, economía mixta y empleadores privados. Esto sugiere que los
-  aportes 70–73 no aplican al empleador privado estándar, pero esa conclusión
-  debe tratarse como inferencia normativa para este MVP.
-- AT2 v30 p. 95 solo dice que los valores los suministra el aportante; no fija
-  si un privado debe serializar los campos no aplicables como espacios o ceros.
-  Por ello, 70–73 permanecen pendientes hasta obtener la convención oficial o
-  una aceptación de operador. No inferir valores.
-- Fuente primaria: [Ley 21 de 1982, Gestor Normativo de Función Pública](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=4827).
+- AT2 v30 pp. 163–164 establece que el campo 70 aplica a aportantes de
+  naturaleza pública reportados por ESAP y permite tarifa cero cuando el
+  cotizante no está obligado. El campo 72 aplica solo a aportantes de naturaleza
+  pública y permite cero cuando el cotizante no está obligado. Los valores 71 y
+  73 se validan contra el IBC 95 multiplicado por su tarifa.
+- La regla `AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_V1` propone 70/72 como
+  `0.00000` para empleadores privados tipo 1 con dependiente `01`/`00`. Propone
+  71/73 en cero solo cuando el snapshot incluye un IBC 95 válido. Empleadores
+  públicos, naturaleza desconocida y otros tipos permanecen pendientes.
+- El informe API/web muestra candidatos y pendientes por campo. No se habilita
+  descarga ni se declara compatibilidad de operador.
+- Fuentes primarias: [AT2 v30, Ministerio de Salud](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/OT/anexo-tecnico2-cotizantes.pdf), pp. 163–164; [Ley 21 de 1982, Gestor Normativo de Función Pública](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=4827), arts. 8, 11 y 12. Trabajo apilado sobre #205 en `codex/goal02-pila-private-esap-men-fields`.
 
 ### Salud estándar candidata AT2 — 2026-10-31
 
