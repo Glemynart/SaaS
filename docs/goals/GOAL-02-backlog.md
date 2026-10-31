@@ -59,7 +59,7 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   reconstruir un archivo PILA. No se encontró exportador PILA ejecutable en
   `apps/api` ni en la interfaz web.
 - La [página oficial de PILA de MinSalud](https://www.minsalud.gov.co/Proteccion-Social/Paginas/pila.aspx)
-  se revalidó el 2026-10-31: el enlace a `anexo-tecnico2-cotizantes.pdf`
+  se revalidó el 2026-10-30: el enlace a `anexo-tecnico2-cotizantes.pdf`
   devuelve un PDF identificado como AT2 v29, fechado 2026-01-06. La
   [Resolución 1529 de 2026](https://normativa.colpensiones.gov.co/colpens/compilacion/docs/resolucion_minsaludps_1529_2026.htm)
   modifica AT2 y AT3 aparte y fija plazos escalonados; no se encontró allí un

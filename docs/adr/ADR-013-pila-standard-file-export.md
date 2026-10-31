@@ -30,7 +30,7 @@ no produce ese archivo ni conserva todos sus insumos de forma estructurada:
 - No existe un exportador PILA funcional en la API ni en la web.
 
 El Ministerio publica anexos técnicos para PILA y los operadores documentan
-cargue de archivos planos. Revalidado el 2026-10-31, la [página oficial PILA de
+cargue de archivos planos. Revalidado el 2026-10-30, la [página oficial PILA de
 MinSalud](https://www.minsalud.gov.co/Proteccion-Social/Paginas/pila.aspx)
 enlaza un PDF cuyo encabezado y pies de página identifican AT2 versión 29,
 fechado el 6 de enero de 2026. La revalidación no confirmó en ese enlace un
@@ -49,7 +49,7 @@ vinculadas laboralmente permanezcan hasta seis meses en el régimen subsidiado;
 la Resolución 1529 adoptó el cotizante 75 y nuevas validaciones para ese caso,
 con aplicación operativa desde el 1 de noviembre de 2026 para el período de
 salud de noviembre. Un proyecto ministerial posterior propone modificar los
-plazos 5.87 y 5.91, pero al 2026-10-31 no reemplaza los plazos de la Resolución 1529. El MVP excluye este caso y debe bloquearlo; no lo presenta como una
+plazos 5.87 y 5.91, pero al 2026-10-30 no reemplaza los plazos de la Resolución 1529. El MVP excluye este caso y debe bloquearlo; no lo presenta como una
 categoría inexistente o meramente proyectada.
 
 ## Decisión propuesta
@@ -149,7 +149,7 @@ archivos de entrada/salida esperados, regla normativa exacta, fecha de vigencia,
 resultado esperado y revisor. No se anunciará “cargable en cualquier operador”
 hasta completar pruebas independientes por operador.
 
-## Revalidación de fuentes PILA — 2026-10-31
+## Revalidación de fuentes PILA — 2026-10-30
 
 El enlace publicado actualmente por la [página oficial PILA de MinSalud](https://www.minsalud.gov.co/Proteccion-Social/Paginas/pila.aspx)
 resuelve al PDF `anexo-tecnico2-cotizantes.pdf`. Su encabezado y pies de página
@@ -277,7 +277,7 @@ la exportación y a cualquier afirmación de compatibilidad.
   `fechaFin` y `fechaPrevistaPago` nullable; el servicio congela esta última
   en el payload del snapshot aprobado.
 - [Página oficial PILA de MinSalud](https://www.minsalud.gov.co/Proteccion-Social/Paginas/pila.aspx)
-  enlaza el PDF `anexo-tecnico2-cotizantes.pdf`. Revisado el 2026-10-31, su
+  enlaza el PDF `anexo-tecnico2-cotizantes.pdf`. Revisado el 2026-10-30, su
   encabezado y pies identifican AT2 v29, 06-01-2026. El mismo enlace no
   demuestra la existencia de un AT2 v30 consolidado.
 - [Resolución 1529 de 2026](https://normativa.colpensiones.gov.co/colpens/compilacion/docs/resolucion_minsaludps_1529_2026.htm),
@@ -290,7 +290,7 @@ la exportación y a cualquier afirmación de compatibilidad.
   permanencia temporal en régimen subsidiado de ciertas personas vinculadas
   laboralmente; establece un plazo de seis meses para ajustes operativos PILA.
 - [Publicaciones regulatorias de MinSalud](https://www.minsalud.gov.co/Normativa/Paginas/Resoluciones.aspx)
-  — revisado el 2026-10-31, publica el proyecto de ajuste de los numerales
+  — revisado el 2026-10-30, publica el proyecto de ajuste de los numerales
   5.87 y 5.91 del Anexo Técnico 2 para el cotizante con permanencia en régimen
   subsidiado. Sigue identificado como proyecto/consulta pública; no sustituye
   la Resolución 1529 mientras no se expida una norma definitiva.
