@@ -88,6 +88,7 @@ describe('PayrollService.updatePilaPaymentDate', () => {
             PayrollPeriodStatus.EN_REVISION,
           ],
         },
+        fechaPrevistaPagoPila: null,
       },
       data: { fechaPrevistaPagoPila },
     });

@@ -2178,7 +2178,12 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
 
   describe('createPeriod', () => {
     it('fija status: BORRADOR explícito (no depende del @default de la DB)', async () => {
-      const created = jest.fn().mockResolvedValue(makePeriod('BORRADOR'));
+      const expectedPaymentDate = new Date('2026-11-05T00:00:00.000Z');
+      const created = jest.fn().mockResolvedValue(
+        makePeriod('BORRADOR', {
+          fechaPrevistaPagoPila: expectedPaymentDate,
+        }),
+      );
       (
         mockPrisma as unknown as { payrollPeriod: { create: typeof created } }
       ).payrollPeriod.create = created;
@@ -2187,11 +2192,25 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         nombre: 'Enero 2026',
         fechaInicio: '2026-01-01',
         fechaFin: '2026-01-31',
+        fechaPrevistaPagoPila: '2026-11-05',
       });
 
       expect(created).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ status: 'BORRADOR' }),
+          data: expect.objectContaining({
+            status: 'BORRADOR',
+            fechaPrevistaPagoPila: expectedPaymentDate,
+          }),
+        }),
+      );
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PAYROLL_PERIOD_CREATED',
+          metadata: {
+            periodName: 'Enero 2026',
+            payrollPeriodId: PERIOD_ID,
+            fechaPrevistaPagoPila: '2026-11-05',
+          },
         }),
       );
     });

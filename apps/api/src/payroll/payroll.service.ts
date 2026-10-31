@@ -539,7 +539,12 @@ export class PayrollService {
         action: 'PAYROLL_PERIOD_CREATED',
         entityType: 'PayrollPeriod',
         entityId: period.id,
-        metadata: { periodName: period.nombre, payrollPeriodId: period.id },
+        metadata: {
+          periodName: period.nombre,
+          payrollPeriodId: period.id,
+          fechaPrevistaPagoPila:
+            period.fechaPrevistaPagoPila?.toISOString().slice(0, 10) ?? null,
+        },
       })
       .catch(() => {});
     return period;
@@ -577,7 +582,12 @@ export class PayrollService {
       }
 
       const updated = await tx.payrollPeriod.updateMany({
-        where: { id: periodId, tenantId, status: { in: editableStatuses } },
+        where: {
+          id: periodId,
+          tenantId,
+          status: { in: editableStatuses },
+          fechaPrevistaPagoPila: period.fechaPrevistaPagoPila,
+        },
         data: { fechaPrevistaPagoPila },
       });
       if (updated.count === 0) {

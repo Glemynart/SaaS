@@ -23,7 +23,7 @@ describe('AuthorizationSurfaceClassifier', () => {
   it('classifies the complete current HTTP surface without ambiguity', () => {
     const operations = classifier.classifyModuleGraph(AppModule);
 
-    expect(operations).toHaveLength(186);
+    expect(operations).toHaveLength(187);
     expect(new Set(operations.map(({ operationId }) => operationId)).size).toBe(
       operations.length,
     );
@@ -50,11 +50,11 @@ describe('AuthorizationSurfaceClassifier', () => {
     expect(countBy(operations, 'policy')).toEqual({
       [AuthorizationPolicyKind.UNAUTHENTICATED]: 12,
       [AuthorizationPolicyKind.AUTHENTICATED]: 61,
-      [AuthorizationPolicyKind.RBAC]: 113,
+      [AuthorizationPolicyKind.RBAC]: 114,
     });
     expect(countBy(operations, 'source')).toEqual({
       [AuthorizationClassificationSource.EXPLICIT]: 73,
-      [AuthorizationClassificationSource.EXISTING_RBAC]: 113,
+      [AuthorizationClassificationSource.EXISTING_RBAC]: 114,
     });
     expect(
       operations.filter(
@@ -99,6 +99,21 @@ describe('AuthorizationSurfaceClassifier', () => {
     ).toMatchObject({
       requestMethod: 'POST',
       operationPath: ':id/afiliaciones-seguridad-social',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN, UserRole.OPERADOR],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'PayrollController.updatePilaPaymentDate',
+      ),
+    ).toMatchObject({
+      requestMethod: 'PATCH',
+      operationPath: 'payroll/periods/:id/fecha-prevista-pago-pila',
       policy: AuthorizationPolicyKind.RBAC,
       roles: [UserRole.ADMIN, UserRole.OPERADOR],
       requiresAuthentication: true,
