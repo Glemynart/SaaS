@@ -23,7 +23,7 @@ describe('AuthorizationSurfaceClassifier', () => {
   it('classifies the complete current HTTP surface without ambiguity', () => {
     const operations = classifier.classifyModuleGraph(AppModule);
 
-    expect(operations).toHaveLength(183);
+    expect(operations).toHaveLength(186);
     expect(new Set(operations.map(({ operationId }) => operationId)).size).toBe(
       operations.length,
     );
@@ -49,12 +49,12 @@ describe('AuthorizationSurfaceClassifier', () => {
 
     expect(countBy(operations, 'policy')).toEqual({
       [AuthorizationPolicyKind.UNAUTHENTICATED]: 12,
-      [AuthorizationPolicyKind.AUTHENTICATED]: 60,
-      [AuthorizationPolicyKind.RBAC]: 111,
+      [AuthorizationPolicyKind.AUTHENTICATED]: 61,
+      [AuthorizationPolicyKind.RBAC]: 113,
     });
     expect(countBy(operations, 'source')).toEqual({
-      [AuthorizationClassificationSource.EXPLICIT]: 72,
-      [AuthorizationClassificationSource.EXISTING_RBAC]: 111,
+      [AuthorizationClassificationSource.EXPLICIT]: 73,
+      [AuthorizationClassificationSource.EXISTING_RBAC]: 113,
     });
     expect(
       operations.filter(
@@ -71,6 +71,48 @@ describe('AuthorizationSurfaceClassifier', () => {
     ).toMatchObject({
       requestMethod: 'POST',
       operationPath: 'employees/:id/expediente',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN, UserRole.OPERADOR],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'EmployeesController.listSocialSecurityAffiliations',
+      ),
+    ).toMatchObject({
+      requestMethod: 'GET',
+      operationPath: ':id/afiliaciones-seguridad-social',
+      policy: AuthorizationPolicyKind.AUTHENTICATED,
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'EmployeesController.createSocialSecurityAffiliation',
+      ),
+    ).toMatchObject({
+      requestMethod: 'POST',
+      operationPath: ':id/afiliaciones-seguridad-social',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN, UserRole.OPERADOR],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'EmployeesController.closeSocialSecurityAffiliation',
+      ),
+    ).toMatchObject({
+      requestMethod: 'PATCH',
+      operationPath: ':id/afiliaciones-seguridad-social/:affiliationId',
       policy: AuthorizationPolicyKind.RBAC,
       roles: [UserRole.ADMIN, UserRole.OPERADOR],
       requiresAuthentication: true,
