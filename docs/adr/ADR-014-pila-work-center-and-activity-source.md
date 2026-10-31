@@ -1,11 +1,18 @@
 # ADR-014 — Fuente histórica de centro de trabajo y actividad económica PILA
 
+> Las referencias a “AT2 v30” en este ADR fueron escritas con base en una
+> copia cuya publicación oficial no se pudo verificar. MinSalud enlaza hoy AT2
+> v29 y publica aparte la Resolución 1529 de 2026, que modifica el AT2. La
+> decisión de captura histórica y aislamiento tenant permanece; los requisitos
+> concretos de los campos 62 y 98 deben cotejarse de nuevo antes de afirmar
+> cumplimiento o habilitar exportación.
+
 | Campo           | Valor                                                                                                  |
 | --------------- | ------------------------------------------------------------------------------------------------------ |
 | **Estado**      | accepted — opción B seleccionada para el MVP de captura y snapshot                                     |
 | **Fecha**       | 2026-10-31                                                                                             |
 | **Decisores**   | Producto · Nómina · Arquitectura                                                                       |
-| **Ámbito**      | Insumos PILA AT2 v30 para trabajadores dependientes estándar, campos 62 y 98                           |
+| **Ámbito**      | Insumos PILA AT2 para trabajadores dependientes estándar, campos 62 y 98; norma consolidada pendiente  |
 | **Relacionado** | GOAL-02 M0 · ADR-013 · `PayrollSnapshot.pilaPayload` · `Empleado.sedeId` · `AfiliacionSeguridadSocial` |
 
 ## Problema
@@ -32,9 +39,9 @@ ni una afiliación vigente.
 
 ## Hechos verificados
 
-- AT2 v30, registro tipo 2, campo 62: usa el código de centro de trabajo que
+- AT2 v29, registro tipo 2, campo 62: usa el código de centro de trabajo que
   suministra el aportante con base en los códigos definidos por la ARL.
-- AT2 v30, registro tipo 2, campo 98: requiere un código de actividad
+- AT2 v29, registro tipo 2, campo 98: requiere un código de actividad
   económica de riesgos laborales conforme a la tabla del Decreto 768 de 2022
   para los dependientes cubiertos por el MVP.
 - `AfiliacionSeguridadSocial` registra `arlCodigo`, `arlClaseRiesgo` y una
@@ -43,8 +50,10 @@ ni una afiliación vigente.
   almacenan identificadores de centro asignados por una ARL.
 - Los snapshots históricos PILA no se rellenan desde datos maestros actuales.
 
-La matriz del ADR-013 coteja el AT2 v30 oficial publicado por [MinSalud en su
-página de PILA](https://www.minsalud.gov.co/Proteccion-Social/Paginas/pila.aspx).
+La matriz del ADR-013 se debe reconciliar entre AT2 v29, publicado por
+[MinSalud en su página de PILA](https://www.minsalud.gov.co/Proteccion-Social/Paginas/pila.aspx),
+y las modificaciones vigentes de la Resolución 1529/2026 antes de afirmar que
+el mapeo de campos es completo.
 La tabla de actividad económica proviene del [Decreto 768 de 2022, publicado
 en SUIN-Juriscol](https://www.suin-juriscol.gov.co/archivo/DECRETO_768_DE_2022.pdf).
 Los códigos y las reglas de vigencia se deben volver a comprobar contra la

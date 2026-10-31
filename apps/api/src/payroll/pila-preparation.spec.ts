@@ -516,7 +516,7 @@ describe('inspectPilaSnapshotPreparation', () => {
       pilaEvents?: unknown;
     };
     payroll.pilaEvents = [{ codigo: 'TDE', fechaInicio: '2026-10-12' }];
-    source.pilaEvents = payroll.pilaEvents;
+    Object.assign(source, { pilaEvents: payroll.pilaEvents });
 
     const result = inspectPilaSnapshotPreparation({
       employeeId: 'employee-1',
@@ -549,7 +549,8 @@ describe('inspectPilaSnapshotPreparation', () => {
     });
 
     expect(report).toMatchObject({
-      formatVersion: 'AT2_V30',
+      formatVersion: null,
+      normativeSourceStatus: 'RECONCILIATION_PENDING',
       snapshotsRevisados: 2,
       empleadosConDatosPendientes: 2,
       empleadosSinBrechasDetectadas: 0,

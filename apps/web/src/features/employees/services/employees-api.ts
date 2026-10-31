@@ -52,7 +52,7 @@ export interface SocialSecurityAffiliation {
   cajaCompensacionNombre: string;
   vigenteDesde: string;
   vigenteHasta: string | null;
-  formatoNormativoVersion: string;
+  versionCaptura: string;
   registradoPorId: string;
   createdAt: string;
   updatedAt: string;
@@ -63,7 +63,7 @@ export type CreateSocialSecurityAffiliation = Omit<
   | 'id'
   | 'tenantId'
   | 'empleadoId'
-  | 'formatoNormativoVersion'
+  | 'versionCaptura'
   | 'registradoPorId'
   | 'createdAt'
   | 'updatedAt'

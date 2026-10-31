@@ -184,8 +184,9 @@ export function inspectPilaSnapshotPreparation(
     }
   };
 
-  // AT2 v30, archivo tipo 1: los valores del aportante se exigen desde los
-  // datos declarados y congelados en el snapshot, no desde el maestro actual.
+  // Matriz PILA preliminar, archivo tipo 1: los valores del aportante se
+  // exigen desde los datos declarados y congelados en el snapshot, no desde
+  // el maestro actual. No representa una validación normativa completa.
   const employerRecord: PilaPreparationRecord = 'APORTANTE_TIPO_1';
   requireText(
     employerRecord,
@@ -1008,7 +1009,8 @@ export function buildPilaPreparationReport(input: {
   ).length;
 
   return {
-    formatVersion: 'AT2_V30' as const,
+    formatVersion: null,
+    normativeSourceStatus: 'RECONCILIATION_PENDING' as const,
     period: {
       id: input.period.id,
       fechaInicio: input.period.fechaInicio.toISOString().slice(0, 10),
@@ -1023,6 +1025,6 @@ export function buildPilaPreparationReport(input: {
     archivoGenerable: false as const,
     estadoArchivo: 'NO_IMPLEMENTADO' as const,
     mensaje:
-      'Este informe revisa insumos conocidos de snapshots aprobados. No genera archivos ni confirma aceptación de un operador.',
+      'Este informe revisa insumos conocidos de snapshots aprobados. Las fuentes PILA están en reconciliación; no es una validación normativa completa, no genera archivos ni confirma aceptación de un operador.',
   };
 }

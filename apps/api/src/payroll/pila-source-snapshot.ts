@@ -92,7 +92,7 @@ export type PilaSourceContextInput = {
     cajaCompensacionNombre: string;
     vigenteDesde: Date;
     vigenteHasta: Date | null;
-    formatoNormativoVersion: string;
+    versionCaptura: string;
   }>;
   pilaEvents: Array<{
     id: string;
@@ -263,7 +263,7 @@ export function buildPilaSourceContext(input: PilaSourceContextInput) {
       cajaCompensacionNombre: affiliation.cajaCompensacionNombre,
       vigenteDesde: calendarDate(affiliation.vigenteDesde),
       vigenteHasta: calendarDate(affiliation.vigenteHasta),
-      formatoNormativoVersion: affiliation.formatoNormativoVersion,
+      versionCaptura: affiliation.versionCaptura,
     })),
     pilaEvents: input.pilaEvents.map((event) => ({
       eventId: event.id,
@@ -434,8 +434,8 @@ function buildPilaDaysBySubsystem(
 
   const value = blockers.length === 0 ? 30 : null;
   const evidence = {
-    reglaVersion: 'AT2_V30',
-    fundamento: 'AT2_V30_MES_COMPLETO_DEPENDIENTE',
+    reglaVersion: 'PILA_FULL_MONTH_DAYS_V1',
+    fundamento: 'COBERTURA_COMPLETA_MES_CALENDARIO_DEPENDIENTE',
     periodo: { fechaInicio, fechaFin },
     empleadoId: employee.employeeId,
     contratoId: contract?.contractId ?? null,

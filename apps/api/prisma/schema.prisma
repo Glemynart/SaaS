@@ -585,7 +585,7 @@ model AfiliacionSeguridadSocial {
   vigenteDesde DateTime  @db.Date
   vigenteHasta DateTime? @db.Date
 
-  formatoNormativoVersion String @default("AT2_V30") @db.VarChar(32)
+  versionCaptura          String @default("PILA_AFFILIATION_CAPTURE_V1") @map("formatoNormativoVersion") @db.VarChar(32)
   registradoPorId         String
 
   @@unique([id, tenantId], map: "af_seg_id_tenant_key")
