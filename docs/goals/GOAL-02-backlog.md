@@ -356,3 +356,10 @@ verdes al 2026-10-31.
   autocorrector, pero no publica en esas páginas la convención de entrada de
   esos campos; una prueba de carga sigue pendiente. La fecha prevista PILA no
   se tratará como pago efectivo.
+
+### Estado de la continuación PILA — 2026-10-31
+
+- PR #173–#178 permanecen abiertos y apilados; no se han actualizado contra `main` ni fusionado. #175 valida campos del tipo 1, #176 documenta el encabezado tipo 2, #177 corrige el estado de subtipo `00` y #178 reconcilia el mapa de fuentes con snapshots actuales.
+- En la última consulta, `browser` y `verify` de #177 y #178 fallaron a los 2–3 segundos. No se investigó la causa en esta continuación. Los PR quedan abiertos mientras se sigue con trabajo independiente; cuando se reponga la cuota, se sincronizarán con `main` en orden, se esperarán los checks de cada uno y se fusionarán solo después de auditarlo.
+- El Preview de #177 pasó; el de #178 seguía desplegándose al consultar. Ninguno de esos estados convierte el informe preliminar en un preflight completo. `archivoGenerable` sigue en `false`; no hay serializador ni archivo de PILA utilizable por clientes.
+- En este trabajo local, Prettier y `git diff --check` pasan. No se ejecutaron pruebas porque las dos PR actuales modifican únicamente documentación.
