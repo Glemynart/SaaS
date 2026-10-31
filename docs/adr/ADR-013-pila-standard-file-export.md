@@ -740,24 +740,64 @@ revisar reglas de AT2 v30, la Resolución 1529 y sus hitos normativos con casos 
 representativos antes de aprobar cualquier fixture ejecutable.
 
 La revisión confirma que el diseño aprobado es viable, pero el exportador todavía
-no tiene datos suficientes para producir un archivo válido de manera general.
-**GOAL ACTIVO:** GOAL-02. **IMPLEMENTACIÓN BLOQUEADA:** serializar tipo 1/2 hasta
-capturar y validar los datos patronales, laborales y los días/IBC requeridos.
-**ARQUITECTURA DISPONIBLE:** ADR-013 y el historial tenant-scoped de afiliaciones
-del PR #160 permiten preparar esos insumos sin alterar PayrollSnapshot histórico
-ni mapear automáticamente los campos heredados.
+no tiene reglas y cobertura suficientes para producir un archivo válido de
+manera general. **GOAL ACTIVO:** GOAL-02. **IMPLEMENTACIÓN BLOQUEADA:** no
+serializar ni descargar registros tipo 1/2 hasta completar la matriz normativa,
+los cálculos y segmentos laborales soportados, la validación de todos los campos
+y sus fixtures esperados. **ARQUITECTURA DISPONIBLE:** ADR-013, el historial
+tenant-scoped de afiliaciones del PR #160 y los payloads de preparación
+congelados por las PR abiertas #163–#170 permiten avanzar sin reescribir
+PayrollSnapshot históricos ni completar desde maestros actuales.
 
-La comprobación del código actual concreta esta brecha: `SNAPSHOT_PAYLOAD_VERSION` sigue en `1`; el payload aprobado conserva el período, `employeeId` y salario, contrato/sede/clase de riesgo cuando existen, novedades, conceptos, totales y política de exoneración. No congela identificación y nombres del empleado, códigos DIVIPOLA/CIIU, la versión de afiliación efectiva, días ni IBC por subsistema. La futura exportación debe admitir solo una versión de snapshot que incluya todos los orígenes requeridos por el layout seleccionado; los snapshots v1 incompletos se bloquean y no se rellenan consultando datos maestros actuales.
+El contrato de snapshot de nómina `PayrollSnapshot.payloadVersion` permanece en
+versión 1. Los datos regulatorios se capturan por separado en
+`PayrollSnapshot.pilaPayload` con `pilaPayloadVersion`; el código de la pila
+abierta usa versión 2 para este payload. Esa captura separada incluye fuentes
+confirmadas del aportante, empleado, período, contrato/sede, afiliaciones,
+novedades PILA y asignaciones de riesgo, con datos no disponibles preservados
+como nulos y reportados por el preflight. La existencia de esos orígenes no
+significa que todos los campos AT2 estén calculados, validados o listos para
+serialización. Los snapshots históricos sin un payload PILA compatible no se
+rellenan desde registros mutables ni se reescriben.
 
-El versionado de este payload tiene consumidores existentes: `ServicePremiumCalculator` rechaza versiones distintas de `1`, y el seed financiero conserva y valida un snapshot sintético marcado como versión `1`. Cualquier cambio incompatible para agregar insumos PILA debe verificar explícitamente la compatibilidad del cálculo de prima y la integridad del escenario demo. La exportación PILA seguirá rechazando los snapshots v1 incompletos; este cambio no autoriza backfill ni reescritura de históricos.
+`ServicePremiumCalculator` y el seed financiero siguen consumiendo el payload
+de nómina v1; el versionamiento PILA separado evita cambiar ese contrato para
+capturar fuentes regulatorias. Todo cambio futuro al `pilaPayload` debe
+incrementar su versión cuando cambie su esquema y comprobar consumidores,
+compatibilidad de snapshots aprobados e integridad del escenario demo. Esto no
+autoriza backfill ni reescritura de históricos.
 
-El incremento en curso captura en el período la fecha prevista de pago de
-aportes PILA (distinta del pago del salario) y la añade al payload de snapshots
-nuevos; no reescribe snapshots históricos. La previsión no demuestra que los
-aportes se pagaron. La futura exportación deberá confirmar y conservar su fecha
-prevista y versión normativa propias; si la fecha falta y no puede resolverse
-el hito normativo, bloqueará la generación.
-La preparación local de este worktree agrega evidencia para los campos 36–40:
+PR #162 ya fue fusionada en `main` como `a459683`: la fecha prevista de pago de
+aportes PILA se conserva en períodos y snapshots nuevos y sigue siendo distinta
+del pago del salario o de la evidencia de pago de aportes.
+
+Las PR abiertas #163–#170 agregan preparación explícita para el subconjunto
+dependiente estándar: fuentes empresariales y laborales congeladas, afiliación
+efectiva, eventos, riesgo y bloqueos de eventos que requieren segmentación.
+El payload calcula 30 días por subsistema solo para el caso de mes calendario
+completo, cobertura completa, tipo 01/subtipo 00 y sin eventos que requieran
+segmentar. La proyección del salario básico para el campo 40 debe ser un entero
+no negativo; no modifica el cálculo de Payroll. Para el campo 95 existe la regla
+candidata versionada `CO_PARAFISCAL_BASE_V1`, que bloquea fuentes ambiguas y no
+usa el IBC común ni los valores de aportes ICBF/SENA como base. Estas reglas son
+insumos de preparación, no una aprobación laboral de la liquidación PILA.
+
+Siguen pendientes reglas y pruebas para períodos, días/IBC por subsistema,
+obligación CCF, exoneraciones, campos atribuidos al operador, novedades con
+segmentación y múltiples detalles tipo 02 por cotizante. El tipo salarial
+declarado `X`, `F` o `V` es nullable y se congela para capturas nuevas; una
+contradicción con el cálculo o un cambio salarial dentro del período bloquea la
+exportación. La revisión laboral independiente sigue siendo necesaria antes de
+habilitar descarga.
+
+El siguiente incremento debe resolver un subconjunto explícito de esas reglas y
+completar fixtures anonimizados tipo 1/2 con fuente por campo, versión y fecha
+normativa, salida esperada y revisor. La matriz de aceptación documenta el
+escenario objetivo, pero no es por sí sola un fixture aprobado. La generación
+solo comienza cuando el conjunto soportado sea reconstruible y verificable; los
+demás escenarios permanecen bloqueados.
+
+Detalle de las reglas de preparación capturadas en la pila abierta:
 captura 30 días separados para pensión, salud, riesgos y CCF únicamente si el
 período es un mes calendario completo, empleado/contrato/una afiliación cubren
 todo el mes, el cotizante es 01 con subtipo explícito 00 y no hay novedades
@@ -788,12 +828,10 @@ suficiente de salario fijo. La ficha no tiene vigencias salariales; un cambio
 dentro de un período no se puede segmentar todavía y queda fuera de la
 exportación hasta modelar el evento laboral correspondiente.
 
-El siguiente incremento debe cerrar estas brechas como hechos explícitos de
-empresa, sede/contrato y snapshot aprobado. La exportación solo empieza cuando
-los valores y un fixture anonimizado tipo 1/2 tengan mapeo campo por campo,
-regla de vigencia y salida esperada revisados contra el AT2 publicado y cada
-modificación normativa aplicable; si no puede reconstruirse una especificación
-única y verificable, se bloquea el serializador.
+El serializador solo puede habilitar el subconjunto que tenga todos sus campos,
+fuentes congeladas, reglas y vigencias revisadas, fixture anonimizado con salida
+esperada y validación del operador acordado. Los escenarios que no cumplan esa
+evidencia permanecen bloqueados.
 
 ## Primera etapa: historial de afiliaciones
 
