@@ -7,9 +7,10 @@ import { TenantsModule } from '../tenants/tenants.module';
 import { AccountingModule } from '../accounting/accounting.module';
 import { PayrollAccountingPreflightService } from './accounting-preflight/payroll-accounting-preflight.service';
 import { PayrollCorrectionAccountingService } from './accounting/payroll-correction-accounting.service';
+import { ServicePremiumModule } from './service-premium/service-premium.module';
 
 @Module({
-  imports: [TenantsModule, AccountingModule],
+  imports: [TenantsModule, AccountingModule, ServicePremiumModule],
   controllers: [PayrollController, LiquidationController],
   providers: [
     PayrollService,

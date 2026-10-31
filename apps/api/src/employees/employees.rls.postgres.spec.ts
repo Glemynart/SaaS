@@ -67,21 +67,27 @@ describe('empleados PostgreSQL RLS', () => {
     await prisma.$disconnect();
   });
 
-  it('enables and forces RLS only for empleados', async () => {
+  it('enables and forces RLS for tenant-scoped payroll tables and empleados', async () => {
     const protectedTables = await prisma.$queryRaw<{ tableName: string }[]>`
       SELECT relname AS "tableName"
       FROM pg_class
       WHERE relkind = 'r' AND relrowsecurity
       ORDER BY relname
     `;
-    const [{ forced }] = await prisma.$queryRaw<{ forced: boolean }[]>`
-      SELECT relforcerowsecurity AS forced
+    const forcedTables = await prisma.$queryRaw<{ tableName: string }[]>`
+      SELECT relname AS "tableName"
       FROM pg_class
-      WHERE oid = '"empleados"'::regclass
+      WHERE relkind = 'r' AND relforcerowsecurity
+      ORDER BY relname
     `;
 
-    expect(protectedTables).toEqual([{ tableName: 'empleados' }]);
-    expect(forced).toBe(true);
+    const expectedTenantTables = [
+      { tableName: 'empleados' },
+      { tableName: 'service_premium_batches' },
+      { tableName: 'service_premium_lines' },
+    ];
+    expect(protectedTables).toEqual(expectedTenantTables);
+    expect(forcedTables).toEqual(expectedTenantTables);
   });
 
   it('allows each tenant to read only its own employees', async () => {
