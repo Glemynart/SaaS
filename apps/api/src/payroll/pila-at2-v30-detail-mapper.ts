@@ -11,6 +11,11 @@ import {
   getPilaArlInitialRate,
   PILA_ARL_INITIAL_RATE_RULE_VERSION,
 } from './pila-arl-initial-rate-catalog';
+import {
+  getPilaContributionRoundingRuleVersion,
+  isPilaContributionAmountRoundedUpToHundred,
+  PILA_CONTRIBUTION_ROUNDING_RULE_VERSION,
+} from './pila-contribution-rounding';
 import type { PilaSnapshotPreparationInput } from './pila-preparation';
 
 type JsonRecord = Record<string, unknown>;
@@ -23,6 +28,7 @@ export interface PilaAt2V30DetailCandidate {
   payrollPeriodId: string | null;
   normativeRuleVersions: {
     arlInitialRate: typeof PILA_ARL_INITIAL_RATE_RULE_VERSION | null;
+    contributionRounding: typeof PILA_CONTRIBUTION_ROUNDING_RULE_VERSION | null;
   };
   values: Partial<Record<number, PilaAt2V30FieldInput>>;
   unresolvedFields: Array<{ fieldNumber: number; reason: string }>;
@@ -178,7 +184,10 @@ export function mapPilaAt2V30DetailCandidate(
       employeeId: snapshot.employeeId,
       tenantId,
       payrollPeriodId,
-      normativeRuleVersions: { arlInitialRate: null },
+      normativeRuleVersions: {
+        arlInitialRate: null,
+        contributionRounding: null,
+      },
       values,
       unresolvedFields: [...reasons].map(([fieldNumber, reason]) => ({
         fieldNumber,
@@ -466,7 +475,7 @@ export function mapPilaAt2V30DetailCandidate(
   }
 
   const contributionConcepts = objectRows(payroll?.concepts);
-  const mapContributionAmountCandidate = (input: {
+  const getContributionAmountCandidate = (input: {
     fieldNumber: number;
     code: string;
     base: JsonRecord | null;
@@ -539,21 +548,40 @@ export function mapPilaAt2V30DetailCandidate(
       );
       return null;
     }
-    put(input.fieldNumber, concept.valor);
     return concept;
   };
 
-  const arlConcept = mapContributionAmountCandidate({
+  const arlBase =
+    object(subsystemBases?.riesgos)?.sourceCount === 1
+      ? object(subsystemBases?.riesgos)
+      : null;
+  const arlConcept = getContributionAmountCandidate({
     fieldNumber: 63,
     code: 'ARL',
-    base:
-      object(subsystemBases?.riesgos)?.sourceCount === 1
-        ? object(subsystemBases?.riesgos)
-        : null,
+    base: arlBase,
     expectedFactor: arlInitialRate?.factor ?? null,
   });
   if (arlInitialRate && arlConcept) {
     put(61, arlInitialRate.fieldValue);
+    if (
+      getPilaContributionRoundingRuleVersion(periodStart) &&
+      arlBase &&
+      safeInteger(arlBase.valor, 9) &&
+      isPilaContributionAmountRoundedUpToHundred(
+        periodStart,
+        arlBase.valor,
+        arlInitialRate.factorNumerator,
+        arlInitialRate.factorDenominator,
+        arlConcept.valor as number,
+      )
+    ) {
+      put(63, arlConcept.valor as number);
+    } else {
+      unresolved(
+        63,
+        'El importe ARL congelado no coincide con el redondeo PILA versionado al múltiplo de 100 superior; no se recalcula ni reemplaza.',
+      );
+    }
   } else if (!riskAssignmentValid) {
     unresolved(
       61,
@@ -570,6 +598,15 @@ export function mapPilaAt2V30DetailCandidate(
       'Falta un concepto ARL único cuyo factor y base coincidan con la regla y el IBC congelados.',
     );
   }
+  const mapContributionAmountCandidate = (input: {
+    fieldNumber: number;
+    code: string;
+    base: JsonRecord | null;
+    requireExplicitNonExemption?: boolean;
+  }) => {
+    const concept = getContributionAmountCandidate(input);
+    if (concept) put(input.fieldNumber, concept.valor as number);
+  };
   mapContributionAmountCandidate({
     fieldNumber: 65,
     code: 'CAJA',
@@ -619,6 +656,7 @@ export function mapPilaAt2V30DetailCandidate(
       arlInitialRate: arlRateByClass
         ? PILA_ARL_INITIAL_RATE_RULE_VERSION
         : null,
+      contributionRounding: getPilaContributionRoundingRuleVersion(periodStart),
     },
     values,
     unresolvedFields,

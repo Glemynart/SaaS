@@ -299,7 +299,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
         tipo: 'EMPLOYER_CONTRIBUTION',
         base: 2_000_000,
         factor: 0.01044,
-        valor: 20_880,
+        valor: 20_900,
       },
       {
         codigo: 'CAJA',
@@ -328,7 +328,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
 
     expect(candidate.values).toMatchObject({
       61: { value: '0.0104400' },
-      63: { value: 20_880 },
+      63: { value: 20_900 },
       65: { value: 80_000 },
       67: { value: 40_000 },
       69: { value: 60_000 },
@@ -336,17 +336,20 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.normativeRuleVersions.arlInitialRate).toBe(
       'CO_ARL_INITIAL_RATE_DEC1772_ART13_V1',
     );
+    expect(candidate.normativeRuleVersions.contributionRounding).toBe(
+      'CO_PILA_CONTRIBUTION_ROUND_UP_100_DEC1990_ART3_2_1_5_V1',
+    );
   });
 
   it.each([
-    ['1', 0.00522, '0.0052200'],
-    ['2', 0.01044, '0.0104400'],
-    ['3', 0.02436, '0.0243600'],
-    ['4', 0.0435, '0.0435000'],
-    ['5', 0.0696, '0.0696000'],
+    ['1', 0.00522, '0.0052200', 10_500],
+    ['2', 0.01044, '0.0104400', 20_900],
+    ['3', 0.02436, '0.0243600', 48_800],
+    ['4', 0.0435, '0.0435000', 87_000],
+    ['5', 0.0696, '0.0696000', 139_200],
   ])(
     'maps initial ARL tariff for risk class %s from the approved snapshot',
-    (riskClass, factor, fieldValue) => {
+    (riskClass, factor, fieldValue, amount) => {
       const input = snapshot();
       const payload = payloadOf(input);
       payload.affiliations[0].arlClaseRiesgo = riskClass;
@@ -359,16 +362,38 @@ describe('mapPilaAt2V30DetailCandidate', () => {
           tipo: 'EMPLOYER_CONTRIBUTION',
           base: 2_000_000,
           factor,
-          valor: Math.round(2_000_000 * factor),
+          valor: amount,
         },
       ];
 
       const candidate = mapPilaAt2V30DetailCandidate(input);
 
       expect(candidate.values[61]).toEqual({ value: fieldValue });
-      expect(candidate.values[63]).toBeDefined();
+      expect(candidate.values[63]).toEqual({ value: amount });
     },
   );
+
+  it('keeps the ARL rate candidate but blocks a frozen contribution not rounded for PILA', () => {
+    const input = snapshot();
+    payloadOf(input).payroll.concepts = [
+      {
+        codigo: 'ARL',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.01044,
+        valor: 20_880,
+      },
+    ];
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[61]).toEqual({ value: '0.0104400' });
+    expect(candidate.values[63]).toBeUndefined();
+    const field63 = candidate.unresolvedFields.find(
+      ({ fieldNumber }) => fieldNumber === 63,
+    );
+    expect(field63?.reason).toContain('múltiplo de 100 superior');
+  });
 
   it('blocks the ARL tariff and contribution when snapshot factor disagrees with risk class', () => {
     const input = snapshot();
