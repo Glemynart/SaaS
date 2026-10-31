@@ -136,6 +136,51 @@ describe('inspectPilaSnapshotPreparation', () => {
     ]);
   });
 
+  it('bloquea salario e IBC que desbordan los campos numéricos AT2 de 9 posiciones', () => {
+    const source = payload();
+    source.payroll.salarioBasicoCampo40.valor = 1_000_000_000;
+    source.payroll.ibcPorSubsistema.pension.valor = 1_000_000_000;
+    source.payroll.ibcPorSubsistema.salud.valor = 1_000_000_000;
+    source.payroll.ibcPorSubsistema.riesgos.valor = 1_000_000_000;
+    source.payroll.ibcPorSubsistema.cajaCompensacion.valor = 1_000_000_000;
+    source.payroll.ibcPorSubsistema.otrosParafiscales.valor = 1_000_000_000;
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues
+        .filter(({ code }) => code.includes('SUPERA_LONGITUD'))
+        .map(({ fieldNumber, code }) => ({ fieldNumber, code })),
+    ).toEqual([
+      { fieldNumber: 40, code: 'CAMPO_40_SALARIO_BASICO_SUPERA_LONGITUD' },
+      { fieldNumber: 42, code: 'CAMPO_42_IBC_SUPERA_LONGITUD' },
+      { fieldNumber: 43, code: 'CAMPO_43_IBC_SUPERA_LONGITUD' },
+      { fieldNumber: 44, code: 'CAMPO_44_IBC_SUPERA_LONGITUD' },
+      { fieldNumber: 45, code: 'CAMPO_45_IBC_SUPERA_LONGITUD' },
+      { fieldNumber: 95, code: 'CAMPO_95_IBC_SUPERA_LONGITUD' },
+    ]);
+  });
+
+  it('acepta el mayor valor representable en un campo numérico de 9 posiciones', () => {
+    const source = payload();
+    source.payroll.salarioBasicoCampo40.valor = 999_999_999;
+    source.payroll.ibcPorSubsistema.pension.valor = 999_999_999;
+    source.payroll.ibcPorSubsistema.salud.valor = 999_999_999;
+    source.payroll.ibcPorSubsistema.riesgos.valor = 999_999_999;
+    source.payroll.ibcPorSubsistema.cajaCompensacion.valor = 999_999_999;
+    source.payroll.ibcPorSubsistema.otrosParafiscales.valor = 999_999_999;
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(({ code }) => code.includes('SUPERA_LONGITUD')),
+    ).toEqual([]);
+  });
+
   it.each([
     ['faltante', null],
     ['especial', '01'],

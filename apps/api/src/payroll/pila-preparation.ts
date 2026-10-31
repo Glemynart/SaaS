@@ -78,6 +78,10 @@ function safeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
+function fitsNumericField(value: unknown, length: number): value is number {
+  return safeInteger(value) && String(value).length <= length;
+}
+
 function date(value: unknown): string | null {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return null;
@@ -860,6 +864,13 @@ export function inspectPilaSnapshotPreparation(
       'CAMPO_40_SALARIO_BASICO_NO_VALIDO',
       'El salario básico del campo 40 debe ser un entero no negativo aprobado.',
     );
+  } else if (!fitsNumericField(basicSalary, 9)) {
+    add(
+      detailRecord,
+      40,
+      'CAMPO_40_SALARIO_BASICO_SUPERA_LONGITUD',
+      'El salario básico del campo 40 supera las 9 posiciones numéricas permitidas por AT2 v30.',
+    );
   }
   const salaryType = payroll?.tipoSalario;
   if (salaryType !== 'X' && salaryType !== 'F' && salaryType !== 'V') {
@@ -885,6 +896,13 @@ export function inspectPilaSnapshotPreparation(
         field,
         `CAMPO_${field}_IBC_NO_APROBADO`,
         `Falta un IBC entero, no negativo y con fuente inequívoca para ${label}.`,
+      );
+    } else if (!fitsNumericField(source.valor, 9)) {
+      add(
+        detailRecord,
+        field,
+        `CAMPO_${field}_IBC_SUPERA_LONGITUD`,
+        `El IBC de ${label} supera las 9 posiciones numéricas permitidas por AT2 v30.`,
       );
     }
     if (
