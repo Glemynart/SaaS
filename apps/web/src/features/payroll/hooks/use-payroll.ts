@@ -125,6 +125,19 @@ export function useCreatePeriod() {
     onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.periods() }),
   });
 }
+export function useUpdatePilaPaymentDate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      fechaPrevistaPagoPila,
+    }: {
+      id: string;
+      fechaPrevistaPagoPila: string | null;
+    }) => payrollApi.updatePilaPaymentDate(id, fechaPrevistaPagoPila),
+    onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.periods() }),
+  });
+}
 export function useRecalculatePayroll() {
   const qc = useQueryClient();
   return useMutation({

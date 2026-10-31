@@ -12,12 +12,17 @@ import {
   useReabrirPayrollPeriod,
   useRecalculatePayroll,
   useRechazarPayrollPeriod,
+  useUpdatePilaPaymentDate,
 } from '@/features/payroll/hooks/use-payroll';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/ui/status-badge';
+
+function formatCalendarDate(value: string) {
+  return new Date(value).toLocaleDateString('es-CO', { timeZone: 'UTC' });
+}
 
 export default function PeriodosPage() {
   const { data: periods, isLoading } = usePayrollPeriods();
@@ -28,25 +33,47 @@ export default function PeriodosPage() {
   const aprobarMutation = useAprobarPayrollPeriod();
   const rechazarMutation = useRechazarPayrollPeriod();
   const reabrirMutation = useReabrirPayrollPeriod();
+  const updatePilaPaymentDateMutation = useUpdatePilaPaymentDate();
   const [showForm, setShowForm] = useState(false);
   const [nombre, setNombre] = useState('');
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
+  const [fechaPrevistaPagoPila, setFechaPrevistaPagoPila] = useState('');
+  const [editingPilaPeriodId, setEditingPilaPeriodId] = useState<string | null>(null);
+  const [pilaPaymentDateDraft, setPilaPaymentDateDraft] = useState('');
 
   const handleCreate = useCallback(() => {
     if (!nombre || !fechaInicio || !fechaFin) return;
     createMutation.mutate(
-      { nombre, fechaInicio, fechaFin },
+      {
+        nombre,
+        fechaInicio,
+        fechaFin,
+        fechaPrevistaPagoPila: fechaPrevistaPagoPila || null,
+      },
       {
         onSuccess: () => {
           setShowForm(false);
           setNombre('');
           setFechaInicio('');
           setFechaFin('');
+          setFechaPrevistaPagoPila('');
         },
       },
     );
-  }, [nombre, fechaInicio, fechaFin, createMutation]);
+  }, [nombre, fechaInicio, fechaFin, fechaPrevistaPagoPila, createMutation]);
+
+  const savePilaPaymentDate = (id: string, fechaPrevistaPagoPila: string | null) => {
+    updatePilaPaymentDateMutation.mutate(
+      { id, fechaPrevistaPagoPila },
+      {
+        onSuccess: () => {
+          setEditingPilaPeriodId(null);
+          setPilaPaymentDateDraft('');
+        },
+      },
+    );
+  };
 
   if (isLoading)
     return (
@@ -73,7 +100,7 @@ export default function PeriodosPage() {
 
       {showForm && (
         <div className="mb-6 rounded-xl border border-border bg-surface p-5 shadow-sm">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5">
               <Label>Nombre</Label>
               <Input
@@ -93,6 +120,21 @@ export default function PeriodosPage() {
             <div className="space-y-1.5">
               <Label>Fin</Label>
               <Input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="fecha-prevista-pago-pila">
+                Fecha prevista de pago de aportes PILA
+              </Label>
+              <Input
+                id="fecha-prevista-pago-pila"
+                type="date"
+                value={fechaPrevistaPagoPila}
+                onChange={(e) => setFechaPrevistaPagoPila(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Opcional. Orienta la versión normativa PILA; no es la fecha de pago del salario ni
+                confirma que los aportes se hayan pagado.
+              </p>
             </div>
           </div>
           <div className="mt-4 flex gap-2">
@@ -118,8 +160,13 @@ export default function PeriodosPage() {
                 <Link href={`/nomina/periodos/${p.id}`} className="flex-1">
                   <p className="text-sm font-medium text-foreground">{p.nombre}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {new Date(p.fechaInicio).toLocaleDateString('es-CO')} -{' '}
-                    {new Date(p.fechaFin).toLocaleDateString('es-CO')}
+                    {formatCalendarDate(p.fechaInicio)} - {formatCalendarDate(p.fechaFin)}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Pago PILA previsto:{' '}
+                    {p.fechaPrevistaPagoPila
+                      ? formatCalendarDate(p.fechaPrevistaPagoPila)
+                      : 'sin definir'}
                   </p>
                   <div className="mt-1.5 flex items-center gap-2">
                     <StatusBadge domain="nominaN2" estado={p.status} />
@@ -129,6 +176,68 @@ export default function PeriodosPage() {
                   </div>
                 </Link>
                 <div className="ml-4 flex flex-wrap justify-end gap-1">
+                  {['BORRADOR', 'CALCULADA', 'EN_REVISION'].includes(p.status) &&
+                    (editingPilaPeriodId === p.id ? (
+                      <div className="flex flex-wrap items-center justify-end gap-1">
+                        <Input
+                          aria-label={`Fecha prevista de pago PILA para ${p.nombre}`}
+                          className="w-36"
+                          type="date"
+                          value={pilaPaymentDateDraft}
+                          onChange={(event) => setPilaPaymentDateDraft(event.target.value)}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={
+                            !pilaPaymentDateDraft || updatePilaPaymentDateMutation.isPending
+                          }
+                          onClick={() => savePilaPaymentDate(p.id, pilaPaymentDateDraft)}
+                        >
+                          Guardar PILA
+                        </Button>
+                        {p.fechaPrevistaPagoPila && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={updatePilaPaymentDateMutation.isPending}
+                            onClick={() => savePilaPaymentDate(p.id, null)}
+                          >
+                            Quitar fecha
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setEditingPilaPeriodId(null);
+                            setPilaPaymentDateDraft('');
+                          }}
+                        >
+                          Cancelar
+                        </Button>
+                        {updatePilaPaymentDateMutation.isError && (
+                          <p className="w-full text-right text-xs text-destructive">
+                            {updatePilaPaymentDateMutation.error instanceof Error
+                              ? updatePilaPaymentDateMutation.error.message
+                              : 'No se pudo actualizar la fecha prevista PILA.'}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                          updatePilaPaymentDateMutation.reset();
+                          setEditingPilaPeriodId(p.id);
+                          setPilaPaymentDateDraft(p.fechaPrevistaPagoPila ?? '');
+                        }}
+                      >
+                        {p.fechaPrevistaPagoPila ? 'Cambiar fecha PILA' : 'Definir fecha PILA'}
+                      </Button>
+                    ))}
                   {(p.status === 'BORRADOR' || p.status === 'DRAFT') && (
                     <Button
                       variant="ghost"

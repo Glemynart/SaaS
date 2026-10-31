@@ -969,6 +969,7 @@ model PayrollPeriod {
   nombre      String
   fechaInicio DateTime
   fechaFin    DateTime
+  fechaPrevistaPagoPila DateTime? @db.Date
   status      PayrollPeriodStatus @default(BORRADOR)
 
   // Actor de la transición a APROBADA (P1/U1): vía flujo de revisión o el

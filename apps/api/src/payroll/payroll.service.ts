@@ -26,6 +26,7 @@ import {
 import {
   CreatePayrollPeriodDto,
   CreatePayrollNoveltyDto,
+  UpdatePayrollPilaPaymentDateDto,
 } from './dto/create-payroll.dto';
 import { CreatePayrollCorrectionDto } from './dto/payroll-correction.dto';
 import { calculate } from './calculator/payroll-calculator';
@@ -45,6 +46,7 @@ import {
   resolveContrato,
   toSnapshot,
 } from './payroll-mapper';
+import { buildPayrollPeriodSnapshot } from './payroll-snapshot-period';
 import { assertTransition } from './payroll-states';
 import { assertCorrectionTransition } from './payroll-correction-states';
 import {
@@ -521,6 +523,9 @@ export class PayrollService {
         ...dto,
         fechaInicio: new Date(dto.fechaInicio),
         fechaFin: new Date(dto.fechaFin),
+        fechaPrevistaPagoPila: dto.fechaPrevistaPagoPila
+          ? new Date(dto.fechaPrevistaPagoPila)
+          : null,
         tenantId,
         // Explícito: no depender del @default de la DB (red de seguridad,
         // no fuente de verdad). Ver ADR-002 §6 / U1 Fase 1.
@@ -534,10 +539,83 @@ export class PayrollService {
         action: 'PAYROLL_PERIOD_CREATED',
         entityType: 'PayrollPeriod',
         entityId: period.id,
-        metadata: { periodName: period.nombre, payrollPeriodId: period.id },
+        metadata: {
+          periodName: period.nombre,
+          payrollPeriodId: period.id,
+          fechaPrevistaPagoPila:
+            period.fechaPrevistaPagoPila?.toISOString().slice(0, 10) ?? null,
+        },
       })
       .catch(() => {});
     return period;
+  }
+
+  async updatePilaPaymentDate(
+    tenantId: string,
+    userId: string,
+    periodId: string,
+    dto: UpdatePayrollPilaPaymentDateDto,
+  ) {
+    if (dto.fechaPrevistaPagoPila === undefined) {
+      throw new BadRequestException(
+        'Debe indicar una fecha prevista o null para quitarla.',
+      );
+    }
+    const fechaPrevistaPagoPila = dto.fechaPrevistaPagoPila
+      ? new Date(`${dto.fechaPrevistaPagoPila}T00:00:00.000Z`)
+      : null;
+    const editableStatuses: PayrollPeriodStatus[] = [
+      PayrollPeriodStatus.BORRADOR,
+      PayrollPeriodStatus.CALCULADA,
+      PayrollPeriodStatus.EN_REVISION,
+    ];
+
+    return this.prisma.$transaction(async (tx) => {
+      const period = await tx.payrollPeriod.findFirst({
+        where: { id: periodId, tenantId },
+      });
+      if (!period) throw new NotFoundException('Período no encontrado');
+      if (!editableStatuses.includes(period.status)) {
+        throw new ConflictException(
+          'La fecha prevista de aportes PILA solo se puede editar antes de aprobar la nómina.',
+        );
+      }
+
+      const updated = await tx.payrollPeriod.updateMany({
+        where: {
+          id: periodId,
+          tenantId,
+          status: { in: editableStatuses },
+          fechaPrevistaPagoPila: period.fechaPrevistaPagoPila,
+        },
+        data: { fechaPrevistaPagoPila },
+      });
+      if (updated.count === 0) {
+        throw new ConflictException(
+          'El período fue aprobado o modificado durante la actualización.',
+        );
+      }
+
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'PAYROLL_PILA_PAYMENT_DATE_UPDATED',
+          entityType: 'PayrollPeriod',
+          entityId: periodId,
+          metadata: {
+            fechaAnterior:
+              period.fechaPrevistaPagoPila?.toISOString().slice(0, 10) ?? null,
+            fechaNueva: dto.fechaPrevistaPagoPila,
+          },
+        },
+        tx,
+      );
+
+      return tx.payrollPeriod.findFirstOrThrow({
+        where: { id: periodId, tenantId },
+      });
+    });
   }
 
   async findAllPeriods(tenantId: string) {
@@ -2743,6 +2821,7 @@ export class PayrollService {
       nombre: string;
       fechaInicio: Date;
       fechaFin: Date;
+      fechaPrevistaPagoPila: Date | null;
       status: PayrollPeriodStatus;
     },
     origin: string,
@@ -2772,13 +2851,14 @@ export class PayrollService {
           origin,
           approvedById: userId,
         },
-        period: {
+        period: buildPayrollPeriodSnapshot({
           payrollPeriodId: run.payrollPeriodId,
           nombre: trace.period.nombre,
           fechaInicio: trace.period.fechaInicio,
           fechaFin: trace.period.fechaFin,
+          fechaPrevistaPagoPila: period.fechaPrevistaPagoPila,
           status: PayrollPeriodStatus.APROBADA,
-        },
+        }),
         employee: {
           employeeId: run.employeeId,
           salarioBaseUsado: this.toNumber(run.salarioBaseSnapshot),
