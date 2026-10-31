@@ -108,9 +108,31 @@ export interface PilaPreparationIssue {
   affectedCount: number;
 }
 
+export interface PilaExportReadinessBlocker {
+  code:
+    | 'AT2_FILE_MAPPING_NOT_IMPLEMENTED'
+    | 'SOI_OPERATOR_FIELDS_UNCONFIRMED'
+    | 'OPERATOR_UPLOAD_NOT_VERIFIED';
+  scope: 'FILE_GENERATION' | 'OPERATOR_COMPATIBILITY';
+  title: string;
+  message: string;
+  fields: Array<{
+    record: PilaPreparationIssue['record'];
+    fieldNumbers: number[];
+  }>;
+  evidence: string;
+}
+
 export interface PilaPreparationReport {
   formatVersion: null;
   normativeSourceStatus: 'RECONCILIATION_PENDING';
+  exportReadiness: {
+    recordLayoutVersion: 'AT2_V30';
+    fileGenerationStatus: 'NOT_IMPLEMENTED';
+    localValidationStatus: 'PRELIMINARY';
+    operatorAcceptanceStatus: 'NOT_VERIFIED';
+    blockers: PilaExportReadinessBlocker[];
+  };
   period: {
     id: string;
     fechaInicio: string;

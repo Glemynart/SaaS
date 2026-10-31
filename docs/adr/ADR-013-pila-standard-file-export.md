@@ -12,11 +12,14 @@
 > afirmaciones sobre la falta de verificación de v30 y del hash.
 >
 > El informe preliminar conserva `formatVersion: null` porque no genera ni fija
-> una versión de archivo. `normativeSourceStatus` sigue
+> una versión de archivo. La rama de PR #180 añade una primitiva para formatear
+> registros AT2 v30, pero aún no mapea snapshots ni compone archivos completos.
+> `normativeSourceStatus` sigue
 > `RECONCILIATION_PENDING` porque faltan cotejar campos, reglas aplicables,
 > catálogos y fixtures laborales contra AT2 v30; no significa que la versión
-> oficial vigente sea desconocida. No habilitar serialización, exportación ni
-> compatibilidad hasta completar ese cotejo y las pruebas por operador.
+> oficial vigente sea desconocida. No habilitar el mapeo y la serialización de
+> archivos completos, su descarga ni compatibilidad hasta completar ese cotejo
+> y las pruebas por operador.
 
 - **Estado:** Aprobado con cambios; PR #160 incorpora la primera etapa de historial de afiliaciones. No existe todavía exportador PILA.
 - **Fecha:** 2026-10-30.

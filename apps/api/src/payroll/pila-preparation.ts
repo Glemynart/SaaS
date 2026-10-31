@@ -18,6 +18,71 @@ export interface PilaPreparationIssue {
   message: string;
 }
 
+export interface PilaExportReadinessBlocker {
+  code:
+    | 'AT2_FILE_MAPPING_NOT_IMPLEMENTED'
+    | 'SOI_OPERATOR_FIELDS_UNCONFIRMED'
+    | 'OPERATOR_UPLOAD_NOT_VERIFIED';
+  scope: 'FILE_GENERATION' | 'OPERATOR_COMPATIBILITY';
+  title: string;
+  message: string;
+  fields: Array<{
+    record: PilaPreparationRecord;
+    fieldNumbers: number[];
+  }>;
+  evidence: string;
+}
+
+export interface PilaExportReadiness {
+  recordLayoutVersion: 'AT2_V30';
+  fileGenerationStatus: 'NOT_IMPLEMENTED';
+  localValidationStatus: 'PRELIMINARY';
+  operatorAcceptanceStatus: 'NOT_VERIFIED';
+  blockers: PilaExportReadinessBlocker[];
+}
+
+const pilaExportReadiness: PilaExportReadiness = {
+  recordLayoutVersion: 'AT2_V30',
+  fileGenerationStatus: 'NOT_IMPLEMENTED',
+  localValidationStatus: 'PRELIMINARY',
+  operatorAcceptanceStatus: 'NOT_VERIFIED',
+  blockers: [
+    {
+      code: 'AT2_FILE_MAPPING_NOT_IMPLEMENTED',
+      scope: 'FILE_GENERATION',
+      title: 'Falta el mapeo completo y la composición de los archivos',
+      message:
+        'El código formatea registros AT2 v30 individuales, pero todavía no mapea todos los campos desde snapshots aprobados ni compone y descarga los archivos tipo 1 y tipo 2.',
+      fields: [],
+      evidence:
+        'El módulo pila-at2-v30-record-serializer.ts solo formatea registros individuales.',
+    },
+    {
+      code: 'SOI_OPERATOR_FIELDS_UNCONFIRMED',
+      scope: 'OPERATOR_COMPATIBILITY',
+      title:
+        'Falta confirmar la convención de carga de campos asignados por SOI',
+      message:
+        'AT2 v30 asigna campos al sistema del operador. SOI confirma la carga de archivos planos, pero la documentación pública revisada no indica si estos campos se omiten, se envían vacíos o se diligencian de otra forma.',
+      fields: [
+        { record: 'APORTANTE_TIPO_1', fieldNumbers: [28, 29] },
+        { record: 'CABECERA_TIPO_2', fieldNumbers: [2, 15, 17, 18, 22] },
+      ],
+      evidence: 'AT2 v30, pp. 15, 26 y 29–30; SOI, carga de archivos planos.',
+    },
+    {
+      code: 'OPERATOR_UPLOAD_NOT_VERIFIED',
+      scope: 'OPERATOR_COMPATIBILITY',
+      title: 'No hay aceptación de carga verificada en un operador',
+      message:
+        'No se ha probado un archivo candidato en SOI ni en otro portal; el producto no debe anunciar compatibilidad con un operador.',
+      fields: [],
+      evidence:
+        'ADR-013 exige prueba aceptada por operador antes de declarar compatibilidad.',
+    },
+  ],
+};
+
 export interface PilaSnapshotPreparationInput {
   employeeId: string;
   payloadVersion: number | null;
@@ -1234,6 +1299,7 @@ export function buildPilaPreparationReport(input: {
   return {
     formatVersion: null,
     normativeSourceStatus: 'RECONCILIATION_PENDING' as const,
+    exportReadiness: pilaExportReadiness,
     period: {
       id: input.period.id,
       fechaInicio: input.period.fechaInicio.toISOString().slice(0, 10),
