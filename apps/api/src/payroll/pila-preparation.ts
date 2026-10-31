@@ -860,6 +860,23 @@ export function inspectPilaSnapshotPreparation(
   // Registro tipo 2 por cotizante. Este reporte revisa insumos capturados,
   // no inventa códigos ni completa datos consultando Empleado/Sede actuales.
   const detailRecord: PilaPreparationRecord = 'DETALLE_TIPO_2';
+  if (input.totalCotizantes !== undefined) {
+    if (!safeInteger(input.totalCotizantes)) {
+      add(
+        'CABECERA_TIPO_2',
+        19,
+        'CAMPO_19_CONTEO_COTIZANTES_NO_VALIDO',
+        'El conteo de cotizantes únicos debe ser un entero no negativo.',
+      );
+    } else if (!fitsNumericField(input.totalCotizantes, 5)) {
+      add(
+        'CABECERA_TIPO_2',
+        19,
+        'CAMPO_19_CONTEO_COTIZANTES_SUPERA_LONGITUD',
+        'El campo 19 admite hasta 99.999 cotizantes únicos; el conteo no se truncará.',
+      );
+    }
+  }
   const documentType = text(employee?.tipoDocumento);
   if (!documentType || !supportedDocumentTypes.has(documentType)) {
     add(

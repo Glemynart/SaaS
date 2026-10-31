@@ -636,6 +636,35 @@ describe('inspectPilaSnapshotPreparation', () => {
   });
 
   it.each([
+    [99_999, false],
+    [100_000, true],
+  ])(
+    'valida que el conteo de cotizantes %i quepa en el campo 19 de cinco dígitos',
+    (totalCotizantes, shouldBlock) => {
+      const result = inspectPilaSnapshotPreparation({
+        employeeId: 'employee-1',
+        payloadVersion: 1,
+        payload: payload(),
+        totalCotizantes,
+      });
+
+      const fieldIssues = result.issues.filter(
+        ({ record, fieldNumber }) =>
+          record === 'CABECERA_TIPO_2' && fieldNumber === 19,
+      );
+      if (shouldBlock) {
+        expect(fieldIssues).toContainEqual(
+          expect.objectContaining({
+            code: 'CAMPO_19_CONTEO_COTIZANTES_SUPERA_LONGITUD',
+          }),
+        );
+      } else {
+        expect(fieldIssues).toEqual([]);
+      }
+    },
+  );
+
+  it.each([
     ['faltante', null],
     ['especial', '01'],
   ] as const)('bloquea un subtipo PILA %s fuera de 00', (_, subtype) => {

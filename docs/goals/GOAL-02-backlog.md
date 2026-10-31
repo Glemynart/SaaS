@@ -477,3 +477,7 @@ verdes al 2026-10-31.
   código ARL afiliado y bloquea códigos de administradoras con más de seis
   posiciones sin truncarlos. La validación de catálogos oficiales y del
   operador sigue pendiente.
+- El encabezado de planilla contaba cotizantes únicos pero el preflight no
+  detectaba el desbordamiento del campo 19 (5 N). Ahora bloquea más de 99.999
+  cotizantes sin truncar ni contar dos veces a quien tenga varias líneas 02;
+  el límite superior tiene prueba de borde.
