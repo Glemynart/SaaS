@@ -206,6 +206,12 @@ también bloquea la revisión. Esto mejora la trazabilidad de brechas, pero no
 calcula segmentos, no constituye un preflight normativo completo y no habilita
 la generación de archivos.
 
+El informe también muestra conteos por empleado de candidatos y pendientes para
+los campos 61, 63, 65, 67 y 69, junto con las razones y los empleados afectados.
+No elige entre snapshots duplicados. Estos conteos describen solo los mapas
+parciales vigentes; no equivalen a campos serializables ni modifican el estado
+de generación, que permanece deshabilitada.
+
 El historial de afiliaciones no presenta una versión de formato PILA como si
 fuera evidencia normativa. El campo Prisma se llama `versionCaptura` y se mapea
 temporalmente a la columna física heredada `formatoNormativoVersion`, para que

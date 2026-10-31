@@ -167,6 +167,64 @@ function payloadV2() {
   };
 }
 
+function detailCandidateSnapshot(
+  employeeId: string,
+  employeeName: string,
+  arlAmount = 15_700,
+): PilaSnapshotPreparationInput {
+  const source = payloadV2();
+  Object.assign(source.period, {
+    payrollPeriodId: 'period-1',
+  });
+  Object.assign(source.employee, {
+    employeeId,
+    fechaIngreso: '2026-01-01',
+    fechaRetiro: null,
+    primerNombre: employeeName,
+  });
+  Object.assign(source.contract, {
+    fechaInicio: '2026-01-01',
+    fechaFin: null,
+  });
+  for (const days of Object.values(source.payroll.diasCotizadosPorSubsistema)) {
+    Object.assign(days, {
+      reglaVersion: 'PILA_FULL_MONTH_DAYS_V1',
+      bloqueos: [],
+    });
+  }
+  for (const base of Object.values(source.payroll.ibcPorSubsistema)) {
+    Object.assign(base, { sourceCount: 1 });
+  }
+  Object.assign(source.payroll, { pilaEvents: [], novelties: [] });
+  Object.assign(source, {
+    pilaEvents: [],
+    pilaRiskAssignments: [
+      {
+        tenantId: 'tenant-1',
+        codigoActividadEconomica: '1131202',
+        formatoNormativoVersion: 'DECRETO_768_2022',
+        vigenteDesde: '2026-01-01',
+        vigenteHasta: null,
+        centroTrabajo: {
+          tenantId: 'tenant-1',
+          arlCodigo: 'ARL001',
+          codigoCentro: '00012',
+        },
+      },
+    ],
+  });
+  const arlConcept = source.payroll.concepts.find(
+    ({ codigo }) => codigo === 'ARL',
+  );
+  if (arlConcept) arlConcept.valor = arlAmount;
+
+  return {
+    employeeId,
+    payloadVersion: 2,
+    payload: source,
+  };
+}
+
 function snapshot(
   employeeId: string,
   employeeName: string,
@@ -1431,6 +1489,77 @@ describe('inspectPilaSnapshotPreparation', () => {
         expect.objectContaining({ fieldNumber: 98, affectedCount: 2 }),
       ]),
     );
+  });
+
+  it('expone candidatos parciales por campo sin habilitar el archivo', () => {
+    const compliant = detailCandidateSnapshot('employee-1', 'Ana');
+    const arlAmountNotRounded = detailCandidateSnapshot(
+      'employee-2',
+      'Luis',
+      15_660,
+    );
+    const report = buildPilaPreparationReport({
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [compliant, arlAmountNotRounded],
+    });
+    const statusFor = (fieldNumber: number) =>
+      report.detailContributionCandidates.find(
+        (status) => status.fieldNumber === fieldNumber,
+      );
+
+    expect(statusFor(61)).toMatchObject({
+      candidateEmployees: 2,
+      pendingEmployees: 0,
+    });
+    const field63 = statusFor(63);
+    expect(field63).toMatchObject({
+      candidateEmployees: 1,
+      pendingEmployees: 1,
+    });
+    expect(field63?.pendingReasons[0]?.reason).toContain(
+      'múltiplo de 100 superior',
+    );
+    expect(field63?.pendingReasons[0]?.affectedEmployees).toEqual([
+      'Luis Demo',
+    ]);
+    expect(statusFor(65)).toMatchObject({
+      candidateEmployees: 2,
+      pendingEmployees: 0,
+    });
+    expect(statusFor(67)).toMatchObject({
+      candidateEmployees: 2,
+      pendingEmployees: 0,
+    });
+    expect(statusFor(69)).toMatchObject({
+      candidateEmployees: 2,
+      pendingEmployees: 0,
+    });
+    expect(report.archivoGenerable).toBe(false);
+  });
+
+  it('does not choose a detail candidate when an employee has duplicate snapshots', () => {
+    const duplicate = detailCandidateSnapshot('employee-1', 'Ana');
+    const report = buildPilaPreparationReport({
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [duplicate, duplicate],
+    });
+
+    const field61 = report.detailContributionCandidates[0];
+    expect(field61).toMatchObject({
+      fieldNumber: 61,
+      candidateEmployees: 0,
+      pendingEmployees: 1,
+    });
+    expect(field61.pendingReasons[0]?.reason).toContain('más de un snapshot');
+    expect(field61.pendingReasons[0]?.affectedEmployees).toEqual(['Ana Demo']);
   });
 
   it('explica que no hay snapshots cuando el período aprobado no los conserva', () => {

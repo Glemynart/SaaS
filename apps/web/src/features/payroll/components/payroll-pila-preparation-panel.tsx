@@ -5,13 +5,28 @@ import { ClipboardCheck, LoaderCircle } from 'lucide-react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { usePayrollPilaPreparation } from '../hooks/use-payroll';
-import type { PilaPreparationIssue, PayrollPeriodStatus } from '../services/payroll-api';
+import type {
+  PilaDetailContributionCandidateStatus,
+  PilaPreparationIssue,
+  PayrollPeriodStatus,
+} from '../services/payroll-api';
 
 const recordLabels: Record<PilaPreparationIssue['record'], string> = {
   APORTANTE_TIPO_1: 'Archivo tipo 1, aportante',
   CABECERA_TIPO_2: 'Archivo tipo 2, cabecera',
   DETALLE_TIPO_2: 'Archivo tipo 2, cotizante',
   SNAPSHOT: 'Snapshot de nómina',
+};
+
+const contributionFieldLabels: Record<
+  PilaDetailContributionCandidateStatus['fieldNumber'],
+  string
+> = {
+  61: 'Tarifa inicial de riesgos laborales',
+  63: 'Aporte ARL',
+  65: 'Aporte a caja de compensación',
+  67: 'Aporte SENA',
+  69: 'Aporte ICBF',
 };
 
 export function PayrollPilaPreparationPanel({
@@ -135,6 +150,55 @@ export function PayrollPilaPreparationPanel({
               </ul>
             </section>
           )}
+
+          <section
+            className="rounded-lg border border-border p-4"
+            aria-labelledby="pila-contribution-candidates-title"
+          >
+            <h3 id="pila-contribution-candidates-title" className="font-medium">
+              Candidatos parciales de aportes
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Estos conteos indican si el snapshot aporta un valor candidato para cada campo. No
+              confirman que la planilla completa cumpla las reglas PILA ni habilitan su descarga.
+            </p>
+            <ul className="mt-3 space-y-3">
+              {query.data.detailContributionCandidates.map((status) => (
+                <li key={status.fieldNumber} className="rounded-md bg-muted/40 px-3 py-2">
+                  <p className="text-sm font-medium">
+                    Campo {status.fieldNumber} · {contributionFieldLabels[status.fieldNumber]}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Con candidato: {status.candidateEmployees}; pendientes:{' '}
+                    {status.pendingEmployees}.
+                  </p>
+                  {status.pendingReasons.length > 0 && (
+                    <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
+                      {status.pendingReasons.map(({ reason, affectedEmployees }, index) => (
+                        <li key={`${status.fieldNumber}-${index}`}>
+                          <p>{reason}</p>
+                          {affectedEmployees.length > 0 && (
+                            <details className="mt-1">
+                              <summary className="cursor-pointer text-primary">
+                                Ver {affectedEmployees.length} empleados afectados
+                              </summary>
+                              <ul className="mt-2 list-inside list-disc">
+                                {affectedEmployees.map((name, employeeIndex) => (
+                                  <li key={`${status.fieldNumber}-${index}-${employeeIndex}`}>
+                                    {name}
+                                  </li>
+                                ))}
+                              </ul>
+                            </details>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
 
           <Alert>
             {query.data.mensaje} Período: {query.data.period.fechaInicio} a{' '}

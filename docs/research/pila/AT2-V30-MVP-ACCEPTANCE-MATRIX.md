@@ -204,6 +204,11 @@ factor no representable sin pérdida mantiene el campo bloqueado. Una
 discrepancia deja el campo sin resolver y no se corrige dentro del exportador;
 la regla no habilita descarga.
 
+La vista de preparación presenta conteos por empleado para los candidatos
+parciales 61/63/65/67/69 y detalla motivos pendientes; un snapshot duplicado
+bloquea la selección del empleado. Esta observabilidad local no equivale a una
+validación completa de los registros tipo 2.
+
 Para el tipo 1, los campos 16, 17 y 18 no se validan solo por longitud: el fax
 es numérico, el correo debe respetar los caracteres y estructura de dominio de
 AT2, y el documento del representante usa las reglas del tipo declarado (CC,

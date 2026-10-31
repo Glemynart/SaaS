@@ -3,6 +3,7 @@ import {
   PILA_RISK_ACTIVITY_CODES,
 } from './pila-risk-activity-catalog';
 import { PILA_AT2_V30_RECORD_LAYOUTS } from './pila-at2-v30-record-serializer';
+import { mapPilaAt2V30DetailCandidate } from './pila-at2-v30-detail-mapper';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -36,6 +37,16 @@ export interface PilaExportReadinessBlocker {
     fieldNumbers: number[];
   }>;
   evidence: string;
+}
+
+export interface PilaDetailContributionCandidateStatus {
+  fieldNumber: 61 | 63 | 65 | 67 | 69;
+  candidateEmployees: number;
+  pendingEmployees: number;
+  pendingReasons: Array<{
+    reason: string;
+    affectedEmployees: string[];
+  }>;
 }
 
 export interface PilaExportReadiness {
@@ -1477,6 +1488,84 @@ function deduplicateIssues(
   });
 }
 
+function summarizePilaDetailContributionCandidates(
+  snapshots: PilaSnapshotPreparationInput[],
+  assessments: PilaSnapshotPreparation[],
+): PilaDetailContributionCandidateStatus[] {
+  const fields = [61, 63, 65, 67, 69] as const;
+  const snapshotsPerEmployee = new Map<string, number>();
+  for (const snapshot of snapshots) {
+    snapshotsPerEmployee.set(
+      snapshot.employeeId,
+      (snapshotsPerEmployee.get(snapshot.employeeId) ?? 0) + 1,
+    );
+  }
+  const employeeNames = new Map(
+    assessments.map(({ employeeId, employeeName }) => [
+      employeeId,
+      employeeName,
+    ]),
+  );
+  const candidatesByEmployee = new Map<
+    string,
+    ReturnType<typeof mapPilaAt2V30DetailCandidate> | null
+  >();
+  for (const snapshot of snapshots) {
+    const duplicateSnapshot =
+      (snapshotsPerEmployee.get(snapshot.employeeId) ?? 0) > 1;
+    candidatesByEmployee.set(
+      snapshot.employeeId,
+      duplicateSnapshot ? null : mapPilaAt2V30DetailCandidate(snapshot),
+    );
+  }
+
+  return fields.map((fieldNumber) => {
+    const candidateEmployees = new Set<string>();
+    const pendingEmployees = new Set<string>();
+    const reasons = new Map<string, Map<string, string>>();
+
+    for (const snapshot of snapshots) {
+      const employeeId = snapshot.employeeId;
+      const duplicateSnapshot = (snapshotsPerEmployee.get(employeeId) ?? 0) > 1;
+      const candidate = candidatesByEmployee.get(employeeId) ?? null;
+      if (candidate && Object.hasOwn(candidate.values, fieldNumber)) {
+        candidateEmployees.add(employeeId);
+        continue;
+      }
+
+      pendingEmployees.add(employeeId);
+      let reason: string;
+      if (duplicateSnapshot) {
+        reason =
+          'Hay más de un snapshot aprobado para el empleado en este período; no se elige uno automáticamente.';
+      } else {
+        reason =
+          candidate?.unresolvedFields.find(
+            (field) => field.fieldNumber === fieldNumber,
+          )?.reason ??
+          'No hay un valor candidato disponible en el snapshot aprobado.';
+      }
+      const affectedEmployees =
+        reasons.get(reason) ?? new Map<string, string>();
+      affectedEmployees.set(
+        employeeId,
+        employeeNames.get(employeeId) ?? employeeId,
+      );
+      reasons.set(reason, affectedEmployees);
+    }
+
+    return {
+      fieldNumber,
+      candidateEmployees: candidateEmployees.size,
+      pendingEmployees: pendingEmployees.size,
+      pendingReasons: [...reasons].map(([reason, affectedEmployees]) => ({
+        reason,
+        affectedEmployees: [...affectedEmployees.values()],
+      })),
+    };
+  });
+}
+
 export function buildPilaPreparationReport(input: {
   period: {
     id: string;
@@ -1600,6 +1689,8 @@ export function buildPilaPreparationReport(input: {
   const assessments = input.snapshots.map((snapshot) =>
     inspectPilaSnapshotPreparation({ ...snapshot, totalCotizantes }),
   );
+  const detailContributionCandidates =
+    summarizePilaDetailContributionCandidates(input.snapshots, assessments);
   const grouped = new Map<
     string,
     PilaPreparationIssue & {
@@ -1663,6 +1754,7 @@ export function buildPilaPreparationReport(input: {
     snapshotsRevisados: assessments.length,
     empleadosConDatosPendientes: employeesWithIssues,
     empleadosSinBrechasDetectadas: assessments.length - employeesWithIssues,
+    detailContributionCandidates,
     issues,
     archivoGenerable: false as const,
     estadoArchivo: 'NO_IMPLEMENTADO' as const,

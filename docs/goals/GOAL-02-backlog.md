@@ -577,6 +577,10 @@ verdes al 2026-10-31.
 - Las pruebas verifican snapshot v2, dependiente 01/00, cobertura del período,
   códigos afiliados, días/base salarial e IBC congelados, ceros iniciales del
   documento/centro, fuentes de concepto únicas y aislamiento del centro ARL.
+- El informe del período muestra por campo cuántos empleados tienen candidato
+  para 61/63/65/67/69 y las razones y nombres asociados a los pendientes. Si un
+  empleado tiene snapshots duplicados no escoge uno; los candidatos parciales
+  no habilitan archivo ni aceptación de operador.
 
 ### Tarifa inicial ARL candidata AT2 — 2026-10-31
 
