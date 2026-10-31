@@ -15,6 +15,20 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 | P1        | PROTOTIPO              | Liquidar prima semestral de empleados activos por lote y generar un comprobante PDF por empleado. | Preview muestra períodos y conceptos fuente, base, días y fórmula; aprobación congela snapshots y correcciones; PDF inmutable queda vinculado al Expediente e idempotente ante reintentos.                        | PR #159 se fusionó como `400c562`; CI, Browser E2E y Vercel pasaron. Migraciones probadas en PostgreSQL desechable, no en demo/staging/producción. Casos ambiguos se bloquean. Revisión laboral independiente antes del uso operativo; pagos, Tesorería y Ledger fuera.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | P1        | EN CURSO (EXPORTACIÓN) | Estructurar afiliaciones/novedades y exportar aportes de nómina a PILA.                           | Afiliaciones con vigencia alimentan archivos tipo 1 y 2; validación local, aceptación del operador, liquidación y pago son estados separados; compatibilidad se prueba operador por operador.                     | ADR-013 aprobada con cambios; PR #160 conserva afiliaciones con auditoría e aislamiento tenant, pero aún no valida catálogos ni genera archivos. AT2 v30 oficial (24-07-2026; 336 páginas) define tipo 1 de 567 caracteres, encabezado 01 de 359 y detalle 02 de 693. La auditoría de esta rama mapea los 34 campos del tipo 1, 22 del encabezado 01 y 98 del detalle 02 a fuentes candidatas, datos faltantes y valores asignados al operador; no es fixture ni autoriza serializar. Aún faltan catálogos validados, eventos PILA con intervalos, períodos/días/IBC por subsistema, actividad y centro ARL, reglas de vigencia y pruebas de carga por operador. PayrollSnapshot v1 no congela identidad, DIVIPOLA ni afiliación efectiva; no completar desde maestros mutables ni inferirlas. Dependientes estándar solamente; sin cotizante 75, transmisión ni pago. |
 
+### Consulta del Ledger en el recorrido financiero de demo — 2026-10-31
+
+- En `main`, la pantalla Contabilidad → Comprobantes informaba que no tenía
+  consulta ni detalle, aunque `ReportingService` ya exponía el Libro Diario
+  tenant-scoped con movimientos y nombres de cuentas.
+- La rama `codex/goal02-accounting-voucher-query` agrega una lista paginada de
+  comprobantes contabilizados y el detalle de sus líneas a esa pantalla,
+  reutilizando el endpoint de reportes existente; no agrega escrituras,
+  migraciones ni modifica el Ledger.
+- El escenario Browser E2E financiero extiende la prueba de nómina para abrir
+  el comprobante causado, revisar sus cuentas y confirmar que débitos y créditos
+  se conservan junto al snapshot aprobado. La factura interna sigue sin asiento
+  propio mientras ADR-011 permanezca pendiente de aprobación.
+
 ## H1 — Fundación de integraciones regulatorias
 
 | Prioridad | Estado    | Iniciativa                                                                 | Criterios de aceptación                                                                                                                        | Dependencias y riesgo                                                                   |

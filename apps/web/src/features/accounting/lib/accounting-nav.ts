@@ -75,7 +75,7 @@ export const ACCOUNTING_SECTIONS: AccountingSection[] = [
     id: 'comprobantes',
     label: 'Comprobantes',
     href: '/contabilidad/comprobantes',
-    description: 'Registro y consulta de comprobantes manuales.',
+    description: 'Consulta de comprobantes contabilizados y registro manual.',
     icon: FileText,
   },
   {
