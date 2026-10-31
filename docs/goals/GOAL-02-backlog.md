@@ -449,3 +449,6 @@ verdes al 2026-10-31.
   tiene un código DIVIPOLA válido. Falta una fuente PILA explícita, confirmada
   y congelada; hasta que se defina y capture, esos campos no pueden figurar como
   listos para exportación.
+- ADR-015 propone una asignación histórica de municipio laboral por empleado,
+  independiente de la sede y del centro ARL. La propuesta queda pendiente de
+  aprobación de Producto y Nómina; no se ha añadido esquema ni captura.
