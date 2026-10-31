@@ -435,6 +435,90 @@ describe('PILA source snapshot builders', () => {
   });
 
   it.each([
+    ['February with 28 days', '2026-02-01', '2026-02-28'],
+    ['leap February with 29 days', '2024-02-01', '2024-02-29'],
+    ['a 30-day month', '2026-04-01', '2026-04-30'],
+    ['a 31-day month', '2026-01-01', '2026-01-31'],
+  ])('records 30 PILA days for %s', (_label, start, end) => {
+    const hiredBeforePeriod = new Date('2020-01-01T00:00:00.000Z');
+    const context = buildPilaSourceContext({
+      ...contextInput,
+      employee: {
+        ...contextInput.employee,
+        fechaIngreso: hiredBeforePeriod,
+      },
+      period: {
+        ...contextInput.period,
+        fechaInicio: new Date(`${start}T00:00:00.000Z`),
+        fechaFin: new Date(`${end}T00:00:00.000Z`),
+      },
+      contract: {
+        ...contextInput.contract!,
+        fechaInicio: hiredBeforePeriod,
+        fechaFin: null,
+      },
+      affiliations: contextInput.affiliations.map((affiliation) => ({
+        ...affiliation,
+        vigenteDesde: hiredBeforePeriod,
+        vigenteHasta: null,
+      })),
+    });
+    const result = buildPilaSourceSnapshot({
+      context,
+      payroll: {
+        runId: `run-${start}`,
+        fechaPrevistaPagoPila: null,
+        salarioBasico: 2_000_000,
+        salarioIntegral: false,
+        ibc: 2_000_000,
+        concepts: [],
+        novelties: [],
+      },
+    });
+
+    expect(
+      Object.values(result.payroll.diasCotizadosPorSubsistema).map(
+        ({ valor, bloqueos }) => ({ valor, bloqueos }),
+      ),
+    ).toEqual([
+      { valor: 30, bloqueos: [] },
+      { valor: 30, bloqueos: [] },
+      { valor: 30, bloqueos: [] },
+      { valor: 30, bloqueos: [] },
+    ]);
+  });
+
+  it('does not infer 30 days for a partial calendar month', () => {
+    const context = buildPilaSourceContext({
+      ...contextInput,
+      period: {
+        ...contextInput.period,
+        fechaInicio: new Date('2026-10-02T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+    });
+    const result = buildPilaSourceSnapshot({
+      context,
+      payroll: {
+        runId: 'run-partial-month',
+        fechaPrevistaPagoPila: null,
+        salarioBasico: 2_000_000,
+        salarioIntegral: false,
+        ibc: 2_000_000,
+        concepts: [],
+        novelties: [],
+      },
+    });
+
+    for (const days of Object.values(
+      result.payroll.diasCotizadosPorSubsistema,
+    )) {
+      expect(days.valor).toBeNull();
+      expect(days.bloqueos).toContain('PERIODO_NO_ES_MES_CALENDARIO_COMPLETO');
+    }
+  });
+
+  it.each([
     ['missing', null, 'SUBTIPO_COTIZANTE_SIN_CONFIRMAR'],
     ['special', '01', 'COTIZANTE_FUERA_DEL_MVP_ESTANDAR'],
   ] as const)(
