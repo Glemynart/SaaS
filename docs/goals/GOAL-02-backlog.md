@@ -556,10 +556,15 @@ verdes al 2026-10-31.
   afiliación, días completos, salario, IBC por subsistema y asignación ARL desde
   un snapshot PILA v2 del mismo empleado/tenant/período. No vuelve a consultar
   maestros, no transforma novedades y no calcula tarifas ni aportes.
-- El alcance del mapa cubre campos 1–6, 11–14, 31, 33, 35, 36–45, 62, 77–78,
-  95 y 98. Los campos de aportes 46–75, novedades/segmentación, horas y otros
-  datos todavía faltantes permanecen sin valor candidato; el registro completo
-  no es serializable ni descargable.
+- El alcance del mapa cubre campos 1–6, 11–14, 31, 33, 35, 36–45, 62–63, 65,
+  67, 69, 77–78, 95 y 98. Los importes 63/65/67/69 son solo candidatos
+  copiados de un concepto patronal único, con tipo esperado, factor numérico y
+  base coincidente; aún no se contrasta el factor con una tarifa normativa.
+  Requieren además días aprobados de mes completo y ausencia de novedades y
+  eventos PILA; SENA e ICBF requieren declaración explícita de no exoneración.
+  Nunca se calcula un aporte ni se infiere cero por ausencia. Los demás campos
+  de aportes, novedades/segmentación, horas y datos faltantes siguen sin valor
+  candidato; el registro completo no es serializable ni descargable.
 - Las pruebas verifican snapshot v2, dependiente 01/00, cobertura del período,
   códigos afiliados, días/base salarial e IBC congelados, ceros iniciales del
   documento/centro, fuentes de concepto únicas y aislamiento del centro ARL.
