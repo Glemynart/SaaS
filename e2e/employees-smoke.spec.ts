@@ -113,8 +113,8 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await page.getByRole('button', { name: 'Finalizar vigencia' }).click();
   await page.getByLabel('Válida hasta').fill('2026-06-30');
   await page.getByRole('button', { name: 'Guardar fecha' }).click();
+  await expect(currentAffiliation).not.toContainText('Sin fecha final');
   await expect(page.getByRole('button', { name: 'Finalizar vigencia' })).toHaveCount(0);
-  await expect(page.getByText('Sin fecha final')).toHaveCount(0);
 
   await page.goto('/empleados');
   await search.fill(cedula);
