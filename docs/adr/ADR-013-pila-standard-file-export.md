@@ -176,6 +176,15 @@ eventos ausente en un payload v2 también bloquean la revisión. Esto mejora la
 trazabilidad de brechas, pero no calcula segmentos, no constituye un preflight
 normativo completo y no habilita la generación de archivos.
 
+La revisión de `PayrollService.calculateAndCollectWarnings` y
+`buildCalculationInput` confirma que el cálculo elige contrato usando solo la
+fecha inicial del período y entrega `Empleado.salario` completo a
+`PayrollCalculator`; no usa fechas de ingreso/retiro ni fechas de eventos para
+prorratear el salario. Por ello, las bases de un snapshot de nómina parcial no
+se pueden asumir correctas para segmentar ING/RET. Esa ruta seguirá bloqueada
+hasta que Payroll calcule y congele importes prorrateados bajo reglas laborales
+revisadas y fixtures aprobados.
+
 La auditoría de altas y bajas se confirma en la misma transacción que modifica
 el evento; si el registro de auditoría falla, la operación revierte y el evento
 conserva su estado anterior.
