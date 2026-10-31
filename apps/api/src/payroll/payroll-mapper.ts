@@ -32,6 +32,7 @@ export interface EmpForPayroll {
 export interface ContratoForPayroll {
   id: string;
   empleadoId: string;
+  tipo: string;
   /** ContratoEstado es subtype de string → asignable aquí. */
   estado: string;
   fechaInicio: Date;

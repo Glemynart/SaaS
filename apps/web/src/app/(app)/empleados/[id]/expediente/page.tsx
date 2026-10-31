@@ -45,6 +45,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   DOCUMENTO_PERSONAL: 'Documento personal',
   PREAVISO: 'Preaviso',
   TERMINACION: 'Terminación',
+  PRIMA_SERVICIOS: 'Prima de servicios',
   OTRO: 'Otro',
 };
 

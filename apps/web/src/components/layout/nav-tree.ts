@@ -70,7 +70,14 @@ export const NAV_TREE: NavItem[] = [
     href: '/nomina',
     icon: Calculator,
     group: 'Procesos',
-    children: [{ label: 'Períodos', href: '/nomina/periodos' }],
+    children: [
+      { label: 'Períodos', href: '/nomina/periodos' },
+      {
+        label: 'Prima de servicios',
+        href: '/nomina/prima',
+        requiredRole: ['ADMIN', 'OPERADOR'],
+      },
+    ],
   },
   {
     label: 'Facturación',
