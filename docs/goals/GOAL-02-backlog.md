@@ -379,3 +379,19 @@ verdes al 2026-10-31.
   descargas ni comprueba operadores. No cambia `archivoGenerable`, que sigue
   siendo `false` hasta completar reglas, fixtures y validación normativa y por
   operador.
+
+### Corrección de prima — 2026-10-31
+
+- La calculadora de prima ignoraba silenciosamente cualquier tipo de novedad de
+  snapshot que no estuviera entre `LICENSE`, `OTHER` y `BONUS`; una novedad
+  desconocida podía producir una línea `LISTA`. La matriz de ADR-012 exige
+  bloquear novedades sin tratamiento aprobado.
+- El PR #181 mantiene el cálculo solo para novedades aceptadas explícitamente
+  (`VACATION`, `SICKNESS`, `OVERTIME`) y bloquea las ambiguas o desconocidas.
+  Regresiones cubren `LICENSE`, `OTHER` y el tipo histórico/desconocido
+  `SUSPENSION`; se conserva el caso de bonificación como bloqueo específico.
+- Las pruebas de calculadora y servicio pasan (27/27), al igual que typecheck de
+  API, ESLint, Prettier y `git diff --check`. El PR #181 está apilado sobre
+  #180; CI y Browser E2E fallaron en 1–2 segundos al abrirse. El usuario indicó
+  que la cuota mensual de Actions está agotada; ambos PR quedan abiertos para
+  continuar trabajo local y sincronizarlos en orden cuando se reponga.
