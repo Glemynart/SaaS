@@ -106,7 +106,10 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
 
   await expect(page.getByText('EPS Nueva')).toBeVisible();
   const previousAffiliation = page.getByRole('listitem').filter({ hasText: 'EPS Demo' });
-  await expect(previousAffiliation).toContainText('31 mar 2026');
+  await expect(previousAffiliation).toHaveCount(1);
+  await expect(previousAffiliation).not.toContainText('Sin fecha final');
+  const currentAffiliation = page.getByRole('listitem').filter({ hasText: 'EPS Nueva' });
+  await expect(currentAffiliation).toContainText('Sin fecha final');
   await page.getByRole('button', { name: 'Finalizar vigencia' }).click();
   await page.getByLabel('Válida hasta').fill('2026-06-30');
   await page.getByRole('button', { name: 'Guardar fecha' }).click();
