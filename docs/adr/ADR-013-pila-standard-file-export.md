@@ -168,6 +168,14 @@ concurrente. Se rechaza un duplicado idéntico. La captura no altera
 `PayrollNovelty`, no calcula segmentos, días cotizados ni IBC por evento, y no
 habilita una exportación.
 
+El informe preliminar de preparación lee también la lista de eventos congelada
+en el snapshot. Cada código reconocido se presenta como bloqueo explícito en
+su campo AT2 (15, 16, 21, 23–27 o 29–30) mientras Payroll no conserve sus
+segmentos y días/IBC aprobados; un código fuera de la matriz o una lista de
+eventos ausente en un payload v2 también bloquean la revisión. Esto mejora la
+trazabilidad de brechas, pero no calcula segmentos, no constituye un preflight
+normativo completo y no habilita la generación de archivos.
+
 La auditoría de altas y bajas se confirma en la misma transacción que modifica
 el evento; si el registro de auditoría falla, la operación revierte y el evento
 conserva su estado anterior.

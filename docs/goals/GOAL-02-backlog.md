@@ -304,3 +304,8 @@ prueba se detuvo y no se usaron datos de demo/staging/producción. Esta preparac
   lecturas como autenticadas y las escrituras con roles ADMIN/OPERADOR; esto
   corrige el bloqueo de activación Deny by Default detectado al arrancar la
   prueba. No se usó el tenant demo ni el servidor local del usuario.
+- La continuación local del informe de preparación PILA enumera cada código
+  de evento congelado como bloqueo en su campo AT2 y detecta snapshots v2 sin
+  lista de eventos. No calcula segmentos, no valida por completo la norma y
+  mantiene `archivoGenerable: false`; la segmentación de eventos, días e IBC
+  sigue pendiente.
