@@ -92,8 +92,10 @@ async function seedPucPlantilla() {
 /**
  * Siembra los parámetros legales de nómina colombiana para la vigencia 2026.
  * Idempotente: usa upsert con clave (tenantId=NULL, vigenciaDesde=2026-01-01).
- * Fuente: Decreto 2613 del 27 de diciembre de 2024 (SMMLV) y
- *         Decreto 2614 del 27 de diciembre de 2024 (auxilio de transporte).
+ * Fuentes: Decreto 1469/2025 (SMMLV), Decreto 1470/2025 (auxilio de
+ * transporte) y Resolución DIAN 000238/2025 (UVT). El 17-07-2026 el Consejo
+ * de Estado revocó la suspensión provisional del Decreto 1469/2025; seguía
+ * vigente al actualizar este seed, pendiente el fallo de fondo.
  */
 async function seedParametrosLegales2026() {
   const vigenciaDesde = new Date('2026-01-01');
@@ -116,9 +118,9 @@ async function seedParametrosLegales2026() {
     vigenciaHasta: null, // Vigencia abierta (la más reciente)
     anio: 2026,
 
-    smmlv: 1423500, // COP — Decreto 2613/2024
-    auxilioTransporte: 202897, // COP — Decreto 2614/2024
-    uvt: 49799, // COP — Resolución 000187/2024 DIAN
+    smmlv: 1_750_905, // COP — Decreto 1469/2025
+    auxilioTransporte: 249_095, // COP — Decreto 1470/2025
+    uvt: 52_374, // COP — Resolución 000238/2025 DIAN
 
     topeIbcMinSmmlv: 1,
     topeIbcMaxSmmlv: 25,
@@ -150,11 +152,14 @@ async function seedParametrosLegales2026() {
     fspTramos,
 
     fuente:
-      'Decreto 2613/2024 (SMMLV); Decreto 2614/2024 (auxilio); ' +
-      'Res. 000187/2024 DIAN (UVT); Ley 100/1993 Art. 27 (FSP); ' +
+      'Decreto 1469/2025 (SMMLV); Decreto 1470/2025 (auxilio); ' +
+      'Res. 000238/2025 DIAN (UVT); Ley 100/1993 Art. 27 (FSP); ' +
       'Art. 114-1 ET (exoneración)',
     notas:
-      'Tarifas ARL según Decreto 1072/2015 Tabla I. ' +
+      'Valores 2026 revalidados el 2026-10-30. El Consejo de Estado revocó ' +
+      'la suspensión provisional del Decreto 1469/2025 el 2026-07-17; el ' +
+      'proceso de fondo seguía pendiente al corte. Tarifas ARL según ' +
+      'Decreto 1072/2015 Tabla I. ' +
       'Caja siempre se paga (no aplica Art. 114-1). ' +
       'FSP: tramos expresan tasa total del tramo, no tasa adicional.',
   };

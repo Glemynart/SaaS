@@ -83,3 +83,56 @@ describe('payrollApi.corrections', () => {
     });
   });
 });
+
+describe('payrollApi PILA events', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('lists period events through the BFF', async () => {
+    const events = [{ id: 'event-1', codigo: 'IGE' }];
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => events,
+    });
+    global.fetch = fetchMock;
+
+    await expect(payrollApi.getPilaEvents('period-1')).resolves.toEqual(events);
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/payroll/periods/period-1/pila-events', {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+
+  it('creates and deletes events through the BFF routes', async () => {
+    const payload = {
+      employeeId: 'employee-1',
+      codigo: 'IRL' as const,
+      fechaInicio: '2026-10-10',
+      fechaFin: '2026-10-10',
+      dias: 1,
+    };
+    const created = { id: 'event-1', ...payload };
+    const deleted = { deleted: true };
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => created })
+      .mockResolvedValueOnce({ ok: true, json: async () => deleted });
+    global.fetch = fetchMock;
+
+    await expect(payrollApi.createPilaEvent('period-1', payload)).resolves.toEqual(created);
+    await expect(payrollApi.deletePilaEvent('event-1')).resolves.toEqual(deleted);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/payroll/periods/period-1/pila-events', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/payroll/pila-events/event-1', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+});

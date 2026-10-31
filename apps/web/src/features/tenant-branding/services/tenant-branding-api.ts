@@ -7,6 +7,33 @@ export interface TenantBranding {
   firmaRepresentanteUrl: string | null;
 }
 
+export interface PilaEmployerProfile {
+  razonSocial: string;
+  nit: string;
+  aportesExonerados: boolean;
+  pilaTipoDocumentoAportante: string | null;
+  pilaNaturalezaJuridica: string | null;
+  pilaTipoPersona: string | null;
+  pilaFormaPresentacion: string | null;
+  pilaCodigoSucursal: string | null;
+  pilaNombreSucursal: string | null;
+  pilaCodigoActividadEconomica: string | null;
+  pilaCodigoArlAportante: string | null;
+  pilaTipoAportante: string | null;
+  pilaFax: string | null;
+  pilaRepresentanteTipoDocumento: string | null;
+  pilaRepresentanteNumeroDocumento: string | null;
+  pilaRepresentantePrimerApellido: string | null;
+  pilaRepresentanteSegundoApellido: string | null;
+  pilaRepresentantePrimerNombre: string | null;
+  pilaRepresentanteSegundoNombre: string | null;
+  pilaFechaMatriculaMercantil: string | null;
+  pilaBeneficioLey1429: boolean | null;
+  pilaBeneficioCcfLey1429: boolean | null;
+  pilaAportesExoneradosConfirmado: boolean | null;
+  pilaSinAccionEspecial: boolean | null;
+}
+
 interface ApiEnvelope {
   message?: string;
 }
@@ -34,8 +61,19 @@ export const tenantBrandingApi = {
     return request<TenantBranding>('/api/tenant-branding');
   },
 
-  update: async (data: { representanteLegal?: string }) => {
+  update: async (data: Partial<TenantBranding>) => {
     return request<TenantBranding>('/api/tenant-branding', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getPilaProfile: async () => {
+    return request<PilaEmployerProfile>('/api/tenant-branding/pila');
+  },
+
+  updatePilaProfile: async (data: Partial<PilaEmployerProfile>) => {
+    return request<PilaEmployerProfile>('/api/tenant-branding/pila', {
       method: 'PATCH',
       body: JSON.stringify(data),
     });

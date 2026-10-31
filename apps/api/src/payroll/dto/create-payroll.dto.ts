@@ -6,8 +6,11 @@ import {
   IsDateString,
   IsNumber,
   Matches,
+  IsInt,
+  Min,
+  Max,
 } from 'class-validator';
-import { PayrollPeriodStatus } from '@prisma/client';
+import { PayrollPeriodStatus, PilaEventCode } from '@prisma/client';
 
 /**
  * Re-exportado desde @prisma/client: fuente única de verdad. No duplicar
@@ -89,4 +92,28 @@ export class CreatePayrollNoveltyDto {
   @IsNumber()
   @IsOptional()
   valor?: number;
+}
+
+export class CreatePayrollPilaEventDto {
+  @IsString()
+  @IsNotEmpty()
+  employeeId: string;
+
+  @IsEnum(PilaEventCode)
+  codigo: PilaEventCode;
+
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  fechaInicio: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  fechaFin?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(30)
+  dias?: number;
 }

@@ -51,6 +51,14 @@ export enum MotivoRetiro {
   OTRO = 'OTRO',
 }
 
+export const TipoSalarioPila = {
+  INTEGRAL: 'X',
+  FIJO: 'F',
+  VARIABLE: 'V',
+} as const;
+export type TipoSalarioPila =
+  (typeof TipoSalarioPila)[keyof typeof TipoSalarioPila];
+
 export class CreateEmployeeDto {
   @IsString()
   @IsNotEmpty()
@@ -76,7 +84,9 @@ export class CreateEmployeeDto {
   @IsOptional()
   segundoApellido?: string;
 
-  @Transform(({ value }) => (value === '' ? undefined : value))
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' ? undefined : value,
+  )
   @IsEmail()
   @IsOptional()
   email?: string;
@@ -114,6 +124,10 @@ export class CreateEmployeeDto {
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   salarioIntegral?: boolean;
+
+  @IsEnum(TipoSalarioPila)
+  @IsOptional()
+  tipoSalarioPila?: TipoSalarioPila | null;
 
   @IsEnum(JornadaLaboral)
   @IsOptional()

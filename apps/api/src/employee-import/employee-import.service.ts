@@ -31,6 +31,7 @@ type ContratoTipo = (typeof VALID_TIPO_CONTRATO)[number];
 
 const VALID_ESTADO = ['ACTIVO', 'INACTIVO', 'SUSPENDIDO', 'RETIRADO'] as const;
 const VALID_JORNADA = ['COMPLETA', 'MEDIA', 'POR_HORAS'] as const;
+const VALID_TIPO_SALARIO_PILA = ['X', 'F', 'V'] as const;
 const VALID_MOTIVO_RETIRO = [
   'RENUNCIA',
   'TERMINACION_CONTRATO',
@@ -43,6 +44,7 @@ const VALID_MOTIVO_RETIRO = [
 type ValidEstado = (typeof VALID_ESTADO)[number];
 type ValidJornada = (typeof VALID_JORNADA)[number];
 type ValidMotivoRetiro = (typeof VALID_MOTIVO_RETIRO)[number];
+type ValidTipoSalarioPila = (typeof VALID_TIPO_SALARIO_PILA)[number];
 
 export interface ImportError {
   fila: number;
@@ -66,6 +68,8 @@ interface RawRow {
   estado?: unknown;
   sede?: unknown;
   dependencia?: unknown;
+  tipoSalarioPila?: unknown;
+  // Backward compatibility with previously downloaded templates.
   salarioIntegral?: unknown;
   jornadaLaboral?: unknown;
   fechaRetiro?: unknown;
@@ -128,7 +132,7 @@ const TEMPLATE_HEADERS = [
   'estado',
   'sede',
   'dependencia',
-  'salarioIntegral',
+  'tipoSalarioPila',
   'jornadaLaboral',
   'fechaRetiro',
   'motivoRetiro',
@@ -150,7 +154,7 @@ const TEMPLATE_HINTS = [
   'Opcional. ACTIVO | INACTIVO | SUSPENDIDO | RETIRADO. Por defecto: ACTIVO',
   'Requerido. Nombre exacto de una sede activa (ej: Sede Principal).',
   'Opcional. Área o departamento.',
-  'Opcional. TRUE o FALSE. Por defecto: FALSE',
+  'Opcional. X (integral) | F (fijo) | V (variable), según declaración de la empresa.',
   'Opcional. COMPLETA | MEDIA | POR_HORAS',
   'Opcional. Formato YYYY-MM-DD.',
   'Opcional. RENUNCIA | TERMINACION_CONTRATO | MUTUO_ACUERDO | JUSTA_CAUSA | FALLECIMIENTO | OTRO',
@@ -186,7 +190,7 @@ export class EmployeeImportService {
         'ACTIVO',
         'Sede Principal',
         '',
-        'FALSE',
+        'F',
         'COMPLETA',
         '',
         '',
@@ -224,8 +228,21 @@ export class EmployeeImportService {
     }
 
     const ws = wb.Sheets[sheetName];
+    const [headerRow] = XLSX.utils.sheet_to_json<unknown[]>(ws, {
+      header: 1,
+      range: 0,
+      defval: undefined,
+      blankrows: false,
+    });
+    const headers = headerRow?.map((cell) => str(cell) ?? '') ?? [];
+    if (!headers.includes('cedula')) {
+      throw new BadRequestException(
+        'La plantilla debe incluir la columna cedula en la primera fila.',
+      );
+    }
+
     const rows = XLSX.utils.sheet_to_json<RawRow>(ws, {
-      header: TEMPLATE_HEADERS,
+      header: headers,
       range: 1, // skip header row
       defval: undefined,
       blankrows: false,
@@ -300,6 +317,7 @@ export class EmployeeImportService {
       sedeId: string;
       dependencia?: string;
       salarioIntegral?: boolean;
+      tipoSalarioPila?: ValidTipoSalarioPila;
       jornadaLaboral?: ValidJornada;
       fechaRetiro?: Date;
       motivoRetiro?: ValidMotivoRetiro;
@@ -412,6 +430,41 @@ export class EmployeeImportService {
           fila,
           campo: 'tipoContrato',
           mensaje: `Tipo de contrato inválido: "${tipoContrato}". Valores válidos: ${VALID_TIPO_CONTRATO.join(', ')}.`,
+        });
+      }
+
+      const tipoSalarioRaw = str(row.tipoSalarioPila)?.toUpperCase();
+      let tipoSalarioPila: ValidTipoSalarioPila | undefined;
+      if (
+        tipoSalarioRaw &&
+        !VALID_TIPO_SALARIO_PILA.includes(
+          tipoSalarioRaw as ValidTipoSalarioPila,
+        )
+      ) {
+        errors.push({
+          fila,
+          campo: 'tipoSalarioPila',
+          mensaje: `Tipo de salario PILA inválido: "${tipoSalarioRaw}". Valores válidos: ${VALID_TIPO_SALARIO_PILA.join(', ')}.`,
+        });
+      } else if (tipoSalarioRaw) {
+        tipoSalarioPila = tipoSalarioRaw as ValidTipoSalarioPila;
+      } else if (parseBool(row.salarioIntegral)) {
+        // Legacy spreadsheets can identify integral pay, but FALSE does not
+        // prove that a worker has fixed rather than variable pay.
+        tipoSalarioPila = 'X';
+      }
+
+      const legacyIntegralRaw = str(row.salarioIntegral)?.toUpperCase();
+      if (
+        tipoSalarioPila &&
+        legacyIntegralRaw &&
+        (tipoSalarioPila === 'X') !== parseBool(legacyIntegralRaw)
+      ) {
+        errors.push({
+          fila,
+          campo: 'tipoSalarioPila',
+          mensaje:
+            'El tipo de salario PILA no coincide con la columna salarioIntegral de la plantilla anterior.',
         });
       }
 
@@ -544,7 +597,8 @@ export class EmployeeImportService {
           estado: (estadoRaw || undefined) as ValidEstado | undefined,
           sedeId: resolvedSedeId,
           dependencia: str(row.dependencia),
-          salarioIntegral: parseBool(row.salarioIntegral),
+          salarioIntegral: tipoSalarioPila === 'X',
+          tipoSalarioPila,
           jornadaLaboral: (jornadaRaw || undefined) as ValidJornada | undefined,
           fechaRetiro: fechaRetiroParsed,
           motivoRetiro: (motivoRaw || undefined) as

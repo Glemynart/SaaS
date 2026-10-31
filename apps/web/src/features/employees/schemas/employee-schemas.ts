@@ -29,7 +29,10 @@ export const employeeSchema = z.object({
   estado: z.enum(['ACTIVO', 'INACTIVO', 'SUSPENDIDO', 'RETIRADO'] as const).optional(),
   municipioExpedicionDocId: z.string().optional(),
   sedeId: z.string().min(1, 'La sede del empleado es requerida'),
-  salarioIntegral: z.boolean().optional().default(false),
+  tipoSalarioPila: z.preprocess(
+    (value) => (value === '' ? null : value),
+    z.enum(['X', 'F', 'V'] as const).nullable(),
+  ),
   jornadaLaboral: z.preprocess(
     (value) => (value === '' ? undefined : value),
     z.enum(['COMPLETA', 'MEDIA', 'POR_HORAS'] as const).optional(),

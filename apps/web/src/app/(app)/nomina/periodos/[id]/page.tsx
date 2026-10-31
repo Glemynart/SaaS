@@ -18,6 +18,7 @@ import { useMe } from '@/features/auth/hooks/use-auth';
 import { toast } from 'sonner';
 import { formatNombreCompleto } from '@saas/types';
 import { PayrollCorrectionsPanel } from '@/features/payroll/components/payroll-corrections-panel';
+import { PayrollPilaEventsPanel } from '@/features/payroll/components/payroll-pila-events-panel';
 
 function cop(n: number) {
   return new Intl.NumberFormat('es-CO', {
@@ -240,6 +241,12 @@ export default function PeriodDetailPage({ params }: { params: Promise<{ id: str
         hasPayrollVoucher={Boolean(voucher?.vigente)}
         payrollVoucherReversed={Boolean(voucher && !voucher.vigente)}
         snapshots={data.snapshots}
+      />
+
+      <PayrollPilaEventsPanel
+        periodId={id}
+        periodStatus={period.status}
+        fechaInicio={period.fechaInicio}
       />
 
       {(blocks ?? []).length > 0 && (

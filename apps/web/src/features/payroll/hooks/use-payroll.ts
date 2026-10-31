@@ -3,6 +3,7 @@ import { payrollApi } from '../services/payroll-api';
 import type {
   PayrollCorrectionAction,
   PayrollCorrectionIntentPayload,
+  PilaEventCode,
 } from '../services/payroll-api';
 
 export const payrollKeys = {
@@ -12,6 +13,7 @@ export const payrollKeys = {
   period: (id: string) => [...payrollKeys.periods(), id],
   corrections: (periodId: string) => [...payrollKeys.period(periodId), 'corrections'],
   blocks: (periodId: string) => [...payrollKeys.period(periodId), 'blocks'],
+  pilaEvents: (periodId: string) => [...payrollKeys.period(periodId), 'pila-events'],
   novelties: () => [...payrollKeys.all, 'novelties'],
   servicePremiums: () => [...payrollKeys.all, 'service-premiums'],
   servicePremium: (id: string) => [...payrollKeys.servicePremiums(), id],
@@ -115,6 +117,48 @@ export function usePayrollBlocks(periodId: string) {
     queryKey: payrollKeys.blocks(periodId),
     queryFn: () => payrollApi.getBlocks(periodId),
     enabled: !!periodId,
+  });
+}
+
+export function usePayrollPilaEvents(periodId: string) {
+  return useQuery({
+    queryKey: payrollKeys.pilaEvents(periodId),
+    queryFn: () => payrollApi.getPilaEvents(periodId),
+    enabled: !!periodId,
+  });
+}
+
+export function useCreatePayrollPilaEvent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      periodId,
+      payload,
+    }: {
+      periodId: string;
+      payload: {
+        employeeId: string;
+        codigo: PilaEventCode;
+        fechaInicio: string;
+        fechaFin?: string;
+        dias?: number;
+      };
+    }) => payrollApi.createPilaEvent(periodId, payload),
+    onSuccess: (_, { periodId }) => {
+      qc.invalidateQueries({ queryKey: payrollKeys.pilaEvents(periodId) });
+      qc.invalidateQueries({ queryKey: payrollKeys.period(periodId) });
+    },
+  });
+}
+
+export function useDeletePayrollPilaEvent(periodId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: payrollApi.deletePilaEvent,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: payrollKeys.pilaEvents(periodId) });
+      qc.invalidateQueries({ queryKey: payrollKeys.period(periodId) });
+    },
   });
 }
 

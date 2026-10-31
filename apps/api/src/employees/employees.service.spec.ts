@@ -8,6 +8,7 @@ const mockEmpleadoFindUnique = jest.fn();
 const mockEmpleadoFindFirst = jest.fn();
 const mockEmpleadoFindMany = jest.fn();
 const mockEmpleadoCount = jest.fn();
+const mockEmpleadoCreate = jest.fn();
 const mockEmpleadoUpdate = jest.fn();
 const mockSedeFindFirst = jest.fn();
 const mockAuditLog = jest.fn();
@@ -46,6 +47,7 @@ describe('EmployeesService tenant isolation contracts', () => {
               findFirst: mockEmpleadoFindFirst,
               findMany: mockEmpleadoFindMany,
               count: mockEmpleadoCount,
+              create: mockEmpleadoCreate,
               update: mockEmpleadoUpdate,
             },
             sede: { findFirst: mockSedeFindFirst },
@@ -84,6 +86,49 @@ describe('EmployeesService tenant isolation contracts', () => {
   it('requires a site when registering an employee', async () => {
     await expect(
       service.create(USER_A, { sedeId: '' } as never),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(mockTenantPrismaExecute).not.toHaveBeenCalled();
+  });
+
+  it('keeps the explicitly declared PILA salary mode consistent with payroll', async () => {
+    mockEmpleadoFindUnique.mockResolvedValue(null);
+    mockSedeFindFirst.mockResolvedValue({ id: 'sede-a' });
+    mockEmpleadoCreate.mockImplementation(
+      (args: { data: Record<string, unknown> }) => ({
+        id: 'employee-a',
+        ...args.data,
+      }),
+    );
+
+    await service.create(USER_A, {
+      cedula: '1001',
+      tipoDocumento: 'CC',
+      primerNombre: 'Ana',
+      primerApellido: 'Gómez',
+      cargo: 'Docente',
+      salario: 2_000_000,
+      tipoContrato: 'TERMINO_FIJO',
+      fechaIngreso: '2026-01-01',
+      sedeId: 'sede-a',
+      tipoSalarioPila: 'V',
+    } as never);
+
+    const [createQuery] = mockEmpleadoCreate.mock.calls as [
+      [{ data: { tipoSalarioPila: string; salarioIntegral: boolean } }],
+    ];
+    expect(createQuery?.[0].data).toEqual(
+      expect.objectContaining({ tipoSalarioPila: 'V', salarioIntegral: false }),
+    );
+  });
+
+  it('rejects a contradictory PILA type and integral-salary flag', async () => {
+    await expect(
+      service.create(USER_A, {
+        sedeId: 'sede-a',
+        tipoSalarioPila: 'F',
+        salarioIntegral: true,
+      } as never),
     ).rejects.toThrow(BadRequestException);
 
     expect(mockTenantPrismaExecute).not.toHaveBeenCalled();
@@ -206,6 +251,25 @@ describe('EmployeesService tenant isolation contracts', () => {
         metadata: { fields: ['cargo'] },
       }),
     );
+  });
+
+  it('updates the PILA salary type and legacy integral flag together', async () => {
+    mockEmpleadoFindFirst.mockResolvedValue({
+      id: 'employee-a',
+      tipoSalarioPila: 'F',
+      salarioIntegral: false,
+    });
+    mockEmpleadoUpdate.mockResolvedValue({ id: 'employee-a' });
+
+    await service.update(USER_A, 'employee-a', { tipoSalarioPila: 'X' });
+
+    const [updateQuery] = mockEmpleadoUpdate.mock.calls as [
+      [{ data: { tipoSalarioPila: string; salarioIntegral: boolean } }],
+    ];
+    expect(updateQuery?.[0].data).toMatchObject({
+      tipoSalarioPila: 'X',
+      salarioIntegral: true,
+    });
   });
 
   it('clears an optional retirement date when the edit form sends an empty value', async () => {

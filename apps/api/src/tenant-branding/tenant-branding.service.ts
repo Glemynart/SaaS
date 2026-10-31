@@ -1,15 +1,46 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { StorageObjectNotFoundError } from '../storage/storage.types';
 import { UpdateTenantBrandingDto } from './dto/update-tenant-branding.dto';
+import { UpdatePilaEmployerProfileDto } from './dto/update-pila-employer-profile.dto';
+import { AuditService } from '../audit/audit.service';
 import * as path from 'path';
+
+const PILA_PROFILE_FIELDS = [
+  'pilaTipoDocumentoAportante',
+  'pilaNaturalezaJuridica',
+  'pilaTipoPersona',
+  'pilaFormaPresentacion',
+  'pilaCodigoSucursal',
+  'pilaNombreSucursal',
+  'pilaCodigoActividadEconomica',
+  'pilaCodigoArlAportante',
+  'pilaTipoAportante',
+  'pilaFax',
+  'pilaRepresentanteTipoDocumento',
+  'pilaRepresentanteNumeroDocumento',
+  'pilaRepresentantePrimerApellido',
+  'pilaRepresentanteSegundoApellido',
+  'pilaRepresentantePrimerNombre',
+  'pilaRepresentanteSegundoNombre',
+  'pilaFechaMatriculaMercantil',
+  'pilaBeneficioLey1429',
+  'pilaBeneficioCcfLey1429',
+  'pilaAportesExoneradosConfirmado',
+  'pilaSinAccionEspecial',
+] as const;
 
 @Injectable()
 export class TenantBrandingService {
   constructor(
     private prisma: PrismaService,
     private storage: StorageService,
+    private audit: AuditService,
   ) {}
 
   async getBranding(tenantId: string) {
@@ -46,6 +77,108 @@ export class TenantBrandingService {
         nombre: true,
       },
     });
+  }
+
+  async getPilaEmployerProfile(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        razonSocial: true,
+        nit: true,
+        aportesExonerados: true,
+        ...this.pilaProfileSelect(),
+      },
+    });
+    if (!tenant) throw new NotFoundException('Empresa no encontrada');
+    return tenant;
+  }
+
+  async updatePilaEmployerProfile(
+    tenantId: string,
+    userId: string,
+    dto: UpdatePilaEmployerProfileDto,
+  ) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true, aportesExonerados: true },
+    });
+    if (!tenant) throw new NotFoundException('Empresa no encontrada');
+
+    if (
+      dto.pilaAportesExoneradosConfirmado !== undefined &&
+      dto.pilaAportesExoneradosConfirmado !== null &&
+      dto.pilaAportesExoneradosConfirmado !== tenant.aportesExonerados
+    ) {
+      throw new BadRequestException(
+        'La confirmación de exoneración debe coincidir con la configuración vigente de nómina.',
+      );
+    }
+
+    const { pilaFechaMatriculaMercantil, ...rest } = dto;
+    const data = {
+      ...rest,
+      ...(pilaFechaMatriculaMercantil !== undefined && {
+        pilaFechaMatriculaMercantil: pilaFechaMatriculaMercantil
+          ? new Date(`${pilaFechaMatriculaMercantil}T00:00:00.000Z`)
+          : null,
+      }),
+    };
+    const changedPilaFields = PILA_PROFILE_FIELDS.filter(
+      (field) => dto[field] !== undefined,
+    );
+
+    return this.prisma.$transaction(async (tx) => {
+      const result = await tx.tenant.update({
+        where: { id: tenantId },
+        data,
+        select: {
+          razonSocial: true,
+          nit: true,
+          aportesExonerados: true,
+          ...this.pilaProfileSelect(),
+        },
+      });
+      if (changedPilaFields.length > 0) {
+        await this.audit.log(
+          {
+            tenantId,
+            userId,
+            action: 'PILA_EMPLOYER_PROFILE_UPDATED',
+            entityType: 'Tenant',
+            entityId: tenantId,
+            metadata: { fields: [...changedPilaFields] },
+          },
+          tx,
+        );
+      }
+      return result;
+    });
+  }
+
+  private pilaProfileSelect() {
+    return {
+      pilaTipoDocumentoAportante: true,
+      pilaNaturalezaJuridica: true,
+      pilaTipoPersona: true,
+      pilaFormaPresentacion: true,
+      pilaCodigoSucursal: true,
+      pilaNombreSucursal: true,
+      pilaCodigoActividadEconomica: true,
+      pilaCodigoArlAportante: true,
+      pilaTipoAportante: true,
+      pilaFax: true,
+      pilaRepresentanteTipoDocumento: true,
+      pilaRepresentanteNumeroDocumento: true,
+      pilaRepresentantePrimerApellido: true,
+      pilaRepresentanteSegundoApellido: true,
+      pilaRepresentantePrimerNombre: true,
+      pilaRepresentanteSegundoNombre: true,
+      pilaFechaMatriculaMercantil: true,
+      pilaBeneficioLey1429: true,
+      pilaBeneficioCcfLey1429: true,
+      pilaAportesExoneradosConfirmado: true,
+      pilaSinAccionEspecial: true,
+    } as const;
   }
 
   async getFirma(tenantId: string) {
