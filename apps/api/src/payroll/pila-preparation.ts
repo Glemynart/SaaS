@@ -200,6 +200,23 @@ export function inspectPilaSnapshotPreparation(
       );
     }
   };
+  const validateFieldLength = (
+    record: PilaPreparationRecord,
+    fieldNumber: number,
+    value: unknown,
+    maxLength: number,
+    label: string,
+  ) => {
+    const normalized = text(value);
+    if (normalized && Array.from(normalized).length > maxLength) {
+      add(
+        record,
+        fieldNumber,
+        `CAMPO_${fieldNumber}_LONGITUD_SUPERADA`,
+        `El campo ${label} supera las ${maxLength} posiciones permitidas por AT2 v30.`,
+      );
+    }
+  };
 
   // Matriz PILA preliminar, archivo tipo 1: los valores del aportante se
   // exigen desde los datos declarados y congelados en el snapshot, no desde
@@ -210,6 +227,13 @@ export function inspectPilaSnapshotPreparation(
     1,
     employer?.razonSocial,
     'Falta la razón social del aportante.',
+  );
+  validateFieldLength(
+    employerRecord,
+    1,
+    employer?.razonSocial,
+    200,
+    'razón social del aportante',
   );
   requireChoice(
     employerRecord,
@@ -337,6 +361,45 @@ export function inspectPilaSnapshotPreparation(
       employerPila?.nombreSucursal,
       'La presentación por sucursal requiere el nombre PILA de la sucursal.',
     );
+  }
+  for (const [field, value, label, maxLength] of [
+    [5, employerPila?.codigoSucursal, 'código de sucursal', 10],
+    [6, employerPila?.nombreSucursal, 'nombre de sucursal', 40],
+    [11, employer?.direccion, 'dirección del aportante', 40],
+    [16, employerPila?.fax, 'fax del aportante', 10],
+    [17, employer?.email, 'correo del aportante', 60],
+    [
+      18,
+      employerPila?.representanteNumeroDocumento,
+      'documento del representante',
+      16,
+    ],
+    [
+      21,
+      employerPila?.representantePrimerApellido,
+      'primer apellido del representante',
+      20,
+    ],
+    [
+      22,
+      employerPila?.representanteSegundoApellido,
+      'segundo apellido del representante',
+      30,
+    ],
+    [
+      23,
+      employerPila?.representantePrimerNombre,
+      'primer nombre del representante',
+      20,
+    ],
+    [
+      24,
+      employerPila?.representanteSegundoNombre,
+      'segundo nombre del representante',
+      30,
+    ],
+  ] as const) {
+    validateFieldLength(employerRecord, field, value, maxLength, label);
   }
   requireText(
     employerRecord,
@@ -718,15 +781,7 @@ export function inspectPilaSnapshotPreparation(
     [13, 'primerNombre', 'primer nombre', 20],
     [14, 'segundoNombre', 'segundo nombre', 30],
   ] as const) {
-    const value = text(employee?.[key]);
-    if (value && Array.from(value).length > maxLength) {
-      add(
-        detailRecord,
-        field,
-        `CAMPO_${field}_LONGITUD_SUPERADA`,
-        `El ${label} supera las ${maxLength} posiciones del campo AT2 v30.`,
-      );
-    }
+    validateFieldLength(detailRecord, field, employee?.[key], maxLength, label);
   }
   const worksiteCode = text(worksiteMunicipality?.codigo);
   if (!worksite || !worksiteCode || !/^\d{5}$/.test(worksiteCode)) {

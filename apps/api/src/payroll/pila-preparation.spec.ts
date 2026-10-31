@@ -14,6 +14,7 @@ function payload() {
       nit: '900123456',
       digitoVerif: '7',
       direccion: 'Calle Demo 10',
+      email: '',
       telefono: '6011234567',
       aportesExonerados: false,
       municipio: { codigo: '11001' },
@@ -26,6 +27,9 @@ function payload() {
         codigoActividadEconomica: '1234',
         codigoArlAportante: '123456',
         tipoAportante: '1',
+        codigoSucursal: '',
+        nombreSucursal: '',
+        fax: '',
         aportesExoneradosConfirmado: false,
         beneficioCcfLey1429: false,
         beneficioLey1429: false,
@@ -33,7 +37,9 @@ function payload() {
         representanteNumeroDocumento: '900123456',
         representanteTipoDocumento: 'CC',
         representantePrimerApellido: 'Demo',
+        representanteSegundoApellido: '',
         representantePrimerNombre: 'Ana',
+        representanteSegundoNombre: '',
       },
     },
     employee: {
@@ -178,6 +184,74 @@ describe('inspectPilaSnapshotPreparation', () => {
 
     expect(
       result.issues.filter(({ code }) => code.includes('SUPERA_LONGITUD')),
+    ).toEqual([]);
+  });
+
+  it('bloquea datos del aportante y representante que exceden las longitudes AT2', () => {
+    const source = payload();
+    source.employer.razonSocial = 'R'.repeat(201);
+    source.employer.direccion = 'D'.repeat(41);
+    source.employer.email = 'e'.repeat(61);
+    source.employer.pila.formaPresentacion = 'S';
+    source.employer.pila.codigoSucursal = 'S'.repeat(11);
+    source.employer.pila.nombreSucursal = 'N'.repeat(41);
+    source.employer.pila.fax = '1'.repeat(11);
+    source.employer.pila.representanteNumeroDocumento = '1'.repeat(17);
+    source.employer.pila.representantePrimerApellido = 'A'.repeat(21);
+    source.employer.pila.representanteSegundoApellido = 'B'.repeat(31);
+    source.employer.pila.representantePrimerNombre = 'C'.repeat(21);
+    source.employer.pila.representanteSegundoNombre = 'D'.repeat(31);
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues
+        .filter(
+          ({ record, code }) =>
+            record === 'APORTANTE_TIPO_1' && code.includes('LONGITUD_SUPERADA'),
+        )
+        .map(({ fieldNumber, code }) => ({ fieldNumber, code })),
+    ).toEqual([
+      { fieldNumber: 1, code: 'CAMPO_1_LONGITUD_SUPERADA' },
+      { fieldNumber: 5, code: 'CAMPO_5_LONGITUD_SUPERADA' },
+      { fieldNumber: 6, code: 'CAMPO_6_LONGITUD_SUPERADA' },
+      { fieldNumber: 11, code: 'CAMPO_11_LONGITUD_SUPERADA' },
+      { fieldNumber: 16, code: 'CAMPO_16_LONGITUD_SUPERADA' },
+      { fieldNumber: 17, code: 'CAMPO_17_LONGITUD_SUPERADA' },
+      { fieldNumber: 18, code: 'CAMPO_18_LONGITUD_SUPERADA' },
+      { fieldNumber: 21, code: 'CAMPO_21_LONGITUD_SUPERADA' },
+      { fieldNumber: 22, code: 'CAMPO_22_LONGITUD_SUPERADA' },
+      { fieldNumber: 23, code: 'CAMPO_23_LONGITUD_SUPERADA' },
+      { fieldNumber: 24, code: 'CAMPO_24_LONGITUD_SUPERADA' },
+    ]);
+  });
+
+  it('acepta las longitudes máximas de los datos de aportante y representante', () => {
+    const source = payload();
+    source.employer.razonSocial = 'R'.repeat(200);
+    source.employer.direccion = 'D'.repeat(40);
+    source.employer.email = 'e'.repeat(60);
+    source.employer.pila.formaPresentacion = 'S';
+    source.employer.pila.codigoSucursal = 'S'.repeat(10);
+    source.employer.pila.nombreSucursal = 'N'.repeat(40);
+    source.employer.pila.fax = '1'.repeat(10);
+    source.employer.pila.representanteNumeroDocumento = '1'.repeat(16);
+    source.employer.pila.representantePrimerApellido = 'A'.repeat(20);
+    source.employer.pila.representanteSegundoApellido = 'B'.repeat(30);
+    source.employer.pila.representantePrimerNombre = 'C'.repeat(20);
+    source.employer.pila.representanteSegundoNombre = 'D'.repeat(30);
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(
+        ({ record, code }) =>
+          record === 'APORTANTE_TIPO_1' && code.includes('LONGITUD_SUPERADA'),
+      ),
     ).toEqual([]);
   });
 
