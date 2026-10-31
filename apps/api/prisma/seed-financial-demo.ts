@@ -16,6 +16,11 @@ import {
 } from '../src/payroll/accounting-preflight/payroll-accounting-preflight.service';
 import { PayrollService } from '../src/payroll/payroll.service';
 import { PrismaService } from '../src/prisma/prisma.service';
+import {
+  buildInvoiceAccountingLines,
+  INVOICE_ACCOUNTING_REQUIRED_ROLES,
+  type InvoiceSystemAccounts,
+} from '../src/billing/accounting/invoice-accounting.mapper';
 import { TenantContextBoundary } from '../src/tenant-context/tenant-context.boundary';
 import { TenantContextService } from '../src/tenant-context/tenant-context.service';
 import { TenantPrismaService } from '../src/tenant-prisma/tenant-prisma.service';
@@ -28,9 +33,10 @@ import {
 } from './seed-data/accounting-c0';
 
 const DEMO_NAMESPACE = Buffer.from('6ba7b8109dad11d180b400c04fd430c8', 'hex');
-const PAYROLL_ACCOUNT_ROLES = new Set<string>(
-  PAYROLL_ACCOUNTING_REQUIRED_ROLES,
-);
+const FINANCIAL_DEMO_ACCOUNT_ROLES = new Set<string>([
+  ...PAYROLL_ACCOUNTING_REQUIRED_ROLES,
+  ...INVOICE_ACCOUNTING_REQUIRED_ROLES,
+]);
 
 const DEMO_CUSTOMERS = [
   {
@@ -181,14 +187,14 @@ function nextMonth(
     : { year, month: month + 1 };
 }
 
-async function ensurePayrollAccounts(
+async function ensureFinancialDemoAccounts(
   tx: Prisma.TransactionClient,
   tenantId: string,
   created: CreatedCounts,
 ): Promise<void> {
-  const roles = [...PAYROLL_ACCOUNT_ROLES];
+  const roles = [...FINANCIAL_DEMO_ACCOUNT_ROLES];
   const mappings = DEFAULT_SYSTEM_ACCOUNT_MAPPINGS.filter((mapping) =>
-    PAYROLL_ACCOUNT_ROLES.has(mapping.rol),
+    FINANCIAL_DEMO_ACCOUNT_ROLES.has(mapping.rol),
   );
   const existingMaps = await tx.cuentaSistemaMap.findMany({
     where: { tenantId, rol: { in: roles } },
@@ -320,19 +326,22 @@ async function ensurePayrollAccounts(
   }
 }
 
-async function requireVoucherType(tx: Prisma.TransactionClient): Promise<void> {
+async function requireVoucherType(
+  tx: Prisma.TransactionClient,
+  codigo: 'NOM' | 'FV',
+): Promise<{ id: string }> {
   const existing = await tx.tipoComprobante.findUnique({
-    where: { codigo: 'NOM' },
+    where: { codigo },
     select: { id: true, activo: true },
   });
   if (existing) {
     if (!existing.activo) {
-      throw new Error('El tipo global de comprobante NOM está inactivo.');
+      throw new Error(`El tipo global de comprobante ${codigo} está inactivo.`);
     }
-    return;
+    return { id: existing.id };
   }
   throw new Error(
-    'No existe el tipo global de comprobante NOM; ejecuta primero la configuración base de la aplicación.',
+    `No existe el tipo global de comprobante ${codigo}; ejecuta primero la configuración base de la aplicación.`,
   );
 }
 
@@ -394,7 +403,14 @@ async function ensureCustomer(
   const id = demoId(tenantId, customer.key);
   const existing = await tx.customer.findUnique({ where: { id } });
   assertTenant(existing, tenantId, customer.key);
-  if (existing) return id;
+  if (existing) {
+    if (existing.status !== 'ACTIVE') {
+      throw new Error(
+        `El cliente sintético ${customer.key} está inactivo; no se modificó.`,
+      );
+    }
+    return id;
+  }
 
   const sameNit = await tx.customer.findUnique({
     where: { tenantId_nit: { tenantId, nit: customer.nit } },
@@ -417,6 +433,99 @@ async function ensureCustomer(
     },
   });
   created.customers += 1;
+  return id;
+}
+
+async function ensureCustomerThirdParty(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  customerId: string,
+  customer: (typeof DEMO_CUSTOMERS)[number],
+  created: CreatedCounts,
+): Promise<string> {
+  const customerRow = await tx.customer.findFirst({
+    where: { id: customerId, tenantId },
+    select: { terceroId: true },
+  });
+  if (!customerRow) {
+    throw new Error(`No existe el cliente demo ${customer.key} en el tenant.`);
+  }
+
+  if (customerRow.terceroId) {
+    const linkedThirdParty = await tx.tercero.findFirst({
+      where: {
+        id: customerRow.terceroId,
+        tenantId,
+        esCliente: true,
+        activo: true,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    if (!linkedThirdParty) {
+      throw new Error(
+        `El cliente demo ${customer.key} tiene un tercero contable no disponible; no se cambió.`,
+      );
+    }
+    return linkedThirdParty.id;
+  }
+
+  const id = demoId(tenantId, `${customer.key}-third-party`);
+  const existing = await tx.tercero.findUnique({ where: { id } });
+  assertTenant(existing, tenantId, `${customer.key} third party`);
+  if (existing) {
+    if (
+      existing.tipoDocumento !== 'NIT' ||
+      existing.numeroDocumento !== customer.nit ||
+      !existing.esCliente ||
+      !existing.activo ||
+      existing.deletedAt
+    ) {
+      throw new Error(
+        `El tercero sintético de ${customer.key} existe con datos incompatibles; no se modificó.`,
+      );
+    }
+  } else {
+    const documentCollision = await tx.tercero.findUnique({
+      where: {
+        tenantId_tipoDocumento_numeroDocumento: {
+          tenantId,
+          tipoDocumento: 'NIT',
+          numeroDocumento: customer.nit,
+        },
+      },
+      select: { id: true },
+    });
+    if (documentCollision) {
+      throw new Error(
+        `El documento sintético ${customer.nit} ya pertenece a otro tercero; no se vinculó automáticamente.`,
+      );
+    }
+    await tx.tercero.create({
+      data: {
+        id,
+        tenantId,
+        tipoDocumento: 'NIT',
+        numeroDocumento: customer.nit,
+        tipoPersona: 'JURIDICA',
+        razonSocial: customer.razonSocial,
+        email: customer.email,
+        esCliente: true,
+        activo: true,
+      },
+    });
+    created.thirdParties += 1;
+  }
+
+  const linked = await tx.customer.updateMany({
+    where: { id: customerId, tenantId, terceroId: null },
+    data: { terceroId: id },
+  });
+  if (linked.count !== 1) {
+    throw new Error(
+      `El vínculo contable de ${customer.key} cambió durante la carga; vuelve a ejecutarla.`,
+    );
+  }
   return id;
 }
 
@@ -459,6 +568,8 @@ async function ensureProduct(
 async function ensureInvoice(
   tx: Prisma.TransactionClient,
   tenantId: string,
+  actorId: string,
+  ledger: LedgerService,
   invoice: {
     key: string;
     numero: string;
@@ -476,9 +587,46 @@ async function ensureInvoice(
   created: CreatedCounts,
 ): Promise<void> {
   const id = demoId(tenantId, invoice.key);
-  const existing = await tx.invoice.findUnique({ where: { id } });
+  const existing = await tx.invoice.findUnique({
+    where: { id },
+    include: { items: true },
+  });
   assertTenant(existing, tenantId, invoice.key);
-  if (existing) return;
+  if (existing) {
+    if (
+      existing.customerId !== invoice.customerId ||
+      existing.status !== invoice.status
+    ) {
+      throw new Error(
+        `La factura sintética ${invoice.key} ya existe con estado o cliente distinto; no se modificó.`,
+      );
+    }
+    const vouchers = await tx.comprobanteContable.findMany({
+      where: {
+        tenantId,
+        origenTipo: 'BILLING_INVOICE',
+        origenId: id,
+        origenEvento: 'ISSUED',
+      },
+      select: { id: true, estado: true, reversos: { select: { id: true } } },
+    });
+    if (invoice.status === 'ISSUED') {
+      if (
+        vouchers.length !== 1 ||
+        vouchers[0].estado !== 'CONTABILIZADO' ||
+        vouchers[0].reversos.length > 0
+      ) {
+        throw new Error(
+          `La factura demo ${invoice.key} ya estaba emitida sin un comprobante vigente. No se contabilizó retroactivamente; requiere revisión contable.`,
+        );
+      }
+    } else if (vouchers.length > 0) {
+      throw new Error(
+        `La factura demo ${invoice.key} es borrador y ya tiene comprobante; requiere revisión contable.`,
+      );
+    }
+    return;
+  }
 
   const sameNumber = await tx.invoice.findFirst({
     where: { tenantId, numero: invoice.numero },
@@ -534,7 +682,7 @@ async function ensureInvoice(
     new Decimal(0),
   );
 
-  await tx.invoice.create({
+  const createdInvoice = await tx.invoice.create({
     data: {
       id,
       tenantId,
@@ -547,9 +695,117 @@ async function ensureInvoice(
       fechaEmision: invoice.fechaEmision,
       items: { create: items },
     },
+    include: { customer: { select: { terceroId: true } }, items: true },
   });
   created.invoices += 1;
   created.invoiceItems += items.length;
+
+  if (invoice.status === 'ISSUED') {
+    const terceroId = createdInvoice.customer.terceroId;
+    if (!terceroId) {
+      throw new Error(
+        `La factura demo ${invoice.key} no tiene un tercero cliente explícito.`,
+      );
+    }
+    const accountingDate = new Date(
+      Date.UTC(
+        createdInvoice.fechaEmision.getUTCFullYear(),
+        createdInvoice.fechaEmision.getUTCMonth(),
+        createdInvoice.fechaEmision.getUTCDate(),
+      ),
+    );
+    const [maps, period, voucherType] = await Promise.all([
+      tx.cuentaSistemaMap.findMany({
+        where: {
+          tenantId,
+          activo: true,
+          rol: { in: [...INVOICE_ACCOUNTING_REQUIRED_ROLES] },
+        },
+        select: { rol: true, cuentaId: true },
+      }),
+      tx.periodoContable.findFirst({
+        where: {
+          tenantId,
+          estado: EstadoPeriodo.ABIERTO,
+          fechaInicio: { lte: accountingDate },
+          fechaFin: { gte: accountingDate },
+        },
+        select: { id: true },
+      }),
+      requireVoucherType(tx, 'FV'),
+    ]);
+    const mapByRole = new Map(
+      maps.map((mapping) => [mapping.rol, mapping.cuentaId]),
+    );
+    const missingRoles = INVOICE_ACCOUNTING_REQUIRED_ROLES.filter(
+      (role) => !mapByRole.has(role),
+    );
+    if (missingRoles.length > 0) {
+      throw new Error(
+        `Faltan mapeos contables para la factura demo: ${missingRoles.join(', ')}.`,
+      );
+    }
+    if (!period) {
+      throw new Error(
+        `No existe un período contable abierto para la fecha de la factura demo ${invoice.key}.`,
+      );
+    }
+    const accountIds = INVOICE_ACCOUNTING_REQUIRED_ROLES.map((role) =>
+      mapByRole.get(role),
+    );
+    if (new Set(accountIds).size !== INVOICE_ACCOUNTING_REQUIRED_ROLES.length) {
+      throw new Error(
+        'Los mapeos contables de la factura demo deben usar cuentas distintas.',
+      );
+    }
+    const accounts = Object.fromEntries(
+      INVOICE_ACCOUNTING_REQUIRED_ROLES.map((role) => [
+        role,
+        mapByRole.get(role)!,
+      ]),
+    ) as InvoiceSystemAccounts;
+    const tercero = await tx.tercero.findFirst({
+      where: {
+        id: terceroId,
+        tenantId,
+        esCliente: true,
+        activo: true,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    if (!tercero) {
+      throw new Error(
+        `El tercero de la factura demo ${invoice.key} no está activo como cliente en el tenant.`,
+      );
+    }
+    const lineas = buildInvoiceAccountingLines(
+      {
+        numero: createdInvoice.numero,
+        subtotal: createdInvoice.subtotal,
+        impuestos: createdInvoice.impuestos,
+        total: createdInvoice.total,
+        terceroId: tercero.id,
+        items: createdInvoice.items,
+      },
+      accounts,
+    );
+    await ledger.registrarComprobante(
+      {
+        tenantId,
+        userId: actorId,
+        tipoComprobanteId: voucherType.id,
+        periodoId: period.id,
+        fecha: accountingDate,
+        concepto: `Factura interna ${createdInvoice.numero}`,
+        lineas,
+        origenTipo: 'BILLING_INVOICE',
+        origenId: createdInvoice.id,
+        origenEvento: 'ISSUED',
+      },
+      tx,
+    );
+  }
 }
 
 function periodLabel(fechaFin: Date): string {
@@ -1049,8 +1305,8 @@ export async function seedFinancialDemoScenario(
         }
 
         if (existingPeriod?.status !== PayrollPeriodStatus.CAUSADA) {
-          await ensurePayrollAccounts(tx, tenantId, created);
-          await requireVoucherType(tx);
+          await ensureFinancialDemoAccounts(tx, tenantId, created);
+          await requireVoucherType(tx, 'NOM');
         }
 
         let accountingPeriod: { id: string; fechaInicio: Date; fechaFin: Date };
@@ -1104,17 +1360,35 @@ export async function seedFinancialDemoScenario(
       }
 
       const monthStartDate = seedSetup.accountingPeriod.fechaInicio;
-      const invoiceDate = seedSetup.accountingPeriod.fechaFin;
+      const periodEnd = seedSetup.accountingPeriod.fechaFin;
+      const invoiceDate = new Date(
+        Date.UTC(
+          periodEnd.getUTCFullYear(),
+          periodEnd.getUTCMonth(),
+          periodEnd.getUTCDate(),
+          12,
+        ),
+      );
       const invoiceYear = invoiceDate.getUTCFullYear();
       const payrollPeriodId = await tenantPrisma.execute(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`financial-demo:${tenantId}`}), 0)`;
 
         const customerIds = new Map<string, string>();
         for (const customer of DEMO_CUSTOMERS) {
-          customerIds.set(
-            customer.key,
-            await ensureCustomer(tx, tenantId, customer, created),
+          const customerId = await ensureCustomer(
+            tx,
+            tenantId,
+            customer,
+            created,
           );
+          await ensureCustomerThirdParty(
+            tx,
+            tenantId,
+            customerId,
+            customer,
+            created,
+          );
+          customerIds.set(customer.key, customerId);
         }
 
         const productIds = new Map<string, string>();
@@ -1134,6 +1408,8 @@ export async function seedFinancialDemoScenario(
         await ensureInvoice(
           tx,
           tenantId,
+          actorId,
+          ledger,
           {
             key: 'invoice-issued-001',
             numero: `DEMO-${invoiceYear}-001`,
@@ -1155,6 +1431,8 @@ export async function seedFinancialDemoScenario(
         await ensureInvoice(
           tx,
           tenantId,
+          actorId,
+          ledger,
           {
             key: 'invoice-issued-002',
             numero: `DEMO-${invoiceYear}-002`,
@@ -1183,6 +1461,8 @@ export async function seedFinancialDemoScenario(
         await ensureInvoice(
           tx,
           tenantId,
+          actorId,
+          ledger,
           {
             key: 'invoice-draft-003',
             numero: `DEMO-${invoiceYear}-003`,
