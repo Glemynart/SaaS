@@ -42,6 +42,20 @@ aprueba en cada planilla afectada. La migración de PR #169 se aplicó con las 7
 anteriores en PostgreSQL 16 desechable. No se ejecutó rollback destructivo ni
 se accedió a demo, staging o producción.
 
+### Consulta del Ledger en el recorrido financiero de demo — 2026-10-31
+
+- En `main`, la pantalla Contabilidad → Comprobantes informaba que no tenía
+  consulta ni detalle, aunque `ReportingService` ya exponía el Libro Diario
+  tenant-scoped con movimientos y nombres de cuentas.
+- La rama `codex/goal02-accounting-voucher-query` agrega una lista paginada de
+  comprobantes contabilizados y el detalle de sus líneas a esa pantalla,
+  reutilizando el endpoint de reportes existente; no agrega escrituras,
+  migraciones ni modifica el Ledger.
+- El escenario Browser E2E financiero extiende la prueba de nómina para abrir
+  el comprobante causado, revisar sus cuentas y confirmar que débitos y créditos
+  se conservan junto al snapshot aprobado. La factura interna sigue sin asiento
+  propio mientras ADR-011 permanezca pendiente de aprobación.
+
 ## H1 — Fundación de integraciones regulatorias
 
 | Prioridad | Estado    | Iniciativa                                                                 | Criterios de aceptación                                                                                                                        | Dependencias y riesgo                                                                   |

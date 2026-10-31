@@ -5,6 +5,7 @@ import {
   accountingApi,
   type CentroCostoFilters,
   type CuentaContableFilters,
+  type LedgerVoucherPage,
   type PeriodoContableFilters,
   type TerceroFilters,
 } from '../services/accounting-api';
@@ -23,6 +24,9 @@ export const accountingConfigurationKeys = {
     [...accountingConfigurationKeys.centrosCosto(), filters] as const,
   periodos: () => [...accountingConfigurationKeys.all, 'periodos'] as const,
   tiposComprobante: () => [...accountingConfigurationKeys.all, 'tipos-comprobante'] as const,
+  comprobantes: () => [...accountingConfigurationKeys.all, 'comprobantes'] as const,
+  comprobantePage: (page: number, limit: number) =>
+    [...accountingConfigurationKeys.comprobantes(), { page, limit }] as const,
   periodoList: (filters: PeriodoContableFilters) =>
     [...accountingConfigurationKeys.periodos(), filters] as const,
 };
@@ -191,10 +195,31 @@ export function useTiposComprobante() {
   });
 }
 
+export function useComprobantesContabilizados(page = 1, limit = 20) {
+  return useQuery({
+    queryKey: accountingConfigurationKeys.comprobantePage(page, limit),
+    queryFn: () =>
+      accountingApi.reportes.get<LedgerVoucherPage>('libro-diario', {
+        page,
+        limit,
+      }),
+  });
+}
+
 export function useRegistrarComprobante() {
-  return useMutation({ mutationFn: accountingApi.comprobantes.registrar });
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: accountingApi.comprobantes.registrar,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: accountingConfigurationKeys.comprobantes() }),
+  });
 }
 
 export function useAnularComprobante() {
-  return useMutation({ mutationFn: accountingApi.comprobantes.anular });
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: accountingApi.comprobantes.anular,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: accountingConfigurationKeys.comprobantes() }),
+  });
 }
