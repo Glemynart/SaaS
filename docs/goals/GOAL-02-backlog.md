@@ -804,7 +804,7 @@ false`.
 
 ### Candidatos del aportante tipo 1 en el preflight PILA — 2026-10-31
 
-- La continuación apilada sobre la PR #209 agrega un informe agregado de los
+- La PR #210, apilada sobre la PR #209, agrega un informe agregado de los
   34 campos del archivo tipo 1 desde snapshots aprobados. Solo muestra valores
   comunes cuando cada snapshot PILA v2 identifica el tenant autenticado y
   coincide exactamente con el período aprobado; cada empleado debe aparecer una sola
@@ -826,3 +826,16 @@ false`.
   cuota de GitHub Actions y límites de Vercel. Por instrucción del usuario, los
   fallos remotos no detienen trabajo local ni la preparación de PRs apiladas;
   no se fusionan hasta retomar la revisión en orden.
+
+### Validación de alcance en cabecera tipo 2 PILA — 2026-10-31
+
+- La siguiente rama, apilada sobre #210, valida la cabecera tipo 2 contra el
+  tenant autenticado y el ID/rango de fechas del período aprobado. Que todos
+  los snapshots coincidan entre sí no basta si corresponden a otro período o
+  tenant.
+- Si el tenant o el período congelado no coincide, la API deja los 22 campos
+  sin candidatos y no devuelve el tenant ni período de los snapshots ajenos.
+- La verificación local pasó: 121 pruebas API de mapper, preparación y
+  servicio; typecheck y lint API; build API; Browser E2E financiero (1/1) con
+  PostgreSQL desechable y las 77 migraciones. Sin cambios de schema ni descarga
+  PILA habilitada.

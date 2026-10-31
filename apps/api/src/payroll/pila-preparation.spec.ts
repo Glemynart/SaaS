@@ -1984,7 +1984,11 @@ describe('inspectPilaSnapshotPreparation', () => {
       fechaFin: new Date('2026-10-31T00:00:00.000Z'),
     };
 
-    const atMaximum = buildPilaPreparationReport({ period, snapshots });
+    const atMaximum = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
+      period,
+      snapshots,
+    });
     expect(atMaximum.headerCandidate.values[20]).toEqual({
       value: 999_999_999_999,
     });
@@ -1996,7 +2000,11 @@ describe('inspectPilaSnapshotPreparation', () => {
 
     const lastSource = snapshots.at(-1)!.payload as ReturnType<typeof payload>;
     lastSource.payroll.ibcPorSubsistema.cajaCompensacion.valor = 1000;
-    const overMaximum = buildPilaPreparationReport({ period, snapshots });
+    const overMaximum = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
+      period,
+      snapshots,
+    });
 
     expect(overMaximum.exportReadiness.blockers).toContainEqual(
       expect.objectContaining({
