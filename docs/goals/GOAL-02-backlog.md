@@ -165,6 +165,7 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   columnas contables `DATE` con el instante UTC de emisión. En las últimas
   horas del mes en Colombia ese instante puede caer en el mes siguiente,
   rechazando una factura que pertenece al período local vigente. El selector
-  usa ahora el día calendario `America/Bogota` mientras conserva el instante
-  de emisión original en factura y comprobante. La prueba cubre 31 de octubre
-  a las 21:30 de Bogotá (ya 1 de noviembre UTC).
+  usa ahora el día calendario `America/Bogota` tanto para buscar el período
+  como para la fecha `DATE` del comprobante; la factura conserva el instante
+  exacto. La prueba cubre 31 de octubre a las 21:30 de Bogotá (ya 1 de
+  noviembre UTC).

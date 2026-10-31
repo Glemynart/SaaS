@@ -557,7 +557,9 @@ export class BillingService {
         userId,
         tipoComprobanteId: voucherType.id,
         periodoId: periodo.id,
-        fecha: fechaEmision,
+        // El comprobante guarda DATE; usar el día comercial de Bogotá para
+        // que coincida con el período elegido incluso cerca de medianoche.
+        fecha: fechaContable,
         concepto: `Factura interna ${invoice.numero}`,
         lineas: lines,
         origenTipo: BILLING_INVOICE_ORIGIN.type,

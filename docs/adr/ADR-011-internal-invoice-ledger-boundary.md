@@ -33,7 +33,7 @@ Al cancelar una factura `ISSUED` contabilizada por esta integración, Billing ac
 
 El período contable será el período abierto que corresponda a la fecha de emisión. Si no existe o está cerrado, la operación de emisión falla y no desplaza silenciosamente la contabilización a otro período. La anulación seguirá el comportamiento de corrección ya ofrecido por el Ledger.
 
-Como `PeriodoContable.fechaInicio` y `fechaFin` son fechas (`DATE`), el período se selecciona con el día calendario de `America/Bogota`, convertido a medianoche UTC para la consulta Prisma. El instante exacto de emisión se conserva sin cambios en la factura y en el comprobante. Así, una emisión durante las últimas horas de un día en Colombia no se asigna al día siguiente por estar ya en UTC.
+Como `PeriodoContable.fechaInicio`, `fechaFin` y `ComprobanteContable.fecha` son fechas (`DATE`), la consulta del período y la fecha contable del comprobante usan el día calendario de `America/Bogota`, convertido a medianoche UTC para Prisma. La factura conserva el instante exacto de emisión en `fechaEmision`; el comprobante conserva la fecha contable local, que debe pertenecer al período seleccionado. Así, una emisión durante las últimas horas de un día en Colombia no se asigna al día siguiente por estar ya en UTC.
 
 El mapper separa CxC, ingreso e impuesto usando los roles contables del tenant, atribuye los movimientos al tercero del cliente y comprueba partida doble. No se contabilizará si falta un mapeo requerido o si la cuenta no satisface las validaciones del Ledger.
 

@@ -433,7 +433,13 @@ describe('BillingService', () => {
         fechaFin: { gte: new Date('2026-10-31T00:00:00.000Z') },
       },
     });
-    expect(registeredVoucherInputs[0]?.input.fecha).toEqual(emittedAt);
+    expect(registeredVoucherInputs[0]?.input.fecha).toEqual(
+      new Date('2026-10-31T00:00:00.000Z'),
+    );
+    const invoiceUpdate = invoiceUpdateInputs[0] as {
+      data: { fechaEmision: Date };
+    };
+    expect(invoiceUpdate.data.fechaEmision).toEqual(emittedAt);
   });
 
   it('no contabiliza borradores históricos sin snapshots tributarios', async () => {
