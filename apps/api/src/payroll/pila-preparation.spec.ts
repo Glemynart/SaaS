@@ -571,43 +571,87 @@ describe('inspectPilaSnapshotPreparation', () => {
     );
   });
 
-  it('acepta los campos 62 y 98 con una asignación congelada y validada', () => {
-    const source = {
-      ...payload(),
-      schemaVersion: 2,
-      pilaRiskAssignments: [
-        {
-          assignmentId: 'assignment-1',
-          tenantId: 'tenant-1',
-          codigoActividadEconomica: '1131202',
-          formatoNormativoVersion: 'DECRETO_768_2022',
-          vigenteDesde: '2026-01-01',
-          vigenteHasta: null,
-          centroTrabajo: {
-            centroTrabajoId: 'center-1',
+  it.each(['0001', '123456789'])(
+    'acepta los campos 62 y 98 cuando el código %s cabe en N9',
+    (codigoCentro) => {
+      const source = {
+        ...payload(),
+        schemaVersion: 2,
+        pilaRiskAssignments: [
+          {
+            assignmentId: 'assignment-1',
             tenantId: 'tenant-1',
-            sedeId: 'site-1',
-            arlCodigo: 'ARL001',
-            codigoCentro: '0001',
-            nombre: 'Centro principal',
+            codigoActividadEconomica: '1131202',
+            formatoNormativoVersion: 'DECRETO_768_2022',
+            vigenteDesde: '2026-01-01',
+            vigenteHasta: null,
+            centroTrabajo: {
+              centroTrabajoId: 'center-1',
+              tenantId: 'tenant-1',
+              sedeId: 'site-1',
+              arlCodigo: 'ARL001',
+              codigoCentro,
+              nombre: 'Centro principal',
+            },
           },
-        },
-      ],
-    };
+        ],
+      };
 
-    const result = inspectPilaSnapshotPreparation({
-      employeeId: 'employee-1',
-      payloadVersion: 2,
-      payload: source,
-    });
+      const result = inspectPilaSnapshotPreparation({
+        employeeId: 'employee-1',
+        payloadVersion: 2,
+        payload: source,
+      });
 
-    expect(result.issues).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ fieldNumber: 62 }),
-        expect.objectContaining({ fieldNumber: 98 }),
-      ]),
-    );
-  });
+      expect(result.issues).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ fieldNumber: 62 }),
+          expect.objectContaining({ fieldNumber: 98 }),
+        ]),
+      );
+    },
+  );
+
+  it.each(['CENTRO-1', '1234567890'])(
+    'bloquea el código de centro %s porque no cabe en el campo 62 N9',
+    (codigoCentro) => {
+      const source = {
+        ...payload(),
+        schemaVersion: 2,
+        pilaRiskAssignments: [
+          {
+            assignmentId: 'assignment-1',
+            tenantId: 'tenant-1',
+            codigoActividadEconomica: '1131202',
+            formatoNormativoVersion: 'DECRETO_768_2022',
+            vigenteDesde: '2026-01-01',
+            vigenteHasta: null,
+            centroTrabajo: {
+              centroTrabajoId: 'center-1',
+              tenantId: 'tenant-1',
+              sedeId: 'site-1',
+              arlCodigo: 'ARL001',
+              codigoCentro,
+              nombre: 'Centro principal',
+            },
+          },
+        ],
+      };
+
+      const result = inspectPilaSnapshotPreparation({
+        employeeId: 'employee-1',
+        payloadVersion: 2,
+        payload: source,
+      });
+
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          fieldNumber: 62,
+          code: 'CENTRO_TRABAJO_CODIGO_FORMATO_AT2_INVALIDO',
+        }),
+      );
+    },
+  );
 
   it('bloquea afiliaciones si una fila malformada acompaña a la fila válida', () => {
     const source = payload();

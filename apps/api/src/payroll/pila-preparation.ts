@@ -1086,6 +1086,13 @@ export function inspectPilaSnapshotPreparation(
           'CENTRO_TRABAJO_SIN_CODIGO_PILA',
           'Falta el código del centro de trabajo declarado por la ARL.',
         );
+      } else if (!/^\d{1,9}$/.test(workCenterCode)) {
+        add(
+          detailRecord,
+          62,
+          'CENTRO_TRABAJO_CODIGO_FORMATO_AT2_INVALIDO',
+          'El campo 62 del AT2 v30 requiere un código de centro de trabajo de 1 a 9 dígitos; no se truncará ni convertirá el valor declarado por la ARL.',
+        );
       }
       if (
         affiliation &&

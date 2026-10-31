@@ -449,3 +449,19 @@ verdes al 2026-10-31.
   tiene un código DIVIPOLA válido. Falta una fuente PILA explícita, confirmada
   y congelada; hasta que se defina y capture, esos campos no pueden figurar como
   listos para exportación.
+
+### Formato del centro ARL en el preflight PILA — 2026-10-31
+
+- Al cotejar el informe con AT2 v30 oficial se encontró que el campo 62 ocupa
+  nueve posiciones numéricas (página 95), mientras el preflight solo exigía un
+  valor no vacío. El perfil del centro conserva el código declarado por la ARL
+  como texto de hasta 40 caracteres, por lo que un valor alfanumérico o mayor
+  de nueve dígitos podía pasar sin advertencia aunque el archivo no pudiera
+  representarlo.
+- El preflight ahora bloquea códigos incompatibles con N9 y no los recorta ni
+  transforma; valores de 1–9 dígitos conservan sus ceros iniciales para el
+  formateador fijo. La regla se cotejó con la página 95 del AT2 v30 descargado
+  del enlace oficial de MinSalud (SHA-256
+  `BBB3C2D0486FD7D3934BD640D8E68C60D33686B1604E8EFAA980139FB5686D33`). Esto
+  solo mejora un insumo del informe preliminar: el archivo continúa sin
+  implementarse y la compatibilidad con operadores no está verificada.
