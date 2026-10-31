@@ -347,3 +347,11 @@ verdes al 2026-10-31.
   persona natural y aplica la regla AT2 de usar el código como nombre de
   sucursal cuando no existe nombre. El preflight sigue sin serializar ni
   habilitar la descarga PILA.
+- El mapa del encabezado tipo 2 (22 campos) encuentra que AT2 asigna al
+  operador modalidad, período de otros sistemas, radicación, fecha efectiva de
+  pago y código de operador; el snapshot no autoriza inventarlos. El campo 16
+  de salud tiene período cotizado como fuente candidata y el 20 suma IBC CCF,
+  no salario bruto. SOI confirma públicamente cargue de archivo plano y un
+  autocorrector, pero no publica en esas páginas la convención de entrada de
+  esos campos; una prueba de carga sigue pendiente. La fecha prevista PILA no
+  se tratará como pago efectivo.
