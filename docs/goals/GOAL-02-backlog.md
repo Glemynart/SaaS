@@ -509,3 +509,8 @@ verdes al 2026-10-31.
   solo hecho de aparecer en el formato. El mapeo debe versionar el corte,
   revisar las disposiciones exceptuadas y revalidar el marco vigente antes de
   soportar períodos que alcancen abril de 2027.
+- El informe PILA marca ese corte con un bloqueo de exportación si el período
+  o la fecha prevista de pago alcanza 2027-04-01, y señala los campos 46–47.
+  Una planilla de marzo pagada en abril también queda bloqueada hasta resolver
+  la selección de reglas. La prueba solo confirma el guard del hito; no
+  implementa ni valida las nuevas reglas pensionales.

@@ -26,6 +26,7 @@ export interface PilaExportReadinessBlocker {
     | 'PILA_PAYMENT_DATE_REQUIRED'
     | 'PILA_PAYMENT_DATE_SNAPSHOT_INCONSISTENT'
     | 'AT2_HEADER_CCF_IBC_TOTAL_SUPERA_LONGITUD'
+    | 'PILA_PENSION_RULESET_AFTER_2027_NOT_RECONCILED'
     | 'OPERATOR_UPLOAD_NOT_VERIFIED';
   scope: 'FILE_GENERATION' | 'OPERATOR_COMPATIBILITY';
   title: string;
@@ -101,6 +102,7 @@ export interface PilaSnapshotPreparation {
 }
 
 const supportedDocumentTypes = new Set(['CC', 'CE', 'TI', 'PA']);
+const pensionSystemEffectiveDate = '2027-04-01';
 const supportedEmployerDocumentTypes = new Set([
   'NI',
   'CC',
@@ -1526,6 +1528,27 @@ export function buildPilaPreparationReport(input: {
   ].filter(
     (blocker): blocker is PilaExportReadinessBlocker => blocker !== null,
   );
+  const pensionRulesCutoverAffectsPeriod =
+    input.period.fechaInicio.toISOString().slice(0, 10) >=
+      pensionSystemEffectiveDate ||
+    paymentDates.some(
+      (paymentDate) =>
+        paymentDate !== null && paymentDate >= pensionSystemEffectiveDate,
+    );
+  const pensionRulesBlocker: PilaExportReadinessBlocker | null =
+    pensionRulesCutoverAffectsPeriod
+      ? {
+          code: 'PILA_PENSION_RULESET_AFTER_2027_NOT_RECONCILED',
+          scope: 'FILE_GENERATION',
+          title:
+            'Falta reconciliar las reglas pensionales vigentes desde abril de 2027',
+          message:
+            'El período o su fecha prevista de pago alcanza la entrada en vigor del nuevo sistema pensional. AT2 v30 contiene reglas de distribución entre componentes, pero el producto aún no versiona ni valida ese cálculo. No se debe presentar el preflight como completo para los campos 46 y 47.',
+          fields: [{ record: 'DETALLE_TIPO_2', fieldNumbers: [46, 47] }],
+          evidence:
+            'Sentencia C-264/2026: las disposiciones exequibles que conforman el nuevo sistema entran en vigor el 2027-04-01; AT2 v30, pp. 147–154. La matriz vigente mantiene este mapeo pendiente.',
+        }
+      : null;
   const headerCcfIbcField =
     PILA_AT2_V30_RECORD_LAYOUTS.payrollHeaderType2.fields[19];
   const ccfIbcValues = input.snapshots.map((snapshot) => {
@@ -1561,6 +1584,7 @@ export function buildPilaPreparationReport(input: {
   const readinessBlockers = [
     ...pilaExportReadiness.blockers,
     ...paymentDateBlockers,
+    ...(pensionRulesBlocker ? [pensionRulesBlocker] : []),
     ...(headerCcfIbcBlocker ? [headerCcfIbcBlocker] : []),
   ];
   const exportReadiness =

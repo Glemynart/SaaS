@@ -247,6 +247,10 @@ exoneración.
   candidatos. Salud patronal y los conceptos SENA, ICBF y FSP, cuando están
   presentes, también se revisan sin asumir que su ausencia equivale a cero.
   Esto verifica integridad de fuentes, no mapea ni calcula aportes.
+- El informe añade un bloqueo global de exportación si el período o la fecha
+  prevista de pago alcanza el 2027-04-01, hasta versionar las reglas pensionales
+  del nuevo sistema para los campos 46–47. Esto también bloquea una planilla de
+  marzo pagada desde abril; el guard no autoriza exportar períodos anteriores.
 - `buildPilaSourceSnapshot` congela la fuente PILA y propone 30 días solo si
   empleado, contrato y única afiliación cubren el mes completo; cualquier
   evento PILA o novedad sin segmentación bloquea la proyección. Esto coincide

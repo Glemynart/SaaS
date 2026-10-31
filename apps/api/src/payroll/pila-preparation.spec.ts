@@ -1415,6 +1415,11 @@ describe('inspectPilaSnapshotPreparation', () => {
     expect(report.exportReadiness.blockers).not.toContainEqual(
       expect.objectContaining({ code: 'PILA_PAYMENT_DATE_REQUIRED' }),
     );
+    expect(report.exportReadiness.blockers).not.toContainEqual(
+      expect.objectContaining({
+        code: 'PILA_PENSION_RULESET_AFTER_2027_NOT_RECONCILED',
+      }),
+    );
     expect(report.period.fechaPrevistaPagoPila).toBe('2026-11-06');
     expect(report.issues).toEqual(
       expect.arrayContaining([
@@ -1481,6 +1486,35 @@ describe('inspectPilaSnapshotPreparation', () => {
       }),
     );
   });
+
+  it.each([
+    ['marzo pagado en marzo', '2027-03-01', '2027-03-31', '2027-03-06', false],
+    ['abril pagado en mayo', '2027-04-01', '2027-04-30', '2027-05-06', true],
+    ['marzo pagado en abril', '2027-03-01', '2027-03-31', '2027-04-06', true],
+  ])(
+    'aplica el bloqueo de reglas pensionales según el período y pago (%s)',
+    (_, fechaInicio, fechaFin, fechaPrevistaPagoPila, shouldBlock) => {
+      const payrollSnapshot = snapshot('employee-1', 'Ana');
+      const source = payrollSnapshot.payload as ReturnType<typeof payload>;
+      source.period.fechaInicio = fechaInicio;
+      source.period.fechaFin = fechaFin;
+      source.payroll.fechaPrevistaPagoPila = fechaPrevistaPagoPila;
+
+      const report = buildPilaPreparationReport({
+        period: {
+          id: 'period-1',
+          fechaInicio: new Date(`${fechaInicio}T00:00:00.000Z`),
+          fechaFin: new Date(`${fechaFin}T00:00:00.000Z`),
+        },
+        snapshots: [payrollSnapshot],
+      });
+
+      const matchingBlockers = report.exportReadiness.blockers.filter(
+        ({ code }) => code === 'PILA_PENSION_RULESET_AFTER_2027_NOT_RECONCILED',
+      );
+      expect(matchingBlockers).toHaveLength(shouldBlock ? 1 : 0);
+    },
+  );
 
   it('exige fecha prevista válida en cada snapshot aprobado', () => {
     const missingDate = snapshot('employee-1', 'Ana');
