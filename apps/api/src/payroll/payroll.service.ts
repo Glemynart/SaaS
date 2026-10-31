@@ -2269,6 +2269,12 @@ export class PayrollService {
       await this.prisma.$transaction(
         async (tx) => {
           await this.lockPayrollPeriodForPilaEvents(tx, tenantId, periodId);
+          await this.assertPayrollPeriodCanBeCalculated(
+            tx,
+            tenantId,
+            periodId,
+            GENERATE_ALLOWED_STATUSES,
+          );
           await this.reloadPilaEventsForSnapshot(
             tx,
             tenantId,
@@ -2338,10 +2344,19 @@ export class PayrollService {
           // BORRADOR como desde CALCULADA (recalcular no debe retroceder).
           // Efecto natural del evento de cálculo, no una transición formal
           // separada — no pasa por assertTransition/transitionPeriod.
-          await tx.payrollPeriod.updateMany({
-            where: { id: periodId, tenantId },
+          const updated = await tx.payrollPeriod.updateMany({
+            where: {
+              id: periodId,
+              tenantId,
+              status: { in: GENERATE_ALLOWED_STATUSES },
+            },
             data: { status: PayrollPeriodStatus.CALCULADA },
           });
+          if (updated.count === 0) {
+            throw new ConflictException(
+              'El período fue modificado durante la generación de nómina.',
+            );
+          }
         },
         { timeout: 30000 },
       );
@@ -2521,6 +2536,12 @@ export class PayrollService {
       await this.prisma.$transaction(
         async (tx) => {
           await this.lockPayrollPeriodForPilaEvents(tx, tenantId, periodId);
+          await this.assertPayrollPeriodCanBeCalculated(
+            tx,
+            tenantId,
+            periodId,
+            RECALCULATE_ALLOWED_STATUSES,
+          );
           await this.reloadPilaEventsForSnapshot(
             tx,
             tenantId,
@@ -2593,10 +2614,19 @@ export class PayrollService {
 
           // La reliquidación mantiene CALCULADA (nunca retrocede a BORRADOR).
           // Mismo evento de negocio que en generatePayroll: ver comentario ahí.
-          await tx.payrollPeriod.updateMany({
-            where: { id: periodId, tenantId },
+          const updated = await tx.payrollPeriod.updateMany({
+            where: {
+              id: periodId,
+              tenantId,
+              status: { in: RECALCULATE_ALLOWED_STATUSES },
+            },
             data: { status: PayrollPeriodStatus.CALCULADA },
           });
+          if (updated.count === 0) {
+            throw new ConflictException(
+              'El período fue modificado durante el recálculo de nómina.',
+            );
+          }
         },
         { timeout: 30000 },
       );
@@ -3838,6 +3868,24 @@ export class PayrollService {
       WHERE "id" = ${periodId} AND "tenantId" = ${tenantId}
       FOR UPDATE
     `);
+  }
+
+  private async assertPayrollPeriodCanBeCalculated(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    periodId: string,
+    allowedStatuses: readonly PayrollPeriodStatus[],
+  ) {
+    const period = await tx.payrollPeriod.findFirst({
+      where: { id: periodId, tenantId },
+      select: { status: true },
+    });
+    if (!period) throw new NotFoundException('Período no encontrado');
+    if (!allowedStatuses.includes(period.status)) {
+      throw new ConflictException(
+        `El período cambió a ${period.status} mientras se preparaba la nómina.`,
+      );
+    }
   }
 
   private async reloadPilaEventsForSnapshot(

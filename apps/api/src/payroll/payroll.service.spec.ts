@@ -2306,8 +2306,30 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       await service.generatePayroll(TENANT, USER, PERIOD_ID);
 
       expect(mockPayrollPeriodUpdateMany).toHaveBeenCalledWith({
-        where: { id: PERIOD_ID, tenantId: TENANT },
+        where: {
+          id: PERIOD_ID,
+          tenantId: TENANT,
+          status: { in: ['BORRADOR', 'CALCULADA'] },
+        },
         data: { status: 'CALCULADA' },
+      });
+    });
+
+    it('si el período se aprueba mientras se prepara la generación, no crea liquidaciones', async () => {
+      setupPayrollGeneration();
+      mockPayrollPeriodFindFirst
+        .mockResolvedValueOnce(makePeriod('BORRADOR'))
+        .mockResolvedValueOnce(makePeriod('APROBADA'));
+
+      await expect(
+        service.generatePayroll(TENANT, USER, PERIOD_ID),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockPayrollRunCreate).not.toHaveBeenCalled();
+      expect(mockPayrollPeriodUpdateMany).not.toHaveBeenCalled();
+      expect(mockPayrollPeriodFindFirst).toHaveBeenLastCalledWith({
+        where: { id: PERIOD_ID, tenantId: TENANT },
+        select: { status: true },
       });
     });
 
@@ -2437,9 +2459,30 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       await service.recalculatePayroll(TENANT, USER, PERIOD_ID);
 
       expect(mockPayrollPeriodUpdateMany).toHaveBeenCalledWith({
-        where: { id: PERIOD_ID, tenantId: TENANT },
+        where: {
+          id: PERIOD_ID,
+          tenantId: TENANT,
+          status: { in: ['BORRADOR', 'CALCULADA'] },
+        },
         data: { status: 'CALCULADA' },
       });
+    });
+
+    it('si el período se aprueba mientras se prepara el recálculo, conserva las liquidaciones existentes', async () => {
+      setupPayrollGeneration();
+      mockPayrollPeriodFindFirst
+        .mockResolvedValueOnce(makePeriod('CALCULADA'))
+        .mockResolvedValueOnce(makePeriod('APROBADA'));
+
+      await expect(
+        service.recalculatePayroll(TENANT, USER, PERIOD_ID),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockPayrollRunFindMany).not.toHaveBeenCalled();
+      expect(mockPayrollConceptDeleteMany).not.toHaveBeenCalled();
+      expect(mockPayrollRunDeleteMany).not.toHaveBeenCalled();
+      expect(mockPayrollRunCreate).not.toHaveBeenCalled();
+      expect(mockPayrollPeriodUpdateMany).not.toHaveBeenCalled();
     });
 
     it('persiste centroCostoId al recrear runs durante el recálculo', async () => {
