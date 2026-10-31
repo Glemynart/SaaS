@@ -1,6 +1,6 @@
 # ADR-013 — Exportación estándar de nómina a PILA
 
-- **Estado:** Aprobado con cambios; la primera etapa de historial de afiliaciones está en desarrollo. No existe todavía exportador PILA.
+- **Estado:** Aprobado con cambios; PR #160 incorpora la primera etapa de historial de afiliaciones. No existe todavía exportador PILA.
 - **Fecha:** 2026-10-30.
 - **Goal:** GOAL-02 — Evolución Financiera y Cumplimiento Electrónico.
 - **Responsable:** Producto / Payroll.
@@ -25,8 +25,8 @@ no produce ese archivo ni conserva todos sus insumos de forma estructurada:
   `BONUS` y `OTHER`; no es el catálogo/código de reporte PILA.
 - El formulario de alta/edición y sus DTOs no capturan afiliaciones ni datos
   PILA. La plantilla e importador XLSX solo incluyen datos personales,
-  laborales y `sede`. La primera etapa en desarrollo agrega captura manual del
-  historial por empleado, pero no carga masiva ni validación de catálogo.
+  laborales y `sede`. PR #160 agrega captura manual del historial por empleado,
+  pero no carga masiva ni validación de catálogo.
 - No existe un exportador PILA funcional en la API ni en la web.
 
 El Ministerio publica anexos técnicos para PILA y los operadores documentan
@@ -148,9 +148,9 @@ archivos de entrada/salida esperados, regla normativa exacta, fecha de vigencia,
 resultado esperado y revisor. No se anunciará “cargable en cualquier operador”
 hasta completar pruebas independientes por operador.
 
-## Primera etapa en desarrollo
+## Primera etapa: historial de afiliaciones
 
-La rama `codex/goal02-pila-export` agrega el almacenamiento aditivo de
+PR #160 agrega el almacenamiento aditivo de
 afiliaciones por empleado, tipo de cotizante dependiente estándar, entidades y
 clase de riesgo capturadas manualmente, vigencias no solapadas, RLS por tenant,
 auditoría y una pantalla de captura en el detalle del empleado. Cada registro
