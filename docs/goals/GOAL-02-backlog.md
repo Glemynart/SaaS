@@ -123,9 +123,13 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   flujo enero–junio y un Browser E2E local completo; la prueba generó y descargó
   el PDF desde el Expediente usando PostgreSQL desechable. Las migraciones no
   se han aplicado a demo/staging/producción; los casos ambiguos se bloquean y
-  la revisión laboral sigue pendiente antes de uso operativo. Vercel Preview
-  está verde; GitHub Actions no inició `browser` ni `verify` por la restricción
-  de facturación de la cuenta, por lo que PR #159 permanece draft y sin merge.
+  la revisión laboral sigue pendiente antes de uso operativo. En `cdd8581`, los
+  checks `verify` y `browser` concluyeron correctamente; las ejecuciones previas
+  afectadas por facturación no describen el resultado posterior. `35adc61`
+  agrega auditoría del actor al reintentar y protege la transición concurrente.
+  Antes de fusionar, se deben exigir checks verdes sobre el HEAD vigente. Para
+  los cambios de auditoría Vercel indicó “Skipped - Not affected”. El flujo se
+  presenta como prototipo de demo, no como cálculo validado para pagos reales.
   ADR-013 está aprobada con cambios y la matriz se presentó; no se transmite ni
   se paga desde el exportador PILA.
 - **Estado de preparación:** GOAL-02 sigue activo. La prima avanza como
