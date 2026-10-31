@@ -313,3 +313,9 @@ prueba se detuvo y no se usaron datos de demo/staging/producción. Esta preparac
   usa el salario mensual completo y no prorratea por ingreso/retiro; los IBC
   del snapshot no son una fuente segura para esos períodos parciales. Payroll
   prorrateado y sus fixtures laborales revisados son prerrequisito de esa ruta.
+  AT2 v30 permite días menores de 30 con ING/RET, pero no define por sí solo
+  salario/IBC segmentado. El Decreto 780 establece la base mensual devengada
+  para dependientes privados; Decreto 1072 regula aparte ciertos trabajos por
+  períodos inferiores a un mes. El Concepto 298251/2022 explica 30 días en un
+  caso de trabajador oficial y no valida por sí solo la fórmula de nómina
+  privada. Faltan expected values revisados por subsistema.

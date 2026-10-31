@@ -186,6 +186,35 @@ se pueden asumir correctas para segmentar ING/RET. Esa ruta seguirá bloqueada
 hasta que Payroll calcule y congele importes prorrateados bajo reglas laborales
 revisadas y fixtures aprobados.
 
+La revisión de fuentes primarias precisa el alcance de esa condición. El AT2
+v30, campos 36–39, admite menos de 30 días cuando se reporta ingreso o retiro,
+pero exige días independientes por subsistema y no define la fórmula del
+salario causado ni los IBC para cada segmento. El [artículo 2.2.1.1.2.1 del
+Decreto 780 de 2016](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=77813)
+establece para trabajadores privados dependientes la base de cotización como
+el salario mensual devengado, contempla salario integral al 70% y establece un
+mínimo de salud; no resuelve por sí solo cómo aplicar ese mínimo en todos los
+casos de ingreso o retiro durante el mes.
+
+El [artículo 2.2.1.6.4 del Decreto 1072 de
+2015](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=72173)
+regula un esquema especial para ciertos trabajadores dependientes que laboran
+por períodos inferiores a un mes. No se debe trasladar ese esquema a cualquier
+ingreso o retiro parcial sin comprobar sus condiciones de aplicación. El
+[Concepto 298251 de 2022 de Función
+Pública](https://www.funcionpublica.gov.co/eva/gestornormativo/norma_pdf.php?i=197588)
+describe la convención de 30 días y cita el ejemplo de 19 al 28 de febrero como
+12/30, pero responde un caso de trabajador oficial; se conserva como evidencia
+orientativa, no como validación suficiente del cálculo para un empleador
+privado.
+
+Antes de implementar el cálculo deben revisarse expected values para ingreso y
+retiro en febrero de 28/29 días y en meses de 30/31 días, ingreso y retiro en
+el mismo período, fechas contradictorias entre empleado/contrato/evento,
+cambios salariales dentro del período y el mínimo/topes de IBC y redondeo de
+cada subsistema. Hasta entonces se mantiene el bloqueo de exportación para
+períodos parciales y no se aprueba una fórmula de prorrata genérica.
+
 La auditoría de altas y bajas se confirma en la misma transacción que modifica
 el evento; si el registro de auditoría falla, la operación revierte y el evento
 conserva su estado anterior.
