@@ -181,16 +181,25 @@ export async function seedPayrollAccrualFixture(
           payload: snapshotPayload,
         },
       });
-      await tx.periodoContable.create({
-        data: {
-          tenantId,
-          anio: 2026,
-          mes: 3,
-          fechaInicio: new Date('2026-03-01T00:00:00.000Z'),
-          fechaFin,
-          estado: 'ABIERTO',
-        },
+      const marchAccountingPeriod = await tx.periodoContable.findUnique({
+        where: { tenantId_anio_mes: { tenantId, anio: 2026, mes: 3 } },
+        select: { estado: true },
       });
+      if (marchAccountingPeriod?.estado === 'CERRADO') {
+        throw new Error('El período contable de marzo de 2026 debe estar abierto.');
+      }
+      if (!marchAccountingPeriod) {
+        await tx.periodoContable.create({
+          data: {
+            tenantId,
+            anio: 2026,
+            mes: 3,
+            fechaInicio: new Date('2026-03-01T00:00:00.000Z'),
+            fechaFin,
+            estado: 'ABIERTO',
+          },
+        });
+      }
 
       for (const [index, role] of ACCOUNT_ROLES.entries()) {
         const isExpense = role.startsWith('GASTO_');
@@ -210,8 +219,10 @@ export async function seedPayrollAccrualFixture(
             activa: true,
           },
         });
-        await tx.cuentaSistemaMap.create({
-          data: { tenantId, rol: role, cuentaId: account.id },
+        await tx.cuentaSistemaMap.upsert({
+          where: { tenantId_rol: { tenantId, rol: role } },
+          update: { cuentaId: account.id },
+          create: { tenantId, rol: role, cuentaId: account.id },
         });
       }
     });

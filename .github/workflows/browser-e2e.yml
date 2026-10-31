@@ -66,6 +66,9 @@ jobs:
           pnpm --filter @saas/api exec prisma generate
           pnpm --filter @saas/api exec prisma migrate deploy
 
+      - name: Seed global catalogs
+        run: pnpm --filter @saas/api prisma:seed
+
       - name: Build applications
         run: |
           pnpm --filter @saas/types build

@@ -1,6 +1,9 @@
 import { randomInt } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
-import { prepareInvoiceAccounting } from './helpers/invoice-accounting-fixture';
+import {
+  createCustomerThirdParty,
+  prepareInvoiceAccounting,
+} from './helpers/invoice-accounting-fixture';
 
 async function registerAndSignIn(page: Page, suffix: string) {
   const nit = `8${suffix}`;
@@ -68,21 +71,10 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
   await expect(page.getByText(customerName, { exact: true })).toBeVisible();
   await expect(page.getByText('Sin tercero contable vinculado')).toBeVisible();
 
-  const createThirdPartyResponse = await page.request.post(
-    new URL('/api/accounting/terceros', page.url()).toString(),
-    {
-      data: {
-        tipoDocumento: 'NIT',
-        numeroDocumento: customerNit,
-        tipoPersona: 'JURIDICA',
-        razonSocial: customerName,
-        esCliente: true,
-        activo: true,
-      },
-    },
-  );
-  expect(createThirdPartyResponse.status()).toBe(200);
-  const thirdParty = (await createThirdPartyResponse.json()) as { id: string };
+  const thirdParty = await createCustomerThirdParty(page, {
+    customerNit,
+    customerName,
+  });
 
   await page.reload();
   const customerRow = page.getByText(customerName, { exact: true }).locator('xpath=../..');
@@ -218,7 +210,7 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
   };
   expect(cancelledInvoice.status).toBe('CANCELLED');
   expect(cancelledInvoice.comprobanteAnulacion.estado).toBe('ANULADO');
-  await expect(page.getByText('Cancelada', { exact: true })).toBeVisible();
+  await expect(invoiceRow.getByText('Anulada', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: invoiceNumber }).click();
   await expect(page.getByText(/Comprobante \d+ — anulado/)).toBeVisible();
 });
