@@ -282,6 +282,76 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     );
   });
 
+  it('maps only AT2 no-event novelty fields backed by a complete empty snapshot', () => {
+    const candidate = mapPilaAt2V30DetailCandidate(snapshot());
+    const blankFields = [
+      15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 26, 27, 29, 80, 81, 82, 83, 84,
+      85, 86, 87, 88, 89, 90, 91, 92, 93, 94,
+    ];
+
+    for (const fieldNumber of blankFields) {
+      expect(candidate.values[fieldNumber]).toEqual({
+        value: null,
+        emptyAs: 'spaces',
+      });
+    }
+    expect(candidate.values[30]).toEqual({ value: 0 });
+    expect(candidate.values[22]).toBeUndefined();
+    expect(candidate.values[28]).toBeUndefined();
+    expect(candidate.unresolvedFields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ fieldNumber: 22 }),
+        expect.objectContaining({ fieldNumber: 28 }),
+      ]),
+    );
+    expect(candidate.normativeRuleVersions.noEventNoveltyFields).toBe(
+      'AT2_V30_NO_EVENT_NOVELTY_FIELDS_V1',
+    );
+  });
+
+  it.each([
+    'ING',
+    'RET',
+    'VSP',
+    'VST',
+    'SLN',
+    'IGE',
+    'LMA',
+    'VAC_LR',
+    'IRL',
+    'VCT',
+  ])('keeps no-event novelty fields unresolved when %s exists', (codigo) => {
+    const input = snapshot();
+    const payload = payloadOf(input);
+    const event = { codigo, fechaInicio: '2026-10-12' };
+    payload.pilaEvents = [event];
+    payload.payroll.pilaEvents = [event];
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    for (const fieldNumber of [
+      15, 16, 21, 23, 24, 25, 26, 27, 29, 30, 80, 94,
+    ]) {
+      expect(candidate.values[fieldNumber]).toBeUndefined();
+    }
+    expect(candidate.normativeRuleVersions.noEventNoveltyFields).toBeNull();
+  });
+
+  it('does not treat corrections or voluntary pension contributions as absent', () => {
+    const candidate = mapPilaAt2V30DetailCandidate(snapshot());
+
+    expect(candidate.values[22]).toBeUndefined();
+    expect(candidate.values[28]).toBeUndefined();
+    expect(
+      candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 22)
+        ?.reason,
+    ).toContain('corrección de planilla');
+    expect(
+      candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 28)
+        ?.reason,
+    ).toContain('aporte voluntario');
+  });
+
   it('keeps fixed incapacity and maternity fields unresolved when a PILA event exists', () => {
     const input = snapshot();
     const payload = payloadOf(input);
@@ -322,7 +392,11 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       for (const fieldNumber of [57, 58, 59, 60]) {
         expect(candidate.values[fieldNumber]).toBeUndefined();
       }
+      for (const fieldNumber of [15, 30, 80, 94]) {
+        expect(candidate.values[fieldNumber]).toBeUndefined();
+      }
       expect(candidate.normativeRuleVersions.noBenefitEventFields).toBeNull();
+      expect(candidate.normativeRuleVersions.noEventNoveltyFields).toBeNull();
     }
   });
 

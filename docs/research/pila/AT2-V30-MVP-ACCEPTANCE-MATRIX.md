@@ -147,14 +147,24 @@ Para el detalle 02, el alcance de datos de mayor riesgo es:
 | 62, 78, 98     | Centro ARL, clase y actividad económica      | Usar asignación con vigencia del empleado, código asignado por ARL y catálogo de Decreto 768/2022 versionado. El campo 62 es N9 (AT2 v30, p. 95): aceptar solo 1–9 dígitos, conservar ceros iniciales y bloquear sin truncar ni convertir valores incompatibles. Una sede no reemplaza el centro ARL.                                                                                                                                |
 | 95             | IBC de otros parafiscales                    | Obligatorio para tipo 01 y limitado a 9 dígitos. Requiere origen salarial auditable, base propia en el snapshot y reglas aprobadas. El valor candidato actual no constituye por sí mismo aprobación normativa.                                                                                                                                                                                                                       |
 
-`pila-at2-v30-detail-mapper.ts` mapea candidatos desde un snapshot v2 para los
-campos 1–8, 11–14, 31, 33, 35, 36–45, 62–63, 65, 67, 69, 77–78, 95 y 98. Exige
-el escenario dependiente `01`/`00`, cobertura mensual de empleado/contrato/
-afiliación y, para el centro ARL, tenant, vigencia, ARL y catálogo versionado
-coincidentes. Los importes 63/65/67/69 solo se copian desde un concepto patronal
-único, con tipo esperado, factor positivo y base coincidente; exige mes completo,
-días aprobados y ningún evento o novedad PILA. El Los campos 66/68 comparan contra tarifas versionadas de 2 %/3 % solo para empleadores privados estándar, clase A/B, sin beneficio Ley 1429 y con no exoneración explícita coherente entre perfil y snapshot. Los importes 67/69 también exigen factor exacto, IBC campo 95 y redondeo aprobado; no se calcula ni infiere cero. Si el tenant declara exoneración, el candidato sigue bloqueado incluso para un salario alto hasta validar la regla por empleado. La
-ausencia del aporte no se convierte en cero.
+`pila-at2-v30-detail-mapper.ts` mapea candidatos desde snapshots v2 para los
+campos 1–8, 11–21, 23–27, 29–31, 33, 35–47, 54–55, 57–69, 77–78, 80–94,
+95 y 98. Exige el escenario dependiente `01`/`00`,
+cobertura mensual de empleado/contrato/afiliación y, para el centro ARL,
+tenant, vigencia, ARL y catálogo versionado coincidentes. Los campos
+15–21/23–27/29–30 y 80–94 solo reciben sus blancos/cero AT2 cuando los dos
+arrays de eventos están presentes y vacíos, no hay novedades Payroll y los
+días de los cuatro subsistemas están aprobados para el mes completo. Los campos
+22 (corrección) y 28 (aporte voluntario) siguen pendientes por falta de una
+fuente congelada. Los importes 63/65/67/69 solo se copian desde un concepto
+patronal único, con tipo esperado, factor positivo y base coincidente. Los
+campos 66/68 comparan tarifas versionadas de 2 %/3 % solo para empleadores
+privados estándar, clase A/B, sin beneficio Ley 1429 y con no exoneración
+explícita coherente entre perfil y snapshot. Los importes 67/69 también exigen
+factor exacto, IBC campo 95 y redondeo aprobado; no se calcula ni infiere cero.
+Si el tenant declara exoneración, el candidato sigue bloqueado incluso para un
+salario alto hasta validar la regla por empleado. La ausencia del aporte no se
+convierte en cero.
 Conserva identificadores y códigos de centro con ceros iniciales. Ninguna tarifa
 ni aporte se calcula: los candidatos no son validación normativa ni se
 serializan como registro.
@@ -278,6 +288,8 @@ aprobar”, AT2 no define por sí solo el cálculo laboral que alimenta el campo
 | PILA-AT2-39 | Campo 54 decimal con ancho N7 y candidato `0.12500`.                                                                                                                                                    | Formatear siete posiciones localmente y conservar pendiente la compatibilidad hasta una carga aceptada por operador.                                                                                                                | AT2 v30 p. 95; serializador y prueba unitaria; convención actual por operador pendiente.                             |
 | PILA-AT2-40 | Snapshot v2 de mes completo, dependiente 01/00, cobertura/días aprobados, arrays de eventos vacíos y sin novedades Payroll.                                                                             | Mapear 57/59 en blanco y 58/60 en cero bajo `AT2_V30_NO_IGE_LMA_FIXED_FIELDS_V1`; no habilitar el archivo.                                                                                                                          | AT2 v30 p. 159; pruebas del mapper y serializador.                                                                   |
 | PILA-AT2-41 | Existe evento PILA, novedad Payroll, snapshot incompleto o días/contrato/afiliación sin aprobación de mes completo.                                                                                     | Mantener 57–60 sin resolver hasta que exista un flujo aprobado para reportar IGE/LMA; no inventar autorización ni importe.                                                                                                          | AT2 v30 p. 159; ADR-013; prueba negativa de evento.                                                                  |
+| PILA-AT2-42 | Snapshot v2 de mes completo, dependiente 01/00, empleado/contrato/afiliación vigentes, cuatro días aprobados, dos arrays de eventos presentes y vacíos, y sin novedades Payroll.                        | Proponer blanco para 15–21, 23–27, 29 y 80–94; proponer cero para IRL campo 30. Dejar corrección de planilla 22 y aporte voluntario 28 sin resolver. Mantener la descarga deshabilitada.                                            | AT2 v30 pp. 88–89, 98–102; `AT2_V30_NO_EVENT_NOVELTY_FIELDS_V1`; pruebas mapper/preparación/serializador.            |
+| PILA-AT2-43 | Algún evento, novedad Payroll, lista ausente, días/contrato/afiliación incompletos, o snapshot de período parcial.                                                                                      | Mantener 15–21, 23–27, 29–30 y 80–94 sin candidato; no inferir fechas vacías ni días IRL cero.                                                                                                                                      | AT2 v30 pp. 88–89, 98–102; ADR-013; pruebas negativas de evento y snapshot incompleto.                               |
 
 Confirmación del comportamiento local: `buildPilaDaysBySubsystem` acepta el
 subtipo explícito `00`, deja sin candidato el valor nulo y bloquea subtipos

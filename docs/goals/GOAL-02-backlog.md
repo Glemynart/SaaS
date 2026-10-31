@@ -558,8 +558,8 @@ verdes al 2026-10-31.
   afiliación, días completos, salario, IBC por subsistema y asignación ARL desde
   un snapshot PILA v2 del mismo empleado/tenant/período. No vuelve a consultar
   maestros ni transforma novedades y no altera importes aprobados.
-- El alcance del mapa cubre campos 1–8, 11–14, 31, 33, 35, 36–45, 46–47, 54–55, 57–60, 61–69,
-  77–78, 95 y 98. Los importes 63/65/67/69 son solo candidatos
+- El alcance del mapa cubre campos 1–8, 11–21, 23–27, 29–31, 33, 35–47,
+  54–55, 57–69, 77–78, 80–94, 95 y 98. Los importes 63/65/67/69 son solo candidatos
   copiados de un concepto patronal único, con tipo esperado, factor positivo y
   base coincidente. Cada importe requiere además que el valor congelado ya
   coincida con el redondeo PILA versionado al múltiplo de 100 superior; una
@@ -573,9 +573,12 @@ verdes al 2026-10-31.
   AT2 v30 pp. 86–87 permite dejar 7 en blanco para CC/TI y 8 para CE/PA, pero
   mantiene sin resolver la exención pensional CE/PA y la residencia exterior
   CC/TI porque todavía no se capturan como declaraciones explícitas.
-  Nunca se calcula un aporte ni se infiere cero por ausencia. Los demás campos
-  de aportes, novedades/segmentación, horas y datos faltantes siguen sin valor
-  candidato; el registro completo no es serializable ni descargable.
+  Para el caso de mes completo sin eventos ni novedades Payroll, la continuación
+  apilada sobre #202 propone los blancos/cero normativos en campos 15–21,
+  23–27, 29–30 y 80–94. Los campos 22 (corrección de planilla) y 28 (aporte
+  voluntario a pensión) siguen pendientes porque no hay una fuente congelada
+  para esos valores. Nunca se calcula un aporte ni se infiere cero cuando falta
+  fuente. El registro completo no es serializable ni descargable.
 - Las pruebas verifican snapshot v2, dependiente 01/00, cobertura del período,
   códigos afiliados, días/base salarial e IBC congelados, ceros iniciales del
   documento/centro, fuentes de concepto únicas y aislamiento del centro ARL.
@@ -599,6 +602,25 @@ verdes al 2026-10-31.
   capturar importes y autorizaciones de eventos IGE/LMA.
 - El candidato no hace exportable el registro ni verifica aceptación de un
   operador. El flujo IGE/LMA con datos de prestación permanece pendiente.
+
+### Campos de detalle sin novedades PILA — 2026-10-31
+
+- La continuación de #202 mapea los indicadores sin evento en campos 15–21,
+  23–27 y 29–30, y las fechas vacías 80–94. Exige snapshot PILA v2 de mes
+  calendario completo, afiliación `01`/`00`, empleado y contrato vigentes,
+  días aprobados de los cuatro subsistemas y arrays presentes/vacíos de eventos
+  junto con novedades Payroll vacías.
+- El campo 30 queda en cero cuando no se capturó IRL. Los campos 22 (corrección)
+  y 28 (aporte voluntario) permanecen sin candidato: no existe fuente congelada
+  que permita confirmar su valor.
+- La regla `AT2_V30_NO_EVENT_NOVELTY_FIELDS_V1` es versionada. El informe API/web
+  expone candidatos y pendientes por campo y empleados afectados. Un evento,
+  novedad, lista ausente o período incompleto mantiene los campos dependientes
+  sin candidato.
+- AT2 v30 pp. 88–89 y 98–102 define los valores vacíos; la descarga continúa
+  deshabilitada, la validación local sigue siendo parcial y no se afirma
+  compatibilidad con operador. El trabajo está en la rama
+  `codex/goal02-pila-empty-novelty-fields`, apilada sobre #202.
 
 ### Salud estándar candidata AT2 — 2026-10-31
 

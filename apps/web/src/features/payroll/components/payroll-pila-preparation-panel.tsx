@@ -6,7 +6,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { usePayrollPilaPreparation } from '../hooks/use-payroll';
 import type {
-  PilaDetailContributionCandidateStatus,
+  PilaDetailFieldCandidateStatus,
   PilaPreparationIssue,
   PayrollPeriodStatus,
 } from '../services/payroll-api';
@@ -18,10 +18,23 @@ const recordLabels: Record<PilaPreparationIssue['record'], string> = {
   SNAPSHOT: 'Snapshot de nómina',
 };
 
-const contributionFieldLabels: Record<
-  PilaDetailContributionCandidateStatus['fieldNumber'],
-  string
-> = {
+const detailFieldLabels: Record<PilaDetailFieldCandidateStatus['fieldNumber'], string> = {
+  15: 'Ingreso (ING)',
+  16: 'Retiro (RET)',
+  17: 'Traslado desde EPS/EOC (TDE)',
+  18: 'Traslado a EPS/EOC (TAE)',
+  19: 'Traslado desde administradora de pensiones (TDP)',
+  20: 'Traslado a administradora de pensiones (TAP)',
+  21: 'Variación permanente de salario (VSP)',
+  22: 'Corrección de planilla',
+  23: 'Variación transitoria de salario (VST)',
+  24: 'Suspensión o licencia no remunerada (SLN)',
+  25: 'Incapacidad general (IGE)',
+  26: 'Licencia de maternidad o paternidad (LMA)',
+  27: 'Vacaciones o licencia remunerada (VAC-LR)',
+  28: 'Aporte voluntario a pensión (AVP)',
+  29: 'Variación de centro de trabajo (VCT)',
+  30: 'Días por accidente laboral (IRL)',
   46: 'Tarifa de pensión',
   47: 'Cotización obligatoria a pensiones',
   54: 'Tarifa de salud',
@@ -38,6 +51,21 @@ const contributionFieldLabels: Record<
   67: 'Aporte SENA',
   68: 'Tarifa ICBF',
   69: 'Aporte ICBF',
+  80: 'Fecha de ingreso',
+  81: 'Fecha de retiro',
+  82: 'Fecha de inicio VSP',
+  83: 'Fecha de inicio SLN',
+  84: 'Fecha de fin SLN',
+  85: 'Fecha de inicio IGE',
+  86: 'Fecha de fin IGE',
+  87: 'Fecha de inicio LMA',
+  88: 'Fecha de fin LMA',
+  89: 'Fecha de inicio VAC-LR',
+  90: 'Fecha de fin VAC-LR',
+  91: 'Fecha de inicio VCT',
+  92: 'Fecha de fin VCT',
+  93: 'Fecha de inicio IRL',
+  94: 'Fecha de fin IRL',
 };
 
 export function PayrollPilaPreparationPanel({
@@ -177,7 +205,7 @@ export function PayrollPilaPreparationPanel({
               {query.data.detailNoEventFieldCandidates.map((status) => (
                 <li key={status.fieldNumber} className="rounded-md bg-muted/40 px-3 py-2">
                   <p className="text-sm font-medium">
-                    Campo {status.fieldNumber} · {contributionFieldLabels[status.fieldNumber]}
+                    Campo {status.fieldNumber} · {detailFieldLabels[status.fieldNumber] ?? 'AT2'}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Con candidato: {status.candidateEmployees}; pendientes:{' '}
@@ -213,6 +241,65 @@ export function PayrollPilaPreparationPanel({
 
           <section
             className="rounded-lg border border-border p-4"
+            aria-labelledby="pila-absent-event-fields-title"
+          >
+            <h3 id="pila-absent-event-fields-title" className="font-medium">
+              Campos de novedad sin evento registrado
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Para snapshots completos sin eventos PILA ni novedades Payroll se proponen los blancos
+              y el cero definidos por AT2 v30. La corrección de planilla (22) y el aporte voluntario
+              a pensión (28) siguen pendientes por falta de fuentes congeladas. Este informe no
+              habilita la descarga del archivo.
+            </p>
+            <details className="mt-3 rounded-md bg-muted/40 px-3 py-2">
+              <summary className="cursor-pointer text-sm font-medium">
+                Ver estado de {query.data.detailAbsentEventCandidates.length} campos
+              </summary>
+              <ul className="mt-3 space-y-3">
+                {query.data.detailAbsentEventCandidates.map((status) => (
+                  <li
+                    key={status.fieldNumber}
+                    className="rounded-md border border-border px-3 py-2"
+                  >
+                    <p className="text-sm font-medium">
+                      Campo {status.fieldNumber} · {detailFieldLabels[status.fieldNumber] ?? 'AT2'}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Con candidato: {status.candidateEmployees}; pendientes:{' '}
+                      {status.pendingEmployees}.
+                    </p>
+                    {status.pendingReasons.length > 0 && (
+                      <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
+                        {status.pendingReasons.map(({ reason, affectedEmployees }, index) => (
+                          <li key={`${status.fieldNumber}-${index}`}>
+                            <p>{reason}</p>
+                            {affectedEmployees.length > 0 && (
+                              <details className="mt-1">
+                                <summary className="cursor-pointer text-primary">
+                                  Ver {affectedEmployees.length} empleados afectados
+                                </summary>
+                                <ul className="mt-2 list-inside list-disc">
+                                  {affectedEmployees.map((name, employeeIndex) => (
+                                    <li key={`${status.fieldNumber}-${index}-${employeeIndex}`}>
+                                      {name}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </details>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </section>
+
+          <section
+            className="rounded-lg border border-border p-4"
             aria-labelledby="pila-contribution-candidates-title"
           >
             <h3 id="pila-contribution-candidates-title" className="font-medium">
@@ -226,7 +313,7 @@ export function PayrollPilaPreparationPanel({
               {query.data.detailContributionCandidates.map((status) => (
                 <li key={status.fieldNumber} className="rounded-md bg-muted/40 px-3 py-2">
                   <p className="text-sm font-medium">
-                    Campo {status.fieldNumber} · {contributionFieldLabels[status.fieldNumber]}
+                    Campo {status.fieldNumber} · {detailFieldLabels[status.fieldNumber] ?? 'AT2'}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Con candidato: {status.candidateEmployees}; pendientes:{' '}

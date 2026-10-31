@@ -42,6 +42,18 @@ type JsonRecord = Record<string, unknown>;
 
 const PILA_AT2_V30_NO_BENEFIT_EVENT_FIELDS_RULE_VERSION =
   'AT2_V30_NO_IGE_LMA_FIXED_FIELDS_V1' as const;
+const PILA_AT2_V30_NO_EVENT_NOVELTY_FIELDS_RULE_VERSION =
+  'AT2_V30_NO_EVENT_NOVELTY_FIELDS_V1' as const;
+
+export const PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS = [
+  15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 80, 81, 82,
+  83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94,
+] as const;
+
+const PILA_AT2_V30_NO_EVENT_NOVELTY_CANDIDATE_FIELDS = [
+  15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 26, 27, 29, 30, 80, 81, 82, 83, 84,
+  85, 86, 87, 88, 89, 90, 91, 92, 93, 94,
+] as const;
 
 export interface PilaAt2V30DetailCandidate {
   formatVersion: typeof PILA_AT2_V30_FORMAT_VERSION;
@@ -59,6 +71,9 @@ export interface PilaAt2V30DetailCandidate {
     healthRate: typeof PILA_HEALTH_STANDARD_RATE_RULE_VERSION | null;
     noBenefitEventFields:
       | typeof PILA_AT2_V30_NO_BENEFIT_EVENT_FIELDS_RULE_VERSION
+      | null;
+    noEventNoveltyFields:
+      | typeof PILA_AT2_V30_NO_EVENT_NOVELTY_FIELDS_RULE_VERSION
       | null;
   };
   values: Partial<Record<number, PilaAt2V30FieldInput>>;
@@ -224,6 +239,7 @@ export function mapPilaAt2V30DetailCandidate(
         pensionRate: null,
         healthRate: null,
         noBenefitEventFields: null,
+        noEventNoveltyFields: null,
       },
       values,
       unresolvedFields: [...reasons].map(([fieldNumber, reason]) => ({
@@ -412,6 +428,32 @@ export function mapPilaAt2V30DetailCandidate(
       unresolved(fieldNumber, reason);
     }
   }
+
+  if (fullMonthPilaInputsApproved) {
+    for (const fieldNumber of [
+      15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 26, 27, 29,
+    ]) {
+      blank(fieldNumber);
+    }
+    put(30, 0);
+    for (let fieldNumber = 80; fieldNumber <= 94; fieldNumber += 1) {
+      blank(fieldNumber);
+    }
+  } else {
+    const reason =
+      'Este campo solo se propone vacío/cero para un dependiente 01/00 con cobertura completa, días aprobados y listas presentes sin eventos PILA ni novedades Payroll.';
+    for (const fieldNumber of PILA_AT2_V30_NO_EVENT_NOVELTY_CANDIDATE_FIELDS) {
+      unresolved(fieldNumber, reason);
+    }
+  }
+  unresolved(
+    22,
+    'Falta una fuente congelada que declare si el registro corresponde a una corrección de planilla; no se infiere desde la ausencia de eventos Payroll.',
+  );
+  unresolved(
+    28,
+    'No hay una fuente congelada para el aporte voluntario del afiliado a pensión; la ausencia de eventos no prueba que el valor sea cero.',
+  );
 
   const salary = object(payroll?.salarioBasicoCampo40);
   if (
@@ -1171,6 +1213,9 @@ export function mapPilaAt2V30DetailCandidate(
       healthRate: healthStandardRate?.ruleVersion ?? null,
       noBenefitEventFields: fullMonthPilaInputsApproved
         ? PILA_AT2_V30_NO_BENEFIT_EVENT_FIELDS_RULE_VERSION
+        : null,
+      noEventNoveltyFields: fullMonthPilaInputsApproved
+        ? PILA_AT2_V30_NO_EVENT_NOVELTY_FIELDS_RULE_VERSION
         : null,
     },
     values,

@@ -144,13 +144,17 @@ describe('AT2 v30 fixed-width record formatting', () => {
     ).toBe('DECIMAL_FRACTION');
   });
 
-  it('writes AT2 no-event incapacity and maternity fields as blanks and zeroes', () => {
+  it('writes AT2 no-event flags, dates and days as blanks and zeroes', () => {
     const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
     const values = completeRecordValues('contributorDetailType2', {
+      15: { value: null, emptyAs: 'spaces' },
+      30: { value: 0 },
       57: { value: null, emptyAs: 'spaces' },
       58: { value: 0 },
       59: { value: null, emptyAs: 'spaces' },
       60: { value: 0 },
+      80: { value: null, emptyAs: 'spaces' },
+      94: { value: null, emptyAs: 'spaces' },
     });
     const record = serializePilaAt2V30Record('contributorDetailType2', values);
     const fieldStart = (fieldNumber: number) =>
@@ -161,11 +165,19 @@ describe('AT2 v30 fixed-width record formatting', () => {
     expect(record.slice(fieldStart(57), fieldStart(57) + 15)).toBe(
       ' '.repeat(15),
     );
+    expect(record.slice(fieldStart(15), fieldStart(15) + 1)).toBe(' ');
+    expect(record.slice(fieldStart(30), fieldStart(30) + 2)).toBe('00');
     expect(record.slice(fieldStart(58), fieldStart(58) + 9)).toBe('000000000');
     expect(record.slice(fieldStart(59), fieldStart(59) + 15)).toBe(
       ' '.repeat(15),
     );
     expect(record.slice(fieldStart(60), fieldStart(60) + 9)).toBe('000000000');
+    expect(record.slice(fieldStart(80), fieldStart(80) + 10)).toBe(
+      ' '.repeat(10),
+    );
+    expect(record.slice(fieldStart(94), fieldStart(94) + 10)).toBe(
+      ' '.repeat(10),
+    );
   });
 
   it('formats the AT2 field 64 CCF fractional tariff to seven positions', () => {
