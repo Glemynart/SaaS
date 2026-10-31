@@ -66,9 +66,15 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
   await expect(page.getByText(customerName, { exact: true })).toBeVisible();
   await expect(page.getByText('Sin tercero contable vinculado')).toBeVisible();
 
+  const accessToken = (await page.context().cookies()).find(
+    (cookie) => cookie.name === 'saas_access_token',
+  )?.value;
+  expect(accessToken).toBeTruthy();
+  const apiPort = process.env.PLAYWRIGHT_API_PORT ?? '4000';
   const createThirdPartyResponse = await page.request.post(
-    new URL('/api/accounting/terceros', page.url()).toString(),
+    `http://127.0.0.1:${apiPort}/accounting/terceros`,
     {
+      headers: { Authorization: `Bearer ${accessToken}` },
       data: {
         tipoDocumento: 'NIT',
         numeroDocumento: customerNit,
@@ -79,7 +85,7 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
       },
     },
   );
-  expect(createThirdPartyResponse.status()).toBe(200);
+  expect(createThirdPartyResponse.status()).toBe(201);
   const thirdParty = (await createThirdPartyResponse.json()) as { id: string };
 
   await page.reload();
