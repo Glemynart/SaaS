@@ -9,6 +9,7 @@ import {
   PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS,
   PILA_AT2_V30_PRIVATE_EMPLOYER_ESAP_MEN_FIELD_NUMBERS,
   PILA_AT2_V30_STANDARD_DEPENDENT_EMPTY_FIELD_NUMBERS,
+  PILA_AT2_V30_UNMAPPED_PENSION_CONTRIBUTION_FIELD_NUMBERS,
 } from './pila-at2-v30-detail-mapper';
 
 type JsonRecord = Record<string, unknown>;
@@ -1698,7 +1699,21 @@ export function buildPilaPreparationReport(input: {
   const detailContributionCandidates = summarizePilaDetailFieldCandidates(
     input.snapshots,
     assessments,
-    [46, 47, 54, 55, 61, 63, 64, 65, 66, 67, 68, 69],
+    [
+      46,
+      47,
+      ...PILA_AT2_V30_UNMAPPED_PENSION_CONTRIBUTION_FIELD_NUMBERS,
+      54,
+      55,
+      61,
+      63,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+    ],
   );
   const detailNoEventFieldCandidates = summarizePilaDetailFieldCandidates(
     input.snapshots,
