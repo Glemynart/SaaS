@@ -141,7 +141,7 @@ export function days360(start: string, endExclusive: string): number {
 }
 
 function amount(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
     ? value
     : null;
 }

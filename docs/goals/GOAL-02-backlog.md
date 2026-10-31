@@ -392,8 +392,10 @@ verdes al 2026-10-31.
   `SUSPENSION`; se conserva el caso de bonificación como bloqueo específico.
   El parser también rechaza snapshots cuyo array de conceptos o novedades
   contiene filas que no son objetos; antes las descartaba y podía calcular con
-  fuente incompleta.
-- Las pruebas de calculadora y servicio pasan (29/29), al igual que typecheck de
+  fuente incompleta. Rechaza además importes fraccionarios, coherente con los
+  pesos enteros congelados por nómina; hay regresiones para salario, auxilio y
+  trabajo suplementario.
+- Las pruebas de calculadora y servicio pasan (32/32), al igual que typecheck de
   API, ESLint, Prettier y `git diff --check`. El PR #181 está apilado sobre
   #180; CI y Browser E2E fallaron en 1–2 segundos al abrirse. El usuario indicó
   que la cuota mensual de Actions está agotada; ambos PR quedan abiertos para

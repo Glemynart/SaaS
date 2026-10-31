@@ -286,6 +286,28 @@ describe('calculateServicePremium', () => {
     },
   );
 
+  it.each([
+    ['salario base', { salary: 2_000_000.5 }, 'SNAPSHOT_INCOMPATIBLE'],
+    ['auxilio de transporte', { aid: 200_000.5 }, 'SNAPSHOT_INCOMPATIBLE'],
+    ['trabajo suplementario', { overtime: 100_000.5 }, 'CONCEPTO_INVALIDO'],
+  ] as const)(
+    'bloquea importes fraccionarios de %s en el snapshot',
+    (_label, options, blockCode) => {
+      const result = calculateServicePremium({
+        employee,
+        year: 2026,
+        semester: 1,
+        snapshots: halfYearSnapshots(options),
+      });
+
+      expect(result).toMatchObject({
+        status: 'BLOQUEADA',
+        blockCode,
+        amount: null,
+      });
+    },
+  );
+
   it('marca salario integral como no aplica', () => {
     const result = calculateServicePremium({
       employee,
