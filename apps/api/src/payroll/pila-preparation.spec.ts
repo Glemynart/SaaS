@@ -1635,6 +1635,43 @@ describe('inspectPilaSnapshotPreparation', () => {
     );
   });
 
+  it('incluye candidatos de cabecera tipo 2 y sus motivos por campo', () => {
+    const report = buildPilaPreparationReport({
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [detailCandidateSnapshot('employee-1', 'Ana')],
+    });
+
+    expect(report.headerCandidate).toMatchObject({
+      formatVersion: 'AT2_V30',
+      supportedSnapshots: true,
+      tenantId: 'tenant-1',
+      payrollPeriodId: 'period-1',
+      values: {
+        4: { value: 'Empresa Demo SAS' },
+        16: { value: '2026-10' },
+        19: { value: 1 },
+        20: { value: 3_000_000 },
+      },
+    });
+    expect(report.headerCandidate.unresolvedFields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldNumber: 2,
+          code: 'AT2_HEADER_FIELD_UNRESOLVED',
+        }),
+        expect.objectContaining({
+          fieldNumber: 22,
+          code: 'AT2_HEADER_FIELD_UNRESOLVED',
+        }),
+      ]),
+    );
+    expect(report.archivoGenerable).toBe(false);
+  });
+
   it('expone candidatos parciales por campo sin habilitar el archivo', () => {
     const compliant = detailCandidateSnapshot('employee-1', 'Ana');
     const arlAmountNotRounded = detailCandidateSnapshot(
@@ -1908,6 +1945,10 @@ describe('inspectPilaSnapshotPreparation', () => {
     );
     snapshots.forEach((item, index) => {
       const source = item.payload as ReturnType<typeof payload>;
+      Object.assign(source, { schemaVersion: 2 });
+      Object.assign(source.period, { payrollPeriodId: 'period-1' });
+      Object.assign(source.employee, { employeeId: item.employeeId });
+      item.payloadVersion = 2;
       source.employer.pila.claseAportante = 'A';
       source.payroll.ibcPorSubsistema.cajaCompensacion.valor =
         index === snapshots.length - 1 ? 999 : 999_999_999;
@@ -1919,6 +1960,9 @@ describe('inspectPilaSnapshotPreparation', () => {
     };
 
     const atMaximum = buildPilaPreparationReport({ period, snapshots });
+    expect(atMaximum.headerCandidate.values[20]).toEqual({
+      value: 999_999_999_999,
+    });
     expect(atMaximum.exportReadiness.blockers).not.toContainEqual(
       expect.objectContaining({
         code: 'AT2_HEADER_CCF_IBC_TOTAL_SUPERA_LONGITUD',
@@ -1934,6 +1978,13 @@ describe('inspectPilaSnapshotPreparation', () => {
         code: 'AT2_HEADER_CCF_IBC_TOTAL_SUPERA_LONGITUD',
         scope: 'FILE_GENERATION',
         fields: [{ record: 'CABECERA_TIPO_2', fieldNumbers: [20] }],
+      }),
+    );
+    expect(overMaximum.headerCandidate.values[20]).toBeUndefined();
+    expect(overMaximum.headerCandidate.unresolvedFields).toContainEqual(
+      expect.objectContaining({
+        fieldNumber: 20,
+        code: 'AT2_HEADER_CCF_IBC_TOTAL_SUPERA_LONGITUD',
       }),
     );
   });

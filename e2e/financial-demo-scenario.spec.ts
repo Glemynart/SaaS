@@ -240,6 +240,16 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
     expect(persisted.vouchers).toEqual([{ id: posting.comprobanteId, estado: 'CONTABILIZADO' }]);
     expect(persisted.snapshotPayload).toEqual(payroll.snapshotPayload);
     expect(persisted.snapshotStatus).toBe('APROBADA');
+    expect(persisted.pilaSnapshotPayload).toEqual(payroll.pilaSnapshotPayload);
+
+    await page.getByRole('button', { name: 'Revisar datos' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Encabezado tipo 2 · candidatos por campo' }),
+    ).toBeVisible();
+    await page.getByText('Ver estado de los 22 campos del encabezado').click();
+    await expect(page.getByText('Campo 20 · Total IBC de caja de compensación')).toBeVisible();
+    await expect(page.getByText('1.000.000', { exact: true })).toBeVisible();
+    await expect(page.getByText('No implementadas', { exact: true })).toBeVisible();
   } finally {
     await payroll.disconnect();
     await billingFixture.disconnect();
