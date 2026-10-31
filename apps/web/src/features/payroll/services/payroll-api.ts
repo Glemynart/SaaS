@@ -14,6 +14,7 @@ export interface PayrollPeriod {
   nombre: string;
   fechaInicio: string;
   fechaFin: string;
+  fechaPrevistaPago: string | null;
   status: PayrollPeriodStatus;
   empleadosProcesados: number;
   createdAt: string;
@@ -292,8 +293,12 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 export const payrollApi = {
   getDashboard: () => req<PayrollDashboard>('/api/payroll/dashboard'),
   getPeriods: () => req<PayrollPeriod[]>('/api/payroll/periods'),
-  createPeriod: (d: { nombre: string; fechaInicio: string; fechaFin: string }) =>
-    req<PayrollPeriod>('/api/payroll/periods', { method: 'POST', body: JSON.stringify(d) }),
+  createPeriod: (d: {
+    nombre: string;
+    fechaInicio: string;
+    fechaFin: string;
+    fechaPrevistaPago?: string | null;
+  }) => req<PayrollPeriod>('/api/payroll/periods', { method: 'POST', body: JSON.stringify(d) }),
   getPeriod: (id: string) => req<PeriodDetail>(`/api/payroll/periods/${id}`),
   getCorrections: (periodId: string) =>
     req<PayrollCorrection[]>(`/api/payroll/periods/${periodId}/corrections`),

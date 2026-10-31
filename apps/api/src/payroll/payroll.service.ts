@@ -45,6 +45,7 @@ import {
   resolveContrato,
   toSnapshot,
 } from './payroll-mapper';
+import { buildPayrollPeriodSnapshot } from './payroll-snapshot-period';
 import { assertTransition } from './payroll-states';
 import { assertCorrectionTransition } from './payroll-correction-states';
 import {
@@ -521,6 +522,9 @@ export class PayrollService {
         ...dto,
         fechaInicio: new Date(dto.fechaInicio),
         fechaFin: new Date(dto.fechaFin),
+        fechaPrevistaPago: dto.fechaPrevistaPago
+          ? new Date(dto.fechaPrevistaPago)
+          : null,
         tenantId,
         // Explícito: no depender del @default de la DB (red de seguridad,
         // no fuente de verdad). Ver ADR-002 §6 / U1 Fase 1.
@@ -2743,6 +2747,7 @@ export class PayrollService {
       nombre: string;
       fechaInicio: Date;
       fechaFin: Date;
+      fechaPrevistaPago: Date | null;
       status: PayrollPeriodStatus;
     },
     origin: string,
@@ -2772,13 +2777,14 @@ export class PayrollService {
           origin,
           approvedById: userId,
         },
-        period: {
+        period: buildPayrollPeriodSnapshot({
           payrollPeriodId: run.payrollPeriodId,
           nombre: trace.period.nombre,
           fechaInicio: trace.period.fechaInicio,
           fechaFin: trace.period.fechaFin,
+          fechaPrevistaPago: period.fechaPrevistaPago,
           status: PayrollPeriodStatus.APROBADA,
-        },
+        }),
         employee: {
           employeeId: run.employeeId,
           salarioBaseUsado: this.toNumber(run.salarioBaseSnapshot),

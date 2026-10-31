@@ -32,21 +32,28 @@ export default function PeriodosPage() {
   const [nombre, setNombre] = useState('');
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
+  const [fechaPrevistaPago, setFechaPrevistaPago] = useState('');
 
   const handleCreate = useCallback(() => {
     if (!nombre || !fechaInicio || !fechaFin) return;
     createMutation.mutate(
-      { nombre, fechaInicio, fechaFin },
+      {
+        nombre,
+        fechaInicio,
+        fechaFin,
+        fechaPrevistaPago: fechaPrevistaPago || null,
+      },
       {
         onSuccess: () => {
           setShowForm(false);
           setNombre('');
           setFechaInicio('');
           setFechaFin('');
+          setFechaPrevistaPago('');
         },
       },
     );
-  }, [nombre, fechaInicio, fechaFin, createMutation]);
+  }, [nombre, fechaInicio, fechaFin, fechaPrevistaPago, createMutation]);
 
   if (isLoading)
     return (
@@ -73,7 +80,7 @@ export default function PeriodosPage() {
 
       {showForm && (
         <div className="mb-6 rounded-xl border border-border bg-surface p-5 shadow-sm">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5">
               <Label>Nombre</Label>
               <Input
@@ -93,6 +100,18 @@ export default function PeriodosPage() {
             <div className="space-y-1.5">
               <Label>Fin</Label>
               <Input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="fecha-prevista-pago">Fecha prevista de pago</Label>
+              <Input
+                id="fecha-prevista-pago"
+                type="date"
+                value={fechaPrevistaPago}
+                onChange={(e) => setFechaPrevistaPago(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Opcional. Se conserva al aprobar la nómina; no registra el pago.
+              </p>
             </div>
           </div>
           <div className="mt-4 flex gap-2">
@@ -120,6 +139,14 @@ export default function PeriodosPage() {
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {new Date(p.fechaInicio).toLocaleDateString('es-CO')} -{' '}
                     {new Date(p.fechaFin).toLocaleDateString('es-CO')}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Pago previsto:{' '}
+                    {p.fechaPrevistaPago
+                      ? new Date(`${p.fechaPrevistaPago.slice(0, 10)}T00:00:00`).toLocaleDateString(
+                          'es-CO',
+                        )
+                      : 'sin definir'}
                   </p>
                   <div className="mt-1.5 flex items-center gap-2">
                     <StatusBadge domain="nominaN2" estado={p.status} />

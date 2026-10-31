@@ -131,7 +131,9 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   Aún no se genera ni transmite un archivo, no se declara compatibilidad de
   operadores sin pruebas reales, y no se realizan liquidación o pago.
 - **Estado de preparación:** PR #160 incorpora la etapa de afiliaciones manuales;
-  CI, Browser E2E y Vercel Preview pasaron. La siguiente etapa requiere comprobar
-  catálogos y reglas AT2 v30 antes de generar tipo 1/2.
+  CI, Browser E2E y Vercel Preview pasaron. El incremento actual agrega la fecha
+  prevista de pago al período de nómina y la conserva en snapshots nuevos. Aún se requiere
+  comprobar catálogos y reglas AT2 v30, completar datos patronales y laborales y
+  calcular días/IBC por subsistema antes de generar tipo 1/2.
 - No se ejecutó el seed financiero ni se accedió a staging, producción, VPS u
   OCI; no se transmitió información a DIAN/UGPP.
