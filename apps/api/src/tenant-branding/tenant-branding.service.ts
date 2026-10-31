@@ -12,6 +12,7 @@ import { AuditService } from '../audit/audit.service';
 import * as path from 'path';
 
 const PILA_PROFILE_FIELDS = [
+  'pilaClaseAportante',
   'pilaTipoDocumentoAportante',
   'pilaNaturalezaJuridica',
   'pilaTipoPersona',
@@ -157,6 +158,7 @@ export class TenantBrandingService {
 
   private pilaProfileSelect() {
     return {
+      pilaClaseAportante: true,
       pilaTipoDocumentoAportante: true,
       pilaNaturalezaJuridica: true,
       pilaTipoPersona: true,

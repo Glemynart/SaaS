@@ -251,6 +251,7 @@ model Tenant {
   // Datos declarados por el aportante para los anexos técnicos PILA.
   // Permanecen nulos hasta que un ADMIN los confirme; no se infieren de branding,
   // sedes operativas ni de los campos de identificación heredados.
+  pilaClaseAportante               String?   @db.Char(1)
   pilaTipoDocumentoAportante       String?   @db.VarChar(2)
   pilaNaturalezaJuridica           String?   @db.Char(1)
   pilaTipoPersona                  String?   @db.Char(1)

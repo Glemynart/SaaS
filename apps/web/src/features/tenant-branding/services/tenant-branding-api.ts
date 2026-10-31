@@ -11,6 +11,7 @@ export interface PilaEmployerProfile {
   razonSocial: string;
   nit: string;
   aportesExonerados: boolean;
+  pilaClaseAportante: string | null;
   pilaTipoDocumentoAportante: string | null;
   pilaNaturalezaJuridica: string | null;
   pilaTipoPersona: string | null;

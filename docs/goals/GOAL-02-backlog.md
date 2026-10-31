@@ -524,13 +524,13 @@ verdes al 2026-10-31.
 - Los campos 28–29 asignados al operador permanecen sin valor. También queda
   sin resolver el campo 16 cuando el fax opcional está vacío, porque falta
   confirmar la representación vacía de ese campo numérico.
-- La revisión del constructor v2, el `select` de Payroll y `Tenant` confirmó
-  que `claseAportante` y `codigoDepartamentoLey1429` no se persisten/congelan,
-  aunque el preflight los espera para las declaraciones aplicables. El campo 7
-  carece hoy de una fuente real; el 32 solo puede mapearse si el beneficio
-  aplica, pero su fuente tampoco existe. Esto requiere completar el perfil
-  explícito y el payload en una iniciativa posterior con migración, captura y
-  prueba de snapshot; no se completan desde nombres, sedes u otros maestros.
+- Se incorporó `pilaClaseAportante` al perfil PILA nullable y al snapshot v2,
+  para que la declaración viaje congelada con la nómina aprobada. Los snapshots
+  históricos anteriores a la migración siguen sin ese dato y permanecen
+  bloqueados; no se hace backfill ni se infiere desde la razón social. El
+  departamento Ley 1429 se deriva del DIVIPOLA del domicilio del aportante ya
+  congelado en `employer.municipio`, según ADR-013. Ningún valor se completa
+  desde sede laboral ni desde maestros actuales.
 - Las pruebas unitarias cubren presentación única y por sucursal, DIVIPOLA,
   omisión de representante para persona natural, fuentes faltantes y el bloqueo
   de campos asignados al operador. La matriz de aceptación PILA documenta el

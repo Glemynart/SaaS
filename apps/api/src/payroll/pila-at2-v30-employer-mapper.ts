@@ -214,7 +214,16 @@ export function mapPilaAt2V30EmployerCandidate(
         'Falta una fecha de matrícula mercantil congelada y válida.',
       );
     }
-    putRequiredText(32, employerPila.codigoDepartamentoLey1429);
+    const domicileMunicipalityCode = valueText(municipality?.codigo);
+    if (domicileMunicipalityCode && /^\d{5}$/.test(domicileMunicipalityCode)) {
+      // ADR-013 identifies the frozen employer domicile as the source.
+      put(32, domicileMunicipalityCode.slice(0, 2));
+    } else {
+      unresolved(
+        32,
+        'Falta el DIVIPOLA confirmado del domicilio principal del aportante.',
+      );
+    }
   } else {
     unresolved(31, 'Falta confirmar si aplica el beneficio de Ley 1429.');
     unresolved(32, 'Falta confirmar si aplica el beneficio de Ley 1429.');

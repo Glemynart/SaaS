@@ -12,11 +12,20 @@ describe('TenantBrandingService', () => {
   let service: TenantBrandingService;
 
   const mockTenantFindUnique = jest.fn();
-  const mockTenantUpdate = jest.fn();
+  const mockTenantUpdate = jest.fn(
+    ({ data }: { where?: { id: string }; data: Record<string, unknown> }) =>
+      Promise.resolve(data),
+  );
   const mockPutObject = jest.fn();
   const mockGetObject = jest.fn();
   const mockAuditLog = jest.fn();
-  const mockTransaction = jest.fn();
+  const mockTransaction = jest.fn(
+    (
+      callback: (tx: {
+        tenant: { update: typeof mockTenantUpdate };
+      }) => Promise<unknown>,
+    ) => callback({ tenant: { update: mockTenantUpdate } }),
+  );
 
   beforeEach(async () => {
     mockTenantFindUnique.mockReset().mockResolvedValue({ id: 't1' });
@@ -71,21 +80,20 @@ describe('TenantBrandingService', () => {
     });
 
     await service.updatePilaEmployerProfile('t1', 'user-1', {
+      pilaClaseAportante: 'B',
       pilaTipoDocumentoAportante: 'NI',
       pilaTipoPersona: 'J',
       pilaFechaMatriculaMercantil: '2020-02-29',
     });
 
-    expect(mockTenantUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 't1' },
-        data: expect.objectContaining({
-          pilaTipoDocumentoAportante: 'NI',
-          pilaTipoPersona: 'J',
-          pilaFechaMatriculaMercantil: new Date('2020-02-29T00:00:00.000Z'),
-        }),
-      }),
-    );
+    const updateCall = mockTenantUpdate.mock.calls[0][0];
+    expect(updateCall.data).toMatchObject({
+      pilaClaseAportante: 'B',
+      pilaTipoDocumentoAportante: 'NI',
+      pilaTipoPersona: 'J',
+      pilaFechaMatriculaMercantil: new Date('2020-02-29T00:00:00.000Z'),
+    });
+    expect(updateCall.where).toEqual({ id: 't1' });
     expect(mockAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         tenantId: 't1',
@@ -94,6 +102,7 @@ describe('TenantBrandingService', () => {
         entityType: 'Tenant',
         metadata: {
           fields: [
+            'pilaClaseAportante',
             'pilaTipoDocumentoAportante',
             'pilaTipoPersona',
             'pilaFechaMatriculaMercantil',

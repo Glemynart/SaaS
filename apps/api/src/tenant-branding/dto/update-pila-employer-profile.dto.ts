@@ -9,6 +9,10 @@ import {
 } from 'class-validator';
 
 export class UpdatePilaEmployerProfileDto {
+  @IsIn(['A', 'B', 'C', 'D'])
+  @IsOptional()
+  pilaClaseAportante?: string | null;
+
   @IsIn(['NI'])
   @IsOptional()
   pilaTipoDocumentoAportante?: string | null;

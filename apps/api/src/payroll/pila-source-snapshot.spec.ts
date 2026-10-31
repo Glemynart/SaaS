@@ -17,6 +17,7 @@ const contextInput: PilaSourceContextInput = {
     email: 'nomina@example.test',
     representanteLegal: null,
     aportesExonerados: false,
+    pilaClaseAportante: null,
     pilaTipoDocumentoAportante: null,
     pilaNaturalezaJuridica: null,
     pilaTipoPersona: null,
@@ -168,6 +169,7 @@ describe('PILA source snapshot builders', () => {
       ...contextInput,
       tenant: {
         ...contextInput.tenant,
+        pilaClaseAportante: 'B',
         pilaTipoDocumentoAportante: 'NI',
         pilaNaturalezaJuridica: '2',
         pilaTipoPersona: 'J',
@@ -193,6 +195,7 @@ describe('PILA source snapshot builders', () => {
     });
 
     expect(context.employer.pila).toEqual({
+      claseAportante: 'B',
       tipoDocumentoAportante: 'NI',
       naturalezaJuridica: '2',
       tipoPersona: 'J',

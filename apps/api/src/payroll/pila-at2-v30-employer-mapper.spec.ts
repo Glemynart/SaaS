@@ -136,7 +136,6 @@ describe('mapPilaAt2V30EmployerCandidate', () => {
     const input = snapshot();
     input.payload.employer.pila.beneficioLey1429 = true;
     input.payload.employer.pila.fechaMatriculaMercantil = '2020-02-29';
-    input.payload.employer.pila.codigoDepartamentoLey1429 = '11';
 
     const candidate = mapPilaAt2V30EmployerCandidate(input);
 

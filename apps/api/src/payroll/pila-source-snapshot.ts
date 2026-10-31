@@ -21,6 +21,7 @@ export type PilaSourceContextInput = {
     representanteLegal: string | null;
     aportesExonerados: boolean;
     municipio: MunicipalitySource;
+    pilaClaseAportante: string | null;
     pilaTipoDocumentoAportante: string | null;
     pilaNaturalezaJuridica: string | null;
     pilaTipoPersona: string | null;
@@ -182,6 +183,7 @@ export function buildPilaSourceContext(input: PilaSourceContextInput) {
       aportesExonerados: input.tenant.aportesExonerados,
       municipio: input.tenant.municipio,
       pila: {
+        claseAportante: input.tenant.pilaClaseAportante ?? null,
         tipoDocumentoAportante: input.tenant.pilaTipoDocumentoAportante ?? null,
         naturalezaJuridica: input.tenant.pilaNaturalezaJuridica ?? null,
         tipoPersona: input.tenant.pilaTipoPersona ?? null,
