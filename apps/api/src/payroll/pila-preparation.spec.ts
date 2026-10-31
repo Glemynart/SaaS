@@ -1756,6 +1756,30 @@ describe('inspectPilaSnapshotPreparation', () => {
         }),
       ]),
     );
+    expect(report.detailStandardDependentEmptyCandidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldNumber: 32,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 34,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 74,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 75,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+      ]),
+    );
     expect(report.archivoGenerable).toBe(false);
   });
 

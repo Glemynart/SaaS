@@ -353,6 +353,28 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     );
   });
 
+  it('maps fixed blank destinations and non-cotizante-40 fields for a standard dependent', () => {
+    const input = snapshot();
+    const payload = payloadOf(input);
+    payload.pilaEvents = [{ codigo: 'VSP' }];
+    payload.payroll.pilaEvents = [{ codigo: 'VSP' }];
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    for (const fieldNumber of [32, 34, 74, 75]) {
+      expect(candidate.values[fieldNumber]).toEqual({
+        value: null,
+        emptyAs: 'spaces',
+      });
+    }
+    expect(candidate.normativeRuleVersions.noTransferDestinationFields).toBe(
+      'AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_V1',
+    );
+    expect(candidate.normativeRuleVersions.nonCotizante40PrincipalFields).toBe(
+      'AT2_V30_NON_COTIZANTE40_PRINCIPAL_FIELDS_V1',
+    );
+  });
+
   it.each([
     'ING',
     'RET',
@@ -782,6 +804,15 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.values[36]).toBeUndefined();
     expect(candidate.values[7]).toBeUndefined();
     expect(candidate.values[8]).toBeUndefined();
+    for (const fieldNumber of [32, 34, 74, 75]) {
+      expect(candidate.values[fieldNumber]).toBeUndefined();
+    }
+    expect(
+      candidate.normativeRuleVersions.noTransferDestinationFields,
+    ).toBeNull();
+    expect(
+      candidate.normativeRuleVersions.nonCotizante40PrincipalFields,
+    ).toBeNull();
   });
 
   it('preserves numeric identifier and work center leading zeros', () => {

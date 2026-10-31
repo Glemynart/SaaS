@@ -6,6 +6,7 @@ import { PILA_AT2_V30_RECORD_LAYOUTS } from './pila-at2-v30-record-serializer';
 import {
   mapPilaAt2V30DetailCandidate,
   PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS,
+  PILA_AT2_V30_STANDARD_DEPENDENT_EMPTY_FIELD_NUMBERS,
 } from './pila-at2-v30-detail-mapper';
 
 type JsonRecord = Record<string, unknown>;
@@ -1729,6 +1730,12 @@ export function buildPilaPreparationReport(input: {
     assessments,
     PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS,
   );
+  const detailStandardDependentEmptyCandidates =
+    summarizePilaDetailFieldCandidates(
+      input.snapshots,
+      assessments,
+      PILA_AT2_V30_STANDARD_DEPENDENT_EMPTY_FIELD_NUMBERS,
+    );
   const grouped = new Map<
     string,
     PilaPreparationIssue & {
@@ -1795,6 +1802,7 @@ export function buildPilaPreparationReport(input: {
     detailContributionCandidates,
     detailNoEventFieldCandidates,
     detailAbsentEventCandidates,
+    detailStandardDependentEmptyCandidates,
     issues,
     archivoGenerable: false as const,
     estadoArchivo: 'NO_IMPLEMENTADO' as const,
