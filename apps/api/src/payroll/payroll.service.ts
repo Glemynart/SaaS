@@ -162,6 +162,7 @@ type PayrollCalculationTrace = {
   };
   contract: {
     contratoId: string;
+    tipo?: string;
     estado: string;
     fechaInicio: string | null;
     fechaFin: string | null;
@@ -2069,6 +2070,7 @@ export class PayrollService {
       select: {
         id: true,
         empleadoId: true,
+        tipo: true,
         estado: true,
         fechaInicio: true,
         fechaFin: true,
@@ -2246,6 +2248,7 @@ export class PayrollService {
       select: {
         id: true,
         empleadoId: true,
+        tipo: true,
         estado: true,
         fechaInicio: true,
         fechaFin: true,
@@ -2549,6 +2552,7 @@ export class PayrollService {
       select: {
         id: true,
         empleadoId: true,
+        tipo: true,
         estado: true,
         fechaInicio: true,
         fechaFin: true,
@@ -2783,6 +2787,7 @@ export class PayrollService {
         contract: trace.contract
           ? {
               contratoId: trace.contract.contratoId,
+              tipo: trace.contract.tipo,
               estado: trace.contract.estado,
               fechaInicio: trace.contract.fechaInicio,
               fechaFin: trace.contract.fechaFin,
@@ -2950,6 +2955,7 @@ export class PayrollService {
     empContracts: Array<{
       id: string;
       empleadoId: string;
+      tipo: string;
       estado: string;
       fechaInicio: Date;
       fechaFin: Date | null;
@@ -3051,6 +3057,7 @@ export class PayrollService {
       contract: contrato
         ? {
             contratoId: contrato.id,
+            tipo: contrato.tipo,
             estado: contrato.estado,
             fechaInicio: this.toIsoDate(contrato.fechaInicio),
             fechaFin: this.toIsoDate(contrato.fechaFin),

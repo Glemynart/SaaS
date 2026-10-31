@@ -13,7 +13,76 @@ export const payrollKeys = {
   corrections: (periodId: string) => [...payrollKeys.period(periodId), 'corrections'],
   blocks: (periodId: string) => [...payrollKeys.period(periodId), 'blocks'],
   novelties: () => [...payrollKeys.all, 'novelties'],
+  servicePremiums: () => [...payrollKeys.all, 'service-premiums'],
+  servicePremium: (id: string) => [...payrollKeys.servicePremiums(), id],
 };
+
+export function useServicePremiumBatches() {
+  return useQuery({
+    queryKey: payrollKeys.servicePremiums(),
+    queryFn: payrollApi.getServicePremiumBatches,
+    refetchInterval: (query) => {
+      const batches = query.state.data ?? [];
+      return batches.some((batch) => ['APROBADO', 'PROCESANDO'].includes(batch.status))
+        ? 3000
+        : false;
+    },
+  });
+}
+
+export function useServicePremiumBatch(id: string) {
+  return useQuery({
+    queryKey: payrollKeys.servicePremium(id),
+    queryFn: () => payrollApi.getServicePremiumBatch(id),
+    enabled: !!id,
+    refetchInterval: (query) =>
+      query.state.data && ['APROBADO', 'PROCESANDO'].includes(query.state.data.status)
+        ? 3000
+        : false,
+  });
+}
+
+export function useCreateServicePremiumBatch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: payrollApi.createServicePremiumBatch,
+    onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.servicePremiums() }),
+  });
+}
+
+export function useApproveServicePremiumBatch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: payrollApi.approveServicePremiumBatch,
+    onSuccess: (batch) => {
+      qc.invalidateQueries({ queryKey: payrollKeys.servicePremiums() });
+      qc.invalidateQueries({ queryKey: payrollKeys.servicePremium(batch.id) });
+    },
+  });
+}
+
+export function useRetryServicePremiumBatch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: payrollApi.retryServicePremiumBatch,
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: payrollKeys.servicePremiums() });
+      qc.invalidateQueries({ queryKey: payrollKeys.servicePremium(result.batchId) });
+    },
+  });
+}
+
+export function useCorrectServicePremiumBatch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      payrollApi.correctServicePremiumBatch(id, reason),
+    onSuccess: (batch) => {
+      qc.invalidateQueries({ queryKey: payrollKeys.servicePremiums() });
+      qc.invalidateQueries({ queryKey: payrollKeys.servicePremium(batch.id) });
+    },
+  });
+}
 
 export function usePayrollDashboard() {
   return useQuery({ queryKey: payrollKeys.dashboard(), queryFn: payrollApi.getDashboard });

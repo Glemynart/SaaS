@@ -76,6 +76,59 @@ export interface PayrollDashboard {
   ultimoPeriodo: string | null;
 }
 
+export type ServicePremiumLineStatus =
+  | 'LISTA'
+  | 'BLOQUEADA'
+  | 'NO_APLICA'
+  | 'APROBADA'
+  | 'PROCESANDO'
+  | 'DOCUMENTADA'
+  | 'ERROR';
+
+export interface ServicePremiumLine {
+  id: string;
+  status: ServicePremiumLineStatus;
+  salaryBase: number | string | null;
+  variableSalary: number | string | null;
+  transportAllowance: number | string | null;
+  serviceDays360: number | null;
+  amount: number | string | null;
+  blockReason: string | null;
+  lastErrorCode: string | null;
+  sourceFingerprint: string | null;
+  snapshot?: unknown;
+  employee: {
+    id: string;
+    cedula: string;
+    primerNombre: string;
+    segundoNombre: string | null;
+    primerApellido: string;
+    segundoApellido: string | null;
+  };
+  expedienteDoc: { id: string } | null;
+}
+
+export interface ServicePremiumBatch {
+  id: string;
+  anio: number;
+  semestre: number;
+  version: number;
+  formulaVersion: number;
+  status:
+    | 'BORRADOR'
+    | 'APROBADO'
+    | 'PROCESANDO'
+    | 'COMPLETADO'
+    | 'COMPLETADO_CON_BLOQUEOS'
+    | 'ERROR'
+    | 'ANULADO';
+  correctionReason: string | null;
+  approvedAt: string | null;
+  completedAt: string | null;
+  _count?: { lines: number };
+  lines?: ServicePremiumLine[];
+}
+
 export interface PeriodDetail {
   period: PayrollPeriod;
   runs: PayrollRun[];
@@ -301,4 +354,27 @@ export const payrollApi = {
     fecha: string;
     valor?: number;
   }) => req<PayrollNovelty>('/api/payroll/novelties', { method: 'POST', body: JSON.stringify(d) }),
+  getServicePremiumBatches: () => req<ServicePremiumBatch[]>('/api/payroll/service-premiums'),
+  getServicePremiumBatch: (id: string) =>
+    req<ServicePremiumBatch>(`/api/payroll/service-premiums/${id}`),
+  createServicePremiumBatch: (payload: { year: number; semester: number }) =>
+    req<ServicePremiumBatch>('/api/payroll/service-premiums', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  approveServicePremiumBatch: (id: string) =>
+    req<ServicePremiumBatch>(`/api/payroll/service-premiums/${id}/approve`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  retryServicePremiumBatch: (id: string) =>
+    req<{ batchId: string; retriedLines: number; status: string }>(
+      `/api/payroll/service-premiums/${id}/retry`,
+      { method: 'POST', body: '{}' },
+    ),
+  correctServicePremiumBatch: (id: string, reason: string) =>
+    req<ServicePremiumBatch>(`/api/payroll/service-premiums/${id}/corrections`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
 };

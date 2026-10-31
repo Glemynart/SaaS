@@ -36,6 +36,15 @@ export interface PublishGeneratedDocumentResult {
   generatedDocumentId: string;
 }
 
+export interface PublishServicePremiumDocumentInput {
+  tenantId: string;
+  userId: string;
+  lineId: string;
+  storageKey: string;
+  sizeBytes: number;
+  sha256: string;
+}
+
 @Injectable()
 export class ExpedienteDocsService {
   private readonly logger = new Logger(ExpedienteDocsService.name);
@@ -530,6 +539,176 @@ export class ExpedienteDocsService {
             outcome: 'EXISTING',
             expedienteDocId: existing.id,
             generatedDocumentId,
+          };
+        }
+      }
+      throw error;
+    }
+  }
+
+  /** Indexa una liquidación aprobada como documento inmutable del Expediente. */
+  async publishServicePremiumDocument(
+    input: PublishServicePremiumDocumentInput,
+  ) {
+    const { tenantId, userId, lineId, storageKey, sizeBytes, sha256 } = input;
+    try {
+      return await this.tenantPrisma.execute(async (tx) => {
+        const line = await tx.servicePremiumLine.findFirst({
+          where: { id: lineId, tenantId },
+          select: {
+            id: true,
+            employeeId: true,
+            batchId: true,
+            amount: true,
+            serviceDays360: true,
+            sourceFingerprint: true,
+            status: true,
+            documentStorageKey: true,
+            documentSizeBytes: true,
+            documentSha256: true,
+            batch: {
+              select: {
+                anio: true,
+                semestre: true,
+                version: true,
+                status: true,
+              },
+            },
+          },
+        });
+        if (!line)
+          throw new NotFoundException('Liquidación de prima no encontrada.');
+        const existing = await tx.expedienteDoc.findFirst({
+          where: { tenantId, servicePremiumLineId: lineId },
+          select: { id: true, storageKey: true, tamanoBytes: true },
+        });
+        if (existing) {
+          if (
+            existing.storageKey !== storageKey ||
+            existing.tamanoBytes !== sizeBytes ||
+            (line.documentStorageKey !== null &&
+              line.documentStorageKey !== storageKey) ||
+            (line.documentSizeBytes !== null &&
+              line.documentSizeBytes !== sizeBytes) ||
+            (line.documentSha256 !== null && line.documentSha256 !== sha256)
+          ) {
+            throw new ConflictException(
+              'El documento de prima ya existe con otra huella o almacenamiento.',
+            );
+          }
+          await tx.servicePremiumLine.updateMany({
+            where: { id: lineId, tenantId },
+            data: {
+              status: 'DOCUMENTADA',
+              documentStorageKey: storageKey,
+              documentSizeBytes: sizeBytes,
+              documentSha256: sha256,
+            },
+          });
+          return { outcome: 'EXISTING' as const, expedienteDocId: existing.id };
+        }
+        if (
+          line.status !== 'PROCESANDO' ||
+          line.batch.status !== 'PROCESANDO' ||
+          line.amount === null ||
+          line.serviceDays360 === null ||
+          !line.sourceFingerprint
+        ) {
+          throw new BadRequestException(
+            'Solo se publica una liquidación aprobada y materializada por el worker.',
+          );
+        }
+
+        const familyId = randomUUID();
+        const nombre = `Prima de servicios ${line.batch.anio} S${line.batch.semestre} v${line.batch.version}.pdf`;
+        await tx.expedienteDocFamily.create({
+          data: {
+            id: familyId,
+            tenantId,
+            empleadoId: line.employeeId,
+            categoria: ExpedienteCategoria.PRIMA_SERVICIOS,
+            nombre,
+            descripcion:
+              'Comprobante de liquidación semestral de prima de servicios.',
+          },
+        });
+        const document = await tx.expedienteDoc.create({
+          data: {
+            tenantId,
+            empleadoId: line.employeeId,
+            familiaId: familyId,
+            servicePremiumLineId: line.id,
+            categoria: ExpedienteCategoria.PRIMA_SERVICIOS,
+            nombre,
+            version: 1,
+            vigente: true,
+            storageKey,
+            mimeType: 'application/pdf',
+            tamanoBytes: sizeBytes,
+            subidoPorId: userId,
+            subidoPorNombre: 'sistema',
+          },
+          select: { id: true },
+        });
+        await tx.servicePremiumLine.update({
+          where: { id: line.id },
+          data: {
+            status: 'DOCUMENTADA',
+            documentStorageKey: storageKey,
+            documentSizeBytes: sizeBytes,
+            documentSha256: sha256,
+          },
+        });
+        await this.auditService.log(
+          {
+            tenantId,
+            userId,
+            action: 'SERVICE_PREMIUM_DOCUMENT_PUBLISHED',
+            entityType: 'ExpedienteDoc',
+            entityId: document.id,
+            metadata: {
+              servicePremiumLineId: line.id,
+              batchId: line.batchId,
+              familyId,
+              storageKey,
+              sizeBytes,
+              sha256,
+            },
+          },
+          tx,
+        );
+        return { outcome: 'CREATED' as const, expedienteDocId: document.id };
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const existing = await this.tenantPrisma.execute(async (tx) => {
+          const document = await tx.expedienteDoc.findFirst({
+            where: { tenantId, servicePremiumLineId: lineId },
+            select: { id: true, storageKey: true, tamanoBytes: true },
+          });
+          const line = await tx.servicePremiumLine.findFirst({
+            where: { tenantId, id: lineId },
+            select: { documentSha256: true },
+          });
+          return document && line ? { document, line } : null;
+        });
+        if (existing) {
+          if (
+            existing.document.storageKey !== storageKey ||
+            existing.document.tamanoBytes !== sizeBytes ||
+            (existing.line.documentSha256 !== null &&
+              existing.line.documentSha256 !== sha256)
+          ) {
+            throw new ConflictException(
+              'El documento de prima ya existe con otra huella o almacenamiento.',
+            );
+          }
+          return {
+            outcome: 'EXISTING' as const,
+            expedienteDocId: existing.document.id,
           };
         }
       }
