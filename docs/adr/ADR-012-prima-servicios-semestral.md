@@ -44,7 +44,7 @@ cada cambio de reglas.
 - El preview presenta períodos y conceptos de origen, días, componentes de la
   base, fórmula y resultado. La aprobación congela snapshots y deltas de
   correcciones utilizados; el PDF se publica en Expediente con hash.
-- El Browser E2E local genera documentos para 100 empleados, desconecta el
+- La PR #167 amplía el Browser E2E: genera documentos para 100 empleados, desconecta el
   navegador después de recibir la aprobación y confirma que el worker termina
   el lote, publica 100 documentos únicos y permite descargarlos al reconectar.
   Se verificó en PostgreSQL 16 desechable; el caso tardó 39,5 segundos.
