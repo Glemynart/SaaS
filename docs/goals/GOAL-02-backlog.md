@@ -145,9 +145,12 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   de pago de aportes PILA en el período y la conserva en snapshots nuevos; no es
   el pago del salario ni evidencia de que se pagaron los aportes. La fecha
   seleccionada para cada exportación y las versiones aplicadas deberán quedar
-  registradas sin reescribir el snapshot laboral. CI y Browser E2E de #162
-  fueron rechazados antes de iniciar sus pasos porque GitHub indica un límite
-  de facturación; no son fallos de pruebas de código. Aún se requiere
+  registradas sin reescribir el snapshot laboral. El Browser E2E dirigido pasó
+  localmente contra PostgreSQL efímero; encontró y permitió corregir la
+  expectativa del BFF (200) y el desfase de un día al mostrar fechas calendario.
+  CI y Browser E2E de GitHub para el HEAD actual fueron rechazados antes de
+  iniciar sus pasos porque GitHub indica un límite de facturación; no son
+  fallos de pruebas de código. Vercel Preview pasó. Aún se requiere
   reconciliar reglas AT2/Resolución 1529, comprobar catálogos, completar datos
   patronales y laborales y calcular días/IBC por subsistema antes de generar
   tipo 1/2.

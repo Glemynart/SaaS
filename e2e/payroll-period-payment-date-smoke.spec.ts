@@ -52,6 +52,7 @@ test('captura y muestra la fecha prevista de pago del período', async ({ page }
   await page.getByRole('button', { name: 'Crear', exact: true }).click();
 
   const createResponse = await createResponsePromise;
-  expect(createResponse.status()).toBe(201);
+  expect(createResponse.status()).toBe(200);
+  await expect(page.getByText(/1\/10\/2026 - 31\/10\/2026/)).toBeVisible();
   await expect(page.getByText(/Pago PILA previsto: \d{1,2}\/11\/2026/)).toBeVisible();
 });

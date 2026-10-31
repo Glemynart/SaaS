@@ -19,6 +19,10 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/ui/status-badge';
 
+function formatCalendarDate(value: string) {
+  return new Date(value).toLocaleDateString('es-CO', { timeZone: 'UTC' });
+}
+
 export default function PeriodosPage() {
   const { data: periods, isLoading } = usePayrollPeriods();
   const createMutation = useCreatePeriod();
@@ -140,15 +144,12 @@ export default function PeriodosPage() {
                 <Link href={`/nomina/periodos/${p.id}`} className="flex-1">
                   <p className="text-sm font-medium text-foreground">{p.nombre}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {new Date(p.fechaInicio).toLocaleDateString('es-CO')} -{' '}
-                    {new Date(p.fechaFin).toLocaleDateString('es-CO')}
+                    {formatCalendarDate(p.fechaInicio)} - {formatCalendarDate(p.fechaFin)}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     Pago PILA previsto:{' '}
                     {p.fechaPrevistaPagoPila
-                      ? new Date(
-                          `${p.fechaPrevistaPagoPila.slice(0, 10)}T00:00:00`,
-                        ).toLocaleDateString('es-CO')
+                      ? formatCalendarDate(p.fechaPrevistaPagoPila)
                       : 'sin definir'}
                   </p>
                   <div className="mt-1.5 flex items-center gap-2">
