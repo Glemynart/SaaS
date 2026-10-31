@@ -1667,6 +1667,14 @@ describe('inspectPilaSnapshotPreparation', () => {
       candidateEmployees: 2,
       pendingEmployees: 0,
     });
+    expect(statusFor(54)).toMatchObject({
+      candidateEmployees: 2,
+      pendingEmployees: 0,
+    });
+    expect(statusFor(55)).toMatchObject({
+      candidateEmployees: 2,
+      pendingEmployees: 0,
+    });
     const field63 = statusFor(63);
     expect(field63).toMatchObject({
       candidateEmployees: 1,

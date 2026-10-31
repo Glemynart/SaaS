@@ -24,6 +24,8 @@ const contributionFieldLabels: Record<
 > = {
   46: 'Tarifa de pensión',
   47: 'Cotización obligatoria a pensiones',
+  54: 'Tarifa de salud',
+  55: 'Cotización obligatoria a salud',
   61: 'Tarifa inicial de riesgos laborales',
   63: 'Aporte ARL',
   64: 'Tarifa CCF',

@@ -32,6 +32,10 @@ import {
   PILA_NEW_PENSION_SYSTEM_EFFECTIVE_FROM,
   PILA_PENSION_STANDARD_RATE_RULE_VERSION,
 } from './pila-pension-standard-rate-catalog';
+import {
+  getPilaHealthStandardRate,
+  PILA_HEALTH_STANDARD_RATE_RULE_VERSION,
+} from './pila-health-standard-rate-catalog';
 import type { PilaSnapshotPreparationInput } from './pila-preparation';
 
 type JsonRecord = Record<string, unknown>;
@@ -49,6 +53,7 @@ export interface PilaAt2V30DetailCandidate {
     senaRate: typeof PILA_SENA_STANDARD_RATE_RULE_VERSION | null;
     icbfRate: typeof PILA_ICBF_STANDARD_RATE_RULE_VERSION | null;
     pensionRate: typeof PILA_PENSION_STANDARD_RATE_RULE_VERSION | null;
+    healthRate: typeof PILA_HEALTH_STANDARD_RATE_RULE_VERSION | null;
   };
   values: Partial<Record<number, PilaAt2V30FieldInput>>;
   unresolvedFields: Array<{ fieldNumber: number; reason: string }>;
@@ -211,6 +216,7 @@ export function mapPilaAt2V30DetailCandidate(
         senaRate: null,
         icbfRate: null,
         pensionRate: null,
+        healthRate: null,
       },
       values,
       unresolvedFields: [...reasons].map(([fieldNumber, reason]) => ({
@@ -469,6 +475,7 @@ export function mapPilaAt2V30DetailCandidate(
     periodStart,
     calendarDate(payroll?.fechaPrevistaPagoPila),
   );
+  const healthStandardRate = getPilaHealthStandardRate(periodStart);
   const arlInitialRate = riskAssignmentValid ? arlRateByClass : null;
   if (
     riskAssignmentValid &&
@@ -510,6 +517,7 @@ export function mapPilaAt2V30DetailCandidate(
     fieldNumber: number;
     code: string;
     base: JsonRecord | null;
+    expectedType?: string;
     requireExplicitNonExemption?: boolean;
     expectedFactor?: number | null;
     expectedFactorReason?: string;
@@ -556,7 +564,7 @@ export function mapPilaAt2V30DetailCandidate(
     }
     const concept = matches[0];
     if (
-      concept.tipo !== 'EMPLOYER_CONTRIBUTION' ||
+      concept.tipo !== (input.expectedType ?? 'EMPLOYER_CONTRIBUTION') ||
       !safeInteger(concept.base, 9) ||
       typeof concept.factor !== 'number' ||
       !Number.isFinite(concept.factor) ||
@@ -641,6 +649,7 @@ export function mapPilaAt2V30DetailCandidate(
     fieldNumber: number;
     code: string;
     base: JsonRecord | null;
+    expectedType?: string;
     requireExplicitNonExemption?: boolean;
     expectedFactor?: number | null;
     expectedFactorReason?: string;
@@ -827,6 +836,153 @@ export function mapPilaAt2V30DetailCandidate(
     unresolved(47, reason);
   }
 
+  const healthBase = object(subsystemBases?.salud);
+  let healthRateBlockReason: string | null = null;
+  if (!standardFullMonthEmployee || !fullMonthPilaInputsApproved) {
+    healthRateBlockReason =
+      'La tarifa de salud candidata requiere un dependiente 01/00 con snapshot mensual completo y sin novedades ni eventos PILA.';
+  } else if (employerPila.tipoAportante !== '1') {
+    healthRateBlockReason =
+      'La tarifa de salud candidata solo cubre aportantes empleadores tipo 1.';
+  } else if (employerPila.naturalezaJuridica !== '2') {
+    healthRateBlockReason =
+      'La tarifa de salud candidata solo cubre empleadores privados.';
+  } else if (
+    employer.aportesExonerados !== false ||
+    employerPila.aportesExoneradosConfirmado !== false
+  ) {
+    healthRateBlockReason =
+      'Se requiere declaración expresa y coherente de no exoneración para validar la tarifa total de salud de 12,5 %.';
+  } else if (
+    (employee?.tipoDocumento !== 'CC' && employee?.tipoDocumento !== 'TI') ||
+    affiliation?.colombianoEnElExterior !== false
+  ) {
+    healthRateBlockReason =
+      'La tarifa de salud candidata requiere tipo documental CC/TI y confirmación expresa de que el trabajador no está en el exterior.';
+  } else if (
+    affiliation?.extranjeroNoObligadoPension !== null &&
+    affiliation?.extranjeroNoObligadoPension !== undefined
+  ) {
+    healthRateBlockReason =
+      'La declaración de exención extranjera es incompatible con el documento CC/TI.';
+  } else if (!healthStandardRate) {
+    healthRateBlockReason =
+      'No hay una tarifa de salud estándar versionada para el período congelado.';
+  } else if (
+    !healthBase ||
+    healthBase.sourceCount !== 1 ||
+    !safeInteger(healthBase.valor, 9) ||
+    healthBase.valor <= 0
+  ) {
+    healthRateBlockReason =
+      'Falta una fuente única y positiva de IBC de salud en el snapshot.';
+  }
+
+  const healthBaseAmount =
+    healthBase && safeInteger(healthBase.valor, 9) ? healthBase.valor : null;
+  if (
+    !healthRateBlockReason &&
+    healthBase &&
+    healthBaseAmount !== null &&
+    healthStandardRate
+  ) {
+    const employeeHealthConcept = getContributionAmountCandidate({
+      fieldNumber: 55,
+      code: 'SALUD_EMP',
+      base: healthBase,
+      expectedType: 'DEDUCTION',
+      requireExplicitNonExemption: true,
+      expectedFactor: healthStandardRate.employeeFactor,
+      expectedFactorMismatchReason:
+        'El factor SALUD_EMP del snapshot no coincide con la tarifa estándar versionada de 4 %.',
+    });
+    const employerHealthConcept = getContributionAmountCandidate({
+      fieldNumber: 55,
+      code: 'SALUD_PAT',
+      base: healthBase,
+      requireExplicitNonExemption: true,
+      expectedFactor: healthStandardRate.employerFactor,
+      expectedFactorMismatchReason:
+        'El factor SALUD_PAT del snapshot no coincide con la tarifa estándar versionada de 8,5 %.',
+    });
+    const employeeHealthAmount = employeeHealthConcept?.valor;
+    const employerHealthAmount = employerHealthConcept?.valor;
+    const healthAmountCandidate =
+      safeInteger(employeeHealthAmount, 9) &&
+      safeInteger(employerHealthAmount, 9)
+        ? employeeHealthAmount + employerHealthAmount
+        : null;
+    const employeeHealthRatio = getPilaContributionFactorRatio(
+      healthStandardRate.employeeFactor,
+    );
+    const employerHealthRatio = getPilaContributionFactorRatio(
+      healthStandardRate.employerFactor,
+    );
+    const totalHealthRatio = getPilaContributionFactorRatio(
+      healthStandardRate.factor,
+    );
+    let healthAmountBlockReason: string | null = null;
+    if (!employeeHealthConcept || !employerHealthConcept) {
+      healthAmountBlockReason =
+        reasons.get(55) ??
+        'Se requieren fuentes SALUD_EMP y SALUD_PAT únicas en el snapshot.';
+    } else if (
+      !safeInteger(employeeHealthAmount, 9) ||
+      !safeInteger(employerHealthAmount, 9) ||
+      healthAmountCandidate === null ||
+      !safeInteger(healthAmountCandidate, 9)
+    ) {
+      healthAmountBlockReason =
+        'Los importes de salud congelados superan el rango válido o no son enteros.';
+    } else if (
+      !employeeHealthRatio ||
+      !employerHealthRatio ||
+      !totalHealthRatio ||
+      !isPilaContributionAmountRoundedUpToHundred(
+        periodStart,
+        healthBaseAmount,
+        employeeHealthRatio.numerator,
+        employeeHealthRatio.denominator,
+        employeeHealthAmount,
+      ) ||
+      !isPilaContributionAmountRoundedUpToHundred(
+        periodStart,
+        healthBaseAmount,
+        employerHealthRatio.numerator,
+        employerHealthRatio.denominator,
+        employerHealthAmount,
+      )
+    ) {
+      healthAmountBlockReason =
+        'Los importes SALUD_EMP/SALUD_PAT congelados no cumplen el redondeo PILA vigente para cada concepto.';
+    } else if (
+      !isPilaContributionAmountRoundedUpToHundred(
+        periodStart,
+        healthBaseAmount,
+        totalHealthRatio.numerator,
+        totalHealthRatio.denominator,
+        healthAmountCandidate,
+      )
+    ) {
+      healthAmountBlockReason =
+        'La suma congelada de los aportes de salud no coincide con IBC × 12,5 % y su redondeo PILA; no se ajustan los importes.';
+    }
+
+    if (healthAmountBlockReason) {
+      unresolved(54, healthAmountBlockReason);
+      unresolved(55, healthAmountBlockReason);
+    } else {
+      put(54, healthStandardRate.fieldValue);
+      put(55, healthAmountCandidate!);
+    }
+  } else {
+    const reason =
+      healthRateBlockReason ??
+      'No se puede validar el aporte de salud contra fuentes congeladas.';
+    unresolved(54, reason);
+    unresolved(55, reason);
+  }
+
   const ccfBase =
     object(subsystemBases?.cajaCompensacion)?.sourceCount === 1
       ? object(subsystemBases?.cajaCompensacion)
@@ -992,6 +1148,7 @@ export function mapPilaAt2V30DetailCandidate(
       senaRate: senaStandardRate?.ruleVersion ?? null,
       icbfRate: icbfStandardRate?.ruleVersion ?? null,
       pensionRate: pensionStandardRate?.ruleVersion ?? null,
+      healthRate: healthStandardRate?.ruleVersion ?? null,
     },
     values,
     unresolvedFields,
