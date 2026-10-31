@@ -7,15 +7,20 @@ import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { PayrollAccountingPreflightService } from './accounting-preflight/payroll-accounting-preflight.service';
 import { PayrollService } from './payroll.service';
 
-function makeHarness(status: PayrollPeriodStatus, updateCount = 1) {
+function makeHarness(
+  status: PayrollPeriodStatus,
+  updateCount = 1,
+  fechaNueva: Date | null = new Date('2026-11-05T00:00:00.000Z'),
+  fechaAnterior: Date | null = null,
+) {
   const fechaPrevistaPagoPila = new Date('2026-11-05T00:00:00.000Z');
   const period = {
     id: 'period-1',
     tenantId: 'tenant-1',
     status,
-    fechaPrevistaPagoPila: null,
+    fechaPrevistaPagoPila: fechaAnterior,
   };
-  const updatedPeriod = { ...period, fechaPrevistaPagoPila };
+  const updatedPeriod = { ...period, fechaPrevistaPagoPila: fechaNueva };
   const findFirst = jest.fn().mockResolvedValue(period);
   const updateMany = jest.fn().mockResolvedValue({ count: updateCount });
   const findFirstOrThrow = jest.fn().mockResolvedValue(updatedPeriod);
@@ -98,6 +103,44 @@ describe('PayrollService.updatePilaPaymentDate', () => {
       transactionClient,
     );
     expect(result).toEqual(updatedPeriod);
+  });
+
+  it('permite quitar y audita la fecha prevista antes de aprobar', async () => {
+    const previousDate = new Date('2026-11-05T00:00:00.000Z');
+    const { service, updateMany, auditLog, updatedPeriod } = makeHarness(
+      PayrollPeriodStatus.CALCULADA,
+      1,
+      null,
+      previousDate,
+    );
+
+    const result = await service.updatePilaPaymentDate(
+      'tenant-1',
+      'user-1',
+      'period-1',
+      { fechaPrevistaPagoPila: null },
+    );
+
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { fechaPrevistaPagoPila: null } }),
+    );
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: { fechaAnterior: '2026-11-05', fechaNueva: null },
+      }),
+      expect.any(Object),
+    );
+    expect(result).toEqual(updatedPeriod);
+  });
+
+  it('rechaza la omisión del campo para distinguirla de quitar la fecha', async () => {
+    const { service } = makeHarness(PayrollPeriodStatus.CALCULADA);
+
+    await expect(
+      service.updatePilaPaymentDate('tenant-1', 'user-1', 'period-1', {
+        fechaPrevistaPagoPila: undefined as unknown as null,
+      }),
+    ).rejects.toThrow('Debe indicar una fecha prevista o null para quitarla');
   });
 
   it('bloquea la edición después de aprobar la nómina', async () => {

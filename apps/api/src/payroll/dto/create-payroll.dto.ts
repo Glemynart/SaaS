@@ -38,7 +38,8 @@ export class CreatePayrollPeriodDto {
 export class UpdatePayrollPilaPaymentDateDto {
   @IsDateString({ strict: true })
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
-  fechaPrevistaPagoPila: string;
+  @IsOptional()
+  fechaPrevistaPagoPila: string | null;
 }
 
 /** Body opcional de POST payroll/periods/:id/rechazar (ADR-002 §6). */

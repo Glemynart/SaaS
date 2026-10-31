@@ -63,10 +63,9 @@ export default function PeriodosPage() {
     );
   }, [nombre, fechaInicio, fechaFin, fechaPrevistaPagoPila, createMutation]);
 
-  const savePilaPaymentDate = (id: string) => {
-    if (!pilaPaymentDateDraft) return;
+  const savePilaPaymentDate = (id: string, fechaPrevistaPagoPila: string | null) => {
     updatePilaPaymentDateMutation.mutate(
-      { id, fechaPrevistaPagoPila: pilaPaymentDateDraft },
+      { id, fechaPrevistaPagoPila },
       {
         onSuccess: () => {
           setEditingPilaPeriodId(null);
@@ -193,10 +192,20 @@ export default function PeriodosPage() {
                           disabled={
                             !pilaPaymentDateDraft || updatePilaPaymentDateMutation.isPending
                           }
-                          onClick={() => savePilaPaymentDate(p.id)}
+                          onClick={() => savePilaPaymentDate(p.id, pilaPaymentDateDraft)}
                         >
                           Guardar PILA
                         </Button>
+                        {p.fechaPrevistaPagoPila && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={updatePilaPaymentDateMutation.isPending}
+                            onClick={() => savePilaPaymentDate(p.id, null)}
+                          >
+                            Quitar fecha
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="ghost"

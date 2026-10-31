@@ -128,8 +128,13 @@ export function useCreatePeriod() {
 export function useUpdatePilaPaymentDate() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, fechaPrevistaPagoPila }: { id: string; fechaPrevistaPagoPila: string }) =>
-      payrollApi.updatePilaPaymentDate(id, fechaPrevistaPagoPila),
+    mutationFn: ({
+      id,
+      fechaPrevistaPagoPila,
+    }: {
+      id: string;
+      fechaPrevistaPagoPila: string | null;
+    }) => payrollApi.updatePilaPaymentDate(id, fechaPrevistaPagoPila),
     onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.periods() }),
   });
 }

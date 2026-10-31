@@ -68,4 +68,15 @@ test('captura y muestra la fecha prevista de pago del período', async ({ page }
   const updateResponse = await updateResponsePromise;
   expect(updateResponse.status()).toBe(200);
   await expect(page.getByText(/Pago PILA previsto: \d{1,2}\/11\/2026/)).toBeVisible();
+
+  await page.getByRole('button', { name: 'Cambiar fecha PILA' }).click();
+  const clearResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.endsWith('/fecha-prevista-pago-pila') &&
+      response.request().method() === 'PATCH',
+  );
+  await page.getByRole('button', { name: 'Quitar fecha' }).click();
+  const clearResponse = await clearResponsePromise;
+  expect(clearResponse.status()).toBe(200);
+  await expect(page.getByText('Pago PILA previsto: sin definir')).toBeVisible();
 });

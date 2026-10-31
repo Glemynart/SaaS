@@ -50,12 +50,16 @@ describe('UpdatePayrollPilaPaymentDateDto', () => {
     expect(validateSync(dto)).toHaveLength(0);
   });
 
-  it('rechaza timestamps, fechas imposibles y el campo ausente', () => {
-    for (const value of [
-      '2026-11-05T23:00:00-05:00',
-      '2026-02-30',
-      undefined,
-    ]) {
+  it('acepta null para quitar una fecha prevista', () => {
+    const dto = Object.assign(new UpdatePayrollPilaPaymentDateDto(), {
+      fechaPrevistaPagoPila: null,
+    });
+
+    expect(validateSync(dto)).toHaveLength(0);
+  });
+
+  it('rechaza timestamps y fechas imposibles', () => {
+    for (const value of ['2026-11-05T23:00:00-05:00', '2026-02-30']) {
       const dto = Object.assign(new UpdatePayrollPilaPaymentDateDto(), {
         fechaPrevistaPagoPila: value,
       });

@@ -551,9 +551,14 @@ export class PayrollService {
     periodId: string,
     dto: UpdatePayrollPilaPaymentDateDto,
   ) {
-    const fechaPrevistaPagoPila = new Date(
-      `${dto.fechaPrevistaPagoPila}T00:00:00.000Z`,
-    );
+    if (dto.fechaPrevistaPagoPila === undefined) {
+      throw new BadRequestException(
+        'Debe indicar una fecha prevista o null para quitarla.',
+      );
+    }
+    const fechaPrevistaPagoPila = dto.fechaPrevistaPagoPila
+      ? new Date(`${dto.fechaPrevistaPagoPila}T00:00:00.000Z`)
+      : null;
     const editableStatuses: PayrollPeriodStatus[] = [
       PayrollPeriodStatus.BORRADOR,
       PayrollPeriodStatus.CALCULADA,
