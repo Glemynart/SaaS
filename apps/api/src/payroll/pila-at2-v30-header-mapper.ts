@@ -21,8 +21,7 @@ function object(value: unknown): JsonRecord | null {
 
 function text(value: unknown): string | null {
   if (typeof value !== 'string') return null;
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : null;
+  return value.trim().length > 0 ? value : null;
 }
 
 function calendarDate(value: unknown): string | null {
