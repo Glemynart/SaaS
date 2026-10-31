@@ -160,6 +160,11 @@ prueba se detuvo y no se usaron datos de demo/staging/producción. Esta preparac
   PostgreSQL desechable. El flujo es prototipo para demo; revisión laboral
   independiente sigue pendiente antes del uso operativo. Las migraciones no se
   aplicaron a demo/staging/producción; pagos, Tesorería y Ledger quedan fuera.
+  Una continuación local amplió el Browser E2E a 100 empleados: tras aprobar el
+  lote, cortó la conexión del navegador y verificó que el worker terminara,
+  publicara los 100 PDFs en Expediente y permitiera descargarlos después de
+  reconectar (39,5 s en PostgreSQL 16 desechable). La prueba pasa localmente;
+  su PR continúa a continuación de la cadena PILA abierta.
 - **PILA:** ADR-013 está aprobada con cambios y la matriz normativa fue
   presentada. Se comprobó directamente AT2 v30 y las disposiciones de la
   Resolución 1529/2026 sobre campos de identificación y plazos; falta

@@ -46,10 +46,13 @@ async function seedServicePremiumFixture(tenantId: string, actorId: string) {
   };
   const prisma = new PrismaClient();
   const suffix = randomUUID();
-  const employeeId = randomUUID();
-  const contractId = randomUUID();
-  const employeeName = 'Ana Prima E2E';
-  const employeeDocument = `service-premium-${suffix}`;
+  const employeeCount = 100;
+  const employees = Array.from({ length: employeeCount }, (_, index) => ({
+    id: randomUUID(),
+    contractId: randomUUID(),
+    name: `Empleado Prima ${String(index + 1).padStart(3, '0')}`,
+    document: `service-premium-${suffix}-${index + 1}`,
+  }));
   const salary = 2_000_000;
   const transport = 200_000;
 
@@ -58,38 +61,36 @@ async function seedServicePremiumFixture(tenantId: string, actorId: string) {
     await prisma.$transaction(async (tx: any) => {
       await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
 
-      await tx.empleado.create({
-        data: {
-          id: employeeId,
+      await tx.empleado.createMany({
+        data: employees.map((employee) => ({
+          id: employee.id,
           tenantId,
-          cedula: employeeDocument,
+          cedula: employee.document,
           tipoDocumento: 'CC',
-          primerNombre: 'Ana',
-          primerApellido: 'Prima E2E',
+          primerNombre: 'Empleado',
+          primerApellido: employee.name.replace('Empleado ', ''),
           cargo: 'Analista',
           salario: salary,
           fechaIngreso: new Date('2026-01-01T00:00:00.000Z'),
           estado: 'ACTIVO',
-        },
+        })),
       });
-      await tx.contrato.create({
-        data: {
-          id: contractId,
+      await tx.contrato.createMany({
+        data: employees.map((employee) => ({
+          id: employee.contractId,
           tenantId,
-          empleadoId: employeeId,
+          empleadoId: employee.id,
           tipo: 'TERMINO_FIJO',
           estado: 'VIGENTE',
           fechaInicio: new Date('2026-01-01T00:00:00.000Z'),
           fechaFin: new Date('2026-12-31T00:00:00.000Z'),
           cargo: 'Analista',
           salario: salary,
-        },
+        })),
       });
 
       for (let month = 1; month <= 6; month += 1) {
         const periodId = randomUUID();
-        const payrollRunId = randomUUID();
-        const snapshotId = randomUUID();
         const monthString = String(month).padStart(2, '0');
         const start = new Date(Date.UTC(2026, month - 1, 1));
         const end = new Date(Date.UTC(2026, month, 0));
@@ -108,61 +109,72 @@ async function seedServicePremiumFixture(tenantId: string, actorId: string) {
             aprobadoEn: end,
           },
         });
-        await tx.payrollRun.create({
-          data: {
-            id: payrollRunId,
-            tenantId,
-            payrollPeriodId: periodId,
-            employeeId,
-            totalDevengos: salary,
-            totalDeducciones: 0,
-            netoPagar: salary,
-            totalAportesPatronales: 0,
-            totalProvisiones: 0,
-            salarioBaseSnapshot: salary,
-          },
-        });
-        await tx.payrollSnapshot.create({
-          data: {
-            id: snapshotId,
-            tenantId,
+        const runs = employees.map((employee) => {
+          const payrollRunId = randomUUID();
+          return {
+            employee,
             payrollRunId,
-            payrollPeriodId: periodId,
-            employeeId,
-            contratoId: contractId,
-            estadoPeriodo: 'APROBADA',
-            origen: 'BROWSER_E2E',
-            payloadVersion: 1,
-            payload: {
-              period: { fechaInicio: startIso, fechaFin: endIso },
-              employee: {
-                employeeId,
-                salarioBaseUsado: salary,
-                salarioIntegralUsado: false,
-              },
-              contract: {
-                contratoId: contractId,
-                tipo: 'TERMINO_FIJO',
-                estado: 'VIGENTE',
-                fechaInicio: '2026-01-01T00:00:00.000Z',
-                fechaFin: '2026-12-31T00:00:00.000Z',
-              },
-              legalParameters: { auxilioTransporte: transport },
-              novelties: [],
-              concepts: [
-                { codigo: 'SALARIO_BASE', tipo: 'EARNING', valor: salary },
-                { codigo: 'PROV_PRIMA', tipo: 'PROVISION', valor: 183_333 },
-              ],
-              totals: { auxilioTransporte: transport },
+            snapshotId: randomUUID(),
+            run: {
+              id: payrollRunId,
+              tenantId,
+              payrollPeriodId: periodId,
+              employeeId: employee.id,
+              totalDevengos: salary,
+              totalDeducciones: 0,
+              netoPagar: salary,
+              totalAportesPatronales: 0,
+              totalProvisiones: 0,
+              salarioBaseSnapshot: salary,
             },
-          },
+            snapshot: {
+              tenantId,
+              payrollRunId,
+              payrollPeriodId: periodId,
+              employeeId: employee.id,
+              contratoId: employee.contractId,
+              estadoPeriodo: 'APROBADA',
+              origen: 'BROWSER_E2E',
+              payloadVersion: 1,
+              payload: {
+                period: { fechaInicio: startIso, fechaFin: endIso },
+                employee: {
+                  employeeId: employee.id,
+                  salarioBaseUsado: salary,
+                  salarioIntegralUsado: false,
+                },
+                contract: {
+                  contratoId: employee.contractId,
+                  tipo: 'TERMINO_FIJO',
+                  estado: 'VIGENTE',
+                  fechaInicio: '2026-01-01T00:00:00.000Z',
+                  fechaFin: '2026-12-31T00:00:00.000Z',
+                },
+                legalParameters: { auxilioTransporte: transport },
+                novelties: [],
+                concepts: [
+                  { codigo: 'SALARIO_BASE', tipo: 'EARNING', valor: salary },
+                  { codigo: 'PROV_PRIMA', tipo: 'PROVISION', valor: 183_333 },
+                ],
+                totals: { auxilioTransporte: transport },
+              },
+            },
+          };
+        });
+        await tx.payrollRun.createMany({ data: runs.map(({ run }) => run) });
+        await tx.payrollSnapshot.createMany({
+          data: runs.map(({ snapshot, snapshotId }) => ({
+            id: snapshotId,
+            ...snapshot,
+          })),
         });
       }
     });
 
     return {
-      employeeId,
-      employeeName,
+      employeeCount,
+      employeeIds: employees.map((employee) => employee.id),
+      firstEmployeeName: employees[0].name,
       inspectPersistedState: async () =>
         prisma.$transaction(async (tx: any) => {
           await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
@@ -170,13 +182,13 @@ async function seedServicePremiumFixture(tenantId: string, actorId: string) {
             where: { tenantId, anio: 2026, semestre: 1 },
             include: { lines: true },
           });
-          const line = batch?.lines[0];
-          const document = line
-            ? await tx.expedienteDoc.findFirst({
-                where: { tenantId, servicePremiumLineId: line.id },
+          const lineIds = batch?.lines.map((line: { id: string }) => line.id) ?? [];
+          const documents = lineIds.length
+            ? await tx.expedienteDoc.findMany({
+                where: { tenantId, servicePremiumLineId: { in: lineIds } },
               })
-            : null;
-          return { batch, line, document };
+            : [];
+          return { batch, documents };
         }),
       disconnect: () => prisma.$disconnect(),
     };
@@ -186,7 +198,8 @@ async function seedServicePremiumFixture(tenantId: string, actorId: string) {
   }
 }
 
-test('liquida prima por lote y publica el PDF inmutable en el expediente', async ({ page }) => {
+test('genera los 100 PDF del lote aunque el navegador pierda conexión', async ({ page }) => {
+  test.setTimeout(6 * 60_000);
   const { tenant, user } = await registerAndSignIn(page);
   const fixture = await seedServicePremiumFixture(tenant.id, user.id);
 
@@ -203,9 +216,10 @@ test('liquida prima por lote y publica el PDF inmutable en el expediente', async
     const previewResponse = await previewResponsePromise;
     expect(previewResponse.status()).toBe(200);
 
-    await expect(page.getByText(fixture.employeeName, { exact: true })).toBeVisible();
-    await expect(page.getByText('Lista para aprobar', { exact: true })).toBeVisible();
+    await expect(page.getByText(fixture.firstEmployeeName, { exact: true })).toBeVisible();
+    await expect(page.getByText('Lista para aprobar', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('1.100.000', { exact: false }).first()).toBeVisible();
+    await expect(page.getByRole('row')).toHaveCount(fixture.employeeCount + 1);
 
     const approveResponsePromise = page.waitForResponse(
       (response) =>
@@ -213,28 +227,75 @@ test('liquida prima por lote y publica el PDF inmutable en el expediente', async
           new URL(response.url()).pathname,
         ) && response.request().method() === 'POST',
     );
-    await page.getByRole('button', { name: 'Aprobar y generar 1 PDF' }).click();
+    await page
+      .getByRole('button', { name: `Aprobar y generar ${fixture.employeeCount} PDFs` })
+      .click();
     const approveResponse = await approveResponsePromise;
     expect(approveResponse.status()).toBe(200);
+    await page.context().setOffline(true);
 
     await expect
-      .poll(async () => (await fixture.inspectPersistedState()).line?.status, {
-        timeout: 90_000,
-        intervals: [2_000, 3_000, 5_000],
-      })
-      .toBe('DOCUMENTADA');
-    await expect(page.getByRole('link', { name: /Ver PDF/ })).toBeVisible();
+      .poll(
+        async () => {
+          const persisted = await fixture.inspectPersistedState();
+          return {
+            batchStatus: persisted.batch?.status,
+            documentedLines: persisted.batch?.lines.filter(
+              (line: { status: string }) => line.status === 'DOCUMENTADA',
+            ).length,
+          };
+        },
+        {
+          timeout: 5 * 60_000,
+          intervals: [2_000, 3_000, 5_000],
+        },
+      )
+      .toEqual({ batchStatus: 'COMPLETADO', documentedLines: fixture.employeeCount });
+    await page.context().setOffline(false);
+    await expect(page.getByRole('link', { name: /Ver PDF/ })).toHaveCount(fixture.employeeCount, {
+      timeout: 30_000,
+    });
 
     const persisted = await fixture.inspectPersistedState();
     expect(persisted.batch?.status).toBe('COMPLETADO');
-    expect(Number(persisted.line?.amount)).toBe(1_100_000);
-    expect(persisted.line?.serviceDays360).toBe(180);
-    expect(persisted.line?.documentSha256).toMatch(/^[a-f0-9]{64}$/);
-    expect(persisted.document?.categoria).toBe('PRIMA_SERVICIOS');
-    if (!persisted.document) throw new Error('No se publicó el PDF en el expediente.');
+    expect(persisted.batch?.lines).toHaveLength(fixture.employeeCount);
+    expect(
+      persisted.batch?.lines.every((line: { status: string }) => line.status === 'DOCUMENTADA'),
+    ).toBe(true);
+    expect(
+      persisted.batch?.lines.every(
+        (line: { amount: unknown; serviceDays360: number }) =>
+          Number(line.amount) === 1_100_000 && line.serviceDays360 === 180,
+      ),
+    ).toBe(true);
+    expect(
+      persisted.batch?.lines.every((line: { documentSha256: string | null }) =>
+        /^[a-f0-9]{64}$/.test(line.documentSha256 ?? ''),
+      ),
+    ).toBe(true);
+    expect(persisted.documents).toHaveLength(fixture.employeeCount);
+    expect(
+      persisted.documents.every(
+        (document: { categoria: string }) => document.categoria === 'PRIMA_SERVICIOS',
+      ),
+    ).toBe(true);
+    const firstDocumentLink = page.getByRole('link', { name: /Ver PDF/ }).first();
+    const firstDocumentHref = await firstDocumentLink.getAttribute('href');
+    const employeeId = fixture.employeeIds.find(
+      (id) => firstDocumentHref === `/empleados/${id}/expediente`,
+    );
+    expect(employeeId).toBeDefined();
+    const firstLine = persisted.batch?.lines.find(
+      (line: { employeeId: string }) => line.employeeId === employeeId,
+    );
+    const firstDocument = persisted.documents.find(
+      (document: { servicePremiumLineId: string }) =>
+        document.servicePremiumLineId === firstLine?.id,
+    );
+    if (!firstDocument) throw new Error('No se publicó el PDF en el expediente.');
 
-    await page.getByRole('link', { name: /Ver PDF/ }).click();
-    await expect(page).toHaveURL(`/empleados/${fixture.employeeId}/expediente`);
+    await firstDocumentLink.click();
+    await expect(page).toHaveURL(`/empleados/${employeeId}/expediente`);
     await expect(
       page.getByText('Prima de servicios 2026 S1 v1.pdf', { exact: true }),
     ).toBeVisible();
@@ -247,7 +308,7 @@ test('liquida prima por lote y publica el PDF inmutable en el expediente', async
         contentType: response.headers.get('Content-Type'),
         signature: String.fromCharCode(...content.slice(0, 4)),
       };
-    }, persisted.document.id);
+    }, firstDocument.id);
     expect(download).toEqual({ status: 200, contentType: 'application/pdf', signature: '%PDF' });
   } finally {
     await fixture.disconnect();
