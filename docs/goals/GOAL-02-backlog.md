@@ -621,6 +621,20 @@ se accedió a demo, staging o producción.
   aprobados y limita el MVP a dependientes estándar. Trabajo apilado sobre #204
   en `codex/goal02-pila-non-exempt-cotizante-field`.
 
+### Campos ESAP/MEN 70–73 — codificación pendiente
+
+- La Ley 21 de 1982 asigna aportes ESAP y escuelas técnicas a entidades del
+  sector público señaladas en sus artículos 8 y 11; el artículo 12 enumera una
+  distribución distinta para establecimientos públicos, empresas industriales
+  y comerciales, economía mixta y empleadores privados. Esto sugiere que los
+  aportes 70–73 no aplican al empleador privado estándar, pero esa conclusión
+  debe tratarse como inferencia normativa para este MVP.
+- AT2 v30 p. 95 solo dice que los valores los suministra el aportante; no fija
+  si un privado debe serializar los campos no aplicables como espacios o ceros.
+  Por ello, 70–73 permanecen pendientes hasta obtener la convención oficial o
+  una aceptación de operador. No inferir valores.
+- Fuente primaria: [Ley 21 de 1982, Gestor Normativo de Función Pública](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=4827).
+
 ### Salud estándar candidata AT2 — 2026-10-31
 
 - La regla versionada `CO_HEALTH_STANDARD_RATE_L1122_ART10_V1` conserva la
