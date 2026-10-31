@@ -1,4 +1,5 @@
 import {
+  getPilaContributionFactorRatio,
   getPilaContributionRoundingRuleVersion,
   isPilaContributionAmountRoundedUpToHundred,
   PILA_CONTRIBUTION_ROUNDING_EFFECTIVE_FROM,
@@ -8,6 +9,18 @@ import {
 describe('versioned PILA contribution rounding', () => {
   const factorNumerator = 104_400;
   const factorDenominator = 10_000_000;
+
+  it('parses decimal Payroll factors into exact integer ratios', () => {
+    expect(getPilaContributionFactorRatio(0.04)).toEqual({
+      numerator: 1,
+      denominator: 25,
+    });
+    expect(getPilaContributionFactorRatio(0.01044)).toEqual({
+      numerator: 261,
+      denominator: 25_000,
+    });
+    expect(getPilaContributionFactorRatio(1e-7)).toBeNull();
+  });
 
   it('accepts the frozen amount when it is rounded up to the next hundred', () => {
     expect(

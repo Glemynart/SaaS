@@ -395,6 +395,49 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(field63?.reason).toContain('múltiplo de 100 superior');
   });
 
+  it('blocks CCF, SENA and ICBF candidates when frozen amounts are not rounded for PILA', () => {
+    const input = snapshot();
+    const root = input.payload as { employer: Record<string, unknown> };
+    root.employer.aportesExonerados = false;
+    (
+      root.employer.pila as Record<string, unknown>
+    ).aportesExoneradosConfirmado = false;
+    payloadOf(input).payroll.concepts = [
+      {
+        codigo: 'CAJA',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.04,
+        valor: 80_010,
+      },
+      {
+        codigo: 'SENA',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.02,
+        valor: 40_010,
+      },
+      {
+        codigo: 'ICBF',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.03,
+        valor: 60_099,
+      },
+    ];
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    for (const fieldNumber of [65, 67, 69]) {
+      expect(candidate.values[fieldNumber]).toBeUndefined();
+      expect(
+        candidate.unresolvedFields.find(
+          (field) => field.fieldNumber === fieldNumber,
+        )?.reason,
+      ).toContain('múltiplo de 100 superior');
+    }
+  });
+
   it('blocks the ARL tariff and contribution when snapshot factor disagrees with risk class', () => {
     const input = snapshot();
     payloadOf(input).payroll.concepts = [

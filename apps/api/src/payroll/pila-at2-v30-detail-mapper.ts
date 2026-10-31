@@ -12,6 +12,7 @@ import {
   PILA_ARL_INITIAL_RATE_RULE_VERSION,
 } from './pila-arl-initial-rate-catalog';
 import {
+  getPilaContributionFactorRatio,
   getPilaContributionRoundingRuleVersion,
   isPilaContributionAmountRoundedUpToHundred,
   PILA_CONTRIBUTION_ROUNDING_RULE_VERSION,
@@ -605,7 +606,27 @@ export function mapPilaAt2V30DetailCandidate(
     requireExplicitNonExemption?: boolean;
   }) => {
     const concept = getContributionAmountCandidate(input);
-    if (concept) put(input.fieldNumber, concept.valor as number);
+    if (!concept) return;
+    const factorRatio = getPilaContributionFactorRatio(concept.factor);
+    if (
+      !factorRatio ||
+      !getPilaContributionRoundingRuleVersion(periodStart) ||
+      !safeInteger(concept.base, 9) ||
+      !isPilaContributionAmountRoundedUpToHundred(
+        periodStart,
+        concept.base,
+        factorRatio.numerator,
+        factorRatio.denominator,
+        concept.valor as number,
+      )
+    ) {
+      unresolved(
+        input.fieldNumber,
+        `El importe ${input.code} congelado no coincide con el redondeo PILA versionado al múltiplo de 100 superior; no se recalcula ni reemplaza.`,
+      );
+      return;
+    }
+    put(input.fieldNumber, concept.valor as number);
   };
   mapContributionAmountCandidate({
     fieldNumber: 65,

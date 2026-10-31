@@ -9,6 +9,41 @@ export const PILA_CONTRIBUTION_ROUNDING_RULE_VERSION =
 
 export const PILA_CONTRIBUTION_ROUNDING_EFFECTIVE_FROM = '2016-12-06' as const;
 
+export interface PilaContributionFactorRatio {
+  numerator: number;
+  denominator: number;
+}
+
+/**
+ * Parses the decimal value stored in a snapshot without using binary floating
+ * point to calculate a contribution. Scientific notation is rejected rather
+ * than approximated.
+ */
+export function getPilaContributionFactorRatio(
+  factor: unknown,
+): PilaContributionFactorRatio | null {
+  if (typeof factor !== 'number' || !Number.isFinite(factor) || factor <= 0) {
+    return null;
+  }
+
+  const decimal = String(factor);
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(decimal);
+  if (!match) return null;
+
+  const fractionalDigits = match[2] ?? '';
+  const numerator = Number(`${match[1]}${fractionalDigits}`);
+  const denominator = 10 ** fractionalDigits.length;
+  if (!Number.isSafeInteger(numerator) || !Number.isSafeInteger(denominator)) {
+    return null;
+  }
+
+  const divisor = greatestCommonDivisor(numerator, denominator);
+  return {
+    numerator: numerator / divisor,
+    denominator: denominator / divisor,
+  };
+}
+
 export function getPilaContributionRoundingRuleVersion(
   contributionPeriodStart: string,
 ): typeof PILA_CONTRIBUTION_ROUNDING_RULE_VERSION | null {
@@ -61,4 +96,13 @@ function isCalendarDate(value: string): boolean {
   return (
     !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
   );
+}
+
+function greatestCommonDivisor(left: number, right: number): number {
+  let a = left;
+  let b = right;
+  while (b !== 0) {
+    [a, b] = [b, a % b];
+  }
+  return a;
 }

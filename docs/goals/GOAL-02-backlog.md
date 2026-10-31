@@ -557,11 +557,11 @@ verdes al 2026-10-31.
   un snapshot PILA v2 del mismo empleado/tenant/período. No vuelve a consultar
   maestros ni transforma novedades y no altera importes aprobados.
 - El alcance del mapa cubre campos 1–8, 11–14, 31, 33, 35, 36–45, 61–63, 65,
-  67, 69, 77–78, 95 y 98. Los importes 65/67/69 son solo candidatos copiados
-  de un concepto patronal único, con tipo esperado, factor positivo y base
-  coincidente. El campo 63 requiere además que el importe congelado ya coincida
-  con el redondeo PILA versionado al múltiplo de 100 superior; una discrepancia
-  lo deja sin resolver. Para ARL, el factor también debe coincidir con la tarifa
+  67, 69, 77–78, 95 y 98. Los importes 63/65/67/69 son solo candidatos
+  copiados de un concepto patronal único, con tipo esperado, factor positivo y
+  base coincidente. Cada importe requiere además que el valor congelado ya
+  coincida con el redondeo PILA versionado al múltiplo de 100 superior; una
+  discrepancia lo deja sin resolver. Para ARL, el factor también debe coincidir con la tarifa
   inicial versionada de la clase y actividad congeladas. El campo 61 conserva
   esa misma regla y usa el decimal AT2 aprobado; no se deriva desde datos
   maestros ni se recalculan importes.
@@ -588,12 +588,14 @@ verdes al 2026-10-31.
 - El campo 61 se representa como fracción decimal de nueve caracteres, con
   ceros a la derecha; por ejemplo, clase I es `0.0052200`. AT2 v30, pp. 94 y
   160; Resolución 2634 de 2014, art. 7.
-- El campo 63 conserva el importe aprobado de Payroll solo como candidato si
-  ya coincide con la regla versionada `CO_PILA_CONTRIBUTION_ROUND_UP_100_DEC1990_ART3_2_1_5_V1`,
-  vigente desde 2016-12-06. La comparación usa aritmética entera exacta; no
-  redondea ni reemplaza el snapshot. Si no coincide, el campo queda sin
-  resolver. La regla sigue sin habilitar el archivo; otros aportes aún requieren
-  validar su redondeo y normativa.
+- Los campos 63/65/67/69 conservan el importe aprobado de Payroll solo como
+  candidato si ya coincide con la regla versionada
+  `CO_PILA_CONTRIBUTION_ROUND_UP_100_DEC1990_ART3_2_1_5_V1`, vigente desde
+  2016-12-06. La comparación usa aritmética entera exacta; no redondea ni
+  reemplaza snapshots. Para 65/67/69, el factor decimal debe poder expresarse
+  como razón entera sin pérdida. Si no coincide, el campo queda sin resolver.
+  La regla sigue sin habilitar el archivo; otros aportes aún requieren validar
+  su normativa.
 
 ### Declaraciones PILA por tipo de documento — 2026-10-31
 
