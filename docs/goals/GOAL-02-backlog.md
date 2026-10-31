@@ -872,9 +872,9 @@ false`.
   fallos remotos no detienen trabajo local ni la preparación de PRs apiladas;
   no se fusionan hasta retomar la revisión en orden.
 
-### Validación de alcance en cabecera tipo 2 PILA — 2026-10-31
+### Validación de alcance en cabecera tipo 2 PILA — PR #211 — 2026-10-31
 
-- La siguiente rama, apilada sobre #210, valida la cabecera tipo 2 contra el
+- La PR #211, apilada sobre #210, valida la cabecera tipo 2 contra el
   tenant autenticado y el ID/rango de fechas del período aprobado. Que todos
   los snapshots coincidan entre sí no basta si corresponden a otro período o
   tenant.
@@ -884,3 +884,7 @@ false`.
   servicio; typecheck y lint API; build API; Browser E2E financiero (1/1) con
   PostgreSQL desechable y las 77 migraciones. Sin cambios de schema ni descarga
   PILA habilitada.
+- En GitHub, `verify` y `browser` fallaron en 1–3 segundos sin ejecutar pasos;
+  Vercel rechazó el preview por límite de despliegues de 24 horas. La PR queda
+  abierta para sincronización y revisión ordenada cuando vuelva la cuota, sin
+  detener la continuación local de GOAL-02.
