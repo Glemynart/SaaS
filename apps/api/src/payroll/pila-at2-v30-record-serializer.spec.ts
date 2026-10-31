@@ -194,6 +194,7 @@ describe('AT2 v30 fixed-width record formatting', () => {
       34: { value: null, emptyAs: 'spaces' },
       74: { value: null, emptyAs: 'spaces' },
       75: { value: null, emptyAs: 'spaces' },
+      76: { value: 'N' },
     });
     const record = serializePilaAt2V30Record('contributorDetailType2', values);
     const fieldStart = (fieldNumber: number) =>
@@ -211,6 +212,7 @@ describe('AT2 v30 fixed-width record formatting', () => {
         record.slice(fieldStart(fieldNumber), fieldStart(fieldNumber) + length),
       ).toBe(' '.repeat(length));
     }
+    expect(record.slice(fieldStart(76), fieldStart(76) + 1)).toBe('N');
   });
 
   it('formats the AT2 field 64 CCF fractional tariff to seven positions', () => {

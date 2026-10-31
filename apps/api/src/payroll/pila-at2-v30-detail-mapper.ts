@@ -48,9 +48,14 @@ const PILA_AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_RULE_VERSION =
   'AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_V1' as const;
 const PILA_AT2_V30_NON_COTIZANTE40_PRINCIPAL_FIELDS_RULE_VERSION =
   'AT2_V30_NON_COTIZANTE40_PRINCIPAL_FIELDS_V1' as const;
+const PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_RULE_VERSION =
+  'AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_V1' as const;
 
 export const PILA_AT2_V30_STANDARD_DEPENDENT_EMPTY_FIELD_NUMBERS = [
   32, 34, 74, 75,
+] as const;
+export const PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_FIELD_NUMBERS = [
+  76,
 ] as const;
 
 export const PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS = [
@@ -88,6 +93,9 @@ export interface PilaAt2V30DetailCandidate {
       | null;
     nonCotizante40PrincipalFields:
       | typeof PILA_AT2_V30_NON_COTIZANTE40_PRINCIPAL_FIELDS_RULE_VERSION
+      | null;
+    confirmedNonExemptCotizante:
+      | typeof PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_RULE_VERSION
       | null;
   };
   values: Partial<Record<number, PilaAt2V30FieldInput>>;
@@ -256,6 +264,7 @@ export function mapPilaAt2V30DetailCandidate(
         noEventNoveltyFields: null,
         noTransferDestinationFields: null,
         nonCotizante40PrincipalFields: null,
+        confirmedNonExemptCotizante: null,
       },
       values,
       unresolvedFields: [...reasons].map(([fieldNumber, reason]) => ({
@@ -374,8 +383,27 @@ export function mapPilaAt2V30DetailCandidate(
     putText(78, affiliation?.arlClaseRiesgo, 'la clase de riesgo afiliada');
     blank(74);
     blank(75);
+    if (
+      employer.aportesExonerados === false &&
+      employerPila.aportesExoneradosConfirmado === false
+    ) {
+      put(76, 'N');
+    } else if (
+      employer.aportesExonerados === true &&
+      employerPila.aportesExoneradosConfirmado === true
+    ) {
+      unresolved(
+        76,
+        'La exoneración positiva requiere validar la elegibilidad individual antes de proponer el campo.',
+      );
+    } else {
+      unresolved(
+        76,
+        'Falta una confirmación explícita y coherente de no exoneración en el empleador congelado.',
+      );
+    }
   } else {
-    for (const fieldNumber of [5, 6, 31, 32, 33, 34, 35, 74, 75, 77, 78]) {
+    for (const fieldNumber of [5, 6, 31, 32, 33, 34, 35, 74, 75, 76, 77, 78]) {
       unresolved(
         fieldNumber,
         'Falta una única afiliación dependiente 01/00 que cubra el período.',
@@ -1242,6 +1270,9 @@ export function mapPilaAt2V30DetailCandidate(
         : null,
       nonCotizante40PrincipalFields: standardAffiliation
         ? PILA_AT2_V30_NON_COTIZANTE40_PRINCIPAL_FIELDS_RULE_VERSION
+        : null,
+      confirmedNonExemptCotizante: values[76]
+        ? PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_RULE_VERSION
         : null,
     },
     values,
