@@ -20,6 +20,7 @@ export interface PilaAt2V30FieldLayout {
   readonly fieldNumber: number;
   readonly length: number;
   readonly kind: PilaAt2V30FieldKind;
+  readonly numericFormat?: 'DECIMAL_FRACTION';
 }
 
 export interface PilaAt2V30RecordLayout {
@@ -197,6 +198,7 @@ export const PILA_AT2_V30_RECORD_LAYOUTS = {
       [7, 'N'],
     ],
     693,
+    [61],
   ),
 } as const satisfies Record<string, PilaAt2V30RecordLayout>;
 
@@ -294,6 +296,27 @@ function formatField(
   }
 
   if (field.kind === 'N') {
+    if (field.numericFormat === 'DECIMAL_FRACTION') {
+      const decimalValue =
+        typeof input.value === 'string' &&
+        /^(?:0|[1-9]\d*)\.\d{1,7}$/.test(input.value)
+          ? input.value
+          : null;
+      if (decimalValue === null) {
+        throw fieldError(
+          field,
+          'requiere una fracción decimal con hasta siete posiciones decimales',
+        );
+      }
+      if (decimalValue.length > field.length) {
+        throw fieldError(
+          field,
+          'supera la longitud permitida de ' + field.length + ' posiciones',
+        );
+      }
+      return decimalValue.padEnd(field.length, '0');
+    }
+
     const numericValue =
       typeof input.value === 'number'
         ? Number.isSafeInteger(input.value) && input.value >= 0
@@ -344,12 +367,19 @@ function fieldError(
 function defineLayout(
   compactFields: readonly (readonly [number, PilaAt2V30FieldKind])[],
   recordLength: number,
+  decimalFieldNumbers: readonly number[] = [],
 ): PilaAt2V30RecordLayout {
-  const fields = compactFields.map(([length, kind], index) => ({
-    fieldNumber: index + 1,
-    length,
-    kind,
-  }));
+  const fields = compactFields.map(([length, kind], index) => {
+    const fieldNumber = index + 1;
+    return {
+      fieldNumber,
+      length,
+      kind,
+      ...(decimalFieldNumbers.includes(fieldNumber)
+        ? { numericFormat: 'DECIMAL_FRACTION' as const }
+        : {}),
+    };
+  });
   const totalFieldLength = fields.reduce(
     (total, field) => total + field.length,
     0,

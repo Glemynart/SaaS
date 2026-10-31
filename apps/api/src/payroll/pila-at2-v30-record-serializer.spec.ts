@@ -13,9 +13,16 @@ function completeRecordValues(
 ): Record<number, PilaAt2V30FieldInput> {
   const layout = PILA_AT2_V30_RECORD_LAYOUTS[record];
   const values = Object.fromEntries(
-    layout.fields.map(({ fieldNumber, kind }) => [
+    layout.fields.map(({ fieldNumber, kind, numericFormat }) => [
       fieldNumber,
-      { value: kind === 'N' ? '1' : 'X' },
+      {
+        value:
+          numericFormat === 'DECIMAL_FRACTION'
+            ? '0.1000000'
+            : kind === 'N'
+              ? '1'
+              : 'X',
+      },
     ]),
   );
   return { ...values, ...overrides };
@@ -85,6 +92,37 @@ describe('AT2 v30 fixed-width record formatting', () => {
     );
     expect(record.slice(218, 219)).toBe('7');
   });
+
+  it('formats the AT2 field 61 fractional tariff with trailing zeroes', () => {
+    const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
+    const field61Start = layout.fields
+      .filter(({ fieldNumber }) => fieldNumber < 61)
+      .reduce((total, field) => total + field.length, 0);
+    const values = completeRecordValues('contributorDetailType2', {
+      61: { value: '0.00522' },
+    });
+    const record = serializePilaAt2V30Record('contributorDetailType2', values);
+
+    expect(record.slice(field61Start, field61Start + 9)).toBe('0.0052200');
+    expect(
+      PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2.fields[60]
+        .numericFormat,
+    ).toBe('DECIMAL_FRACTION');
+  });
+
+  it.each([0.00522, '0.00522000', '-0.00522', '0.00522X'] as const)(
+    'rejects invalid decimal encoding for AT2 field 61: %s',
+    (value) => {
+      expect(() =>
+        serializePilaAt2V30Record(
+          'contributorDetailType2',
+          completeRecordValues('contributorDetailType2', {
+            61: { value },
+          }),
+        ),
+      ).toThrow('campo 61');
+    },
+  );
 
   it('requires explicit treatment of empty values', () => {
     const values = completeRecordValues('payrollHeaderType2', {

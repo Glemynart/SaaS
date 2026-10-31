@@ -491,7 +491,7 @@ verdes al 2026-10-31.
 ### Fuentes de conceptos y reglas de aportes PILA — 2026-10-31
 
 - AT2 v30 valida aportes con IBC de subsistema × tarifa y remite a las reglas
-  normativas de redondeo. El campo 61 usa la tarifa mínima de riesgos según la
+  normativas de redondeo. El campo 61 usa la tarifa inicial de riesgos según la
   clase ARL; los campos 51–52 separan subcuentas del FSP; salud tiene reglas de
   exoneración cruzadas; SENA/ICBF y ESAP/MEN tienen obligaciones y alcance
   distintos. La matriz `AT2-V30-MVP-ACCEPTANCE-MATRIX.md` registra esas reglas
@@ -555,11 +555,14 @@ verdes al 2026-10-31.
 - `pila-at2-v30-detail-mapper.ts` agrega fuentes directas de identidad,
   afiliación, días completos, salario, IBC por subsistema y asignación ARL desde
   un snapshot PILA v2 del mismo empleado/tenant/período. No vuelve a consultar
-  maestros, no transforma novedades y no calcula tarifas ni aportes.
-- El alcance del mapa cubre campos 1–8, 11–14, 31, 33, 35, 36–45, 62–63, 65,
+  maestros ni transforma novedades y no altera importes aprobados.
+- El alcance del mapa cubre campos 1–8, 11–14, 31, 33, 35, 36–45, 61–63, 65,
   67, 69, 77–78, 95 y 98. Los importes 63/65/67/69 son solo candidatos
   copiados de un concepto patronal único, con tipo esperado, factor positivo y
-  base coincidente; aún no se contrasta el factor con una tarifa normativa.
+  base coincidente. Para ARL, el factor también debe coincidir con la tarifa
+  inicial versionada de la clase y actividad congeladas. El campo 61 conserva
+  esa misma regla y usa el decimal AT2 aprobado; no se deriva desde datos
+  maestros ni se recalculan importes.
   Requieren además días aprobados de mes completo y ausencia de novedades y
   eventos PILA; SENA e ICBF requieren declaración explícita de no exoneración,
   coherente con la bandera de exoneración del mismo snapshot del empleador.
@@ -572,6 +575,20 @@ verdes al 2026-10-31.
 - Las pruebas verifican snapshot v2, dependiente 01/00, cobertura del período,
   códigos afiliados, días/base salarial e IBC congelados, ceros iniciales del
   documento/centro, fuentes de concepto únicas y aislamiento del centro ARL.
+
+### Tarifa inicial ARL candidata AT2 — 2026-10-31
+
+- La tabla versionada `CO_ARL_INITIAL_RATE_DEC1772_ART13_V1` aplica desde
+  1994-08-05 y conserva las tarifas iniciales oficiales de clases I–V. El
+  mapeo exige que la asignación ARL tenant-safe vigente corresponda a la clase
+  afiliada y que el factor ARL del snapshot aprobado coincida exactamente con
+  esa tabla.
+- El campo 61 se representa como fracción decimal de nueve caracteres, con
+  ceros a la derecha; por ejemplo, clase I es `0.0052200`. AT2 v30, pp. 94 y
+  160; Resolución 2634 de 2014, art. 7.
+- El campo 63 sigue copiando el importe aprobado de Payroll solo como
+  candidato. Su validación de redondeo PILA y otros campos normativos siguen
+  pendientes, por lo que `archivoGenerable` permanece `false`.
 
 ### Declaraciones PILA por tipo de documento — 2026-10-31
 
