@@ -256,6 +256,24 @@ describe('inspectPilaSnapshotPreparation', () => {
     ).toEqual([]);
   });
 
+  it('permite usar el código PILA como nombre de sucursal cuando no hay nombre', () => {
+    const source = payload();
+    source.employer.pila.formaPresentacion = 'S';
+    source.employer.pila.codigoSucursal = 'BR01';
+    source.employer.pila.nombreSucursal = '';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(
+        ({ record, fieldNumber }) =>
+          record === 'APORTANTE_TIPO_1' && [5, 6].includes(fieldNumber ?? -1),
+      ),
+    ).toEqual([]);
+  });
+
   it('bloquea fax no numérico y correo que incumple el formato AT2', () => {
     const source = payload();
     source.employer.email = 'Ana@-dominio.co';

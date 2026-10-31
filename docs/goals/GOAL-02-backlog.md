@@ -343,5 +343,7 @@ verdes al 2026-10-31.
   caracteres y dominio del correo, y la identificación del representante
   contra CC/CE/PA/CD. La identificación puede omitirse para persona natural
   solo si no se diligencia parcialmente. También limita el documento del
-  aportante por tipo y exige DV cero para persona natural. El preflight sigue
-  sin serializar ni habilitar la descarga PILA.
+  aportante por tipo (incluida longitud exacta para PE), exige DV cero para
+  persona natural y aplica la regla AT2 de usar el código como nombre de
+  sucursal cuando no existe nombre. El preflight sigue sin serializar ni
+  habilitar la descarga PILA.

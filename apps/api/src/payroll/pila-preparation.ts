@@ -412,12 +412,14 @@ export function inspectPilaSnapshotPreparation(
       employerPila?.codigoSucursal,
       'La presentación por sucursal requiere el código PILA de la sucursal.',
     );
-    requireText(
-      employerRecord,
-      6,
-      employerPila?.nombreSucursal,
-      'La presentación por sucursal requiere el nombre PILA de la sucursal.',
-    );
+    if (!text(employerPila?.nombreSucursal)) {
+      requireText(
+        employerRecord,
+        6,
+        employerPila?.codigoSucursal,
+        'La sucursal requiere nombre o código PILA para el campo de nombre.',
+      );
+    }
   }
   for (const [field, value, label, maxLength] of [
     [5, employerPila?.codigoSucursal, 'código de sucursal', 10],

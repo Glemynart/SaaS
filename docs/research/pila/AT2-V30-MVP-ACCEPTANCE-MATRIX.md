@@ -57,6 +57,29 @@ registro 01 de planilla sea el archivo tipo 1 del aportante.
 | Archivo tipo 2, registro 01  | 22 campos; 359 caracteres.   | Un encabezado por planilla. Mantener los campos que AT2 asigna al operador como tales; solo usar una convención de archivo plano que tenga evidencia de carga por operador.                                                                                                                                                                                                             |
 | Archivo tipo 2, registro 02  | 98 campos; 693 caracteres.   | Una o varias líneas por trabajador según AT2. El total de líneas no sustituye el conteo de cotizantes únicos del encabezado. Cada línea procede de resultados y afiliaciones congelados.                                                                                                                                                                                                |
 
+### Mapa de fuentes para el archivo tipo 1
+
+El mapeo siguiente contrasta los 34 campos de AT2 con `buildPilaSourceContext`
+y `inspectPilaSnapshotPreparation`. Es un mapa de fuentes candidatas, no una
+autorización para descargar un registro. Los campos numéricos se rellenan con
+ceros a la izquierda y los alfanuméricos con espacios a la derecha (AT2 v30,
+p. 9).
+
+| Campos | Fuente congelada / regla explícita                                          | Estado o bloqueo actual                                                                                                                                                                                                            |
+| ------ | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1      | `employer.razonSocial`.                                                     | Obligatorio; máximo 200 posiciones.                                                                                                                                                                                                |
+| 2–3    | `employer.pila.tipoDocumentoAportante` y `employer.nit`.                    | Tipo y número se validan con caracteres y longitud propios de NI/CC/CE/TI/PA/CD/SC/PE/PT/PC; PE exige 15 dígitos.                                                                                                                  |
+| 4      | `employer.digitoVerif`.                                                     | Para persona jurídica se exige un dígito y la validación DIAN queda al operador; para persona natural AT2 exige `0`.                                                                                                               |
+| 5–6    | `employer.pila.formaPresentacion`, `codigoSucursal`, `nombreSucursal`.      | Para `U`, campo 5 va en blanco; para `S`, se exige código y el nombre puede ser el código si el aportante no suministra uno.                                                                                                       |
+| 7–10   | `claseAportante`, `naturalezaJuridica`, `tipoPersona`, `formaPresentacion`. | Requieren declaraciones explícitas. El MVP solo acepta clase A/B validable; C/D permanecen bloqueadas por elegibilidad.                                                                                                            |
+| 11–17  | Dirección, municipio, CIIU, teléfono, fax y correo del aportante.           | Municipio de cinco dígitos se divide en departamento (13) y municipio (12); teléfono es obligatorio; fax/correo son opcionales pero se validan si existen.                                                                         |
+| 18–24  | Identificación, tipo y nombres del representante legal.                     | Para persona jurídica se exigen campos 18, 20, 21 y 23; CC/CE/PA/CD aplican límites específicos. El campo 19 es el cero definido por AT2. Persona natural puede omitir el bloque.                                                  |
+| 25–27  | Fecha de inicio, acción y fecha fin de situación especial del aportante.    | El MVP exige confirmación explícita de “sin acción especial”; solo puede mapearse el código 0 y se dejan 25/27 vacíos. Acciones especiales bloquean.                                                                               |
+| 28–29  | Código del operador y período de pago, asignados por el sistema según AT2.  | El código del operador no está en el snapshot; hay período y fecha prevista de pago, pero no un mapeo aprobado al campo 29. No inferir: falta confirmar qué suministra SOI y qué completa el portal; bloquea serialización tipo 1. |
+| 30     | `employer.pila.tipoAportante`.                                              | Solo se admite la declaración explícita `1` (empleador).                                                                                                                                                                           |
+| 31–32  | Fecha de matrícula y departamento del domicilio principal para Ley 1429.    | Solo aplican al beneficio; elegibilidad de clase D no está validada, por lo que el MVP la bloquea.                                                                                                                                 |
+| 33–34  | Exoneración y beneficio CCF de Ley 1429.                                    | Exigen respuesta explícita del aportante; si son afirmativas, falta validar evidencia de elegibilidad y la exportación se bloquea.                                                                                                 |
+
 Para el detalle 02, el alcance de datos de mayor riesgo es:
 
 | Campos        | Dato                                         | Evidencia y condición para aceptar                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -84,7 +107,7 @@ genera el archivo no determina el hito.
 
 ## Criterios de aceptación y pruebas de contrato
 
-Las pruebas `PILA-AT2-01` a `PILA-AT2-21` son criterios objetivo para la futura
+Las pruebas `PILA-AT2-01` a `PILA-AT2-22` son criterios objetivo para la futura
 validación local. **“Bloquear” significa no producir una descarga parcial.**
 La fuente normativa da el requisito del formato; donde se marca “Payroll debe
 aprobar”, AT2 no define por sí solo el cálculo laboral que alimenta el campo.
@@ -112,6 +135,7 @@ aprobar”, AT2 no define por sí solo el cálculo laboral que alimenta el campo
 | PILA-AT2-19 | Datos de aportante o representante superan la longitud AT2 de su campo.                                                                               | Bloquear el registro y conservar el valor de origen sin truncar. Aceptar las longitudes máximas.                                                                                                                         | AT2 v30, pp. 9–15; cubierto en preflight unitario.                                                     |
 | PILA-AT2-20 | Fax no numérico, correo fuera del formato AT2 o identificación del representante incompatible con el documento declarado.                             | Bloquear el campo correspondiente; no normalizar, sustituir ni truncar datos. Aceptar documentos CC/CE/PA/CD en sus límites oficiales; la identificación puede omitirse solo para persona natural si se omite completa.  | AT2 v30, pp. 13–14; cubierto en preflight unitario.                                                    |
 | PILA-AT2-21 | Identificación del aportante incompatible con el documento declarado o DV distinto de `0` para persona natural.                                       | Bloquear campo 3/4; aplicar longitud y caracteres por tipo, exigir exactamente 15 dígitos a PE y no aplicar el DV jurídico a persona natural. El DV de persona jurídica sigue sujeto a validación DIAN/operador.         | AT2 v30, pp. 10–11; cubierto en preflight unitario.                                                    |
+| PILA-AT2-22 | Presentación por sucursal sin nombre, con código de sucursal disponible, o presentación única con código.                                             | Para `S`, exigir código y si falta nombre usar el código en campo 6; para `U`, campo 5 debe quedar en blanco. No inventar una sede ni sustituir el código por la sede laboral.                                           | AT2 v30, p. 11; fallback cubierto en preflight unitario.                                               |
 
 ### Fixture numérico candidato para campo 95
 
