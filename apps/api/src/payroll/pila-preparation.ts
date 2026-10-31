@@ -497,12 +497,27 @@ export function inspectPilaSnapshotPreparation(
   const eventSources = [payrollPilaEvents, contextPilaEvents].filter(
     (value): value is unknown[] => Array.isArray(value),
   );
-  if (input.payloadVersion === 2 && eventSources.length === 0) {
+  if (
+    input.payloadVersion === 2 &&
+    payrollPilaEvents === undefined &&
+    contextPilaEvents === undefined
+  ) {
     add(
       'DETALLE_TIPO_2',
       null,
       'EVENTOS_PILA_NO_CONSERVADOS_EN_SNAPSHOT',
       'El snapshot PILA no conserva la lista de eventos del período; no se puede confirmar que las novedades estén segmentadas.',
+    );
+  }
+  if (
+    input.payloadVersion === 2 &&
+    (payrollPilaEvents === undefined) !== (contextPilaEvents === undefined)
+  ) {
+    add(
+      'DETALLE_TIPO_2',
+      null,
+      'EVENTOS_PILA_SNAPSHOT_DESINCRONIZADO',
+      'Falta una de las copias de eventos PILA que debe conservar el snapshot v2; requiere revisar la captura aprobada.',
     );
   }
   if (

@@ -403,14 +403,18 @@ describe('inspectPilaSnapshotPreparation', () => {
   ])(
     'reports PILA event $code as an unsegmented approved snapshot source',
     ({ code, fieldNumber }) => {
-      const source = payload();
+      const source = payload() as ReturnType<typeof payload> & {
+        pilaEvents?: unknown;
+      };
       source.schemaVersion = 2;
       const payroll = source.payroll as typeof source.payroll & {
         pilaEvents?: unknown;
       };
-      payroll.pilaEvents = [
+      const events = [
         { codigo: code, fechaInicio: '2026-10-12', fechaFin: null, dias: null },
       ];
+      payroll.pilaEvents = events;
+      source.pilaEvents = events;
 
       const result = inspectPilaSnapshotPreparation({
         employeeId: 'employee-1',
@@ -445,6 +449,29 @@ describe('inspectPilaSnapshotPreparation', () => {
         record: 'DETALLE_TIPO_2',
         fieldNumber: null,
         code: 'EVENTOS_PILA_NO_CONSERVADOS_EN_SNAPSHOT',
+      }),
+    );
+  });
+
+  it('blocks a v2 PILA snapshot that omits one of its event copies', () => {
+    const source = payload() as ReturnType<typeof payload> & {
+      pilaEvents?: unknown;
+    };
+    source.schemaVersion = 2;
+    source.pilaEvents = [];
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 2,
+      payload: source,
+      totalCotizantes: 1,
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'DETALLE_TIPO_2',
+        fieldNumber: null,
+        code: 'EVENTOS_PILA_SNAPSHOT_DESINCRONIZADO',
       }),
     );
   });
@@ -489,6 +516,7 @@ describe('inspectPilaSnapshotPreparation', () => {
       pilaEvents?: unknown;
     };
     payroll.pilaEvents = [{ codigo: 'TDE', fechaInicio: '2026-10-12' }];
+    source.pilaEvents = payroll.pilaEvents;
 
     const result = inspectPilaSnapshotPreparation({
       employeeId: 'employee-1',

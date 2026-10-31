@@ -305,9 +305,10 @@ prueba se detuvo y no se usaron datos de demo/staging/producción. Esta preparac
   corrige el bloqueo de activación Deny by Default detectado al arrancar la
   prueba. No se usó el tenant demo ni el servidor local del usuario.
 - La continuación local del informe de preparación PILA enumera cada código
-  de evento congelado como bloqueo en su campo AT2 y detecta snapshots v2 sin
-  lista de eventos. No calcula segmentos, no valida por completo la norma y
-  mantiene `archivoGenerable: false`; la segmentación de eventos, días e IBC
+  de evento congelado como bloqueo en su campo AT2 y detecta snapshots v2 con
+  lista ausente o desincronizada entre sus copias. No calcula segmentos, no
+  valida por completo la norma y mantiene `archivoGenerable: false`; la
+  segmentación de eventos, días e IBC
   sigue pendiente. La revisión de `PayrollService` confirma que el cálculo
   usa el salario mensual completo y no prorratea por ingreso/retiro; los IBC
   del snapshot no son una fuente segura para esos períodos parciales. Payroll
