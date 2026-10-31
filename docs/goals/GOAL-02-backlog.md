@@ -487,3 +487,18 @@ verdes al 2026-10-31.
   999.999.999.999 y acepta el límite exacto. Esto no aprueba la obligación ni
   la aplicabilidad de CCF, no estima bases ausentes y no habilita generar un
   archivo.
+
+### Fuentes de conceptos y reglas de aportes PILA — 2026-10-31
+
+- AT2 v30 valida aportes con IBC de subsistema × tarifa y remite a las reglas
+  normativas de redondeo. El campo 61 usa la tarifa mínima de riesgos según la
+  clase ARL; los campos 51–52 separan subcuentas del FSP; salud tiene reglas de
+  exoneración cruzadas; SENA/ICBF y ESAP/MEN tienen obligaciones y alcance
+  distintos. La matriz `AT2-V30-MVP-ACCEPTANCE-MATRIX.md` registra esas reglas
+  y sus páginas, separando lo verificado de las fuentes candidatas.
+- El preflight de snapshots v2 requiere conceptos únicos de pensión, salud
+  empleado, ARL y caja con tipos y bases consistentes con sus IBC congelados;
+  valida además los datos numéricos candidatos. Revisa fuentes patronales,
+  parafiscales y FSP si existen, sin asumir que una fuente opcional ausente
+  representa un aporte cero. La generación, el mapeo final, el cálculo de
+  aportes y la compatibilidad de operadores siguen sin habilitarse.

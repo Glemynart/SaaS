@@ -1279,6 +1279,166 @@ export function inspectPilaSnapshotPreparation(
       );
     }
   }
+  if (root?.schemaVersion === 2) {
+    const rawConceptRows = payroll?.concepts;
+    const conceptRows = Array.isArray(rawConceptRows)
+      ? rawConceptRows
+          .map(object)
+          .filter((row): row is JsonRecord => row !== null)
+      : [];
+    if (
+      !Array.isArray(rawConceptRows) ||
+      rawConceptRows.some((row) => object(row) === null)
+    ) {
+      add(
+        'SNAPSHOT',
+        null,
+        'PILA_CONCEPTO_FILA_NO_VALIDA',
+        'El snapshot v2 debe conservar la lista completa de conceptos como filas válidas.',
+      );
+    }
+    const contributionSources = [
+      {
+        codigo: 'PENSION_EMP',
+        tipo: 'DEDUCTION',
+        required: true,
+        amountField: 47,
+        ibcField: 42,
+        ibcKey: 'pension',
+      },
+      {
+        codigo: 'PENSION_PAT',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        required: true,
+        amountField: 47,
+        ibcField: 42,
+        ibcKey: 'pension',
+      },
+      {
+        codigo: 'SALUD_EMP',
+        tipo: 'DEDUCTION',
+        required: true,
+        amountField: 55,
+        ibcField: 43,
+        ibcKey: 'salud',
+      },
+      {
+        codigo: 'SALUD_PAT',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        required: false,
+        amountField: 55,
+        ibcField: 43,
+        ibcKey: 'salud',
+      },
+      {
+        codigo: 'ARL',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        required: true,
+        amountField: 63,
+        ibcField: 44,
+        ibcKey: 'riesgos',
+      },
+      {
+        codigo: 'CAJA',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        required: true,
+        amountField: 65,
+        ibcField: 45,
+        ibcKey: 'cajaCompensacion',
+      },
+      {
+        codigo: 'SENA',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        required: false,
+        amountField: 67,
+        ibcField: null,
+        ibcKey: null,
+      },
+      {
+        codigo: 'ICBF',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        required: false,
+        amountField: 69,
+        ibcField: null,
+        ibcKey: null,
+      },
+      {
+        codigo: 'FSP',
+        tipo: 'DEDUCTION',
+        required: false,
+        amountField: 51,
+        ibcField: null,
+        ibcKey: null,
+      },
+    ] as const;
+    for (const sourceDefinition of contributionSources) {
+      const matches = conceptRows.filter(
+        (concept) => concept.codigo === sourceDefinition.codigo,
+      );
+      if (matches.length === 0) {
+        if (sourceDefinition.required) {
+          add(
+            detailRecord,
+            sourceDefinition.amountField,
+            `CAMPO_${sourceDefinition.amountField}_FUENTE_CONCEPTO_NO_DISPONIBLE`,
+            `El snapshot v2 no conserva el concepto ${sourceDefinition.codigo} como fuente candidata del aporte.`,
+          );
+        }
+        continue;
+      }
+      if (matches.length > 1) {
+        add(
+          detailRecord,
+          sourceDefinition.amountField,
+          `CAMPO_${sourceDefinition.amountField}_FUENTE_CONCEPTO_DUPLICADA`,
+          `El snapshot v2 conserva más de un concepto ${sourceDefinition.codigo}; no se puede seleccionar una fuente sin ambigüedad.`,
+        );
+        continue;
+      }
+
+      const concept = matches[0];
+      if (concept.tipo !== sourceDefinition.tipo) {
+        add(
+          detailRecord,
+          sourceDefinition.amountField,
+          `CAMPO_${sourceDefinition.amountField}_FUENTE_CONCEPTO_TIPO_INVALIDO`,
+          `El concepto ${sourceDefinition.codigo} no tiene el tipo de nómina esperado para la fuente candidata.`,
+        );
+      }
+      if (
+        !safeInteger(concept.base) ||
+        typeof concept.factor !== 'number' ||
+        !Number.isFinite(concept.factor) ||
+        concept.factor < 0 ||
+        !fitsNumericField(concept.valor, 9)
+      ) {
+        add(
+          detailRecord,
+          sourceDefinition.amountField,
+          `CAMPO_${sourceDefinition.amountField}_FUENTE_CONCEPTO_VALOR_INVALIDO`,
+          `El concepto ${sourceDefinition.codigo} debe conservar base y valor enteros no negativos, valor de hasta nueve posiciones y tarifa numérica finita.`,
+        );
+      }
+      if (sourceDefinition.ibcKey !== null) {
+        const expectedBase = nested(
+          subsystemBases,
+          sourceDefinition.ibcKey,
+        )?.valor;
+        if (
+          safeInteger(concept.base) &&
+          safeInteger(expectedBase) &&
+          concept.base !== expectedBase
+        ) {
+          add(
+            detailRecord,
+            sourceDefinition.ibcField,
+            `CAMPO_${sourceDefinition.ibcField}_FUENTE_CONCEPTO_BASE_NO_COINCIDE`,
+            `La base del concepto ${sourceDefinition.codigo} no coincide con el IBC por subsistema congelado.`,
+          );
+        }
+      }
+    }
+  }
   const employerPilaExemption = employerPila?.aportesExoneradosConfirmado;
   if (typeof employerPilaExemption !== 'boolean') {
     add(
