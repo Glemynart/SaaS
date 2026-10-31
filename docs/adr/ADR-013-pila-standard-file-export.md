@@ -213,6 +213,13 @@ archivos de entrada/salida esperados, regla normativa exacta, fecha de vigencia,
 resultado esperado y revisor. No se anunciará “cargable en cualquier operador”
 hasta completar pruebas independientes por operador.
 
+El preflight preliminar debe revisar también el campo 26 del archivo tipo 1:
+solo considera cubierto el caso en que el aportante confirmó que no aplica una
+acción especial y, por tanto, corresponde el código 0 de AT2 v30. Una acción
+declarada o una respuesta ausente bloquea la preparación; los datos actuales no
+capturan ni validan los campos condicionales 25 y 27 ni permiten exportar una
+acción especial.
+
 ### Casos mínimos y resultados esperados del fixture AT2 v30
 
 La relectura directa del [Anexo Técnico 2 oficial de MinSalud, versión 30,

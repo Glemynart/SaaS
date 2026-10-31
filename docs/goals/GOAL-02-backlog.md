@@ -262,3 +262,18 @@ prueba se detuvo y no se usaron datos de demo/staging/producción. Esta preparac
   acceso de prueba al aportante y resultado del portal.
 - No se ejecutó el seed financiero ni se accedió a staging, producción, VPS u
   OCI; no se transmitió información a DIAN/UGPP.
+
+### Continuación de PILA — 2026-10-31
+
+- PR #163, #164 y #165 siguen abiertas y en secuencia; no se fusionaron. Sus
+  checks visibles están verdes al momento de esta revisión, y se actualizarán
+  contra `main` y se integrarán en orden cuando el usuario reponga la cuota de
+  GitHub Actions.
+- En el preflight local de #164, el perfil del aportante ya conserva la
+  respuesta sobre acciones especiales. Se detectó que el informe no bloqueaba
+  una acción declarada ni una respuesta sin confirmar. La continuación en
+  preparación añade ese bloqueo para el campo 26, sin declarar el archivo
+  generable ni ampliar el MVP.
+- ADR-014 continúa propuesta y pendiente de decisión. La implementación de los
+  campos 62 y 98 no inicia hasta recibir esa aprobación; la investigación y
+  preparación independiente del resto de AT2 continúa.

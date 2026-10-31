@@ -28,6 +28,7 @@ function payload() {
         aportesExoneradosConfirmado: false,
         beneficioCcfLey1429: false,
         beneficioLey1429: false,
+        sinAccionEspecial: true,
         representanteNumeroDocumento: '900123456',
         representanteTipoDocumento: 'CC',
         representantePrimerApellido: 'Demo',
@@ -165,6 +166,50 @@ describe('inspectPilaSnapshotPreparation', () => {
           code: 'CAMPO_43_IBC_NO_APROBADO',
         }),
       ]),
+    );
+  });
+
+  it('bloquea el campo 26 si el aportante declara una acción especial', () => {
+    const source = payload();
+    source.employer.pila.sinAccionEspecial = false;
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 1,
+      payload: source,
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'APORTANTE_TIPO_1',
+        fieldNumber: 26,
+        code: 'CAMPO_26_ACCION_ESPECIAL_FUERA_DEL_MVP',
+      }),
+    );
+  });
+
+  it('bloquea el campo 26 si el aportante no confirmó que no hay acción especial', () => {
+    const source = payload();
+    const incomplete = {
+      ...source,
+      employer: {
+        ...source.employer,
+        pila: { ...source.employer.pila, sinAccionEspecial: null },
+      },
+    };
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 1,
+      payload: incomplete,
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'APORTANTE_TIPO_1',
+        fieldNumber: 26,
+        code: 'CAMPO_26_ACCION_ESPECIAL_SIN_CONFIRMAR',
+      }),
     );
   });
 

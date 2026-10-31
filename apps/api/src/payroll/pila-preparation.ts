@@ -363,6 +363,18 @@ export function inspectPilaSnapshotPreparation(
       'La persona jurídica requiere el primer nombre del representante legal.',
     );
   }
+  if (employerPila?.sinAccionEspecial !== true) {
+    add(
+      employerRecord,
+      26,
+      employerPila?.sinAccionEspecial === false
+        ? 'CAMPO_26_ACCION_ESPECIAL_FUERA_DEL_MVP'
+        : 'CAMPO_26_ACCION_ESPECIAL_SIN_CONFIRMAR',
+      employerPila?.sinAccionEspecial === false
+        ? 'El aportante declara una acción especial; el MVP solo admite el código 0 confirmado cuando no aplica ninguna acción.'
+        : 'Falta confirmar expresamente si no aplica una acción especial del aportante.',
+    );
+  }
   if (employerPila?.beneficioLey1429 === true) {
     if (!date(employerPila.fechaMatriculaMercantil)) {
       add(
