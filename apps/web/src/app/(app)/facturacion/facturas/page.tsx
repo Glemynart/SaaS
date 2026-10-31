@@ -16,12 +16,12 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Plus, Loader2, Eye, CheckCircle, XCircle } from 'lucide-react';
 
-function cop(n: number) {
+function cop(n: number | string) {
   return new Intl.NumberFormat('es-CO', {
     style: 'currency',
     currency: 'COP',
     minimumFractionDigits: 0,
-  }).format(n);
+  }).format(Number(n));
 }
 
 export default function FacturasPage() {
@@ -35,7 +35,7 @@ export default function FacturasPage() {
   const [form, setForm] = useState({
     customerId: '',
     numero: '',
-    items: [{ descripcion: '', cantidad: 1, valorUnitario: 0, productServiceId: '' }],
+    items: [{ descripcion: '', cantidad: 1, valorUnitario: 0, productServiceId: '', impuesto: '' }],
   });
 
   const addItem = () =>
@@ -43,7 +43,7 @@ export default function FacturasPage() {
       ...form,
       items: [
         ...form.items,
-        { descripcion: '', cantidad: 1, valorUnitario: 0, productServiceId: '' },
+        { descripcion: '', cantidad: 1, valorUnitario: 0, productServiceId: '', impuesto: '' },
       ],
     });
   const removeItem = (i: number) =>
@@ -51,14 +51,20 @@ export default function FacturasPage() {
   const updateItem = (i: number, f: Partial<(typeof form.items)[0]>) => {
     const items = [...form.items];
     items[i] = { ...items[i], ...f };
-    if (f.productServiceId) {
-      const prod = (products ?? []).find((p) => p.id === f.productServiceId);
-      if (prod)
+    if (Object.prototype.hasOwnProperty.call(f, 'productServiceId')) {
+      const productServiceId = f.productServiceId ?? '';
+      const prod = (products ?? []).find((p) => p.id === productServiceId);
+      if (prod) {
         items[i] = {
           ...items[i],
+          productServiceId,
           descripcion: prod.nombre,
           valorUnitario: Number(prod.precio),
+          impuesto: prod.impuesto.toString(),
         };
+      } else {
+        items[i] = { ...items[i], productServiceId: '', impuesto: '' };
+      }
     }
     setForm({ ...form, items });
   };
@@ -69,12 +75,23 @@ export default function FacturasPage() {
       cantidad: i.cantidad,
       valorUnitario: i.valorUnitario,
       productServiceId: i.productServiceId || undefined,
+      impuesto: i.productServiceId ? undefined : Number(i.impuesto),
     }));
     createMutation.mutate(
       { customerId: form.customerId, numero: form.numero, items: cleanItems },
       { onSuccess: () => setShowForm(false) },
     );
   }, [form, createMutation]);
+
+  const tasasManualesValidas = form.items.every(
+    (item) =>
+      item.productServiceId !== '' ||
+      (item.impuesto.trim() !== '' &&
+        Number.isFinite(Number(item.impuesto)) &&
+        Number(item.impuesto) >= 0 &&
+        Number(item.impuesto) <= 100 &&
+        (item.impuesto.split('.')[1]?.length ?? 0) <= 2),
+  );
 
   if (isLoading)
     return (
@@ -125,7 +142,7 @@ export default function FacturasPage() {
           <div className="space-y-2">
             <Label>Items</Label>
             {form.items.map((item, i) => (
-              <div key={i} className="grid gap-2 sm:grid-cols-6 items-end border rounded-lg p-3">
+              <div key={i} className="grid gap-2 sm:grid-cols-7 items-end border rounded-lg p-3">
                 <div className="sm:col-span-2">
                   <select
                     value={item.productServiceId}
@@ -150,6 +167,8 @@ export default function FacturasPage() {
                 <div>
                   <Input
                     type="number"
+                    min={0.001}
+                    step="0.001"
                     placeholder="Cant"
                     value={item.cantidad}
                     onChange={(e) => updateItem(i, { cantidad: Number(e.target.value) })}
@@ -158,6 +177,21 @@ export default function FacturasPage() {
                 <div>
                   <Input
                     type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    placeholder="Tasa %"
+                    aria-label={`Tasa configurada de la línea ${i + 1}`}
+                    value={item.impuesto}
+                    readOnly={item.productServiceId !== ''}
+                    onChange={(e) => updateItem(i, { impuesto: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
                     placeholder="V. Unit"
                     value={item.valorUnitario}
                     onChange={(e) => updateItem(i, { valorUnitario: Number(e.target.value) })}
@@ -180,7 +214,16 @@ export default function FacturasPage() {
             </Button>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" onClick={handleCreate} disabled={createMutation.isPending}>
+            <Button
+              size="sm"
+              onClick={handleCreate}
+              disabled={
+                createMutation.isPending ||
+                !form.customerId ||
+                !form.numero.trim() ||
+                !tasasManualesValidas
+              }
+            >
               {createMutation.isPending && <Loader2 className="mr-1 size-3 animate-spin" />}Crear
               factura
             </Button>

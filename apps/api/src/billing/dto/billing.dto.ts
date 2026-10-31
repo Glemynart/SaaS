@@ -7,7 +7,9 @@ import {
   IsArray,
   ValidateNested,
   Min,
+  Max,
   IsEmail,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -41,23 +43,32 @@ export class UpdateCustomerDto {
 export class CreateProductDto {
   @IsString() @IsNotEmpty() nombre: string;
   @IsString() @IsOptional() descripcion?: string;
-  @IsNumber() @Min(0) precio: number;
-  @IsNumber() @Min(0) @IsOptional() impuesto?: number;
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) precio: number;
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(100) impuesto: number;
 }
 
 export class UpdateProductDto {
   @IsString() @IsOptional() nombre?: string;
   @IsString() @IsOptional() descripcion?: string;
-  @IsNumber() @Min(0) @IsOptional() precio?: number;
-  @IsNumber() @Min(0) @IsOptional() impuesto?: number;
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @IsOptional() precio?: number;
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  impuesto?: number;
   @IsOptional() activo?: boolean;
 }
 
 export class InvoiceItemDto {
   @IsString() @IsOptional() productServiceId?: string;
   @IsString() @IsNotEmpty() descripcion: string;
-  @IsNumber() @Min(0.001) cantidad: number;
-  @IsNumber() @Min(0) valorUnitario: number;
+  @IsNumber({ maxDecimalPlaces: 3 }) @Min(0.001) cantidad: number;
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) valorUnitario: number;
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  impuesto?: number;
 }
 
 export class CreateInvoiceDto {

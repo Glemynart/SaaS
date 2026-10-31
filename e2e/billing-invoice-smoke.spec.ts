@@ -103,7 +103,12 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
     impuestos: number | string;
     total: number | string;
     status: string;
-    items: Array<{ descripcion: string; subtotal: number | string }>;
+    items: Array<{
+      descripcion: string;
+      subtotal: number | string;
+      impuestoTarifa: number | string | null;
+      impuestoValor: number | string | null;
+    }>;
   };
   expect(invoice).toMatchObject({ numero: invoiceNumber, status: 'DRAFT' });
   expect(Number(invoice.subtotal)).toBe(120_000);
@@ -112,6 +117,8 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
   expect(invoice.items).toHaveLength(1);
   expect(invoice.items[0].descripcion).toBe(productName);
   expect(Number(invoice.items[0].subtotal)).toBe(120_000);
+  expect(Number(invoice.items[0].impuestoTarifa)).toBe(19);
+  expect(Number(invoice.items[0].impuestoValor)).toBe(22_800);
 
   const issueResponsePromise = page.waitForResponse(
     (response) =>
@@ -132,7 +139,7 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
   ).toBeVisible();
   await expect(page.getByText(customerName, { exact: true })).toBeVisible();
   await expect(page.getByText(productName, { exact: true })).toBeVisible();
-  await expect(page.getByText('IVA (19%)')).toBeVisible();
+  await expect(page.getByText('Impuestos calculados por línea')).toBeVisible();
 
   await page.reload();
   await expect(invoiceHeading).toBeVisible();

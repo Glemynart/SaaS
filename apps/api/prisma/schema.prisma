@@ -1411,7 +1411,7 @@ model ProductService {
   nombre      String
   descripcion String?
   precio      Decimal @db.Decimal(12, 2)
-  impuesto    Decimal @default(19) @db.Decimal(5, 2)
+  impuesto    Decimal @db.Decimal(5, 2)
   activo      Boolean @default(true)
 
   @@index([tenantId])
@@ -1464,6 +1464,8 @@ model InvoiceItem {
   cantidad         Decimal @db.Decimal(10, 3)
   valorUnitario    Decimal @db.Decimal(12, 2)
   subtotal         Decimal @db.Decimal(12, 2)
+  impuestoTarifa   Decimal? @db.Decimal(5, 2)
+  impuestoValor    Decimal? @db.Decimal(12, 2)
 
   @@index([invoiceId])
   @@map("invoice_items")

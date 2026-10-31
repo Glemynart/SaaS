@@ -7,12 +7,12 @@ import { ArrowLeft, FileText } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/ui/status-badge';
 
-function cop(n: number) {
+function cop(n: number | string) {
   return new Intl.NumberFormat('es-CO', {
     style: 'currency',
     currency: 'COP',
     minimumFractionDigits: 0,
-  }).format(n);
+  }).format(Number(n));
 }
 
 export default function FacturaDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -64,6 +64,8 @@ export default function FacturaDetailPage({ params }: { params: Promise<{ id: st
               <th className="px-4 py-3 text-left font-medium">Descripción</th>
               <th className="px-4 py-3 text-right font-medium">Cant</th>
               <th className="px-4 py-3 text-right font-medium">V. Unit</th>
+              <th className="px-4 py-3 text-right font-medium">Tasa %</th>
+              <th className="px-4 py-3 text-right font-medium">Valor calculado</th>
               <th className="px-4 py-3 text-right font-medium">Subtotal</th>
             </tr>
           </thead>
@@ -71,27 +73,33 @@ export default function FacturaDetailPage({ params }: { params: Promise<{ id: st
             {(inv.items ?? []).map((item) => (
               <tr key={item.id}>
                 <td className="px-4 py-3">{item.descripcion}</td>
-                <td className="px-4 py-3 text-right">{item.cantidad}</td>
+                <td className="px-4 py-3 text-right">{Number(item.cantidad)}</td>
                 <td className="px-4 py-3 text-right">{cop(item.valorUnitario)}</td>
+                <td className="px-4 py-3 text-right">
+                  {item.impuestoTarifa === null ? '—' : `${item.impuestoTarifa}%`}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {item.impuestoValor === null ? '—' : cop(item.impuestoValor)}
+                </td>
                 <td className="px-4 py-3 text-right">{cop(item.subtotal)}</td>
               </tr>
             ))}
           </tbody>
           <tfoot className="border-t bg-surface/30 font-medium">
             <tr>
-              <td colSpan={3} className="px-4 py-2 text-right text-xs text-muted-foreground">
+              <td colSpan={5} className="px-4 py-2 text-right text-xs text-muted-foreground">
                 Subtotal
               </td>
               <td className="px-4 py-2 text-right">{cop(inv.subtotal)}</td>
             </tr>
             <tr>
-              <td colSpan={3} className="px-4 py-2 text-right text-xs text-muted-foreground">
-                IVA (19%)
+              <td colSpan={5} className="px-4 py-2 text-right text-xs text-muted-foreground">
+                Impuestos calculados por línea
               </td>
               <td className="px-4 py-2 text-right">{cop(inv.impuestos)}</td>
             </tr>
             <tr className="text-base">
-              <td colSpan={3} className="px-4 py-3 text-right font-semibold">
+              <td colSpan={5} className="px-4 py-3 text-right font-semibold">
                 Total
               </td>
               <td className="px-4 py-3 text-right font-semibold text-primary">{cop(inv.total)}</td>
@@ -99,6 +107,13 @@ export default function FacturaDetailPage({ params }: { params: Promise<{ id: st
           </tfoot>
         </table>
       </div>
+      {(inv.items ?? []).some(
+        (item) => item.impuestoTarifa === null || item.impuestoValor === null,
+      ) && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Esta factura histórica no conserva snapshot de impuesto por línea.
+        </p>
+      )}
     </div>
   );
 }

@@ -7,29 +7,33 @@ export interface Customer {
   direccion: string | null;
   status: string;
 }
+type DecimalValue = number | string;
+
 export interface ProductService {
   id: string;
   nombre: string;
   descripcion: string | null;
-  precio: number;
-  impuesto: number;
+  precio: DecimalValue;
+  impuesto: DecimalValue;
   activo: boolean;
 }
 export interface InvoiceItem {
   id: string;
   productServiceId: string | null;
   descripcion: string;
-  cantidad: number;
-  valorUnitario: number;
-  subtotal: number;
+  cantidad: DecimalValue;
+  valorUnitario: DecimalValue;
+  subtotal: DecimalValue;
+  impuestoTarifa: DecimalValue | null;
+  impuestoValor: DecimalValue | null;
 }
 export interface Invoice {
   id: string;
   customerId: string;
   numero: string;
-  subtotal: number;
-  impuestos: number;
-  total: number;
+  subtotal: DecimalValue;
+  impuestos: DecimalValue;
+  total: DecimalValue;
   status: string;
   fechaEmision: string;
   customer: { razonSocial: string; nit: string };
@@ -84,6 +88,7 @@ export const billingApi = {
       cantidad: number;
       valorUnitario: number;
       productServiceId?: string;
+      impuesto?: number;
     }[];
   }) => req<Invoice>('/api/billing/invoices', { method: 'POST', body: JSON.stringify(d) }),
   getInvoice: (id: string) => req<Invoice>(`/api/billing/invoices/${id}`),

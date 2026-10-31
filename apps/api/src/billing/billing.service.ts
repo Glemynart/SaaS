@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateCustomerDto,
@@ -12,6 +13,10 @@ import {
   CreateInvoiceDto,
   UpdateInvoiceStatusDto,
 } from './dto/billing.dto';
+
+function roundCop(value: Decimal): Decimal {
+  return value.toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+}
 
 @Injectable()
 export class BillingService {
@@ -94,19 +99,78 @@ export class BillingService {
   // --- INVOICES ---
   async createInvoice(tenantId: string, dto: CreateInvoiceDto) {
     void (await this.findOneCustomer(tenantId, dto.customerId));
-    await this.validateInvoiceProducts(tenantId, dto.items);
+    const productRates = await this.validateInvoiceProducts(
+      tenantId,
+      dto.items,
+    );
 
-    const items = dto.items.map((item) => ({
-      productServiceId: item.productServiceId ?? null,
-      descripcion: item.descripcion,
-      cantidad: item.cantidad,
-      valorUnitario: item.valorUnitario,
-      subtotal: Number(item.cantidad) * Number(item.valorUnitario),
-    }));
+    const items = dto.items.map((item) => {
+      const manualRate = item.impuesto as number | null | undefined;
+      const configuredRate = item.productServiceId
+        ? productRates.get(item.productServiceId)
+        : undefined;
+      if (item.productServiceId && configuredRate === undefined) {
+        throw new BadRequestException(
+          'Uno o más productos no están disponibles para esta empresa.',
+        );
+      }
+      if (
+        !item.productServiceId &&
+        (manualRate === undefined || manualRate === null)
+      ) {
+        throw new BadRequestException(
+          'Cada línea manual requiere una tasa configurada explícita.',
+        );
+      }
 
-    const subtotal = items.reduce((s, i) => s + Number(i.subtotal), 0);
-    const impuestos = subtotal * 0.19;
-    const total = subtotal + impuestos;
+      let impuestoTarifa: Decimal;
+      if (configuredRate !== undefined) {
+        impuestoTarifa = configuredRate;
+      } else if (manualRate !== undefined && manualRate !== null) {
+        impuestoTarifa = new Decimal(manualRate.toString());
+      } else {
+        throw new BadRequestException(
+          'Cada línea manual requiere una tasa configurada explícita.',
+        );
+      }
+      if (
+        !impuestoTarifa.isFinite() ||
+        impuestoTarifa.isNegative() ||
+        impuestoTarifa.greaterThan(100) ||
+        impuestoTarifa.decimalPlaces() > 2
+      ) {
+        throw new BadRequestException(
+          'La tasa de cada línea debe estar entre 0 y 100% con máximo dos decimales.',
+        );
+      }
+
+      const base = roundCop(
+        new Decimal(item.cantidad.toString()).mul(
+          new Decimal(item.valorUnitario.toString()),
+        ),
+      );
+      const impuestoValor = roundCop(base.mul(impuestoTarifa).div(100));
+
+      return {
+        productServiceId: item.productServiceId ?? null,
+        descripcion: item.descripcion,
+        cantidad: item.cantidad,
+        valorUnitario: item.valorUnitario,
+        subtotal: base,
+        impuestoTarifa,
+        impuestoValor,
+      };
+    });
+
+    const subtotal = items.reduce(
+      (sum, item) => sum.plus(item.subtotal),
+      new Decimal(0),
+    );
+    const impuestos = items.reduce(
+      (sum, item) => sum.plus(item.impuestoValor),
+      new Decimal(0),
+    );
+    const total = subtotal.plus(impuestos);
 
     return this.prisma.invoice.create({
       data: {
@@ -196,7 +260,7 @@ export class BillingService {
   private async validateInvoiceProducts(
     tenantId: string,
     items: CreateInvoiceDto['items'],
-  ): Promise<void> {
+  ): Promise<Map<string, Decimal>> {
     const productIds = [
       ...new Set(
         items
@@ -204,16 +268,18 @@ export class BillingService {
           .filter((id): id is string => Boolean(id)),
       ),
     ];
-    if (productIds.length === 0) return;
+    if (productIds.length === 0) return new Map();
 
     const products = await this.prisma.productService.findMany({
       where: { tenantId, id: { in: productIds }, activo: true },
-      select: { id: true },
+      select: { id: true, impuesto: true },
     });
     if (products.length !== productIds.length) {
       throw new BadRequestException(
         'Uno o más productos no están disponibles para esta empresa.',
       );
     }
+
+    return new Map(products.map((product) => [product.id, product.impuesto]));
   }
 }

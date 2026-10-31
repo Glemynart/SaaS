@@ -6,6 +6,7 @@ import {
   PayrollPeriodStatus,
   Prisma,
 } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 import { AuditService } from '../src/audit/audit.service';
 import { LedgerService } from '../src/accounting/ledger/ledger.service';
 import { DEFAULT_SYSTEM_ACCOUNT_MAPPINGS } from '../src/accounting/provisioning/system-account-mappings';
@@ -141,8 +142,8 @@ function assertLocalDemoSeedTarget(tenantId: string): void {
   }
 }
 
-function roundCurrency(value: number): number {
-  return Math.round(value * 100) / 100;
+function roundCurrency(value: Decimal): Decimal {
+  return value.toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 }
 
 function isSyntheticPayrollSnapshot(payload: Prisma.JsonValue): boolean {
@@ -489,18 +490,49 @@ async function ensureInvoice(
     );
   }
 
-  const items = invoice.items.map((item) => ({
-    id: demoId(tenantId, item.key),
-    productServiceId: item.productServiceId,
-    descripcion: item.descripcion,
-    cantidad: item.cantidad,
-    valorUnitario: item.valorUnitario,
-    subtotal: roundCurrency(item.cantidad * item.valorUnitario),
-  }));
-  const subtotal = roundCurrency(
-    items.reduce((sum, item) => sum + Number(item.subtotal), 0),
+  const productIds = [
+    ...new Set(invoice.items.map((item) => item.productServiceId)),
+  ];
+  const products = await tx.productService.findMany({
+    where: { tenantId, id: { in: productIds }, activo: true },
+    select: { id: true, impuesto: true },
+  });
+  if (products.length !== productIds.length) {
+    throw new Error(
+      `Falta un producto activo para la factura sintética ${invoice.numero}.`,
+    );
+  }
+  const rates = new Map(
+    products.map((product) => [product.id, product.impuesto]),
   );
-  const impuestos = roundCurrency(subtotal * 0.19);
+  const items = invoice.items.map((item) => {
+    const rate = rates.get(item.productServiceId);
+    if (rate === undefined) {
+      throw new Error(`No hay tasa configurada para ${item.productServiceId}.`);
+    }
+    const subtotal = roundCurrency(
+      new Decimal(item.cantidad).mul(new Decimal(item.valorUnitario)),
+    );
+    const impuestoValor = roundCurrency(subtotal.mul(rate).div(100));
+    return {
+      id: demoId(tenantId, item.key),
+      productServiceId: item.productServiceId,
+      descripcion: item.descripcion,
+      cantidad: item.cantidad,
+      valorUnitario: item.valorUnitario,
+      subtotal,
+      impuestoTarifa: rate,
+      impuestoValor,
+    };
+  });
+  const subtotal = items.reduce(
+    (sum, item) => sum.plus(item.subtotal),
+    new Decimal(0),
+  );
+  const impuestos = items.reduce(
+    (sum, item) => sum.plus(item.impuestoValor),
+    new Decimal(0),
+  );
 
   await tx.invoice.create({
     data: {
@@ -510,7 +542,7 @@ async function ensureInvoice(
       numero: invoice.numero,
       subtotal,
       impuestos,
-      total: roundCurrency(subtotal + impuestos),
+      total: subtotal.plus(impuestos),
       status: invoice.status,
       fechaEmision: invoice.fechaEmision,
       items: { create: items },

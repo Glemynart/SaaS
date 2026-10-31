@@ -12,12 +12,12 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Plus, Loader2, Pencil } from 'lucide-react';
 
-function cop(n: number) {
+function cop(n: number | string) {
   return new Intl.NumberFormat('es-CO', {
     style: 'currency',
     currency: 'COP',
     minimumFractionDigits: 0,
-  }).format(n);
+  }).format(Number(n));
 }
 
 export default function ProductosPage() {
@@ -27,16 +27,25 @@ export default function ProductosPage() {
   const updateMutation = useUpdateProduct();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState({ nombre: '', descripcion: '', precio: 0, impuesto: 19 });
+  const [form, setForm] = useState({ nombre: '', descripcion: '', precio: 0, impuesto: '' });
+  const tasaDecimalPlaces = form.impuesto.split('.')[1]?.length ?? 0;
+  const tasaValida =
+    form.impuesto.trim() !== '' &&
+    Number.isFinite(Number(form.impuesto)) &&
+    Number(form.impuesto) >= 0 &&
+    Number(form.impuesto) <= 100 &&
+    tasaDecimalPlaces <= 2;
 
   const reset = () => {
-    setForm({ nombre: '', descripcion: '', precio: 0, impuesto: 19 });
+    setForm({ nombre: '', descripcion: '', precio: 0, impuesto: '' });
     setEditId(null);
   };
   const handleSubmit = useCallback(() => {
+    if (!tasaValida || !form.nombre.trim()) return;
+    const payload = { ...form, impuesto: Number(form.impuesto) };
     if (editId) {
       updateMutation.mutate(
-        { id: editId, data: form },
+        { id: editId, data: payload },
         {
           onSuccess: () => {
             setShowForm(false);
@@ -45,21 +54,21 @@ export default function ProductosPage() {
         },
       );
     } else {
-      createMutation.mutate(form, {
+      createMutation.mutate(payload, {
         onSuccess: () => {
           setShowForm(false);
           reset();
         },
       });
     }
-  }, [form, editId, createMutation, updateMutation]);
+  }, [form, editId, tasaValida, createMutation, updateMutation]);
 
   const startEdit = (p: NonNullable<typeof products>[number]) => {
     setForm({
       nombre: p.nombre,
       descripcion: p.descripcion ?? '',
-      precio: p.precio,
-      impuesto: p.impuesto,
+      precio: Number(p.precio),
+      impuesto: p.impuesto.toString(),
     });
     setEditId(p.id);
     setShowForm(true);
@@ -91,7 +100,7 @@ export default function ProductosPage() {
         </Button>
       </div>
       {showForm && (
-        <div className="mb-6 rounded-xl border bg-white p-5 shadow-sm grid gap-3 sm:grid-cols-4">
+        <div className="mb-6 rounded-xl border bg-surface p-5 shadow-sm grid gap-3 sm:grid-cols-4">
           <div className="sm:col-span-2">
             <Label>Nombre</Label>
             <Input
@@ -103,20 +112,38 @@ export default function ProductosPage() {
             <Label>Precio</Label>
             <Input
               type="number"
+              min={0}
+              step="0.01"
               value={form.precio}
               onChange={(e) => setForm({ ...form, precio: Number(e.target.value) })}
             />
           </div>
           <div>
-            <Label>Impuesto %</Label>
+            <Label>Tasa configurada (%)</Label>
             <Input
               type="number"
+              required
+              min={0}
+              max={100}
+              step="0.01"
               value={form.impuesto}
-              onChange={(e) => setForm({ ...form, impuesto: Number(e.target.value) })}
+              onChange={(e) => setForm({ ...form, impuesto: e.target.value })}
             />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Valor para cálculos internos, sin definir el tratamiento tributario.
+            </p>
           </div>
           <div className="sm:col-span-4 flex gap-2">
-            <Button size="sm" onClick={handleSubmit} disabled={createMutation.isPending}>
+            <Button
+              size="sm"
+              onClick={handleSubmit}
+              disabled={
+                createMutation.isPending ||
+                updateMutation.isPending ||
+                !tasaValida ||
+                !form.nombre.trim()
+              }
+            >
               {createMutation.isPending && <Loader2 className="mr-1 size-3 animate-spin" />}
               {editId ? 'Guardar' : 'Crear'}
             </Button>
@@ -134,14 +161,14 @@ export default function ProductosPage() {
           className="max-w-sm"
         />
       </div>
-      <div className="overflow-hidden rounded-xl border bg-white">
+      <div className="overflow-hidden rounded-xl border bg-surface">
         <div className="divide-y">
           {(products ?? []).map((p) => (
             <div key={p.id} className="flex items-center justify-between px-5 py-3.5">
               <div>
                 <p className="text-sm font-medium">{p.nombre}</p>
                 <p className="text-xs text-muted-foreground">
-                  {cop(p.precio)} — IVA {p.impuesto}%
+                  {cop(p.precio)} — Tasa {p.impuesto}%
                 </p>
               </div>
               <Button variant="ghost" size="sm" onClick={() => startEdit(p)}>

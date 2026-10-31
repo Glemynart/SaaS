@@ -102,10 +102,16 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
     subtotal: number | string;
     impuestos: number | string;
     total: number | string;
+    items: Array<{
+      impuestoTarifa: number | string | null;
+      impuestoValor: number | string | null;
+    }>;
   };
   expect(Number(invoice.subtotal)).toBe(120_000);
   expect(Number(invoice.impuestos)).toBe(22_800);
   expect(Number(invoice.total)).toBe(142_800);
+  expect(Number(invoice.items[0].impuestoTarifa)).toBe(19);
+  expect(Number(invoice.items[0].impuestoValor)).toBe(22_800);
 
   const invoiceRow = page.getByRole('link', { name: invoiceNumber }).locator('xpath=..');
   const issueResponsePromise = page.waitForResponse(
