@@ -114,6 +114,13 @@ de los que AT2 asigna al operador.
 | 21     | Tipo de aportante del campo 30 del archivo tipo 1.                           | Snapshot declara tipo `1` para empleador.                                                                                                                                                                              |
 | 22     | Código del operador de información.                                          | Asignado por el operador; no existe un código en el snapshot ni una convención de entrada confirmada.                                                                                                                  |
 
+`pila-at2-v30-header-mapper.ts` mapea candidatos del encabezado desde snapshots
+v2 de un mismo tenant y período. Solo calcula el conteo y la suma CCF si cada
+empleado aparece una vez con afiliación dependiente `01`/`00` que cubre el mes;
+si hay duplicados o casos fuera del MVP, ambos totales quedan sin resolver. Los
+campos asignados al operador siguen pendientes, y este mapa no valida ni
+serializa el encabezado.
+
 MinSalud marca los campos 2, 15, 17, 18 y 22 como generados o asignados por el
 operador/sistema. Las páginas públicas de SOI confirman carga de archivos
 planos y que el portal devuelve número de planilla y total a pagar; su
