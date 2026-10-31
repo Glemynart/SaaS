@@ -1249,6 +1249,42 @@ describe('inspectPilaSnapshotPreparation', () => {
     );
   });
 
+  it('bloquea el total CCF de campo 20 si excede N12 sin truncar', () => {
+    const snapshots = Array.from({ length: 1001 }, (_, index) =>
+      snapshot(`employee-${index}`, 'Empleado'),
+    );
+    snapshots.forEach((item, index) => {
+      const source = item.payload as ReturnType<typeof payload>;
+      source.employer.pila.claseAportante = 'A';
+      source.payroll.ibcPorSubsistema.cajaCompensacion.valor =
+        index === snapshots.length - 1 ? 999 : 999_999_999;
+    });
+    const period = {
+      id: 'period-1',
+      fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+      fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+    };
+
+    const atMaximum = buildPilaPreparationReport({ period, snapshots });
+    expect(atMaximum.exportReadiness.blockers).not.toContainEqual(
+      expect.objectContaining({
+        code: 'AT2_HEADER_CCF_IBC_TOTAL_SUPERA_LONGITUD',
+      }),
+    );
+
+    const lastSource = snapshots.at(-1)!.payload as ReturnType<typeof payload>;
+    lastSource.payroll.ibcPorSubsistema.cajaCompensacion.valor = 1000;
+    const overMaximum = buildPilaPreparationReport({ period, snapshots });
+
+    expect(overMaximum.exportReadiness.blockers).toContainEqual(
+      expect.objectContaining({
+        code: 'AT2_HEADER_CCF_IBC_TOTAL_SUPERA_LONGITUD',
+        scope: 'FILE_GENERATION',
+        fields: [{ record: 'CABECERA_TIPO_2', fieldNumbers: [20] }],
+      }),
+    );
+  });
+
   it('exige fecha prevista válida en cada snapshot aprobado', () => {
     const missingDate = snapshot('employee-1', 'Ana');
     const source = missingDate.payload as ReturnType<typeof payload>;

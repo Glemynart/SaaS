@@ -2,6 +2,7 @@ import {
   PILA_RISK_ACTIVITY_CATALOG_VERSION,
   PILA_RISK_ACTIVITY_CODES,
 } from './pila-risk-activity-catalog';
+import { PILA_AT2_V30_RECORD_LAYOUTS } from './pila-at2-v30-record-serializer';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -24,6 +25,7 @@ export interface PilaExportReadinessBlocker {
     | 'SOI_OPERATOR_FIELDS_UNCONFIRMED'
     | 'PILA_PAYMENT_DATE_REQUIRED'
     | 'PILA_PAYMENT_DATE_SNAPSHOT_INCONSISTENT'
+    | 'AT2_HEADER_CCF_IBC_TOTAL_SUPERA_LONGITUD'
     | 'OPERATOR_UPLOAD_NOT_VERIFIED';
   scope: 'FILE_GENERATION' | 'OPERATOR_COMPATIBILITY';
   title: string;
@@ -1364,11 +1366,48 @@ export function buildPilaPreparationReport(input: {
   ].filter(
     (blocker): blocker is PilaExportReadinessBlocker => blocker !== null,
   );
+  const headerCcfIbcField =
+    PILA_AT2_V30_RECORD_LAYOUTS.payrollHeaderType2.fields[19];
+  const ccfIbcValues = input.snapshots.map((snapshot) => {
+    const payroll = nested(object(snapshot.payload), 'payroll');
+    const subsystemBases = nested(payroll, 'ibcPorSubsistema');
+    const value = nested(subsystemBases, 'cajaCompensacion')?.valor;
+    return safeInteger(value) && fitsNumericField(value, 9) ? value : null;
+  });
+  const hasCompleteCcfIbcValues =
+    ccfIbcValues.length > 0 && ccfIbcValues.every((value) => value !== null);
+  const totalCcfIbc = hasCompleteCcfIbcValues
+    ? ccfIbcValues.reduce<number>((total, value) => total + (value ?? 0), 0)
+    : null;
+  const headerCcfIbcBlocker: PilaExportReadinessBlocker | null =
+    totalCcfIbc !== null &&
+    !fitsNumericField(totalCcfIbc, headerCcfIbcField.length)
+      ? {
+          code: 'AT2_HEADER_CCF_IBC_TOTAL_SUPERA_LONGITUD',
+          scope: 'FILE_GENERATION',
+          title: 'El IBC total de caja supera el campo 20 del encabezado',
+          message:
+            'La suma candidata de los IBC de caja de compensación del campo 45 supera las 12 posiciones numéricas del campo 20 AT2 v30. No se truncará ni se generará un total parcial.',
+          fields: [
+            {
+              record: 'CABECERA_TIPO_2',
+              fieldNumbers: [headerCcfIbcField.fieldNumber],
+            },
+          ],
+          evidence:
+            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. La matriz PILA mantiene pendiente la validación de obligación y aplicabilidad antes de serializar.',
+        }
+      : null;
+  const readinessBlockers = [
+    ...pilaExportReadiness.blockers,
+    ...paymentDateBlockers,
+    ...(headerCcfIbcBlocker ? [headerCcfIbcBlocker] : []),
+  ];
   const exportReadiness =
-    paymentDateBlockers.length > 0
+    readinessBlockers.length > pilaExportReadiness.blockers.length
       ? {
           ...pilaExportReadiness,
-          blockers: [...pilaExportReadiness.blockers, ...paymentDateBlockers],
+          blockers: readinessBlockers,
         }
       : pilaExportReadiness;
   const totalCotizantes = new Set(

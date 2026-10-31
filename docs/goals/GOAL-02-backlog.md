@@ -481,3 +481,9 @@ verdes al 2026-10-31.
   detectaba el desbordamiento del campo 19 (5 N). Ahora bloquea más de 99.999
   cotizantes sin truncar ni contar dos veces a quien tenga varias líneas 02;
   el límite superior tiene prueba de borde.
+- El campo 20 del encabezado suma el IBC CCF de los campos 45 del detalle y
+  ocupa N12. El informe ahora suma los valores congelados solo cuando todos
+  están presentes y caben individualmente en N9; bloquea el exceso sobre
+  999.999.999.999 y acepta el límite exacto. Esto no aprueba la obligación ni
+  la aplicabilidad de CCF, no estima bases ausentes y no habilita generar un
+  archivo.
