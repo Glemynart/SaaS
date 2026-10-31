@@ -12,7 +12,7 @@ import {
 import { CreateSocialSecurityAffiliationDto } from './dto/create-social-security-affiliation.dto';
 import { CloseSocialSecurityAffiliationDto } from './dto/close-social-security-affiliation.dto';
 
-const CAPTURE_VERSION = 'PILA_AFFILIATION_CAPTURE_V1';
+const CAPTURE_VERSION = 'PILA_AFFILIATION_CAPTURE_V2';
 
 @Injectable()
 export class SocialSecurityAffiliationsService {
@@ -53,11 +53,18 @@ export class SocialSecurityAffiliationsService {
 
         // Serializa registros concurrentes del mismo empleado antes de revisar
         // intervalos; la transacción instala el tenant para respetar RLS.
-        await prisma.$queryRaw<Array<{ id: string }>>`
-          SELECT "id" FROM "empleados"
+        const lockedEmployeeRows = await prisma.$queryRaw<
+          Array<{ tipoDocumento: string }>
+        >`
+          SELECT "tipoDocumento" FROM "empleados"
           WHERE "id" = ${employeeId} AND "tenantId" = ${tenantId}
           FOR UPDATE
         `;
+        const lockedEmployee = lockedEmployeeRows[0];
+        if (!lockedEmployee) {
+          throw new NotFoundException('Empleado no encontrado.');
+        }
+        this.validatePilaDeclarations(lockedEmployee.tipoDocumento, dto);
 
         const existing = await prisma.afiliacionSeguridadSocial.findMany({
           where: { tenantId, empleadoId: employeeId },
@@ -129,6 +136,9 @@ export class SocialSecurityAffiliationsService {
         const affiliation = await prisma.afiliacionSeguridadSocial.create({
           data: {
             ...dto,
+            extranjeroNoObligadoPension:
+              dto.extranjeroNoObligadoPension ?? null,
+            colombianoEnElExterior: dto.colombianoEnElExterior ?? null,
             vigenteDesde,
             vigenteHasta,
             subtipoCotizanteCodigo: dto.subtipoCotizanteCodigo || null,
@@ -257,10 +267,52 @@ export class SocialSecurityAffiliationsService {
   ) {
     const employee = await prisma.empleado.findFirst({
       where: { id: employeeId, tenantId, deletedAt: null },
-      select: { id: true },
+      select: { id: true, tipoDocumento: true },
     });
     if (!employee) throw new NotFoundException('Empleado no encontrado.');
     return employee;
+  }
+
+  private validatePilaDeclarations(
+    tipoDocumento: string,
+    dto: CreateSocialSecurityAffiliationDto,
+  ) {
+    const foreignPensionExemption = dto.extranjeroNoObligadoPension ?? null;
+    const colombianAbroad = dto.colombianoEnElExterior ?? null;
+
+    if (tipoDocumento === 'CC' || tipoDocumento === 'TI') {
+      if (typeof colombianAbroad !== 'boolean') {
+        throw new BadRequestException(
+          'Confirma si el cotizante colombiano reside en el exterior.',
+        );
+      }
+      if (foreignPensionExemption !== null) {
+        throw new BadRequestException(
+          'La exención pensional del extranjero no aplica a documentos CC/TI.',
+        );
+      }
+      return;
+    }
+
+    if (tipoDocumento === 'CE' || tipoDocumento === 'PA') {
+      if (typeof foreignPensionExemption !== 'boolean') {
+        throw new BadRequestException(
+          'Confirma si el cotizante extranjero está exento de cotizar a pensión.',
+        );
+      }
+      if (colombianAbroad !== null) {
+        throw new BadRequestException(
+          'La declaración de colombiano en el exterior no aplica a documentos CE/PA.',
+        );
+      }
+      return;
+    }
+
+    if (foreignPensionExemption !== null || colombianAbroad !== null) {
+      throw new BadRequestException(
+        'Las declaraciones de los campos 7 y 8 de AT2 v30 solo aplican a documentos CC, TI, CE o PA.',
+      );
+    }
   }
 }
 

@@ -583,6 +583,10 @@ model AfiliacionSeguridadSocial {
   cajaCompensacionCodigo String  @db.VarChar(6)
   cajaCompensacionNombre String  @db.VarChar(120)
 
+  // Declaraciones de AT2 v30 aplicables según el documento del cotizante.
+  extranjeroNoObligadoPension Boolean?
+  colombianoEnElExterior     Boolean?
+
   vigenteDesde DateTime  @db.Date
   vigenteHasta DateTime? @db.Date
 

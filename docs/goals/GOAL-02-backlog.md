@@ -572,3 +572,18 @@ verdes al 2026-10-31.
 - Las pruebas verifican snapshot v2, dependiente 01/00, cobertura del período,
   códigos afiliados, días/base salarial e IBC congelados, ceros iniciales del
   documento/centro, fuentes de concepto únicas y aislamiento del centro ARL.
+
+### Declaraciones PILA por tipo de documento — 2026-10-31
+
+- La continuación sobre la cadena #191 agrega a la afiliación con vigencia las
+  declaraciones booleanas de AT2 v30: exención pensional extranjera para CE/PA
+  y residencia exterior para CC/TI. La captura web y la API exigen el dato
+  aplicable en nuevas afiliaciones y rechazan declaraciones incompatibles con
+  el tipo de documento.
+- La migración es aditiva: no convierte datos heredados ni modifica
+  afiliaciones existentes; las declaraciones históricas permanecen nulas y
+  bloquean el campo hasta que exista evidencia nueva versionada. Payroll las
+  copia al snapshot aprobado y el mapeo candidato traduce `true` a `X` y
+  `false` a campo en blanco. Un valor contradictorio también bloquea.
+- Este paso no habilita el archivo PILA ni declara compatibilidad con
+  operadores. Se mantienen las reglas y exclusiones vigentes del MVP.

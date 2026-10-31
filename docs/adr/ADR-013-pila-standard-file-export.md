@@ -93,6 +93,13 @@ categoría inexistente o meramente proyectada.
    oficiales. El empleador debe confirmar cada administradora y código antes
    de exportar. Como mínimo, estructurar salud, pensión, riesgos laborales,
    caja, tipo/subtipo de cotizante, clase de riesgo y novedades reportables.
+   Capturar también, en la misma afiliación versionada y con vigencia, las
+   declaraciones de AT2 v30 campo 7 (extranjero no obligado a cotizar a
+   pensión, aplicable a CE/PA) y campo 8 (colombiano en el exterior, aplicable
+   a CC/TI). Exigir respuesta explícita sí/no al registrar una afiliación nueva
+   para esos tipos documentales; los valores nulos históricos no se infieren
+   ni se completan en lote y mantienen bloqueado el campo correspondiente.
+   Congelar ambas declaraciones en el snapshot PILA aprobado.
 4. Generar los archivos planos tipo 1 y tipo 2 que exige el Anexo Técnico PILA
    vigente para activos, con campos, posiciones, registros y catálogos
    oficiales. Registrar su versión normativa y período de aplicación. El
@@ -202,13 +209,14 @@ la generación de archivos.
 El historial de afiliaciones no presenta una versión de formato PILA como si
 fuera evidencia normativa. El campo Prisma se llama `versionCaptura` y se mapea
 temporalmente a la columna física heredada `formatoNormativoVersion`, para que
-la migración sea compatible con la imagen anterior y un rollback operativo. El
-servicio registra `PILA_AFFILIATION_CAPTURE_V1`; la migración corrige la etiqueta
-`AT2_V30` en filas existentes y el valor predeterminado, sin renombrar la
-columna física ni alterar otros datos afiliatorios. No modifica eventos ni
-snapshots aprobados. Los snapshots históricos conservan su contenido original
-y el informe no fija una versión de archivo hasta terminar la reconciliación
-campo por campo. Algunos payloads históricos pueden conservar la clave
+la migración sea compatible con la imagen anterior y un rollback operativo.
+Las filas existentes mantienen su versión de captura anterior y las dos
+declaraciones nuevas quedan nulas; no hay backfill ni cambio de snapshots
+aprobados. Las afiliaciones registradas por el servicio de captura actualizado
+usan `PILA_AFFILIATION_CAPTURE_V2`, que incluye ambas declaraciones tipadas y
+vigentes; la versión predeterminada heredada no se cambia para escrituras que
+no pasan por ese flujo. La migración es aditiva: agrega dos columnas booleanas
+anulables sin renombrar la columna física ni alterar otros datos. Algunos payloads históricos pueden conservar la clave
 `formatoNormativoVersion: AT2_V30`; se mantiene por inmutabilidad, pero no
 demuestra que el snapshot se haya preparado y validado usando esa versión ni
 habilita la exportación.

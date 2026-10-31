@@ -91,6 +91,8 @@ export type PilaSourceContextInput = {
     arlClaseRiesgo: string;
     cajaCompensacionCodigo: string;
     cajaCompensacionNombre: string;
+    extranjeroNoObligadoPension?: boolean | null;
+    colombianoEnElExterior?: boolean | null;
     vigenteDesde: Date;
     vigenteHasta: Date | null;
     versionCaptura: string;
@@ -263,6 +265,9 @@ export function buildPilaSourceContext(input: PilaSourceContextInput) {
       arlClaseRiesgo: affiliation.arlClaseRiesgo,
       cajaCompensacionCodigo: affiliation.cajaCompensacionCodigo,
       cajaCompensacionNombre: affiliation.cajaCompensacionNombre,
+      extranjeroNoObligadoPension:
+        affiliation.extranjeroNoObligadoPension ?? null,
+      colombianoEnElExterior: affiliation.colombianoEnElExterior ?? null,
       vigenteDesde: calendarDate(affiliation.vigenteDesde),
       vigenteHasta: calendarDate(affiliation.vigenteHasta),
       versionCaptura: affiliation.versionCaptura,

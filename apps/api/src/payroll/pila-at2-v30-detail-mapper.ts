@@ -117,6 +117,19 @@ export function mapPilaAt2V30DetailCandidate(
       put(fieldNumber, normalized);
     }
   };
+  const putBooleanFlag = (
+    fieldNumber: number,
+    value: unknown,
+    missingReason: string,
+  ) => {
+    if (value === true) {
+      put(fieldNumber, 'X');
+    } else if (value === false) {
+      blank(fieldNumber);
+    } else {
+      unresolved(fieldNumber, missingReason);
+    }
+  };
 
   const root = object(snapshot.payload);
   const employee = object(root?.employee);
@@ -219,18 +232,34 @@ export function mapPilaAt2V30DetailCandidate(
     const documentType = sourceText(employee?.tipoDocumento);
     if (documentType === 'CC' || documentType === 'TI') {
       // AT2 v30 only allows the foreign pension exemption flag for foreign IDs.
-      blank(7);
-      unresolved(
+      if (affiliation?.extranjeroNoObligadoPension == null) {
+        blank(7);
+      } else {
+        unresolved(
+          7,
+          'La afiliación contiene una declaración de exención extranjera incompatible con CC/TI.',
+        );
+      }
+      putBooleanFlag(
         8,
+        affiliation?.colombianoEnElExterior,
         'Falta confirmar si el cotizante CC/TI es colombiano en el exterior.',
       );
     } else if (documentType === 'CE' || documentType === 'PA') {
-      unresolved(
+      putBooleanFlag(
         7,
+        affiliation?.extranjeroNoObligadoPension,
         'Falta confirmar si el cotizante extranjero está exento de pensión.',
       );
       // AT2 v30 only allows the abroad flag for Colombian CC/TI documents.
-      blank(8);
+      if (affiliation?.colombianoEnElExterior == null) {
+        blank(8);
+      } else {
+        unresolved(
+          8,
+          'La afiliación contiene una declaración de residencia exterior incompatible con CE/PA.',
+        );
+      }
     } else {
       unresolved(7, 'Falta un tipo de documento soportado para el campo 7.');
       unresolved(8, 'Falta un tipo de documento soportado para el campo 8.');
