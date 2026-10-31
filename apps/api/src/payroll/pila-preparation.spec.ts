@@ -583,6 +583,42 @@ describe('inspectPilaSnapshotPreparation', () => {
   });
 
   it.each([
+    [31, 'fondoPensionCodigo'],
+    [33, 'epsCodigo'],
+    [35, 'cajaCompensacionCodigo'],
+    [77, 'arlCodigo'],
+  ] as const)(
+    'bloquea el código de afiliación del campo %i si excede seis posiciones',
+    (fieldNumber, key) => {
+      const source = payload();
+      Object.assign(source.affiliations[0], { [key]: 'A'.repeat(7) });
+
+      const result = inspectPilaSnapshotPreparation(
+        snapshot('employee-1', 'Ana', { payload: source }),
+      );
+
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          fieldNumber,
+          code: `CAMPO_${fieldNumber}_LONGITUD_SUPERADA`,
+        }),
+      );
+    },
+  );
+
+  it('acepta los códigos de afiliación de seis posiciones de AT2', () => {
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: payload() }),
+    );
+
+    expect(
+      result.issues.filter(({ fieldNumber }) =>
+        [31, 33, 35, 77].includes(fieldNumber ?? -1),
+      ),
+    ).toEqual([]);
+  });
+
+  it.each([
     ['faltante', null],
     ['especial', '01'],
   ] as const)('bloquea un subtipo PILA %s fuera de 00', (_, subtype) => {

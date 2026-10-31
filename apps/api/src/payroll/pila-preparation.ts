@@ -939,7 +939,21 @@ export function inspectPilaSnapshotPreparation(
         affiliation[key],
         `Falta el código confirmado de la ${label}.`,
       );
+      validateFieldLength(detailRecord, field, affiliation[key], 6, label);
     }
+    requireText(
+      detailRecord,
+      77,
+      affiliation.arlCodigo,
+      'Falta el código confirmado de la administradora ARL para el período.',
+    );
+    validateFieldLength(
+      detailRecord,
+      77,
+      affiliation.arlCodigo,
+      6,
+      'código de la administradora ARL',
+    );
     requireText(
       detailRecord,
       78,

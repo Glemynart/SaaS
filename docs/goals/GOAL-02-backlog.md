@@ -471,3 +471,9 @@ verdes al 2026-10-31.
   tipo 2. El preflight ahora valida ese límite sin truncar ni inferir su
   catálogo; las pruebas cubren seis posiciones y el exceso. La compatibilidad
   y convención de carga siguen pendientes de pruebas por operador.
+- La revisión del detalle encontró que los códigos de pensión, EPS, CCF y ARL
+  se exigían parcialmente, pero no se controlaba A6; el campo 77 tampoco
+  bloqueaba la ausencia del código ARL congelado. El preflight ahora exige el
+  código ARL afiliado y bloquea códigos de administradoras con más de seis
+  posiciones sin truncarlos. La validación de catálogos oficiales y del
+  operador sigue pendiente.
