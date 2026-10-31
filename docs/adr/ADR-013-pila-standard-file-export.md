@@ -217,6 +217,8 @@ ni mapear automáticamente los campos heredados.
 
 La comprobación del código actual concreta esta brecha: `SNAPSHOT_PAYLOAD_VERSION` sigue en `1`; el payload aprobado conserva el período, `employeeId` y salario, contrato/sede/clase de riesgo cuando existen, novedades, conceptos, totales y política de exoneración. No congela identificación y nombres del empleado, códigos DIVIPOLA/CIIU, la versión de afiliación efectiva, días ni IBC por subsistema. La futura exportación debe admitir solo una versión de snapshot que incluya todos los orígenes requeridos por el layout seleccionado; los snapshots v1 incompletos se bloquean y no se rellenan consultando datos maestros actuales.
 
+El versionado de este payload tiene consumidores existentes: `ServicePremiumCalculator` rechaza versiones distintas de `1`, y el seed financiero conserva y valida un snapshot sintético marcado como versión `1`. Cualquier cambio incompatible para agregar insumos PILA debe verificar explícitamente la compatibilidad del cálculo de prima y la integridad del escenario demo. La exportación PILA seguirá rechazando los snapshots v1 incompletos; este cambio no autoriza backfill ni reescritura de históricos.
+
 El incremento en curso captura en el período la fecha prevista de pago de
 aportes PILA (distinta del pago del salario) y la añade al payload de snapshots
 nuevos; no reescribe snapshots históricos. La previsión no demuestra que los
