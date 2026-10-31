@@ -72,7 +72,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   const affiliationForm = page.locator('form').filter({
     has: page.getByRole('heading', { name: 'Nueva afiliación' }),
   });
-  await affiliationForm.getByLabel('Tipo de cotizante').selectOption('01');
+  await affiliationForm.getByRole('combobox', { name: /^Tipo de cotizante/ }).selectOption('01');
   await affiliationForm.getByLabel('Vigente desde').fill('2026-01-01');
   await affiliationForm.getByLabel('Código EPS').fill('EPS001');
   await affiliationForm.getByLabel('Nombre EPS').fill('EPS Demo');
