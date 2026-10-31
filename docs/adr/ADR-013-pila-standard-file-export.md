@@ -749,6 +749,16 @@ tenant-scoped de afiliaciones del PR #160 y los payloads de preparación
 congelados por las PR abiertas #163–#170 permiten avanzar sin reescribir
 PayrollSnapshot históricos ni completar desde maestros actuales.
 
+El módulo `pila-at2-v30-record-serializer.ts` aporta el formato de caracteres de
+longitud fija descrito en AT2 v30: archivo tipo 1 (34 campos/567 posiciones),
+encabezado tipo 2 (22/359) y detalle tipo 2 (98/693). Rellena `N` con ceros a
+la izquierda y `A` con espacios a la derecha; obliga a que el llamador decida
+cómo representar cada campo vacío y rechaza desbordamientos, campos omitidos y
+caracteres de control. Es una primitiva de formato, no el serializador de PILA:
+no mapea snapshots, calcula reglas laborales, decide si un vacío es normativo,
+codifica bytes, agrega separadores ni genera una descarga. La compatibilidad de
+carga por operador sigue pendiente.
+
 El contrato de snapshot de nómina `PayrollSnapshot.payloadVersion` permanece en
 versión 1. Los datos regulatorios se capturan por separado en
 `PayrollSnapshot.pilaPayload` con `pilaPayloadVersion`; el código de la pila

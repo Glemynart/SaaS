@@ -363,3 +363,19 @@ verdes al 2026-10-31.
 - En la última consulta, `browser` y `verify` de #177 y #178 fallaron a los 2–3 segundos. No se investigó la causa en esta continuación. Los PR quedan abiertos mientras se sigue con trabajo independiente; cuando se reponga la cuota, se sincronizarán con `main` en orden, se esperarán los checks de cada uno y se fusionarán solo después de auditarlo.
 - El Preview de #177 pasó; el de #178 seguía desplegándose al consultar. Ninguno de esos estados convierte el informe preliminar en un preflight completo. `archivoGenerable` sigue en `false`; no hay serializador ni archivo de PILA utilizable por clientes.
 - En este trabajo local, Prettier y `git diff --check` pasan. No se ejecutaron pruebas porque las dos PR actuales modifican únicamente documentación.
+
+### Primitiva de layout AT2 v30 — 2026-10-31
+
+- La nueva rama `codex/goal02-pila-at2-fixed-width-layout`, apilada sobre
+  #178, define una primitiva de formato fijo para los tres registros de entrada
+  AT2 v30: tipo 1 (567 caracteres), encabezado tipo 2 (359) y detalle tipo 2
+  (693). Los anchos y tipos `N`/`A` se cotejaron con el PDF oficial de 336
+  páginas, versión 30 de 24-07-2026, SHA-256
+  `BBB3C2D0486FD7D3934BD640D8E68C60D33686B1604E8EFAA980139FB5686D33`.
+- La utilidad exige decisión explícita para cada campo, aplica solo el relleno
+  normativo `N`/`A`, y rechaza exceso de longitud o controles; una prueba
+  unitaria cubre conteo y longitud de los tres layouts. Todavía no consume
+  `PayrollSnapshot`, elige vacíos, codifica bytes, agrega separadores, produce
+  descargas ni comprueba operadores. No cambia `archivoGenerable`, que sigue
+  siendo `false` hasta completar reglas, fixtures y validación normativa y por
+  operador.
