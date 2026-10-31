@@ -151,7 +151,7 @@ campos 1–6, 11–14, 31, 33, 35, 36–45, 62–63, 65, 67, 69, 77–78, 95 y 9
 el escenario dependiente `01`/`00`, cobertura mensual de empleado/contrato/
 afiliación y, para el centro ARL, tenant, vigencia, ARL y catálogo versionado
 coincidentes. Los importes 63/65/67/69 solo se copian desde un concepto patronal
-único, con tipo esperado, factor numérico y base coincidente; exige mes completo,
+único, con tipo esperado, factor positivo y base coincidente; exige mes completo,
 días aprobados y ningún evento o novedad PILA. El factor todavía no se contrasta
 con una tarifa normativa. SENA e ICBF requieren además la declaración explícita
 de no exoneración. La ausencia no se convierte en cero.

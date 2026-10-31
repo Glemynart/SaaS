@@ -432,7 +432,7 @@ export function mapPilaAt2V30DetailCandidate(
       !safeInteger(concept.base, 9) ||
       typeof concept.factor !== 'number' ||
       !Number.isFinite(concept.factor) ||
-      concept.factor < 0 ||
+      concept.factor <= 0 ||
       !safeInteger(concept.valor, 9) ||
       !input.base ||
       !safeInteger(input.base.valor, 9) ||
@@ -440,7 +440,7 @@ export function mapPilaAt2V30DetailCandidate(
     ) {
       unresolved(
         input.fieldNumber,
-        `La fuente ${input.code} no tiene tipo esperado, importe entero, factor numérico válido y base coincidente con la fuente congelada.`,
+        `La fuente ${input.code} no tiene tipo esperado, importe entero, factor positivo y base coincidente con la fuente congelada.`,
       );
       return;
     }

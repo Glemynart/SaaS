@@ -317,6 +317,23 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.values[69]).toBeUndefined();
   });
 
+  it('does not map a contribution amount with a zero factor', () => {
+    const input = snapshot();
+    payloadOf(input).payroll.concepts = [
+      {
+        codigo: 'ARL',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0,
+        valor: 0,
+      },
+    ];
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[63]).toBeUndefined();
+  });
+
   it('does not map contribution candidates when the frozen snapshot has novelty events', () => {
     const input = snapshot();
     const payload = payloadOf(input);

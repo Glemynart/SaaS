@@ -558,7 +558,7 @@ verdes al 2026-10-31.
   maestros, no transforma novedades y no calcula tarifas ni aportes.
 - El alcance del mapa cubre campos 1–6, 11–14, 31, 33, 35, 36–45, 62–63, 65,
   67, 69, 77–78, 95 y 98. Los importes 63/65/67/69 son solo candidatos
-  copiados de un concepto patronal único, con tipo esperado, factor numérico y
+  copiados de un concepto patronal único, con tipo esperado, factor positivo y
   base coincidente; aún no se contrasta el factor con una tarifa normativa.
   Requieren además días aprobados de mes completo y ausencia de novedades y
   eventos PILA; SENA e ICBF requieren declaración explícita de no exoneración.
