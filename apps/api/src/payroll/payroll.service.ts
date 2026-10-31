@@ -26,6 +26,7 @@ import {
 import {
   CreatePayrollPeriodDto,
   CreatePayrollNoveltyDto,
+  UpdatePayrollPilaPaymentDateDto,
 } from './dto/create-payroll.dto';
 import { CreatePayrollCorrectionDto } from './dto/payroll-correction.dto';
 import { calculate } from './calculator/payroll-calculator';
@@ -542,6 +543,64 @@ export class PayrollService {
       })
       .catch(() => {});
     return period;
+  }
+
+  async updatePilaPaymentDate(
+    tenantId: string,
+    userId: string,
+    periodId: string,
+    dto: UpdatePayrollPilaPaymentDateDto,
+  ) {
+    const fechaPrevistaPagoPila = new Date(
+      `${dto.fechaPrevistaPagoPila}T00:00:00.000Z`,
+    );
+    const editableStatuses: PayrollPeriodStatus[] = [
+      PayrollPeriodStatus.BORRADOR,
+      PayrollPeriodStatus.CALCULADA,
+      PayrollPeriodStatus.EN_REVISION,
+    ];
+
+    return this.prisma.$transaction(async (tx) => {
+      const period = await tx.payrollPeriod.findFirst({
+        where: { id: periodId, tenantId },
+      });
+      if (!period) throw new NotFoundException('Período no encontrado');
+      if (!editableStatuses.includes(period.status)) {
+        throw new ConflictException(
+          'La fecha prevista de aportes PILA solo se puede editar antes de aprobar la nómina.',
+        );
+      }
+
+      const updated = await tx.payrollPeriod.updateMany({
+        where: { id: periodId, tenantId, status: { in: editableStatuses } },
+        data: { fechaPrevistaPagoPila },
+      });
+      if (updated.count === 0) {
+        throw new ConflictException(
+          'El período fue aprobado o modificado durante la actualización.',
+        );
+      }
+
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'PAYROLL_PILA_PAYMENT_DATE_UPDATED',
+          entityType: 'PayrollPeriod',
+          entityId: periodId,
+          metadata: {
+            fechaAnterior:
+              period.fechaPrevistaPagoPila?.toISOString().slice(0, 10) ?? null,
+            fechaNueva: dto.fechaPrevistaPagoPila,
+          },
+        },
+        tx,
+      );
+
+      return tx.payrollPeriod.findFirstOrThrow({
+        where: { id: periodId, tenantId },
+      });
+    });
   }
 
   async findAllPeriods(tenantId: string) {

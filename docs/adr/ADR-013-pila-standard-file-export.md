@@ -124,6 +124,11 @@ categoría inexistente o meramente proyectada.
 - Sustituir la validación final del operador o asumir que el archivo descarga
   una obligación correctamente pagada.
 
+El empleador puede registrar o cambiar la fecha prevista después de crear el
+período, mientras siga en BORRADOR, CALCULADA o EN_REVISION. La API la actualiza
+con tenant activo y auditoría; la aprobación congela el valor en el snapshot y
+ya no permite modificarlo.
+
 ## Criterios de aceptación y pruebas normativas previas al código
 
 No se inicia implementación hasta revisar estos criterios y cerrar la matriz

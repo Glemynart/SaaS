@@ -1,5 +1,8 @@
 import { validateSync } from 'class-validator';
-import { CreatePayrollPeriodDto } from './create-payroll.dto';
+import {
+  CreatePayrollPeriodDto,
+  UpdatePayrollPilaPaymentDateDto,
+} from './create-payroll.dto';
 
 function makePeriodDto(fechaPrevistaPagoPila: string | null) {
   return Object.assign(new CreatePayrollPeriodDto(), {
@@ -35,5 +38,33 @@ describe('CreatePayrollPeriodDto.fechaPrevistaPagoPila', () => {
     const dto = makePeriodDto(null);
 
     expect(validateSync(dto)).toHaveLength(0);
+  });
+});
+
+describe('UpdatePayrollPilaPaymentDateDto', () => {
+  it('acepta una fecha calendario ISO válida', () => {
+    const dto = Object.assign(new UpdatePayrollPilaPaymentDateDto(), {
+      fechaPrevistaPagoPila: '2026-11-05',
+    });
+
+    expect(validateSync(dto)).toHaveLength(0);
+  });
+
+  it('rechaza timestamps, fechas imposibles y el campo ausente', () => {
+    for (const value of [
+      '2026-11-05T23:00:00-05:00',
+      '2026-02-30',
+      undefined,
+    ]) {
+      const dto = Object.assign(new UpdatePayrollPilaPaymentDateDto(), {
+        fechaPrevistaPagoPila: value,
+      });
+
+      expect(validateSync(dto)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ property: 'fechaPrevistaPagoPila' }),
+        ]),
+      );
+    }
   });
 });

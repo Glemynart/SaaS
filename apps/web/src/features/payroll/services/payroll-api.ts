@@ -299,6 +299,11 @@ export const payrollApi = {
     fechaFin: string;
     fechaPrevistaPagoPila?: string | null;
   }) => req<PayrollPeriod>('/api/payroll/periods', { method: 'POST', body: JSON.stringify(d) }),
+  updatePilaPaymentDate: (id: string, fechaPrevistaPagoPila: string) =>
+    req<PayrollPeriod>(`/api/payroll/periods/${id}/fecha-prevista-pago-pila`, {
+      method: 'PATCH',
+      body: JSON.stringify({ fechaPrevistaPagoPila }),
+    }),
   getPeriod: (id: string) => req<PeriodDetail>(`/api/payroll/periods/${id}`),
   getCorrections: (periodId: string) =>
     req<PayrollCorrection[]>(`/api/payroll/periods/${periodId}/corrections`),

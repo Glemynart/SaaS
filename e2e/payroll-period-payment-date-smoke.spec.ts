@@ -42,7 +42,6 @@ test('captura y muestra la fecha prevista de pago del período', async ({ page }
   const dateInputs = page.locator('input[type="date"]');
   await dateInputs.nth(0).fill('2026-10-01');
   await dateInputs.nth(1).fill('2026-10-31');
-  await dateInputs.nth(2).fill('2026-11-05');
 
   const createResponsePromise = page.waitForResponse(
     (response) =>
@@ -54,5 +53,19 @@ test('captura y muestra la fecha prevista de pago del período', async ({ page }
   const createResponse = await createResponsePromise;
   expect(createResponse.status()).toBe(200);
   await expect(page.getByText(/1\/10\/2026 - 31\/10\/2026/)).toBeVisible();
+  await expect(page.getByText('Pago PILA previsto: sin definir')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Definir fecha PILA' }).click();
+  await page
+    .getByLabel('Fecha prevista de pago PILA para Nómina de octubre 2026')
+    .fill('2026-11-05');
+  const updateResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.endsWith('/fecha-prevista-pago-pila') &&
+      response.request().method() === 'PATCH',
+  );
+  await page.getByRole('button', { name: 'Guardar PILA' }).click();
+  const updateResponse = await updateResponsePromise;
+  expect(updateResponse.status()).toBe(200);
   await expect(page.getByText(/Pago PILA previsto: \d{1,2}\/11\/2026/)).toBeVisible();
 });

@@ -16,6 +16,7 @@ import {
   CreatePayrollNoveltyDto,
   RejectPayrollPeriodDto,
   ExcludePayrollBlockDto,
+  UpdatePayrollPilaPaymentDateDto,
 } from './dto/create-payroll.dto';
 import {
   CreatePayrollCorrectionDto,
@@ -55,6 +56,21 @@ export class PayrollController {
     @Body() dto: CreatePayrollPeriodDto,
   ) {
     return this.service.createPeriod(user.tenantId, user.userId, dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Patch('payroll/periods/:id/fecha-prevista-pago-pila')
+  updatePilaPaymentDate(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdatePayrollPilaPaymentDateDto,
+  ) {
+    return this.service.updatePilaPaymentDate(
+      user.tenantId,
+      user.userId,
+      id,
+      dto,
+    );
   }
 
   @Get('payroll/periods/:id')

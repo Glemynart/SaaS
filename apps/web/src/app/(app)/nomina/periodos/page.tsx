@@ -12,6 +12,7 @@ import {
   useReabrirPayrollPeriod,
   useRecalculatePayroll,
   useRechazarPayrollPeriod,
+  useUpdatePilaPaymentDate,
 } from '@/features/payroll/hooks/use-payroll';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,11 +33,14 @@ export default function PeriodosPage() {
   const aprobarMutation = useAprobarPayrollPeriod();
   const rechazarMutation = useRechazarPayrollPeriod();
   const reabrirMutation = useReabrirPayrollPeriod();
+  const updatePilaPaymentDateMutation = useUpdatePilaPaymentDate();
   const [showForm, setShowForm] = useState(false);
   const [nombre, setNombre] = useState('');
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   const [fechaPrevistaPagoPila, setFechaPrevistaPagoPila] = useState('');
+  const [editingPilaPeriodId, setEditingPilaPeriodId] = useState<string | null>(null);
+  const [pilaPaymentDateDraft, setPilaPaymentDateDraft] = useState('');
 
   const handleCreate = useCallback(() => {
     if (!nombre || !fechaInicio || !fechaFin) return;
@@ -58,6 +62,19 @@ export default function PeriodosPage() {
       },
     );
   }, [nombre, fechaInicio, fechaFin, fechaPrevistaPagoPila, createMutation]);
+
+  const savePilaPaymentDate = (id: string) => {
+    if (!pilaPaymentDateDraft) return;
+    updatePilaPaymentDateMutation.mutate(
+      { id, fechaPrevistaPagoPila: pilaPaymentDateDraft },
+      {
+        onSuccess: () => {
+          setEditingPilaPeriodId(null);
+          setPilaPaymentDateDraft('');
+        },
+      },
+    );
+  };
 
   if (isLoading)
     return (
@@ -160,6 +177,58 @@ export default function PeriodosPage() {
                   </div>
                 </Link>
                 <div className="ml-4 flex flex-wrap justify-end gap-1">
+                  {['BORRADOR', 'CALCULADA', 'EN_REVISION'].includes(p.status) &&
+                    (editingPilaPeriodId === p.id ? (
+                      <div className="flex flex-wrap items-center justify-end gap-1">
+                        <Input
+                          aria-label={`Fecha prevista de pago PILA para ${p.nombre}`}
+                          className="w-36"
+                          type="date"
+                          value={pilaPaymentDateDraft}
+                          onChange={(event) => setPilaPaymentDateDraft(event.target.value)}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={
+                            !pilaPaymentDateDraft || updatePilaPaymentDateMutation.isPending
+                          }
+                          onClick={() => savePilaPaymentDate(p.id)}
+                        >
+                          Guardar PILA
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setEditingPilaPeriodId(null);
+                            setPilaPaymentDateDraft('');
+                          }}
+                        >
+                          Cancelar
+                        </Button>
+                        {updatePilaPaymentDateMutation.isError && (
+                          <p className="w-full text-right text-xs text-destructive">
+                            {updatePilaPaymentDateMutation.error instanceof Error
+                              ? updatePilaPaymentDateMutation.error.message
+                              : 'No se pudo actualizar la fecha prevista PILA.'}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                          updatePilaPaymentDateMutation.reset();
+                          setEditingPilaPeriodId(p.id);
+                          setPilaPaymentDateDraft(p.fechaPrevistaPagoPila ?? '');
+                        }}
+                      >
+                        {p.fechaPrevistaPagoPila ? 'Cambiar fecha PILA' : 'Definir fecha PILA'}
+                      </Button>
+                    ))}
                   {(p.status === 'BORRADOR' || p.status === 'DRAFT') && (
                     <Button
                       variant="ghost"
