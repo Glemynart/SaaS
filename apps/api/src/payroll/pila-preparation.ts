@@ -82,6 +82,19 @@ function fitsNumericField(value: unknown, length: number): value is number {
   return safeInteger(value) && String(value).length <= length;
 }
 
+function validPilaIdentification(type: string, value: string): boolean {
+  const numericMaxLength: Record<string, number> = {
+    CC: 10,
+    CE: 7,
+    TI: 11,
+  };
+  const maxLength = numericMaxLength[type];
+  if (maxLength !== undefined) {
+    return /^\d+$/.test(value) && value.length <= maxLength;
+  }
+  return type === 'PA' && /^[A-Z0-9]{1,16}$/.test(value);
+}
+
 function date(value: unknown): string | null {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return null;
@@ -599,12 +612,26 @@ export function inspectPilaSnapshotPreparation(
       'El tipo de documento del cotizante falta o aún no tiene mapeo AT2 aprobado.',
     );
   }
-  requireText(
-    detailRecord,
-    4,
-    employee?.cedula,
-    'Falta el número de documento del cotizante.',
-  );
+  const identification = text(employee?.cedula);
+  if (identification === null) {
+    requireText(
+      detailRecord,
+      4,
+      employee?.cedula,
+      'Falta el número de documento del cotizante.',
+    );
+  } else if (
+    documentType &&
+    supportedDocumentTypes.has(documentType) &&
+    !validPilaIdentification(documentType, identification)
+  ) {
+    add(
+      detailRecord,
+      4,
+      'CAMPO_4_IDENTIFICACION_NO_VALIDA',
+      'El número del cotizante no cumple los caracteres y la longitud permitidos por AT2 v30 para su tipo de documento.',
+    );
+  }
   const affiliations = Array.isArray(root?.affiliations)
     ? root.affiliations
         .map(object)
@@ -685,6 +712,22 @@ export function inspectPilaSnapshotPreparation(
     employee?.primerNombre,
     'Falta el primer nombre del cotizante.',
   );
+  for (const [field, key, label, maxLength] of [
+    [11, 'primerApellido', 'primer apellido', 20],
+    [12, 'segundoApellido', 'segundo apellido', 30],
+    [13, 'primerNombre', 'primer nombre', 20],
+    [14, 'segundoNombre', 'segundo nombre', 30],
+  ] as const) {
+    const value = text(employee?.[key]);
+    if (value && Array.from(value).length > maxLength) {
+      add(
+        detailRecord,
+        field,
+        `CAMPO_${field}_LONGITUD_SUPERADA`,
+        `El ${label} supera las ${maxLength} posiciones del campo AT2 v30.`,
+      );
+    }
+  }
   const worksiteCode = text(worksiteMunicipality?.codigo);
   if (!worksite || !worksiteCode || !/^\d{5}$/.test(worksiteCode)) {
     add(

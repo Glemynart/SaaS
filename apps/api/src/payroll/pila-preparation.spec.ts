@@ -40,9 +40,9 @@ function payload() {
       tipoDocumento: 'CC',
       cedula: '1234567890',
       primerNombre: 'Ana',
-      segundoNombre: null,
+      segundoNombre: '',
       primerApellido: 'Demo',
-      segundoApellido: null,
+      segundoApellido: '',
     },
     contract: { contractId: 'contract-1' },
     worksite: { municipio: { codigo: '11001' } },
@@ -178,6 +178,91 @@ describe('inspectPilaSnapshotPreparation', () => {
 
     expect(
       result.issues.filter(({ code }) => code.includes('SUPERA_LONGITUD')),
+    ).toEqual([]);
+  });
+
+  it.each([
+    ['CC', '12345678901'],
+    ['CE', '12345678'],
+    ['TI', '123456789012'],
+    ['PA', 'A1234567890123456'],
+    ['CC', 'A234567890'],
+    ['PA', 'AB-123'],
+  ])(
+    'bloquea una identificación %s que no cumple los caracteres o longitud AT2',
+    (type, identification) => {
+      const source = payload();
+      source.employee.tipoDocumento = type;
+      source.employee.cedula = identification;
+
+      const result = inspectPilaSnapshotPreparation(
+        snapshot('employee-1', 'Ana', { payload: source }),
+      );
+
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          fieldNumber: 4,
+          code: 'CAMPO_4_IDENTIFICACION_NO_VALIDA',
+        }),
+      );
+    },
+  );
+
+  it.each([
+    ['CC', '1234567890'],
+    ['CE', '1234567'],
+    ['TI', '12345678901'],
+    ['PA', 'A123456789012345'],
+  ])('acepta la longitud máxima AT2 para identificación %s', (type, value) => {
+    const source = payload();
+    source.employee.tipoDocumento = type;
+    source.employee.cedula = value;
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(({ fieldNumber }) => fieldNumber === 4),
+    ).toEqual([]);
+  });
+
+  it('bloquea nombres superiores a las longitudes de los campos AT2', () => {
+    const source = payload();
+    source.employee.primerApellido = 'A'.repeat(21);
+    source.employee.segundoApellido = 'B'.repeat(31);
+    source.employee.primerNombre = 'C'.repeat(21);
+    source.employee.segundoNombre = 'D'.repeat(31);
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues
+        .filter(({ code }) => code.includes('LONGITUD_SUPERADA'))
+        .map(({ fieldNumber, code }) => ({ fieldNumber, code })),
+    ).toEqual([
+      { fieldNumber: 11, code: 'CAMPO_11_LONGITUD_SUPERADA' },
+      { fieldNumber: 12, code: 'CAMPO_12_LONGITUD_SUPERADA' },
+      { fieldNumber: 13, code: 'CAMPO_13_LONGITUD_SUPERADA' },
+      { fieldNumber: 14, code: 'CAMPO_14_LONGITUD_SUPERADA' },
+    ]);
+  });
+
+  it('acepta las longitudes máximas de los cuatro campos de nombres AT2', () => {
+    const source = payload();
+    source.employee.primerApellido = 'A'.repeat(20);
+    source.employee.segundoApellido = 'B'.repeat(30);
+    source.employee.primerNombre = 'C'.repeat(20);
+    source.employee.segundoNombre = 'D'.repeat(30);
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(({ code }) => code.includes('LONGITUD_SUPERADA')),
     ).toEqual([]);
   });
 
