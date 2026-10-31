@@ -11,6 +11,7 @@ import {
   PILA_AT2_V30_STANDARD_DEPENDENT_EMPTY_FIELD_NUMBERS,
   PILA_AT2_V30_UNMAPPED_PENSION_CONTRIBUTION_FIELD_NUMBERS,
 } from './pila-at2-v30-detail-mapper';
+import { mapPilaAt2V30HeaderCandidate } from './pila-at2-v30-header-mapper';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -1645,22 +1646,17 @@ export function buildPilaPreparationReport(input: {
             'Sentencia C-264/2026: las disposiciones exequibles que conforman el nuevo sistema entran en vigor el 2027-04-01; AT2 v30, pp. 147–154. La matriz vigente mantiene este mapeo pendiente.',
         }
       : null;
+  const headerCandidate = mapPilaAt2V30HeaderCandidate({
+    snapshots: input.snapshots,
+  });
   const headerCcfIbcField =
     PILA_AT2_V30_RECORD_LAYOUTS.payrollHeaderType2.fields[19];
-  const ccfIbcValues = input.snapshots.map((snapshot) => {
-    const payroll = nested(object(snapshot.payload), 'payroll');
-    const subsystemBases = nested(payroll, 'ibcPorSubsistema');
-    const value = nested(subsystemBases, 'cajaCompensacion')?.valor;
-    return safeInteger(value) && fitsNumericField(value, 9) ? value : null;
-  });
-  const hasCompleteCcfIbcValues =
-    ccfIbcValues.length > 0 && ccfIbcValues.every((value) => value !== null);
-  const totalCcfIbc = hasCompleteCcfIbcValues
-    ? ccfIbcValues.reduce<number>((total, value) => total + (value ?? 0), 0)
-    : null;
   const headerCcfIbcBlocker: PilaExportReadinessBlocker | null =
-    totalCcfIbc !== null &&
-    !fitsNumericField(totalCcfIbc, headerCcfIbcField.length)
+    headerCandidate.unresolvedFields.some(
+      ({ fieldNumber, code }) =>
+        fieldNumber === 20 &&
+        code === 'AT2_HEADER_CCF_IBC_TOTAL_SUPERA_LONGITUD',
+    )
       ? {
           code: 'AT2_HEADER_CCF_IBC_TOTAL_SUPERA_LONGITUD',
           scope: 'FILE_GENERATION',
@@ -1674,7 +1670,7 @@ export function buildPilaPreparationReport(input: {
             },
           ],
           evidence:
-            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. La matriz PILA mantiene pendiente la validación de obligación y aplicabilidad antes de serializar.',
+            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots v2 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
         }
       : null;
   const readinessBlockers = [
@@ -1811,6 +1807,7 @@ export function buildPilaPreparationReport(input: {
     detailStandardDependentEmptyCandidates,
     detailNonExemptCotizanteCandidates,
     detailPrivateEmployerEsapMenCandidates,
+    headerCandidate,
     issues,
     archivoGenerable: false as const,
     estadoArchivo: 'NO_IMPLEMENTADO' as const,

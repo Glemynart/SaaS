@@ -10,7 +10,11 @@ export interface PilaAt2V30HeaderCandidate {
   tenantId: string | null;
   payrollPeriodId: string | null;
   values: Partial<Record<number, PilaAt2V30FieldInput>>;
-  unresolvedFields: Array<{ fieldNumber: number; reason: string }>;
+  unresolvedFields: Array<{
+    fieldNumber: number;
+    code: string;
+    reason: string;
+  }>;
 }
 
 function object(value: unknown): JsonRecord | null {
@@ -58,10 +62,18 @@ export function mapPilaAt2V30HeaderCandidate(input: {
   snapshots: readonly PilaSnapshotPreparationInput[];
 }): PilaAt2V30HeaderCandidate {
   const values: Partial<Record<number, PilaAt2V30FieldInput>> = {};
-  const unresolvedFields: Array<{ fieldNumber: number; reason: string }> = [];
-  const unresolved = (fieldNumber: number, reason: string) => {
+  const unresolvedFields: Array<{
+    fieldNumber: number;
+    code: string;
+    reason: string;
+  }> = [];
+  const unresolved = (
+    fieldNumber: number,
+    reason: string,
+    code = 'AT2_HEADER_FIELD_UNRESOLVED',
+  ) => {
     if (!unresolvedFields.some((field) => field.fieldNumber === fieldNumber)) {
-      unresolvedFields.push({ fieldNumber, reason });
+      unresolvedFields.push({ fieldNumber, code, reason });
     }
   };
   const put = (fieldNumber: number, value: string | number) => {
@@ -299,6 +311,7 @@ export function mapPilaAt2V30HeaderCandidate(input: {
         unresolved(
           20,
           'La suma candidata del IBC CCF excede el ancho AT2 N12.',
+          'AT2_HEADER_CCF_IBC_TOTAL_SUPERA_LONGITUD',
         );
       }
     } else {

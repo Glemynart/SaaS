@@ -6,6 +6,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { usePayrollPilaPreparation } from '../hooks/use-payroll';
 import type {
+  PilaAt2V30HeaderCandidate,
   PilaDetailFieldCandidateStatus,
   PilaPreparationIssue,
   PayrollPeriodStatus,
@@ -81,6 +82,47 @@ const detailFieldLabels: Record<PilaDetailFieldCandidateStatus['fieldNumber'], s
   93: 'Fecha de inicio IRL',
   94: 'Fecha de fin IRL',
 };
+
+const headerFieldLabels: Record<number, string> = {
+  1: 'Tipo de registro',
+  2: 'Modalidad de planilla',
+  3: 'Secuencia del aportante',
+  4: 'Razón social',
+  5: 'Tipo de documento del aportante',
+  6: 'Número de identificación del aportante',
+  7: 'Dígito de verificación',
+  8: 'Tipo de planilla',
+  9: 'Número de planilla asociada',
+  10: 'Fecha de pago de planilla asociada',
+  11: 'Forma de presentación',
+  12: 'Código de sucursal',
+  13: 'Nombre de sucursal',
+  14: 'Código ARL del aportante',
+  15: 'Período para sistemas distintos a salud',
+  16: 'Período de salud',
+  17: 'Número de radicación',
+  18: 'Fecha efectiva de pago',
+  19: 'Cantidad de cotizantes',
+  20: 'Total IBC de caja de compensación',
+  21: 'Tipo de aportante',
+  22: 'Código del operador',
+};
+
+function headerCandidateDisplay(candidate: PilaAt2V30HeaderCandidate, fieldNumber: number): string {
+  const value = candidate.values[fieldNumber];
+  if (value) {
+    if (value.value === null) {
+      return value.emptyAs === 'spaces' ? 'En blanco según regla candidata' : 'Sin valor';
+    }
+    return typeof value.value === 'number'
+      ? new Intl.NumberFormat('es-CO').format(value.value)
+      : value.value;
+  }
+  return (
+    candidate.unresolvedFields.find((field) => field.fieldNumber === fieldNumber)?.reason ??
+    'Sin candidato disponible.'
+  );
+}
 
 export function PayrollPilaPreparationPanel({
   periodId,
@@ -203,6 +245,42 @@ export function PayrollPilaPreparationPanel({
               </ul>
             </section>
           )}
+
+          <section
+            className="rounded-lg border border-border p-4"
+            aria-labelledby="pila-header-candidate-title"
+          >
+            <h3 id="pila-header-candidate-title" className="font-medium">
+              Encabezado tipo 2 · candidatos por campo
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {query.data.headerCandidate.supportedSnapshots
+                ? 'Valores candidatos calculados desde snapshots PILA v2 del mismo tenant y período.'
+                : 'Se requieren snapshots PILA v2 del mismo tenant y período para proponer valores.'}{' '}
+              Los campos asignados al operador y los datos faltantes muestran su motivo. Esta
+              revisión no genera el archivo ni confirma su aceptación.
+            </p>
+            <details className="mt-3 rounded-md bg-muted/40 px-3 py-2">
+              <summary className="cursor-pointer text-sm font-medium">
+                Ver estado de los 22 campos del encabezado
+              </summary>
+              <ol className="mt-3 space-y-2">
+                {Array.from({ length: 22 }, (_, index) => index + 1).map((fieldNumber) => (
+                  <li
+                    key={fieldNumber}
+                    className="rounded-md border border-border px-3 py-2 text-sm"
+                  >
+                    <p className="font-medium">
+                      Campo {fieldNumber} · {headerFieldLabels[fieldNumber]}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      {headerCandidateDisplay(query.data.headerCandidate, fieldNumber)}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            </details>
+          </section>
 
           <section
             className="rounded-lg border border-border p-4"

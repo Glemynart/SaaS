@@ -818,3 +818,31 @@ verdes al 2026-10-31.
   operativas o pagos reales; excluir el semestre no elimina el derecho ni la
   obligación legal. Ver ADR-012 y sus fuentes oficiales para el alcance y los
   límites de esta decisión.
+
+### Candidatos del encabezado tipo 2 en el preflight PILA — 2026-10-31
+
+- La rama `codex/goal02-pila-header-preflight-report` continúa la cadena sobre
+  #207. El informe API ahora incluye los candidatos AT2 v30 para los 22 campos
+  de cabecera; la pantalla de Nómina muestra el valor o el motivo pendiente de
+  cada campo. La ruta solo acepta períodos aprobados/causados, consulta los
+  snapshots del tenant y período solicitados, y conserva `archivoGenerable =
+false`.
+- La suma del campo 20 usa el mismo mapper que presenta la cabecera. Solo
+  acepta snapshots PILA v2 únicos con afiliación dependiente 01/00 vigente para
+  el mes; un duplicado o un campo N12 desbordado no produce un total candidato.
+- El Browser E2E del recorrido financiero pasó con PostgreSQL desechable y
+  verificó el snapshot persistido, el total de campo 20, los campos pendientes
+  del operador y que la descarga sigue sin implementar. API/Web typecheck,
+  ESLint y 117 pruebas API también pasaron localmente.
+- **GOAL ACTIVO:** GOAL-02; GOAL-01 permanece pausado. **IMPLEMENTACIÓN
+  BLOQUEADA:** solo la sincronización y merge ordenado de PR remotos que esperan
+  checks de GitHub/Vercel; #207 y #208 siguen abiertos. Sus jobs `verify` y
+  `browser` terminaron en 2 segundos sin ejecutar pasos; Vercel limitó #207
+  por 24 horas y el preview de #208 terminó correctamente. Por instrucción del
+  usuario, estos estados no detienen el trabajo local ni se mergean todavía;
+  las ramas se sincronizarán con `main` y se revisarán en orden cuando vuelva
+  la cuota.
+- **ARQUITECTURA DISPONIBLE:** ADR-013 aprobada con cambios, matriz de campos
+  AT2 v30 y el mapper versionado permiten continuar cubriendo fuentes y
+  validaciones sin afirmar compatibilidad universal. Sigue pendiente la prueba
+  de carga por operador antes de declarar compatibilidad.

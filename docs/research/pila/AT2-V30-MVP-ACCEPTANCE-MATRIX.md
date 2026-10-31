@@ -119,7 +119,12 @@ v2 de un mismo tenant y período. Solo calcula el conteo y la suma CCF si cada
 empleado aparece una vez con afiliación dependiente `01`/`00` que cubre el mes;
 si hay duplicados o casos fuera del MVP, ambos totales quedan sin resolver. Los
 campos asignados al operador siguen pendientes, y este mapa no valida ni
-serializa el encabezado.
+serializa el encabezado. El preflight de períodos aprobados/causados ahora
+expone los 22 estados de campo desde este mapper en la API y en Nómina. La ruta
+solo consulta snapshots del tenant/período solicitado y muestra los motivos de
+campos pendientes, sin habilitar generación ni descarga. El bloqueo de longitud
+del campo 20 usa el mismo candidato; snapshots duplicados o fuera del MVP no se
+suman como una base CCF válida.
 
 MinSalud marca los campos 2, 15, 17, 18 y 22 como generados o asignados por el
 operador/sistema. Las páginas públicas de SOI confirman carga de archivos
@@ -300,6 +305,7 @@ aprobar”, AT2 no define por sí solo el cálculo laboral que alimenta el campo
 | PILA-AT2-46 | Dependiente 01/00 con `employer.aportesExonerados=false` y confirmación PILA congelada `false`.                                                                                                         | Proponer campo 76=`N` bajo regla versionada. Si falta la confirmación, hay contradicción o ambos datos son verdaderos, dejarlo pendiente; la exoneración afirmativa requiere validar elegibilidad individual. Mantener descarga deshabilitada. | AT2 v30 p. 97; origen congelado en `pila-source-snapshot.ts`; prueba mapper y preparación.                                                       |
 | PILA-AT2-47 | Empleador privado tipo 1, naturaleza jurídica 2, dependiente 01/00 e IBC 95 válido.                                                                                                                     | Proponer 70/72=`0.00000`; proponer 71/73=`0` solo cuando el IBC 95 congelado esté disponible. Dejar los cuatro campos pendientes para empleadores públicos o fuera del MVP. No habilitar archivo.                                              | AT2 v30 pp. 163–164; Ley 21 de 1982, arts. 8, 11 y 12; regla `AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_V1`; pruebas mapper/preparación/serializador. |
 | PILA-AT2-48 | Snapshot aprobado sin fuentes explícitas para aportes voluntarios, FSP desagregado o valor no retenido.                                                                                                 | Mostrar campos 48, 49, 51, 52 y 53 como pendientes con motivo y empleados afectados. No inferir cero, agregar IBC de varios registros, separar el concepto FSP ni calcular retención. Mantener archivo deshabilitado.                          | AT2 v30 pp. 155–159; ADR-013; informe API/web y pruebas mapper/preparación.                                                                      |
+| PILA-AT2-49 | Snapshots v2 del mismo tenant/período, cotizantes únicos dependientes 01/00.                                                                                                                            | Mostrar candidatos y motivos de los 22 campos; bloquear totales CCF duplicados o fuera de N12. Sin descarga.                                                                                                                                   | AT2 v30, registro 01, pp. 26–30; pruebas API/UI y Browser E2E.                                                                                   |
 
 Confirmación del comportamiento local: `buildPilaDaysBySubsystem` acepta el
 subtipo explícito `00`, deja sin candidato el valor nulo y bloquea subtipos
