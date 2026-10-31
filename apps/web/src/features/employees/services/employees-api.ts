@@ -63,11 +63,14 @@ export type CreateSocialSecurityAffiliation = Omit<
   | 'id'
   | 'tenantId'
   | 'empleadoId'
+  | 'subtipoCotizanteCodigo'
   | 'versionCaptura'
   | 'registradoPorId'
   | 'createdAt'
   | 'updatedAt'
->;
+> & {
+  subtipoCotizanteCodigo: string;
+};
 
 export interface PilaWorkCenter {
   id: string;

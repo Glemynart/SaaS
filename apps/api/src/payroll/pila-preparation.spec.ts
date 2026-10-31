@@ -136,6 +136,28 @@ describe('inspectPilaSnapshotPreparation', () => {
     ]);
   });
 
+  it.each([
+    ['faltante', null],
+    ['especial', '01'],
+  ] as const)('bloquea un subtipo PILA %s fuera de 00', (_, subtype) => {
+    const source = payload();
+    const affiliation = source.affiliations[0] as {
+      subtipoCotizanteCodigo: string | null;
+    };
+    affiliation.subtipoCotizanteCodigo = subtype;
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        fieldNumber: 6,
+        code: 'CAMPO_6_SIN_VALOR_VALIDO',
+      }),
+    );
+  });
+
   it('acepta los campos 62 y 98 con una asignación congelada y validada', () => {
     const source = {
       ...payload(),

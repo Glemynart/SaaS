@@ -127,14 +127,15 @@ exoneración.
   empleado, contrato y única afiliación cubren el mes completo; cualquier
   evento PILA o novedad sin segmentación bloquea la proyección. Esto coincide
   con la regla AT2 para el alcance acotado, pero todavía no valida un archivo.
-- `inspectPilaSnapshotPreparation` bloquea un subtipo faltante. En cambio, el
-  formulario dice “Déjalo vacío cuando el soporte no indique un subtipo”. AT2
-  exige el campo y define `0` cuando no aplica; debe corregirse la captura para
-  que el usuario confirme `00`, sin backfill de históricos.
-- La rutina de días del snapshot acepta únicamente subtipo `null` para tipo 01;
-  una afiliación correcta y explícita `00` termina marcada fuera del MVP. Esta
-  inconsistencia impide que el caso objetivo produzca días candidatos y debe
-  corregirse antes de habilitar el preflight de este escenario.
+- La línea base del PR #171 mostraba un subtipo opcional en la captura, aunque
+  `inspectPilaSnapshotPreparation` bloqueaba los valores faltantes. Esta rama
+  requiere ahora un código de dos dígitos en API y formulario, muestra `00` si
+  no aplica un subtipo especial, y mantiene los históricos nulos bloqueados sin
+  backfill.
+- La línea base del PR #171 aceptaba solo subtipo `null` al construir días del
+  tipo 01; una afiliación válida y explícita `00` quedaba fuera del MVP. Esta
+  rama ahora permite el candidato de 30 días solo para tipo 01 / subtipo 00 y
+  bloquea tanto nulo como otros subtipos. Las regresiones cubren los tres casos.
 - Payroll conserva un `ibc` común y los campos 42–45 necesitan bases
   independientes. El snapshot PILA toma bases de conceptos aprobados, pero las
   fórmulas, tarifas, redondeos y los supuestos de contribución deben cotejarse
