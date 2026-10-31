@@ -244,6 +244,22 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
 
     await page.getByRole('button', { name: 'Revisar datos' }).click();
     await expect(
+      page.getByRole('heading', {
+        name: 'Archivo tipo 1 · aportante · candidatos por campo',
+      }),
+    ).toBeVisible();
+    await page.getByText('Ver estado de los 34 campos del aportante').click();
+    await expect(
+      page
+        .getByRole('region', {
+          name: 'Archivo tipo 1 · aportante · candidatos por campo',
+        })
+        .getByText('Demo Financiera E2E S.A.S.', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('AT2 asigna el código del operador; no está en el snapshot.'),
+    ).toBeVisible();
+    await expect(
       page.getByRole('heading', { name: 'Encabezado tipo 2 · candidatos por campo' }),
     ).toBeVisible();
     await page.getByText('Ver estado de los 22 campos del encabezado').click();

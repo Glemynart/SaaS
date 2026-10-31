@@ -12,6 +12,7 @@ import {
   PILA_AT2_V30_UNMAPPED_PENSION_CONTRIBUTION_FIELD_NUMBERS,
 } from './pila-at2-v30-detail-mapper';
 import { mapPilaAt2V30HeaderCandidate } from './pila-at2-v30-header-mapper';
+import { mapPilaAt2V30EmployerAggregateCandidate } from './pila-at2-v30-employer-mapper';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -1595,6 +1596,7 @@ function summarizePilaDetailFieldCandidates(
 }
 
 export function buildPilaPreparationReport(input: {
+  tenantId?: string;
   period: {
     id: string;
     fechaInicio: Date;
@@ -1669,6 +1671,11 @@ export function buildPilaPreparationReport(input: {
         }
       : null;
   const headerCandidate = mapPilaAt2V30HeaderCandidate({
+    snapshots: input.snapshots,
+  });
+  const employerCandidate = mapPilaAt2V30EmployerAggregateCandidate({
+    expectedTenantId: input.tenantId ?? null,
+    period: input.period,
     snapshots: input.snapshots,
   });
   const headerCcfIbcField =
@@ -1829,6 +1836,7 @@ export function buildPilaPreparationReport(input: {
     detailStandardDependentEmptyCandidates,
     detailNonExemptCotizanteCandidates,
     detailPrivateEmployerEsapMenCandidates,
+    employerCandidate,
     headerCandidate,
     issues,
     archivoGenerable: false as const,

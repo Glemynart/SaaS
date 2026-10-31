@@ -781,6 +781,7 @@ export class PayrollService {
     });
 
     return buildPilaPreparationReport({
+      tenantId,
       period,
       snapshots: snapshots.map((snapshot) => ({
         employeeId: snapshot.employeeId,
