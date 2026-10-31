@@ -273,9 +273,9 @@ prueba se detuvo y no se usaron datos de demo/staging/producción. Esta preparac
   respuesta sobre acciones especiales y la clase de aportante. Se detectó que
   el informe no bloqueaba una acción declarada ni una respuesta sin confirmar,
   y aceptaba clases A/B sin contrastar el total de cotizantes o C/D sin validar
-  evidencia de elegibilidad. La continuación en preparación añade esos
-  bloqueos para los campos 26 y 7, sin declarar el archivo generable ni ampliar
-  el MVP.
+  evidencia de elegibilidad. La continuación en preparación añade bloqueos
+  para los campos 26, 7, 33, 34 y 76, incluidos conteos A/B y consistencia con
+  Ley 1429, sin declarar el archivo generable ni ampliar el MVP.
 - ADR-014 continúa propuesta y pendiente de decisión. La implementación de los
   campos 62 y 98 no inicia hasta recibir esa aprobación; la investigación y
   preparación independiente del resto de AT2 continúa.

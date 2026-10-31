@@ -223,7 +223,13 @@ acción especial.
 Para el campo 7, la clase A requiere al menos 200 cotizantes únicos y la clase
 B menos de 200, contando todas las sucursales incluidas. Las clases C y D
 requieren evidencia de elegibilidad; mientras el preflight no la valide, debe
-bloquearlas aunque estén seleccionadas en el perfil.
+bloquearlas aunque estén seleccionadas en el perfil. Una selección del beneficio
+de Ley 1429 también requiere clase D; un dato contradictorio bloquea el campo.
+
+Una declaración positiva de exoneración de salud/SENA/ICBF o del beneficio CCF
+de Ley 1429 tampoco demuestra elegibilidad por sí sola. El preflight mantiene
+bloqueados los campos 33, 34 y 76 hasta que valide el sustento aplicable; una
+declaración negativa explícita sí puede satisfacer esta comprobación.
 
 ### Casos mínimos y resultados esperados del fixture AT2 v30
 

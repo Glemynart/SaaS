@@ -231,6 +231,17 @@ export function inspectPilaSnapshotPreparation(
       'Las clases C y D requieren evidencia de elegibilidad que este preflight aún no valida.',
     );
   }
+  if (
+    (employerClass === 'A' || employerClass === 'B') &&
+    employerPila?.beneficioLey1429 === true
+  ) {
+    add(
+      employerRecord,
+      7,
+      'CAMPO_7_CLASE_BENEFICIO_LEY1429_INCONSISTENTE',
+      'El beneficio de Ley 1429 requiere clasificar al aportante como clase D; esa clase sigue bloqueada hasta validar elegibilidad.',
+    );
+  }
   requireChoice(
     employerRecord,
     8,
@@ -344,6 +355,13 @@ export function inspectPilaSnapshotPreparation(
       'CAMPO_33_EXONERACION_SIN_CONFIRMAR',
       'Falta confirmar si aplica la exoneración de salud, SENA e ICBF.',
     );
+  } else if (employerPila.aportesExoneradosConfirmado) {
+    add(
+      employerRecord,
+      33,
+      'CAMPO_33_ELEGIBILIDAD_EXONERACION_SIN_VALIDAR',
+      'La exoneración fue declarada, pero aún falta validar la evidencia de elegibilidad y sus condiciones.',
+    );
   }
   if (typeof employerPila?.beneficioCcfLey1429 !== 'boolean') {
     add(
@@ -351,6 +369,13 @@ export function inspectPilaSnapshotPreparation(
       34,
       'CAMPO_34_BENEFICIO_CCF_SIN_CONFIRMAR',
       'Falta confirmar si aplica el beneficio de la Ley 1429 para CCF.',
+    );
+  } else if (employerPila.beneficioCcfLey1429) {
+    add(
+      employerRecord,
+      34,
+      'CAMPO_34_ELEGIBILIDAD_CCF_SIN_VALIDAR',
+      'El beneficio CCF fue declarado, pero aún falta validar la evidencia de elegibilidad.',
     );
   }
   if (typeof employerPila?.beneficioLey1429 !== 'boolean') {
@@ -672,6 +697,13 @@ export function inspectPilaSnapshotPreparation(
       76,
       'CAMPO_76_EXONERACION_NO_CONFIRMADA',
       'La exoneración requiere confirmación expresa del aportante.',
+    );
+  } else if (employerPilaExemption) {
+    add(
+      detailRecord,
+      76,
+      'CAMPO_76_ELEGIBILIDAD_EXONERACION_SIN_VALIDAR',
+      'La exoneración declarada requiere validar evidencia de elegibilidad y condiciones antes de usarla.',
     );
   }
 
