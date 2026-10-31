@@ -33,18 +33,17 @@ no produce ese archivo ni conserva todos sus insumos de forma estructurada:
 El Ministerio publica anexos técnicos para PILA y los operadores documentan
 cargue de archivos planos. Revalidado el 2026-10-30, la [página oficial PILA de
 MinSalud](https://www.minsalud.gov.co/Proteccion-Social/Paginas/pila.aspx)
-enlaza un PDF cuyo encabezado y pies de página identifican AT2 versión 29,
-fechado el 6 de enero de 2026. La revalidación no confirmó en ese enlace un
-AT2 v30 consolidado, aunque el historial del proyecto lo había afirmado. La
-[Resolución 1529 de 2026](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-1529-de-2026.pdf)
-es un acto separado que modifica los Anexos Técnicos 2 y 3 y establece hitos
-escalonados; por ello el PDF enlazado no basta para fijar por sí solo el layout
-y las reglas actualmente aplicables. La matriz debe contrastar AT2 v29 con
-cada modificación normativa aplicable, o con un consolidado oficial posterior
-si se localiza, antes de implementar el serializador. Para algunos hitos la
-regla seleccionada depende del período cotizado y de la fecha prevista de pago
-de los aportes PILA; no se puede inferirla de la fecha de pago del salario ni
-de la fecha de generación del archivo.
+enlaza un PDF que identifica AT2 versión 30, fechado el 24 de julio de 2026
+(336 páginas). La portada del contenido incluye la Resolución 1529 de 2026
+entre los actos incorporados; por tanto, AT2 v30 es la base consolidada oficial
+verificada para los archivos de activos. La [Resolución 1529 de
+2026](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-1529-de-2026.pdf)
+continúa como fuente de interpretación para sus cambios y plazos, y modifica
+también el Anexo Técnico 3. La matriz debe contrastarse campo por campo con
+AT2 v30 y con cualquier norma posterior antes de implementar el serializador.
+Para algunos hitos la regla seleccionada depende del período cotizado y de la
+fecha prevista de pago de los aportes PILA; no se puede inferirla de la fecha
+de pago del salario ni de la fecha de generación del archivo.
 
 La Resolución 611 de 2026 establece condiciones para que ciertas personas
 vinculadas laboralmente permanezcan hasta seis meses en el régimen subsidiado;
@@ -88,9 +87,9 @@ categoría inexistente o meramente proyectada.
    en el período solo es una previsión; la exportación deberá confirmar y
    conservar la fecha elegida junto con sus versiones, sin tratarla como prueba
    de pago ni reescribir el snapshot de nómina si la fecha cambia. La línea
-   base es AT2 v29 más los cambios aplicables de la Resolución 1529/2026 y toda
-   norma posterior vigente a la fecha de pago; no se codifica AT2 v29 ni la
-   Resolución 1529 por separado como especificación consolidada.
+   base es AT2 v30 y toda norma posterior vigente a la fecha de pago. La
+   Resolución 1529 no se vuelve a aplicar por separado sobre v30 para evitar
+   duplicar sus cambios consolidados.
 5. Antes de descargar, mostrar resumen y errores bloqueantes por trabajador,
    con origen y valor que debe corregirse. Solo un archivo válido se hace
    descargable. Cada exportación registra tenant, período, snapshots fuente,
@@ -131,23 +130,23 @@ prueba debe usar un fixture anonimizado con resultados revisados por Payroll y
 conformidad normativa; cuando el operador lo requiera, una cuenta de prueba del
 aportante.
 
-| Prueba                                                                                                     | Resultado esperado                                                                                                                                                                                                                                                                                                                               |
-| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Trabajador dependiente estándar (tipo de cotizante 1, planilla E), afiliaciones vigentes y nómina aprobada | Generar archivos tipo 1 y tipo 2 solo después de mapear y probar el layout de AT2 v29 junto con sus modificaciones oficiales aplicables, o un consolidado oficial posterior; conservar IBC/aportes aprobados sin recalcular; mostrar versiones normativa y de formato, período, fecha prevista de pago de aportes PILA, snapshots fuente y hash. |
-| Afiliación con cambio de administradora                                                                    | Elegir la afiliación cuya vigencia cubre el período; conservar visible y auditable la anterior.                                                                                                                                                                                                                                                  |
-| Campo heredado con EPS/AFP/ARL/caja como texto libre                                                       | No inferir código ni generar archivo; pedir mapeo y confirmación explícitos.                                                                                                                                                                                                                                                                     |
-| Afiliación ausente, vencida, futura, solapada o con hueco de vigencia                                      | Bloquear al trabajador afectado con campo, período y causa identificables.                                                                                                                                                                                                                                                                       |
-| Nómina no aprobada, snapshot ausente o snapshot de otro tenant                                             | Bloquear exportación; no recalcular Payroll ni permitir lectura cruzada de tenant.                                                                                                                                                                                                                                                               |
-| Tipo/subtipo/novedad no incluido en la matriz de versión                                                   | Bloquear con error trazable; no sustituir por código genérico.                                                                                                                                                                                                                                                                                   |
-| Cotizante 75 / regla especial de régimen subsidiado                                                        | Rechazar como fuera de alcance del MVP y explicar que requiere una fase compatible con la Resolución 1529 y demás norma vigente; no producir un archivo parcial engañoso.                                                                                                                                                                        |
-| Resolución 1529, pagos PILA desde 1 de octubre de 2026 para pensiones del período septiembre               | Probar las validaciones/origen actualizados de los campos de identificación del aportante, representante, cotizante y cotizante principal definidos en 5.84; rechazar valores inválidos con el campo exacto.                                                                                                                                     |
-| Resolución 1529, pagos PILA desde 1 de noviembre de 2026 para salud del período noviembre                  | Aplicar el hito normativo; bloquear tipo 75 por estar fuera del MVP y verificar que el caso estándar tipo 1/planilla E sigue usando únicamente sus reglas aprobadas.                                                                                                                                                                             |
-| Hito escalonado futuro o fecha prevista de pago PILA ausente                                               | Seleccionar reglas por período cotizado y fecha prevista de pago de aportes para la planilla; bloquear si falta la fecha y no se puede determinar una versión única.                                                                                                                                                                             |
-| Período/catálogo que cruza una vigencia de formato                                                         | Seleccionar la versión aplicable al período y fecha prevista de pago de aportes PILA o bloquear si se cruzan vigencias sin regla aprobada.                                                                                                                                                                                                       |
-| Archivo de prueba                                                                                          | Verificar byte layout, posiciones, longitudes, catálogos, dígitos de control, codificación y validaciones cruzadas contra fixtures oficiales de cada versión vigente.                                                                                                                                                                            |
-| Reintento/corrección                                                                                       | Reintentar la misma exportación sin duplicar; una corrección crea una exportación nueva vinculada, conserva archivo/versiones/hash previos.                                                                                                                                                                                                      |
-| Diferencia de estados                                                                                      | La generación local solo presenta “generado” o “validado localmente”; aceptación, liquidación y pago requieren evidencia del operador/usuario y no se simulan.                                                                                                                                                                                   |
-| Carga en operador                                                                                          | Mantener evidencia fechada y versionada. SOI, Enlace Operativo/SuAporte o Aportes en Línea solo se marcan compatibles si su carga real de prueba fue aceptada.                                                                                                                                                                                   |
+| Prueba                                                                                                     | Resultado esperado                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Trabajador dependiente estándar (tipo de cotizante 1, planilla E), afiliaciones vigentes y nómina aprobada | Generar archivos tipo 1 y tipo 2 solo después de mapear y probar el layout de AT2 v30 y sus reglas de vigencia; conservar IBC/aportes aprobados sin recalcular; mostrar versiones normativa y de formato, período, fecha prevista de pago de aportes PILA, snapshots fuente y hash. |
+| Afiliación con cambio de administradora                                                                    | Elegir la afiliación cuya vigencia cubre el período; conservar visible y auditable la anterior.                                                                                                                                                                                     |
+| Campo heredado con EPS/AFP/ARL/caja como texto libre                                                       | No inferir código ni generar archivo; pedir mapeo y confirmación explícitos.                                                                                                                                                                                                        |
+| Afiliación ausente, vencida, futura, solapada o con hueco de vigencia                                      | Bloquear al trabajador afectado con campo, período y causa identificables.                                                                                                                                                                                                          |
+| Nómina no aprobada, snapshot ausente o snapshot de otro tenant                                             | Bloquear exportación; no recalcular Payroll ni permitir lectura cruzada de tenant.                                                                                                                                                                                                  |
+| Tipo/subtipo/novedad no incluido en la matriz de versión                                                   | Bloquear con error trazable; no sustituir por código genérico.                                                                                                                                                                                                                      |
+| Cotizante 75 / regla especial de régimen subsidiado                                                        | Rechazar como fuera de alcance del MVP y explicar que requiere una fase compatible con la Resolución 1529 y demás norma vigente; no producir un archivo parcial engañoso.                                                                                                           |
+| Resolución 1529, pagos PILA desde 1 de octubre de 2026 para pensiones del período septiembre               | Probar las validaciones/origen actualizados de los campos de identificación del aportante, representante, cotizante y cotizante principal definidos en 5.84; rechazar valores inválidos con el campo exacto.                                                                        |
+| Resolución 1529, pagos PILA desde 1 de noviembre de 2026 para salud del período noviembre                  | Aplicar el hito normativo; bloquear tipo 75 por estar fuera del MVP y verificar que el caso estándar tipo 1/planilla E sigue usando únicamente sus reglas aprobadas.                                                                                                                |
+| Hito escalonado futuro o fecha prevista de pago PILA ausente                                               | Seleccionar reglas por período cotizado y fecha prevista de pago de aportes para la planilla; bloquear si falta la fecha y no se puede determinar una versión única.                                                                                                                |
+| Período/catálogo que cruza una vigencia de formato                                                         | Seleccionar la versión aplicable al período y fecha prevista de pago de aportes PILA o bloquear si se cruzan vigencias sin regla aprobada.                                                                                                                                          |
+| Archivo de prueba                                                                                          | Verificar byte layout, posiciones, longitudes, catálogos, dígitos de control, codificación y validaciones cruzadas contra fixtures oficiales de cada versión vigente.                                                                                                               |
+| Reintento/corrección                                                                                       | Reintentar la misma exportación sin duplicar; una corrección crea una exportación nueva vinculada, conserva archivo/versiones/hash previos.                                                                                                                                         |
+| Diferencia de estados                                                                                      | La generación local solo presenta “generado” o “validado localmente”; aceptación, liquidación y pago requieren evidencia del operador/usuario y no se simulan.                                                                                                                      |
+| Carga en operador                                                                                          | Mantener evidencia fechada y versionada. SOI, Enlace Operativo/SuAporte o Aportes en Línea solo se marcan compatibles si su carga real de prueba fue aceptada.                                                                                                                      |
 
 La matriz de aceptación debe registrar casos incluidos, códigos oficiales,
 archivos de entrada/salida esperados, regla normativa exacta, fecha de vigencia,
@@ -157,23 +156,24 @@ hasta completar pruebas independientes por operador.
 ## Revalidación de fuentes PILA — 2026-10-30
 
 El enlace publicado actualmente por la [página oficial PILA de MinSalud](https://www.minsalud.gov.co/Proteccion-Social/Paginas/pila.aspx)
-resuelve al PDF `anexo-tecnico2-cotizantes.pdf`. Su encabezado y pies de página
-identifican código AT2, versión 29, fecha 06-01-2026. La [Resolución 1529 de
+resuelve al PDF `anexo-tecnico2-cotizantes.pdf`. En la descarga directa
+revalidada el 2026-10-30, su portada identifica código AT2, versión 30, fecha
+24-07-2026 (336 páginas) y enumera la Resolución 1529 de 2026 entre los actos
+incorporados. La [Resolución 1529 de
 2026](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-1529-de-2026.pdf)
-modifica AT2 y AT3 y establece plazos escalonados; su texto también está
-disponible en la [compilación jurídica de
+también se conserva como fuente oficial para interpretar sus disposiciones y
+plazos, y modifica el Anexo Técnico 3. Su texto está disponible además en la
+[compilación jurídica de
 Colpensiones](https://normativa.colpensiones.gov.co/colpens/compilacion/docs/resolucion_minsaludps_1529_2026.htm).
 La [Resolución 1641 de 2026](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-1641-de-2026.pdf)
 confirma que la 1529 modifica los anexos y que el formulario de afiliación y
-novedades de riesgos laborales es un artefacto normativo separado. No se ha
-verificado un PDF oficial consolidado AT2 v30 en el enlace de la página PILA.
+novedades de riesgos laborales es un artefacto normativo separado.
 
-La comprobación directa de los archivos oficiales encontró que AT2 v29 tiene
-336 páginas, mientras que la Resolución 1529 tiene 58. El artículo 1 de la
-resolución introduce cambios puntuales al AT2 y sus numerales 5.84–5.93 fijan
-fechas de implementación; no es el anexo completo de 336 páginas ni declara
-una versión AT2 v30. Para obtener la regla vigente se debe reconciliar el AT2
-v29 con cada cambio aplicable de la Resolución 1529 y cualquier norma posterior.
+La comprobación directa encontró que el AT2 enlazado tiene 336 páginas y que
+la Resolución 1529 tiene 58. La base documental de layout es AT2 v30; la matriz
+debe contrastar sus reglas consolidadas, los hitos de aplicación descritos en
+la resolución y cualquier norma posterior, evitando duplicar modificaciones
+que ya estén incorporadas en v30.
 Entre los hitos comprobados, las validaciones/orígenes de los campos de
 identificación del aportante y representante legal (tipo 1, campos 3 y 18) y
 del cotizante y cotizante principal (tipo 2, campos 4 y 75) rigen para pagos
@@ -184,8 +184,8 @@ el cotizante 75 sigue excluido del MVP.
 
 La matriz de abajo conserva el inventario de datos del producto, pero sus
 referencias de campos/layout quedan preliminares: falta reconciliar campo por
-campo el AT2 v29, las disposiciones aplicables de la Resolución 1529 y las
-normas posteriores. No deben usarse como especificación ejecutable ni como
+campo AT2 v30, sus fechas de aplicación, las normas posteriores y los catálogos
+oficiales vigentes. No deben usarse como especificación ejecutable ni como
 fixture de salida.
 
 | Registro/campos relevantes                                                                                    | Fuente actual verificada                                                                                                                                                                                                                               | Brecha antes de serializar                                                                                                                                                                                                                                                                                                                                                                                               |
@@ -300,9 +300,9 @@ la exportación y a cualquier afirmación de compatibilidad.
   previsión PILA en el payload del snapshot aprobado. No representa el pago del
   salario ni el pago efectivo de aportes.
 - [Página oficial PILA de MinSalud](https://www.minsalud.gov.co/Proteccion-Social/Paginas/pila.aspx)
-  enlaza el PDF `anexo-tecnico2-cotizantes.pdf`. Revisado el 2026-10-30, su
-  encabezado y pies identifican AT2 v29, 06-01-2026 (336 páginas). El mismo enlace no
-  demuestra la existencia de un AT2 v30 consolidado.
+  enlaza el PDF `anexo-tecnico2-cotizantes.pdf`. La descarga directa revisada
+  el 2026-10-30 identifica AT2 v30, 24-07-2026 (336 páginas) e incluye la
+  Resolución 1529 de 2026 entre los actos incorporados.
 - [Resolución 1529 de 2026](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-1529-de-2026.pdf),
   expedida el 24 de julio de 2026 (PDF oficial de 58 páginas), modifica los
   Anexos Técnicos 2 y 3 y fija fechas escalonadas. Su artículo 1 incorpora
@@ -310,8 +310,8 @@ la exportación y a cualquier afirmación de compatibilidad.
   ellas pagos desde octubre para identificación y pagos desde noviembre para
   aclaraciones de planilla E y cotizante 75. La Resolución 1641 de 2026 del
   propio MinSalud también la identifica como modificatoria de esos anexos. La
-  matriz debe cotejar cada cambio contra AT2 v29 y normas posteriores; no
-  asumir que la Resolución 1529 sea un AT2 consolidado o versionado v30.
+  matriz debe cotejar el texto consolidado de AT2 v30, sus hitos de aplicación
+  y normas posteriores sin duplicar modificaciones ya incorporadas.
 - [Resolución 611 de 2026](https://www.minsalud.gov.co/Normatividad_Nuevo/Resolucion%20No%20611%20de%202026.pdf),
   permanencia temporal en régimen subsidiado de ciertas personas vinculadas
   laboralmente; establece un plazo de seis meses para ajustes operativos PILA.
