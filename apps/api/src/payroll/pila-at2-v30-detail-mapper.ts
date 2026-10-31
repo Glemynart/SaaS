@@ -27,6 +27,11 @@ import {
   PILA_ICBF_STANDARD_RATE_RULE_VERSION,
   PILA_SENA_STANDARD_RATE_RULE_VERSION,
 } from './pila-parafiscal-rate-catalog';
+import {
+  getPilaPensionStandardRate,
+  PILA_NEW_PENSION_SYSTEM_EFFECTIVE_FROM,
+  PILA_PENSION_STANDARD_RATE_RULE_VERSION,
+} from './pila-pension-standard-rate-catalog';
 import type { PilaSnapshotPreparationInput } from './pila-preparation';
 
 type JsonRecord = Record<string, unknown>;
@@ -43,6 +48,7 @@ export interface PilaAt2V30DetailCandidate {
     ccfRate: typeof PILA_CCF_STANDARD_RATE_RULE_VERSION | null;
     senaRate: typeof PILA_SENA_STANDARD_RATE_RULE_VERSION | null;
     icbfRate: typeof PILA_ICBF_STANDARD_RATE_RULE_VERSION | null;
+    pensionRate: typeof PILA_PENSION_STANDARD_RATE_RULE_VERSION | null;
   };
   values: Partial<Record<number, PilaAt2V30FieldInput>>;
   unresolvedFields: Array<{ fieldNumber: number; reason: string }>;
@@ -204,6 +210,7 @@ export function mapPilaAt2V30DetailCandidate(
         ccfRate: null,
         senaRate: null,
         icbfRate: null,
+        pensionRate: null,
       },
       values,
       unresolvedFields: [...reasons].map(([fieldNumber, reason]) => ({
@@ -458,6 +465,10 @@ export function mapPilaAt2V30DetailCandidate(
   const ccfStandardRate = getPilaCcfStandardRate(periodStart);
   const senaStandardRate = getPilaSenaStandardRate(periodStart);
   const icbfStandardRate = getPilaIcbfStandardRate(periodStart);
+  const pensionStandardRate = getPilaPensionStandardRate(
+    periodStart,
+    calendarDate(payroll?.fechaPrevistaPagoPila),
+  );
   const arlInitialRate = riskAssignmentValid ? arlRateByClass : null;
   if (
     riskAssignmentValid &&
@@ -658,6 +669,164 @@ export function mapPilaAt2V30DetailCandidate(
     }
     put(input.fieldNumber, concept.valor as number);
   };
+  const pensionBase = object(subsystemBases?.pension);
+  let pensionCandidateBlockReason: string | null = null;
+  if (!standardFullMonthEmployee) {
+    pensionCandidateBlockReason =
+      'La tarifa pensional candidata solo está definida para dependiente 01/00 con empleado, contrato y afiliación que cubren el mes completo.';
+  } else if (!fullMonthPilaInputsApproved) {
+    pensionCandidateBlockReason =
+      'El candidato pensional requiere un mes completo con días aprobados y sin novedades ni eventos PILA.';
+  } else if (employerPila.tipoAportante !== '1') {
+    pensionCandidateBlockReason =
+      'El candidato pensional solo cubre aportantes empleadores tipo 1.';
+  } else if (employerPila.naturalezaJuridica !== '2') {
+    pensionCandidateBlockReason =
+      'El candidato pensional solo cubre empleadores privados; las reglas de empleadores públicos requieren validación específica.';
+  } else if (
+    (employee?.tipoDocumento === 'CC' || employee?.tipoDocumento === 'TI') &&
+    affiliation?.colombianoEnElExterior !== false
+  ) {
+    pensionCandidateBlockReason =
+      'Debe confirmarse explícitamente que el cotizante CC/TI no se encuentra en el exterior para usar el candidato pensional.';
+  } else if (
+    (employee?.tipoDocumento === 'CC' || employee?.tipoDocumento === 'TI') &&
+    affiliation?.extranjeroNoObligadoPension !== null &&
+    affiliation?.extranjeroNoObligadoPension !== undefined
+  ) {
+    pensionCandidateBlockReason =
+      'La declaración de exención extranjera es incompatible con el documento CC/TI.';
+  } else if (
+    (employee?.tipoDocumento === 'CE' || employee?.tipoDocumento === 'PA') &&
+    affiliation?.extranjeroNoObligadoPension !== false
+  ) {
+    pensionCandidateBlockReason =
+      'Debe confirmarse explícitamente que el cotizante CE/PA está obligado a cotizar a pensión para usar el candidato.';
+  } else if (
+    (employee?.tipoDocumento === 'CE' || employee?.tipoDocumento === 'PA') &&
+    affiliation?.colombianoEnElExterior !== null &&
+    affiliation?.colombianoEnElExterior !== undefined
+  ) {
+    pensionCandidateBlockReason =
+      'La declaración de residencia exterior colombiana es incompatible con el documento CE/PA.';
+  } else if (
+    employee?.tipoDocumento !== 'CC' &&
+    employee?.tipoDocumento !== 'TI' &&
+    employee?.tipoDocumento !== 'CE' &&
+    employee?.tipoDocumento !== 'PA'
+  ) {
+    pensionCandidateBlockReason =
+      'El candidato pensional requiere tipo documental CC, TI, CE o PA con declaración aplicable.';
+  } else if (!pensionStandardRate) {
+    const paymentDate = calendarDate(payroll?.fechaPrevistaPagoPila);
+    if (!paymentDate) {
+      pensionCandidateBlockReason =
+        'Falta la fecha prevista de pago PILA congelada para seleccionar la regla pensional aplicable.';
+    } else if (
+      periodStart >= PILA_NEW_PENSION_SYSTEM_EFFECTIVE_FROM ||
+      paymentDate >= PILA_NEW_PENSION_SYSTEM_EFFECTIVE_FROM
+    ) {
+      pensionCandidateBlockReason =
+        'El período o la fecha prevista de pago alcanza el 2027-04-01; falta versionar las reglas del nuevo sistema pensional.';
+    } else {
+      pensionCandidateBlockReason =
+        'No existe una tarifa pensional estándar versionada para el período congelado.';
+    }
+  } else if (
+    !pensionBase ||
+    pensionBase.sourceCount !== 1 ||
+    !safeInteger(pensionBase.valor, 9) ||
+    pensionBase.valor <= 0
+  ) {
+    pensionCandidateBlockReason =
+      'Falta una fuente única y positiva de IBC pensional en el snapshot.';
+  }
+
+  if (!pensionCandidateBlockReason && pensionBase && pensionStandardRate) {
+    const employeePensionRows = contributionConcepts?.filter(
+      (concept) => concept.codigo === 'PENSION_EMP',
+    );
+    const employerPensionRows = contributionConcepts?.filter(
+      (concept) => concept.codigo === 'PENSION_PAT',
+    );
+    const employeePension =
+      employeePensionRows?.length === 1 ? employeePensionRows[0] : null;
+    const employerPension =
+      employerPensionRows?.length === 1 ? employerPensionRows[0] : null;
+    const employeePensionAmount = employeePension?.valor;
+    const employerPensionAmount = employerPension?.valor;
+    const pensionAmountCandidate =
+      safeInteger(employeePensionAmount, 9) &&
+      safeInteger(employerPensionAmount, 9)
+        ? employeePensionAmount + employerPensionAmount
+        : null;
+    const pensionRateBlockReason =
+      employeePensionRows?.length !== 1 || employerPensionRows?.length !== 1
+        ? 'Se requieren fuentes únicas PENSION_EMP y PENSION_PAT en el snapshot.'
+        : employeePension?.tipo !== 'DEDUCTION' ||
+            employerPension?.tipo !== 'EMPLOYER_CONTRIBUTION'
+          ? 'Las fuentes de pensión no tienen los tipos de concepto esperados.'
+          : employeePension.factor !== pensionStandardRate.employeeFactor ||
+              employerPension.factor !== pensionStandardRate.employerFactor
+            ? 'Los factores PENSION_EMP/PENSION_PAT no coinciden con las tarifas estándar versionadas 4 % y 12 %.'
+            : !safeInteger(employeePension.base, 9) ||
+                !safeInteger(employeePensionAmount, 9) ||
+                !safeInteger(employerPension.base, 9) ||
+                !safeInteger(employerPensionAmount, 9) ||
+                employeePension.base !== pensionBase.valor ||
+                employerPension.base !== pensionBase.valor
+              ? 'Las bases e importes PENSION_EMP/PENSION_PAT no coinciden con el IBC pensional congelado.'
+              : !isPilaContributionAmountRoundedUpToHundred(
+                    periodStart,
+                    pensionBase.valor,
+                    4,
+                    100,
+                    employeePensionAmount,
+                  ) ||
+                  !isPilaContributionAmountRoundedUpToHundred(
+                    periodStart,
+                    pensionBase.valor,
+                    12,
+                    100,
+                    employerPensionAmount,
+                  )
+                ? 'Los importes pensionales congelados no cumplen el redondeo PILA vigente para cada concepto.'
+                : pensionAmountCandidate === null ||
+                    !safeInteger(pensionAmountCandidate, 9) ||
+                    !isPilaContributionAmountRoundedUpToHundred(
+                      periodStart,
+                      pensionBase.valor,
+                      16,
+                      100,
+                      pensionAmountCandidate,
+                    )
+                  ? 'La suma congelada de los aportes pensionales no coincide con IBC × 16 % y su redondeo PILA; no se ajustan los importes.'
+                  : null;
+
+    if (
+      pensionRateBlockReason ||
+      pensionAmountCandidate === null ||
+      !safeInteger(pensionAmountCandidate, 9)
+    ) {
+      const reason =
+        pensionRateBlockReason ??
+        'No se pueden leer los importes pensionales congelados.';
+      unresolved(46, reason);
+      unresolved(47, reason);
+    } else {
+      // Field 47 is composed only from the two approved snapshot amounts;
+      // the calculation above is a consistency check and never replaces them.
+      put(46, pensionStandardRate.fieldValue);
+      put(47, pensionAmountCandidate);
+    }
+  } else {
+    const reason =
+      pensionCandidateBlockReason ??
+      'No se puede validar el aporte pensional contra fuentes congeladas.';
+    unresolved(46, reason);
+    unresolved(47, reason);
+  }
+
   const ccfBase =
     object(subsystemBases?.cajaCompensacion)?.sourceCount === 1
       ? object(subsystemBases?.cajaCompensacion)
@@ -822,6 +991,7 @@ export function mapPilaAt2V30DetailCandidate(
       ccfRate: getPilaCcfStandardRate(periodStart)?.ruleVersion ?? null,
       senaRate: senaStandardRate?.ruleVersion ?? null,
       icbfRate: icbfStandardRate?.ruleVersion ?? null,
+      pensionRate: pensionStandardRate?.ruleVersion ?? null,
     },
     values,
     unresolvedFields,

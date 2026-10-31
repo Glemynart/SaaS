@@ -22,6 +22,8 @@ const contributionFieldLabels: Record<
   PilaDetailContributionCandidateStatus['fieldNumber'],
   string
 > = {
+  46: 'Tarifa de pensión',
+  47: 'Cotización obligatoria a pensiones',
   61: 'Tarifa inicial de riesgos laborales',
   63: 'Aporte ARL',
   64: 'Tarifa CCF',

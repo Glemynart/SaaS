@@ -205,7 +205,7 @@ calcula segmentos, no constituye un preflight normativo completo y no habilita
 la generación de archivos.
 
 El informe también muestra conteos por empleado de candidatos y pendientes para
-los campos 61, 63, 64, 65, 67 y 69, junto con las razones y los empleados afectados.
+los campos 46–47, 61, 63–69, junto con las razones y los empleados afectados.
 No elige entre snapshots duplicados. Estos conteos describen solo los mapas
 parciales vigentes; no equivalen a campos serializables ni modifican el estado
 de generación, que permanece deshabilitada.
@@ -395,8 +395,9 @@ exequibles que conforman el nuevo sistema pensional de la Ley 2381. Por tanto,
 la inclusión de reglas de dos componentes pensionales en AT2 v30 no basta para
 aplicarlas a una planilla de 2026. La versión normativa debe seleccionar las
 reglas según período y fecha de pago, evaluar las disposiciones exceptuadas
-por la sentencia y revalidarse ante normas posteriores antes del corte de 2027. Este hallazgo no cambia el alcance aprobado ni habilita actualmente el
-mapeo de aportes pensionales.
+por la sentencia y revalidarse ante normas posteriores antes del corte de 2027.
+El cambio permite únicamente un candidato estándar anterior al corte; no
+habilita la exportación ni las reglas del nuevo sistema pensional.
 
 La comprobación directa confirma que el AT2 enlazado es versión 30 y que la
 copia candidata registrada históricamente tiene exactamente el mismo hash. La
@@ -676,8 +677,8 @@ reconciliación normativa.
 | 43    | IBC salud                                      | Preparación local conserva como candidato la base de un único concepto SALUD_EMP de tipo DEDUCTION; si falta o se repite, queda null. Falta validar semántica normativa y reglas por subsistema.                                                                                                              |
 | 44    | IBC riesgos laborales                          | Preparación local conserva como candidato la base de un único concepto ARL de tipo EMPLOYER_CONTRIBUTION; si falta o se repite, queda null. Falta validar semántica normativa y reglas por subsistema.                                                                                                        |
 | 45    | IBC CCF                                        | Preparación local conserva como candidato la base de un único concepto CAJA de tipo EMPLOYER_CONTRIBUTION; si falta o se repite, queda null. No reemplaza el IBC general del encabezado; falta validar semántica y obligación CCF.                                                                            |
-| 46    | Tarifa de pensiones                            | `PENSION_EMP`/`PENSION_PAT` conservan `base` y `factor` en `payroll.concepts` del `pilaPayload`.                                                                                                                                                                                                              | Fuente congelada candidata; falta confirmar qué tarifa exige AT2 y su formato por régimen antes de mapear.                                                                                                                                                   |
-| 47    | Cotización obligatoria a pensiones             | Los importes PENSION_EMP/PENSION_PAT del snapshot son candidatos, no una base autorizada para recomputar o distribuir componentes. Falta resolver reglas AT2 vigentes y correspondencia del operador.                                                                                                         |
+| 46    | Tarifa de pensiones                            | Regla versionada `CO_PENSION_STANDARD_RATE_L797_ART7_DEC1833_2_2_3_1_13_V1`: tarifa candidata `0.16000` para el escenario estándar privado anterior al corte del nuevo sistema.                                                                                                                               | Solo se expone si el snapshot contiene PENSION_EMP 4 % y PENSION_PAT 12 % con base de campo 42, aportes redondeados y obligación explícita. El valor decimal sigue pendiente de prueba de carga por operador. Período o pago desde 2027-04-01 queda bloqueado.                                                                                                                                                                                                            |
+| 47    | Cotización obligatoria a pensiones             | Suma de los importes congelados PENSION_EMP/PENSION_PAT, solo después de verificar factores 4 %/12 %, bases coincidentes con IBC 42 y que su suma cumple IBC × 16 % con redondeo legal.                                                                                                                       | No se recalcula ni sustituye un importe del snapshot. Empleador público, obligación/exención no confirmada, período incompleto, novedad o fecha de pago ausente/de corte quedan sin candidato.                                                                                                                                                                                                                                                                            |
 | 48    | Aporte voluntario del afiliado a pensión       | Falta: no existe dato ni concepto voluntario estructurado.                                                                                                                                                                                                                                                    |
 | 49    | Aporte voluntario del aportante a pensión      | Falta: no existe dato ni concepto voluntario estructurado.                                                                                                                                                                                                                                                    |
 | 50    | Total de cotización pensional                  | AT2 lo calcula como 47+48+49; no recalcular en el exportador ni asumir que el archivo plano del operador espera recibirlo.                                                                                                                                                                                    |

@@ -474,9 +474,11 @@ se accedió a demo, staging o producción.
   soportar períodos que alcancen abril de 2027.
 - El informe PILA marca ese corte con un bloqueo de exportación si el período
   o la fecha prevista de pago alcanza 2027-04-01, y señala los campos 46–47.
-  Una planilla de marzo pagada en abril también queda bloqueada hasta resolver
-  la selección de reglas. La prueba solo confirma el guard del hito; no
-  implementa ni valida las nuevas reglas pensionales.
+  Una planilla de marzo pagada en abril también queda bloqueada. Para períodos
+  anteriores se agregaron candidatos estándar 46–47 a partir de PENSION_EMP
+  (4 %) y PENSION_PAT (12 %) congelados, con obligación explícita, bases y
+  redondeo reconciliados. No implementa la distribución del nuevo sistema,
+  no permite generar archivos y requiere prueba de carga por operador.
 
 ### Mapeo candidato de aportante AT2 v30 — 2026-10-31
 
