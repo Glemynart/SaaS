@@ -618,6 +618,23 @@ describe('inspectPilaSnapshotPreparation', () => {
     ).toEqual([]);
   });
 
+  it('bloquea la afiliación sin código ARL para el campo 77', () => {
+    const source = payload();
+    source.affiliations[0].arlCodigo = '';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'DETALLE_TIPO_2',
+        fieldNumber: 77,
+        code: 'CAMPO_77_SIN_DATO',
+      }),
+    );
+  });
+
   it.each([
     ['faltante', null],
     ['especial', '01'],
