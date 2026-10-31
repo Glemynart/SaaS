@@ -113,6 +113,15 @@ export interface PilaAt2V30DetailCandidate {
   unresolvedFields: Array<{ fieldNumber: number; reason: string }>;
 }
 
+export interface PilaAt2V30DetailScope {
+  expectedTenantId: string | null;
+  period: {
+    id: string;
+    fechaInicio: Date;
+    fechaFin: Date;
+  };
+}
+
 function object(value: unknown): JsonRecord | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? (value as JsonRecord)
@@ -188,6 +197,7 @@ function fullCalendarMonth(start: string, end: string): boolean {
  */
 export function mapPilaAt2V30DetailCandidate(
   snapshot: PilaSnapshotPreparationInput,
+  scope: PilaAt2V30DetailScope,
 ): PilaAt2V30DetailCandidate {
   const values: Partial<Record<number, PilaAt2V30FieldInput>> = {};
   const reasons = new Map<number, string>();
@@ -236,6 +246,21 @@ export function mapPilaAt2V30DetailCandidate(
   const periodEnd = calendarDate(period?.fechaFin);
   const tenantId = sourceText(employer?.tenantId);
   const payrollPeriodId = sourceText(period?.payrollPeriodId);
+  const expectedTenantId = sourceText(scope.expectedTenantId);
+  const expectedStart = Number.isNaN(scope.period.fechaInicio.getTime())
+    ? null
+    : scope.period.fechaInicio.toISOString().slice(0, 10);
+  const expectedEnd = Number.isNaN(scope.period.fechaFin.getTime())
+    ? null
+    : scope.period.fechaFin.toISOString().slice(0, 10);
+  const matchesApprovedScope =
+    expectedTenantId !== null &&
+    expectedStart !== null &&
+    expectedEnd !== null &&
+    tenantId === expectedTenantId &&
+    payrollPeriodId === scope.period.id &&
+    periodStart === expectedStart &&
+    periodEnd === expectedEnd;
   const supportedSnapshot =
     snapshot.payloadVersion === 2 &&
     root?.schemaVersion === 2 &&
@@ -247,22 +272,23 @@ export function mapPilaAt2V30DetailCandidate(
     payrollPeriodId !== null &&
     periodStart !== null &&
     periodEnd !== null &&
+    matchesApprovedScope &&
     sourceText(employee.employeeId) === snapshot.employeeId;
 
   if (!supportedSnapshot || !periodStart || !periodEnd) {
+    const reason = matchesApprovedScope
+      ? 'Se requiere un snapshot PILA v2 válido y atribuible a un tenant y período.'
+      : 'El tenant o período congelado en el snapshot no coincide con el tenant autenticado y período aprobado solicitado.';
     for (const field of PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2
       .fields) {
-      unresolved(
-        field.fieldNumber,
-        'Se requiere un snapshot PILA v2 válido y atribuible a un tenant y período.',
-      );
+      unresolved(field.fieldNumber, reason);
     }
     return {
       formatVersion: PILA_AT2_V30_FORMAT_VERSION,
       supportedSnapshot: false,
       employeeId: snapshot.employeeId,
-      tenantId,
-      payrollPeriodId,
+      tenantId: matchesApprovedScope ? expectedTenantId : null,
+      payrollPeriodId: matchesApprovedScope ? scope.period.id : null,
       normativeRuleVersions: {
         arlInitialRate: null,
         contributionRounding: null,

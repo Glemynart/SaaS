@@ -1705,6 +1705,7 @@ describe('inspectPilaSnapshotPreparation', () => {
       15_660,
     );
     const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
       period: {
         id: 'period-1',
         fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
@@ -1892,6 +1893,7 @@ describe('inspectPilaSnapshotPreparation', () => {
     payload.payroll.pilaEvents.push(event);
 
     const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
       period: {
         id: 'period-1',
         fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
@@ -1926,6 +1928,7 @@ describe('inspectPilaSnapshotPreparation', () => {
   it('does not choose a detail candidate when an employee has duplicate snapshots', () => {
     const duplicate = detailCandidateSnapshot('employee-1', 'Ana');
     const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
       period: {
         id: 'period-1',
         fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
@@ -1945,6 +1948,53 @@ describe('inspectPilaSnapshotPreparation', () => {
     expect(field61.pendingReasons[0]?.reason).toContain('más de un snapshot');
     expect(field61.pendingReasons[0]?.affectedEmployees).toEqual(['Ana Demo']);
   });
+
+  it.each(['tenant', 'period id', 'period dates'] as const)(
+    'blocks detail candidates when a frozen snapshot %s differs from the requested scope',
+    (mismatch) => {
+      const source = detailCandidateSnapshot('employee-1', 'Ana');
+      const frozen = source.payload as {
+        employer: { tenantId: string };
+        period: {
+          payrollPeriodId: string;
+          fechaInicio: string;
+          fechaFin: string;
+        };
+      };
+      if (mismatch === 'tenant') {
+        frozen.employer.tenantId = 'tenant-foreign';
+      } else if (mismatch === 'period id') {
+        frozen.period.payrollPeriodId = 'period-foreign';
+      } else {
+        frozen.period.fechaInicio = '2026-11-01';
+        frozen.period.fechaFin = '2026-11-30';
+      }
+
+      const report = buildPilaPreparationReport({
+        tenantId: 'tenant-1',
+        period: {
+          id: 'period-1',
+          fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+          fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+        },
+        snapshots: [source],
+      });
+      const field61 = report.detailContributionCandidates.find(
+        (status) => status.fieldNumber === 61,
+      )!;
+
+      expect(field61).toMatchObject({
+        candidateEmployees: 0,
+        pendingEmployees: 1,
+      });
+      expect(field61.pendingReasons[0]?.reason).toContain(
+        'tenant o período congelado en el snapshot no coincide',
+      );
+      expect(field61.pendingReasons[0]?.affectedEmployees).toEqual([
+        'Ana Demo',
+      ]);
+    },
+  );
 
   it('explica que no hay snapshots cuando el período aprobado no los conserva', () => {
     const report = buildPilaPreparationReport({

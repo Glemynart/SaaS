@@ -839,3 +839,27 @@ false`.
   servicio; typecheck y lint API; build API; Browser E2E financiero (1/1) con
   PostgreSQL desechable y las 77 migraciones. Sin cambios de schema ni descarga
   PILA habilitada.
+- En GitHub, `verify` y `browser` fallaron en 1–3 segundos sin ejecutar pasos;
+  Vercel rechazó el preview por límite de despliegues de 24 horas. La PR queda
+  abierta para sincronización y revisión ordenada cuando vuelva la cuota, sin
+  detener la continuación local de GOAL-02.
+
+### Validación de alcance en detalle tipo 2 PILA — continuación — 2026-10-31
+
+- La revisión del mapper de detalle encontró que aceptaba un snapshot PILA v2
+  estructuralmente válido aunque su tenant o período congelado no coincidiera
+  con el contexto autenticado y el período aprobado solicitado. El endpoint
+  consultaba las filas por tenant/período, pero no validaba ese vínculo dentro
+  del payload histórico.
+- El mapper de detalle ahora exige el tenant autenticado, el ID y el rango de
+  fechas del período aprobado antes de proponer candidatos. Si no coinciden,
+  mantiene los 98 campos sin candidatos y no retorna identificadores de tenant
+  o período ajenos. Los demás mapeos conservan las fuentes congeladas y no
+  completan valores desde datos maestros actuales.
+- Se agregaron casos negativos para tenant y período en el mapper y en el
+  agregado del informe. La matriz registra el criterio `PILA-AT2-52`. La
+  descarga sigue deshabilitada y este cambio no afirma compatibilidad con un
+  operador.
+- Esta continuación se incorporó a la consolidación PILA de #209–#213 sobre
+  #207. El nuevo head consolidado debe volver a superar CI, Browser E2E y preview
+  antes de cualquier merge.

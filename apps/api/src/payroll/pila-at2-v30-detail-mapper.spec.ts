@@ -310,10 +310,64 @@ const invalidRiskAssignmentCases: Array<{
     },
   },
 ];
+function mapCandidate(input: PilaSnapshotPreparationInput) {
+  return mapPilaAt2V30DetailCandidate(input, {
+    expectedTenantId: 'tenant-1',
+    period: {
+      id: 'period-1',
+      fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+      fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+    },
+  });
+}
 
 describe('mapPilaAt2V30DetailCandidate', () => {
+  it.each(['tenant', 'period id', 'period dates'] as const)(
+    'blocks every detail candidate when the snapshot %s differs from the approved scope',
+    (mismatch) => {
+      const input = snapshot();
+      const payload = input.payload as {
+        employer: { tenantId: string };
+        period: {
+          payrollPeriodId: string;
+          fechaInicio: string;
+          fechaFin: string;
+        };
+      };
+      if (mismatch === 'tenant') {
+        payload.employer.tenantId = 'tenant-foreign';
+      } else if (mismatch === 'period id') {
+        payload.period.payrollPeriodId = 'period-foreign';
+      } else {
+        payload.period.fechaInicio = '2026-11-01';
+        payload.period.fechaFin = '2026-11-30';
+      }
+
+      const candidate = mapPilaAt2V30DetailCandidate(input, {
+        expectedTenantId: 'tenant-1',
+        period: {
+          id: 'period-1',
+          fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+          fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+        },
+      });
+
+      expect(candidate.supportedSnapshot).toBe(false);
+      expect(candidate.tenantId).toBeNull();
+      expect(candidate.payrollPeriodId).toBeNull();
+      expect(candidate.values).toEqual({});
+      expect(candidate.unresolvedFields).toHaveLength(98);
+      expect(candidate.unresolvedFields).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ fieldNumber: 1 }),
+          expect.objectContaining({ fieldNumber: 98 }),
+        ]),
+      );
+    },
+  );
+
   it('maps fixed incapacity and maternity fields for a complete snapshot without events', () => {
-    const candidate = mapPilaAt2V30DetailCandidate(snapshot());
+    const candidate = mapCandidate(snapshot());
 
     expect(candidate.values).toMatchObject({
       57: { value: null, emptyAs: 'spaces' },
@@ -327,7 +381,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
   });
 
   it('maps only AT2 no-event novelty fields backed by a complete empty snapshot', () => {
-    const candidate = mapPilaAt2V30DetailCandidate(snapshot());
+    const candidate = mapCandidate(snapshot());
     const blankFields = [
       15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 26, 27, 29, 80, 81, 82, 83, 84,
       85, 86, 87, 88, 89, 90, 91, 92, 93, 94,
@@ -359,7 +413,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     payload.pilaEvents = [{ codigo: 'VSP' }];
     payload.payroll.pilaEvents = [{ codigo: 'VSP' }];
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     for (const fieldNumber of [32, 34, 74, 75]) {
       expect(candidate.values[fieldNumber]).toEqual({
@@ -381,7 +435,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     payload.employer.aportesExonerados = false;
     payload.employer.pila.aportesExoneradosConfirmado = false;
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[76]).toEqual({ value: 'N' });
     expect(candidate.normativeRuleVersions.confirmedNonExemptCotizante).toBe(
@@ -402,7 +456,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       payload.employer.aportesExonerados = employerExempt;
       payload.employer.pila.aportesExoneradosConfirmado = confirmation;
 
-      const candidate = mapPilaAt2V30DetailCandidate(input);
+      const candidate = mapCandidate(input);
 
       expect(candidate.values[76]).toBeUndefined();
       expect(candidate.unresolvedFields).toContainEqual(
@@ -420,7 +474,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     payload.employer.pila.tipoAportante = '1';
     payload.employer.pila.naturalezaJuridica = '2';
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[70]).toEqual({ value: '0.00000' });
     expect(candidate.values[71]).toEqual({ value: 0 });
@@ -443,7 +497,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       payload.employer.pila.tipoAportante = employerType;
       payload.employer.pila.naturalezaJuridica = employerNature;
 
-      const candidate = mapPilaAt2V30DetailCandidate(input);
+      const candidate = mapCandidate(input);
 
       for (const fieldNumber of [70, 71, 72, 73]) {
         expect(candidate.values[fieldNumber]).toBeUndefined();
@@ -466,7 +520,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       bloqueos: ['IBC_NO_DISPONIBLE'],
     };
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[70]).toEqual({ value: '0.00000' });
     expect(candidate.values[72]).toEqual({ value: '0.00000' });
@@ -498,7 +552,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     payload.pilaEvents = [event];
     payload.payroll.pilaEvents = [event];
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     for (const fieldNumber of [
       15, 16, 21, 23, 24, 25, 26, 27, 29, 30, 80, 94,
@@ -509,7 +563,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
   });
 
   it('does not treat corrections or voluntary pension contributions as absent', () => {
-    const candidate = mapPilaAt2V30DetailCandidate(snapshot());
+    const candidate = mapCandidate(snapshot());
 
     expect(candidate.values[22]).toBeUndefined();
     expect(candidate.values[28]).toBeUndefined();
@@ -524,7 +578,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
   });
 
   it('keeps unsupported voluntary and FSP amounts pending with source reasons', () => {
-    const candidate = mapPilaAt2V30DetailCandidate(snapshot());
+    const candidate = mapCandidate(snapshot());
     const reasonFor = (fieldNumber: number) =>
       candidate.unresolvedFields.find(
         (field) => field.fieldNumber === fieldNumber,
@@ -548,7 +602,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     payload.pilaEvents = [{ codigo: 'IGE' }];
     payload.payroll.pilaEvents = [{ codigo: 'IGE' }];
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     for (const fieldNumber of [57, 58, 59, 60]) {
       expect(candidate.values[fieldNumber]).toBeUndefined();
@@ -577,7 +631,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
         payload.payroll.novelties = [{ tipo: 'SICKNESS' }];
       }
 
-      const candidate = mapPilaAt2V30DetailCandidate(input);
+      const candidate = mapCandidate(input);
 
       for (const fieldNumber of [57, 58, 59, 60]) {
         expect(candidate.values[fieldNumber]).toBeUndefined();
@@ -591,7 +645,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
   });
 
   it('maps direct identity, affiliation, days, bases, salary and ARL snapshot values', () => {
-    const candidate = mapPilaAt2V30DetailCandidate(snapshot());
+    const candidate = mapCandidate(snapshot());
 
     expect(candidate).toMatchObject({
       supportedSnapshot: true,
@@ -640,7 +694,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const input = snapshot();
     setStandardPensionInputs(input);
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values).toMatchObject({
       46: { value: '0.16000' },
@@ -665,7 +719,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       exteriorDeclaration: null,
     });
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[46]).toEqual({ value: '0.16000' });
     expect(candidate.values[47]).toEqual({ value: 320_000 });
@@ -679,7 +733,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       employerAmount: 200,
     });
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[46]).toBeUndefined();
     expect(candidate.values[47]).toBeUndefined();
@@ -717,7 +771,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       const input = snapshot();
       setStandardPensionInputs(input, overrides);
 
-      const candidate = mapPilaAt2V30DetailCandidate(input);
+      const candidate = mapCandidate(input);
 
       expect(candidate.values[46]).toBeUndefined();
       expect(candidate.values[47]).toBeUndefined();
@@ -736,7 +790,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       exteriorDeclaration: null,
     });
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[46]).toBeUndefined();
     expect(candidate.values[47]).toBeUndefined();
@@ -750,7 +804,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const input = snapshot();
     setStandardHealthInputs(input);
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values).toMatchObject({
       54: { value: '0.12500' },
@@ -765,7 +819,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const input = snapshot();
     setStandardHealthInputs(input, { employerExemption: true });
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[54]).toBeUndefined();
     expect(candidate.values[55]).toBeUndefined();
@@ -783,7 +837,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       employerAmount: 100,
     });
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[54]).toBeUndefined();
     expect(candidate.values[55]).toBeUndefined();
@@ -813,7 +867,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       const input = snapshot();
       setStandardHealthInputs(input, overrides);
 
-      const candidate = mapPilaAt2V30DetailCandidate(input);
+      const candidate = mapCandidate(input);
 
       expect(candidate.values[54]).toBeUndefined();
       expect(candidate.values[55]).toBeUndefined();
@@ -830,7 +884,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       const input = snapshot();
       payloadOf(input).employee.tipoDocumento = documentType;
 
-      const candidate = mapPilaAt2V30DetailCandidate(input);
+      const candidate = mapCandidate(input);
 
       expect(candidate.values[7]).toEqual({ value: null, emptyAs: 'spaces' });
       expect(candidate.values[8]).toBeUndefined();
@@ -843,7 +897,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       const input = snapshot();
       payloadOf(input).employee.tipoDocumento = documentType;
 
-      const candidate = mapPilaAt2V30DetailCandidate(input);
+      const candidate = mapCandidate(input);
 
       expect(candidate.values[7]).toBeUndefined();
       expect(candidate.values[8]).toEqual({ value: null, emptyAs: 'spaces' });
@@ -857,14 +911,14 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       payloadOf(abroad).employee.tipoDocumento = documentType;
       payloadOf(abroad).affiliations[0].colombianoEnElExterior = true;
 
-      const abroadCandidate = mapPilaAt2V30DetailCandidate(abroad);
+      const abroadCandidate = mapCandidate(abroad);
       expect(abroadCandidate.values[8]).toEqual({ value: 'X' });
       expect(abroadCandidate.unresolvedFields).not.toContainEqual(
         expect.objectContaining({ fieldNumber: 8 }),
       );
 
       payloadOf(abroad).affiliations[0].colombianoEnElExterior = false;
-      const domesticCandidate = mapPilaAt2V30DetailCandidate(abroad);
+      const domesticCandidate = mapCandidate(abroad);
       expect(domesticCandidate.values[8]).toEqual({
         value: null,
         emptyAs: 'spaces',
@@ -879,14 +933,14 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       payloadOf(foreign).employee.tipoDocumento = documentType;
       payloadOf(foreign).affiliations[0].extranjeroNoObligadoPension = true;
 
-      const exemptCandidate = mapPilaAt2V30DetailCandidate(foreign);
+      const exemptCandidate = mapCandidate(foreign);
       expect(exemptCandidate.values[7]).toEqual({ value: 'X' });
       expect(exemptCandidate.unresolvedFields).not.toContainEqual(
         expect.objectContaining({ fieldNumber: 7 }),
       );
 
       payloadOf(foreign).affiliations[0].extranjeroNoObligadoPension = false;
-      const obligatedCandidate = mapPilaAt2V30DetailCandidate(foreign);
+      const obligatedCandidate = mapCandidate(foreign);
       expect(obligatedCandidate.values[7]).toEqual({
         value: null,
         emptyAs: 'spaces',
@@ -898,7 +952,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const input = snapshot();
     payloadOf(input).affiliations[0].extranjeroNoObligadoPension = true;
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[7]).toBeUndefined();
     expect(candidate.unresolvedFields).toContainEqual(
@@ -920,7 +974,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const input = snapshot();
     payloadOf(input).affiliations[0].tipoCotizanteCodigo = '02';
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[1]).toBeUndefined();
     expect(candidate.values[5]).toBeUndefined();
@@ -940,7 +994,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
   });
 
   it('preserves numeric identifier and work center leading zeros', () => {
-    const candidate = mapPilaAt2V30DetailCandidate(snapshot());
+    const candidate = mapCandidate(snapshot());
 
     expect(candidate.values[4]).toEqual({ value: '0012345678' });
     expect(candidate.values[62]).toEqual({ value: '00012' });
@@ -950,7 +1004,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const input = snapshot();
     payloadOf(input).payroll.ibcPorSubsistema.pension.sourceCount = 2;
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[42]).toBeUndefined();
     expect(candidate.unresolvedFields).toEqual(
@@ -998,7 +1052,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       },
     ];
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values).toMatchObject({
       61: { value: '0.0104400' },
@@ -1042,7 +1096,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
         },
       ];
 
-      const candidate = mapPilaAt2V30DetailCandidate(input);
+      const candidate = mapCandidate(input);
 
       expect(candidate.values[64]).toEqual({ value: '0.04000' });
       expect(candidate.values[65]).toEqual({ value: 80_000 });
@@ -1085,7 +1139,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
         },
       ];
 
-      const candidate = mapPilaAt2V30DetailCandidate(input);
+      const candidate = mapCandidate(input);
 
       expect(candidate.values[64]).toBeUndefined();
       expect(
@@ -1121,7 +1175,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
         },
       ];
 
-      const candidate = mapPilaAt2V30DetailCandidate(input);
+      const candidate = mapCandidate(input);
 
       expect(candidate.values[61]).toEqual({ value: fieldValue });
       expect(candidate.values[63]).toEqual({ value: amount });
@@ -1140,7 +1194,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       },
     ];
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[61]).toEqual({ value: '0.0104400' });
     expect(candidate.values[63]).toBeUndefined();
@@ -1182,7 +1236,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       },
     ];
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[66]).toEqual({ value: '0.02000' });
     expect(candidate.values[68]).toEqual({ value: '0.03000' });
@@ -1208,7 +1262,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       },
     ];
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[61]).toBeUndefined();
     expect(candidate.values[63]).toBeUndefined();
@@ -1247,7 +1301,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       },
     ];
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[63]).toBeUndefined();
     expect(candidate.values[65]).toBeUndefined();
@@ -1287,7 +1341,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       },
     ];
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[67]).toBeUndefined();
     expect(candidate.values[69]).toBeUndefined();
@@ -1319,7 +1373,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       },
     ];
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     for (const fieldNumber of [66, 67, 68, 69]) {
       expect(candidate.values[fieldNumber]).toBeUndefined();
@@ -1392,7 +1446,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
         },
       ];
 
-      const candidate = mapPilaAt2V30DetailCandidate(input);
+      const candidate = mapCandidate(input);
 
       for (const fieldNumber of [66, 67, 68, 69]) {
         expect(candidate.values[fieldNumber]).toBeUndefined();
@@ -1431,7 +1485,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       },
     ];
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     for (const fieldNumber of [66, 67, 68, 69]) {
       expect(candidate.values[fieldNumber]).toBeUndefined();
@@ -1469,7 +1523,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       },
     ];
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[67]).toBeUndefined();
     expect(candidate.values[69]).toBeUndefined();
@@ -1496,7 +1550,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       },
     ];
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[63]).toBeUndefined();
   });
@@ -1515,7 +1569,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     ];
     payload.payroll.novelties = [{ tipo: 'SICKNESS' }];
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[63]).toBeUndefined();
     expect(
@@ -1528,7 +1582,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const input = snapshot();
     payloadOf(input).pilaRiskAssignments[0].tenantId = 'tenant-2';
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[62]).toBeUndefined();
     expect(candidate.values[98]).toBeUndefined();
@@ -1573,7 +1627,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const input = snapshot();
     input.payloadVersion = 1;
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.supportedSnapshot).toBe(false);
     expect(candidate.values).toEqual({});
