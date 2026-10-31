@@ -122,7 +122,7 @@ describe('inspectPilaSnapshotPreparation', () => {
     ]);
   });
 
-  it('detecta como pendientes el centro de trabajo PILA y la actividad ARL vigentes', () => {
+  it('bloquea ubicación PILA basada solo en sede y detecta centro y actividad ARL pendientes', () => {
     const result = inspectPilaSnapshotPreparation(
       snapshot('employee-1', 'Ana'),
     );
@@ -131,6 +131,14 @@ describe('inspectPilaSnapshotPreparation', () => {
     expect(
       result.issues.map(({ fieldNumber, code }) => ({ fieldNumber, code })),
     ).toEqual([
+      {
+        fieldNumber: 9,
+        code: 'UBICACION_LABORAL_PILA_SIN_FUENTE_CONFIRMADA',
+      },
+      {
+        fieldNumber: 10,
+        code: 'UBICACION_LABORAL_PILA_SIN_FUENTE_CONFIRMADA',
+      },
       {
         fieldNumber: 62,
         code: 'CENTRO_TRABAJO_SIN_CODIGO_PILA',

@@ -298,8 +298,6 @@ export function inspectPilaSnapshotPreparation(
   const employer = nested(root, 'employer');
   const employerPila = nested(employer, 'pila');
   const period = nested(root, 'period');
-  const worksite = nested(root, 'worksite');
-  const worksiteMunicipality = nested(worksite, 'municipio');
   const contract = nested(root, 'contract');
   const payroll = nested(root, 'payroll');
   const payrollPilaEvents = payroll?.pilaEvents;
@@ -981,21 +979,18 @@ export function inspectPilaSnapshotPreparation(
   ] as const) {
     validateFieldLength(detailRecord, field, employee?.[key], maxLength, label);
   }
-  const worksiteCode = text(worksiteMunicipality?.codigo);
-  if (!worksite || !worksiteCode || !/^\d{5}$/.test(worksiteCode)) {
-    add(
-      detailRecord,
-      9,
-      'UBICACION_LABORAL_NO_CONGELADA',
-      'Falta el municipio DIVIPOLA del lugar de trabajo congelado en el snapshot.',
-    );
-    add(
-      detailRecord,
-      10,
-      'UBICACION_LABORAL_NO_CONGELADA',
-      'Falta el código DIVIPOLA municipal del lugar de trabajo congelado.',
-    );
-  }
+  add(
+    detailRecord,
+    9,
+    'UBICACION_LABORAL_PILA_SIN_FUENTE_CONFIRMADA',
+    'El snapshot no conserva una fuente PILA confirmada para la ubicación laboral; el municipio de la sede del contrato es solo una referencia operativa.',
+  );
+  add(
+    detailRecord,
+    10,
+    'UBICACION_LABORAL_PILA_SIN_FUENTE_CONFIRMADA',
+    'El snapshot no conserva una fuente PILA confirmada para la ubicación laboral; el municipio de la sede del contrato es solo una referencia operativa.',
+  );
   const riskAssignmentRows = Array.isArray(root?.pilaRiskAssignments)
     ? root.pilaRiskAssignments
     : [];

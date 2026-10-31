@@ -438,3 +438,14 @@ verdes al 2026-10-31.
   período ni se intenta corregir reescribiendo el snapshot.
 - El archivo sigue `NO_IMPLEMENTADO`; la validación normativa es preliminar y
   la aceptación por operador no verificada.
+
+### Fuente de ubicación laboral PILA — 2026-10-31
+
+- El snapshot congela el municipio de la sede asociada al contrato, pero esa
+  sede es una referencia operativa y no confirma el lugar laboral para los
+  campos 9–10 de AT2. La matriz y ADR-013 ya delimitaban esta diferencia; el
+  preflight no la aplicaba y podía dar por resueltos esos campos.
+- PR #182 ahora bloquea ambos campos incluso cuando el municipio de la sede
+  tiene un código DIVIPOLA válido. Falta una fuente PILA explícita, confirmada
+  y congelada; hasta que se defina y capture, esos campos no pueden figurar como
+  listos para exportación.
