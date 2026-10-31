@@ -66,7 +66,7 @@ function payload() {
       },
     ],
     payroll: {
-      fechaPrevistaPagoPila: '2026-11-06',
+      fechaPrevistaPagoPila: '2026-11-06' as string | null,
       salarioBasicoCampo40: { valor: 3000000, bloqueos: [] },
       tipoSalario: 'F',
       diasCotizadosPorSubsistema: {
@@ -1032,7 +1032,6 @@ describe('inspectPilaSnapshotPreparation', () => {
         id: 'period-1',
         fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
         fechaFin: new Date('2026-10-31T00:00:00.000Z'),
-        fechaPrevistaPagoPila: new Date('2026-11-06T00:00:00.000Z'),
       },
       snapshots: [
         snapshot('employee-1', 'Ana'),
@@ -1052,6 +1051,7 @@ describe('inspectPilaSnapshotPreparation', () => {
     expect(report.exportReadiness.blockers).not.toContainEqual(
       expect.objectContaining({ code: 'PILA_PAYMENT_DATE_REQUIRED' }),
     );
+    expect(report.period.fechaPrevistaPagoPila).toBe('2026-11-06');
     expect(report.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1070,7 +1070,6 @@ describe('inspectPilaSnapshotPreparation', () => {
         id: 'period-1',
         fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
         fechaFin: new Date('2026-10-31T00:00:00.000Z'),
-        fechaPrevistaPagoPila: null,
       },
       snapshots: [],
     });
@@ -1078,10 +1077,74 @@ describe('inspectPilaSnapshotPreparation', () => {
     expect(report.issues).toEqual([
       expect.objectContaining({ code: 'SNAPSHOTS_APROBADOS_NO_DISPONIBLES' }),
     ]);
-    const paymentDateBlocker = report.exportReadiness.blockers.find(
-      ({ code }) => code === 'PILA_PAYMENT_DATE_REQUIRED',
+    expect(report.exportReadiness.blockers).not.toContainEqual(
+      expect.objectContaining({ code: 'PILA_PAYMENT_DATE_REQUIRED' }),
     );
-    expect(paymentDateBlocker?.scope).toBe('FILE_GENERATION');
-    expect(paymentDateBlocker?.message).toContain('ni modifica el snapshot');
+  });
+
+  it('exige fecha prevista válida en cada snapshot aprobado', () => {
+    const missingDate = snapshot('employee-1', 'Ana');
+    const source = missingDate.payload as ReturnType<typeof payload>;
+    source.payroll.fechaPrevistaPagoPila = null;
+
+    const report = buildPilaPreparationReport({
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [missingDate],
+    });
+
+    expect(report.period.fechaPrevistaPagoPila).toBeNull();
+    expect(report.exportReadiness.blockers).toContainEqual(
+      expect.objectContaining({
+        code: 'PILA_PAYMENT_DATE_REQUIRED',
+        scope: 'FILE_GENERATION',
+      }),
+    );
+  });
+
+  it('rechaza fechas previstas imposibles en snapshots aprobados', () => {
+    const malformedDate = snapshot('employee-1', 'Ana');
+    const source = malformedDate.payload as ReturnType<typeof payload>;
+    source.payroll.fechaPrevistaPagoPila = '2026-02-30';
+
+    const report = buildPilaPreparationReport({
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [malformedDate],
+    });
+
+    expect(report.period.fechaPrevistaPagoPila).toBeNull();
+    expect(report.exportReadiness.blockers).toContainEqual(
+      expect.objectContaining({ code: 'PILA_PAYMENT_DATE_REQUIRED' }),
+    );
+  });
+
+  it('bloquea si los snapshots aprobados tienen fechas previstas diferentes', () => {
+    const secondSnapshot = snapshot('employee-2', 'Luis');
+    const source = secondSnapshot.payload as ReturnType<typeof payload>;
+    source.payroll.fechaPrevistaPagoPila = '2026-11-07';
+
+    const report = buildPilaPreparationReport({
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [snapshot('employee-1', 'Ana'), secondSnapshot],
+    });
+
+    expect(report.period.fechaPrevistaPagoPila).toBeNull();
+    expect(report.exportReadiness.blockers).toContainEqual(
+      expect.objectContaining({
+        code: 'PILA_PAYMENT_DATE_SNAPSHOT_INCONSISTENT',
+        scope: 'FILE_GENERATION',
+      }),
+    );
   });
 });

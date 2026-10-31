@@ -23,6 +23,7 @@ export interface PilaExportReadinessBlocker {
     | 'AT2_FILE_MAPPING_NOT_IMPLEMENTED'
     | 'SOI_OPERATOR_FIELDS_UNCONFIRMED'
     | 'PILA_PAYMENT_DATE_REQUIRED'
+    | 'PILA_PAYMENT_DATE_SNAPSHOT_INCONSISTENT'
     | 'OPERATOR_UPLOAD_NOT_VERIFIED';
   scope: 'FILE_GENERATION' | 'OPERATOR_COMPATIBILITY';
   title: string;
@@ -146,6 +147,22 @@ function safeInteger(value: unknown): value is number {
 
 function fitsNumericField(value: unknown, length: number): value is number {
   return safeInteger(value) && String(value).length <= length;
+}
+
+function validCalendarDate(value: string | null): value is string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return (
+    !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+  );
+}
+
+function snapshotPaymentDate(
+  snapshot: PilaSnapshotPreparationInput,
+): string | null {
+  const payroll = nested(object(snapshot.payload), 'payroll');
+  const value = text(payroll?.fechaPrevistaPagoPila);
+  return validCalendarDate(value) ? value : null;
 }
 
 function validPilaIdentification(type: string, value: string): boolean {
@@ -1261,29 +1278,59 @@ export function buildPilaPreparationReport(input: {
     id: string;
     fechaInicio: Date;
     fechaFin: Date;
-    fechaPrevistaPagoPila: Date | null;
   };
   snapshots: PilaSnapshotPreparationInput[];
 }) {
+  const paymentDates = input.snapshots.map(snapshotPaymentDate);
+  const distinctPaymentDates = new Set(
+    paymentDates.filter((date): date is string => date !== null),
+  );
+  const hasMissingPaymentDate =
+    input.snapshots.length > 0 && paymentDates.some((date) => date === null);
+  const hasConflictingPaymentDates = distinctPaymentDates.size > 1;
+  const snapshotPaymentDateValue =
+    !hasMissingPaymentDate && distinctPaymentDates.size === 1
+      ? [...distinctPaymentDates][0]
+      : null;
   const paymentDateBlocker: PilaExportReadinessBlocker | null =
-    input.period.fechaPrevistaPagoPila === null
+    hasMissingPaymentDate
       ? {
           code: 'PILA_PAYMENT_DATE_REQUIRED',
           scope: 'FILE_GENERATION',
           title: 'Falta la fecha prevista de pago de aportes PILA',
           message:
-            'La nómina aprobada no conserva una fecha prevista de pago PILA. Antes de una futura exportación será necesario confirmar y conservar la fecha junto con la versión normativa aplicable; este informe no genera archivos ni modifica el snapshot.',
+            'Al menos un snapshot aprobado no conserva una fecha prevista de pago PILA válida. La fecha debe quedar congelada en todos los snapshots antes de una futura exportación; este informe no modifica los snapshots.',
           fields: [],
           evidence:
-            'ADR-013 exige seleccionar reglas según el período cotizado y la fecha prevista de pago de aportes PILA.',
+            'ADR-013 establece que la aprobación congela la fecha prevista de pago en el snapshot y que la exportación consume snapshots aprobados.',
         }
       : null;
-  const exportReadiness = paymentDateBlocker
-    ? {
-        ...pilaExportReadiness,
-        blockers: [...pilaExportReadiness.blockers, paymentDateBlocker],
-      }
-    : pilaExportReadiness;
+  const paymentDateConflictBlocker: PilaExportReadinessBlocker | null =
+    hasConflictingPaymentDates
+      ? {
+          code: 'PILA_PAYMENT_DATE_SNAPSHOT_INCONSISTENT',
+          scope: 'FILE_GENERATION',
+          title: 'Los snapshots conservan fechas previstas diferentes',
+          message:
+            'Los snapshots aprobados del período no comparten la misma fecha prevista de pago PILA. La exportación debe detenerse hasta revisar la consistencia de sus fuentes; cambiar la fecha del período no reescribe snapshots aprobados.',
+          fields: [],
+          evidence:
+            'ADR-013 requiere conservar la fecha seleccionada con la evidencia de snapshots aprobados y prohíbe reescribirlos.',
+        }
+      : null;
+  const paymentDateBlockers = [
+    paymentDateBlocker,
+    paymentDateConflictBlocker,
+  ].filter(
+    (blocker): blocker is PilaExportReadinessBlocker => blocker !== null,
+  );
+  const exportReadiness =
+    paymentDateBlockers.length > 0
+      ? {
+          ...pilaExportReadiness,
+          blockers: [...pilaExportReadiness.blockers, ...paymentDateBlockers],
+        }
+      : pilaExportReadiness;
   const totalCotizantes = new Set(
     input.snapshots.map(({ employeeId }) => employeeId),
   ).size;
@@ -1348,8 +1395,7 @@ export function buildPilaPreparationReport(input: {
       id: input.period.id,
       fechaInicio: input.period.fechaInicio.toISOString().slice(0, 10),
       fechaFin: input.period.fechaFin.toISOString().slice(0, 10),
-      fechaPrevistaPagoPila:
-        input.period.fechaPrevistaPagoPila?.toISOString().slice(0, 10) ?? null,
+      fechaPrevistaPagoPila: snapshotPaymentDateValue,
     },
     snapshotsRevisados: assessments.length,
     empleadosConDatosPendientes: employeesWithIssues,

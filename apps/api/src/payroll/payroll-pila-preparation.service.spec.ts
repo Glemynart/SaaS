@@ -40,7 +40,6 @@ describe('PayrollService.getPilaPreparation', () => {
       status: PayrollPeriodStatus.APROBADA,
       fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
       fechaFin: new Date('2026-10-31T00:00:00.000Z'),
-      fechaPrevistaPagoPila: new Date('2026-11-06T00:00:00.000Z'),
     });
     findSnapshots.mockResolvedValue([
       {
@@ -59,7 +58,6 @@ describe('PayrollService.getPilaPreparation', () => {
         status: true,
         fechaInicio: true,
         fechaFin: true,
-        fechaPrevistaPagoPila: true,
       },
     });
     expect(findSnapshots).toHaveBeenCalledWith({
@@ -98,8 +96,13 @@ describe('PayrollService.getPilaPreparation', () => {
             code: 'OPERATOR_UPLOAD_NOT_VERIFIED',
             scope: 'OPERATOR_COMPATIBILITY',
           },
+          {
+            code: 'PILA_PAYMENT_DATE_REQUIRED',
+            scope: 'FILE_GENERATION',
+          },
         ],
       },
+      period: { fechaPrevistaPagoPila: null },
       snapshotsRevisados: 1,
       empleadosConDatosPendientes: 1,
       archivoGenerable: false,
@@ -113,7 +116,6 @@ describe('PayrollService.getPilaPreparation', () => {
       status: PayrollPeriodStatus.BORRADOR,
       fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
       fechaFin: new Date('2026-10-31T00:00:00.000Z'),
-      fechaPrevistaPagoPila: null,
     });
 
     await expect(

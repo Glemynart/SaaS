@@ -758,7 +758,6 @@ export class PayrollService {
         status: true,
         fechaInicio: true,
         fechaFin: true,
-        fechaPrevistaPagoPila: true,
       },
     });
     if (!period) throw new NotFoundException('Período no encontrado');

@@ -430,12 +430,11 @@ verdes al 2026-10-31.
 
 ### Fecha de pago PILA en el preflight — 2026-10-31
 
-- La fecha prevista de pago se mostraba en el período, pero su ausencia no
-  aparecía como bloqueo aunque ADR-013 la requiere para seleccionar reglas
-  cuando dependen de la fecha de pago. El informe ahora agrega un bloqueo de
-  generación cuando no está registrada. Como el panel revisa nóminas aprobadas,
-  explica que una futura exportación debe confirmar y conservar la fecha con la
-  versión normativa aplicable, sin modificar el snapshot aprobado.
-- Con una fecha registrada no agrega ese bloqueo. La generación continúa
-  `NO_IMPLEMENTADO`; la validación normativa sigue preliminar y la aceptación
-  por operador no verificada.
+- La implementación inicial consultaba la fecha del período en el informe,
+  aunque ADR-013 establece que se consume la fecha congelada en snapshots
+  aprobados. El preflight ya deriva la fecha mostrada exclusivamente de esos
+  snapshots, exige una fecha calendario válida en cada uno y bloquea si difieren.
+  Así una ausencia o inconsistencia no se oculta por separado en el dato del
+  período ni se intenta corregir reescribiendo el snapshot.
+- El archivo sigue `NO_IMPLEMENTADO`; la validación normativa es preliminar y
+  la aceptación por operador no verificada.
