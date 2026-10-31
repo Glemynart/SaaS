@@ -1272,7 +1272,7 @@ export function buildPilaPreparationReport(input: {
           scope: 'FILE_GENERATION',
           title: 'Falta la fecha prevista de pago de aportes PILA',
           message:
-            'Sin esa fecha no se puede seleccionar la versión normativa aplicable a los hitos por período y pago. Regístrela antes de aprobar la nómina; este informe no habilita la generación del archivo.',
+            'La nómina aprobada no conserva una fecha prevista de pago PILA. Antes de una futura exportación será necesario confirmar y conservar la fecha junto con la versión normativa aplicable; este informe no genera archivos ni modifica el snapshot.',
           fields: [],
           evidence:
             'ADR-013 exige seleccionar reglas según el período cotizado y la fecha prevista de pago de aportes PILA.',

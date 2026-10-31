@@ -1078,11 +1078,10 @@ describe('inspectPilaSnapshotPreparation', () => {
     expect(report.issues).toEqual([
       expect.objectContaining({ code: 'SNAPSHOTS_APROBADOS_NO_DISPONIBLES' }),
     ]);
-    expect(report.exportReadiness.blockers).toContainEqual(
-      expect.objectContaining({
-        code: 'PILA_PAYMENT_DATE_REQUIRED',
-        scope: 'FILE_GENERATION',
-      }),
+    const paymentDateBlocker = report.exportReadiness.blockers.find(
+      ({ code }) => code === 'PILA_PAYMENT_DATE_REQUIRED',
     );
+    expect(paymentDateBlocker?.scope).toBe('FILE_GENERATION');
+    expect(paymentDateBlocker?.message).toContain('ni modifica el snapshot');
   });
 });
