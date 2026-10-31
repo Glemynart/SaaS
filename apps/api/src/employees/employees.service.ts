@@ -7,6 +7,7 @@ import { AuditService } from '../audit/audit.service';
 import { CreateEmployeeDto, TipoSalarioPila } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeeQueryDto } from './dto/employee-query.dto';
+import { isValidPepTutorDocumentNumber } from '../common/validators/pep-tutor-document-number';
 import { Prisma } from '@prisma/client';
 import {
   TenantPrismaClient,
@@ -167,6 +168,28 @@ export class EmployeesService {
           tenantId,
           id,
         );
+
+        const identityIsChanging =
+          updateDto.cedula !== undefined ||
+          updateDto.tipoDocumento !== undefined;
+        const nextDocumentType =
+          updateDto.tipoDocumento !== undefined
+            ? updateDto.tipoDocumento
+            : currentEmployee.tipoDocumento;
+        const nextDocumentNumber =
+          updateDto.cedula !== undefined
+            ? updateDto.cedula
+            : currentEmployee.cedula;
+
+        if (
+          identityIsChanging &&
+          nextDocumentType === 'PC' &&
+          !isValidPepTutorDocumentNumber(nextDocumentNumber)
+        ) {
+          throw new BadRequestException(
+            'El número PEP-TUTOR (PC) debe contener 7 u 8 dígitos.',
+          );
+        }
 
         if (updateDto.cedula) {
           const existing = await prisma.empleado.findUnique({

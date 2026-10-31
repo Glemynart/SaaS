@@ -908,20 +908,29 @@ false`.
   **ARQUITECTURA DISPONIBLE:** ADR-013, mapper AT2 v30 y matriz versionada; no
   hay exportación PILA ni compatibilidad con operadores habilitadas.
 
-### Casos de días PILA para todos los tamaños de mes — 2026-10-31
+### Validación de identidad PEP-TUTOR y días PILA — PR #218 — 2026-10-31
 
 - Se amplió `pila-source-snapshot.spec.ts` para probar meses calendario de 28,
   29, 30 y 31 días con empleo, contrato y afiliación vigentes durante todo el
   período. Los cuatro subsistemas deben conservar 30 días; un período parcial
   no recibe un candidato.
+- La revisión del alta PEP-TUTOR encontró que `PATCH /employees/:id` podía
+  cambiar el tipo a `PC` conservando un número incompatible o modificar el
+  número sin enviar el tipo. `UpdateEmployeeDto` y `EmployeesService` validan
+  ahora el par efectivo al cambiar cualquiera de los dos campos y rechazan el
+  update antes de escribir.
 - La matriz añade `PILA-AT2-54` y precisa `PILA-AT2-53`: la Resolución 1319
   define el documento PEP-TUTOR numérico de 7–8 dígitos; el campo 4 del
   registro tipo 2 de AT2 v30 admite hasta 16. La validación del documento
   existente permanece en 7–8; no se truncan ni se transforman IDs.
-- Verificación local: 29 pruebas de `pila-source-snapshot.spec.ts`, ESLint del
-  archivo y typecheck de API pasan; `git diff --check` pasa. El cambio cubre
-  reglas y pruebas locales, no habilita descarga ni declara compatibilidad con
-  operadores.
+- Verificación local posterior a la consolidación: 29 pruebas de
+  `pila-source-snapshot.spec.ts`, además de suites de identidad, empleados e
+  importación; typecheck y ESLint de API/web. La prueba focalizada de este fix y
+  los checks de formato se ejecutan antes de publicar el head #218. No se
+  habilita descarga PILA ni se declara compatibilidad con operadores.
 - La rama #218 se sincroniza sobre el nuevo head de #213 para conservar su
-  alcance independiente; los checks de su head se solicitarán tras publicar la
+  alcance independiente; sus checks remotos se solicitarán tras publicar la
   actualización.
+- **GOAL ACTIVO:** GOAL-02; GOAL-01 permanece pausado. **ARQUITECTURA
+  DISPONIBLE:** preflight y matriz AT2 v30 versionados; el exportador PILA y
+  las pruebas de carga en operadores siguen pendientes.
