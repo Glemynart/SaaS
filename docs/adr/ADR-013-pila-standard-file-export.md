@@ -261,6 +261,13 @@ conserva su estado anterior.
 
 ## Criterios de aceptación y pruebas normativas de exportación
 
+La matriz detallada del primer MVP, sus casos negativos, sus referencias AT2
+v30 y los hallazgos de código se mantiene en
+[`docs/research/pila/AT2-V30-MVP-ACCEPTANCE-MATRIX.md`](../research/pila/AT2-V30-MVP-ACCEPTANCE-MATRIX.md).
+Ese documento es preparación y criterio de revisión: no declara exportación,
+no aprueba los resultados laborales candidatos ni acredita compatibilidad con
+un operador.
+
 La captura y conservación inmutable de fuentes puede prepararse sin generar un
 archivo. No se implementará el serializador ni se afirmará que un archivo es
 exportable hasta cerrar la matriz contra el anexo consolidado y su vigencia.
