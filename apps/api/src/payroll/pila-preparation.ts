@@ -3,7 +3,10 @@ import {
   PILA_RISK_ACTIVITY_CODES,
 } from './pila-risk-activity-catalog';
 import { PILA_AT2_V30_RECORD_LAYOUTS } from './pila-at2-v30-record-serializer';
-import { mapPilaAt2V30DetailCandidate } from './pila-at2-v30-detail-mapper';
+import {
+  mapPilaAt2V30DetailCandidate,
+  PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS,
+} from './pila-at2-v30-detail-mapper';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -39,24 +42,8 @@ export interface PilaExportReadinessBlocker {
   evidence: string;
 }
 
-export interface PilaDetailContributionCandidateStatus {
-  fieldNumber:
-    | 46
-    | 47
-    | 54
-    | 55
-    | 57
-    | 58
-    | 59
-    | 60
-    | 61
-    | 63
-    | 64
-    | 65
-    | 66
-    | 67
-    | 68
-    | 69;
+export interface PilaDetailFieldCandidateStatus {
+  fieldNumber: number;
   candidateEmployees: number;
   pendingEmployees: number;
   pendingReasons: Array<{
@@ -1527,8 +1514,8 @@ function deduplicateIssues(
 function summarizePilaDetailFieldCandidates(
   snapshots: PilaSnapshotPreparationInput[],
   assessments: PilaSnapshotPreparation[],
-  fields: readonly PilaDetailContributionCandidateStatus['fieldNumber'][],
-): PilaDetailContributionCandidateStatus[] {
+  fields: readonly PilaDetailFieldCandidateStatus['fieldNumber'][],
+): PilaDetailFieldCandidateStatus[] {
   const snapshotsPerEmployee = new Map<string, number>();
   for (const snapshot of snapshots) {
     snapshotsPerEmployee.set(
@@ -1737,6 +1724,11 @@ export function buildPilaPreparationReport(input: {
     assessments,
     [57, 58, 59, 60],
   );
+  const detailAbsentEventCandidates = summarizePilaDetailFieldCandidates(
+    input.snapshots,
+    assessments,
+    PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS,
+  );
   const grouped = new Map<
     string,
     PilaPreparationIssue & {
@@ -1802,6 +1794,7 @@ export function buildPilaPreparationReport(input: {
     empleadosSinBrechasDetectadas: assessments.length - employeesWithIssues,
     detailContributionCandidates,
     detailNoEventFieldCandidates,
+    detailAbsentEventCandidates,
     issues,
     archivoGenerable: false as const,
     estadoArchivo: 'NO_IMPLEMENTADO' as const,

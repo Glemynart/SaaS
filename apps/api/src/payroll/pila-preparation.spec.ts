@@ -1722,6 +1722,40 @@ describe('inspectPilaSnapshotPreparation', () => {
         }),
       ]),
     );
+    expect(report.detailAbsentEventCandidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldNumber: 15,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 30,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 80,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 94,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 22,
+          candidateEmployees: 0,
+          pendingEmployees: 2,
+        }),
+        expect.objectContaining({
+          fieldNumber: 28,
+          candidateEmployees: 0,
+          pendingEmployees: 2,
+        }),
+      ]),
+    );
     expect(report.archivoGenerable).toBe(false);
   });
 
@@ -1755,6 +1789,16 @@ describe('inspectPilaSnapshotPreparation', () => {
       'sin novedades ni eventos PILA',
     );
     expect(status?.pendingReasons[0]?.affectedEmployees).toEqual(['Ana Demo']);
+    for (const fieldNumber of [15, 30, 80, 94]) {
+      expect(
+        report.detailAbsentEventCandidates.find(
+          (candidate) => candidate.fieldNumber === fieldNumber,
+        ),
+      ).toMatchObject({
+        candidateEmployees: 0,
+        pendingEmployees: 1,
+      });
+    }
   });
 
   it('does not choose a detail candidate when an employee has duplicate snapshots', () => {
