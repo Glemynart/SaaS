@@ -129,7 +129,9 @@ function setStandardCcfEmployer(
   snapshotInput: PilaSnapshotPreparationInput,
   overrides: {
     claseAportante?: string;
+    beneficioLey1429?: boolean | null;
     beneficioCcfLey1429?: boolean | null;
+    naturalezaJuridica?: string;
     tipoAportante?: string;
   } = {},
 ) {
@@ -138,10 +140,15 @@ function setStandardCcfEmployer(
   };
   Object.assign(payload.employer.pila, {
     claseAportante: overrides.claseAportante ?? 'B',
+    beneficioLey1429:
+      overrides.beneficioLey1429 === undefined
+        ? false
+        : overrides.beneficioLey1429,
     beneficioCcfLey1429:
       overrides.beneficioCcfLey1429 === undefined
         ? false
         : overrides.beneficioCcfLey1429,
+    naturalezaJuridica: overrides.naturalezaJuridica ?? '2',
     tipoAportante: overrides.tipoAportante ?? '1',
   });
 }
@@ -409,7 +416,9 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       64: { value: '0.04000' },
       63: { value: 20_900 },
       65: { value: 80_000 },
+      66: { value: '0.02000' },
       67: { value: 40_000 },
+      68: { value: '0.03000' },
       69: { value: 60_000 },
     });
     expect(candidate.normativeRuleVersions.arlInitialRate).toBe(
@@ -420,6 +429,12 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     );
     expect(candidate.normativeRuleVersions.ccfRate).toBe(
       'CO_CCF_STANDARD_RATE_L21_ART11_12_V1',
+    );
+    expect(candidate.normativeRuleVersions.senaRate).toBe(
+      'CO_SENA_STANDARD_RATE_L21_ART12_V1',
+    );
+    expect(candidate.normativeRuleVersions.icbfRate).toBe(
+      'CO_ICBF_STANDARD_RATE_L89_ART1_V1',
     );
   });
 
@@ -580,6 +595,8 @@ describe('mapPilaAt2V30DetailCandidate', () => {
 
     const candidate = mapPilaAt2V30DetailCandidate(input);
 
+    expect(candidate.values[66]).toEqual({ value: '0.02000' });
+    expect(candidate.values[68]).toEqual({ value: '0.03000' });
     for (const fieldNumber of [65, 67, 69]) {
       expect(candidate.values[fieldNumber]).toBeUndefined();
       expect(
@@ -655,11 +672,13 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     );
   });
 
-  it('does not map SENA or ICBF amounts when employer exemption is declared', () => {
+  it('keeps SENA and ICBF blocked for an exempt employer, including a high-salary employee', () => {
     const input = snapshot();
     const payload = payloadOf(input);
     const employer = (input.payload as { employer: Record<string, unknown> })
       .employer;
+    payload.employee.salario = 20_000_000;
+    employer.aportesExonerados = true;
     (employer.pila as Record<string, unknown>).aportesExoneradosConfirmado =
       true;
     payload.payroll.concepts = [
@@ -683,12 +702,158 @@ describe('mapPilaAt2V30DetailCandidate', () => {
 
     expect(candidate.values[67]).toBeUndefined();
     expect(candidate.values[69]).toBeUndefined();
+    expect(candidate.values[66]).toBeUndefined();
+    expect(candidate.values[68]).toBeUndefined();
+  });
+
+  it('does not map SENA or ICBF candidates without an explicit non-exemption declaration', () => {
+    const input = snapshot();
+    const payload = payloadOf(input);
+    const employer = (input.payload as { employer: Record<string, unknown> })
+      .employer;
+    employer.aportesExonerados = false;
+    setStandardCcfEmployer(input);
+    payload.payroll.concepts = [
+      {
+        codigo: 'SENA',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.02,
+        valor: 40_000,
+      },
+      {
+        codigo: 'ICBF',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.03,
+        valor: 60_000,
+      },
+    ];
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    for (const fieldNumber of [66, 67, 68, 69]) {
+      expect(candidate.values[fieldNumber]).toBeUndefined();
+      expect(
+        candidate.unresolvedFields.find(
+          (field) => field.fieldNumber === fieldNumber,
+        )?.reason,
+      ).toContain('declaración expresa y coherente de no exoneración');
+    }
+  });
+
+  it.each([
+    ['class C', { claseAportante: 'C' }, 'clase A/B'],
+    ['class D', { claseAportante: 'D' }, 'clase A/B'],
+    [
+      'declared Law 1429 benefit',
+      { claseAportante: 'B', beneficioLey1429: true },
+      'Ley 1429',
+    ],
+    [
+      'missing Law 1429 declaration',
+      { claseAportante: 'B', beneficioLey1429: null },
+      'declarar explícitamente',
+    ],
+    [
+      'missing employer type',
+      { claseAportante: 'B', tipoAportante: '' },
+      'aportante empleador',
+    ],
+    [
+      'public employer',
+      { claseAportante: 'B', naturalezaJuridica: '1' },
+      'empleadores privados',
+    ],
+    [
+      'mixed employer',
+      { claseAportante: 'B', naturalezaJuridica: '3' },
+      'empleadores privados',
+    ],
+  ] as const)(
+    'blocks standard SENA and ICBF rates for %s',
+    (_case, employerOverrides, expectedReason) => {
+      const input = snapshot();
+      const payload = payloadOf(input);
+      const employer = (input.payload as { employer: Record<string, unknown> })
+        .employer;
+      employer.aportesExonerados = false;
+      setStandardCcfEmployer(input, employerOverrides);
+      (employer.pila as Record<string, unknown>).aportesExoneradosConfirmado =
+        false;
+      payload.payroll.concepts = [
+        {
+          codigo: 'SENA',
+          tipo: 'EMPLOYER_CONTRIBUTION',
+          base: 2_000_000,
+          factor: 0.02,
+          valor: 40_000,
+        },
+        {
+          codigo: 'ICBF',
+          tipo: 'EMPLOYER_CONTRIBUTION',
+          base: 2_000_000,
+          factor: 0.03,
+          valor: 60_000,
+        },
+      ];
+
+      const candidate = mapPilaAt2V30DetailCandidate(input);
+
+      for (const fieldNumber of [66, 67, 68, 69]) {
+        expect(candidate.values[fieldNumber]).toBeUndefined();
+        expect(
+          candidate.unresolvedFields.find(
+            (field) => field.fieldNumber === fieldNumber,
+          )?.reason,
+        ).toContain(expectedReason);
+      }
+    },
+  );
+
+  it('blocks SENA and ICBF rates and amounts when Payroll factors differ from the standard rates', () => {
+    const input = snapshot();
+    const payload = payloadOf(input);
+    const employer = (input.payload as { employer: Record<string, unknown> })
+      .employer;
+    employer.aportesExonerados = false;
+    setStandardCcfEmployer(input);
+    (employer.pila as Record<string, unknown>).aportesExoneradosConfirmado =
+      false;
+    payload.payroll.concepts = [
+      {
+        codigo: 'SENA',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.01,
+        valor: 20_000,
+      },
+      {
+        codigo: 'ICBF',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.02,
+        valor: 40_000,
+      },
+    ];
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    for (const fieldNumber of [66, 67, 68, 69]) {
+      expect(candidate.values[fieldNumber]).toBeUndefined();
+      expect(
+        candidate.unresolvedFields.find(
+          (field) => field.fieldNumber === fieldNumber,
+        )?.reason,
+      ).toContain('no coincide con la tarifa estándar versionada');
+    }
   });
 
   it('does not map SENA or ICBF when employer exemption conflicts with PILA confirmation', () => {
     const input = snapshot();
     const payload = payloadOf(input);
     const root = input.payload as { employer: Record<string, unknown> };
+    setStandardCcfEmployer(input);
     root.employer.aportesExonerados = true;
     (
       root.employer.pila as Record<string, unknown>

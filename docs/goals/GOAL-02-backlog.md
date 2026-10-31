@@ -524,8 +524,8 @@ se accedió a demo, staging o producción.
   afiliación, días completos, salario, IBC por subsistema y asignación ARL desde
   un snapshot PILA v2 del mismo empleado/tenant/período. No vuelve a consultar
   maestros ni transforma novedades y no altera importes aprobados.
-- El alcance del mapa cubre campos 1–8, 11–14, 31, 33, 35, 36–45, 61–65,
-  67, 69, 77–78, 95 y 98. Los importes 63/65/67/69 son solo candidatos
+- El alcance del mapa cubre campos 1–8, 11–14, 31, 33, 35, 36–45, 61–69,
+  77–78, 95 y 98. Los importes 63/65/67/69 son solo candidatos
   copiados de un concepto patronal único, con tipo esperado, factor positivo y
   base coincidente. Cada importe requiere además que el valor congelado ya
   coincida con el redondeo PILA versionado al múltiplo de 100 superior; una
@@ -546,7 +546,7 @@ se accedió a demo, staging o producción.
   códigos afiliados, días/base salarial e IBC congelados, ceros iniciales del
   documento/centro, fuentes de concepto únicas y aislamiento del centro ARL.
 - El informe del período muestra por campo cuántos empleados tienen candidato
-  para 61/63/64/65/67/69 y las razones y nombres asociados a los pendientes. Si un
+  para 61/63/64/65/66/67/68/69 y las razones y nombres asociados a los pendientes. Si un
   empleado tiene snapshots duplicados no escoge uno; los candidatos parciales
   no habilitan archivo ni aceptación de operador.
 
@@ -593,6 +593,35 @@ se accedió a demo, staging o producción.
   art. 19 (ejemplo histórico `0.04000`); y [Resolución 2388 de
   2016](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-2388-2016.pdf),
   que derogó la Resolución 1747.
+
+### Tarifas estándar SENA e ICBF candidatas AT2 — 2026-10-31
+
+- Los campos 66/68 usan las reglas versionadas `CO_SENA_STANDARD_RATE_L21_ART12_V1`
+  (2 %) y `CO_ICBF_STANDARD_RATE_L89_ART1_V1` (3 %). El alcance candidato se
+  limita a empleador privado tipo 1, clase A/B, dependiente 01/00 de mes
+  completo, declaración negativa explícita de Ley 1429 y declaración coherente
+  de no exoneración entre política y perfil PILA.
+- La fuente única `SENA`/`ICBF` del snapshot debe conservar el factor legal y
+  una base igual al campo 95. Los campos 67/69 mantienen el importe aprobado
+  solo si ya satisface el redondeo PILA versionado; nunca se calcula ni
+  reemplaza el valor.
+- `0.02000` y `0.03000` son las convenciones decimales históricas de campo de
+  la Resolución 1747/2008, art. 19, hoy derogada. El AT2 v30 confirma el ancho
+  N7 y las reglas de campo, pero se requiere carga de prueba para validar el
+  formato vigente en cada operador.
+- Si el empleador declara exoneración, estos candidatos permanecen bloqueados
+  incluso para un empleado de salario alto: el mapper todavía no valida el
+  umbral individual del artículo 114-1 del Estatuto Tributario. Tampoco admite
+  clases C/D, empleadores no privados, beneficios especiales o ceros por
+  ausencia. No se habilita la descarga.
+- Las pruebas cubren tarifa/factor/base, empleador, naturaleza, clase,
+  beneficio, exoneración, ancho decimal y redondeo; no acreditan compatibilidad
+  con operador.
+- Fuentes: [Ley 21 de 1982, art. 12](https://www1.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=4827),
+  [Ley 89 de 1988, art. 1](https://www.icbf.gov.co/sites/default/files/ley_89_de_1988.pdf),
+  y el ejemplo histórico de campos decimales en el art. 19 de la
+  [Resolución 1747 de 2008](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/Resolucion-1747-de-2008.pdf),
+  derogada por la [Resolución 2388 de 2016](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-2388-2016.pdf).
 
 ### Declaraciones PILA por tipo de documento — 2026-10-31
 

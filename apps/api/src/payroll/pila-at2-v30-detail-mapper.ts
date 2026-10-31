@@ -21,6 +21,12 @@ import {
   getPilaCcfStandardRate,
   PILA_CCF_STANDARD_RATE_RULE_VERSION,
 } from './pila-ccf-standard-rate-catalog';
+import {
+  getPilaIcbfStandardRate,
+  getPilaSenaStandardRate,
+  PILA_ICBF_STANDARD_RATE_RULE_VERSION,
+  PILA_SENA_STANDARD_RATE_RULE_VERSION,
+} from './pila-parafiscal-rate-catalog';
 import type { PilaSnapshotPreparationInput } from './pila-preparation';
 
 type JsonRecord = Record<string, unknown>;
@@ -35,6 +41,8 @@ export interface PilaAt2V30DetailCandidate {
     arlInitialRate: typeof PILA_ARL_INITIAL_RATE_RULE_VERSION | null;
     contributionRounding: typeof PILA_CONTRIBUTION_ROUNDING_RULE_VERSION | null;
     ccfRate: typeof PILA_CCF_STANDARD_RATE_RULE_VERSION | null;
+    senaRate: typeof PILA_SENA_STANDARD_RATE_RULE_VERSION | null;
+    icbfRate: typeof PILA_ICBF_STANDARD_RATE_RULE_VERSION | null;
   };
   values: Partial<Record<number, PilaAt2V30FieldInput>>;
   unresolvedFields: Array<{ fieldNumber: number; reason: string }>;
@@ -194,6 +202,8 @@ export function mapPilaAt2V30DetailCandidate(
         arlInitialRate: null,
         contributionRounding: null,
         ccfRate: null,
+        senaRate: null,
+        icbfRate: null,
       },
       values,
       unresolvedFields: [...reasons].map(([fieldNumber, reason]) => ({
@@ -446,6 +456,8 @@ export function mapPilaAt2V30DetailCandidate(
     periodStart,
   );
   const ccfStandardRate = getPilaCcfStandardRate(periodStart);
+  const senaStandardRate = getPilaSenaStandardRate(periodStart);
+  const icbfStandardRate = getPilaIcbfStandardRate(periodStart);
   const arlInitialRate = riskAssignmentValid ? arlRateByClass : null;
   if (
     riskAssignmentValid &&
@@ -650,6 +662,73 @@ export function mapPilaAt2V30DetailCandidate(
     object(subsystemBases?.cajaCompensacion)?.sourceCount === 1
       ? object(subsystemBases?.cajaCompensacion)
       : null;
+  let parafiscalRateBlockReason: string | null = null;
+  if (!standardFullMonthEmployee) {
+    parafiscalRateBlockReason =
+      'Las tarifas SENA e ICBF solo están definidas aquí para un dependiente 01/00 de mes completo.';
+  } else if (employerPila.tipoAportante !== '1') {
+    parafiscalRateBlockReason =
+      'Falta declarar el aportante empleador requerido para estas tarifas parafiscales.';
+  } else if (
+    employerPila.claseAportante !== 'A' &&
+    employerPila.claseAportante !== 'B'
+  ) {
+    parafiscalRateBlockReason =
+      'Las tarifas candidatas SENA e ICBF solo cubren aportantes clase A/B; las clases C/D requieren reglas especiales fuera del alcance actual.';
+  } else if (employerPila.naturalezaJuridica !== '2') {
+    parafiscalRateBlockReason =
+      'Las tarifas estándar candidatas SENA e ICBF solo cubren empleadores privados; las demás naturalezas requieren validar reglas específicas.';
+  } else if (employerPila.beneficioLey1429 !== false) {
+    parafiscalRateBlockReason =
+      employerPila.beneficioLey1429 === true
+        ? 'El beneficio general de Ley 1429 requiere tarifas y elegibilidad verificadas antes de mapear SENA e ICBF.'
+        : 'Falta declarar explícitamente que no aplica el beneficio general de Ley 1429 para SENA e ICBF.';
+  }
+  const parafiscalBase =
+    otherParafiscalBase?.reglaVersion === 'CO_PARAFISCAL_BASE_V1' &&
+    hasNoBlockers(otherParafiscalBase)
+      ? otherParafiscalBase
+      : null;
+  const mapStandardParafiscalCandidates = (input: {
+    rateFieldNumber: number;
+    amountFieldNumber: number;
+    code: 'SENA' | 'ICBF';
+    base: JsonRecord | null;
+    factor: number | null;
+    fieldValue: string | null;
+    rateRuleAvailable: boolean;
+  }) => {
+    const expectedFactor = parafiscalRateBlockReason
+      ? null
+      : input.rateRuleAvailable
+        ? input.factor
+        : null;
+    const expectedFactorReason =
+      parafiscalRateBlockReason ??
+      `No hay una tarifa ${input.code} versionada aplicable al período congelado.`;
+    const expectedFactorMismatchReason = `El factor ${input.code} del snapshot no coincide con la tarifa estándar versionada.`;
+    const contributionCandidate = getContributionAmountCandidate({
+      fieldNumber: input.rateFieldNumber,
+      code: input.code,
+      base: input.base,
+      requireExplicitNonExemption: true,
+      expectedFactor,
+      expectedFactorReason,
+      expectedFactorMismatchReason,
+    });
+    if (contributionCandidate && input.fieldValue) {
+      put(input.rateFieldNumber, input.fieldValue);
+    }
+    mapContributionAmountCandidate({
+      fieldNumber: input.amountFieldNumber,
+      code: input.code,
+      base: input.base,
+      requireExplicitNonExemption: true,
+      expectedFactor,
+      expectedFactorReason,
+      expectedFactorMismatchReason,
+    });
+  };
   let ccfRateBlockReason: string | null = null;
   if (!standardFullMonthEmployee) {
     ccfRateBlockReason =
@@ -700,25 +779,23 @@ export function mapPilaAt2V30DetailCandidate(
     expectedFactorMismatchReason:
       'El factor CAJA del snapshot no coincide con la tarifa CCF estándar versionada.',
   });
-  mapContributionAmountCandidate({
-    fieldNumber: 67,
+  mapStandardParafiscalCandidates({
+    rateFieldNumber: 66,
+    amountFieldNumber: 67,
     code: 'SENA',
-    base:
-      otherParafiscalBase?.reglaVersion === 'CO_PARAFISCAL_BASE_V1' &&
-      hasNoBlockers(otherParafiscalBase)
-        ? otherParafiscalBase
-        : null,
-    requireExplicitNonExemption: true,
+    base: parafiscalBase,
+    factor: senaStandardRate?.factor ?? null,
+    fieldValue: senaStandardRate?.fieldValue ?? null,
+    rateRuleAvailable: senaStandardRate !== null,
   });
-  mapContributionAmountCandidate({
-    fieldNumber: 69,
+  mapStandardParafiscalCandidates({
+    rateFieldNumber: 68,
+    amountFieldNumber: 69,
     code: 'ICBF',
-    base:
-      otherParafiscalBase?.reglaVersion === 'CO_PARAFISCAL_BASE_V1' &&
-      hasNoBlockers(otherParafiscalBase)
-        ? otherParafiscalBase
-        : null,
-    requireExplicitNonExemption: true,
+    base: parafiscalBase,
+    factor: icbfStandardRate?.factor ?? null,
+    fieldValue: icbfStandardRate?.fieldValue ?? null,
+    rateRuleAvailable: icbfStandardRate !== null,
   });
 
   const defaultReason =
@@ -743,6 +820,8 @@ export function mapPilaAt2V30DetailCandidate(
         : null,
       contributionRounding: getPilaContributionRoundingRuleVersion(periodStart),
       ccfRate: getPilaCcfStandardRate(periodStart)?.ruleVersion ?? null,
+      senaRate: senaStandardRate?.ruleVersion ?? null,
+      icbfRate: icbfStandardRate?.ruleVersion ?? null,
     },
     values,
     unresolvedFields,
