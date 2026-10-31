@@ -57,10 +57,10 @@ const pilaExportReadiness: PilaExportReadiness = {
       scope: 'FILE_GENERATION',
       title: 'Falta el mapeo completo y la composición de los archivos',
       message:
-        'El código formatea registros AT2 v30 individuales, pero todavía no mapea todos los campos desde snapshots aprobados ni compone y descarga los archivos tipo 1 y tipo 2.',
+        'El código formatea registros AT2 v30 individuales y tiene un mapeo candidato parcial del aportante tipo 1; todavía no resuelve todos los campos desde snapshots aprobados ni compone y descarga los archivos tipo 1 y tipo 2.',
       fields: [],
       evidence:
-        'El módulo pila-at2-v30-record-serializer.ts solo formatea registros individuales.',
+        'Los módulos pila-at2-v30-record-serializer.ts y pila-at2-v30-employer-mapper.ts dejan pendientes la validación integral y la composición de los archivos.',
     },
     {
       code: 'SOI_OPERATOR_FIELDS_UNCONFIRMED',
