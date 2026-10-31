@@ -98,6 +98,8 @@ describe('empleados PostgreSQL RLS', () => {
     const expectedTenantTables = [
       { tableName: 'afiliaciones_seguridad_social' },
       { tableName: 'empleados' },
+      { tableName: 'pila_asignaciones_centro_trabajo' },
+      { tableName: 'pila_centros_trabajo' },
       { tableName: 'service_premium_batches' },
       { tableName: 'service_premium_lines' },
     ];
