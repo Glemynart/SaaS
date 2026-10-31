@@ -75,6 +75,11 @@ const SUPPORTED_CONTRACT_TYPES = new Set([
   'TERMINO_INDEFINIDO',
   'OBRA_LABOR',
 ]);
+const SUPPORTED_NON_BLOCKING_NOVELTY_TYPES = new Set([
+  'OVERTIME',
+  'SICKNESS',
+  'VACATION',
+]);
 const SUPPORTED_CORRECTION_CONCEPTS = new Set([
   'SALARIO_BASE',
   'BONUS',
@@ -648,19 +653,22 @@ export function calculateServicePremium(input: {
     variableTotal += overtimeValue;
     for (const novelty of snapshot.novelties) {
       const type = novelty.tipo;
-      if (type === 'LICENSE' || type === 'OTHER') {
-        return getBlock(
-          employee,
-          'NOVEDAD_NO_CARACTERIZADA',
-          `La novedad ${String(type)} no tiene subtipo ni tratamiento aprobado para prima.`,
-        );
-      }
       if (type === 'BONUS')
         return getBlock(
           employee,
           'BONIFICACION_SIN_NATURALEZA',
           'Existe una novedad de bonificación sin clasificación salarial explícita.',
         );
+      if (
+        typeof type !== 'string' ||
+        !SUPPORTED_NON_BLOCKING_NOVELTY_TYPES.has(type)
+      ) {
+        return getBlock(
+          employee,
+          'NOVEDAD_NO_CARACTERIZADA',
+          `La novedad ${String(type)} no tiene un tratamiento aprobado para prima.`,
+        );
+      }
     }
     const clippedPeriod = overlap(snapshot.period, base);
     if (clippedPeriod) {

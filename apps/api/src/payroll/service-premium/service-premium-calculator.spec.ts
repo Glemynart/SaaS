@@ -230,7 +230,7 @@ describe('calculateServicePremium', () => {
     });
   });
 
-  it.each(['SICKNESS', 'VACATION'])(
+  it.each(['SICKNESS', 'VACATION', 'OVERTIME'])(
     'mantiene 180 días para novedad %s reconocida por la matriz',
     (tipo) => {
       const result = calculateServicePremium({
@@ -247,18 +247,21 @@ describe('calculateServicePremium', () => {
     },
   );
 
-  it('bloquea licencia sin subtipo y tratamiento aprobados', () => {
-    const result = calculateServicePremium({
-      employee,
-      year: 2026,
-      semester: 1,
-      snapshots: halfYearSnapshots({ novelties: [{ tipo: 'LICENSE' }] }),
-    });
-    expect(result).toMatchObject({
-      status: 'BLOQUEADA',
-      blockCode: 'NOVEDAD_NO_CARACTERIZADA',
-    });
-  });
+  it.each(['LICENSE', 'OTHER', 'SUSPENSION'])(
+    'bloquea la novedad %s si no tiene tratamiento aprobado para prima',
+    (tipo) => {
+      const result = calculateServicePremium({
+        employee,
+        year: 2026,
+        semester: 1,
+        snapshots: halfYearSnapshots({ novelties: [{ tipo }] }),
+      });
+      expect(result).toMatchObject({
+        status: 'BLOQUEADA',
+        blockCode: 'NOVEDAD_NO_CARACTERIZADA',
+      });
+    },
+  );
 
   it('marca salario integral como no aplica', () => {
     const result = calculateServicePremium({
