@@ -26,6 +26,10 @@ const contributionFieldLabels: Record<
   47: 'Cotización obligatoria a pensiones',
   54: 'Tarifa de salud',
   55: 'Cotización obligatoria a salud',
+  57: 'Autorización de incapacidad',
+  58: 'Valor de incapacidad',
+  59: 'Autorización de licencia maternidad/paternidad',
+  60: 'Valor de licencia maternidad',
   61: 'Tarifa inicial de riesgos laborales',
   63: 'Aporte ARL',
   64: 'Tarifa CCF',
@@ -157,6 +161,55 @@ export function PayrollPilaPreparationPanel({
               </ul>
             </section>
           )}
+
+          <section
+            className="rounded-lg border border-border p-4"
+            aria-labelledby="pila-no-event-fields-title"
+          >
+            <h3 id="pila-no-event-fields-title" className="font-medium">
+              Campos IGE/LMA sin novedad
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Blanco y cero solo se proponen cuando el snapshot completo no contiene eventos ni
+              novedades. La captura de valores para IGE/LMA sigue pendiente.
+            </p>
+            <ul className="mt-3 space-y-3">
+              {query.data.detailNoEventFieldCandidates.map((status) => (
+                <li key={status.fieldNumber} className="rounded-md bg-muted/40 px-3 py-2">
+                  <p className="text-sm font-medium">
+                    Campo {status.fieldNumber} · {contributionFieldLabels[status.fieldNumber]}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Con candidato: {status.candidateEmployees}; pendientes:{' '}
+                    {status.pendingEmployees}.
+                  </p>
+                  {status.pendingReasons.length > 0 && (
+                    <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
+                      {status.pendingReasons.map(({ reason, affectedEmployees }, index) => (
+                        <li key={`${status.fieldNumber}-${index}`}>
+                          <p>{reason}</p>
+                          {affectedEmployees.length > 0 && (
+                            <details className="mt-1">
+                              <summary className="cursor-pointer text-primary">
+                                Ver {affectedEmployees.length} empleados afectados
+                              </summary>
+                              <ul className="mt-2 list-inside list-disc">
+                                {affectedEmployees.map((name, employeeIndex) => (
+                                  <li key={`${status.fieldNumber}-${index}-${employeeIndex}`}>
+                                    {name}
+                                  </li>
+                                ))}
+                              </ul>
+                            </details>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
 
           <section
             className="rounded-lg border border-border p-4"

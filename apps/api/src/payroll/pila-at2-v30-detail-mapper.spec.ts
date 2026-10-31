@@ -312,6 +312,64 @@ const invalidRiskAssignmentCases: Array<{
 ];
 
 describe('mapPilaAt2V30DetailCandidate', () => {
+  it('maps fixed incapacity and maternity fields for a complete snapshot without events', () => {
+    const candidate = mapPilaAt2V30DetailCandidate(snapshot());
+
+    expect(candidate.values).toMatchObject({
+      57: { value: null, emptyAs: 'spaces' },
+      58: { value: 0 },
+      59: { value: null, emptyAs: 'spaces' },
+      60: { value: 0 },
+    });
+    expect(candidate.normativeRuleVersions.noBenefitEventFields).toBe(
+      'AT2_V30_NO_IGE_LMA_FIXED_FIELDS_V1',
+    );
+  });
+
+  it('keeps fixed incapacity and maternity fields unresolved when a PILA event exists', () => {
+    const input = snapshot();
+    const payload = payloadOf(input);
+    payload.pilaEvents = [{ codigo: 'IGE' }];
+    payload.payroll.pilaEvents = [{ codigo: 'IGE' }];
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    for (const fieldNumber of [57, 58, 59, 60]) {
+      expect(candidate.values[fieldNumber]).toBeUndefined();
+      expect(
+        candidate.unresolvedFields.find(
+          (field) => field.fieldNumber === fieldNumber,
+        )?.reason,
+      ).toContain('sin novedades ni eventos PILA');
+    }
+    expect(candidate.normativeRuleVersions.noBenefitEventFields).toBeNull();
+  });
+
+  it('does not infer absent incapacity or maternity events from incomplete event data', () => {
+    for (const incompleteSource of [
+      'rootEventList',
+      'payrollEventList',
+      'payrollNovelty',
+    ] as const) {
+      const input = snapshot();
+      const payload = payloadOf(input);
+      if (incompleteSource === 'rootEventList') {
+        payload.pilaEvents = undefined;
+      } else if (incompleteSource === 'payrollEventList') {
+        payload.payroll.pilaEvents = undefined;
+      } else {
+        payload.payroll.novelties = [{ tipo: 'SICKNESS' }];
+      }
+
+      const candidate = mapPilaAt2V30DetailCandidate(input);
+
+      for (const fieldNumber of [57, 58, 59, 60]) {
+        expect(candidate.values[fieldNumber]).toBeUndefined();
+      }
+      expect(candidate.normativeRuleVersions.noBenefitEventFields).toBeNull();
+    }
+  });
+
   it('maps direct identity, affiliation, days, bases, salary and ARL snapshot values', () => {
     const candidate = mapPilaAt2V30DetailCandidate(snapshot());
 

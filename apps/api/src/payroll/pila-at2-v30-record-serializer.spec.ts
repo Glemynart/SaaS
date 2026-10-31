@@ -151,6 +151,30 @@ describe('AT2 v30 fixed-width record formatting', () => {
     ).toBe('DECIMAL_FRACTION');
   });
 
+  it('writes AT2 no-event incapacity and maternity fields as blanks and zeroes', () => {
+    const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
+    const values = completeRecordValues('contributorDetailType2', {
+      57: { value: null, emptyAs: 'spaces' },
+      58: { value: 0 },
+      59: { value: null, emptyAs: 'spaces' },
+      60: { value: 0 },
+    });
+    const record = serializePilaAt2V30Record('contributorDetailType2', values);
+    const fieldStart = (fieldNumber: number) =>
+      layout.fields
+        .filter((field) => field.fieldNumber < fieldNumber)
+        .reduce((total, field) => total + field.length, 0);
+
+    expect(record.slice(fieldStart(57), fieldStart(57) + 15)).toBe(
+      ' '.repeat(15),
+    );
+    expect(record.slice(fieldStart(58), fieldStart(58) + 9)).toBe('000000000');
+    expect(record.slice(fieldStart(59), fieldStart(59) + 15)).toBe(
+      ' '.repeat(15),
+    );
+    expect(record.slice(fieldStart(60), fieldStart(60) + 9)).toBe('000000000');
+  });
+
   it('formats the AT2 field 64 CCF fractional tariff to seven positions', () => {
     const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
     const field64Start = layout.fields

@@ -40,7 +40,23 @@ export interface PilaExportReadinessBlocker {
 }
 
 export interface PilaDetailContributionCandidateStatus {
-  fieldNumber: 46 | 47 | 54 | 55 | 61 | 63 | 64 | 65 | 66 | 67 | 68 | 69;
+  fieldNumber:
+    | 46
+    | 47
+    | 54
+    | 55
+    | 57
+    | 58
+    | 59
+    | 60
+    | 61
+    | 63
+    | 64
+    | 65
+    | 66
+    | 67
+    | 68
+    | 69;
   candidateEmployees: number;
   pendingEmployees: number;
   pendingReasons: Array<{
@@ -1508,11 +1524,11 @@ function deduplicateIssues(
   });
 }
 
-function summarizePilaDetailContributionCandidates(
+function summarizePilaDetailFieldCandidates(
   snapshots: PilaSnapshotPreparationInput[],
   assessments: PilaSnapshotPreparation[],
+  fields: readonly PilaDetailContributionCandidateStatus['fieldNumber'][],
 ): PilaDetailContributionCandidateStatus[] {
-  const fields = [46, 47, 54, 55, 61, 63, 64, 65, 66, 67, 68, 69] as const;
   const snapshotsPerEmployee = new Map<string, number>();
   for (const snapshot of snapshots) {
     snapshotsPerEmployee.set(
@@ -1711,8 +1727,16 @@ export function buildPilaPreparationReport(input: {
   const assessments = input.snapshots.map((snapshot) =>
     inspectPilaSnapshotPreparation({ ...snapshot, totalCotizantes }),
   );
-  const detailContributionCandidates =
-    summarizePilaDetailContributionCandidates(input.snapshots, assessments);
+  const detailContributionCandidates = summarizePilaDetailFieldCandidates(
+    input.snapshots,
+    assessments,
+    [46, 47, 54, 55, 61, 63, 64, 65, 66, 67, 68, 69],
+  );
+  const detailNoEventFieldCandidates = summarizePilaDetailFieldCandidates(
+    input.snapshots,
+    assessments,
+    [57, 58, 59, 60],
+  );
   const grouped = new Map<
     string,
     PilaPreparationIssue & {
@@ -1777,6 +1801,7 @@ export function buildPilaPreparationReport(input: {
     empleadosConDatosPendientes: employeesWithIssues,
     empleadosSinBrechasDetectadas: assessments.length - employeesWithIssues,
     detailContributionCandidates,
+    detailNoEventFieldCandidates,
     issues,
     archivoGenerable: false as const,
     estadoArchivo: 'NO_IMPLEMENTADO' as const,

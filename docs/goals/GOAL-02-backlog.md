@@ -526,7 +526,7 @@ se accedió a demo, staging o producción.
   afiliación, días completos, salario, IBC por subsistema y asignación ARL desde
   un snapshot PILA v2 del mismo empleado/tenant/período. No vuelve a consultar
   maestros ni transforma novedades y no altera importes aprobados.
-- El alcance del mapa cubre campos 1–8, 11–14, 31, 33, 35, 36–45, 46–47, 54–55, 61–69,
+- El alcance del mapa cubre campos 1–8, 11–14, 31, 33, 35, 36–45, 46–47, 54–55, 57–60, 61–69,
   77–78, 95 y 98. Los importes 63/65/67/69 son solo candidatos
   copiados de un concepto patronal único, con tipo esperado, factor positivo y
   base coincidente. Cada importe requiere además que el valor congelado ya
@@ -551,6 +551,22 @@ se accedió a demo, staging o producción.
   para 46/47, 54/55, 61/63/64/65/66/67/68/69 y las razones y nombres asociados a los pendientes. Si un
   empleado tiene snapshots duplicados no escoge uno; los candidatos parciales
   no habilitan archivo ni aceptación de operador.
+
+### Campos IGE/LMA sin eventos candidatos AT2 — 2026-10-31
+
+- `AT2_V30_NO_IGE_LMA_FIXED_FIELDS_V1` representa los campos 57 y 59 en
+  blanco y los campos 58 y 60 en cero solo para un snapshot v2 de mes completo,
+  con días aprobados, arrays de eventos presentes y vacíos, y sin novedades
+  Payroll. AT2 v30 asigna esos valores cuando no hay incapacidad general ni
+  licencia de maternidad/paternidad.
+- Si existe cualquier evento o novedad, faltan arrays de origen, o no se
+  demuestra el mes completo, los cuatro campos quedan pendientes. El código no
+  crea números de autorización ni calcula valores de incapacidad/licencia.
+- El informe API/web muestra conteos y razones por campo 57–60, incluidos los
+  empleados pendientes. El panel mantiene visible que no existe un flujo para
+  capturar importes y autorizaciones de eventos IGE/LMA.
+- El candidato no hace exportable el registro ni verifica aceptación de un
+  operador. El flujo IGE/LMA con datos de prestación permanece pendiente.
 
 ### Salud estándar candidata AT2 — 2026-10-31
 

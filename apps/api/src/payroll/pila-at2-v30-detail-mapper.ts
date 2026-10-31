@@ -40,6 +40,9 @@ import type { PilaSnapshotPreparationInput } from './pila-preparation';
 
 type JsonRecord = Record<string, unknown>;
 
+const PILA_AT2_V30_NO_BENEFIT_EVENT_FIELDS_RULE_VERSION =
+  'AT2_V30_NO_IGE_LMA_FIXED_FIELDS_V1' as const;
+
 export interface PilaAt2V30DetailCandidate {
   formatVersion: typeof PILA_AT2_V30_FORMAT_VERSION;
   supportedSnapshot: boolean;
@@ -54,6 +57,9 @@ export interface PilaAt2V30DetailCandidate {
     icbfRate: typeof PILA_ICBF_STANDARD_RATE_RULE_VERSION | null;
     pensionRate: typeof PILA_PENSION_STANDARD_RATE_RULE_VERSION | null;
     healthRate: typeof PILA_HEALTH_STANDARD_RATE_RULE_VERSION | null;
+    noBenefitEventFields:
+      | typeof PILA_AT2_V30_NO_BENEFIT_EVENT_FIELDS_RULE_VERSION
+      | null;
   };
   values: Partial<Record<number, PilaAt2V30FieldInput>>;
   unresolvedFields: Array<{ fieldNumber: number; reason: string }>;
@@ -217,6 +223,7 @@ export function mapPilaAt2V30DetailCandidate(
         icbfRate: null,
         pensionRate: null,
         healthRate: null,
+        noBenefitEventFields: null,
       },
       values,
       unresolvedFields: [...reasons].map(([fieldNumber, reason]) => ({
@@ -392,6 +399,19 @@ export function mapPilaAt2V30DetailCandidate(
     payroll.pilaEvents.length === 0 &&
     Array.isArray(payroll?.novelties) &&
     payroll.novelties.length === 0;
+
+  if (fullMonthPilaInputsApproved) {
+    blank(57);
+    put(58, 0);
+    blank(59);
+    put(60, 0);
+  } else {
+    const reason =
+      'Los campos 57–60 solo tienen valores fijos en snapshots completos sin novedades ni eventos PILA; la incapacidad o licencia requiere datos aprobados por separado.';
+    for (const fieldNumber of [57, 58, 59, 60]) {
+      unresolved(fieldNumber, reason);
+    }
+  }
 
   const salary = object(payroll?.salarioBasicoCampo40);
   if (
@@ -1149,6 +1169,9 @@ export function mapPilaAt2V30DetailCandidate(
       icbfRate: icbfStandardRate?.ruleVersion ?? null,
       pensionRate: pensionStandardRate?.ruleVersion ?? null,
       healthRate: healthStandardRate?.ruleVersion ?? null,
+      noBenefitEventFields: fullMonthPilaInputsApproved
+        ? PILA_AT2_V30_NO_BENEFIT_EVENT_FIELDS_RULE_VERSION
+        : null,
     },
     values,
     unresolvedFields,
