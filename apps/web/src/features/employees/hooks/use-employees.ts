@@ -1,5 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { employeesApi, type GetEmployeesParams } from '../services/employees-api';
+import {
+  employeesApi,
+  type CreateSocialSecurityAffiliation,
+  type GetEmployeesParams,
+} from '../services/employees-api';
 
 export const employeeKeys = {
   all: ['employees'] as const,
@@ -7,6 +11,8 @@ export const employeeKeys = {
   list: (filters: GetEmployeesParams) => [...employeeKeys.lists(), filters] as const,
   details: () => [...employeeKeys.all, 'detail'] as const,
   detail: (id: string) => [...employeeKeys.details(), id] as const,
+  socialSecurityAffiliations: (id: string) =>
+    [...employeeKeys.details(), id, 'social-security-affiliations'] as const,
 };
 
 export function useEmployees(params: GetEmployeesParams) {
@@ -21,6 +27,39 @@ export function useEmployee(id: string) {
     queryKey: employeeKeys.detail(id),
     queryFn: () => employeesApi.getById(id),
     enabled: !!id,
+  });
+}
+
+export function useSocialSecurityAffiliations(id: string) {
+  return useQuery({
+    queryKey: employeeKeys.socialSecurityAffiliations(id),
+    queryFn: () => employeesApi.getSocialSecurityAffiliations(id),
+    enabled: !!id,
+  });
+}
+
+export function useCreateSocialSecurityAffiliation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { employeeId: string; data: CreateSocialSecurityAffiliation }) =>
+      employeesApi.createSocialSecurityAffiliation(input),
+    onSuccess: (_, { employeeId }) => {
+      queryClient.invalidateQueries({
+        queryKey: employeeKeys.socialSecurityAffiliations(employeeId),
+      });
+    },
+  });
+}
+
+export function useCloseSocialSecurityAffiliation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: employeesApi.closeSocialSecurityAffiliation,
+    onSuccess: (_, { employeeId }) => {
+      queryClient.invalidateQueries({
+        queryKey: employeeKeys.socialSecurityAffiliations(employeeId),
+      });
+    },
   });
 }
 

@@ -18,6 +18,8 @@ describe('empleados PostgreSQL RLS', () => {
   const employeeA = `rls-empleado-a-${suffix}`;
   const employeeB = `rls-empleado-b-${suffix}`;
   const employeeToDelete = `rls-empleado-delete-${suffix}`;
+  const affiliationA = `rls-afiliacion-a-${suffix}`;
+  const affiliationB = `rls-afiliacion-b-${suffix}`;
   const tenantContext = new TenantContextService();
   const prisma = new PrismaService();
   const tenantPrisma = new TenantPrismaService(
@@ -40,6 +42,9 @@ describe('empleados PostgreSQL RLS', () => {
     await prisma.$executeRawUnsafe(
       `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "empleados" TO "${TEST_ROLE}"`,
     );
+    await prisma.$executeRawUnsafe(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "afiliaciones_seguridad_social" TO "${TEST_ROLE}"`,
+    );
 
     await prisma.tenant.createMany({
       data: [
@@ -54,9 +59,18 @@ describe('empleados PostgreSQL RLS', () => {
         employeeData(employeeToDelete, tenantA, '1002'),
       ],
     });
+    await prisma.afiliacionSeguridadSocial.createMany({
+      data: [
+        affiliationData(affiliationA, tenantA, employeeA),
+        affiliationData(affiliationB, tenantB, employeeB),
+      ],
+    });
   });
 
   afterAll(async () => {
+    await prisma.afiliacionSeguridadSocial.deleteMany({
+      where: { tenantId: { in: [tenantA, tenantB] } },
+    });
     await prisma.empleado.deleteMany({
       where: { tenantId: { in: [tenantA, tenantB] } },
     });
@@ -82,12 +96,33 @@ describe('empleados PostgreSQL RLS', () => {
     `;
 
     const expectedTenantTables = [
+      { tableName: 'afiliaciones_seguridad_social' },
       { tableName: 'empleados' },
       { tableName: 'service_premium_batches' },
       { tableName: 'service_premium_lines' },
     ];
     expect(protectedTables).toEqual(expectedTenantTables);
     expect(forcedTables).toEqual(expectedTenantTables);
+  });
+
+  it('allows each tenant to read only its own security affiliation history', async () => {
+    const tenantAAffiliations = await runAsTenant(tenantA, () =>
+      tenantPrisma.execute((client) =>
+        client.afiliacionSeguridadSocial.findMany({
+          where: { id: { in: [affiliationA, affiliationB] } },
+        }),
+      ),
+    );
+    const tenantBAffiliations = await runAsTenant(tenantB, () =>
+      tenantPrisma.execute((client) =>
+        client.afiliacionSeguridadSocial.findMany({
+          where: { id: { in: [affiliationA, affiliationB] } },
+        }),
+      ),
+    );
+
+    expect(tenantAAffiliations.map(({ id }) => id)).toEqual([affiliationA]);
+    expect(tenantBAffiliations.map(({ id }) => id)).toEqual([affiliationB]);
   });
 
   it('allows each tenant to read only its own employees', async () => {
@@ -276,6 +311,29 @@ describe('empleados PostgreSQL RLS', () => {
       cargo: 'Cargo base',
       salario: 1_000_000,
       fechaIngreso: new Date('2026-01-01T00:00:00.000Z'),
+    };
+  }
+
+  function affiliationData(id: string, tenantId: string, empleadoId: string) {
+    return {
+      id,
+      tenantId,
+      empleadoId,
+      tipoCotizanteCodigo: '01',
+      subtipoCotizanteCodigo: null,
+      epsCodigo: 'EPS001',
+      epsNombre: 'EPS de prueba',
+      fondoPensionCodigo: 'AFP001',
+      fondoPensionNombre: 'Fondo de prueba',
+      arlCodigo: 'ARL001',
+      arlNombre: 'ARL de prueba',
+      arlClaseRiesgo: '1',
+      cajaCompensacionCodigo: 'CCF001',
+      cajaCompensacionNombre: 'Caja de prueba',
+      vigenteDesde: new Date('2026-01-01T00:00:00.000Z'),
+      vigenteHasta: null,
+      formatoNormativoVersion: 'AT2_V30',
+      registradoPorId: 'rls-empleados-test-user',
     };
   }
 });

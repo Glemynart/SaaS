@@ -34,6 +34,40 @@ export interface Employee {
   updatedAt: string;
 }
 
+export interface SocialSecurityAffiliation {
+  id: string;
+  tenantId: string;
+  empleadoId: string;
+  tipoCotizanteCodigo: string;
+  subtipoCotizanteCodigo: string | null;
+  epsCodigo: string;
+  epsNombre: string;
+  fondoPensionCodigo: string;
+  fondoPensionNombre: string;
+  arlCodigo: string;
+  arlNombre: string;
+  arlClaseRiesgo: string;
+  cajaCompensacionCodigo: string;
+  cajaCompensacionNombre: string;
+  vigenteDesde: string;
+  vigenteHasta: string | null;
+  formatoNormativoVersion: string;
+  registradoPorId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateSocialSecurityAffiliation = Omit<
+  SocialSecurityAffiliation,
+  | 'id'
+  | 'tenantId'
+  | 'empleadoId'
+  | 'formatoNormativoVersion'
+  | 'registradoPorId'
+  | 'createdAt'
+  | 'updatedAt'
+>;
+
 export interface GetEmployeesParams {
   page?: number;
   limit?: number;
@@ -85,6 +119,40 @@ export const employeesApi = {
 
   getById: async (id: string) => {
     return request<Employee>(`/api/employees/${id}`);
+  },
+
+  getSocialSecurityAffiliations: async (id: string) => {
+    return request<SocialSecurityAffiliation[]>(
+      `/api/employees/${id}/afiliaciones-seguridad-social`,
+    );
+  },
+
+  createSocialSecurityAffiliation: async ({
+    employeeId,
+    data,
+  }: {
+    employeeId: string;
+    data: CreateSocialSecurityAffiliation;
+  }) => {
+    return request<SocialSecurityAffiliation>(
+      `/api/employees/${employeeId}/afiliaciones-seguridad-social`,
+      { method: 'POST', body: JSON.stringify(data) },
+    );
+  },
+
+  closeSocialSecurityAffiliation: async ({
+    employeeId,
+    affiliationId,
+    vigenteHasta,
+  }: {
+    employeeId: string;
+    affiliationId: string;
+    vigenteHasta: string;
+  }) => {
+    return request<SocialSecurityAffiliation>(
+      `/api/employees/${employeeId}/afiliaciones-seguridad-social/${affiliationId}`,
+      { method: 'PATCH', body: JSON.stringify({ vigenteHasta }) },
+    );
   },
 
   create: async (data: Partial<Employee>) => {
