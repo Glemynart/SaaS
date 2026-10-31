@@ -31,6 +31,20 @@ const BILLING_ACCOUNT_ROLES = [
 ] as const;
 const SUPPORTED_IVA_RATES = new Set([0, 5, 19]);
 const COP_ROUNDING = Prisma.Decimal.ROUND_HALF_UP;
+const BILLING_TIME_ZONE = 'America/Bogota';
+
+function businessCalendarDate(date: Date): Date {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: BILLING_TIME_ZONE,
+    calendar: 'gregory',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const part = (type: 'year' | 'month' | 'day') =>
+    Number(parts.find((value) => value.type === type)?.value);
+  return new Date(Date.UTC(part('year'), part('month') - 1, part('day')));
+}
 
 @Injectable()
 export class BillingService {
@@ -459,12 +473,13 @@ export class BillingService {
     );
 
     const fechaEmision = new Date();
+    const fechaContable = businessCalendarDate(fechaEmision);
     const periodo = await tx.periodoContable.findFirst({
       where: {
         tenantId,
         estado: 'ABIERTO',
-        fechaInicio: { lte: fechaEmision },
-        fechaFin: { gte: fechaEmision },
+        fechaInicio: { lte: fechaContable },
+        fechaFin: { gte: fechaContable },
       },
     });
     if (!periodo) {

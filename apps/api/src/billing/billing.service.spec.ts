@@ -29,6 +29,7 @@ describe('BillingService', () => {
   }> = [];
   const invoiceUpdateInputs: unknown[] = [];
   const auditInputs: unknown[] = [];
+  const periodQueryInputs: unknown[] = [];
   const txMock = {
     $queryRaw: jest.fn(),
     invoice: { findFirst: jest.fn(), update: jest.fn() },
@@ -49,6 +50,7 @@ describe('BillingService', () => {
     registeredVoucherInputs.length = 0;
     invoiceUpdateInputs.length = 0;
     auditInputs.length = 0;
+    periodQueryInputs.length = 0;
     tenantPrismaMock.execute.mockImplementation((work: unknown) =>
       (work as (client: typeof txMock) => unknown)(txMock),
     );
@@ -100,6 +102,10 @@ describe('BillingService', () => {
       ledgerMock as unknown as LedgerService,
       auditMock as unknown as AuditService,
     );
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   const invoiceDto = {
@@ -334,7 +340,10 @@ describe('BillingService', () => {
       esCliente: true,
       deletedAt: null,
     });
-    txMock.periodoContable.findFirst.mockResolvedValue({ id: 'period-1' });
+    txMock.periodoContable.findFirst.mockImplementation((input: unknown) => {
+      periodQueryInputs.push(input);
+      return Promise.resolve({ id: 'period-1' });
+    });
     txMock.cuentaSistemaMap.findMany.mockResolvedValue([
       { rol: 'CLIENTES_NACIONALES', cuentaId: 'account-ar' },
       { rol: 'INGRESOS_OPERACIONALES', cuentaId: 'account-revenue' },
@@ -404,6 +413,27 @@ describe('BillingService', () => {
         comprobanteContable: { id: 'voucher-1', numero: 1 },
       }),
     );
+  });
+
+  it('usa la fecha calendario de Bogotá al seleccionar el período contable', async () => {
+    const emittedAt = new Date('2026-11-01T02:30:00.000Z');
+    jest.useFakeTimers().setSystemTime(emittedAt);
+    prepareIssueMocks();
+
+    await service.updateInvoiceStatus('tenant-1', 'user-1', 'invoice-1', {
+      status: PrismaInvoiceStatus.ISSUED,
+    });
+
+    const periodQuery = periodQueryInputs[0];
+    expect(periodQuery).toEqual({
+      where: {
+        tenantId: 'tenant-1',
+        estado: 'ABIERTO',
+        fechaInicio: { lte: new Date('2026-10-31T00:00:00.000Z') },
+        fechaFin: { gte: new Date('2026-10-31T00:00:00.000Z') },
+      },
+    });
+    expect(registeredVoucherInputs[0]?.input.fecha).toEqual(emittedAt);
   });
 
   it('no contabiliza borradores históricos sin snapshots tributarios', async () => {

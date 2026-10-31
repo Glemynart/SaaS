@@ -158,3 +158,13 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   tipo 1/2.
 - No se ejecutó el seed financiero ni se accedió a staging, producción, VPS u
   OCI; no se transmitió información a DIAN/UGPP.
+
+### Fecha calendario en la contabilización de facturas internas — 2026-10-31
+
+- La auditoría de la PR #179 encontró que la búsqueda del período comparaba
+  columnas contables `DATE` con el instante UTC de emisión. En las últimas
+  horas del mes en Colombia ese instante puede caer en el mes siguiente,
+  rechazando una factura que pertenece al período local vigente. El selector
+  usa ahora el día calendario `America/Bogota` mientras conserva el instante
+  de emisión original en factura y comprobante. La prueba cubre 31 de octubre
+  a las 21:30 de Bogotá (ya 1 de noviembre UTC).
