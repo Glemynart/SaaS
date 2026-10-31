@@ -127,6 +127,32 @@ describe('AT2 v30 fixed-width record formatting', () => {
     ).toBe('DECIMAL_FRACTION');
   });
 
+  it.each([
+    [66, '0.02', '0.02000'],
+    [68, '0.03', '0.03000'],
+  ])(
+    'formats the AT2 field %i parafiscal fractional tariff',
+    (fieldNumber, value, expected) => {
+      const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
+      const fieldStart = layout.fields
+        .filter((field) => field.fieldNumber < fieldNumber)
+        .reduce((total, field) => total + field.length, 0);
+      const field = layout.fields.find(
+        (item) => item.fieldNumber === fieldNumber,
+      );
+      const values = completeRecordValues('contributorDetailType2', {
+        [fieldNumber]: { value },
+      });
+      const record = serializePilaAt2V30Record(
+        'contributorDetailType2',
+        values,
+      );
+
+      expect(record.slice(fieldStart, fieldStart + 7)).toBe(expected);
+      expect(field?.numericFormat).toBe('DECIMAL_FRACTION');
+    },
+  );
+
   it.each([0.00522, '0.00522000', '-0.00522', '0.00522X'] as const)(
     'rejects invalid decimal encoding for AT2 field 61: %s',
     (value) => {

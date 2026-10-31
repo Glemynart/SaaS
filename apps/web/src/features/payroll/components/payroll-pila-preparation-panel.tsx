@@ -26,7 +26,9 @@ const contributionFieldLabels: Record<
   63: 'Aporte ARL',
   64: 'Tarifa CCF',
   65: 'Aporte a caja de compensación',
+  66: 'Tarifa SENA',
   67: 'Aporte SENA',
+  68: 'Tarifa ICBF',
   69: 'Aporte ICBF',
 };
 
