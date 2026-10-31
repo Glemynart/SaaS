@@ -126,7 +126,7 @@ export interface PilaExportReadinessBlocker {
 }
 
 export interface PilaDetailContributionCandidateStatus {
-  fieldNumber: 46 | 47 | 54 | 55 | 61 | 63 | 64 | 65 | 66 | 67 | 68 | 69;
+  fieldNumber: 46 | 47 | 54 | 55 | 57 | 58 | 59 | 60 | 61 | 63 | 64 | 65 | 66 | 67 | 68 | 69;
   candidateEmployees: number;
   pendingEmployees: number;
   pendingReasons: Array<{
@@ -155,6 +155,7 @@ export interface PilaPreparationReport {
   empleadosConDatosPendientes: number;
   empleadosSinBrechasDetectadas: number;
   detailContributionCandidates: PilaDetailContributionCandidateStatus[];
+  detailNoEventFieldCandidates: PilaDetailContributionCandidateStatus[];
   issues: PilaPreparationIssue[];
   archivoGenerable: false;
   estadoArchivo: 'NO_IMPLEMENTADO';

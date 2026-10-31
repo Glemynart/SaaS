@@ -1555,7 +1555,63 @@ describe('inspectPilaSnapshotPreparation', () => {
       candidateEmployees: 2,
       pendingEmployees: 0,
     });
+    expect(report.detailNoEventFieldCandidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldNumber: 57,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 58,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 59,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 60,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+      ]),
+    );
     expect(report.archivoGenerable).toBe(false);
+  });
+
+  it('reports IGE/LMA fields as pending when the approved snapshot has an event', () => {
+    const snapshotWithEvent = detailCandidateSnapshot('employee-1', 'Ana');
+    const payload = snapshotWithEvent.payload as {
+      pilaEvents: unknown[];
+      payroll: { pilaEvents: unknown[] };
+    };
+    const event = { codigo: 'IGE', fechaInicio: '2026-10-12' };
+    payload.pilaEvents.push(event);
+    payload.payroll.pilaEvents.push(event);
+
+    const report = buildPilaPreparationReport({
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [snapshotWithEvent],
+    });
+    const status = report.detailNoEventFieldCandidates.find(
+      ({ fieldNumber }) => fieldNumber === 57,
+    );
+
+    expect(status).toMatchObject({
+      candidateEmployees: 0,
+      pendingEmployees: 1,
+    });
+    expect(status?.pendingReasons[0]?.reason).toContain(
+      'sin novedades ni eventos PILA',
+    );
+    expect(status?.pendingReasons[0]?.affectedEmployees).toEqual(['Ana Demo']);
   });
 
   it('does not choose a detail candidate when an employee has duplicate snapshots', () => {
