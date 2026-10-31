@@ -180,6 +180,32 @@ describe('AT2 v30 fixed-width record formatting', () => {
     );
   });
 
+  it('serializes non-applicable standard-dependent fields as blanks', () => {
+    const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
+    const values = completeRecordValues('contributorDetailType2', {
+      32: { value: null, emptyAs: 'spaces' },
+      34: { value: null, emptyAs: 'spaces' },
+      74: { value: null, emptyAs: 'spaces' },
+      75: { value: null, emptyAs: 'spaces' },
+    });
+    const record = serializePilaAt2V30Record('contributorDetailType2', values);
+    const fieldStart = (fieldNumber: number) =>
+      layout.fields
+        .filter((field) => field.fieldNumber < fieldNumber)
+        .reduce((total, field) => total + field.length, 0);
+
+    for (const [fieldNumber, length] of [
+      [32, 6],
+      [34, 6],
+      [74, 2],
+      [75, 16],
+    ]) {
+      expect(
+        record.slice(fieldStart(fieldNumber), fieldStart(fieldNumber) + length),
+      ).toBe(' '.repeat(length));
+    }
+  });
+
   it('formats the AT2 field 64 CCF fractional tariff to seven positions', () => {
     const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
     const field64Start = layout.fields

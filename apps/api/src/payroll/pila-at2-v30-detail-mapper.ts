@@ -44,6 +44,14 @@ const PILA_AT2_V30_NO_BENEFIT_EVENT_FIELDS_RULE_VERSION =
   'AT2_V30_NO_IGE_LMA_FIXED_FIELDS_V1' as const;
 const PILA_AT2_V30_NO_EVENT_NOVELTY_FIELDS_RULE_VERSION =
   'AT2_V30_NO_EVENT_NOVELTY_FIELDS_V1' as const;
+const PILA_AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_RULE_VERSION =
+  'AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_V1' as const;
+const PILA_AT2_V30_NON_COTIZANTE40_PRINCIPAL_FIELDS_RULE_VERSION =
+  'AT2_V30_NON_COTIZANTE40_PRINCIPAL_FIELDS_V1' as const;
+
+export const PILA_AT2_V30_STANDARD_DEPENDENT_EMPTY_FIELD_NUMBERS = [
+  32, 34, 74, 75,
+] as const;
 
 export const PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS = [
   15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 80, 81, 82,
@@ -74,6 +82,12 @@ export interface PilaAt2V30DetailCandidate {
       | null;
     noEventNoveltyFields:
       | typeof PILA_AT2_V30_NO_EVENT_NOVELTY_FIELDS_RULE_VERSION
+      | null;
+    noTransferDestinationFields:
+      | typeof PILA_AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_RULE_VERSION
+      | null;
+    nonCotizante40PrincipalFields:
+      | typeof PILA_AT2_V30_NON_COTIZANTE40_PRINCIPAL_FIELDS_RULE_VERSION
       | null;
   };
   values: Partial<Record<number, PilaAt2V30FieldInput>>;
@@ -240,6 +254,8 @@ export function mapPilaAt2V30DetailCandidate(
         healthRate: null,
         noBenefitEventFields: null,
         noEventNoveltyFields: null,
+        noTransferDestinationFields: null,
+        nonCotizante40PrincipalFields: null,
       },
       values,
       unresolvedFields: [...reasons].map(([fieldNumber, reason]) => ({
@@ -350,12 +366,16 @@ export function mapPilaAt2V30DetailCandidate(
     putText(5, affiliation?.tipoCotizanteCodigo, 'el tipo de cotizante');
     putText(6, affiliation?.subtipoCotizanteCodigo, 'el subtipo del cotizante');
     putText(31, affiliation?.fondoPensionCodigo, 'el fondo de pensión');
+    blank(32);
     putText(33, affiliation?.epsCodigo, 'la EPS');
+    blank(34);
     putText(35, affiliation?.cajaCompensacionCodigo, 'la caja de compensación');
     putText(77, affiliation?.arlCodigo, 'la ARL del cotizante');
     putText(78, affiliation?.arlClaseRiesgo, 'la clase de riesgo afiliada');
+    blank(74);
+    blank(75);
   } else {
-    for (const fieldNumber of [5, 6, 31, 33, 35, 77, 78]) {
+    for (const fieldNumber of [5, 6, 31, 32, 33, 34, 35, 74, 75, 77, 78]) {
       unresolved(
         fieldNumber,
         'Falta una única afiliación dependiente 01/00 que cubra el período.',
@@ -1216,6 +1236,12 @@ export function mapPilaAt2V30DetailCandidate(
         : null,
       noEventNoveltyFields: fullMonthPilaInputsApproved
         ? PILA_AT2_V30_NO_EVENT_NOVELTY_FIELDS_RULE_VERSION
+        : null,
+      noTransferDestinationFields: standardAffiliation
+        ? PILA_AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_RULE_VERSION
+        : null,
+      nonCotizante40PrincipalFields: standardAffiliation
+        ? PILA_AT2_V30_NON_COTIZANTE40_PRINCIPAL_FIELDS_RULE_VERSION
         : null,
     },
     values,

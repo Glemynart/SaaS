@@ -558,8 +558,8 @@ verdes al 2026-10-31.
   afiliación, días completos, salario, IBC por subsistema y asignación ARL desde
   un snapshot PILA v2 del mismo empleado/tenant/período. No vuelve a consultar
   maestros ni transforma novedades y no altera importes aprobados.
-- El alcance del mapa cubre campos 1–8, 11–21, 23–27, 29–31, 33, 35–47,
-  54–55, 57–69, 77–78, 80–94, 95 y 98. Los importes 63/65/67/69 son solo candidatos
+- El alcance del mapa cubre campos 1–8, 11–21, 23–27, 29–47, 54–55, 57–69,
+  74–75, 77–78, 80–94, 95 y 98. Los importes 63/65/67/69 son solo candidatos
   copiados de un concepto patronal único, con tipo esperado, factor positivo y
   base coincidente. Cada importe requiere además que el valor congelado ya
   coincida con el redondeo PILA versionado al múltiplo de 100 superior; una
@@ -621,6 +621,22 @@ verdes al 2026-10-31.
   deshabilitada, la validación local sigue siendo parcial y no se afirma
   compatibilidad con operador. El trabajo está en la rama
   `codex/goal02-pila-empty-novelty-fields`, apilada sobre #202.
+
+### Campos vacíos fijos para dependientes estándar — 2026-10-31
+
+- Para una afiliación dependiente `01`/`00`, el mapper deja en blanco los
+  destinos de traslado 32 y 34, que AT2 v30 asigna vacíos, y los campos 74/75
+  de cotizante principal, que solo se reportan para tipo 40.
+- La ausencia de eventos no es requisito para estos candidatos: el valor vacío
+  proviene de la regla de aplicabilidad de AT2 y del tipo de cotizante congelado.
+  Una afiliación ausente o fuera del MVP deja los cuatro campos pendientes.
+- Las reglas `AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_V1` y
+  `AT2_V30_NON_COTIZANTE40_PRINCIPAL_FIELDS_V1` quedan versionadas. El informe
+  API/web expone estados por campo; las pruebas del serializador verifican sus
+  espacios de longitud fija. No se habilita descarga ni se declara aceptación
+  de operador.
+- Fuente: AT2 v30 pp. 90 y 95–96. El trabajo continúa en la rama
+  `codex/goal02-pila-dependent-empty-fields`, apilada sobre la rama de #203.
 
 ### Salud estándar candidata AT2 — 2026-10-31
 
