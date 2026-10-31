@@ -148,6 +148,15 @@ export interface PilaAt2V30HeaderCandidate {
   }>;
 }
 
+export interface PilaAt2V30EmployerCandidate {
+  formatVersion: 'AT2_V30';
+  supportedSnapshots: boolean;
+  tenantId: string | null;
+  payrollPeriodId: string;
+  values: Partial<Record<number, { value: string | number | null; emptyAs?: 'spaces' | 'zeros' }>>;
+  unresolvedFields: Array<{ fieldNumber: number; reason: string }>;
+}
+
 export interface PilaPreparationReport {
   formatVersion: null;
   normativeSourceStatus: 'RECONCILIATION_PENDING';
@@ -173,6 +182,7 @@ export interface PilaPreparationReport {
   detailStandardDependentEmptyCandidates: PilaDetailFieldCandidateStatus[];
   detailNonExemptCotizanteCandidates: PilaDetailFieldCandidateStatus[];
   detailPrivateEmployerEsapMenCandidates: PilaDetailFieldCandidateStatus[];
+  employerCandidate: PilaAt2V30EmployerCandidate;
   headerCandidate: PilaAt2V30HeaderCandidate;
   issues: PilaPreparationIssue[];
   archivoGenerable: false;

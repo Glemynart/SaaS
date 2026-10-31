@@ -846,3 +846,28 @@ false`.
   AT2 v30 y el mapper versionado permiten continuar cubriendo fuentes y
   validaciones sin afirmar compatibilidad universal. Sigue pendiente la prueba
   de carga por operador antes de declarar compatibilidad.
+
+### Candidatos del aportante tipo 1 en el preflight PILA — 2026-10-31
+
+- La continuación apilada sobre la PR #209 agrega un informe agregado de los
+  34 campos del archivo tipo 1 desde snapshots aprobados. Solo muestra valores
+  comunes cuando cada snapshot PILA v2 identifica el tenant autenticado y
+  coincide exactamente con el período aprobado; cada empleado debe aparecer una sola
+  vez. No completa datos desde el perfil actual del tenant.
+- Valores del aportante diferentes entre snapshots, períodos o tenants
+  inconsistentes y snapshots duplicados bloquean los candidatos afectados; un
+  problema de alcance bloquea el registro completo. Los campos 28/29 y demás
+  fuentes ausentes conservan el motivo de pendiente, sin inferir información
+  asignada por el operador.
+- La pantalla muestra los 34 candidatos y causas pendientes. Esto no valida ni
+  serializa el registro tipo 1, no habilita descargas y no demuestra aceptación
+  de un operador.
+- La verificación local pasó: 133 pruebas API de PILA/preparación/servicio,
+  typecheck y lint de API/web, build de API/web y Browser E2E financiero
+  (1/1) contra PostgreSQL desechable con las 77 migraciones aplicadas. El build
+  web conserva dos advertencias existentes de `<img>` en identidad.
+- **GOAL ACTIVO:** GOAL-02; GOAL-01 permanece pausado. **IMPLEMENTACIÓN
+  BLOQUEADA:** la sincronización y merge ordenado de PR espera recuperación de
+  cuota de GitHub Actions y límites de Vercel. Por instrucción del usuario, los
+  fallos remotos no detienen trabajo local ni la preparación de PRs apiladas;
+  no se fusionan hasta retomar la revisión en orden.

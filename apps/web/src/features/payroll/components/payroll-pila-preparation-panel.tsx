@@ -6,7 +6,6 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { usePayrollPilaPreparation } from '../hooks/use-payroll';
 import type {
-  PilaAt2V30HeaderCandidate,
   PilaDetailFieldCandidateStatus,
   PilaPreparationIssue,
   PayrollPeriodStatus,
@@ -108,7 +107,52 @@ const headerFieldLabels: Record<number, string> = {
   22: 'Código del operador',
 };
 
-function headerCandidateDisplay(candidate: PilaAt2V30HeaderCandidate, fieldNumber: number): string {
+const employerFieldLabels: Record<number, string> = {
+  1: 'Razón social del aportante',
+  2: 'Tipo de documento del aportante',
+  3: 'Número de identificación del aportante',
+  4: 'Dígito de verificación',
+  5: 'Código de sucursal',
+  6: 'Nombre de sucursal',
+  7: 'Clase de aportante',
+  8: 'Naturaleza jurídica',
+  9: 'Tipo de persona',
+  10: 'Forma de presentación',
+  11: 'Dirección del aportante',
+  12: 'Código del municipio',
+  13: 'Código del departamento',
+  14: 'Actividad económica',
+  15: 'Teléfono',
+  16: 'Fax',
+  17: 'Correo electrónico',
+  18: 'Número de documento del representante',
+  19: 'Dígito de verificación del representante',
+  20: 'Tipo de documento del representante',
+  21: 'Primer apellido del representante',
+  22: 'Segundo apellido del representante',
+  23: 'Primer nombre del representante',
+  24: 'Segundo nombre del representante',
+  25: 'Fecha de inicio de situación especial',
+  26: 'Acción especial',
+  27: 'Fecha de fin de situación especial',
+  28: 'Código del operador',
+  29: 'Período de pago',
+  30: 'Tipo de aportante',
+  31: 'Fecha de matrícula mercantil',
+  32: 'Departamento del domicilio principal',
+  33: 'Exoneración de aportes',
+  34: 'Beneficio CCF de Ley 1429',
+};
+
+function candidateDisplay(
+  candidate: {
+    values: Partial<
+      Record<number, { value: string | number | null; emptyAs?: 'spaces' | 'zeros' }>
+    >;
+    unresolvedFields: Array<{ fieldNumber: number; reason: string }>;
+  },
+  fieldNumber: number,
+): string {
   const value = candidate.values[fieldNumber];
   if (value) {
     if (value.value === null) {
@@ -248,6 +292,42 @@ export function PayrollPilaPreparationPanel({
 
           <section
             className="rounded-lg border border-border p-4"
+            aria-labelledby="pila-employer-candidate-title"
+          >
+            <h3 id="pila-employer-candidate-title" className="font-medium">
+              Archivo tipo 1 · aportante · candidatos por campo
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {query.data.employerCandidate.supportedSnapshots
+                ? 'Tenant y período coinciden; se muestran valores candidatos solo cuando todos los snapshots concuerdan.'
+                : 'Se requieren snapshots PILA v2 únicos y consistentes con el tenant y período aprobado.'}{' '}
+              Los datos faltantes o diferentes quedan pendientes. Esta revisión no genera el archivo
+              ni confirma la aceptación de un operador.
+            </p>
+            <details className="mt-3 rounded-md bg-muted/40 px-3 py-2">
+              <summary className="cursor-pointer text-sm font-medium">
+                Ver estado de los 34 campos del aportante
+              </summary>
+              <ol className="mt-3 space-y-2">
+                {Array.from({ length: 34 }, (_, index) => index + 1).map((fieldNumber) => (
+                  <li
+                    key={fieldNumber}
+                    className="rounded-md border border-border px-3 py-2 text-sm"
+                  >
+                    <p className="font-medium">
+                      Campo {fieldNumber} · {employerFieldLabels[fieldNumber]}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      {candidateDisplay(query.data.employerCandidate, fieldNumber)}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            </details>
+          </section>
+
+          <section
+            className="rounded-lg border border-border p-4"
             aria-labelledby="pila-header-candidate-title"
           >
             <h3 id="pila-header-candidate-title" className="font-medium">
@@ -274,7 +354,7 @@ export function PayrollPilaPreparationPanel({
                       Campo {fieldNumber} · {headerFieldLabels[fieldNumber]}
                     </p>
                     <p className="mt-1 text-muted-foreground">
-                      {headerCandidateDisplay(query.data.headerCandidate, fieldNumber)}
+                      {candidateDisplay(query.data.headerCandidate, fieldNumber)}
                     </p>
                   </li>
                 ))}

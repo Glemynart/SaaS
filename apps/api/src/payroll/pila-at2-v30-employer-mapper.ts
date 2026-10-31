@@ -15,6 +15,27 @@ export interface PilaAt2V30EmployerCandidate {
   unresolvedFields: Array<{ fieldNumber: number; reason: string }>;
 }
 
+export interface PilaAt2V30EmployerAggregateCandidate {
+  formatVersion: 'AT2_V30';
+  supportedSnapshots: boolean;
+  tenantId: string | null;
+  payrollPeriodId: string;
+  values: Partial<Record<number, PilaAt2V30FieldInput>>;
+  unresolvedFields: Array<{ fieldNumber: number; reason: string }>;
+}
+
+export interface PilaAt2V30EmployerAggregateInput {
+  expectedTenantId: string | null;
+  period: {
+    id: string;
+    fechaInicio: Date;
+    fechaFin: Date;
+  };
+  snapshots: ReadonlyArray<
+    PilaAt2V30EmployerCandidateInput & { employeeId: string }
+  >;
+}
+
 function object(value: unknown): JsonRecord | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? (value as JsonRecord)
@@ -34,6 +55,33 @@ function calendarDate(value: unknown): string | null {
     date.toISOString().slice(0, 10) === normalized
     ? normalized.replaceAll('-', '')
     : null;
+}
+
+function isoDate(value: Date): string | null {
+  return Number.isNaN(value.getTime())
+    ? null
+    : value.toISOString().slice(0, 10).replaceAll('-', '');
+}
+
+function employerPeriod(snapshot: PilaAt2V30EmployerCandidateInput) {
+  const root = object(snapshot.payload);
+  const employee = object(root?.employee);
+  const employer = object(root?.employer);
+  const period = object(root?.period);
+  return {
+    supported:
+      snapshot.payloadVersion === 2 &&
+      root?.schemaVersion === 2 &&
+      employee !== null &&
+      employer !== null &&
+      object(employer.pila) !== null &&
+      valueText(employee.employeeId) !== null,
+    employeeId: valueText(employee?.employeeId),
+    tenantId: valueText(employer?.tenantId),
+    payrollPeriodId: valueText(period?.payrollPeriodId),
+    fechaInicio: calendarDate(period?.fechaInicio),
+    fechaFin: calendarDate(period?.fechaFin),
+  };
 }
 
 /**
@@ -254,6 +302,144 @@ export function mapPilaAt2V30EmployerCandidate(
     formatVersion: 'AT2_V30',
     supportedSnapshot: true,
     tenantId,
+    values,
+    unresolvedFields,
+  };
+}
+
+/**
+ * Aggregates the type 1 employer record only when every approved snapshot is
+ * structurally tied to the requested tenant period and all employee-level
+ * candidates agree. It never fills gaps from current tenant master data.
+ */
+export function mapPilaAt2V30EmployerAggregateCandidate(
+  input: PilaAt2V30EmployerAggregateInput,
+): PilaAt2V30EmployerAggregateCandidate {
+  const expectedStart = isoDate(input.period.fechaInicio);
+  const expectedEnd = isoDate(input.period.fechaFin);
+  const parsed = input.snapshots.map((snapshot) => ({
+    snapshot,
+    scope: employerPeriod(snapshot),
+    candidate: mapPilaAt2V30EmployerCandidate(snapshot),
+  }));
+  const tenantIds = new Set(
+    parsed
+      .map(({ scope }) => scope.tenantId)
+      .filter((id): id is string => id !== null),
+  );
+  const duplicateEmployee =
+    new Set(parsed.map(({ snapshot }) => snapshot.employeeId)).size !==
+    parsed.length;
+  const scopeReasons: string[] = [];
+
+  if (parsed.length === 0) {
+    scopeReasons.push('No hay snapshots aprobados para este período.');
+  }
+  if (duplicateEmployee) {
+    scopeReasons.push(
+      'Hay más de un snapshot aprobado para el mismo empleado.',
+    );
+  }
+  if (
+    parsed.some(
+      ({ snapshot, scope, candidate }) =>
+        !scope.supported ||
+        !candidate.supportedSnapshot ||
+        !scope.employeeId ||
+        scope.employeeId !== snapshot.employeeId,
+    )
+  ) {
+    scopeReasons.push(
+      'Se requiere un snapshot PILA v2 con empleado y datos congelados del aportante consistentes.',
+    );
+  }
+  if (tenantIds.size !== 1 || parsed.some(({ scope }) => !scope.tenantId)) {
+    scopeReasons.push('Los snapshots no comparten un tenant identificable.');
+  }
+  if (!input.expectedTenantId) {
+    scopeReasons.push(
+      'Falta el contexto del tenant autenticado para confirmar el aportante.',
+    );
+  } else if (
+    tenantIds.size === 1 &&
+    [...tenantIds][0] !== input.expectedTenantId
+  ) {
+    scopeReasons.push(
+      'El tenant congelado en los snapshots no coincide con el tenant autenticado.',
+    );
+  }
+  if (
+    parsed.some(
+      ({ scope }) =>
+        scope.payrollPeriodId !== input.period.id ||
+        scope.fechaInicio !== expectedStart ||
+        scope.fechaFin !== expectedEnd,
+    )
+  ) {
+    scopeReasons.push(
+      'El período congelado en los snapshots no coincide con el período aprobado solicitado.',
+    );
+  }
+
+  const tenantId =
+    tenantIds.size === 1 && [...tenantIds][0] === input.expectedTenantId
+      ? input.expectedTenantId
+      : null;
+  const values: Partial<Record<number, PilaAt2V30FieldInput>> = {};
+  const unresolvedFields: Array<{ fieldNumber: number; reason: string }> = [];
+  const allFields = Array.from({ length: 34 }, (_, index) => index + 1);
+  if (scopeReasons.length > 0) {
+    const reason = [...new Set(scopeReasons)].join(' ');
+    for (const fieldNumber of allFields)
+      unresolvedFields.push({ fieldNumber, reason });
+    return {
+      formatVersion: 'AT2_V30',
+      supportedSnapshots: false,
+      tenantId,
+      payrollPeriodId: input.period.id,
+      values,
+      unresolvedFields,
+    };
+  }
+
+  for (const fieldNumber of allFields) {
+    const candidates = parsed.map(({ candidate }) => ({
+      value: candidate.values[fieldNumber],
+      reason: candidate.unresolvedFields.find(
+        (field) => field.fieldNumber === fieldNumber,
+      )?.reason,
+    }));
+    const first = candidates[0]?.value;
+    if (
+      first &&
+      candidates.every(
+        ({ value }) =>
+          value !== undefined &&
+          value.value === first.value &&
+          value.emptyAs === first.emptyAs,
+      )
+    ) {
+      values[fieldNumber] = { ...first };
+      continue;
+    }
+
+    const reasons = candidates.map(({ reason }) => reason).filter(Boolean);
+    const sameUnresolvedReason =
+      reasons.length === candidates.length &&
+      reasons.every((reason) => reason === reasons[0]);
+    unresolvedFields.push({
+      fieldNumber,
+      reason: sameUnresolvedReason
+        ? reasons[0]!
+        : 'El campo falta o presenta valores diferentes entre los snapshots aprobados.',
+    });
+  }
+
+  return {
+    formatVersion: 'AT2_V30',
+    supportedSnapshots: true,
+    tenantId,
+    payrollPeriodId: input.period.id,
     values,
     unresolvedFields,
   };

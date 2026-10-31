@@ -1494,6 +1494,7 @@ describe('inspectPilaSnapshotPreparation', () => {
 
   it('incluye candidatos de cabecera tipo 2 y sus motivos por campo', () => {
     const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
       period: {
         id: 'period-1',
         fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
@@ -1523,6 +1524,30 @@ describe('inspectPilaSnapshotPreparation', () => {
         expect.objectContaining({
           fieldNumber: 22,
           code: 'AT2_HEADER_FIELD_UNRESOLVED',
+        }),
+      ]),
+    );
+    expect(report.employerCandidate).toMatchObject({
+      formatVersion: 'AT2_V30',
+      supportedSnapshots: true,
+      tenantId: 'tenant-1',
+      payrollPeriodId: 'period-1',
+      values: {
+        1: { value: 'Empresa Demo SAS' },
+        3: { value: '900123456' },
+        13: { value: '11' },
+      },
+    });
+    expect(report.employerCandidate.unresolvedFields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldNumber: 28,
+          reason: 'AT2 asigna el código del operador; no está en el snapshot.',
+        }),
+        expect.objectContaining({
+          fieldNumber: 29,
+          reason:
+            'El período/código de pago lo asigna el operador; no se infiere.',
         }),
       ]),
     );
