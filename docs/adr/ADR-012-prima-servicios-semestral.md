@@ -1,6 +1,6 @@
 # ADR-012 — Liquidación semestral de prima de servicios por lote
 
-- **Estado:** Aprobado con condiciones; prototipo del MVP en la rama de trabajo. La validación laboral independiente sigue pendiente antes de usarlo para liquidaciones operativas o pagos reales.
+- **Estado:** Aprobado con condiciones; el MVP habilita únicamente enero–junio. Julio–diciembre queda excluido hasta validar laboralmente un corte y ajuste. La revisión laboral independiente sigue pendiente antes de liquidaciones operativas o pagos reales.
 - **Fecha:** 2026-10-30.
 - **Goal:** GOAL-02 — Evolución Financiera y Cumplimiento Electrónico.
 - **Responsable:** Producto / Payroll.
@@ -39,8 +39,11 @@ cada cambio de reglas.
   fijo estable y horas extra aprobadas se procesan; conceptos sin naturaleza,
   correcciones no reconstruibles, novedades ambiguas y períodos que cruzan el
   semestre se bloquean.
-- Enero–junio tiene cálculo versionado y casos aritméticos revisados en pruebas;
-  julio–diciembre continúa bloqueado hasta decidir el corte de diciembre.
+- Enero–junio tiene cálculo versionado y casos aritméticos revisados en pruebas.
+  La decisión de alcance del MVP es no calcular ni publicar prima de
+  julio–diciembre: no hay una regla general aprobada para fijar, antes del 20
+  de diciembre, el corte de servicio y remuneración variable del semestre que
+  termina el 31 de diciembre.
 - El preview presenta períodos y conceptos de origen, días, componentes de la
   base, fórmula y resultado. La aprobación congela snapshots y deltas de
   correcciones utilizados; el PDF se publica en Expediente con hash.
@@ -113,23 +116,31 @@ cada cambio de reglas.
     aprobación siguen RBAC. El proceso debe tolerar reintentos sin duplicar
     liquidaciones ni PDFs.
 
-## Alcance inicial recomendado y criterio de corte de diciembre
+## Alcance inicial decidido y criterio de corte de diciembre
 
-El artículo 306 CST fija el primer pago a más tardar el 30 de junio y el
-segundo dentro de los primeros veinte días de diciembre, mientras que la mitad
-del año de servicio termina el 31 de diciembre. La norma establece esas fechas
-de pago, pero no define en el texto una regla técnica para obtener una base
-variable definitiva antes de cerrar diciembre. El sistema tampoco puede
-reconstruir esa base con una nómina futura que aún no está aprobada.
+El artículo 306 CST reconoce 30 días de salario por año, pagados en dos partes:
+la primera a más tardar el 30 de junio y la segunda dentro de los primeros
+veinte días de diciembre; el reconocimiento cubre el semestre trabajado o el
+tiempo proporcional laborado. La jurisprudencia de la Corte Suprema consultada
+también describe los pagos como correspondientes a los semestres de calendario.
+Estas fuentes no fijan una regla general para determinar, antes del 20 de
+diciembre, los días y la base salarial definitivos hasta el 31 de diciembre.
+No es válido resolver esa diferencia proyectando días o conceptos futuros, ni
+usar como regla general un corte presente en un convenio colectivo particular.
 
-**Recomendación de producto para el primer incremento:** habilitar el semestre
-enero–junio y mantener julio–diciembre bloqueado hasta una decisión posterior
-que defina el corte y, si se necesita, el ajuste posterior al cierre. No
-proyectar días ni ingresos futuros ni presentar un cálculo parcial como la
-prima definitiva. El período de diciembre no se resolverá usando una fecha de
-corte tomada de un convenio colectivo particular como si fuera regla general.
-Esta limitación se debe mostrar en producto y no implica que el segundo
-semestre carezca de derecho o de obligación legal.
+**Decisión para el MVP:** habilitar únicamente enero–junio; excluir
+julio–diciembre del cálculo y de la generación del comprobante mientras una
+revisión laboral independiente no apruebe el corte de servicio, la base y el
+tratamiento de un eventual ajuste. El sistema bloquea el segundo semestre y no
+genera proyección ni PDF definitivo. Esta limitación de alcance no elimina ni
+reduce el derecho o la obligación legal; evita emitir un cálculo cuya regla
+no ha sido validada.
+
+La evidencia consultada no define por sí sola un corte técnicamente seguro.
+Esta conclusión describe el alcance del MVP, no afirma que la ley omita toda
+regla aplicable. Para reabrir el semestre se requieren una regla laboral
+revisada y casos esperados aprobados que cubran el pago dentro del plazo legal,
+el período completo y cualquier ajuste posterior.
 
 ## Matriz preliminar de conceptos y novedades
 
@@ -183,9 +194,10 @@ Las pruebas de dominio también cubren tenant cruzado denegado, RBAC, reintento
 idempotente, corrección como versión nueva, PDF con hash/relación a los
 snapshots y preservación del original. Antes de usar la función para una
 liquidación operativa, un responsable de nómina debe confirmar los expected
-values, el tratamiento del aumento de salario fijo, las novedades de
-suspensión/licencia no remunerada y el alcance de diciembre. Mientras tanto,
-el MVP bloquea esos casos y presenta el resultado como sujeto a verificación.
+values, el tratamiento del aumento de salario fijo y las novedades de
+suspensión/licencia no remunerada. La revisión laboral de diciembre debe
+aprobar el corte y cualquier ajuste antes de ampliar el alcance; mientras
+tanto, el segundo semestre queda excluido del MVP.
 
 ## Alcance fuera de esta decisión
 
@@ -224,10 +236,10 @@ el MVP bloquea esos casos y presenta el resultado como sujeto a verificación.
   original nunca se modifica.
 - Los períodos legales son enero–junio y julio–diciembre; el pago se debe
   programar dentro de los vencimientos del artículo 306 (a más tardar 30 de
-  junio y durante los primeros veinte días de diciembre). El MVP recomendado
-  solo habilita enero–junio; el segundo semestre requiere una decisión de corte
-  y eventual ajuste antes de habilitarse. No imputar remuneración futura ni
-  presentar una proyección como valor definitivo.
+  junio y durante los primeros veinte días de diciembre). El MVP solo habilita
+  enero–junio. Julio–diciembre está excluido hasta revisión laboral del corte y
+  ajuste; no imputar remuneración futura ni presentar una proyección como valor
+  definitivo.
 - La tarifa y los conceptos elegibles deben verificarse contra norma vigente y
   el dominio laboral antes del uso operativo, con casos de prueba revisados para
   salario fijo, novedades salariales variables, auxilio de transporte, cambios
@@ -281,3 +293,10 @@ el MVP bloquea esos casos y presenta el resultado como sujeto a verificación.
   salario variable por comisiones, la base de la prima legal se determina con
   el promedio del semestre respectivo; [texto en el Normograma de
   Colpensiones](https://normativa.colpensiones.gov.co/colpens/docs/csj_scl_6506_1994.htm).
+- Corte Suprema de Justicia, Gaceta Judicial CXXXV, n.º 2330–2332 (1970),
+  describe el pago de junio y diciembre como correspondiente a los semestres
+  de calendario; [publicación oficial](https://cortesuprema.gov.co/corte/wp-content/uploads/subpage/GJ/Gaceta%20Judicial/GJ%20CXXXV%20n.%202330-2332%20%281970%29.pdf).
+- Corte Suprema de Justicia, sentencia SL4089-2022, cita para un grupo sujeto
+  a un acuerdo particular factores de prima de Navidad causados entre el 1 de
+  julio y el 30 de noviembre. Ese texto no establece una regla general para
+  todos los trabajadores privados bajo el artículo 306; [sentencia oficial](https://www.cortesuprema.gov.co/corte/wp-content/uploads/relatorias/la/bdic2022/SL4089-2022.pdf).
