@@ -1949,12 +1949,13 @@ describe('inspectPilaSnapshotPreparation', () => {
     expect(field61.pendingReasons[0]?.affectedEmployees).toEqual(['Ana Demo']);
   });
 
-  it.each(['tenant', 'period id', 'period dates'] as const)(
+  it.each(['tenant', 'employee id', 'period id', 'period dates'] as const)(
     'blocks detail candidates when a frozen snapshot %s differs from the requested scope',
     (mismatch) => {
       const source = detailCandidateSnapshot('employee-1', 'Ana');
       const frozen = source.payload as {
         employer: { tenantId: string };
+        employee: { employeeId: string; primerNombre: string };
         period: {
           payrollPeriodId: string;
           fechaInicio: string;
@@ -1963,12 +1964,15 @@ describe('inspectPilaSnapshotPreparation', () => {
       };
       if (mismatch === 'tenant') {
         frozen.employer.tenantId = 'tenant-foreign';
+      } else if (mismatch === 'employee id') {
+        frozen.employee.employeeId = 'employee-foreign';
       } else if (mismatch === 'period id') {
         frozen.period.payrollPeriodId = 'period-foreign';
       } else {
         frozen.period.fechaInicio = '2026-11-01';
         frozen.period.fechaFin = '2026-11-30';
       }
+      frozen.employee.primerNombre = 'Nombre ajeno';
 
       const report = buildPilaPreparationReport({
         tenantId: 'tenant-1',
@@ -1988,11 +1992,16 @@ describe('inspectPilaSnapshotPreparation', () => {
         pendingEmployees: 1,
       });
       expect(field61.pendingReasons[0]?.reason).toContain(
-        'tenant o período congelado en el snapshot no coincide',
+        'tenant, empleado o período congelado en el snapshot no coincide',
       );
       expect(field61.pendingReasons[0]?.affectedEmployees).toEqual([
-        'Ana Demo',
+        'Empleado con alcance no validado',
       ]);
+      expect(
+        report.issues
+          .flatMap((issue) => issue.affectedEmployees)
+          .some((name) => name.includes('Nombre ajeno')),
+      ).toBe(false);
     },
   );
 

@@ -322,12 +322,13 @@ function mapCandidate(input: PilaSnapshotPreparationInput) {
 }
 
 describe('mapPilaAt2V30DetailCandidate', () => {
-  it.each(['tenant', 'period id', 'period dates'] as const)(
+  it.each(['tenant', 'employee id', 'period id', 'period dates'] as const)(
     'blocks every detail candidate when the snapshot %s differs from the approved scope',
     (mismatch) => {
       const input = snapshot();
       const payload = input.payload as {
         employer: { tenantId: string };
+        employee: { employeeId: string };
         period: {
           payrollPeriodId: string;
           fechaInicio: string;
@@ -336,6 +337,8 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       };
       if (mismatch === 'tenant') {
         payload.employer.tenantId = 'tenant-foreign';
+      } else if (mismatch === 'employee id') {
+        payload.employee.employeeId = 'employee-foreign';
       } else if (mismatch === 'period id') {
         payload.period.payrollPeriodId = 'period-foreign';
       } else {
@@ -353,8 +356,14 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       });
 
       expect(candidate.supportedSnapshot).toBe(false);
-      expect(candidate.tenantId).toBeNull();
-      expect(candidate.payrollPeriodId).toBeNull();
+      expect(candidate.scopeMismatch).toBe(true);
+      if (mismatch === 'employee id') {
+        expect(candidate.tenantId).toBe('tenant-1');
+        expect(candidate.payrollPeriodId).toBe('period-1');
+      } else {
+        expect(candidate.tenantId).toBeNull();
+        expect(candidate.payrollPeriodId).toBeNull();
+      }
       expect(candidate.values).toEqual({});
       expect(candidate.unresolvedFields).toHaveLength(98);
       expect(candidate.unresolvedFields).toEqual(

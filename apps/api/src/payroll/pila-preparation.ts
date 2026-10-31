@@ -5,7 +5,6 @@ import {
 import { PILA_AT2_V30_RECORD_LAYOUTS } from './pila-at2-v30-record-serializer';
 import {
   mapPilaAt2V30DetailCandidate,
-  type PilaAt2V30DetailScope,
   PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_FIELD_NUMBERS,
   PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS,
   PILA_AT2_V30_PRIVATE_EMPLOYER_ESAP_MEN_FIELD_NUMBERS,
@@ -1522,7 +1521,10 @@ function summarizePilaDetailFieldCandidates(
   snapshots: PilaSnapshotPreparationInput[],
   assessments: PilaSnapshotPreparation[],
   fields: readonly PilaDetailFieldCandidateStatus['fieldNumber'][],
-  scope: PilaAt2V30DetailScope,
+  candidatesBySnapshot: Map<
+    PilaSnapshotPreparationInput,
+    ReturnType<typeof mapPilaAt2V30DetailCandidate>
+  >,
 ): PilaDetailFieldCandidateStatus[] {
   const snapshotsPerEmployee = new Map<string, number>();
   for (const snapshot of snapshots) {
@@ -1546,7 +1548,7 @@ function summarizePilaDetailFieldCandidates(
       (snapshotsPerEmployee.get(snapshot.employeeId) ?? 0) > 1;
     candidatesByEmployee.set(
       snapshot.employeeId,
-      duplicateSnapshot ? null : mapPilaAt2V30DetailCandidate(snapshot, scope),
+      duplicateSnapshot ? null : (candidatesBySnapshot.get(snapshot) ?? null),
     );
   }
 
@@ -1722,13 +1724,25 @@ export function buildPilaPreparationReport(input: {
   const totalCotizantes = new Set(
     input.snapshots.map(({ employeeId }) => employeeId),
   ).size;
-  const detailScope: PilaAt2V30DetailScope = {
+  const detailScope = {
     expectedTenantId: input.tenantId ?? null,
     period: input.period,
   };
-  const assessments = input.snapshots.map((snapshot) =>
-    inspectPilaSnapshotPreparation({ ...snapshot, totalCotizantes }),
+  const detailCandidatesBySnapshot = new Map(
+    input.snapshots.map((snapshot) => [
+      snapshot,
+      mapPilaAt2V30DetailCandidate(snapshot, detailScope),
+    ]),
   );
+  const assessments = input.snapshots.map((snapshot) => {
+    const assessment = inspectPilaSnapshotPreparation({
+      ...snapshot,
+      totalCotizantes,
+    });
+    return detailCandidatesBySnapshot.get(snapshot)?.scopeMismatch
+      ? { ...assessment, employeeName: 'Empleado con alcance no validado' }
+      : assessment;
+  });
   const detailContributionCandidates = summarizePilaDetailFieldCandidates(
     input.snapshots,
     assessments,
@@ -1747,39 +1761,39 @@ export function buildPilaPreparationReport(input: {
       68,
       69,
     ],
-    detailScope,
+    detailCandidatesBySnapshot,
   );
   const detailNoEventFieldCandidates = summarizePilaDetailFieldCandidates(
     input.snapshots,
     assessments,
     [57, 58, 59, 60],
-    detailScope,
+    detailCandidatesBySnapshot,
   );
   const detailAbsentEventCandidates = summarizePilaDetailFieldCandidates(
     input.snapshots,
     assessments,
     PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS,
-    detailScope,
+    detailCandidatesBySnapshot,
   );
   const detailStandardDependentEmptyCandidates =
     summarizePilaDetailFieldCandidates(
       input.snapshots,
       assessments,
       PILA_AT2_V30_STANDARD_DEPENDENT_EMPTY_FIELD_NUMBERS,
-      detailScope,
+      detailCandidatesBySnapshot,
     );
   const detailNonExemptCotizanteCandidates = summarizePilaDetailFieldCandidates(
     input.snapshots,
     assessments,
     PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_FIELD_NUMBERS,
-    detailScope,
+    detailCandidatesBySnapshot,
   );
   const detailPrivateEmployerEsapMenCandidates =
     summarizePilaDetailFieldCandidates(
       input.snapshots,
       assessments,
       PILA_AT2_V30_PRIVATE_EMPLOYER_ESAP_MEN_FIELD_NUMBERS,
-      detailScope,
+      detailCandidatesBySnapshot,
     );
   const grouped = new Map<
     string,

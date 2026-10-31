@@ -854,10 +854,12 @@ false`.
 - El mapper de detalle ahora exige el tenant autenticado, el ID y el rango de
   fechas del período aprobado antes de proponer candidatos. Si no coinciden,
   mantiene los 98 campos sin candidatos y no retorna identificadores de tenant
-  o período ajenos. Los demás mapeos conservan las fuentes congeladas y no
-  completan valores desde datos maestros actuales.
-- Se agregaron casos negativos para tenant y período en el mapper y en el
-  agregado del informe. La matriz registra el criterio `PILA-AT2-52`. La
+  o período ajenos. El informe tampoco utiliza el nombre del snapshot fuera de
+  alcance para mostrar empleados con brechas. Los demás mapeos conservan las
+  fuentes congeladas y no completan valores desde datos maestros actuales.
+- Se agregaron casos negativos para tenant, ID y fechas del período en el
+  mapper y en el agregado del informe. La matriz registra el criterio
+  `PILA-AT2-52`. La
   descarga sigue deshabilitada y este cambio no afirma compatibilidad con un
   operador.
 - Esta continuación se incorporó a la consolidación PILA de #209–#213 sobre
