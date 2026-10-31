@@ -14,6 +14,7 @@ export const payrollKeys = {
   corrections: (periodId: string) => [...payrollKeys.period(periodId), 'corrections'],
   blocks: (periodId: string) => [...payrollKeys.period(periodId), 'blocks'],
   pilaEvents: (periodId: string) => [...payrollKeys.period(periodId), 'pila-events'],
+  pilaPreparation: (periodId: string) => [...payrollKeys.period(periodId), 'pila-preparation'],
   novelties: () => [...payrollKeys.all, 'novelties'],
   servicePremiums: () => [...payrollKeys.all, 'service-premiums'],
   servicePremium: (id: string) => [...payrollKeys.servicePremiums(), id],
@@ -125,6 +126,14 @@ export function usePayrollPilaEvents(periodId: string) {
     queryKey: payrollKeys.pilaEvents(periodId),
     queryFn: () => payrollApi.getPilaEvents(periodId),
     enabled: !!periodId,
+  });
+}
+
+export function usePayrollPilaPreparation(periodId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: payrollKeys.pilaPreparation(periodId),
+    queryFn: () => payrollApi.getPilaPreparation(periodId),
+    enabled: !!periodId && enabled,
   });
 }
 
