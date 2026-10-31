@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useMe } from '@/features/auth/hooks/use-auth';
 import { Plus, Loader2, Eye, CheckCircle, XCircle } from 'lucide-react';
 
 function cop(n: number) {
@@ -25,6 +26,8 @@ function cop(n: number) {
 }
 
 export default function FacturasPage() {
+  const me = useMe();
+  const canManageInvoiceStatus = me.data?.user.rol === 'ADMIN';
   const [statusFilter, setStatusFilter] = useState('');
   const { data: invoices, isLoading } = useInvoices(statusFilter || undefined);
   const { data: customers } = useCustomers();
@@ -299,6 +302,16 @@ export default function FacturasPage() {
                     {inv.customerRazonSocialSnapshot ?? inv.customer?.razonSocial} —{' '}
                     {cop(inv.total)}
                   </p>
+                  {!canManageInvoiceStatus && inv.status === 'DRAFT' && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      La emisión o cancelación requiere un usuario ADMIN.
+                    </p>
+                  )}
+                  {!canManageInvoiceStatus && inv.status === 'ISSUED' && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      La reversión requiere un usuario ADMIN.
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-1">
                   <Link
@@ -307,7 +320,7 @@ export default function FacturasPage() {
                   >
                     <Eye className="size-3.5" />
                   </Link>
-                  {inv.status === 'DRAFT' && (
+                  {canManageInvoiceStatus && inv.status === 'DRAFT' && (
                     <>
                       <Button
                         variant="ghost"
@@ -329,7 +342,7 @@ export default function FacturasPage() {
                       </Button>
                     </>
                   )}
-                  {inv.status === 'ISSUED' && (
+                  {canManageInvoiceStatus && inv.status === 'ISSUED' && (
                     <Button
                       variant="ghost"
                       size="sm"

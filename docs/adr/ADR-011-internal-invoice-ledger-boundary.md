@@ -71,8 +71,9 @@ La implementación de demo mantiene estas fronteras:
 3. `Customer` se vincula explícitamente a un `Tercero` NIT activo, con rol de cliente, del mismo tenant y con NIT coincidente. No se infiere ni crea silenciosamente el tercero por NIT.
 4. Emitir requiere período abierto, mapeos contables completos y actor autenticado. Billing propaga `userId` desde `CurrentUserPayload` —no del body— y actualiza estado y Ledger en la misma transacción tenant-aware.
 5. La UI muestra comprobante y rechazos; repetir la emisión es idempotente. Cancelar requiere motivo y usa `LedgerService.anular` para un comprobante existente. Las facturas históricas emitidas sin asiento se pueden cancelar con auditoría, sin contabilizarlas ni fabricar un reverso.
-6. La migración es aditiva, usa columnas opcionales para históricos y no hace backfill financiero. Un borrador histórico sin snapshots no se puede emitir: el usuario debe crear una factura nueva.
-7. La migración funciona como expansión de schema: revertir el código puede conservar las columnas añadidas. No se debe ejecutar una migración descendente que borre snapshots o claves de comprobantes después de registrar facturas en Ledger; esas operaciones se corrigen mediante el flujo de cancelación y reverso.
+6. El API permite crear facturas a `ADMIN` y `OPERADOR`, pero reserva los cambios de estado a `ADMIN`. La UI oculta emisión y cancelación/reversión a `OPERADOR` y explica que requieren un administrador; el control del API sigue siendo la autoridad.
+7. La migración es aditiva, usa columnas opcionales para históricos y no hace backfill financiero. Un borrador histórico sin snapshots no se puede emitir: el usuario debe crear una factura nueva.
+8. La migración funciona como expansión de schema: revertir el código puede conservar las columnas añadidas. No se debe ejecutar una migración descendente que borre snapshots o claves de comprobantes después de registrar facturas en Ledger; esas operaciones se corrigen mediante el flujo de cancelación y reverso.
 
 Si el documento electrónico representa una factura interna ya contabilizada, la ruta electrónica deberá enlazar la evidencia con ese mismo hecho y no contabilizar de nuevo la venta. Facturas electrónicas independientes seguirán la regla de ADR-005. La relación entre ambos agregados debe verificarse antes de implementar H2; este ADR no define la emisión fiscal.
 
