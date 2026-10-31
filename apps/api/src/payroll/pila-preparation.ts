@@ -849,6 +849,13 @@ export function inspectPilaSnapshotPreparation(
     employerPila?.codigoArlAportante,
     'Falta el código ARL declarado para el aportante.',
   );
+  validateFieldLength(
+    'CABECERA_TIPO_2',
+    14,
+    employerPila?.codigoArlAportante,
+    6,
+    'código ARL del aportante',
+  );
 
   // Registro tipo 2 por cotizante. Este reporte revisa insumos capturados,
   // no inventa códigos ni completa datos consultando Empleado/Sede actuales.

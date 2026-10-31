@@ -465,3 +465,9 @@ verdes al 2026-10-31.
   `BBB3C2D0486FD7D3934BD640D8E68C60D33686B1604E8EFAA980139FB5686D33`). Esto
   solo mejora un insumo del informe preliminar: el archivo continúa sin
   implementarse y la compatibilidad con operadores no está verificada.
+
+- El mismo cotejo encontró que el código ARL del aportante se exigía, pero no
+  se bloqueaba por exceder las seis posiciones A6 del campo 14 del encabezado
+  tipo 2. El preflight ahora valida ese límite sin truncar ni inferir su
+  catálogo; las pruebas cubren seis posiciones y el exceso. La compatibilidad
+  y convención de carga siguen pendientes de pruebas por operador.

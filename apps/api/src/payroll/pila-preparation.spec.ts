@@ -549,6 +549,39 @@ describe('inspectPilaSnapshotPreparation', () => {
     ).toEqual([]);
   });
 
+  it('bloquea el código ARL del aportante que excede las seis posiciones AT2', () => {
+    const source = payload();
+    source.employer.pila.codigoArlAportante = 'A'.repeat(7);
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'CABECERA_TIPO_2',
+        fieldNumber: 14,
+        code: 'CAMPO_14_LONGITUD_SUPERADA',
+      }),
+    );
+  });
+
+  it('acepta el código ARL del aportante en su longitud máxima de seis posiciones', () => {
+    const source = payload();
+    source.employer.pila.codigoArlAportante = 'A1B2C3';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(
+        ({ record, fieldNumber }) =>
+          record === 'CABECERA_TIPO_2' && fieldNumber === 14,
+      ),
+    ).toEqual([]);
+  });
+
   it.each([
     ['faltante', null],
     ['especial', '01'],
