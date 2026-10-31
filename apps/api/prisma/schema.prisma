@@ -291,6 +291,8 @@ model Tenant {
   userInvitations    UserInvitation[]
   empleados          Empleado[]
   afiliacionesSeguridadSocial AfiliacionSeguridadSocial[]
+  pilaCentrosTrabajo PilaCentroTrabajo[]
+  pilaAsignacionesCentroTrabajo PilaAsignacionCentroTrabajo[]
   sedes              Sede[]
   plantillas         Plantilla[]
   documentTemplates  DocumentTemplate[]
@@ -539,6 +541,7 @@ model Empleado {
   alertas            Alerta[]
   liquidations       Liquidation[]
   afiliacionesSeguridadSocial AfiliacionSeguridadSocial[]
+  asignacionesCentroPila PilaAsignacionCentroTrabajo[]
 
   @@unique([tenantId, cedula])
   @@unique([id, tenantId])
@@ -588,6 +591,68 @@ model AfiliacionSeguridadSocial {
   @@unique([id, tenantId], map: "af_seg_id_tenant_key")
   @@index([tenantId, empleadoId, vigenteDesde], map: "af_seg_tenant_employee_since_idx")
   @@map("afiliaciones_seguridad_social")
+}
+
+// =============================================================================
+// CENTRO DE TRABAJO PILA — Código declarado por el aportante a su ARL
+// =============================================================================
+// No equivale a una sede. El vínculo opcional con Sede es administrativo; el
+// código se conserva como dato declarado por el empleador.
+// =============================================================================
+
+model PilaCentroTrabajo {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  sedeId String?
+  sede   Sede?   @relation(fields: [sedeId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  arlCodigo    String  @db.VarChar(6)
+  codigoCentro String  @db.VarChar(40)
+  nombre       String  @db.VarChar(120)
+  activo       Boolean @default(true)
+
+  asignaciones PilaAsignacionCentroTrabajo[]
+
+  @@unique([id, tenantId], map: "pila_centros_trabajo_id_tenant_key")
+  @@unique([tenantId, arlCodigo, codigoCentro], map: "pila_centros_tenant_arl_code_key")
+  @@index([tenantId, activo], map: "pila_centros_tenant_active_idx")
+  @@index([tenantId, sedeId], map: "pila_centros_tenant_sede_idx")
+  @@map("pila_centros_trabajo")
+}
+
+// =============================================================================
+// ASIGNACIÓN PILA — Centro ARL y actividad con vigencia por empleado
+// =============================================================================
+
+model PilaAsignacionCentroTrabajo {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  empleadoId String
+  empleado   Empleado @relation(fields: [empleadoId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  centroTrabajoId String
+  centroTrabajo   PilaCentroTrabajo @relation(fields: [centroTrabajoId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  codigoActividadEconomica String   @db.VarChar(7)
+  formatoNormativoVersion String   @default("DECRETO_768_2022") @db.VarChar(32)
+  vigenteDesde            DateTime @db.Date
+  vigenteHasta            DateTime? @db.Date
+  registradoPorId         String
+
+  @@unique([id, tenantId], map: "pila_asignaciones_centro_id_tenant_key")
+  @@index([tenantId, empleadoId, vigenteDesde], map: "pila_asignaciones_tenant_employee_since_idx")
+  @@index([tenantId, centroTrabajoId, vigenteDesde], map: "pila_asignaciones_tenant_center_since_idx")
+  @@map("pila_asignaciones_centro_trabajo")
 }
 
 // =============================================================================
@@ -1621,7 +1686,9 @@ model Sede {
   lotes        LoteContrato[]
   empleados    Empleado[]
   centrosCosto CentroCosto[]
+  pilaCentrosTrabajo PilaCentroTrabajo[]
 
+  @@unique([id, tenantId], map: "sedes_id_tenant_key")
   @@index([tenantId, activo])
   @@index([tenantId, municipioId])
   @@map("sedes")

@@ -282,6 +282,19 @@ prueba se detuvo y no se usaron datos de demo/staging/producción. Esta preparac
   evidencia de elegibilidad. La continuación en preparación añade bloqueos
   para los campos 26, 7, 33, 34 y 76, incluidos conteos A/B y consistencia con
   Ley 1429, sin declarar el archivo generable ni ampliar el MVP.
-- ADR-014 continúa propuesta y pendiente de decisión. La implementación de los
-  campos 62 y 98 no inicia hasta recibir esa aprobación; la investigación y
-  preparación independiente del resto de AT2 continúa.
+- ADR-014 adopta la opción B por la delegación general de decisiones del
+  usuario: centro ARL reutilizable, asociación opcional con Sede y asignación
+  fechada de actividad por empleado. La pantalla de empleado captura y
+  conserva esos datos sin inferirlos desde cargo, sede ni afiliación heredada.
+- La migración agrega tablas tenant-safe sin backfill. El snapshot PILA sube a
+  v2 y congela centro, actividad, vigencias, tenant y versión normativa; el
+  lector mantiene compatibilidad con snapshots v1 y los bloquea para campos 62
+  y 98 cuando no tienen datos. Alta y cierre usan historial auditado, bloqueo
+  concurrente por empleado, validación de solapamientos, catálogo y
+  consistencia ARL/clase de riesgo.
+- El catálogo contiene 1.018 códigos extraídos del anexo oficial de Función
+  Pública para Decreto 768/2022, con hash del PDF registrado en código. No se
+  incluyeron descripciones para evitar atribuir texto que la extracción no
+  verificó. Requiere revisión de Nómina con constancias anonimizadas; el campo
+  62 aún necesita comprobar formato AT2/operador. No hay serializador ni
+  compatibilidad de operadores.

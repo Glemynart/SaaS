@@ -69,6 +69,44 @@ export type CreateSocialSecurityAffiliation = Omit<
   | 'updatedAt'
 >;
 
+export interface PilaWorkCenter {
+  id: string;
+  tenantId: string;
+  sedeId: string | null;
+  arlCodigo: string;
+  codigoCentro: string;
+  nombre: string;
+  activo: boolean;
+  sede: { id: string; nombre: string } | null;
+}
+
+export interface PilaWorkAssignment {
+  id: string;
+  tenantId: string;
+  empleadoId: string;
+  centroTrabajoId: string;
+  codigoActividadEconomica: string;
+  formatoNormativoVersion: string;
+  vigenteDesde: string;
+  vigenteHasta: string | null;
+  registradoPorId: string;
+  centroTrabajo: PilaWorkCenter;
+}
+
+export interface CreatePilaWorkCenter {
+  arlCodigo: string;
+  codigoCentro: string;
+  nombre: string;
+  sedeId: string | null;
+}
+
+export interface CreatePilaWorkAssignment {
+  centroTrabajoId: string;
+  codigoActividadEconomica: string;
+  vigenteDesde: string;
+  vigenteHasta: string | null;
+}
+
 export interface GetEmployeesParams {
   page?: number;
   limit?: number;
@@ -155,6 +193,49 @@ export const employeesApi = {
       { method: 'PATCH', body: JSON.stringify({ vigenteHasta }) },
     );
   },
+
+  getPilaWorkCenters: async () => request<PilaWorkCenter[]>('/api/pila-centros-trabajo'),
+
+  createPilaWorkCenter: async (data: CreatePilaWorkCenter) =>
+    request<PilaWorkCenter>('/api/pila-centros-trabajo', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  setPilaWorkCenterStatus: async ({ id, activo }: { id: string; activo: boolean }) =>
+    request<PilaWorkCenter>(`/api/pila-centros-trabajo/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ activo }),
+    }),
+
+  getPilaWorkAssignments: async (employeeId: string) =>
+    request<PilaWorkAssignment[]>(`/api/employees/${employeeId}/asignaciones-centro-pila`),
+
+  createPilaWorkAssignment: async ({
+    employeeId,
+    data,
+  }: {
+    employeeId: string;
+    data: CreatePilaWorkAssignment;
+  }) =>
+    request<PilaWorkAssignment>(`/api/employees/${employeeId}/asignaciones-centro-pila`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  closePilaWorkAssignment: async ({
+    employeeId,
+    assignmentId,
+    vigenteHasta,
+  }: {
+    employeeId: string;
+    assignmentId: string;
+    vigenteHasta: string;
+  }) =>
+    request<PilaWorkAssignment>(
+      `/api/employees/${employeeId}/asignaciones-centro-pila/${assignmentId}`,
+      { method: 'PATCH', body: JSON.stringify({ vigenteHasta }) },
+    ),
 
   create: async (data: Partial<Employee>) => {
     return request<Employee>('/api/employees', {

@@ -1,3 +1,8 @@
+import {
+  PILA_RISK_ACTIVITY_CATALOG_VERSION,
+  PILA_RISK_ACTIVITY_CODES,
+} from './pila-risk-activity-catalog';
+
 type JsonRecord = Record<string, unknown>;
 
 export type PilaPreparationRecord =
@@ -114,7 +119,10 @@ export function inspectPilaSnapshotPreparation(
   const employee = nested(root, 'employee');
   const employeeName = fullName(employee, input.employeeId);
 
-  if (input.payloadVersion !== 1 || root?.schemaVersion !== 1) {
+  const supportedPayloadVersion =
+    (input.payloadVersion === 1 && root?.schemaVersion === 1) ||
+    (input.payloadVersion === 2 && root?.schemaVersion === 2);
+  if (!supportedPayloadVersion) {
     add(
       'SNAPSHOT',
       null,
@@ -590,20 +598,132 @@ export function inspectPilaSnapshotPreparation(
       'Falta el código DIVIPOLA municipal del lugar de trabajo congelado.',
     );
   }
-  add(
-    detailRecord,
-    62,
-    'CENTRO_TRABAJO_SIN_CODIGO_PILA',
-    contract
-      ? 'El contrato y la sede están congelados, pero aún falta el código PILA del centro de trabajo.'
-      : 'Falta el contrato que permite identificar el código PILA del centro de trabajo.',
-  );
-  add(
-    detailRecord,
-    98,
-    'ACTIVIDAD_ARL_SIN_VIGENCIA_PILA',
-    'Falta el código de actividad económica ARL vigente para el cotizante y su lugar de trabajo.',
-  );
+  const riskAssignments = Array.isArray(root?.pilaRiskAssignments)
+    ? root.pilaRiskAssignments
+        .map(object)
+        .filter((value): value is JsonRecord => value !== null)
+    : [];
+  if (riskAssignments.length !== 1) {
+    const multiple = riskAssignments.length > 1;
+    add(
+      detailRecord,
+      62,
+      multiple
+        ? 'CENTRO_TRABAJO_PILA_NO_UNICO'
+        : 'CENTRO_TRABAJO_SIN_CODIGO_PILA',
+      multiple
+        ? 'Hay más de una asignación de centro de trabajo que cruza el período; falta segmentar la planilla.'
+        : contract
+          ? 'El contrato y la sede están congelados, pero falta una única asignación PILA que cubra el período.'
+          : 'Falta el contrato y la asignación de centro PILA que cubren el período.',
+    );
+    add(
+      detailRecord,
+      98,
+      multiple
+        ? 'ACTIVIDAD_ARL_PILA_NO_UNICA'
+        : 'ACTIVIDAD_ARL_SIN_VIGENCIA_PILA',
+      multiple
+        ? 'Hay más de una actividad de riesgos laborales que cruza el período; falta segmentar la planilla.'
+        : 'Falta una única actividad económica ARL vigente durante todo el período.',
+    );
+  } else {
+    const assignment = riskAssignments[0];
+    const center = nested(assignment, 'centroTrabajo');
+    const assignmentStart = date(assignment.vigenteDesde);
+    const assignmentEndValue = assignment.vigenteHasta;
+    const assignmentEnd =
+      assignmentEndValue === null ? null : date(assignmentEndValue);
+    const coversPeriod = Boolean(
+      periodStart &&
+      periodEnd &&
+      assignmentStart &&
+      assignmentStart <= periodStart &&
+      (assignmentEndValue === null ||
+        (assignmentEnd !== null && assignmentEnd >= periodEnd)),
+    );
+    const tenantId = text(employer?.tenantId);
+    const sameTenant =
+      tenantId !== null &&
+      text(assignment.tenantId) === tenantId &&
+      text(center?.tenantId) === tenantId;
+
+    if (!coversPeriod || !sameTenant) {
+      add(
+        detailRecord,
+        62,
+        !sameTenant
+          ? 'CENTRO_TRABAJO_PILA_TENANT_NO_VALIDO'
+          : 'CENTRO_TRABAJO_PILA_NO_CUBRE_PERIODO',
+        !sameTenant
+          ? 'La asignación del centro no pertenece al tenant congelado en el snapshot.'
+          : 'La vigencia del centro PILA no cubre todo el período reportado.',
+      );
+      add(
+        detailRecord,
+        98,
+        !sameTenant
+          ? 'ACTIVIDAD_ARL_PILA_TENANT_NO_VALIDO'
+          : 'ACTIVIDAD_ARL_PILA_NO_CUBRE_PERIODO',
+        !sameTenant
+          ? 'La asignación de actividad ARL no pertenece al tenant congelado en el snapshot.'
+          : 'La vigencia de la actividad económica ARL no cubre todo el período.',
+      );
+    } else {
+      const workCenterCode = text(center?.codigoCentro);
+      if (!workCenterCode) {
+        add(
+          detailRecord,
+          62,
+          'CENTRO_TRABAJO_SIN_CODIGO_PILA',
+          'Falta el código del centro de trabajo declarado por la ARL.',
+        );
+      }
+      if (
+        affiliation &&
+        text(center?.arlCodigo) !== text(affiliation.arlCodigo)
+      ) {
+        add(
+          detailRecord,
+          62,
+          'CENTRO_TRABAJO_ARL_NO_COINCIDE',
+          'La ARL declarada para el centro no coincide con la afiliación congelada.',
+        );
+      } else if (!affiliation) {
+        add(
+          detailRecord,
+          62,
+          'CENTRO_TRABAJO_ARL_NO_VERIFICABLE',
+          'No hay una afiliación única que permita confirmar la ARL del centro.',
+        );
+      }
+
+      const activityCode = text(assignment.codigoActividadEconomica);
+      if (
+        !activityCode ||
+        assignment.formatoNormativoVersion !==
+          PILA_RISK_ACTIVITY_CATALOG_VERSION ||
+        !PILA_RISK_ACTIVITY_CODES.has(activityCode)
+      ) {
+        add(
+          detailRecord,
+          98,
+          'ACTIVIDAD_ARL_NO_VALIDA_CATALOGO_PILA',
+          `El código de actividad no pertenece al catálogo ${PILA_RISK_ACTIVITY_CATALOG_VERSION}.`,
+        );
+      } else if (
+        !affiliation ||
+        activityCode[0] !== text(affiliation.arlClaseRiesgo)
+      ) {
+        add(
+          detailRecord,
+          98,
+          'ACTIVIDAD_ARL_RIESGO_NO_COINCIDE_PILA',
+          'La clase de riesgo incluida en el código de actividad no coincide con la afiliación ARL congelada.',
+        );
+      }
+    }
+  }
 
   const days = nested(payroll, 'diasCotizadosPorSubsistema');
   for (const [field, key, label] of [

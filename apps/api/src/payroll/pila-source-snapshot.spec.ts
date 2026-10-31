@@ -281,7 +281,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(1);
+    expect(result.schemaVersion).toBe(2);
     expect(result.capturedAt).toBe('2026-11-02T15:00:00.000Z');
     expect(result.employee.fechaIngreso).toBe('2026-01-05');
     expect(result.employee.fechaNacimiento).toBeNull();
@@ -352,6 +352,50 @@ describe('PILA source snapshot builders', () => {
       });
     }
     expect(result.employee).not.toHaveProperty('email');
+  });
+
+  it('congela el centro ARL, su tenant, actividad y vigencias en el payload', () => {
+    const input = {
+      ...contextInput,
+      riskAssignments: [
+        {
+          id: 'risk-assignment-1',
+          tenantId: 'tenant-1',
+          codigoActividadEconomica: '1110101',
+          formatoNormativoVersion: 'DECRETO_768_2022',
+          vigenteDesde: new Date('2026-01-01T00:00:00.000Z'),
+          vigenteHasta: null,
+          centroTrabajo: {
+            id: 'pila-center-1',
+            tenantId: 'tenant-1',
+            sedeId: 'site-1',
+            arlCodigo: 'ARL001',
+            codigoCentro: '0001',
+            nombre: 'Centro Barranquilla',
+          },
+        },
+      ],
+    };
+    const result = buildPilaSourceContext(input);
+
+    expect(result.pilaRiskAssignments).toEqual([
+      {
+        assignmentId: 'risk-assignment-1',
+        tenantId: 'tenant-1',
+        codigoActividadEconomica: '1110101',
+        formatoNormativoVersion: 'DECRETO_768_2022',
+        vigenteDesde: '2026-01-01',
+        vigenteHasta: null,
+        centroTrabajo: {
+          centroTrabajoId: 'pila-center-1',
+          tenantId: 'tenant-1',
+          sedeId: 'site-1',
+          arlCodigo: 'ARL001',
+          codigoCentro: '0001',
+          nombre: 'Centro Barranquilla',
+        },
+      },
+    ]);
   });
 
   it('captures 30 days per subsystem for a full-month standard dependent', () => {
