@@ -5,6 +5,7 @@ import {
   IsEnum,
   IsDateString,
   IsNumber,
+  Matches,
 } from 'class-validator';
 import { PayrollPeriodStatus } from '@prisma/client';
 
@@ -28,7 +29,8 @@ export class CreatePayrollPeriodDto {
   @IsNotEmpty()
   fechaFin: string;
 
-  @IsDateString()
+  @IsDateString({ strict: true })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
   @IsOptional()
   fechaPrevistaPagoPila?: string | null;
 }

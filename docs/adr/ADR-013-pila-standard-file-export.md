@@ -90,6 +90,8 @@ categoría inexistente o meramente proyectada.
    base es AT2 v30 y toda norma posterior vigente a la fecha de pago. La
    Resolución 1529 no se vuelve a aplicar por separado sobre v30 para evitar
    duplicar sus cambios consolidados.
+   La fecha prevista se maneja como día calendario YYYY-MM-DD, no como instante
+   ni timestamp con zona horaria; se rechazan timestamps y fechas imposibles.
 5. Antes de descargar, mostrar resumen y errores bloqueantes por trabajador,
    con origen y valor que debe corregirse. Solo un archivo válido se hace
    descargable. Cada exportación registra tenant, período, snapshots fuente,
@@ -144,6 +146,7 @@ aportante.
 | Resolución 1529, pagos PILA desde 1 de octubre de 2026 para pensiones del período septiembre                     | Probar las validaciones/origen actualizados de los campos de identificación del aportante, representante, cotizante y cotizante principal definidos en 5.84; rechazar valores inválidos con el campo exacto.                                                                                                                                       |
 | Resolución 1529, pagos PILA desde 1 de noviembre de 2026 para salud del período noviembre                        | Aplicar el hito normativo; bloquear tipo 75 por estar fuera del MVP y verificar que el caso estándar tipo 1/planilla E sigue usando únicamente sus reglas aprobadas.                                                                                                                                                                               |
 | Hito escalonado futuro o fecha prevista de pago PILA ausente                                                     | Seleccionar reglas por período cotizado y fecha prevista de pago de aportes para la planilla; bloquear si falta la fecha y no se puede determinar una versión única.                                                                                                                                                                               |
+| Entrada de fecha prevista al crear el período                                                                    | Aceptar solo YYYY-MM-DD válido; rechazar timestamps con hora/zona y fechas imposibles; permitir nulo si se desconoce la previsión y conservar esa ausencia en snapshots nuevos.                                                                                                                                                                    |
 | Período/catálogo que cruza una vigencia de formato                                                               | Seleccionar la versión aplicable al período y fecha prevista de pago de aportes PILA o bloquear si se cruzan vigencias sin regla aprobada.                                                                                                                                                                                                         |
 | Estructura física AT2 v30 (§0, §1.1, §2.1.1.1 y §2.1.2.1)                                                        | Con un fixture revisado, producir tipo 1 de 567 caracteres, un encabezado tipo 2 de 359 caracteres y un detalle tipo 2 de 693 caracteres por cotizante; respetar orden de registros, posiciones y padding numérico/alfa-numérico. La codificación, terminadores de línea y empaquetado se confirman por operador antes de declarar compatibilidad. |
 | Integridad del encabezado frente a detalles (AT2 v30 campos 19–20 del registro 01 y campo 45 del registro 02)    | Para un fixture estándar de dependientes tipo 1, el campo 19 coincide con los cotizantes únicos; el campo 20 suma los IBC CCF (campo 45) de quienes deben aportar a CCF y es cero para quienes no están obligados. Bloquear si fuente/snapshot y archivo difieren; no recalcular IBC durante la exportación.                                       |
@@ -541,6 +544,9 @@ la exportación y a cualquier afirmación de compatibilidad.
   `fechaFin` y `fechaPrevistaPagoPila` nullable; el servicio congela esta última
   previsión PILA en el payload del snapshot aprobado. No representa el pago del
   salario ni el pago efectivo de aportes.
+- `apps/api/src/payroll/dto/create-payroll.dto.ts` y su prueba — la fecha
+  prevista de PILA se valida como día calendario estricto y no acepta
+  timestamps ni fechas inválidas.
 - [Página oficial PILA de MinSalud](https://www.minsalud.gov.co/Proteccion-Social/Paginas/pila.aspx)
   enlaza el PDF `anexo-tecnico2-cotizantes.pdf`. La descarga directa revisada
   el 2026-10-30 identifica AT2 v30, 24-07-2026 (336 páginas) e incluye la
