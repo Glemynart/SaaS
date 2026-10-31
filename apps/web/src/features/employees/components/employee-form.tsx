@@ -33,7 +33,8 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
     register,
     handleSubmit,
     reset,
-    formState: { errors },
+    setValue,
+    formState: { errors, dirtyFields },
   } = useForm<EmployeeFormData>({
     resolver: zodResolver(employeeSchema) as unknown as Resolver<EmployeeFormData>,
     defaultValues: {
@@ -103,6 +104,19 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
       });
     }
   }, [initialData, reset]);
+
+  useEffect(() => {
+    const assignedSedeId = initialData?.sedeId;
+    if (
+      !assignedSedeId ||
+      dirtyFields.sedeId ||
+      !sedes?.some((sede) => sede.id === assignedSedeId)
+    ) {
+      return;
+    }
+
+    setValue('sedeId', assignedSedeId);
+  }, [dirtyFields.sedeId, initialData?.sedeId, sedes, setValue]);
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">

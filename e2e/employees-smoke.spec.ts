@@ -45,7 +45,8 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await createDialog.getByRole('button', { name: 'Crear empleado', exact: true }).click();
 
   const search = page.locator('input[aria-label="Buscar empleados"]');
-  const employeeRow = () => page.getByRole('row').filter({ hasText: cedula });
+  let employeeDocument = cedula;
+  const employeeRow = () => page.getByRole('row').filter({ hasText: employeeDocument });
   await expect(employeeRow()).toContainText('Andrea Prueba');
 
   await search.fill(cedula);
@@ -196,6 +197,27 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await page.goto('/empleados');
   await search.fill(cedula);
   await expect(employeeRow()).toContainText('Coordinadora E2E');
+
+  await employeeRow().getByRole('button', { name: 'Editar', exact: true }).click();
+  const pepTutorDialog = page.getByRole('dialog', { name: 'Editar empleado' });
+  await expect(pepTutorDialog.locator('[name="sedeId"]')).toHaveValue(/.+/);
+  await pepTutorDialog.locator('[name="tipoDocumento"]').selectOption('PC');
+  await pepTutorDialog.locator('[name="cedula"]').fill('7654321');
+  const updatePepTutorResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === `/api/employees/${employeeId}` &&
+      response.request().method() === 'PATCH',
+  );
+  await pepTutorDialog.getByRole('button', { name: 'Guardar cambios', exact: true }).click();
+  const updatePepTutorResponse = await updatePepTutorResponsePromise;
+  expect(updatePepTutorResponse.status()).toBe(200);
+
+  employeeDocument = '7654321';
+  await search.fill(employeeDocument);
+  await expect(employeeRow()).toContainText('PC 7654321');
+  await page.reload();
+  await search.fill(employeeDocument);
+  await expect(employeeRow()).toContainText('PC 7654321');
 
   await employeeRow().getByRole('button', { name: 'Desactivar', exact: true }).click();
   const deleteDialog = page.getByRole('alertdialog');
