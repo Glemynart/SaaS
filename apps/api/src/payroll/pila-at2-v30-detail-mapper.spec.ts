@@ -139,6 +139,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       4: { value: '0012345678' },
       5: { value: '01' },
       6: { value: '00' },
+      7: { value: null, emptyAs: 'spaces' },
       11: { value: 'Pérez' },
       12: { value: null, emptyAs: 'spaces' },
       13: { value: 'Ana' },
@@ -163,10 +164,37 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       98: { value: riskActivityCode },
     });
     expect(candidate.values[46]).toBeUndefined();
+    expect(candidate.values[8]).toBeUndefined();
     expect(
       candidate.unresolvedFields.map(({ fieldNumber }) => fieldNumber),
-    ).toEqual(expect.arrayContaining([46, 47, 48, 76, 96, 97]));
+    ).toEqual(expect.arrayContaining([8, 46, 47, 48, 76, 96, 97]));
   });
+
+  it.each(['CC', 'TI'])(
+    'does not flag document type %s as foreign, but keeps residence abroad unresolved',
+    (documentType) => {
+      const input = snapshot();
+      payloadOf(input).employee.tipoDocumento = documentType;
+
+      const candidate = mapPilaAt2V30DetailCandidate(input);
+
+      expect(candidate.values[7]).toEqual({ value: null, emptyAs: 'spaces' });
+      expect(candidate.values[8]).toBeUndefined();
+    },
+  );
+
+  it.each(['CE', 'PA'])(
+    'keeps the foreign pension exemption unresolved for document type %s',
+    (documentType) => {
+      const input = snapshot();
+      payloadOf(input).employee.tipoDocumento = documentType;
+
+      const candidate = mapPilaAt2V30DetailCandidate(input);
+
+      expect(candidate.values[7]).toBeUndefined();
+      expect(candidate.values[8]).toEqual({ value: null, emptyAs: 'spaces' });
+    },
+  );
 
   it('does not map days or affiliations for a nonstandard cotizante', () => {
     const input = snapshot();

@@ -216,6 +216,37 @@ export function mapPilaAt2V30DetailCandidate(
   putText(3, employee?.tipoDocumento, 'el tipo de documento del cotizante');
   putText(4, employee?.cedula, 'la identificación del cotizante');
   if (standardAffiliation) {
+    const documentType = sourceText(employee?.tipoDocumento);
+    if (documentType === 'CC' || documentType === 'TI') {
+      // AT2 v30 only allows the foreign pension exemption flag for foreign IDs.
+      blank(7);
+      unresolved(
+        8,
+        'Falta confirmar si el cotizante CC/TI es colombiano en el exterior.',
+      );
+    } else if (documentType === 'CE' || documentType === 'PA') {
+      unresolved(
+        7,
+        'Falta confirmar si el cotizante extranjero está exento de pensión.',
+      );
+      // AT2 v30 only allows the abroad flag for Colombian CC/TI documents.
+      blank(8);
+    } else {
+      unresolved(7, 'Falta un tipo de documento soportado para el campo 7.');
+      unresolved(8, 'Falta un tipo de documento soportado para el campo 8.');
+    }
+  } else {
+    unresolved(
+      7,
+      'Falta una afiliación dependiente 01/00 que cubra el período.',
+    );
+    unresolved(
+      8,
+      'Falta una afiliación dependiente 01/00 que cubra el período.',
+    );
+  }
+
+  if (standardAffiliation) {
     putText(5, affiliation?.tipoCotizanteCodigo, 'el tipo de cotizante');
     putText(6, affiliation?.subtipoCotizanteCodigo, 'el subtipo del cotizante');
     putText(31, affiliation?.fondoPensionCodigo, 'el fondo de pensión');
