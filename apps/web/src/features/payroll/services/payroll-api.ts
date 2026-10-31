@@ -112,6 +112,7 @@ export interface PilaExportReadinessBlocker {
   code:
     | 'AT2_FILE_MAPPING_NOT_IMPLEMENTED'
     | 'SOI_OPERATOR_FIELDS_UNCONFIRMED'
+    | 'PILA_PAYMENT_DATE_REQUIRED'
     | 'OPERATOR_UPLOAD_NOT_VERIFIED';
   scope: 'FILE_GENERATION' | 'OPERATOR_COMPATIBILITY';
   title: string;

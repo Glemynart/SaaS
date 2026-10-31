@@ -427,3 +427,14 @@ verdes al 2026-10-31.
   El preflight ahora reporta bloqueos explícitos para las filas inválidas de
   afiliación, centro de trabajo y actividad económica; no activa generación de
   archivos ni cambia el estado global `NO_IMPLEMENTADO`.
+
+### Fecha de pago PILA en el preflight — 2026-10-31
+
+- La fecha prevista de pago se mostraba en el período, pero su ausencia no
+  aparecía como bloqueo aunque ADR-013 la requiere para seleccionar reglas
+  cuando dependen de la fecha de pago. El informe ahora agrega un bloqueo de
+  generación cuando no está registrada y explica que debe quedar definida antes
+  de aprobar la nómina.
+- Con una fecha registrada no agrega ese bloqueo. La generación continúa
+  `NO_IMPLEMENTADO`; la validación normativa sigue preliminar y la aceptación
+  por operador no verificada.

@@ -1049,6 +1049,9 @@ describe('inspectPilaSnapshotPreparation', () => {
       archivoGenerable: false,
       estadoArchivo: 'NO_IMPLEMENTADO',
     });
+    expect(report.exportReadiness.blockers).not.toContainEqual(
+      expect.objectContaining({ code: 'PILA_PAYMENT_DATE_REQUIRED' }),
+    );
     expect(report.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1075,5 +1078,11 @@ describe('inspectPilaSnapshotPreparation', () => {
     expect(report.issues).toEqual([
       expect.objectContaining({ code: 'SNAPSHOTS_APROBADOS_NO_DISPONIBLES' }),
     ]);
+    expect(report.exportReadiness.blockers).toContainEqual(
+      expect.objectContaining({
+        code: 'PILA_PAYMENT_DATE_REQUIRED',
+        scope: 'FILE_GENERATION',
+      }),
+    );
   });
 });

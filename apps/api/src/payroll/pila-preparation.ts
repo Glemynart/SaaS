@@ -22,6 +22,7 @@ export interface PilaExportReadinessBlocker {
   code:
     | 'AT2_FILE_MAPPING_NOT_IMPLEMENTED'
     | 'SOI_OPERATOR_FIELDS_UNCONFIRMED'
+    | 'PILA_PAYMENT_DATE_REQUIRED'
     | 'OPERATOR_UPLOAD_NOT_VERIFIED';
   scope: 'FILE_GENERATION' | 'OPERATOR_COMPATIBILITY';
   title: string;
@@ -1264,6 +1265,25 @@ export function buildPilaPreparationReport(input: {
   };
   snapshots: PilaSnapshotPreparationInput[];
 }) {
+  const paymentDateBlocker: PilaExportReadinessBlocker | null =
+    input.period.fechaPrevistaPagoPila === null
+      ? {
+          code: 'PILA_PAYMENT_DATE_REQUIRED',
+          scope: 'FILE_GENERATION',
+          title: 'Falta la fecha prevista de pago de aportes PILA',
+          message:
+            'Sin esa fecha no se puede seleccionar la versión normativa aplicable a los hitos por período y pago. Regístrela antes de aprobar la nómina; este informe no habilita la generación del archivo.',
+          fields: [],
+          evidence:
+            'ADR-013 exige seleccionar reglas según el período cotizado y la fecha prevista de pago de aportes PILA.',
+        }
+      : null;
+  const exportReadiness = paymentDateBlocker
+    ? {
+        ...pilaExportReadiness,
+        blockers: [...pilaExportReadiness.blockers, paymentDateBlocker],
+      }
+    : pilaExportReadiness;
   const totalCotizantes = new Set(
     input.snapshots.map(({ employeeId }) => employeeId),
   ).size;
@@ -1323,7 +1343,7 @@ export function buildPilaPreparationReport(input: {
   return {
     formatVersion: null,
     normativeSourceStatus: 'RECONCILIATION_PENDING' as const,
-    exportReadiness: pilaExportReadiness,
+    exportReadiness,
     period: {
       id: input.period.id,
       fechaInicio: input.period.fechaInicio.toISOString().slice(0, 10),
