@@ -54,11 +54,18 @@ function fullCalendarMonth(start: string, end: string): boolean {
 
 /**
  * Maps candidate type 2 header fields from one snapshot set. It only
- * accepts snapshot payloads from one tenant and payroll period, refuses totals
- * if a contributor is duplicated or outside the standard MVP, and leaves
- * operator/system-assigned fields unresolved. It does not serialize a record.
+ * accepts snapshots matching the authenticated tenant and approved period,
+ * refuses totals if a contributor is duplicated or outside the standard MVP,
+ * and leaves operator/system-assigned fields unresolved. It does not serialize
+ * a record.
  */
 export function mapPilaAt2V30HeaderCandidate(input: {
+  expectedTenantId: string | null;
+  period: {
+    id: string;
+    fechaInicio: Date;
+    fechaFin: Date;
+  };
   snapshots: readonly PilaSnapshotPreparationInput[];
 }): PilaAt2V30HeaderCandidate {
   const values: Partial<Record<number, PilaAt2V30FieldInput>> = {};
@@ -116,6 +123,24 @@ export function mapPilaAt2V30HeaderCandidate(input: {
   const periodRanges = new Set(
     parsed.map((item) => `${item.periodStart ?? ''}:${item.periodEnd ?? ''}`),
   );
+  const expectedStart = Number.isNaN(input.period.fechaInicio.getTime())
+    ? null
+    : input.period.fechaInicio.toISOString().slice(0, 10);
+  const expectedEnd = Number.isNaN(input.period.fechaFin.getTime())
+    ? null
+    : input.period.fechaFin.toISOString().slice(0, 10);
+  const expectedTenantId = text(input.expectedTenantId);
+  const matchesApprovedScope =
+    expectedTenantId !== null &&
+    expectedStart !== null &&
+    expectedEnd !== null &&
+    parsed.every(
+      ({ tenantId, payrollPeriodId, periodStart, periodEnd }) =>
+        tenantId === expectedTenantId &&
+        payrollPeriodId === input.period.id &&
+        periodStart === expectedStart &&
+        periodEnd === expectedEnd,
+    );
   const supportedSnapshots =
     parsed.length > 0 &&
     parsed.every(
@@ -134,17 +159,17 @@ export function mapPilaAt2V30HeaderCandidate(input: {
     ) &&
     tenantIds.size === 1 &&
     payrollPeriodIds.size === 1 &&
-    periodRanges.size === 1;
-  const tenantId = tenantIds.size === 1 ? (parsed[0]?.tenantId ?? null) : null;
-  const payrollPeriodId =
-    payrollPeriodIds.size === 1 ? (parsed[0]?.payrollPeriodId ?? null) : null;
+    periodRanges.size === 1 &&
+    matchesApprovedScope;
+  const tenantId = supportedSnapshots ? expectedTenantId : null;
+  const payrollPeriodId = supportedSnapshots ? input.period.id : null;
 
   if (!supportedSnapshots) {
+    const reason = expectedTenantId
+      ? 'Se requiere un conjunto de snapshots PILA v2 que coincida con el tenant autenticado y el período aprobado.'
+      : 'Falta el contexto del tenant autenticado para revisar la cabecera PILA.';
     for (let fieldNumber = 1; fieldNumber <= 22; fieldNumber += 1) {
-      unresolved(
-        fieldNumber,
-        'Se requiere un conjunto de snapshots PILA v2 del mismo tenant y período.',
-      );
+      unresolved(fieldNumber, reason);
     }
     return {
       formatVersion: 'AT2_V30',

@@ -1649,6 +1649,8 @@ export function buildPilaPreparationReport(input: {
         }
       : null;
   const headerCandidate = mapPilaAt2V30HeaderCandidate({
+    expectedTenantId: input.tenantId ?? null,
+    period: input.period,
     snapshots: input.snapshots,
   });
   const employerCandidate = mapPilaAt2V30EmployerAggregateCandidate({
