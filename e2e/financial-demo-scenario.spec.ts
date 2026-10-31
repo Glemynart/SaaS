@@ -1,6 +1,10 @@
 import { randomInt } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { seedPayrollAccrualFixture } from './helpers/payroll-accounting-fixture';
+import {
+  linkCustomerToThirdParty,
+  prepareInvoiceAccounting,
+} from './helpers/invoice-accounting-fixture';
 
 async function registerAndSignIn(page: Page, suffix: string) {
   const nit = `5${suffix}`;
@@ -48,6 +52,7 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
   const productName = `Servicio Demo Financiero ${suffix}`;
   const invoiceNumber = `DEMO-FIN-${suffix}`;
   const { tenant, user } = await registerAndSignIn(page, suffix);
+  await prepareInvoiceAccounting(page, tenant.id);
 
   await page.goto('/facturacion/clientes');
   await page.getByRole('button', { name: 'Nuevo' }).click();
@@ -61,7 +66,14 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
       response.request().method() === 'POST',
   );
   await page.getByRole('button', { name: 'Crear', exact: true }).click();
-  expect((await createCustomerResponsePromise).status()).toBe(200);
+  const createCustomerResponse = await createCustomerResponsePromise;
+  expect(createCustomerResponse.status()).toBe(200);
+  const customer = (await createCustomerResponse.json()) as { id: string };
+  await linkCustomerToThirdParty(page, {
+    customerId: customer.id,
+    customerNit,
+    customerName,
+  });
   await expect(page.getByText(customerName, { exact: true })).toBeVisible();
 
   await page.goto('/facturacion/productos');
@@ -120,7 +132,18 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
       response.request().method() === 'PATCH',
   );
   await page.getByRole('button', { name: 'Emitir' }).click();
-  expect((await issueResponsePromise).status()).toBe(200);
+  const issueResponse = await issueResponsePromise;
+  expect(issueResponse.status()).toBe(200);
+  const issuedInvoice = (await issueResponse.json()) as {
+    comprobanteContable: {
+      estado: string;
+      totalDebito: number | string;
+      totalCredito: number | string;
+    };
+  };
+  expect(issuedInvoice.comprobanteContable.estado).toBe('CONTABILIZADO');
+  expect(Number(issuedInvoice.comprobanteContable.totalDebito)).toBe(142_800);
+  expect(Number(issuedInvoice.comprobanteContable.totalCredito)).toBe(142_800);
   await expect(invoiceRow.getByText('Emitida', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: invoiceNumber }).click();
   await expect(page.getByText(productName, { exact: true })).toBeVisible();
@@ -174,6 +197,17 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
     await expect(voucherDetails).toContainText('Salarios netos por pagar');
     await expect(voucherDetails).toContainText('Total débito');
     await expect(voucherDetails).toContainText('Total crédito');
+    await voucherDetails.getByRole('button', { name: 'Cerrar' }).click();
+
+    const invoiceVoucher = page
+      .getByRole('row')
+      .filter({ hasText: `Factura interna ${invoiceNumber}` });
+    await expect(invoiceVoucher).toBeVisible();
+    await invoiceVoucher.getByRole('button', { name: /Ver movimientos del comprobante/ }).click();
+    const invoiceVoucherDetails = page.getByRole('dialog');
+    await expect(invoiceVoucherDetails).toContainText('Clientes nacionales');
+    await expect(invoiceVoucherDetails).toContainText('Ingresos por ventas y servicios');
+    await expect(invoiceVoucherDetails).toContainText('IVA generado');
   } finally {
     await payroll.disconnect();
   }

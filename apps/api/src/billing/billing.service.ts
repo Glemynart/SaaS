@@ -2,25 +2,54 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
+import { InvoiceStatus as PrismaInvoiceStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  TenantPrismaService,
+  type TenantPrismaClient,
+} from '../tenant-prisma/tenant-prisma.service';
+import { LedgerService } from '../accounting/ledger/ledger.service';
 import {
   CreateCustomerDto,
   UpdateCustomerDto,
   CreateProductDto,
   UpdateProductDto,
   CreateInvoiceDto,
+  InvoiceStatus as BillingInvoiceStatus,
   UpdateInvoiceStatusDto,
 } from './dto/billing.dto';
+import {
+  buildInvoiceAccountingLines,
+  INVOICE_ACCOUNTING_REQUIRED_ROLES,
+  type InvoiceSystemAccounts,
+} from './accounting/invoice-accounting.mapper';
 
 function roundCop(value: Decimal): Decimal {
   return value.toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 }
 
+function invoiceCalendarDateInColombia(value: Date): Date {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Bogota',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(value);
+  const part = (type: 'year' | 'month' | 'day') =>
+    Number(parts.find((entry) => entry.type === type)?.value);
+  return new Date(Date.UTC(part('year'), part('month') - 1, part('day')));
+}
+
 @Injectable()
 export class BillingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly ledger: LedgerService,
+  ) {}
 
   // --- CUSTOMERS ---
   async createCustomer(tenantId: string, dto: CreateCustomerDto) {
@@ -255,28 +284,335 @@ export class BillingService {
   }
 
   async findOneInvoice(tenantId: string, id: string) {
-    const inv = await this.prisma.invoice.findFirst({
-      where: { id, tenantId },
-      include: { items: true, customer: true },
+    return this.tenantPrisma.execute(async (tx) => {
+      const invoice = await tx.invoice.findFirst({
+        where: { id, tenantId },
+        include: { items: true, customer: true },
+      });
+      if (!invoice) throw new NotFoundException('Factura no encontrada');
+
+      const comprobanteContable = await this.findInvoiceVoucher(
+        tx,
+        tenantId,
+        id,
+      );
+      return { ...invoice, comprobanteContable };
     });
-    if (!inv) throw new NotFoundException('Factura no encontrada');
-    return inv;
   }
 
   async updateInvoiceStatus(
     tenantId: string,
+    userId: string,
     id: string,
     dto: UpdateInvoiceStatusDto,
   ) {
-    const inv = await this.findOneInvoice(tenantId, id);
-    if (inv.status === 'CANCELLED')
+    return this.tenantPrisma.execute(async (tx) => {
+      const invoice = await tx.invoice.findFirst({
+        where: { id, tenantId },
+        include: {
+          items: true,
+          customer: { include: { tercero: true } },
+        },
+      });
+      if (!invoice) throw new NotFoundException('Factura no encontrada');
+
+      const existingVoucher = await this.findInvoiceVoucher(tx, tenantId, id);
+      const motivo = dto.motivo?.trim() ?? '';
+      if (dto.status === BillingInvoiceStatus.CANCELLED && !motivo) {
+        throw new BadRequestException(
+          'Indica el motivo de cancelación de la factura.',
+        );
+      }
+      if (invoice.status === PrismaInvoiceStatus.CANCELLED) {
+        if (dto.status === BillingInvoiceStatus.CANCELLED) {
+          const cancellationVoucher =
+            existingVoucher?.estado === 'ANULADO'
+              ? existingVoucher
+              : (existingVoucher?.reversos[0] ?? null);
+          return {
+            ...invoice,
+            comprobanteContable: existingVoucher,
+            comprobanteAnulacion: cancellationVoucher,
+          };
+        }
+        throw new BadRequestException(
+          'No se puede modificar una factura cancelada.',
+        );
+      }
+
+      if (dto.status === BillingInvoiceStatus.DRAFT) {
+        if (invoice.status !== PrismaInvoiceStatus.DRAFT) {
+          throw new BadRequestException(
+            'Una factura emitida no puede volver a borrador.',
+          );
+        }
+        if (existingVoucher) {
+          throw new ConflictException(
+            'Existe un comprobante para esta factura en borrador; requiere revisión contable.',
+          );
+        }
+        return { ...invoice, comprobanteContable: null };
+      }
+
+      if (
+        dto.status === BillingInvoiceStatus.ISSUED &&
+        invoice.status === PrismaInvoiceStatus.ISSUED
+      ) {
+        if (
+          !existingVoucher ||
+          existingVoucher.estado !== 'CONTABILIZADO' ||
+          existingVoucher.reversos.length > 0
+        ) {
+          throw new ConflictException(
+            'La factura ya está emitida, pero no tiene un comprobante vigente asociado. Requiere revisión contable.',
+          );
+        }
+        return { ...invoice, comprobanteContable: existingVoucher };
+      }
+
+      if (dto.status === BillingInvoiceStatus.ISSUED) {
+        if (existingVoucher) {
+          throw new ConflictException(
+            'Ya existe un comprobante contable para esta factura; requiere revisión antes de emitir.',
+          );
+        }
+        const tercero = invoice.customer.tercero;
+        if (
+          !tercero ||
+          tercero.tenantId !== tenantId ||
+          !tercero.esCliente ||
+          !tercero.activo ||
+          tercero.deletedAt
+        ) {
+          throw new BadRequestException(
+            'Asocia un tercero contable activo con rol de cliente antes de emitir la factura.',
+          );
+        }
+
+        const fechaContable = invoiceCalendarDateInColombia(
+          invoice.fechaEmision,
+        );
+        const [maps, periodo, voucherType] = await Promise.all([
+          tx.cuentaSistemaMap.findMany({
+            where: {
+              tenantId,
+              activo: true,
+              rol: { in: [...INVOICE_ACCOUNTING_REQUIRED_ROLES] },
+            },
+            select: { rol: true, cuentaId: true },
+          }),
+          tx.periodoContable.findFirst({
+            where: {
+              tenantId,
+              estado: 'ABIERTO',
+              fechaInicio: { lte: fechaContable },
+              fechaFin: { gte: fechaContable },
+            },
+            select: { id: true },
+          }),
+          tx.tipoComprobante.findFirst({
+            where: { codigo: 'FV', activo: true },
+            select: { id: true },
+          }),
+        ]);
+
+        const mapByRole = new Map(maps.map((map) => [map.rol, map.cuentaId]));
+        const missingRoles = INVOICE_ACCOUNTING_REQUIRED_ROLES.filter(
+          (role) => !mapByRole.has(role),
+        );
+        if (missingRoles.length > 0) {
+          throw new ConflictException(
+            `Faltan mapeos contables activos: ${missingRoles.join(', ')}. Configúralos antes de emitir.`,
+          );
+        }
+        const configuredAccountIds = new Set(
+          INVOICE_ACCOUNTING_REQUIRED_ROLES.map((role) => mapByRole.get(role)),
+        );
+        if (
+          configuredAccountIds.size !== INVOICE_ACCOUNTING_REQUIRED_ROLES.length
+        ) {
+          throw new ConflictException(
+            'Los mapeos de clientes, ingresos e impuestos deben usar cuentas contables distintas.',
+          );
+        }
+        if (!periodo) {
+          throw new ConflictException(
+            'No existe un período contable abierto que incluya la fecha de emisión de esta factura.',
+          );
+        }
+        if (!voucherType) {
+          throw new ConflictException(
+            'No está disponible el tipo de comprobante FV para contabilizar la factura.',
+          );
+        }
+
+        const accounts = Object.fromEntries(
+          INVOICE_ACCOUNTING_REQUIRED_ROLES.map((role) => [
+            role,
+            mapByRole.get(role)!,
+          ]),
+        ) as InvoiceSystemAccounts;
+        const lines = buildInvoiceAccountingLines(
+          {
+            numero: invoice.numero,
+            subtotal: invoice.subtotal,
+            impuestos: invoice.impuestos,
+            total: invoice.total,
+            terceroId: tercero.id,
+            items: invoice.items,
+          },
+          accounts,
+        );
+
+        const claimed = await tx.invoice.updateMany({
+          where: { id, tenantId, status: 'DRAFT' },
+          data: { status: 'ISSUED' },
+        });
+        if (claimed.count !== 1) {
+          throw new ConflictException(
+            'La factura cambió mientras se procesaba. Actualiza la página e inténtalo de nuevo.',
+          );
+        }
+
+        const comprobante = await this.ledger.registrarComprobante(
+          {
+            tenantId,
+            userId,
+            tipoComprobanteId: voucherType.id,
+            periodoId: periodo.id,
+            fecha: fechaContable,
+            concepto: `Factura interna ${invoice.numero}`,
+            lineas: lines,
+            origenTipo: 'BILLING_INVOICE',
+            origenId: invoice.id,
+            origenEvento: 'ISSUED',
+          },
+          tx,
+        );
+
+        return {
+          ...invoice,
+          status: 'ISSUED' as const,
+          comprobanteContable: this.summarizeVoucher(comprobante),
+        };
+      }
+
+      if (dto.status === BillingInvoiceStatus.CANCELLED) {
+        if (invoice.status === PrismaInvoiceStatus.ISSUED) {
+          if (
+            !existingVoucher ||
+            existingVoucher.estado !== 'CONTABILIZADO' ||
+            existingVoucher.reversos.length > 0
+          ) {
+            throw new ConflictException(
+              'No se puede cancelar esta factura porque no tiene un comprobante contable vigente asociado. Requiere revisión.',
+            );
+          }
+          const changed = await tx.invoice.updateMany({
+            where: { id, tenantId, status: 'ISSUED' },
+            data: { status: 'CANCELLED' },
+          });
+          if (changed.count !== 1) {
+            throw new ConflictException(
+              'La factura cambió mientras se procesaba. Actualiza la página e inténtalo de nuevo.',
+            );
+          }
+          const anulacion = await this.ledger.anular(
+            tenantId,
+            userId,
+            existingVoucher.id,
+            motivo,
+            tx,
+          );
+          return {
+            ...invoice,
+            status: 'CANCELLED' as const,
+            comprobanteContable:
+              anulacion.id === existingVoucher.id &&
+              anulacion.estado === 'ANULADO'
+                ? this.summarizeVoucher(anulacion)
+                : existingVoucher,
+            comprobanteAnulacion: this.summarizeVoucher(anulacion),
+          };
+        }
+
+        if (existingVoucher) {
+          throw new ConflictException(
+            'Existe un comprobante contable asociado a un borrador; requiere revisión antes de cancelarlo.',
+          );
+        }
+        const changed = await tx.invoice.updateMany({
+          where: { id, tenantId, status: 'DRAFT' },
+          data: { status: 'CANCELLED' },
+        });
+        if (changed.count !== 1) {
+          throw new ConflictException(
+            'La factura cambió mientras se procesaba. Actualiza la página e inténtalo de nuevo.',
+          );
+        }
+        return {
+          ...invoice,
+          status: 'CANCELLED' as const,
+          comprobanteContable: null,
+          comprobanteAnulacion: null,
+        };
+      }
+
       throw new BadRequestException(
-        'No se puede modificar una factura cancelada',
+        'Transición de estado de factura no soportada.',
       );
-    return this.prisma.invoice.update({
-      where: { id },
-      data: { status: dto.status },
     });
+  }
+
+  private async findInvoiceVoucher(
+    tx: TenantPrismaClient,
+    tenantId: string,
+    invoiceId: string,
+  ) {
+    return tx.comprobanteContable.findFirst({
+      where: {
+        tenantId,
+        origenTipo: 'BILLING_INVOICE',
+        origenId: invoiceId,
+        origenEvento: 'ISSUED',
+      },
+      select: {
+        id: true,
+        numero: true,
+        estado: true,
+        fecha: true,
+        totalDebito: true,
+        totalCredito: true,
+        reversos: {
+          where: { tenantId },
+          select: {
+            id: true,
+            numero: true,
+            estado: true,
+            totalDebito: true,
+            totalCredito: true,
+          },
+        },
+      },
+    });
+  }
+
+  private summarizeVoucher(voucher: {
+    id: string;
+    numero: number | null;
+    estado: string;
+    fecha?: Date;
+    totalDebito: unknown;
+    totalCredito: unknown;
+  }) {
+    return {
+      id: voucher.id,
+      numero: voucher.numero,
+      estado: voucher.estado,
+      fecha: voucher.fecha,
+      totalDebito: voucher.totalDebito,
+      totalCredito: voucher.totalCredito,
+    };
   }
 
   // --- DASHBOARD ---

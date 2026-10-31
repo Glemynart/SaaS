@@ -2,8 +2,10 @@ import 'reflect-metadata';
 import { validateSync } from 'class-validator';
 import {
   CreateCustomerDto,
+  InvoiceStatus,
   InvoiceItemDto,
   UpdateCustomerDto,
+  UpdateInvoiceStatusDto,
   UpdateProductDto,
 } from './billing.dto';
 
@@ -74,5 +76,26 @@ describe('Billing tax rate validation', () => {
         expect.objectContaining({ property: 'terceroId' }),
       ]),
     );
+  });
+});
+
+describe('Invoice status validation', () => {
+  it('requires a reason when cancelling an invoice', () => {
+    const dto = Object.assign(new UpdateInvoiceStatusDto(), {
+      status: InvoiceStatus.CANCELLED,
+    });
+
+    expect(validateSync(dto)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ property: 'motivo' })]),
+    );
+  });
+
+  it('accepts a bounded cancellation reason', () => {
+    const dto = Object.assign(new UpdateInvoiceStatusDto(), {
+      status: InvoiceStatus.CANCELLED,
+      motivo: 'Error en los datos del cliente',
+    });
+
+    expect(validateSync(dto)).toHaveLength(0);
   });
 });

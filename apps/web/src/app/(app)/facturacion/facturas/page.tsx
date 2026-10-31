@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import {
   useInvoices,
   useCreateInvoice,
@@ -26,6 +27,10 @@ function cop(n: number | string) {
 
 export default function FacturasPage() {
   const [statusFilter, setStatusFilter] = useState('');
+  const [invoiceToCancel, setInvoiceToCancel] = useState<{ id: string; numero: string } | null>(
+    null,
+  );
+  const [cancellationReason, setCancellationReason] = useState('');
   const { data: invoices, isLoading } = useInvoices(statusFilter || undefined);
   const { data: customers } = useCustomers();
   const { data: products } = useProducts();
@@ -82,6 +87,23 @@ export default function FacturasPage() {
       { onSuccess: () => setShowForm(false) },
     );
   }, [form, createMutation]);
+
+  const changeInvoiceStatus = (id: string, status: 'ISSUED' | 'CANCELLED', motivo?: string) => {
+    updateStatusMutation.mutate(
+      { id, status, motivo },
+      {
+        onSuccess: () => {
+          if (status === 'ISSUED') toast.success('Factura emitida y contabilizada.');
+          if (status === 'CANCELLED') {
+            toast.success('Factura cancelada y comprobante anulado.');
+            setInvoiceToCancel(null);
+            setCancellationReason('');
+          }
+        },
+        onError: (error) => toast.error(error.message),
+      },
+    );
+  };
 
   const tasasManualesValidas = form.items.every(
     (item) =>
@@ -292,9 +314,7 @@ export default function FacturasPage() {
                         variant="ghost"
                         size="sm"
                         className="text-xs text-success"
-                        onClick={() =>
-                          updateStatusMutation.mutate({ id: inv.id, status: 'ISSUED' })
-                        }
+                        onClick={() => changeInvoiceStatus(inv.id, 'ISSUED')}
                       >
                         <CheckCircle className="size-3.5" /> Emitir
                       </Button>
@@ -302,18 +322,87 @@ export default function FacturasPage() {
                         variant="ghost"
                         size="sm"
                         className="text-xs text-destructive"
-                        onClick={() =>
-                          updateStatusMutation.mutate({ id: inv.id, status: 'CANCELLED' })
-                        }
+                        onClick={() => {
+                          setInvoiceToCancel({ id: inv.id, numero: inv.numero });
+                          setCancellationReason('');
+                        }}
                       >
                         <XCircle className="size-3.5" /> Cancelar
                       </Button>
                     </>
                   )}
+                  {inv.status === 'ISSUED' && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-destructive"
+                      onClick={() => {
+                        setInvoiceToCancel({ id: inv.id, numero: inv.numero });
+                        setCancellationReason('');
+                      }}
+                    >
+                      <XCircle className="size-3.5" /> Anular
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {invoiceToCancel && (
+        <div className="fixed inset-0 z-(--z-overlay) flex items-center justify-center bg-(--overlay) p-4">
+          <section
+            aria-labelledby="cancel-invoice-title"
+            aria-modal="true"
+            className="w-full max-w-md rounded-xl border border-border bg-surface p-5 shadow-(--shadow-overlay)"
+            role="alertdialog"
+          >
+            <h2 id="cancel-invoice-title" className="text-base font-semibold text-foreground">
+              {invoices?.find((invoice) => invoice.id === invoiceToCancel.id)?.status === 'ISSUED'
+                ? `Anular factura ${invoiceToCancel.numero}`
+                : `Cancelar borrador ${invoiceToCancel.numero}`}
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {invoices?.find((invoice) => invoice.id === invoiceToCancel.id)?.status === 'ISSUED'
+                ? 'La anulación conserva el comprobante y registra su corrección contable.'
+                : 'El borrador se cancelará sin crear un asiento contable.'}
+            </p>
+            <label htmlFor="invoice-cancellation-reason" className="mt-4 block text-sm font-medium">
+              Motivo
+            </label>
+            <textarea
+              id="invoice-cancellation-reason"
+              className="mt-1 min-h-24 w-full rounded-md border border-input bg-control px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20"
+              maxLength={500}
+              onChange={(event) => setCancellationReason(event.target.value)}
+              required
+              value={cancellationReason}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setInvoiceToCancel(null)}
+                disabled={updateStatusMutation.isPending}
+              >
+                Volver
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={!cancellationReason.trim() || updateStatusMutation.isPending}
+                onClick={() =>
+                  changeInvoiceStatus(invoiceToCancel.id, 'CANCELLED', cancellationReason.trim())
+                }
+              >
+                {invoices?.find((invoice) => invoice.id === invoiceToCancel.id)?.status === 'ISSUED'
+                  ? 'Anular factura'
+                  : 'Cancelar borrador'}
+              </Button>
+            </div>
+          </section>
         </div>
       )}
     </div>

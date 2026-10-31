@@ -10,6 +10,7 @@ import {
   Max,
   IsEmail,
   ValidateIf,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -84,4 +85,12 @@ export class CreateInvoiceDto {
 
 export class UpdateInvoiceStatusDto {
   @IsEnum(InvoiceStatus) @IsNotEmpty() status: InvoiceStatus;
+
+  @ValidateIf(
+    (dto: UpdateInvoiceStatusDto) => dto.status === InvoiceStatus.CANCELLED,
+  )
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  motivo?: string;
 }

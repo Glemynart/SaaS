@@ -3,7 +3,7 @@
 import { use } from 'react';
 import Link from 'next/link';
 import { useInvoice } from '@/features/billing/hooks/use-billing';
-import { ArrowLeft, FileText } from 'lucide-react';
+import { ArrowLeft, BookOpenCheck, FileText } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/ui/status-badge';
 
@@ -54,9 +54,51 @@ export default function FacturaDetailPage({ params }: { params: Promise<{ id: st
         </div>
         <div>
           <span className="text-xs text-muted-foreground">Fecha</span>
-          <p className="text-sm">{new Date(inv.fechaEmision).toLocaleDateString('es-CO')}</p>
+          <p className="text-sm">
+            {new Date(inv.fechaEmision).toLocaleDateString('es-CO', {
+              timeZone: 'America/Bogota',
+            })}
+          </p>
         </div>
       </div>
+      <section className="mb-6 rounded-lg border bg-surface p-5">
+        <div className="flex items-center gap-2">
+          <BookOpenCheck className="size-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold">Contabilidad</h2>
+        </div>
+        {inv.comprobanteContable ? (
+          <div className="mt-3 space-y-2 text-sm">
+            <p>
+              Comprobante {inv.comprobanteContable.numero ?? 'sin número'} —{' '}
+              {inv.comprobanteContable.estado === 'CONTABILIZADO' ? 'contabilizado' : 'anulado'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Débito {cop(inv.comprobanteContable.totalDebito)} · Crédito{' '}
+              {cop(inv.comprobanteContable.totalCredito)}
+            </p>
+            {inv.comprobanteContable.reversos?.map((reverso) => (
+              <p key={reverso.id}>
+                Reverso {reverso.numero ?? 'sin número'} —{' '}
+                {reverso.estado === 'CONTABILIZADO' ? 'contabilizado' : 'anulado'}
+              </p>
+            ))}
+            <Link
+              href="/contabilidad/comprobantes"
+              className="inline-flex text-xs text-primary hover:underline"
+            >
+              Abrir comprobantes contables
+            </Link>
+          </div>
+        ) : inv.status === 'ISSUED' ? (
+          <p className="mt-3 text-sm text-warning">
+            Esta factura emitida no tiene un comprobante asociado y requiere revisión contable.
+          </p>
+        ) : (
+          <p className="mt-3 text-sm text-muted-foreground">
+            La factura se contabiliza al emitirla. Los borradores cancelados no generan asiento.
+          </p>
+        )}
+      </section>
       <div className="overflow-hidden rounded-xl border bg-surface">
         <table className="w-full text-sm">
           <thead className="border-b bg-surface/50 text-muted-foreground">

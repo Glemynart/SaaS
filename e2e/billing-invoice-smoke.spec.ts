@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
+import { prepareInvoiceAccounting } from './helpers/invoice-accounting-fixture';
 
 async function registerAndSignIn(page: Page, suffix: string) {
   const nit = `8${suffix}`;
@@ -46,7 +47,8 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
   const customerNit = `9${suffix}`;
   const productName = `Servicio Educativo ${suffix}`;
   const invoiceNumber = `DEMO-${suffix}`;
-  await registerAndSignIn(page, suffix);
+  const registration = await registerAndSignIn(page, suffix);
+  await prepareInvoiceAccounting(page, registration.tenant.id);
 
   await page.goto('/facturacion/clientes');
   await page.getByRole('button', { name: 'Nuevo' }).click();
@@ -164,6 +166,20 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
   await page.getByRole('button', { name: 'Emitir' }).click();
   const issueResponse = await issueResponsePromise;
   expect(issueResponse.status()).toBe(200);
+  const issuedInvoice = (await issueResponse.json()) as {
+    status: string;
+    comprobanteContable: {
+      id: string;
+      numero: number;
+      estado: string;
+      totalDebito: number | string;
+      totalCredito: number | string;
+    };
+  };
+  expect(issuedInvoice.status).toBe('ISSUED');
+  expect(issuedInvoice.comprobanteContable.estado).toBe('CONTABILIZADO');
+  expect(Number(issuedInvoice.comprobanteContable.totalDebito)).toBe(142_800);
+  expect(Number(issuedInvoice.comprobanteContable.totalCredito)).toBe(142_800);
   const invoiceRow = page.getByRole('link', { name: invoiceNumber }).locator('xpath=..');
   await expect(invoiceRow.getByText('Emitida', { exact: true })).toBeVisible();
 
@@ -176,6 +192,7 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
   await expect(page.getByText(customerName, { exact: true })).toBeVisible();
   await expect(page.getByText(productName, { exact: true })).toBeVisible();
   await expect(page.getByText('Impuestos calculados por línea')).toBeVisible();
+  await expect(page.getByText(/Comprobante \d+ — contabilizado/)).toBeVisible();
 
   await page.reload();
   await expect(invoiceHeading).toBeVisible();
@@ -183,4 +200,25 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
     invoiceHeading.locator('xpath=..').getByText('Emitida', { exact: true }),
   ).toBeVisible();
   await expect(page.getByText(productName, { exact: true })).toBeVisible();
+
+  await page.goto('/facturacion/facturas');
+  await page.getByRole('button', { name: /Anular/ }).click();
+  await page.getByLabel('Motivo').fill('Factura de demostración');
+  const cancelResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === `/api/billing/invoices/${invoice.id}/status` &&
+      response.request().method() === 'PATCH',
+  );
+  await page.getByRole('button', { name: 'Anular factura' }).click();
+  const cancelResponse = await cancelResponsePromise;
+  expect(cancelResponse.status()).toBe(200);
+  const cancelledInvoice = (await cancelResponse.json()) as {
+    status: string;
+    comprobanteAnulacion: { id: string; estado: string };
+  };
+  expect(cancelledInvoice.status).toBe('CANCELLED');
+  expect(cancelledInvoice.comprobanteAnulacion.estado).toBe('ANULADO');
+  await expect(page.getByText('Cancelada', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: invoiceNumber }).click();
+  await expect(page.getByText(/Comprobante \d+ — anulado/)).toBeVisible();
 });

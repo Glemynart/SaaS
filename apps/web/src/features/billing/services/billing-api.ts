@@ -52,6 +52,20 @@ export interface Invoice {
   customer: { razonSocial: string; nit: string };
   items?: InvoiceItem[];
   _count?: { items: number };
+  comprobanteContable?: {
+    id: string;
+    numero: number | null;
+    estado: string;
+    totalDebito: DecimalValue;
+    totalCredito: DecimalValue;
+    reversos?: Array<{
+      id: string;
+      numero: number | null;
+      estado: string;
+      totalDebito: DecimalValue;
+      totalCredito: DecimalValue;
+    }>;
+  } | null;
 }
 export interface BillingDashboard {
   clientesActivos: number;
@@ -105,9 +119,9 @@ export const billingApi = {
     }[];
   }) => req<Invoice>('/api/billing/invoices', { method: 'POST', body: JSON.stringify(d) }),
   getInvoice: (id: string) => req<Invoice>(`/api/billing/invoices/${id}`),
-  updateInvoiceStatus: (id: string, status: string) =>
+  updateInvoiceStatus: (id: string, status: string, motivo?: string) =>
     req<Invoice>(`/api/billing/invoices/${id}/status`, {
       method: 'PATCH',
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, ...(motivo ? { motivo } : {}) }),
     }),
 };
