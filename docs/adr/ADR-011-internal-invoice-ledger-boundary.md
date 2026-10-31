@@ -2,13 +2,13 @@
 
 | Campo           | Valor                                                                                     |
 | --------------- | ----------------------------------------------------------------------------------------- |
-| **Estado**      | proposed — requiere aprobación de producto y contabilidad                                 |
+| **Estado**      | accepted para demo interna; revisión contable-fiscal operativa pendiente                  |
 | **Fecha**       | 2026-10-30                                                                                |
 | **Decisores**   | Producto · Contabilidad funcional · Arquitectura                                          |
 | **Ámbito**      | `Billing.Invoice` interno y su integración con `LedgerService`                            |
 | **Relacionado** | GOAL-02 M0; ADR-001 (contrato implementado del Ledger); ADR-005 (facturación electrónica) |
 
-## Contexto verificado
+## Contexto verificado antes de este incremento
 
 Este ADR se prepara sobre el código de la rama `codex/goal02-financial-first-increment`, HEAD `c07a9d7`.
 
@@ -23,28 +23,54 @@ Este ADR se prepara sobre el código de la rama `codex/goal02-financial-first-in
 
 Estos hechos describen el código inspeccionado; no convierten en aceptadas las decisiones del ADR-001, cuyo encabezado aún indica estado propuesto.
 
-## Decisión propuesta
+## Decisión
 
 Para una **factura interna independiente de la emisión electrónica**, la transición `DRAFT → ISSUED` será el evento que solicita contabilizar la venta. El cambio de estado y el registro del comprobante ocurrirán dentro de una misma transacción PostgreSQL tenant-aware. La factura no se marcará `ISSUED` si el comprobante no puede contabilizarse.
 
 El comprobante usará una clave de origen estable y única: `BILLING_INVOICE` + `Invoice.id` + `ISSUED`. Repetir la misma solicitud devolverá o reconocerá el comprobante ya asociado, sin numerar otro. La integración no escribirá cuentas PUC directamente en Billing: resolverá, por tenant, roles activos de `CuentaSistemaMap`.
 
-Al cancelar una factura `ISSUED`, Billing actualizará su estado y llamará a `LedgerService.anular` en la misma transacción, con motivo y auditoría. Aplican las reglas existentes del Ledger para períodos abiertos/cerrados; no se borran factura, comprobante ni movimientos. Cancelar un borrador no produce asiento. No se permitirá devolver una factura contabilizada a `DRAFT`.
+Al cancelar una factura `ISSUED` contabilizada por esta integración, Billing actualizará su estado y llamará a `LedgerService.anular` en la misma transacción, con motivo y auditoría. Aplican las reglas existentes del Ledger para períodos abiertos/cerrados; no se borran factura, comprobante ni movimientos. Una factura histórica `ISSUED` sin comprobante puede cancelarse con motivo y auditoría, sin contabilizarla ni fabricar un reverso. Cancelar un borrador no produce asiento. No se permitirá devolver una factura contabilizada a `DRAFT`.
 
 El período contable será el período abierto que corresponda a la fecha de emisión. Si no existe o está cerrado, la operación de emisión falla y no desplaza silenciosamente la contabilización a otro período. La anulación seguirá el comportamiento de corrección ya ofrecido por el Ledger.
 
-El mapper propuesto separa CxC, ingreso e impuesto usando los roles contables del tenant, atribuye CxC al tercero del cliente y comprueba partida doble. No se contabilizará si falta un mapeo requerido o si la cuenta no satisface las validaciones del Ledger.
+El mapper separa CxC, ingreso e impuesto usando los roles contables del tenant, atribuye los movimientos al tercero del cliente y comprueba partida doble. No se contabilizará si falta un mapeo requerido o si la cuenta no satisface las validaciones del Ledger.
 
-## Condiciones previas para implementar
+### Decisión registrada para la demo
 
-Esta propuesta **no aprueba tasas ni tratamientos tributarios** y no habilita aún el posteo. Antes de implementar la Epic:
+El usuario delegó las decisiones necesarias para continuar GOAL-02 y priorizó
+mostrar facturación y contabilidad integradas a futuros clientes. En ese alcance
+se acepta la opción B para **facturas internas de demostración**. `ISSUED`
+significa emitida y contabilizada en el Ledger interno; nunca significa factura
+electrónica aceptada por DIAN.
 
-1. Producto y contabilidad aprobarán cómo se determina el impuesto de cada línea, su redondeo y el tratamiento de líneas manuales. Las tasas usadas deben provenir de datos explícitos, no del 19% fijo actual ni de una lectura posterior del catálogo vivo.
-2. Se almacenará en cada línea el snapshot suficiente de base, tratamiento/tasa e impuesto calculado para reconstruir el comprobante; se verificará que los totales de línea concilien con los del encabezado. No se recalcularán facturas históricas desde `ProductService`.
-3. `Customer` tendrá un vínculo explícito y tenant-safe con un `Tercero` activo con rol de cliente. No se inferirá ni creará silenciosamente el tercero normalizando el NIT. Clientes históricos sin vínculo podrán permanecer en borrador hasta resolver su correspondencia.
-4. La emisión requerirá período abierto, mapeos de cuenta completos, una identidad canónica del tercero y el actor autenticado. La API debe propagar `userId` desde `CurrentUserPayload` al caso de uso contable —no recibirlo del body—, conservar el permiso ADMIN actual para cambiar el estado y ejecutar los cambios de Billing y Ledger en la misma transacción y contexto de tenant.
-5. Los caminos de UI/API permitirán al usuario ver el comprobante y el motivo de rechazo; los reintentos serán idempotentes. Cancelación y auditoría se probarán en período abierto y cerrado.
-6. La migración será aditiva y reversible: columnas y vínculo inicialmente opcionales, backfill verificable y sin modificar comprobantes ni facturas históricas. El despliegue no debe hacer backfill financiero automático.
+La tasa de IVA se elige explícitamente por producto o línea manual y se congela
+con el valor de impuesto de cada línea. El MVP de demo soporta 0 %, 5 % y 19 %.
+0 % solo omite la línea de IVA en este asiento: el sistema no determina si una
+operación es exenta, excluida o tiene otro tratamiento. La tasa y su tratamiento
+deben ser revisados por el responsable contable antes de uso operativo. Esta
+limitación evita atribuir a una línea manual o al catálogo una clasificación
+fiscal que el código no puede demostrar. Como referencia vigente para la
+distinción entre tarifa general, tarifa diferencial y bienes exentos se
+consultó el [Concepto 12810 de 2026 de DIAN](https://normograma.dian.gov.co/dian/compilacion/docs/oficio_dian_12810_2026.htm).
+
+El vínculo `Customer`–`Tercero` es explícito, por tenant, exige rol activo de
+cliente y coincidencia de NIT. No hay búsqueda automática ni backfill. En la
+emisión se congelan la identidad del cliente y del tercero, las tasas e impuestos
+por línea, la fecha, el actor y el comprobante. Facturas históricas o borradores
+sin esos snapshots no se recalculan ni se contabilizan retroactivamente; el
+usuario debe crear una factura nueva.
+
+## Condiciones de implementación y uso
+
+La implementación de demo mantiene estas fronteras:
+
+1. Las tasas internas explícitas se limitan a 0 %, 5 % y 19 %, con redondeo por línea a dos decimales. La clasificación tributaria y cualquier tratamiento especial requieren revisión contable-fiscal antes de operación real; nunca se usa una tasa fija común para todas las líneas.
+2. Cada factura nueva congela el cliente, el tercero, la tasa y el impuesto por línea, fecha, actor y comprobante. El total de líneas se concilia con el encabezado. No se recalculan facturas históricas desde `ProductService`.
+3. `Customer` se vincula explícitamente a un `Tercero` NIT activo, con rol de cliente, del mismo tenant y con NIT coincidente. No se infiere ni crea silenciosamente el tercero por NIT.
+4. Emitir requiere período abierto, mapeos contables completos y actor autenticado. Billing propaga `userId` desde `CurrentUserPayload` —no del body— y actualiza estado y Ledger en la misma transacción tenant-aware.
+5. La UI muestra comprobante y rechazos; repetir la emisión es idempotente. Cancelar requiere motivo y usa `LedgerService.anular` para un comprobante existente. Las facturas históricas emitidas sin asiento se pueden cancelar con auditoría, sin contabilizarlas ni fabricar un reverso.
+6. La migración es aditiva, usa columnas opcionales para históricos y no hace backfill financiero. Un borrador histórico sin snapshots no se puede emitir: el usuario debe crear una factura nueva.
+7. La migración funciona como expansión de schema: revertir el código puede conservar las columnas añadidas. No se debe ejecutar una migración descendente que borre snapshots o claves de comprobantes después de registrar facturas en Ledger; esas operaciones se corrigen mediante el flujo de cancelación y reverso.
 
 Si el documento electrónico representa una factura interna ya contabilizada, la ruta electrónica deberá enlazar la evidencia con ese mismo hecho y no contabilizar de nuevo la venta. Facturas electrónicas independientes seguirán la regla de ADR-005. La relación entre ambos agregados debe verificarse antes de implementar H2; este ADR no define la emisión fiscal.
 
@@ -72,11 +98,15 @@ Separaría la emisión comercial del registro contable, pero agrega estados y un
 
 ### Negativas y riesgos
 
-- La decisión cambia el significado financiero de `ISSUED` y necesita validación de Producto y Contabilidad.
-- No es implementable con seguridad hasta resolver el impuesto por línea y el mapeo explícito de `Customer` a `Tercero`.
+- `ISSUED` ahora representa una operación interna completa; la UI debe distinguirla de una aceptación DIAN.
+- La demo no valida la clasificación tributaria de los servicios ni cubre bases especiales, retenciones u otros impuestos.
+- El uso operativo requiere revisión contable-fiscal y escenarios representativos del cliente.
 - Una relación futura con `FacturaElectronica` puede duplicar el asiento si H2 no reutiliza el hecho interno ya contabilizado.
 - El código contable y la UI actuales no prueban que el recorrido de facturación integrada esté listo para clientes.
 
-## Pregunta de aprobación
+## Límite de aprobación
 
-¿Se aprueba la opción B para **facturas internas independientes**, con las seis condiciones previas como puertas obligatorias y manteniendo ADR-005 para la emisión electrónica? La aprobación de este ADR no aprueba tasas tributarias, reglas de reconocimiento legal, ni transmisión fiscal; esas decisiones requieren validación separada.
+La opción B queda aprobada únicamente para el alcance de facturación interna de
+demo y con las condiciones previas de este ADR. No aprueba tarifas legales,
+reconocimiento fiscal, emisión DIAN, numeración fiscal, aceptación externa,
+recaudos o pagos.

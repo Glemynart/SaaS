@@ -35,7 +35,15 @@ export default function FacturasPage() {
   const [form, setForm] = useState({
     customerId: '',
     numero: '',
-    items: [{ descripcion: '', cantidad: 1, valorUnitario: 0, productServiceId: '' }],
+    items: [
+      {
+        descripcion: '',
+        cantidad: 1,
+        valorUnitario: 0,
+        productServiceId: '',
+        porcentajeImpuesto: '' as number | '',
+      },
+    ],
   });
 
   const addItem = () =>
@@ -43,7 +51,13 @@ export default function FacturasPage() {
       ...form,
       items: [
         ...form.items,
-        { descripcion: '', cantidad: 1, valorUnitario: 0, productServiceId: '' },
+        {
+          descripcion: '',
+          cantidad: 1,
+          valorUnitario: 0,
+          productServiceId: '',
+          porcentajeImpuesto: '' as number | '',
+        },
       ],
     });
   const removeItem = (i: number) =>
@@ -51,14 +65,18 @@ export default function FacturasPage() {
   const updateItem = (i: number, f: Partial<(typeof form.items)[0]>) => {
     const items = [...form.items];
     items[i] = { ...items[i], ...f };
-    if (f.productServiceId) {
+    if (f.productServiceId !== undefined) {
       const prod = (products ?? []).find((p) => p.id === f.productServiceId);
-      if (prod)
+      if (prod) {
         items[i] = {
           ...items[i],
           descripcion: prod.nombre,
           valorUnitario: Number(prod.precio),
+          porcentajeImpuesto: Number(prod.impuesto),
         };
+      } else if (!f.productServiceId) {
+        items[i] = { ...items[i], porcentajeImpuesto: '' };
+      }
     }
     setForm({ ...form, items });
   };
@@ -69,12 +87,19 @@ export default function FacturasPage() {
       cantidad: i.cantidad,
       valorUnitario: i.valorUnitario,
       productServiceId: i.productServiceId || undefined,
+      porcentajeImpuesto: Number(i.porcentajeImpuesto),
     }));
     createMutation.mutate(
       { customerId: form.customerId, numero: form.numero, items: cleanItems },
       { onSuccess: () => setShowForm(false) },
     );
   }, [form, createMutation]);
+
+  const cancelInvoice = (id: string) => {
+    const motivo = window.prompt('Indica el motivo para cancelar esta factura:');
+    if (!motivo?.trim()) return;
+    updateStatusMutation.mutate({ id, status: 'CANCELLED', motivo: motivo.trim() });
+  };
 
   if (isLoading)
     return (
@@ -97,6 +122,10 @@ export default function FacturasPage() {
 
       {showForm && (
         <div className="mb-6 rounded-xl border bg-surface p-5 shadow-sm space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Factura interna para demo contable; no es factura electrónica DIAN. La tasa de cada
+            línea queda congelada al crear el borrador.
+          </p>
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
               <Label>Cliente</Label>
@@ -125,7 +154,7 @@ export default function FacturasPage() {
           <div className="space-y-2">
             <Label>Items</Label>
             {form.items.map((item, i) => (
-              <div key={i} className="grid gap-2 sm:grid-cols-6 items-end border rounded-lg p-3">
+              <div key={i} className="grid gap-2 sm:grid-cols-7 items-end border rounded-lg p-3">
                 <div className="sm:col-span-2">
                   <select
                     value={item.productServiceId}
@@ -156,6 +185,24 @@ export default function FacturasPage() {
                   />
                 </div>
                 <div>
+                  <Label className="text-xs">IVA %</Label>
+                  <select
+                    value={item.porcentajeImpuesto}
+                    disabled={Boolean(item.productServiceId)}
+                    onChange={(e) =>
+                      updateItem(i, {
+                        porcentajeImpuesto: e.target.value === '' ? '' : Number(e.target.value),
+                      })
+                    }
+                    className="h-10 w-full rounded-md border px-2 text-sm disabled:bg-muted"
+                  >
+                    <option value="">Seleccionar</option>
+                    <option value={0}>0%</option>
+                    <option value={5}>5%</option>
+                    <option value={19}>19%</option>
+                  </select>
+                </div>
+                <div>
                   <Input
                     type="number"
                     placeholder="V. Unit"
@@ -180,7 +227,16 @@ export default function FacturasPage() {
             </Button>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" onClick={handleCreate} disabled={createMutation.isPending}>
+            <Button
+              size="sm"
+              onClick={handleCreate}
+              disabled={
+                createMutation.isPending ||
+                !form.customerId ||
+                !form.numero.trim() ||
+                form.items.some((item) => item.porcentajeImpuesto === '')
+              }
+            >
               {createMutation.isPending && <Loader2 className="mr-1 size-3 animate-spin" />}Crear
               factura
             </Button>
@@ -188,7 +244,14 @@ export default function FacturasPage() {
               Cancelar
             </Button>
           </div>
+          {createMutation.error instanceof Error && (
+            <p className="text-sm text-destructive">{createMutation.error.message}</p>
+          )}
         </div>
+      )}
+
+      {updateStatusMutation.error instanceof Error && (
+        <p className="mb-4 text-sm text-destructive">{updateStatusMutation.error.message}</p>
       )}
 
       <div className="mb-6 flex gap-3">
@@ -233,7 +296,8 @@ export default function FacturasPage() {
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {inv.customer?.razonSocial} — {cop(inv.total)}
+                    {inv.customerRazonSocialSnapshot ?? inv.customer?.razonSocial} —{' '}
+                    {cop(inv.total)}
                   </p>
                 </div>
                 <div className="flex gap-1">
@@ -259,13 +323,22 @@ export default function FacturasPage() {
                         variant="ghost"
                         size="sm"
                         className="text-xs text-destructive"
-                        onClick={() =>
-                          updateStatusMutation.mutate({ id: inv.id, status: 'CANCELLED' })
-                        }
+                        onClick={() => cancelInvoice(inv.id)}
                       >
                         <XCircle className="size-3.5" /> Cancelar
                       </Button>
                     </>
+                  )}
+                  {inv.status === 'ISSUED' && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-destructive"
+                      disabled={updateStatusMutation.isPending}
+                      onClick={() => cancelInvoice(inv.id)}
+                    >
+                      <XCircle className="size-3.5" /> Revertir
+                    </Button>
                   )}
                 </div>
               </div>
