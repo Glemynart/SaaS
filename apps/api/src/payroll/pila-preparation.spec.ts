@@ -232,11 +232,12 @@ describe('inspectPilaSnapshotPreparation', () => {
     const source = payload();
     source.employer.razonSocial = 'R'.repeat(200);
     source.employer.direccion = 'D'.repeat(40);
-    source.employer.email = 'e'.repeat(60);
+    source.employer.email = `${'a'.repeat(54)}@b.com`;
     source.employer.pila.formaPresentacion = 'S';
     source.employer.pila.codigoSucursal = 'S'.repeat(10);
     source.employer.pila.nombreSucursal = 'N'.repeat(40);
     source.employer.pila.fax = '1'.repeat(10);
+    source.employer.pila.representanteTipoDocumento = 'PA';
     source.employer.pila.representanteNumeroDocumento = '1'.repeat(16);
     source.employer.pila.representantePrimerApellido = 'A'.repeat(20);
     source.employer.pila.representanteSegundoApellido = 'B'.repeat(30);
@@ -254,6 +255,106 @@ describe('inspectPilaSnapshotPreparation', () => {
       ),
     ).toEqual([]);
   });
+
+  it('bloquea fax no numérico y correo que incumple el formato AT2', () => {
+    const source = payload();
+    source.employer.email = 'Ana@-dominio.co';
+    source.employer.pila.fax = '601-123';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues
+        .filter(
+          ({ record, code }) =>
+            record === 'APORTANTE_TIPO_1' && code.endsWith('NO_VALIDO'),
+        )
+        .map(({ fieldNumber, code }) => ({ fieldNumber, code })),
+    ).toEqual([
+      { fieldNumber: 16, code: 'CAMPO_16_FAX_NO_VALIDO' },
+      { fieldNumber: 17, code: 'CAMPO_17_CORREO_NO_VALIDO' },
+    ]);
+  });
+
+  it('valida el documento del representante según el tipo declarado', () => {
+    const source = payload();
+    source.employer.pila.representanteNumeroDocumento = 'ABC123';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'APORTANTE_TIPO_1',
+        fieldNumber: 18,
+        code: 'CAMPO_18_IDENTIFICACION_REPRESENTANTE_NO_VALIDA',
+      }),
+    );
+  });
+
+  it('bloquea un tipo de identificación no permitido para el representante', () => {
+    const source = payload();
+    source.employer.pila.representanteTipoDocumento = 'TI';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'APORTANTE_TIPO_1',
+        fieldNumber: 20,
+        code: 'CAMPO_20_DOCUMENTO_REPRESENTANTE_NO_VALIDO',
+      }),
+    );
+  });
+
+  it('permite omitir la identificación del representante para persona natural', () => {
+    const source = payload();
+    source.employer.pila.tipoPersona = 'N';
+    source.employer.pila.tipoDocumentoAportante = 'CC';
+    source.employer.pila.representanteTipoDocumento = '';
+    source.employer.pila.representanteNumeroDocumento = '';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(
+        ({ record, fieldNumber }) =>
+          record === 'APORTANTE_TIPO_1' && [18, 20].includes(fieldNumber ?? -1),
+      ),
+    ).toEqual([]);
+  });
+
+  it.each([
+    ['CC', '1234567890'],
+    ['CE', '1234567'],
+    ['PA', 'A123456789012345'],
+    ['CD', 'A1234567890'],
+  ])(
+    'acepta identificación %s de representante en su límite oficial',
+    (tipoDocumento, numeroDocumento) => {
+      const source = payload();
+      source.employer.pila.representanteTipoDocumento = tipoDocumento;
+      source.employer.pila.representanteNumeroDocumento = numeroDocumento;
+
+      const result = inspectPilaSnapshotPreparation(
+        snapshot('employee-1', 'Ana', { payload: source }),
+      );
+
+      expect(
+        result.issues.filter(
+          ({ record, fieldNumber }) =>
+            record === 'APORTANTE_TIPO_1' && fieldNumber === 18,
+        ),
+      ).toEqual([]);
+    },
+  );
 
   it.each([
     ['CC', '12345678901'],

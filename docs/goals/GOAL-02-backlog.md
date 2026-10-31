@@ -339,3 +339,8 @@ verdes al 2026-10-31.
   pruebas cubren máximos y desbordamientos. Esto sigue siendo validación
   preparatoria: no serializa registros, no hace `archivoGenerable` verdadero y
   no acredita carga o compatibilidad de operador.
+- La continuación del preflight del archivo tipo 1 valida fax numérico,
+  caracteres y dominio del correo, y la identificación del representante
+  contra CC/CE/PA/CD. La identificación puede omitirse para persona natural
+  solo si no se diligencia parcialmente. El preflight sigue sin serializar ni
+  habilitar la descarga PILA.

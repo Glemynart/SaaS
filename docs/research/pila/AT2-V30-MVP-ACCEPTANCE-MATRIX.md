@@ -51,11 +51,11 @@ El AT2 distingue el **archivo tipo 1** (datos generales del aportante) del
 encabezado y registros 02 de detalle; por tanto, “tipo 1/2” no significa que el
 registro 01 de planilla sea el archivo tipo 1 del aportante.
 
-| Artefacto AT2                | Estructura verificada        | Regla de aceptación local                                                                                                                                                                                                                                                                                               |
-| ---------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Archivo tipo 1 del aportante | Campos 1–34; 567 caracteres. | No generarlo si falta un dato obligatorio o una declaración expresa del aportante. Respetar longitudes de campos textuales 1, 5–6, 11, 16–18 y 21–24; bloquear excedentes sin truncar. No derivar clase, sucursal PILA, naturaleza, tipo de persona, exoneración ni códigos económicos desde `Sede` o nombres de texto. |
-| Archivo tipo 2, registro 01  | 22 campos; 359 caracteres.   | Un encabezado por planilla. Mantener los campos que AT2 asigna al operador como tales; solo usar una convención de archivo plano que tenga evidencia de carga por operador.                                                                                                                                             |
-| Archivo tipo 2, registro 02  | 98 campos; 693 caracteres.   | Una o varias líneas por trabajador según AT2. El total de líneas no sustituye el conteo de cotizantes únicos del encabezado. Cada línea procede de resultados y afiliaciones congelados.                                                                                                                                |
+| Artefacto AT2                | Estructura verificada        | Regla de aceptación local                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Archivo tipo 1 del aportante | Campos 1–34; 567 caracteres. | No generarlo si falta un dato obligatorio o una declaración expresa del aportante. Respetar longitudes de campos 1, 5–6, 11, 16–18 y 21–24; el fax numérico y el correo también deben respetar sus caracteres AT2, y la identificación del representante debe corresponder a su tipo. No truncar ni derivar declaraciones desde `Sede` o nombres de texto. |
+| Archivo tipo 2, registro 01  | 22 campos; 359 caracteres.   | Un encabezado por planilla. Mantener los campos que AT2 asigna al operador como tales; solo usar una convención de archivo plano que tenga evidencia de carga por operador.                                                                                                                                                                                |
+| Archivo tipo 2, registro 02  | 98 campos; 693 caracteres.   | Una o varias líneas por trabajador según AT2. El total de líneas no sustituye el conteo de cotizantes únicos del encabezado. Cada línea procede de resultados y afiliaciones congelados.                                                                                                                                                                   |
 
 Para el detalle 02, el alcance de datos de mayor riesgo es:
 
@@ -72,6 +72,11 @@ Para el detalle 02, el alcance de datos de mayor riesgo es:
 | 62, 77–78, 98 | Centro ARL, ARL, clase y actividad económica | Usar asignación con vigencia del empleado, código asignado por ARL y catálogo de Decreto 768/2022 versionado. Una sede no reemplaza el centro ARL.                                                                                                                                                                                                                                                                           |
 | 95            | IBC de otros parafiscales                    | Obligatorio para tipo 01 y limitado a 9 dígitos. Requiere origen salarial auditable, base propia en el snapshot y reglas aprobadas. El valor candidato actual no constituye por sí mismo aprobación normativa.                                                                                                                                                                                                               |
 
+Para el tipo 1, los campos 16, 17 y 18 no se validan solo por longitud: el fax
+es numérico, el correo debe respetar los caracteres y estructura de dominio de
+AT2, y el documento del representante usa las reglas del tipo declarado (CC,
+CE, PA o CD). AT2 v30, pp. 13–14.
+
 La Resolución 1529/2026 y cualquier actualización posterior se deben evaluar
 por período cotizado y fecha prevista/confirmada de pago PILA, conforme al
 versionamiento explícito del ADR-013. La fecha del salario o la fecha en que se
@@ -79,7 +84,7 @@ genera el archivo no determina el hito.
 
 ## Criterios de aceptación y pruebas de contrato
 
-Las pruebas `PILA-AT2-01` a `PILA-AT2-15` son criterios objetivo para la futura
+Las pruebas `PILA-AT2-01` a `PILA-AT2-20` son criterios objetivo para la futura
 validación local. **“Bloquear” significa no producir una descarga parcial.**
 La fuente normativa da el requisito del formato; donde se marca “Payroll debe
 aprobar”, AT2 no define por sí solo el cálculo laboral que alimenta el campo.
@@ -105,6 +110,7 @@ aprobar”, AT2 no define por sí solo el cálculo laboral que alimenta el campo
 | PILA-AT2-17 | Documento CC/CE/TI/PA con caracteres no permitidos o longitud superior a la del tipo.                                                                 | Bloquear el campo 4; no normalizar ni truncar el identificador. Aceptar cada longitud máxima permitida.                                                                                                                  | AT2 v30, pp. 81–82; cubierto en preflight unitario.                                                    |
 | PILA-AT2-18 | Algún nombre de los campos 11–14 excede 20/30 posiciones.                                                                                             | Bloquear el campo; no truncar nombres. Aceptar las longitudes máximas.                                                                                                                                                   | AT2 v30, p. 88; cubierto en preflight unitario.                                                        |
 | PILA-AT2-19 | Datos de aportante o representante superan la longitud AT2 de su campo.                                                                               | Bloquear el registro y conservar el valor de origen sin truncar. Aceptar las longitudes máximas.                                                                                                                         | AT2 v30, pp. 9–15; cubierto en preflight unitario.                                                     |
+| PILA-AT2-20 | Fax no numérico, correo fuera del formato AT2 o identificación del representante incompatible con el documento declarado.                             | Bloquear el campo correspondiente; no normalizar, sustituir ni truncar datos. Aceptar documentos CC/CE/PA/CD en sus límites oficiales; la identificación puede omitirse solo para persona natural si se omite completa.  | AT2 v30, pp. 13–14; cubierto en preflight unitario.                                                    |
 
 ### Fixture numérico candidato para campo 95
 
