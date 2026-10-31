@@ -1025,6 +1025,6 @@ export function buildPilaPreparationReport(input: {
     archivoGenerable: false as const,
     estadoArchivo: 'NO_IMPLEMENTADO' as const,
     mensaje:
-      'Este informe revisa insumos conocidos de snapshots aprobados. Las fuentes PILA están en reconciliación; no es una validación normativa completa, no genera archivos ni confirma aceptación de un operador.',
+      'Este informe revisa insumos conocidos de snapshots aprobados. La fuente oficial AT2 v30 está identificada; el mapeo de campos y las reglas aplicables siguen en reconciliación. No es una validación normativa completa, no genera archivos ni confirma aceptación de un operador.',
   };
 }

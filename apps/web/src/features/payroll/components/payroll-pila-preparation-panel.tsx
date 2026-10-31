@@ -38,8 +38,9 @@ export function PayrollPilaPreparationPanel({
             Preparación de datos PILA
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Revisa los datos congelados en los snapshots aprobados frente a los requisitos PILA
-            identificados hasta ahora. La matriz normativa sigue en reconciliación.
+            Revisa los datos congelados en los snapshots aprobados frente a campos de AT2 v30 con
+            fuente identificada. El mapeo y las reglas aplicables siguen en reconciliación; este
+            informe no valida un archivo completo.
           </p>
         </div>
         <Button

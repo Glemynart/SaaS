@@ -1,19 +1,21 @@
 # ADR-014 — Fuente histórica de centro de trabajo y actividad económica PILA
 
-> Las referencias a “AT2 v30” en este ADR fueron escritas con base en una
-> copia cuya publicación oficial no se pudo verificar. MinSalud enlaza hoy AT2
-> v29 y publica aparte la Resolución 1529 de 2026, que modifica el AT2. La
-> decisión de captura histórica y aislamiento tenant permanece; los requisitos
-> concretos de los campos 62 y 98 deben cotejarse de nuevo antes de afirmar
-> cumplimiento o habilitar exportación.
+> La descarga directa del [AT2 publicado por MinSalud](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/OT/anexo-tecnico2-cotizantes.pdf)
+> se verificó el 2026-10-31: la página 2 identifica AT2 v30, 24-07-2026, y enumera la
+> Resolución 1529/2026; SHA-256
+> `BBB3C2D0486FD7D3934BD640D8E68C60D33686B1604E8EFAA980139FB5686D33`. Se
+> corrige la conclusión anterior que dudaba de esa versión y fuente. La decisión
+> de captura histórica y aislamiento tenant permanece; la integración de los
+> campos 62 y 98 con catálogos, vigencias y escenarios de este producto aún
+> requiere validación antes de afirmar cumplimiento o habilitar exportación.
 
-| Campo           | Valor                                                                                                  |
-| --------------- | ------------------------------------------------------------------------------------------------------ |
-| **Estado**      | accepted — opción B seleccionada para el MVP de captura y snapshot                                     |
-| **Fecha**       | 2026-10-31                                                                                             |
-| **Decisores**   | Producto · Nómina · Arquitectura                                                                       |
-| **Ámbito**      | Insumos PILA AT2 para trabajadores dependientes estándar, campos 62 y 98; norma consolidada pendiente  |
-| **Relacionado** | GOAL-02 M0 · ADR-013 · `PayrollSnapshot.pilaPayload` · `Empleado.sedeId` · `AfiliacionSeguridadSocial` |
+| Campo           | Valor                                                                                                                  |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **Estado**      | accepted — opción B seleccionada para el MVP de captura y snapshot                                                     |
+| **Fecha**       | 2026-10-31                                                                                                             |
+| **Decisores**   | Producto · Nómina · Arquitectura                                                                                       |
+| **Ámbito**      | Insumos PILA AT2 v30 para trabajadores dependientes estándar, campos 62 y 98; validación de catálogo y mapeo pendiente |
+| **Relacionado** | GOAL-02 M0 · ADR-013 · `PayrollSnapshot.pilaPayload` · `Empleado.sedeId` · `AfiliacionSeguridadSocial`                 |
 
 ## Problema
 
@@ -23,13 +25,15 @@ Riesgos Laborales que suministra el aportante y debe corresponder a la tabla
 del Decreto 768 de 2022. Ambos datos deben representar al trabajador y al
 período reportado.
 
-El código actual contiene una `Sede` con municipio y empleados asociados, un
-`Contrato` con sede y una clase de riesgo opcional, y una afiliación de
-seguridad social con ARL y clase de riesgo con vigencia. Ninguno conserva el
-código de centro de trabajo definido por la ARL ni la actividad económica de
-riesgos asignada al trabajador. El snapshot PILA conserva la sede y el
-contrato, pero no estos dos valores ni su vigencia. La relación geográfica con
-una `Sede` no prueba que esta sea el centro codificado por la ARL.
+`main` antes de PR #169 contenía `Sede`, `Contrato` y afiliaciones con ARL y
+clase de riesgo, pero no conservaba el código de centro asignado por la ARL ni
+la actividad de riesgos del empleado. La rama abierta #169 agrega
+`PilaCentroTrabajo` tenant-scoped con vínculo opcional a `Sede` y
+`PilaAsignacionCentroTrabajo` con centro, actividad y vigencias por empleado.
+El payload PILA v2 congela esas asignaciones para snapshots nuevos; snapshots
+históricos no reciben backfill. Una sede continúa siendo una ubicación
+organizacional: su vínculo no prueba que su código sea el centro de trabajo de
+la ARL ni que el empleado trabaje allí durante todo el período.
 
 La matriz normativa del ADR-013 identifica ambos campos como bloqueos del
 serializador. El informe preliminar de preparación de datos también los
@@ -39,21 +43,30 @@ ni una afiliación vigente.
 
 ## Hechos verificados
 
-- AT2 v29, registro tipo 2, campo 62: usa el código de centro de trabajo que
+- AT2 v30, registro tipo 2, campo 62: usa el código de centro de trabajo que
   suministra el aportante con base en los códigos definidos por la ARL.
-- AT2 v29, registro tipo 2, campo 98: requiere un código de actividad
+- AT2 v30, registro tipo 2, campo 98: requiere un código de actividad
   económica de riesgos laborales conforme a la tabla del Decreto 768 de 2022
   para los dependientes cubiertos por el MVP.
 - `AfiliacionSeguridadSocial` registra `arlCodigo`, `arlClaseRiesgo` y una
-  vigencia, pero no el centro ni el código de actividad.
+  vigencia; la rama #169 guarda el centro y actividad por separado, asociados
+  al empleado y con vigencia propia.
+- `PilaCentroTrabajo` y `PilaAsignacionCentroTrabajo` usan relaciones compuestas
+  con `tenantId`; el servicio valida código de actividad del catálogo
+  `DECRETO_768_2022` y reglas de solapamiento. Esto no confirma la asignación
+  ante la ARL ni la aceptación del código por un operador.
 - `Sede` y `Contrato.sedeId` describen una ubicación organizacional; no
   almacenan identificadores de centro asignados por una ARL.
-- Los snapshots históricos PILA no se rellenan desde datos maestros actuales.
+- El payload PILA v2 de la rama congela la asignación y el tenant. Los snapshots
+  históricos no se rellenan desde datos maestros actuales.
 
-La matriz del ADR-013 se debe reconciliar entre AT2 v29, publicado por
-[MinSalud en su página de PILA](https://www.minsalud.gov.co/Proteccion-Social/Paginas/pila.aspx),
-y las modificaciones vigentes de la Resolución 1529/2026 antes de afirmar que
-el mapeo de campos es completo.
+La matriz del ADR-013 usa el AT2 v30 descargado desde la
+[página de PILA de MinSalud](https://www.minsalud.gov.co/Proteccion-Social/Paginas/pila.aspx),
+que enumera la Resolución 1529/2026. La actividad debe cotejarse con el anexo
+oficial del Decreto 768 de 2022, y el centro debe corresponder al dato que asigna
+la ARL. La captura local conserva ambos datos con vigencia; faltan sus
+validaciones de catálogo y evidencia por escenario antes de afirmar que el
+mapeo es completo.
 La tabla de actividad económica proviene del [Decreto 768 de 2022, publicado
 en SUIN-Juriscol](https://www.suin-juriscol.gov.co/archivo/DECRETO_768_DE_2022.pdf).
 Los códigos y las reglas de vigencia se deben volver a comprobar contra la
