@@ -502,3 +502,10 @@ verdes al 2026-10-31.
   parafiscales y FSP si existen, sin asumir que una fuente opcional ausente
   representa un aporte cero. La generación, el mapeo final, el cálculo de
   aportes y la compatibilidad de operadores siguen sin habilitarse.
+- La Sentencia C-264/2026 fijó el 1 de abril de 2027 para la entrada en vigor
+  de las disposiciones exequibles que conforman el nuevo sistema pensional.
+  Aunque AT2 v30 describe la distribución de pensión por componentes y el
+  umbral de 2,3 SMLMV, esas reglas no se activan para planillas de 2026 por el
+  solo hecho de aparecer en el formato. El mapeo debe versionar el corte,
+  revisar las disposiciones exceptuadas y revalidar el marco vigente antes de
+  soportar períodos que alcancen abril de 2027.

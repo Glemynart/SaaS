@@ -43,6 +43,8 @@ Referencias revisadas en esa copia:
   de estructura de los campos 36–39: páginas impresas 91–92.
 - Tipo 01 dependiente y base proporcional en escenarios parciales: página impresa 104.
 - Tipo 01 y subtipo 00: estructura de tipo/subtipo en página impresa 85.
+- Reglas de distribución del aporte pensional entre componentes: páginas
+  impresas 147–154.
 
 ## Mapa de registros y valores
 
@@ -164,6 +166,17 @@ La Resolución 1529/2026 y cualquier actualización posterior se deben evaluar
 por período cotizado y fecha prevista/confirmada de pago PILA, conforme al
 versionamiento explícito del ADR-013. La fecha del salario o la fecha en que se
 genera el archivo no determina el hito.
+
+La [Sentencia C-264 de 2026 de la Corte Constitucional](https://www.corteconstitucional.gov.co/relatoria/2026/C-264-26.htm)
+dispuso que las disposiciones exequibles de la Ley 2381 que componen el nuevo
+sistema pensional entran en vigor el **1 de abril de 2027**. El AT2 v30 incluye
+reglas de distribución pensional entre componentes y un umbral de 2,3 SMLMV
+(pp. 149–154), pero la sola presencia de estas reglas en el formato no permite
+activarlas para planillas anteriores al hito. La selección debe considerar el
+período cotizado, la fecha prevista/confirmada de pago, las disposiciones que
+la sentencia exceptúa y cualquier norma posterior. La vigencia efectiva debe
+verificarse de nuevo antes de habilitar planillas que alcancen el corte de
+2027; este incremento no implementa esa distribución.
 
 ## Criterios de aceptación y pruebas de contrato
 

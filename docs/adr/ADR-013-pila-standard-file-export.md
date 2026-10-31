@@ -379,6 +379,15 @@ La [Resolución 1641 de 2026](https://www.minsalud.gov.co/sites/rid/Lists/Biblio
 confirma que la 1529 modifica los anexos y que el formulario de afiliación y
 novedades de riesgos laborales es un artefacto normativo separado.
 
+La [Sentencia C-264 de 2026 de la Corte Constitucional](https://www.corteconstitucional.gov.co/relatoria/2026/C-264-26.htm)
+fijó el 1 de abril de 2027 como fecha de entrada en vigor de las disposiciones
+exequibles que conforman el nuevo sistema pensional de la Ley 2381. Por tanto,
+la inclusión de reglas de dos componentes pensionales en AT2 v30 no basta para
+aplicarlas a una planilla de 2026. La versión normativa debe seleccionar las
+reglas según período y fecha de pago, evaluar las disposiciones exceptuadas
+por la sentencia y revalidarse ante normas posteriores antes del corte de 2027. Este hallazgo no cambia el alcance aprobado ni habilita actualmente el
+mapeo de aportes pensionales.
+
 La comprobación directa confirma que el AT2 enlazado es versión 30 y que la
 copia candidata registrada históricamente tiene exactamente el mismo hash. La
 versión y el archivo son hechos verificados; no se presume por ello que cada
