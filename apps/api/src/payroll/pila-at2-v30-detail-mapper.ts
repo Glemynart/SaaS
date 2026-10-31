@@ -62,6 +62,9 @@ export const PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_FIELD_NUMBERS = [
 export const PILA_AT2_V30_PRIVATE_EMPLOYER_ESAP_MEN_FIELD_NUMBERS = [
   70, 71, 72, 73,
 ] as const;
+export const PILA_AT2_V30_UNMAPPED_PENSION_CONTRIBUTION_FIELD_NUMBERS = [
+  48, 49, 51, 52, 53,
+] as const;
 
 export const PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS = [
   15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 80, 81, 82,
@@ -982,6 +985,27 @@ export function mapPilaAt2V30DetailCandidate(
     unresolved(46, reason);
     unresolved(47, reason);
   }
+
+  unresolved(
+    48,
+    'Falta una afiliación pensional versionada que confirme si el afiliado realiza aportes voluntarios; el campo 28 también debe declarar esa novedad.',
+  );
+  unresolved(
+    49,
+    'Falta una fuente congelada del aporte voluntario que realiza el aportante y la confirmación correspondiente del campo 28.',
+  );
+  unresolved(
+    51,
+    'El aporte de solidaridad requiere agregar el IBC pensional por cotizante y validar su obligación; el snapshot no conserva esa base agregada ni una fuente separada de esta subcuenta.',
+  );
+  unresolved(
+    52,
+    'El aporte de subsistencia requiere la base pensional agregada y validar la regla vigente por régimen; Payroll no conserva una fuente separada de esta subcuenta.',
+  );
+  unresolved(
+    53,
+    'El valor no retenido depende de aportes voluntarios y de la diferencia de retención en la fuente; no existe una fuente congelada aprobada para calcularlo o confirmarlo.',
+  );
 
   const healthBase = object(subsystemBases?.salud);
   let healthRateBlockReason: string | null = null;

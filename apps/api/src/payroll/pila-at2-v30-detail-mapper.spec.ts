@@ -523,6 +523,25 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     ).toContain('aporte voluntario');
   });
 
+  it('keeps unsupported voluntary and FSP amounts pending with source reasons', () => {
+    const candidate = mapPilaAt2V30DetailCandidate(snapshot());
+    const reasonFor = (fieldNumber: number) =>
+      candidate.unresolvedFields.find(
+        (field) => field.fieldNumber === fieldNumber,
+      )?.reason;
+
+    for (const fieldNumber of [48, 49, 51, 52, 53]) {
+      expect(candidate.values[fieldNumber]).toBeUndefined();
+    }
+    expect(reasonFor(48)).toContain('afiliación pensional versionada');
+    expect(reasonFor(49)).toContain(
+      'aporte voluntario que realiza el aportante',
+    );
+    expect(reasonFor(51)).toContain('agregar el IBC pensional por cotizante');
+    expect(reasonFor(52)).toContain('regla vigente por régimen');
+    expect(reasonFor(53)).toContain('diferencia de retención en la fuente');
+  });
+
   it('keeps fixed incapacity and maternity fields unresolved when a PILA event exists', () => {
     const input = snapshot();
     const payload = payloadOf(input);

@@ -636,6 +636,20 @@ se accedió a demo, staging o producción.
   descarga ni se declara compatibilidad de operador.
 - Fuentes primarias: [AT2 v30, Ministerio de Salud](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/OT/anexo-tecnico2-cotizantes.pdf), pp. 163–164; [Ley 21 de 1982, Gestor Normativo de Función Pública](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=4827), arts. 8, 11 y 12. Trabajo apilado sobre #205 en `codex/goal02-pila-private-esap-men-fields`.
 
+### Aportes voluntarios de pensión y subcuentas FSP pendientes — 2026-10-31
+
+- El preflight ahora muestra los campos 48, 49, 51, 52 y 53 como pendientes
+  por empleado con la causa correspondiente. Los campos voluntarios requieren
+  afiliación pensional y una declaración enlazada al campo 28; el campo 53
+  también requiere una fuente aprobada para validar la diferencia de retención.
+- Payroll conserva el FSP como concepto agregado. AT2 exige distinguir las
+  subcuentas y validar la base pensional acumulada por cotizante y su régimen;
+  no se distribuye ni calcula un importe desde la nómina actual.
+- No se infiere cero ni se habilita la descarga. Las reglas de producto y las
+  fuentes de entrada quedan pendientes antes de implementar el mapeo.
+- Fuente: AT2 v30 pp. 155–159 y ADR-013. Trabajo apilado sobre #206 en
+  `codex/goal02-pila-pension-fields-pending-report`.
+
 ### Salud estándar candidata AT2 — 2026-10-31
 
 - La regla versionada `CO_HEALTH_STANDARD_RATE_L1122_ART10_V1` conserva la
