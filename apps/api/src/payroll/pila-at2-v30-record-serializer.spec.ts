@@ -21,6 +21,12 @@ function completeRecordValues(
   return { ...values, ...overrides };
 }
 
+function layoutSignature(record: PilaAt2V30RecordKey): string {
+  return PILA_AT2_V30_RECORD_LAYOUTS[record].fields
+    .map(({ length, kind }) => `${length}${kind}`)
+    .join(' ');
+}
+
 describe('AT2 v30 fixed-width record formatting', () => {
   it.each([
     ['employerType1', 34, 567],
@@ -44,6 +50,26 @@ describe('AT2 v30 fixed-width record formatting', () => {
         completeRecordValues(record),
       );
       expect(Array.from(serialized)).toHaveLength(length);
+    },
+  );
+
+  it.each([
+    [
+      'employerType1',
+      '200A 2A 16A 1N 10A 40A 1A 1N 1A 1A 40A 3A 2A 4N 10N 10N 60A 16A 1N 2A 20A 30A 20A 30A 10A 1N 10A 2N 7N 2N 10A 2A 1A 1A',
+    ],
+    [
+      'payrollHeaderType2',
+      '2N 1N 4N 200A 2A 16A 1N 1A 10N 10A 1A 10A 40A 6A 7A 7A 10N 10A 5N 12N 2N 2N',
+    ],
+    [
+      'contributorDetailType2',
+      '2N 5N 2A 16A 2N 2N 1A 1A 2A 3A 20A 30A 20A 30A 1A 1A 1A 1A 1A 1A 1A 1A 1A 1A 1A 1A 1A 1A 1A 2N 6A 6A 6A 6A 6A 2N 2N 2N 2N 9N 1A 9N 9N 9N 9N 7N 9N 9N 9N 9N 9N 9N 9N 7N 9N 9N 15A 9N 15A 9N 9N 9N 9N 7N 9N 7N 9N 7N 9N 7N 9N 7N 9N 2A 16A 1A 6A 1A 1A 10A 10A 10A 10A 10A 10A 10A 10A 10A 10A 10A 10A 10A 10A 10A 9N 3N 10A 7N',
+    ],
+  ] as const)(
+    'preserves the official per-field width and kind sequence for %s',
+    (record, expectedSignature) => {
+      expect(layoutSignature(record)).toBe(expectedSignature);
     },
   );
 
