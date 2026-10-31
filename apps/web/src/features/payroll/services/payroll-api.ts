@@ -14,7 +14,7 @@ export interface PayrollPeriod {
   nombre: string;
   fechaInicio: string;
   fechaFin: string;
-  fechaPrevistaPago: string | null;
+  fechaPrevistaPagoPila: string | null;
   status: PayrollPeriodStatus;
   empleadosProcesados: number;
   createdAt: string;
@@ -297,7 +297,7 @@ export const payrollApi = {
     nombre: string;
     fechaInicio: string;
     fechaFin: string;
-    fechaPrevistaPago?: string | null;
+    fechaPrevistaPagoPila?: string | null;
   }) => req<PayrollPeriod>('/api/payroll/periods', { method: 'POST', body: JSON.stringify(d) }),
   getPeriod: (id: string) => req<PeriodDetail>(`/api/payroll/periods/${id}`),
   getCorrections: (periodId: string) =>

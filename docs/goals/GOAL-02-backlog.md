@@ -60,14 +60,20 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   `apps/api` ni en la interfaz web.
 - La [página oficial de PILA de MinSalud](https://www.minsalud.gov.co/Proteccion-Social/Paginas/pila.aspx)
   se revalidó el 2026-10-30: el enlace a `anexo-tecnico2-cotizantes.pdf`
-  devuelve un PDF identificado como AT2 v29, fechado 2026-01-06. La
-  [Resolución 1529 de 2026](https://normativa.colpensiones.gov.co/colpens/compilacion/docs/resolucion_minsaludps_1529_2026.htm)
-  modifica AT2 y AT3 aparte y fija plazos escalonados; no se encontró allí un
-  consolidado oficial v30. Antes de serializar hay que cotejar el layout v29
-  con esa resolución y cualquier norma posterior. El proyecto de ajuste de
-  5.87/5.91 aparece en consulta pública de MinSalud, no como norma expedida; el
-  cotizante 75 queda fuera del MVP. La selección de reglas por período/fecha de
-  pago se aplicará solo a hitos cuya vigencia dependa de ambos datos.
+  devuelve un PDF identificado como AT2 v29, fechado 2026-01-06 (336 páginas).
+  La [Resolución 1529 de 2026](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-1529-de-2026.pdf)
+  (58 páginas, 24 de julio) modifica partes del AT2 y el AT3 con plazos
+  escalonados; no es un AT2 consolidado v30. Se verificó que los cambios de
+  identificación de los campos tipo 1 (3 y 18) y tipo 2 (4 y 75) aplican a
+  pagos desde 2026-10-01 para pensiones del período 2026-09. Las aclaraciones
+  de planilla E tienen otro hito: pago desde 2026-11-01 para salud del período
+  2026-11; el cotizante 75 también tiene un hito en esa fecha, pero queda fuera
+  del MVP. La matriz completa aún debe reconciliar cada regla de AT2 v29,
+  Resolución 1529 y normas posteriores. La propuesta de modificar 5.87/5.91
+  continúa en consulta pública, no como norma expedida. La selección de reglas
+  por período/fecha prevista de pago de aportes PILA se aplicará solo a hitos
+  cuya vigencia dependa de ambos datos; esa previsión es distinta de la fecha
+  de pago del salario y no confirma que se pagaron los aportes.
 - Hay evidencia de carga por archivo plano en varios operadores: [SOI](https://www.soi.com.co/empresa-servicios-de-soi),
   [Enlace Operativo/SuAporte](https://www.enlace.com.co/hubfs/Manuales/C%C3%B3mo%20cargar%20un%20archivo%20plano%20en%20SuAporte.pdf?hsLang=es-co)
   y [Aportes en Línea](https://www.aportesenlinea.com/Documents/Instructivo%20Corrector%20por%20Pantalla%20v.1.3.pdf)
@@ -123,15 +129,23 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   independiente sigue pendiente antes del uso operativo. Las migraciones no se
   aplicaron a demo/staging/producción; pagos, Tesorería y Ledger quedan fuera.
 - **PILA:** ADR-013 está aprobada con cambios y la matriz normativa fue
-  presentada. El enlace oficial actual sirve AT2 v29 y la Resolución 1529/2026
-  lo modifica por separado; aún falta reconciliar el layout y las reglas. El MVP cubre solo dependientes estándar,
-  conserva afiliaciones con vigencia y no mapea automáticamente texto libre.
+  presentada. Se comprobó directamente AT2 v29 y las disposiciones de la
+  Resolución 1529/2026 sobre campos de identificación y plazos; falta
+  reconciliar el layout y todas las reglas. El MVP cubre solo dependientes
+  estándar, conserva afiliaciones con vigencia y no mapea automáticamente
+  texto libre.
   Aún no se genera ni transmite un archivo, no se declara compatibilidad de
   operadores sin pruebas reales, y no se realizan liquidación o pago.
 - **Estado de preparación:** PR #160 incorpora la etapa de afiliaciones manuales;
-  CI, Browser E2E y Vercel Preview pasaron. El incremento actual agrega la fecha
-  prevista de pago al período de nómina y la conserva en snapshots nuevos. Aún se requiere
-  reconciliar reglas AT2/Resolución 1529, comprobar catálogos, completar datos patronales y laborales y
-  calcular días/IBC por subsistema antes de generar tipo 1/2.
+  CI, Browser E2E y Vercel Preview pasaron. PR #162 captura una fecha prevista
+  de pago de aportes PILA en el período y la conserva en snapshots nuevos; no es
+  el pago del salario ni evidencia de que se pagaron los aportes. La fecha
+  seleccionada para cada exportación y las versiones aplicadas deberán quedar
+  registradas sin reescribir el snapshot laboral. CI y Browser E2E de #162
+  fueron rechazados antes de iniciar sus pasos porque GitHub indica un límite
+  de facturación; no son fallos de pruebas de código. Aún se requiere
+  reconciliar reglas AT2/Resolución 1529, comprobar catálogos, completar datos
+  patronales y laborales y calcular días/IBC por subsistema antes de generar
+  tipo 1/2.
 - No se ejecutó el seed financiero ni se accedió a staging, producción, VPS u
   OCI; no se transmitió información a DIAN/UGPP.

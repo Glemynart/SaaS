@@ -1,2 +1,2 @@
 ALTER TABLE "payroll_periods"
-ADD COLUMN "fechaPrevistaPago" DATE;
+ADD COLUMN "fechaPrevistaPagoPila" DATE;

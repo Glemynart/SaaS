@@ -522,8 +522,8 @@ export class PayrollService {
         ...dto,
         fechaInicio: new Date(dto.fechaInicio),
         fechaFin: new Date(dto.fechaFin),
-        fechaPrevistaPago: dto.fechaPrevistaPago
-          ? new Date(dto.fechaPrevistaPago)
+        fechaPrevistaPagoPila: dto.fechaPrevistaPagoPila
+          ? new Date(dto.fechaPrevistaPagoPila)
           : null,
         tenantId,
         // Explícito: no depender del @default de la DB (red de seguridad,
@@ -2747,7 +2747,7 @@ export class PayrollService {
       nombre: string;
       fechaInicio: Date;
       fechaFin: Date;
-      fechaPrevistaPago: Date | null;
+      fechaPrevistaPagoPila: Date | null;
       status: PayrollPeriodStatus;
     },
     origin: string,
@@ -2782,7 +2782,7 @@ export class PayrollService {
           nombre: trace.period.nombre,
           fechaInicio: trace.period.fechaInicio,
           fechaFin: trace.period.fechaFin,
-          fechaPrevistaPago: period.fechaPrevistaPago,
+          fechaPrevistaPagoPila: period.fechaPrevistaPagoPila,
           status: PayrollPeriodStatus.APROBADA,
         }),
         employee: {

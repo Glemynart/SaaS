@@ -3,7 +3,7 @@ export type PayrollPeriodSnapshotInput = {
   nombre: string;
   fechaInicio: string | null;
   fechaFin: string | null;
-  fechaPrevistaPago: Date | null;
+  fechaPrevistaPagoPila: Date | null;
   status: string;
 };
 
@@ -13,7 +13,7 @@ export function buildPayrollPeriodSnapshot(input: PayrollPeriodSnapshotInput) {
     nombre: input.nombre,
     fechaInicio: input.fechaInicio,
     fechaFin: input.fechaFin,
-    fechaPrevistaPago: input.fechaPrevistaPago?.toISOString() ?? null,
+    fechaPrevistaPagoPila: input.fechaPrevistaPagoPila?.toISOString() ?? null,
     status: input.status,
   };
 }

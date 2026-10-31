@@ -7,11 +7,11 @@ describe('buildPayrollPeriodSnapshot', () => {
       nombre: 'Octubre 2026',
       fechaInicio: '2026-10-01T00:00:00.000Z',
       fechaFin: '2026-10-31T00:00:00.000Z',
-      fechaPrevistaPago: new Date('2026-11-05T00:00:00.000Z'),
+      fechaPrevistaPagoPila: new Date('2026-11-05T00:00:00.000Z'),
       status: 'APROBADA',
     });
 
-    expect(result.fechaPrevistaPago).toBe('2026-11-05T00:00:00.000Z');
+    expect(result.fechaPrevistaPagoPila).toBe('2026-11-05T00:00:00.000Z');
   });
 
   it('conserva la ausencia de fecha sin inferir una fecha del período', () => {
@@ -20,10 +20,10 @@ describe('buildPayrollPeriodSnapshot', () => {
       nombre: 'Octubre 2026',
       fechaInicio: '2026-10-01T00:00:00.000Z',
       fechaFin: '2026-10-31T00:00:00.000Z',
-      fechaPrevistaPago: null,
+      fechaPrevistaPagoPila: null,
       status: 'APROBADA',
     });
 
-    expect(result.fechaPrevistaPago).toBeNull();
+    expect(result.fechaPrevistaPagoPila).toBeNull();
   });
 });

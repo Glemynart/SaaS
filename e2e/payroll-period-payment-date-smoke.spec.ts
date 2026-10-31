@@ -53,5 +53,5 @@ test('captura y muestra la fecha prevista de pago del período', async ({ page }
 
   const createResponse = await createResponsePromise;
   expect(createResponse.status()).toBe(201);
-  await expect(page.getByText(/Pago previsto: \d{1,2}\/11\/2026/)).toBeVisible();
+  await expect(page.getByText(/Pago PILA previsto: \d{1,2}\/11\/2026/)).toBeVisible();
 });

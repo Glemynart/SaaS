@@ -30,7 +30,7 @@ export class CreatePayrollPeriodDto {
 
   @IsDateString()
   @IsOptional()
-  fechaPrevistaPago?: string | null;
+  fechaPrevistaPagoPila?: string | null;
 }
 
 /** Body opcional de POST payroll/periods/:id/rechazar (ADR-002 §6). */

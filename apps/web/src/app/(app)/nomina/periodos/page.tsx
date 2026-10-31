@@ -32,7 +32,7 @@ export default function PeriodosPage() {
   const [nombre, setNombre] = useState('');
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
-  const [fechaPrevistaPago, setFechaPrevistaPago] = useState('');
+  const [fechaPrevistaPagoPila, setFechaPrevistaPagoPila] = useState('');
 
   const handleCreate = useCallback(() => {
     if (!nombre || !fechaInicio || !fechaFin) return;
@@ -41,7 +41,7 @@ export default function PeriodosPage() {
         nombre,
         fechaInicio,
         fechaFin,
-        fechaPrevistaPago: fechaPrevistaPago || null,
+        fechaPrevistaPagoPila: fechaPrevistaPagoPila || null,
       },
       {
         onSuccess: () => {
@@ -49,11 +49,11 @@ export default function PeriodosPage() {
           setNombre('');
           setFechaInicio('');
           setFechaFin('');
-          setFechaPrevistaPago('');
+          setFechaPrevistaPagoPila('');
         },
       },
     );
-  }, [nombre, fechaInicio, fechaFin, fechaPrevistaPago, createMutation]);
+  }, [nombre, fechaInicio, fechaFin, fechaPrevistaPagoPila, createMutation]);
 
   if (isLoading)
     return (
@@ -102,15 +102,18 @@ export default function PeriodosPage() {
               <Input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="fecha-prevista-pago">Fecha prevista de pago</Label>
+              <Label htmlFor="fecha-prevista-pago-pila">
+                Fecha prevista de pago de aportes PILA
+              </Label>
               <Input
-                id="fecha-prevista-pago"
+                id="fecha-prevista-pago-pila"
                 type="date"
-                value={fechaPrevistaPago}
-                onChange={(e) => setFechaPrevistaPago(e.target.value)}
+                value={fechaPrevistaPagoPila}
+                onChange={(e) => setFechaPrevistaPagoPila(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Opcional. Se conserva al aprobar la nómina; no registra el pago.
+                Opcional. Orienta la versión normativa PILA; no es la fecha de pago del salario ni
+                confirma que los aportes se hayan pagado.
               </p>
             </div>
           </div>
@@ -141,11 +144,11 @@ export default function PeriodosPage() {
                     {new Date(p.fechaFin).toLocaleDateString('es-CO')}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Pago previsto:{' '}
-                    {p.fechaPrevistaPago
-                      ? new Date(`${p.fechaPrevistaPago.slice(0, 10)}T00:00:00`).toLocaleDateString(
-                          'es-CO',
-                        )
+                    Pago PILA previsto:{' '}
+                    {p.fechaPrevistaPagoPila
+                      ? new Date(
+                          `${p.fechaPrevistaPagoPila.slice(0, 10)}T00:00:00`,
+                        ).toLocaleDateString('es-CO')
                       : 'sin definir'}
                   </p>
                   <div className="mt-1.5 flex items-center gap-2">
