@@ -114,7 +114,10 @@ function snapshot(): PilaSnapshotPreparationInput {
 function payloadOf(snapshotInput: PilaSnapshotPreparationInput) {
   return snapshotInput.payload as {
     affiliations: Array<Record<string, unknown>>;
-    employer: { pila: Record<string, unknown> };
+    employer: {
+      aportesExonerados?: unknown;
+      pila: Record<string, unknown>;
+    };
     employee: Record<string, unknown>;
     payroll: {
       ibcPorSubsistema: Record<string, Record<string, unknown>>;
@@ -175,6 +178,62 @@ function setStandardPensionInputs(
         base,
         factor: overrides.employerFactor ?? 0.12,
         valor: overrides.employerAmount ?? 240_000,
+      },
+    ],
+  });
+}
+
+function setStandardHealthInputs(
+  snapshotInput: PilaSnapshotPreparationInput,
+  overrides: {
+    base?: number;
+    employeeDocument?: string;
+    employeeFactor?: number;
+    employeeAmount?: number;
+    employerFactor?: number;
+    employerAmount?: number;
+    employerExemption?: boolean | null;
+    employerConfirmation?: boolean | null;
+    employerNature?: string;
+    exteriorDeclaration?: boolean | null;
+  } = {},
+) {
+  const payload = payloadOf(snapshotInput);
+  const base = overrides.base ?? 2_000_000;
+  payload.employee.tipoDocumento = overrides.employeeDocument ?? 'CC';
+  payload.affiliations[0].colombianoEnElExterior =
+    overrides.exteriorDeclaration === undefined
+      ? false
+      : overrides.exteriorDeclaration;
+  payload.affiliations[0].extranjeroNoObligadoPension = null;
+  payload.employer.aportesExonerados =
+    overrides.employerExemption === undefined
+      ? false
+      : overrides.employerExemption;
+  Object.assign(payload.employer.pila, {
+    tipoAportante: '1',
+    naturalezaJuridica: overrides.employerNature ?? '2',
+    aportesExoneradosConfirmado:
+      overrides.employerConfirmation === undefined
+        ? false
+        : overrides.employerConfirmation,
+  });
+  Object.assign(payload.payroll.ibcPorSubsistema.salud, { valor: base });
+  Object.assign(payload.payroll, {
+    concepts: [
+      {
+        codigo: 'SALUD_EMP',
+        tipo: 'DEDUCTION',
+        base,
+        factor: overrides.employeeFactor ?? 0.04,
+        valor: overrides.employeeAmount ?? 80_000,
+      },
+      {
+        codigo: 'SALUD_PAT',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base,
+        factor: overrides.employerFactor ?? 0.085,
+        valor: overrides.employerAmount ?? 170_000,
       },
     ],
   });
@@ -364,6 +423,84 @@ describe('mapPilaAt2V30DetailCandidate', () => {
         ?.reason,
     ).toContain('obligado a cotizar');
   });
+
+  it('maps standard health rate and aggregates only rounded snapshot amounts', () => {
+    const input = snapshot();
+    setStandardHealthInputs(input);
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values).toMatchObject({
+      54: { value: '0.12500' },
+      55: { value: 250_000 },
+    });
+    expect(candidate.normativeRuleVersions.healthRate).toBe(
+      'CO_HEALTH_STANDARD_RATE_L1122_ART10_V1',
+    );
+  });
+
+  it('blocks health mapping without explicit employer non-exemption', () => {
+    const input = snapshot();
+    setStandardHealthInputs(input, { employerExemption: true });
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[54]).toBeUndefined();
+    expect(candidate.values[55]).toBeUndefined();
+    expect(
+      candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 54)
+        ?.reason,
+    ).toContain('no exoneración');
+  });
+
+  it('blocks health mapping if individually rounded source amounts do not match the combined rate', () => {
+    const input = snapshot();
+    setStandardHealthInputs(input, {
+      base: 500,
+      employeeAmount: 100,
+      employerAmount: 100,
+    });
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[54]).toBeUndefined();
+    expect(candidate.values[55]).toBeUndefined();
+    expect(
+      candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 55)
+        ?.reason,
+    ).toContain('La suma congelada');
+  });
+
+  it.each([
+    ['employee factor mismatch', { employeeFactor: 0.05 }, 'SALUD_EMP'],
+    ['employer factor mismatch', { employerFactor: 0.09 }, 'SALUD_PAT'],
+    [
+      'unconfirmed non-exemption',
+      { employerConfirmation: null },
+      'no exoneración',
+    ],
+    ['public employer', { employerNature: '1' }, 'empleadores privados'],
+    [
+      'unconfirmed worker location',
+      { exteriorDeclaration: null },
+      'confirmación expresa',
+    ],
+  ] as const)(
+    'leaves health fields unresolved for %s',
+    (_description, overrides, expectedReason) => {
+      const input = snapshot();
+      setStandardHealthInputs(input, overrides);
+
+      const candidate = mapPilaAt2V30DetailCandidate(input);
+
+      expect(candidate.values[54]).toBeUndefined();
+      expect(candidate.values[55]).toBeUndefined();
+      expect(
+        candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 54)
+          ?.reason,
+      ).toContain(expectedReason);
+    },
+  );
 
   it.each(['CC', 'TI'])(
     'does not flag document type %s as foreign, but keeps residence abroad unresolved',

@@ -198,7 +198,7 @@ export const PILA_AT2_V30_RECORD_LAYOUTS = {
       [7, 'N'],
     ],
     693,
-    [46, 61, 64, 66, 68],
+    [46, 54, 61, 64, 66, 68],
   ),
 } as const satisfies Record<string, PilaAt2V30RecordLayout>;
 

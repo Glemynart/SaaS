@@ -127,6 +127,23 @@ describe('AT2 v30 fixed-width record formatting', () => {
     ).toBe('DECIMAL_FRACTION');
   });
 
+  it('formats the AT2 field 54 health fractional tariff to seven positions', () => {
+    const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
+    const field54Start = layout.fields
+      .filter(({ fieldNumber }) => fieldNumber < 54)
+      .reduce((total, field) => total + field.length, 0);
+    const values = completeRecordValues('contributorDetailType2', {
+      54: { value: '0.12500' },
+    });
+    const record = serializePilaAt2V30Record('contributorDetailType2', values);
+
+    expect(record.slice(field54Start, field54Start + 7)).toBe('0.12500');
+    expect(
+      layout.fields.find(({ fieldNumber }) => fieldNumber === 54)
+        ?.numericFormat,
+    ).toBe('DECIMAL_FRACTION');
+  });
+
   it('formats the AT2 field 64 CCF fractional tariff to seven positions', () => {
     const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
     const field64Start = layout.fields
