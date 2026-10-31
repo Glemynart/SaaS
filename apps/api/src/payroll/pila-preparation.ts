@@ -866,11 +866,20 @@ export function inspectPilaSnapshotPreparation(
       'El número del cotizante no cumple los caracteres y la longitud permitidos por AT2 v30 para su tipo de documento.',
     );
   }
-  const affiliations = Array.isArray(root?.affiliations)
+  const affiliationRows = Array.isArray(root?.affiliations)
     ? root.affiliations
-        .map(object)
-        .filter((value): value is JsonRecord => value !== null)
     : [];
+  const affiliations = affiliationRows
+    .map(object)
+    .filter((value): value is JsonRecord => value !== null);
+  if (affiliations.length !== affiliationRows.length) {
+    add(
+      detailRecord,
+      5,
+      'AFILIACION_PILA_FILA_NO_VALIDA',
+      'El snapshot PILA contiene una fila de afiliación con formato no válido; no se puede confirmar la afiliación efectiva única.',
+    );
+  }
   if (affiliations.length !== 1) {
     add(
       detailRecord,
@@ -969,11 +978,26 @@ export function inspectPilaSnapshotPreparation(
       'Falta el código DIVIPOLA municipal del lugar de trabajo congelado.',
     );
   }
-  const riskAssignments = Array.isArray(root?.pilaRiskAssignments)
+  const riskAssignmentRows = Array.isArray(root?.pilaRiskAssignments)
     ? root.pilaRiskAssignments
-        .map(object)
-        .filter((value): value is JsonRecord => value !== null)
     : [];
+  const riskAssignments = riskAssignmentRows
+    .map(object)
+    .filter((value): value is JsonRecord => value !== null);
+  if (riskAssignments.length !== riskAssignmentRows.length) {
+    add(
+      detailRecord,
+      62,
+      'CENTRO_TRABAJO_PILA_FILA_NO_VALIDA',
+      'El snapshot PILA contiene una fila de centro de trabajo con formato no válido; no se puede confirmar la asignación efectiva única.',
+    );
+    add(
+      detailRecord,
+      98,
+      'ACTIVIDAD_ARL_PILA_FILA_NO_VALIDA',
+      'El snapshot PILA contiene una fila de actividad económica con formato no válido; no se puede confirmar la asignación efectiva única.',
+    );
+  }
   if (riskAssignments.length !== 1) {
     const multiple = riskAssignments.length > 1;
     add(

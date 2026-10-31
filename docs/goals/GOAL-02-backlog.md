@@ -418,3 +418,12 @@ verdes al 2026-10-31.
   #180; CI y Browser E2E fallaron en 1–2 segundos al abrirse. El usuario indicó
   que la cuota mensual de Actions está agotada; ambos PR quedan abiertos para
   continuar trabajo local y sincronizarlos en orden cuando se reponga.
+
+### Integridad de snapshots en el preflight PILA — 2026-10-31
+
+- La revisión del informe preliminar encontró que afiliaciones y asignaciones
+  ARL se filtraban a objetos antes de validar su forma. Un snapshot con una fila
+  válida más otra malformada podía aparecer como una sola asignación completa.
+  El preflight ahora reporta bloqueos explícitos para las filas inválidas de
+  afiliación, centro de trabajo y actividad económica; no activa generación de
+  archivos ni cambia el estado global `NO_IMPLEMENTADO`.

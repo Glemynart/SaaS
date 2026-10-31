@@ -601,6 +601,71 @@ describe('inspectPilaSnapshotPreparation', () => {
     );
   });
 
+  it('bloquea afiliaciones si una fila malformada acompaña a la fila válida', () => {
+    const source = payload();
+    Object.assign(source, {
+      affiliations: [...source.affiliations, null],
+    });
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 1,
+      payload: source,
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        fieldNumber: 5,
+        code: 'AFILIACION_PILA_FILA_NO_VALIDA',
+      }),
+    );
+  });
+
+  it('bloquea asignaciones ARL si una fila malformada acompaña a la válida', () => {
+    const source = {
+      ...payload(),
+      schemaVersion: 2,
+      pilaRiskAssignments: [
+        {
+          assignmentId: 'assignment-1',
+          tenantId: 'tenant-1',
+          codigoActividadEconomica: '1131202',
+          formatoNormativoVersion: 'DECRETO_768_2022',
+          vigenteDesde: '2026-01-01',
+          vigenteHasta: null,
+          centroTrabajo: {
+            centroTrabajoId: 'center-1',
+            tenantId: 'tenant-1',
+            sedeId: 'site-1',
+            arlCodigo: 'ARL001',
+            codigoCentro: '0001',
+            nombre: 'Centro principal',
+          },
+        },
+        null,
+      ],
+    };
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 2,
+      payload: source,
+    });
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldNumber: 62,
+          code: 'CENTRO_TRABAJO_PILA_FILA_NO_VALIDA',
+        }),
+        expect.objectContaining({
+          fieldNumber: 98,
+          code: 'ACTIVIDAD_ARL_PILA_FILA_NO_VALIDA',
+        }),
+      ]),
+    );
+  });
+
   it('bloquea actividad inexistente en el catálogo aunque tenga siete dígitos', () => {
     const source = {
       ...payload(),
