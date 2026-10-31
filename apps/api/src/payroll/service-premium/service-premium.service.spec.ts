@@ -117,7 +117,9 @@ describe('ServicePremiumService tenant-scoped lifecycle', () => {
     findBatch.mockResolvedValue({ status: 'COMPLETADO_CON_BLOQUEOS' });
     updateLinesMany.mockResolvedValue({ count: 2 });
 
-    await expect(service.retryErrors('tenant-a', 'batch-1')).resolves.toEqual({
+    await expect(
+      service.retryErrors('tenant-a', 'user-a', 'batch-1'),
+    ).resolves.toEqual({
       batchId: 'batch-1',
       retriedLines: 2,
       status: 'APROBADO',
@@ -130,5 +132,15 @@ describe('ServicePremiumService tenant-scoped lifecycle', () => {
       id: 'batch-1',
       tenantId: 'tenant-a',
     });
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: 'tenant-a',
+        userId: 'user-a',
+        action: 'SERVICE_PREMIUM_DOCUMENTS_RETRY_REQUESTED',
+        entityId: 'batch-1',
+        metadata: { retriedLines: 2 },
+      }),
+      transaction,
+    );
   });
 });

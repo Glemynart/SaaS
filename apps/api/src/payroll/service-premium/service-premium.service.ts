@@ -258,7 +258,7 @@ export class ServicePremiumService {
     });
   }
 
-  async retryErrors(tenantId: string, id: string) {
+  async retryErrors(tenantId: string, userId: string, id: string) {
     return this.tenantPrisma.execute(async (tx) => {
       const batch = await tx.servicePremiumBatch.findFirst({
         where: { id, tenantId },
@@ -285,7 +285,7 @@ export class ServicePremiumService {
         throw new ConflictException(
           'El lote no tiene documentos fallidos para reintentar.',
         );
-      await tx.servicePremiumBatch.updateMany({
+      const updated = await tx.servicePremiumBatch.updateMany({
         where: {
           id,
           tenantId,
@@ -302,6 +302,22 @@ export class ServicePremiumService {
           lastErrorCode: null,
         },
       });
+      if (updated.count !== 1) {
+        throw new ConflictException(
+          'El lote cambió mientras se preparaban los documentos para reintento.',
+        );
+      }
+      await this.audit.log(
+        {
+          tenantId,
+          userId,
+          action: 'SERVICE_PREMIUM_DOCUMENTS_RETRY_REQUESTED',
+          entityType: 'ServicePremiumBatch',
+          entityId: id,
+          metadata: { retriedLines: reset.count },
+        },
+        tx,
+      );
       return {
         batchId: id,
         retriedLines: reset.count,

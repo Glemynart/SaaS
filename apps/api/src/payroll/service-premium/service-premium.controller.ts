@@ -65,7 +65,7 @@ export class ServicePremiumController {
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.service.retryErrors(user.tenantId, id);
+    return this.service.retryErrors(user.tenantId, user.userId, id);
   }
 
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)
