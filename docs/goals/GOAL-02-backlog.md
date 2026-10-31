@@ -556,7 +556,7 @@ verdes al 2026-10-31.
   afiliación, días completos, salario, IBC por subsistema y asignación ARL desde
   un snapshot PILA v2 del mismo empleado/tenant/período. No vuelve a consultar
   maestros ni transforma novedades y no altera importes aprobados.
-- El alcance del mapa cubre campos 1–8, 11–14, 31, 33, 35, 36–45, 61–63, 65,
+- El alcance del mapa cubre campos 1–8, 11–14, 31, 33, 35, 36–45, 61–65,
   67, 69, 77–78, 95 y 98. Los importes 63/65/67/69 son solo candidatos
   copiados de un concepto patronal único, con tipo esperado, factor positivo y
   base coincidente. Cada importe requiere además que el valor congelado ya
@@ -578,7 +578,7 @@ verdes al 2026-10-31.
   códigos afiliados, días/base salarial e IBC congelados, ceros iniciales del
   documento/centro, fuentes de concepto únicas y aislamiento del centro ARL.
 - El informe del período muestra por campo cuántos empleados tienen candidato
-  para 61/63/65/67/69 y las razones y nombres asociados a los pendientes. Si un
+  para 61/63/64/65/67/69 y las razones y nombres asociados a los pendientes. Si un
   empleado tiene snapshots duplicados no escoge uno; los candidatos parciales
   no habilitan archivo ni aceptación de operador.
 
@@ -600,6 +600,31 @@ verdes al 2026-10-31.
   como razón entera sin pérdida. Si no coincide, el campo queda sin resolver.
   La regla sigue sin habilitar el archivo; otros aportes aún requieren validar
   su normativa.
+
+### Tarifa CCF estándar candidata AT2 — 2026-10-31
+
+- El campo 64 usa `CO_CCF_STANDARD_RATE_L21_ART11_12_V1` (4 %, Ley 21 de
+  1982, arts. 11–12) solo para dependientes 01/00 de mes completo, aportante
+  empleador tipo 1, clase A/B y declaración explícita de que no aplica el
+  beneficio CCF de Ley 1429. Exige un concepto único `CAJA` congelado con
+  factor 4 % y base igual al IBC CCF del mismo snapshot.
+- La cadena candidata `0.04000` ocupa las siete posiciones del campo 64. AT2
+  v30 p. 95 confirma longitud N7 y p. 161 exige la tarifa legal vigente. Esa
+  página no documenta la convención decimal; `0.04000` sigue la convención de
+  Resolución 1747/2008, art. 19, hoy derogada, por lo que el formato actual y
+  su aceptación requieren carga de prueba por operador. No se habilita descarga.
+- Campo 65 conserva solo el valor aprobado de `CAJA` cuando su factor/base
+  coinciden y el importe ya satisface el redondeo PILA versionado. Clases C/D,
+  beneficio verdadero o sin declarar, ausencia de concepto y discrepancias
+  dejan ambos campos bloqueados; la ausencia no se convierte en tarifa cero.
+- Las pruebas cubren clases A/B, declaraciones ausentes o positivas, tarifa y
+  base no coincidentes, encoding de siete posiciones y candidatos no
+  habilitantes. No se afirma compatibilidad con ningún operador.
+- Fuentes: [Ley 21 de 1982](https://www1.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=4827),
+  arts. 11–12; [Resolución 1747 de 2008](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/Resolucion-1747-de-2008.pdf),
+  art. 19 (ejemplo histórico `0.04000`); y [Resolución 2388 de
+  2016](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-2388-2016.pdf),
+  que derogó la Resolución 1747.
 
 ### Declaraciones PILA por tipo de documento — 2026-10-31
 

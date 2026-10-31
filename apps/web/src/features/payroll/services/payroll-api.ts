@@ -126,7 +126,7 @@ export interface PilaExportReadinessBlocker {
 }
 
 export interface PilaDetailContributionCandidateStatus {
-  fieldNumber: 61 | 63 | 65 | 67 | 69;
+  fieldNumber: 61 | 63 | 64 | 65 | 67 | 69;
   candidateEmployees: number;
   pendingEmployees: number;
   pendingReasons: Array<{

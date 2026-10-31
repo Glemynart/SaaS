@@ -24,6 +24,7 @@ const contributionFieldLabels: Record<
 > = {
   61: 'Tarifa inicial de riesgos laborales',
   63: 'Aporte ARL',
+  64: 'Tarifa CCF',
   65: 'Aporte a caja de compensación',
   67: 'Aporte SENA',
   69: 'Aporte ICBF',

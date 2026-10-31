@@ -13,12 +13,12 @@ function completeRecordValues(
 ): Record<number, PilaAt2V30FieldInput> {
   const layout = PILA_AT2_V30_RECORD_LAYOUTS[record];
   const values = Object.fromEntries(
-    layout.fields.map(({ fieldNumber, kind, numericFormat }) => [
+    layout.fields.map(({ fieldNumber, kind, length, numericFormat }) => [
       fieldNumber,
       {
         value:
           numericFormat === 'DECIMAL_FRACTION'
-            ? '0.1000000'
+            ? `0.${'1'.padEnd(length - 2, '0')}`
             : kind === 'N'
               ? '1'
               : 'X',
@@ -106,6 +106,23 @@ describe('AT2 v30 fixed-width record formatting', () => {
     expect(record.slice(field61Start, field61Start + 9)).toBe('0.0052200');
     expect(
       PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2.fields[60]
+        .numericFormat,
+    ).toBe('DECIMAL_FRACTION');
+  });
+
+  it('formats the AT2 field 64 CCF fractional tariff to seven positions', () => {
+    const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
+    const field64Start = layout.fields
+      .filter(({ fieldNumber }) => fieldNumber < 64)
+      .reduce((total, field) => total + field.length, 0);
+    const values = completeRecordValues('contributorDetailType2', {
+      64: { value: '0.04' },
+    });
+    const record = serializePilaAt2V30Record('contributorDetailType2', values);
+
+    expect(record.slice(field64Start, field64Start + 7)).toBe('0.04000');
+    expect(
+      PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2.fields[63]
         .numericFormat,
     ).toBe('DECIMAL_FRACTION');
   });
