@@ -220,6 +220,11 @@ declarada o una respuesta ausente bloquea la preparación; los datos actuales no
 capturan ni validan los campos condicionales 25 y 27 ni permiten exportar una
 acción especial.
 
+Para el campo 7, la clase A requiere al menos 200 cotizantes únicos y la clase
+B menos de 200, contando todas las sucursales incluidas. Las clases C y D
+requieren evidencia de elegibilidad; mientras el preflight no la valide, debe
+bloquearlas aunque estén seleccionadas en el perfil.
+
 ### Casos mínimos y resultados esperados del fixture AT2 v30
 
 La relectura directa del [Anexo Técnico 2 oficial de MinSalud, versión 30,

@@ -94,6 +94,7 @@ function snapshot(
     employeeId,
     payloadVersion: 1,
     payload: source,
+    totalCotizantes: 1,
     ...overrides,
   };
 }
@@ -212,6 +213,49 @@ describe('inspectPilaSnapshotPreparation', () => {
       }),
     );
   });
+
+  it('valida la clase A/B con el total de cotizantes únicos del período', () => {
+    const source = payload();
+    source.employer.pila.claseAportante = 'B';
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 1,
+      payload: source,
+      totalCotizantes: 200,
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'APORTANTE_TIPO_1',
+        fieldNumber: 7,
+        code: 'CAMPO_7_CLASE_NO_COINCIDE_COTIZANTES',
+      }),
+    );
+  });
+
+  it.each(['C', 'D'])(
+    'bloquea la clase especial %s sin evidencia de elegibilidad',
+    (value) => {
+      const source = payload();
+      source.employer.pila.claseAportante = value;
+
+      const result = inspectPilaSnapshotPreparation({
+        employeeId: 'employee-1',
+        payloadVersion: 1,
+        payload: source,
+        totalCotizantes: 1,
+      });
+
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          record: 'APORTANTE_TIPO_1',
+          fieldNumber: 7,
+          code: 'CAMPO_7_ELEGIBILIDAD_ESPECIAL_SIN_VERIFICAR',
+        }),
+      );
+    },
+  );
 
   it('agrupa faltantes por campo y declara expresamente que el archivo aún no se genera', () => {
     const report = buildPilaPreparationReport({

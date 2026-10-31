@@ -270,10 +270,12 @@ prueba se detuvo y no se usaron datos de demo/staging/producción. Esta preparac
   contra `main` y se integrarán en orden cuando el usuario reponga la cuota de
   GitHub Actions.
 - En el preflight local de #164, el perfil del aportante ya conserva la
-  respuesta sobre acciones especiales. Se detectó que el informe no bloqueaba
-  una acción declarada ni una respuesta sin confirmar. La continuación en
-  preparación añade ese bloqueo para el campo 26, sin declarar el archivo
-  generable ni ampliar el MVP.
+  respuesta sobre acciones especiales y la clase de aportante. Se detectó que
+  el informe no bloqueaba una acción declarada ni una respuesta sin confirmar,
+  y aceptaba clases A/B sin contrastar el total de cotizantes o C/D sin validar
+  evidencia de elegibilidad. La continuación en preparación añade esos
+  bloqueos para los campos 26 y 7, sin declarar el archivo generable ni ampliar
+  el MVP.
 - ADR-014 continúa propuesta y pendiente de decisión. La implementación de los
   campos 62 y 98 no inicia hasta recibir esa aprobación; la investigación y
   preparación independiente del resto de AT2 continúa.

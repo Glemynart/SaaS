@@ -17,6 +17,7 @@ export interface PilaSnapshotPreparationInput {
   employeeId: string;
   payloadVersion: number | null;
   payload: unknown;
+  totalCotizantes?: number;
 }
 
 export interface PilaSnapshotPreparation {
@@ -192,13 +193,44 @@ export function inspectPilaSnapshotPreparation(
       'Falta una identificación del aportante válida para el tipo de documento declarado.',
     );
   }
+  const employerClass = text(employerPila?.claseAportante);
   requireChoice(
     employerRecord,
     7,
-    employerPila?.claseAportante,
+    employerClass,
     new Set(['A', 'B', 'C', 'D']),
     'Falta confirmar la clase de aportante para el período.',
   );
+  if (employerClass === 'A' || employerClass === 'B') {
+    if (
+      !Number.isSafeInteger(input.totalCotizantes) ||
+      input.totalCotizantes! < 0
+    ) {
+      add(
+        employerRecord,
+        7,
+        'CAMPO_7_TOTAL_COTIZANTES_NO_DISPONIBLE',
+        'No se puede validar la clase A/B sin contar los cotizantes únicos de todas las sucursales incluidas.',
+      );
+    } else if (
+      (employerClass === 'A' && input.totalCotizantes! < 200) ||
+      (employerClass === 'B' && input.totalCotizantes! >= 200)
+    ) {
+      add(
+        employerRecord,
+        7,
+        'CAMPO_7_CLASE_NO_COINCIDE_COTIZANTES',
+        'La clase A requiere 200 o más cotizantes; la clase B requiere menos de 200 cotizantes.',
+      );
+    }
+  } else if (employerClass === 'C' || employerClass === 'D') {
+    add(
+      employerRecord,
+      7,
+      'CAMPO_7_ELEGIBILIDAD_ESPECIAL_SIN_VERIFICAR',
+      'Las clases C y D requieren evidencia de elegibilidad que este preflight aún no valida.',
+    );
+  }
   requireChoice(
     employerRecord,
     8,
@@ -671,7 +703,12 @@ export function buildPilaPreparationReport(input: {
   };
   snapshots: PilaSnapshotPreparationInput[];
 }) {
-  const assessments = input.snapshots.map(inspectPilaSnapshotPreparation);
+  const totalCotizantes = new Set(
+    input.snapshots.map(({ employeeId }) => employeeId),
+  ).size;
+  const assessments = input.snapshots.map((snapshot) =>
+    inspectPilaSnapshotPreparation({ ...snapshot, totalCotizantes }),
+  );
   const grouped = new Map<
     string,
     PilaPreparationIssue & {
