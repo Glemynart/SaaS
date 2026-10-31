@@ -26,6 +26,7 @@ export enum InvoiceStatus {
 export class CreateCustomerDto {
   @IsString() @IsNotEmpty() razonSocial: string;
   @IsString() @IsNotEmpty() nit: string;
+  @IsString() @IsNotEmpty() @IsOptional() terceroId?: string | null;
   @IsEmail() @IsOptional() email?: string;
   @IsString() @IsOptional() telefono?: string;
   @IsString() @IsOptional() direccion?: string;
@@ -34,6 +35,7 @@ export class CreateCustomerDto {
 export class UpdateCustomerDto {
   @IsString() @IsOptional() razonSocial?: string;
   @IsString() @IsOptional() nit?: string;
+  @IsString() @IsNotEmpty() @IsOptional() terceroId?: string | null;
   @IsString() @IsOptional() email?: string;
   @IsString() @IsOptional() telefono?: string;
   @IsString() @IsOptional() direccion?: string;

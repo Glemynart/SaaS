@@ -2,6 +2,19 @@ export interface Customer {
   id: string;
   razonSocial: string;
   nit: string;
+  terceroId: string | null;
+  tercero: {
+    id: string;
+    tipoDocumento: string;
+    numeroDocumento: string;
+    razonSocial: string | null;
+    primerNombre: string | null;
+    primerApellido: string | null;
+    nombreComercial: string | null;
+    esCliente: boolean;
+    activo: boolean;
+    deletedAt: string | null;
+  } | null;
   email: string | null;
   telefono: string | null;
   direccion: string | null;

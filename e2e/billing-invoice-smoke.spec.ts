@@ -62,7 +62,43 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
   await page.getByRole('button', { name: 'Crear', exact: true }).click();
   const createCustomerResponse = await createCustomerResponsePromise;
   expect(createCustomerResponse.status()).toBe(200);
+  const customer = (await createCustomerResponse.json()) as { id: string };
   await expect(page.getByText(customerName, { exact: true })).toBeVisible();
+  await expect(page.getByText('Sin tercero contable vinculado')).toBeVisible();
+
+  const createThirdPartyResponse = await page.request.post(
+    new URL('/api/accounting/terceros', page.url()).toString(),
+    {
+      data: {
+        tipoDocumento: 'NIT',
+        numeroDocumento: customerNit,
+        tipoPersona: 'JURIDICA',
+        razonSocial: customerName,
+        esCliente: true,
+        activo: true,
+      },
+    },
+  );
+  expect(createThirdPartyResponse.status()).toBe(200);
+  const thirdParty = (await createThirdPartyResponse.json()) as { id: string };
+
+  await page.reload();
+  const customerRow = page.getByText(customerName, { exact: true }).locator('xpath=../..');
+  await customerRow.getByRole('button').first().click();
+  await page.getByLabel('Tercero contable').selectOption(thirdParty.id);
+  const updateCustomerResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === `/api/billing/customers/${customer.id}` &&
+      response.request().method() === 'PATCH',
+  );
+  await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+  const updateCustomerResponse = await updateCustomerResponsePromise;
+  expect(updateCustomerResponse.status()).toBe(200);
+  const updatedCustomer = (await updateCustomerResponse.json()) as {
+    terceroId: string | null;
+  };
+  expect(updatedCustomer.terceroId).toBe(thirdParty.id);
+  await expect(page.getByText(`Tercero contable: NIT ${customerNit}`)).toBeVisible();
 
   await page.goto('/facturacion/productos');
   await page.getByRole('button', { name: 'Nuevo' }).click();

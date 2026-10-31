@@ -1384,6 +1384,8 @@ model Customer {
 
   razonSocial String
   nit         String
+  terceroId   String?
+  tercero     Tercero? @relation(fields: [terceroId, tenantId], references: [id, tenantId], onDelete: Restrict)
   email       String?
   telefono    String?
   direccion   String?
@@ -1394,6 +1396,7 @@ model Customer {
   @@unique([tenantId, nit])
   @@index([tenantId])
   @@index([tenantId, status])
+  @@index([tenantId, terceroId])
   @@map("customers")
 }
 
@@ -2344,7 +2347,9 @@ model Tercero {
 
   // Inversas
   movimientos MovimientoContable[]
+  billingCustomers Customer[]
 
+  @@unique([id, tenantId], map: "terceros_id_tenantId_key")
   @@unique([tenantId, tipoDocumento, numeroDocumento])
   @@index([tenantId, esCliente])
   @@index([tenantId, esProveedor])

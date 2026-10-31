@@ -5,7 +5,13 @@ import { BillingService } from './billing.service';
 
 describe('BillingService', () => {
   const prismaMock = {
-    customer: { findFirst: jest.fn() },
+    customer: {
+      findFirst: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    tercero: { findFirst: jest.fn() },
     productService: { findMany: jest.fn() },
     invoice: { create: jest.fn() },
   };
@@ -29,9 +35,34 @@ describe('BillingService', () => {
     return firstCall[0].data;
   }
 
+  function createdCustomerArgs() {
+    type CreateArgs = {
+      data: {
+        tenantId: string;
+        nit: string;
+        terceroId: string | null;
+      };
+      include: { tercero: { select: Record<string, boolean> } };
+    };
+    const calls = prismaMock.customer.create.mock.calls as unknown as Array<
+      [CreateArgs]
+    >;
+    const firstCall = calls[0];
+    if (!firstCall) throw new Error('No se creó el cliente esperado.');
+    return firstCall[0];
+  }
+
   beforeEach(() => {
     jest.clearAllMocks();
-    prismaMock.customer.findFirst.mockResolvedValue({ id: 'customer-1' });
+    prismaMock.customer.findFirst.mockResolvedValue({
+      id: 'customer-1',
+      tenantId: 'tenant-1',
+      terceroId: null,
+    });
+    prismaMock.customer.findUnique.mockResolvedValue(null);
+    prismaMock.customer.create.mockResolvedValue({ id: 'customer-created' });
+    prismaMock.customer.update.mockResolvedValue({ id: 'customer-1' });
+    prismaMock.tercero.findFirst.mockResolvedValue({ id: 'tercero-1' });
     prismaMock.productService.findMany.mockResolvedValue([
       { id: 'product-1', impuesto: new Decimal(19) },
     ]);
@@ -51,6 +82,80 @@ describe('BillingService', () => {
       },
     ],
   };
+
+  it('vincula un tercero activo con rol cliente del mismo tenant', async () => {
+    await service.createCustomer('tenant-1', {
+      razonSocial: 'Cliente Uno S.A.S.',
+      nit: '900123456',
+      terceroId: 'tercero-1',
+    });
+
+    expect(prismaMock.tercero.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'tercero-1',
+        tenantId: 'tenant-1',
+        esCliente: true,
+        activo: true,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    expect(createdCustomerArgs().data).toMatchObject({
+      tenantId: 'tenant-1',
+      nit: '900123456',
+      terceroId: 'tercero-1',
+    });
+    expect(createdCustomerArgs().include.tercero.select).toMatchObject({
+      id: true,
+      tipoDocumento: true,
+      numeroDocumento: true,
+    });
+  });
+
+  it('does not infer a third party from a matching customer NIT', async () => {
+    await service.createCustomer('tenant-1', {
+      razonSocial: 'Cliente Uno S.A.S.',
+      nit: '900123456',
+    });
+
+    expect(prismaMock.tercero.findFirst).not.toHaveBeenCalled();
+    expect(createdCustomerArgs().data.terceroId).toBeNull();
+  });
+
+  it('rechaza vincular un tercero de otro tenant, inactivo o sin rol cliente', async () => {
+    prismaMock.tercero.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.createCustomer('tenant-1', {
+        razonSocial: 'Cliente Uno S.A.S.',
+        nit: '900123456',
+        terceroId: 'tercero-ajeno',
+      }),
+    ).rejects.toThrow(
+      new BadRequestException(
+        'El tercero debe pertenecer a esta empresa, estar activo y tener rol de cliente.',
+      ),
+    );
+    expect(prismaMock.customer.create).not.toHaveBeenCalled();
+  });
+
+  it('permite limpiar una vinculación existente', async () => {
+    prismaMock.customer.findFirst.mockResolvedValueOnce({
+      id: 'customer-1',
+      tenantId: 'tenant-1',
+      terceroId: 'tercero-1',
+    });
+
+    await service.updateCustomer('tenant-1', 'customer-1', { terceroId: null });
+
+    expect(prismaMock.customer.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'customer-1' },
+        data: { terceroId: null },
+      }),
+    );
+    expect(prismaMock.tercero.findFirst).not.toHaveBeenCalled();
+  });
 
   it('permite productos activos asociados al mismo tenant', async () => {
     await service.createInvoice('tenant-1', invoiceDto);

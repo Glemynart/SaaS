@@ -29,7 +29,13 @@ export class BillingService {
     });
     if (exists)
       throw new BadRequestException('Ya existe un cliente con este NIT');
-    return this.prisma.customer.create({ data: { ...dto, tenantId } });
+    if (dto.terceroId !== undefined && dto.terceroId !== null) {
+      await this.ensureCustomerThirdParty(tenantId, dto.terceroId);
+    }
+    return this.prisma.customer.create({
+      data: { ...dto, terceroId: dto.terceroId ?? null, tenantId },
+      include: { tercero: { select: this.customerThirdPartySelect } },
+    });
   }
 
   async findAllCustomers(tenantId: string, search?: string) {
@@ -46,6 +52,7 @@ export class BillingService {
           : {}),
       },
       orderBy: { razonSocial: 'asc' },
+      include: { tercero: { select: this.customerThirdPartySelect } },
     });
   }
 
@@ -56,8 +63,50 @@ export class BillingService {
   }
 
   async updateCustomer(tenantId: string, id: string, dto: UpdateCustomerDto) {
-    await this.findOneCustomer(tenantId, id);
-    return this.prisma.customer.update({ where: { id }, data: dto });
+    const current = await this.findOneCustomer(tenantId, id);
+    if (
+      dto.terceroId !== undefined &&
+      dto.terceroId !== null &&
+      dto.terceroId !== current.terceroId
+    ) {
+      await this.ensureCustomerThirdParty(tenantId, dto.terceroId);
+    }
+    return this.prisma.customer.update({
+      where: { id },
+      data: dto,
+      include: { tercero: { select: this.customerThirdPartySelect } },
+    });
+  }
+
+  private readonly customerThirdPartySelect = {
+    id: true,
+    tipoDocumento: true,
+    numeroDocumento: true,
+    razonSocial: true,
+    primerNombre: true,
+    primerApellido: true,
+    nombreComercial: true,
+    esCliente: true,
+    activo: true,
+    deletedAt: true,
+  } as const;
+
+  private async ensureCustomerThirdParty(tenantId: string, terceroId: string) {
+    const tercero = await this.prisma.tercero.findFirst({
+      where: {
+        id: terceroId,
+        tenantId,
+        esCliente: true,
+        activo: true,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    if (!tercero) {
+      throw new BadRequestException(
+        'El tercero debe pertenecer a esta empresa, estar activo y tener rol de cliente.',
+      );
+    }
   }
 
   async removeCustomer(tenantId: string, id: string) {
