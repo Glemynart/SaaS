@@ -204,6 +204,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const payload = payloadOf(input);
     const employer = (input.payload as { employer: Record<string, unknown> })
       .employer;
+    employer.aportesExonerados = false;
     (employer.pila as Record<string, unknown>).aportesExoneradosConfirmado =
       false;
     payload.payroll.concepts = [
@@ -315,6 +316,46 @@ describe('mapPilaAt2V30DetailCandidate', () => {
 
     expect(candidate.values[67]).toBeUndefined();
     expect(candidate.values[69]).toBeUndefined();
+  });
+
+  it('does not map SENA or ICBF when employer exemption conflicts with PILA confirmation', () => {
+    const input = snapshot();
+    const payload = payloadOf(input);
+    const root = input.payload as { employer: Record<string, unknown> };
+    root.employer.aportesExonerados = true;
+    (
+      root.employer.pila as Record<string, unknown>
+    ).aportesExoneradosConfirmado = false;
+    payload.payroll.concepts = [
+      {
+        codigo: 'SENA',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.02,
+        valor: 40_000,
+      },
+      {
+        codigo: 'ICBF',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.03,
+        valor: 60_000,
+      },
+    ];
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[67]).toBeUndefined();
+    expect(candidate.values[69]).toBeUndefined();
+    const parafiscalBlockers = candidate.unresolvedFields.filter(
+      ({ fieldNumber }) => fieldNumber === 67 || fieldNumber === 69,
+    );
+    expect(parafiscalBlockers.map(({ fieldNumber }) => fieldNumber)).toEqual([
+      67, 69,
+    ]);
+    expect(
+      parafiscalBlockers.every(({ reason }) => reason.includes('coherente')),
+    ).toBe(true);
   });
 
   it('does not map a contribution amount with a zero factor', () => {

@@ -154,7 +154,9 @@ coincidentes. Los importes 63/65/67/69 solo se copian desde un concepto patronal
 único, con tipo esperado, factor positivo y base coincidente; exige mes completo,
 días aprobados y ningún evento o novedad PILA. El factor todavía no se contrasta
 con una tarifa normativa. SENA e ICBF requieren además la declaración explícita
-de no exoneración. La ausencia no se convierte en cero.
+de no exoneración, coherente con la bandera de exoneración del mismo snapshot
+del empleador. Si difieren o falta una, los campos permanecen sin resolver. La
+ausencia del aporte no se convierte en cero.
 Conserva identificadores y códigos de centro con ceros iniciales. Ninguna tarifa
 ni aporte se calcula: los candidatos no son validación normativa ni se
 serializan como registro.

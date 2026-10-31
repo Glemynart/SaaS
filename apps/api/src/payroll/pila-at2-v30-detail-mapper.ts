@@ -406,10 +406,13 @@ export function mapPilaAt2V30DetailCandidate(
       return;
     }
     if (input.requireExplicitNonExemption) {
-      if (employerPila.aportesExoneradosConfirmado !== false) {
+      if (
+        employer.aportesExonerados !== false ||
+        employerPila.aportesExoneradosConfirmado !== false
+      ) {
         unresolved(
           input.fieldNumber,
-          'Se requiere declaración expresa de no exoneración para la fuente candidata.',
+          'Se requiere declaración expresa y coherente de no exoneración en el empleador congelado.',
         );
         return;
       }

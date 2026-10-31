@@ -561,7 +561,8 @@ verdes al 2026-10-31.
   copiados de un concepto patronal único, con tipo esperado, factor positivo y
   base coincidente; aún no se contrasta el factor con una tarifa normativa.
   Requieren además días aprobados de mes completo y ausencia de novedades y
-  eventos PILA; SENA e ICBF requieren declaración explícita de no exoneración.
+  eventos PILA; SENA e ICBF requieren declaración explícita de no exoneración,
+  coherente con la bandera de exoneración del mismo snapshot del empleador.
   Nunca se calcula un aporte ni se infiere cero por ausencia. Los demás campos
   de aportes, novedades/segmentación, horas y datos faltantes siguen sin valor
   candidato; el registro completo no es serializable ni descargable.
