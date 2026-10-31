@@ -218,8 +218,9 @@ verdes al 2026-10-31.
   cambio dentro del período no es segmentable y debe bloquearse. La preparación
   actual captura 30 días independientes para los cuatro subsistemas
   solo en un mes calendario completo, con empleado, contrato y afiliación que
-  cubren todo el período, cotizante 01 sin subtipo y sin novedades; si falta
-  una condición, conserva null y códigos de bloqueo. Esto es preparación de
+  cubren todo el período, cotizante 01 con subtipo explícito 00 y sin novedades;
+  si falta una condición, conserva null y códigos de bloqueo. Esto es
+  preparación de
   snapshot y no valida ni genera el archivo PILA.
   El tipo queda sin resolver cuando hay devengos que el modelo no permite
   clasificar con seguridad. El salario original se conserva sin redondeo; la
