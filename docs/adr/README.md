@@ -12,3 +12,4 @@
 | [ADR-011](ADR-011-internal-invoice-ledger-boundary.md)      | Frontera de contabilización de facturas internas                       | proposed                                        | 2026-10-30 |
 | [ADR-012](ADR-012-prima-servicios-semestral.md)             | Liquidación semestral de prima de servicios por lote                   | prototype; labor review pending                 | 2026-10-30 |
 | [ADR-013](ADR-013-pila-standard-file-export.md)             | Exportación estándar de nómina a PILA                                  | approved; affiliation-history stage in progress | 2026-10-30 |
+| [ADR-014](ADR-014-pila-work-center-and-activity-source.md)  | Fuente histórica de centro de trabajo y actividad económica PILA       | proposed                                        | 2026-10-31 |
