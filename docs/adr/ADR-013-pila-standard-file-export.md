@@ -148,6 +148,37 @@ archivos de entrada/salida esperados, regla normativa exacta, fecha de vigencia,
 resultado esperado y revisor. No se anunciará “cargable en cualquier operador”
 hasta completar pruebas independientes por operador.
 
+## Contraste de preparación contra AT2 v30 — 2026-10-30
+
+Se descargó el recurso enlazado por la [página oficial PILA de MinSalud](https://www.minsalud.gov.co/Proteccion-Social/Paginas/pila.aspx)
+y se verificó directamente su portada técnica: 336 páginas, código AT2,
+versión 30, fecha 24-07-2026. El archivo declara campos numéricos alineados a
+la derecha y rellenados con ceros a la izquierda, y campos alfanuméricos
+alineados a la izquierda y rellenados con espacios a la derecha. El layout
+revisado fija 567 caracteres para el archivo tipo 1, 359 para el registro tipo
+1 del archivo tipo 2 y 693 para cada registro tipo 2.
+
+| Registro/campos relevantes                                                                                    | Fuente actual verificada                                                                                                                                                                                                                               | Brecha antes de serializar                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Tipo 1: identidad y contacto del aportante, municipio, CIIU, representante legal, clasificación y exoneración | `Tenant` conserva razón social, NIT y dígito, dirección, municipio, teléfono, email, representante legal como texto y `aportesExonerados`.                                                                                                             | No hay tipo de persona/naturaleza/clase/formato de presentación PILA, CIIU DANE del aportante ni identificación y nombres estructurados del representante. No se deben inferir ni fabricar.                                                                                                                                                                                                                              |
+| Tipo 2, registro 01: planilla E, períodos, número de cotizantes, bases totales y ARL del aportante            | `PayrollPeriod` conserva inicio/fin; `Tenant` contiene política de exoneración.                                                                                                                                                                        | No existe fecha prevista de pago, necesaria para elegir hitos; no se conserva el código ARL del aportante. Algunos campos los asigna el operador y su representación en un archivo plano debe verificarse por operador.                                                                                                                                                                                                  |
+| Tipo 2, registro 02: identidad, tipo/subtipo, sede y administradoras                                          | `Empleado` conserva identificación, nombres y fechas laborales; `PayrollSnapshot` conserva `employeeId` y `sedeId`; `Sede` relaciona municipio DANE; `AfiliacionSeguridadSocial` conserva tipo/subtipo y códigos de EPS/pensión/ARL/CCF con vigencias. | Identidad, fechas laborales y municipio de sede no están congelados en el snapshot. La afiliación no comprueba pertenencia a catálogos oficiales. El exportador no debe leer valores maestros mutables como si fueran aprobados; debe congelar la fuente y su valor para cada dato, o incorporarlo al snapshot aprobado. Sede o municipio ausente debe bloquear el registro, no sustituirse por un valor predeterminado. |
+| Tipo 2, registro 02: días por subsistema, salarios/IBC por subsistema, valores y novedades                    | `PayrollSnapshot` congela salario usado, un IBC, conceptos, totales, fechas del período y novedades trazadas; los conceptos incluyen códigos, bases, factores y valores.                                                                               | No congela días de cotización por sistema ni horas; conserva un IBC en vez de bases explícitas por subsistema; `PayrollNovelty` guarda una fecha, no intervalos de inicio/fin PILA. No se deben recalcular estos datos durante la exportación.                                                                                                                                                                           |
+| Tipo 2, campos 61–63 y 78/98: tarifa, centro de trabajo, clase y actividad económica de riesgos               | El contrato congelado conserva clase de riesgo y la afiliación el código/clase ARL; hay sedes con municipio.                                                                                                                                           | No se encontró un código de actividad económica ARL ni código de centro de trabajo asociado al empleado/contrato/sede. Deben capturarse y validarse antes de producir esos campos.                                                                                                                                                                                                                                       |
+
+La revisión confirma que el diseño aprobado es viable, pero el exportador todavía
+no tiene datos suficientes para producir un archivo válido de manera general.
+**GOAL ACTIVO:** GOAL-02. **IMPLEMENTACIÓN BLOQUEADA:** serializar tipo 1/2 hasta
+capturar y validar los datos patronales, laborales y los días/IBC requeridos.
+**ARQUITECTURA DISPONIBLE:** ADR-013 y el historial tenant-scoped de afiliaciones
+del PR #160 permiten preparar esos insumos sin alterar PayrollSnapshot histórico
+ni mapear automáticamente los campos heredados.
+
+El siguiente incremento debe cerrar estas brechas como hechos explícitos de
+empresa, sede/contrato y snapshot aprobado. La exportación solo empieza cuando
+los valores y un fixture anonimizado tipo 1/2 tengan mapeo campo por campo,
+regla de vigencia y salida esperada revisados contra AT2 v30.
+
 ## Primera etapa: historial de afiliaciones
 
 PR #160 agrega el almacenamiento aditivo de
