@@ -182,6 +182,8 @@ function parseSnapshot(row: ServicePremiumSnapshot): ParsedSnapshot | null {
   const legal = isRecord(row.payload.legalParameters)
     ? row.payload.legalParameters
     : null;
+  const concepts = row.payload.concepts;
+  const novelties = row.payload.novelties;
   if (!period || !employee || !contract || !totals || !legal) return null;
 
   const start = parseDate(period.fechaInicio);
@@ -199,8 +201,10 @@ function parseSnapshot(row: ServicePremiumSnapshot): ParsedSnapshot | null {
     typeof contract.contratoId !== 'string' ||
     typeof contract.tipo !== 'string' ||
     typeof employee.salarioIntegralUsado !== 'boolean' ||
-    !Array.isArray(row.payload.concepts) ||
-    !Array.isArray(row.payload.novelties)
+    !Array.isArray(concepts) ||
+    !concepts.every(isRecord) ||
+    !Array.isArray(novelties) ||
+    !novelties.every(isRecord)
   ) {
     return null;
   }
@@ -211,8 +215,8 @@ function parseSnapshot(row: ServicePremiumSnapshot): ParsedSnapshot | null {
     period: { start, end: addDays(inclusiveEnd, 1) },
     contract,
     employee,
-    concepts: row.payload.concepts.filter(isRecord),
-    novelties: row.payload.novelties.filter(isRecord),
+    concepts,
+    novelties,
     monthlyAid,
     aidWasPaid: transportTotal > 0,
     salaryBase,

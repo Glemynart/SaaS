@@ -263,6 +263,29 @@ describe('calculateServicePremium', () => {
     },
   );
 
+  it.each(['concepts', 'novelties'] as const)(
+    'bloquea el snapshot si contiene una entrada malformada en %s',
+    (collection) => {
+      const snapshots = halfYearSnapshots().map((source) => {
+        const payload = source.payload as Record<string, unknown>;
+        payload[collection] = [null];
+        return source;
+      });
+      const result = calculateServicePremium({
+        employee,
+        year: 2026,
+        semester: 1,
+        snapshots,
+      });
+
+      expect(result).toMatchObject({
+        status: 'BLOQUEADA',
+        blockCode: 'SNAPSHOT_INCOMPATIBLE',
+        amount: null,
+      });
+    },
+  );
+
   it('marca salario integral como no aplica', () => {
     const result = calculateServicePremium({
       employee,
