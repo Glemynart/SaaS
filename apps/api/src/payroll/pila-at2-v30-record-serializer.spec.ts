@@ -110,6 +110,23 @@ describe('AT2 v30 fixed-width record formatting', () => {
     ).toBe('DECIMAL_FRACTION');
   });
 
+  it('formats the AT2 field 46 pension fractional tariff to seven positions', () => {
+    const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
+    const field46Start = layout.fields
+      .filter(({ fieldNumber }) => fieldNumber < 46)
+      .reduce((total, field) => total + field.length, 0);
+    const values = completeRecordValues('contributorDetailType2', {
+      46: { value: '0.16' },
+    });
+    const record = serializePilaAt2V30Record('contributorDetailType2', values);
+
+    expect(record.slice(field46Start, field46Start + 7)).toBe('0.16000');
+    expect(
+      layout.fields.find(({ fieldNumber }) => fieldNumber === 46)
+        ?.numericFormat,
+    ).toBe('DECIMAL_FRACTION');
+  });
+
   it('formats the AT2 field 64 CCF fractional tariff to seven positions', () => {
     const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
     const field64Start = layout.fields

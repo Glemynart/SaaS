@@ -196,6 +196,7 @@ function detailCandidateSnapshot(
     Object.assign(base, { sourceCount: 1 });
   }
   Object.assign(source.payroll, { pilaEvents: [], novelties: [] });
+  Object.assign(source.affiliations[0], { colombianoEnElExterior: false });
   Object.assign(source, {
     pilaEvents: [],
     pilaRiskAssignments: [
@@ -1515,6 +1516,14 @@ describe('inspectPilaSnapshotPreparation', () => {
       candidateEmployees: 2,
       pendingEmployees: 0,
     });
+    expect(statusFor(46)).toMatchObject({
+      candidateEmployees: 2,
+      pendingEmployees: 0,
+    });
+    expect(statusFor(47)).toMatchObject({
+      candidateEmployees: 2,
+      pendingEmployees: 0,
+    });
     const field63 = statusFor(63);
     expect(field63).toMatchObject({
       candidateEmployees: 1,
@@ -1552,7 +1561,9 @@ describe('inspectPilaSnapshotPreparation', () => {
       snapshots: [duplicate, duplicate],
     });
 
-    const field61 = report.detailContributionCandidates[0];
+    const field61 = report.detailContributionCandidates.find(
+      (status) => status.fieldNumber === 61,
+    )!;
     expect(field61).toMatchObject({
       fieldNumber: 61,
       candidateEmployees: 0,

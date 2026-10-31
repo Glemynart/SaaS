@@ -114,6 +114,7 @@ function snapshot(): PilaSnapshotPreparationInput {
 function payloadOf(snapshotInput: PilaSnapshotPreparationInput) {
   return snapshotInput.payload as {
     affiliations: Array<Record<string, unknown>>;
+    employer: { pila: Record<string, unknown> };
     employee: Record<string, unknown>;
     payroll: {
       ibcPorSubsistema: Record<string, Record<string, unknown>>;
@@ -123,6 +124,60 @@ function payloadOf(snapshotInput: PilaSnapshotPreparationInput) {
     pilaRiskAssignments: Array<Record<string, unknown>>;
     [key: string]: unknown;
   };
+}
+
+function setStandardPensionInputs(
+  snapshotInput: PilaSnapshotPreparationInput,
+  overrides: {
+    employeeType?: string;
+    base?: number;
+    employeeFactor?: number;
+    employeeAmount?: number;
+    employerFactor?: number;
+    employerAmount?: number;
+    paymentDate?: string | null;
+    employerNature?: string;
+    employerType?: string;
+    foreignExemption?: boolean | null;
+    exteriorDeclaration?: boolean | null;
+  } = {},
+) {
+  const payload = payloadOf(snapshotInput);
+  const base = overrides.base ?? 2_000_000;
+  payload.employee.tipoDocumento = overrides.employeeType ?? 'CC';
+  payload.affiliations[0].colombianoEnElExterior =
+    overrides.exteriorDeclaration === undefined
+      ? false
+      : overrides.exteriorDeclaration;
+  payload.affiliations[0].extranjeroNoObligadoPension =
+    overrides.foreignExemption ?? null;
+  Object.assign(payload.employer.pila, {
+    tipoAportante: overrides.employerType ?? '1',
+    naturalezaJuridica: overrides.employerNature ?? '2',
+  });
+  Object.assign(payload.payroll.ibcPorSubsistema.pension, { valor: base });
+  Object.assign(payload.payroll, {
+    fechaPrevistaPagoPila:
+      overrides.paymentDate === undefined
+        ? '2026-11-06'
+        : overrides.paymentDate,
+    concepts: [
+      {
+        codigo: 'PENSION_EMP',
+        tipo: 'DEDUCTION',
+        base,
+        factor: overrides.employeeFactor ?? 0.04,
+        valor: overrides.employeeAmount ?? 80_000,
+      },
+      {
+        codigo: 'PENSION_PAT',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base,
+        factor: overrides.employerFactor ?? 0.12,
+        valor: overrides.employerAmount ?? 240_000,
+      },
+    ],
+  });
 }
 
 function setStandardCcfEmployer(
@@ -198,6 +253,116 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(
       candidate.unresolvedFields.map(({ fieldNumber }) => fieldNumber),
     ).toEqual(expect.arrayContaining([8, 46, 47, 48, 61, 63, 76, 96, 97]));
+  });
+
+  it('maps the standard pension rate and sums only the two rounded snapshot amounts', () => {
+    const input = snapshot();
+    setStandardPensionInputs(input);
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values).toMatchObject({
+      46: { value: '0.16000' },
+      47: { value: 320_000 },
+    });
+    expect(candidate.normativeRuleVersions.pensionRate).toBe(
+      'CO_PENSION_STANDARD_RATE_L797_ART7_DEC1833_2_2_3_1_13_V1',
+    );
+    expect(candidate.unresolvedFields).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ fieldNumber: 46 }),
+        expect.objectContaining({ fieldNumber: 47 }),
+      ]),
+    );
+  });
+
+  it('maps an explicit CE/PA declaration that the foreign worker is obligated', () => {
+    const input = snapshot();
+    setStandardPensionInputs(input, {
+      employeeType: 'CE',
+      foreignExemption: false,
+      exteriorDeclaration: null,
+    });
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[46]).toEqual({ value: '0.16000' });
+    expect(candidate.values[47]).toEqual({ value: 320_000 });
+  });
+
+  it('blocks a total that differs after independently rounding frozen employee and employer amounts', () => {
+    const input = snapshot();
+    setStandardPensionInputs(input, {
+      base: 1_000,
+      employeeAmount: 100,
+      employerAmount: 200,
+    });
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[46]).toBeUndefined();
+    expect(candidate.values[47]).toBeUndefined();
+    expect(
+      candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 47)
+        ?.reason,
+    ).toContain('La suma congelada');
+  });
+
+  it.each([
+    ['employee tariff mismatch', { employeeFactor: 0.05 }, 'factores'],
+    ['employer tariff mismatch', { employerFactor: 0.11 }, 'factores'],
+    ['employee amount mismatch', { employeeAmount: 80_100 }, 'importes'],
+    ['employer amount mismatch', { employerAmount: 240_100 }, 'importes'],
+    ['new-system payment date', { paymentDate: '2027-04-01' }, '2027-04-01'],
+    ['unconfirmed residence', { exteriorDeclaration: null }, 'CC/TI'],
+    [
+      'foreign exemption flag on a domestic document',
+      { foreignExemption: true },
+      'incompatible con el documento CC/TI',
+    ],
+    [
+      'Colombian abroad flag on a foreign document',
+      {
+        employeeType: 'CE',
+        foreignExemption: false,
+        exteriorDeclaration: true,
+      },
+      'incompatible con el documento CE/PA',
+    ],
+    ['public employer', { employerNature: '1' }, 'empleadores privados'],
+  ] as const)(
+    'leaves both pension fields unresolved for %s',
+    (_description, overrides, expectedReason) => {
+      const input = snapshot();
+      setStandardPensionInputs(input, overrides);
+
+      const candidate = mapPilaAt2V30DetailCandidate(input);
+
+      expect(candidate.values[46]).toBeUndefined();
+      expect(candidate.values[47]).toBeUndefined();
+      expect(
+        candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 46)
+          ?.reason,
+      ).toContain(expectedReason);
+    },
+  );
+
+  it('does not infer a zero pension rate for an exempt foreign worker', () => {
+    const input = snapshot();
+    setStandardPensionInputs(input, {
+      employeeType: 'PA',
+      foreignExemption: true,
+      exteriorDeclaration: null,
+    });
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[46]).toBeUndefined();
+    expect(candidate.values[47]).toBeUndefined();
+    expect(
+      candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 46)
+        ?.reason,
+    ).toContain('obligado a cotizar');
   });
 
   it.each(['CC', 'TI'])(
