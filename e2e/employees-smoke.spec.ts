@@ -57,6 +57,69 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await editDialog.getByRole('button', { name: 'Guardar cambios', exact: true }).click();
   await expect(employeeRow()).toContainText('Coordinadora E2E');
 
+  const employeeDetailLink = employeeRow().getByRole('link', {
+    name: 'Ver detalle de Andrea Prueba',
+  });
+  const employeeDetailPath = await employeeDetailLink.getAttribute('href');
+  expect(employeeDetailPath).toBeTruthy();
+  await employeeDetailLink.click();
+  await expect(page).toHaveURL(new RegExp(`/empleados/.+`));
+  await expect(
+    page.getByRole('heading', { name: 'Afiliaciones de seguridad social' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Registrar afiliación' }).click();
+
+  const affiliationForm = page.locator('form').filter({
+    has: page.getByRole('heading', { name: 'Nueva afiliación' }),
+  });
+  await affiliationForm.getByRole('combobox', { name: /^Tipo de cotizante/ }).selectOption('01');
+  await affiliationForm.getByLabel('Vigente desde').fill('2026-01-01');
+  await affiliationForm.getByLabel('Código EPS').fill('EPS001');
+  await affiliationForm.getByLabel('Nombre EPS').fill('EPS Demo');
+  await affiliationForm.getByLabel('Código Fondo de pensión').fill('AFP001');
+  await affiliationForm.getByLabel('Nombre Fondo de pensión').fill('Fondo Demo');
+  await affiliationForm.getByLabel('Código ARL').fill('ARL001');
+  await affiliationForm.getByLabel('Nombre ARL').fill('ARL Demo');
+  await affiliationForm.getByLabel('Clase de riesgo ARL').selectOption('1');
+  await affiliationForm.getByLabel('Código Caja de compensación').fill('CCF001');
+  await affiliationForm.getByLabel('Nombre Caja de compensación').fill('Caja Demo');
+  await affiliationForm.getByRole('button', { name: 'Guardar afiliación' }).click();
+
+  await expect(page.getByText('EPS Demo')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Registrar afiliación' }).click();
+  const replacementForm = page.locator('form').filter({
+    has: page.getByRole('heading', { name: 'Nueva afiliación' }),
+  });
+  await replacementForm.getByRole('combobox', { name: 'Tipo de cotizante' }).selectOption('01');
+  await replacementForm.getByLabel('Vigente desde').fill('2026-04-01');
+  await replacementForm.getByLabel('Código EPS').fill('EPS002');
+  await replacementForm.getByLabel('Nombre EPS').fill('EPS Nueva');
+  await replacementForm.getByLabel('Código Fondo de pensión').fill('AFP001');
+  await replacementForm.getByLabel('Nombre Fondo de pensión').fill('Fondo Demo');
+  await replacementForm.getByLabel('Código ARL').fill('ARL001');
+  await replacementForm.getByLabel('Nombre ARL').fill('ARL Demo');
+  await replacementForm.getByRole('combobox', { name: 'Clase de riesgo ARL' }).selectOption('1');
+  await replacementForm.getByLabel('Código Caja de compensación').fill('CCF001');
+  await replacementForm.getByLabel('Nombre Caja de compensación').fill('Caja Demo');
+  await replacementForm.getByRole('button', { name: 'Guardar afiliación' }).click();
+
+  await expect(page.getByText('EPS Nueva')).toBeVisible();
+  const previousAffiliation = page.getByRole('listitem').filter({ hasText: 'EPS Demo' });
+  await expect(previousAffiliation).toHaveCount(1);
+  await expect(previousAffiliation).not.toContainText('Sin fecha final');
+  const currentAffiliation = page.getByRole('listitem').filter({ hasText: 'EPS Nueva' });
+  await expect(currentAffiliation).toContainText('Sin fecha final');
+  await page.getByRole('button', { name: 'Finalizar vigencia' }).click();
+  await page.getByLabel('Válida hasta').fill('2026-06-30');
+  await page.getByRole('button', { name: 'Guardar fecha' }).click();
+  await expect(currentAffiliation).not.toContainText('Sin fecha final');
+  await expect(page.getByRole('button', { name: 'Finalizar vigencia' })).toHaveCount(0);
+
+  await page.goto('/empleados');
+  await search.fill(cedula);
+  await expect(employeeRow()).toContainText('Coordinadora E2E');
+
   await employeeRow().getByRole('button', { name: 'Desactivar', exact: true }).click();
   const deleteDialog = page.getByRole('alertdialog');
   await deleteDialog.getByRole('button', { name: 'Desactivar empleado', exact: true }).click();

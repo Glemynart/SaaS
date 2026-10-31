@@ -20,6 +20,7 @@ import { toast } from '@/components/ui/toast';
 import { formatNombreCompleto } from '@saas/types';
 import { cn } from '@/lib/utils';
 import { LaborRelationshipPanel } from '@/features/labor-relationships/components/labor-relationship-panel';
+import { EmployeeSocialSecurityPanel } from '@/features/employees/components/employee-social-security-panel';
 
 const TIPO_CONTRATO_LABEL: Record<string, string> = {
   TERMINO_FIJO: 'Término fijo',
@@ -271,6 +272,16 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       </PageHeader>
 
       <LaborRelationshipPanel employeeId={id} />
+
+      <EmployeeSocialSecurityPanel
+        employeeId={id}
+        legacyValues={{
+          eps: employee.eps,
+          fondoPension: employee.fondoPension,
+          arl: employee.arl,
+          cajaCompensacion: employee.cajaCompensacion,
+        }}
+      />
 
       {employee && (
         <GenerateDocumentForm

@@ -1,6 +1,6 @@
 # ADR-013 — Exportación estándar de nómina a PILA
 
-- **Estado:** Aprobado con cambios; criterios de aceptación y pruebas normativas definidos para revisión previa a cualquier implementación. No se ha iniciado código PILA.
+- **Estado:** Aprobado con cambios; PR #160 incorpora la primera etapa de historial de afiliaciones. No existe todavía exportador PILA.
 - **Fecha:** 2026-10-30.
 - **Goal:** GOAL-02 — Evolución Financiera y Cumplimiento Electrónico.
 - **Responsable:** Producto / Payroll.
@@ -25,9 +25,9 @@ no produce ese archivo ni conserva todos sus insumos de forma estructurada:
   `BONUS` y `OTHER`; no es el catálogo/código de reporte PILA.
 - El formulario de alta/edición y sus DTOs no capturan afiliaciones ni datos
   PILA. La plantilla e importador XLSX solo incluyen datos personales,
-  laborales y `sede`; además de la ausencia de códigos, hoy no hay un flujo para
-  cargar estos datos en masa.
-- No se encontró un exportador PILA funcional en la API ni en la web.
+  laborales y `sede`. PR #160 agrega captura manual del historial por empleado,
+  pero no carga masiva ni validación de catálogo.
+- No existe un exportador PILA funcional en la API ni en la web.
 
 El Ministerio publica anexos técnicos para PILA y los operadores documentan
 cargue de archivos planos. La página oficial de PILA publica actualmente el
@@ -147,6 +147,23 @@ La matriz de aceptación debe registrar casos incluidos, códigos oficiales,
 archivos de entrada/salida esperados, regla normativa exacta, fecha de vigencia,
 resultado esperado y revisor. No se anunciará “cargable en cualquier operador”
 hasta completar pruebas independientes por operador.
+
+## Primera etapa: historial de afiliaciones
+
+PR #160 agrega el almacenamiento aditivo de
+afiliaciones por empleado, tipo de cotizante dependiente estándar, entidades y
+clase de riesgo capturadas manualmente, vigencias no solapadas, RLS por tenant,
+auditoría y una pantalla de captura en el detalle del empleado. Cada registro
+representa el conjunto completo de administradoras confirmado por el empleador
+para un mismo período de vigencia. Si cambia una de ellas, se registra el
+conjunto vigente completo como una nueva versión; una vigencia abierta anterior
+se cierra el día previo. Las versiones históricas se conservan y no se
+convierten los campos de texto heredados.
+
+Esta etapa solo conserva lo declarado por el aportante. Aún no comprueba que el
+código exista en un catálogo oficial, no genera archivos tipo 1/2 y no demuestra
+aceptación de un operador. Esa validación sigue siendo una dependencia previa a
+la exportación y a cualquier afirmación de compatibilidad.
 
 ## Alternativas descartadas
 
