@@ -7,6 +7,7 @@ import {
   mapPilaAt2V30DetailCandidate,
   PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_FIELD_NUMBERS,
   PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS,
+  PILA_AT2_V30_PRIVATE_EMPLOYER_ESAP_MEN_FIELD_NUMBERS,
   PILA_AT2_V30_STANDARD_DEPENDENT_EMPTY_FIELD_NUMBERS,
 } from './pila-at2-v30-detail-mapper';
 
@@ -1742,6 +1743,12 @@ export function buildPilaPreparationReport(input: {
     assessments,
     PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_FIELD_NUMBERS,
   );
+  const detailPrivateEmployerEsapMenCandidates =
+    summarizePilaDetailFieldCandidates(
+      input.snapshots,
+      assessments,
+      PILA_AT2_V30_PRIVATE_EMPLOYER_ESAP_MEN_FIELD_NUMBERS,
+    );
   const grouped = new Map<
     string,
     PilaPreparationIssue & {
@@ -1810,6 +1817,7 @@ export function buildPilaPreparationReport(input: {
     detailAbsentEventCandidates,
     detailStandardDependentEmptyCandidates,
     detailNonExemptCotizanteCandidates,
+    detailPrivateEmployerEsapMenCandidates,
     issues,
     archivoGenerable: false as const,
     estadoArchivo: 'NO_IMPLEMENTADO' as const,

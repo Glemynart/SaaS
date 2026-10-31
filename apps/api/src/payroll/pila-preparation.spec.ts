@@ -1787,6 +1787,17 @@ describe('inspectPilaSnapshotPreparation', () => {
         pendingEmployees: 0,
       }),
     ]);
+    for (const fieldNumber of [70, 71, 72, 73]) {
+      expect(
+        report.detailPrivateEmployerEsapMenCandidates.find(
+          (candidate) => candidate.fieldNumber === fieldNumber,
+        ),
+      ).toMatchObject({
+        fieldNumber,
+        candidateEmployees: 2,
+        pendingEmployees: 0,
+      });
+    }
     expect(report.archivoGenerable).toBe(false);
   });
 

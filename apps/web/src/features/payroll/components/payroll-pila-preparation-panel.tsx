@@ -53,6 +53,10 @@ const detailFieldLabels: Record<PilaDetailFieldCandidateStatus['fieldNumber'], s
   67: 'Aporte SENA',
   68: 'Tarifa ICBF',
   69: 'Aporte ICBF',
+  70: 'Tarifa ESAP',
+  71: 'Aporte ESAP',
+  72: 'Tarifa MEN',
+  73: 'Aporte MEN',
   74: 'Documento del cotizante principal',
   75: 'Identificación del cotizante principal',
   76: 'Exoneración del cotizante',
@@ -258,6 +262,56 @@ export function PayrollPilaPreparationPanel({
             </p>
             <ul className="mt-3 space-y-3">
               {query.data.detailStandardDependentEmptyCandidates.map((status) => (
+                <li key={status.fieldNumber} className="rounded-md bg-muted/40 px-3 py-2">
+                  <p className="text-sm font-medium">
+                    Campo {status.fieldNumber} · {detailFieldLabels[status.fieldNumber] ?? 'AT2'}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Con candidato: {status.candidateEmployees}; pendientes:{' '}
+                    {status.pendingEmployees}.
+                  </p>
+                  {status.pendingReasons.length > 0 && (
+                    <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
+                      {status.pendingReasons.map(({ reason, affectedEmployees }, index) => (
+                        <li key={`${status.fieldNumber}-${index}`}>
+                          <p>{reason}</p>
+                          {affectedEmployees.length > 0 && (
+                            <details className="mt-1">
+                              <summary className="cursor-pointer text-primary">
+                                Ver {affectedEmployees.length} empleados afectados
+                              </summary>
+                              <ul className="mt-2 list-inside list-disc">
+                                {affectedEmployees.map((name, employeeIndex) => (
+                                  <li key={`${status.fieldNumber}-${index}-${employeeIndex}`}>
+                                    {name}
+                                  </li>
+                                ))}
+                              </ul>
+                            </details>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section
+            className="rounded-lg border border-border p-4"
+            aria-labelledby="pila-private-employer-esap-men-title"
+          >
+            <h3 id="pila-private-employer-esap-men-title" className="font-medium">
+              Aportes ESAP y MEN para empleador privado
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Para empleadores privados tipo 1, AT2 v30 admite tarifa cero cuando no hay obligación.
+              Los valores 71 y 73 se proponen en cero solo si existe el IBC 95 congelado.
+              Empleadores públicos y otros tipos quedan pendientes. La descarga sigue deshabilitada.
+            </p>
+            <ul className="mt-3 space-y-3">
+              {query.data.detailPrivateEmployerEsapMenCandidates.map((status) => (
                 <li key={status.fieldNumber} className="rounded-md bg-muted/40 px-3 py-2">
                   <p className="text-sm font-medium">
                     Campo {status.fieldNumber} · {detailFieldLabels[status.fieldNumber] ?? 'AT2'}

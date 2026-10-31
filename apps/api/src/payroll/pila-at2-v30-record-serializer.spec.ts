@@ -215,6 +215,33 @@ describe('AT2 v30 fixed-width record formatting', () => {
     expect(record.slice(fieldStart(76), fieldStart(76) + 1)).toBe('N');
   });
 
+  it('serializes non-applicable private-employer ESAP/MEN fields as zero', () => {
+    const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
+    const values = completeRecordValues('contributorDetailType2', {
+      70: { value: '0.00000' },
+      71: { value: 0 },
+      72: { value: '0.00000' },
+      73: { value: 0 },
+    });
+    const record = serializePilaAt2V30Record('contributorDetailType2', values);
+    const fieldStart = (fieldNumber: number) =>
+      layout.fields
+        .filter((field) => field.fieldNumber < fieldNumber)
+        .reduce((total, field) => total + field.length, 0);
+
+    for (const [fieldNumber, value] of [
+      [70, '0.00000'],
+      [71, '000000000'],
+      [72, '0.00000'],
+      [73, '000000000'],
+    ] as const) {
+      const length = value.length;
+      expect(
+        record.slice(fieldStart(fieldNumber), fieldStart(fieldNumber) + length),
+      ).toBe(value);
+    }
+  });
+
   it('formats the AT2 field 64 CCF fractional tariff to seven positions', () => {
     const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
     const field64Start = layout.fields
