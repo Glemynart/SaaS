@@ -298,3 +298,9 @@ prueba se detuvo y no se usaron datos de demo/staging/producción. Esta preparac
   verificó. Requiere revisión de Nómina con constancias anonimizadas; el campo
   62 aún necesita comprobar formato AT2/operador. No hay serializador ni
   compatibilidad de operadores.
+- El Browser E2E de empleados pasó en Chromium con PostgreSQL 16 desechable:
+  registra centro ARL, sede opcional y actividad vigente desde el perfil,
+  verifica persistencia al recargar y cierra la vigencia. La API declara las
+  lecturas como autenticadas y las escrituras con roles ADMIN/OPERADOR; esto
+  corrige el bloqueo de activación Deny by Default detectado al arrancar la
+  prueba. No se usó el tenant demo ni el servidor local del usuario.

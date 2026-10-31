@@ -11,6 +11,7 @@ import { UserRole } from '@prisma/client';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { Authenticated } from '../auth/authorization/authorization-policy';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -25,6 +26,7 @@ import { PilaWorkCentersService } from './pila-work-centers.service';
 export class PilaWorkCentersController {
   constructor(private readonly pilaWorkCenters: PilaWorkCentersService) {}
 
+  @Authenticated()
   @Get('pila-centros-trabajo')
   listCenters() {
     return this.pilaWorkCenters.listCenters();
@@ -49,6 +51,7 @@ export class PilaWorkCentersController {
     return this.pilaWorkCenters.setCenterStatus(user.userId, id, dto);
   }
 
+  @Authenticated()
   @Get('employees/:id/asignaciones-centro-pila')
   listAssignments(@Param('id') id: string) {
     return this.pilaWorkCenters.listAssignments(id);

@@ -185,6 +185,13 @@ Esta prueba no ejercitó el rollback operativo de versión de aplicación ni una
 migración inversa; el plan conserva las tablas y deshabilita la captura, y una
 eliminación destructiva requiere un plan y aprobación independientes.
 
+El Browser E2E pasó en Chromium contra PostgreSQL 16 desechable. Recorre la UI
+del empleado, BFF, API y persistencia para registrar un centro, asociarlo
+opcionalmente a una sede, crear una asignación, comprobarla tras recargar y
+cerrar su vigencia. Las lecturas quedaron clasificadas como autenticadas
+explícitamente y las escrituras como RBAC; la superficie pasa la activación
+Deny by Default.
+
 Quedan pendientes la revisión funcional por Nómina con evidencia real
 anonimizada, la revisión del formato completo del campo 62 en el AT2 aplicable
 y pruebas de carga con operadores. Hasta entonces no se afirma que el
