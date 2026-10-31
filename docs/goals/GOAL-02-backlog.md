@@ -909,6 +909,14 @@ false`.
   importación; typecheck y ESLint de API/web. La prueba focalizada de este fix y
   los checks de formato se ejecutan antes de publicar el head #218. No se
   habilita descarga PILA ni se declara compatibilidad con operadores.
+- La información empresarial pública de [SOI](https://www.soi.com.co/contactenos)
+  ofrece liquidación y soporte por archivo plano a empresas de 50–200 empleados;
+  su [guía de liquidación](https://www.soi.com.co/empresa-como-hacer-y-pagar-la-planilla)
+  confirma el cargue de un archivo plano para crear la planilla de pago. El
+  escenario demo de 100 empleados cae en ese rango, por lo que SOI sigue siendo
+  candidato para la primera prueba (inferencia). Esto no aporta una muestra
+  aceptada ni demuestra compatibilidad; hace falta cargar el archivo en una
+  cuenta de prueba y conservar el resultado.
 - La rama #218 se sincroniza sobre el nuevo head de #213 para conservar su
   alcance independiente; sus checks remotos se solicitarán tras publicar la
   actualización.
