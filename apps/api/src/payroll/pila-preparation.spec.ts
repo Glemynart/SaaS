@@ -316,6 +316,7 @@ describe('inspectPilaSnapshotPreparation', () => {
     const source = payload();
     source.employer.pila.tipoPersona = 'N';
     source.employer.pila.tipoDocumentoAportante = 'CC';
+    source.employer.digitoVerif = '0';
     source.employer.pila.representanteTipoDocumento = '';
     source.employer.pila.representanteNumeroDocumento = '';
 
@@ -326,10 +327,91 @@ describe('inspectPilaSnapshotPreparation', () => {
     expect(
       result.issues.filter(
         ({ record, fieldNumber }) =>
-          record === 'APORTANTE_TIPO_1' && [18, 20].includes(fieldNumber ?? -1),
+          record === 'APORTANTE_TIPO_1' &&
+          [4, 18, 20].includes(fieldNumber ?? -1),
       ),
     ).toEqual([]);
   });
+
+  it('requiere dígito de verificación cero para persona natural', () => {
+    const source = payload();
+    source.employer.pila.tipoPersona = 'N';
+    source.employer.pila.tipoDocumentoAportante = 'CC';
+    source.employer.digitoVerif = '7';
+    source.employer.pila.representanteTipoDocumento = '';
+    source.employer.pila.representanteNumeroDocumento = '';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'APORTANTE_TIPO_1',
+        fieldNumber: 4,
+        code: 'CAMPO_4_DV_PERSONA_NATURAL_DEBE_SER_CERO',
+      }),
+    );
+  });
+
+  it.each([
+    ['CC', '1234567890'],
+    ['CE', '1234567'],
+    ['TI', '12345678901'],
+    ['PA', 'A123456789012345'],
+    ['CD', 'A1234567890'],
+    ['NI', '90012345678'],
+    ['SC', '12345678'],
+    ['PE', '123456789012345'],
+    ['PT', '12345678'],
+    ['PC', '12345678'],
+  ])('acepta identificación %s en el límite AT2 del aportante', (type, id) => {
+    const source = payload();
+    source.employer.pila.tipoDocumentoAportante = type;
+    source.employer.nit = id;
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(
+        ({ record, fieldNumber }) =>
+          record === 'APORTANTE_TIPO_1' && fieldNumber === 3,
+      ),
+    ).toEqual([]);
+  });
+
+  it.each([
+    ['CC', '12345678901'],
+    ['CE', '12345678'],
+    ['TI', '123456789012'],
+    ['NI', '900ABC'],
+    ['SC', '123456789'],
+    ['PE', '12345678901234'],
+    ['PT', 'A1234567'],
+    ['PC', '1234-567'],
+    ['CD', 'A123456789012'],
+  ])(
+    'bloquea identificación %s que no cumple AT2 para el aportante',
+    (type, id) => {
+      const source = payload();
+      source.employer.pila.tipoDocumentoAportante = type;
+      source.employer.nit = id;
+
+      const result = inspectPilaSnapshotPreparation(
+        snapshot('employee-1', 'Ana', { payload: source }),
+      );
+
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          record: 'APORTANTE_TIPO_1',
+          fieldNumber: 3,
+          code: 'CAMPO_3_IDENTIFICACION_APORTANTE_NO_VALIDA',
+        }),
+      );
+    },
+  );
 
   it.each([
     ['CC', '1234567890'],

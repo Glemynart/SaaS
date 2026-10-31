@@ -95,6 +95,29 @@ function validPilaIdentification(type: string, value: string): boolean {
   return type === 'PA' && /^[A-Z0-9]{1,16}$/.test(value);
 }
 
+function validEmployerIdentification(type: string, value: string): boolean {
+  if (type === 'PE') return /^\d{15}$/.test(value);
+  const numericMaxLength: Record<string, number> = {
+    CC: 10,
+    CE: 7,
+    TI: 11,
+    NI: 11,
+    SC: 8,
+    PT: 8,
+    PC: 8,
+  };
+  const numericLimit = numericMaxLength[type];
+  if (numericLimit !== undefined) {
+    return new RegExp(`^\\d{1,${numericLimit}}$`).test(value);
+  }
+  const alphanumericMaxLength: Record<string, number> = { PA: 16, CD: 11 };
+  const alphanumericLimit = alphanumericMaxLength[type];
+  return (
+    alphanumericLimit !== undefined &&
+    new RegExp(`^[A-Z0-9]{1,${alphanumericLimit}}$`).test(value)
+  );
+}
+
 function validRepresentativeIdentification(
   type: string,
   value: string,
@@ -274,9 +297,8 @@ export function inspectPilaSnapshotPreparation(
   const employerId = text(employer?.nit);
   if (
     !employerId ||
-    !/^[A-Z0-9]+$/.test(employerId) ||
-    employerId.length > 16 ||
-    (employerDocumentType === 'NI' && !/^\d{1,11}$/.test(employerId))
+    !employerDocumentType ||
+    !validEmployerIdentification(employerDocumentType, employerId)
   ) {
     add(
       employerRecord,
@@ -367,6 +389,13 @@ export function inspectPilaSnapshotPreparation(
         'La persona jurídica requiere el dígito de verificación del aportante.',
       );
     }
+  } else if (personType === 'N' && text(employer?.digitoVerif) !== '0') {
+    add(
+      employerRecord,
+      4,
+      'CAMPO_4_DV_PERSONA_NATURAL_DEBE_SER_CERO',
+      'AT2 v30 requiere reportar cero como dígito de verificación para persona natural.',
+    );
   }
   if (personType === 'N' && employerDocumentType === 'NI') {
     add(

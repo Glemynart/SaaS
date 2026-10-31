@@ -342,5 +342,6 @@ verdes al 2026-10-31.
 - La continuación del preflight del archivo tipo 1 valida fax numérico,
   caracteres y dominio del correo, y la identificación del representante
   contra CC/CE/PA/CD. La identificación puede omitirse para persona natural
-  solo si no se diligencia parcialmente. El preflight sigue sin serializar ni
-  habilitar la descarga PILA.
+  solo si no se diligencia parcialmente. También limita el documento del
+  aportante por tipo y exige DV cero para persona natural. El preflight sigue
+  sin serializar ni habilitar la descarga PILA.
