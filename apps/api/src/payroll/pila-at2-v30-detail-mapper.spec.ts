@@ -331,6 +331,45 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     );
   });
 
+  it('maps field 76 as non-exempt only when the frozen employer declarations agree', () => {
+    const input = snapshot();
+    const payload = payloadOf(input);
+    payload.employer.aportesExonerados = false;
+    payload.employer.pila.aportesExoneradosConfirmado = false;
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[76]).toEqual({ value: 'N' });
+    expect(candidate.normativeRuleVersions.confirmedNonExemptCotizante).toBe(
+      'AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_V1',
+    );
+  });
+
+  it.each([
+    [false, null],
+    [true, true],
+    [true, false],
+    [false, true],
+  ])(
+    'leaves field 76 unresolved for employer exemption state %s / confirmation %s',
+    (employerExempt, confirmation) => {
+      const input = snapshot();
+      const payload = payloadOf(input);
+      payload.employer.aportesExonerados = employerExempt;
+      payload.employer.pila.aportesExoneradosConfirmado = confirmation;
+
+      const candidate = mapPilaAt2V30DetailCandidate(input);
+
+      expect(candidate.values[76]).toBeUndefined();
+      expect(candidate.unresolvedFields).toContainEqual(
+        expect.objectContaining({ fieldNumber: 76 }),
+      );
+      expect(candidate.normativeRuleVersions.confirmedNonExemptCotizante).toBe(
+        null,
+      );
+    },
+  );
+
   it.each([
     'ING',
     'RET',
@@ -1149,6 +1188,11 @@ describe('mapPilaAt2V30DetailCandidate', () => {
         )?.reason,
       ).toContain('declaración expresa y coherente de no exoneración');
     }
+    expect(candidate.values[76]).toBeUndefined();
+    expect(
+      candidate.unresolvedFields.find((field) => field.fieldNumber === 76)
+        ?.reason,
+    ).toContain('confirmación explícita y coherente de no exoneración');
   });
 
   it.each([

@@ -1637,6 +1637,13 @@ describe('inspectPilaSnapshotPreparation', () => {
         }),
       ]),
     );
+    expect(report.detailNonExemptCotizanteCandidates).toEqual([
+      expect.objectContaining({
+        fieldNumber: 76,
+        candidateEmployees: 2,
+        pendingEmployees: 0,
+      }),
+    ]);
     expect(report.archivoGenerable).toBe(false);
   });
 

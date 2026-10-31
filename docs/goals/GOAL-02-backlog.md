@@ -559,7 +559,7 @@ verdes al 2026-10-31.
   un snapshot PILA v2 del mismo empleado/tenant/período. No vuelve a consultar
   maestros ni transforma novedades y no altera importes aprobados.
 - El alcance del mapa cubre campos 1–8, 11–21, 23–27, 29–47, 54–55, 57–69,
-  74–75, 77–78, 80–94, 95 y 98. Los importes 63/65/67/69 son solo candidatos
+  74–78, 80–94, 95 y 98. Los importes 63/65/67/69 son solo candidatos
   copiados de un concepto patronal único, con tipo esperado, factor positivo y
   base coincidente. Cada importe requiere además que el valor congelado ya
   coincida con el redondeo PILA versionado al múltiplo de 100 superior; una
@@ -637,6 +637,21 @@ verdes al 2026-10-31.
   de operador.
 - Fuente: AT2 v30 pp. 90 y 95–96. El trabajo continúa en la rama
   `codex/goal02-pila-dependent-empty-fields`, apilada sobre la rama de #203.
+
+### Campo 76 de exoneración explícita — 2026-10-31
+
+- Para la afiliación dependiente `01`/`00`, se propone `N` solo si los dos
+  valores del empleador congelado (`aportesExonerados` y
+  `aportesExoneradosConfirmado`) son explícitamente `false`.
+- Si falta la confirmación, existe contradicción o ambos valores son `true`, el
+  campo queda pendiente. No se infiere elegibilidad individual para la
+  exoneración positiva.
+- La regla `AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_V1` queda versionada y el
+  panel API/web informa candidatos y pendientes por empleado. El cambio no
+  habilita descarga.
+- Fuente: AT2 v30 p. 97; ADR-013 mantiene el uso exclusivo de snapshots
+  aprobados y limita el MVP a dependientes estándar. Trabajo apilado sobre #204
+  en `codex/goal02-pila-non-exempt-cotizante-field`.
 
 ### Salud estándar candidata AT2 — 2026-10-31
 

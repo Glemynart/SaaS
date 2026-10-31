@@ -55,6 +55,7 @@ const detailFieldLabels: Record<PilaDetailFieldCandidateStatus['fieldNumber'], s
   69: 'Aporte ICBF',
   74: 'Documento del cotizante principal',
   75: 'Identificación del cotizante principal',
+  76: 'Exoneración del cotizante',
   80: 'Fecha de ingreso',
   81: 'Fecha de retiro',
   82: 'Fecha de inicio VSP',
@@ -257,6 +258,56 @@ export function PayrollPilaPreparationPanel({
             </p>
             <ul className="mt-3 space-y-3">
               {query.data.detailStandardDependentEmptyCandidates.map((status) => (
+                <li key={status.fieldNumber} className="rounded-md bg-muted/40 px-3 py-2">
+                  <p className="text-sm font-medium">
+                    Campo {status.fieldNumber} · {detailFieldLabels[status.fieldNumber] ?? 'AT2'}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Con candidato: {status.candidateEmployees}; pendientes:{' '}
+                    {status.pendingEmployees}.
+                  </p>
+                  {status.pendingReasons.length > 0 && (
+                    <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
+                      {status.pendingReasons.map(({ reason, affectedEmployees }, index) => (
+                        <li key={`${status.fieldNumber}-${index}`}>
+                          <p>{reason}</p>
+                          {affectedEmployees.length > 0 && (
+                            <details className="mt-1">
+                              <summary className="cursor-pointer text-primary">
+                                Ver {affectedEmployees.length} empleados afectados
+                              </summary>
+                              <ul className="mt-2 list-inside list-disc">
+                                {affectedEmployees.map((name, employeeIndex) => (
+                                  <li key={`${status.fieldNumber}-${index}-${employeeIndex}`}>
+                                    {name}
+                                  </li>
+                                ))}
+                              </ul>
+                            </details>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section
+            className="rounded-lg border border-border p-4"
+            aria-labelledby="pila-non-exempt-cotizante-title"
+          >
+            <h3 id="pila-non-exempt-cotizante-title" className="font-medium">
+              Exoneración del cotizante
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              El campo 76 se propone como N únicamente cuando el snapshot del empleador y su
+              confirmación PILA declaran no exoneración de forma coherente. La exoneración positiva
+              sigue pendiente de validar por empleado. No se habilita la descarga.
+            </p>
+            <ul className="mt-3 space-y-3">
+              {query.data.detailNonExemptCotizanteCandidates.map((status) => (
                 <li key={status.fieldNumber} className="rounded-md bg-muted/40 px-3 py-2">
                   <p className="text-sm font-medium">
                     Campo {status.fieldNumber} · {detailFieldLabels[status.fieldNumber] ?? 'AT2'}
