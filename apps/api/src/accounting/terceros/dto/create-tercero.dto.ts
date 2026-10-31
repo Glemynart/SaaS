@@ -6,8 +6,10 @@ import {
   IsEnum,
   IsEmail,
   IsArray,
+  Validate,
 } from 'class-validator';
 import { TipoDocIdentidad, TipoPersona } from '@prisma/client';
+import { PepTutorDocumentNumberConstraint } from '../../../common/validators/pep-tutor-document-number';
 
 export class CreateTerceroDto {
   @IsEnum(TipoDocIdentidad)
@@ -15,6 +17,7 @@ export class CreateTerceroDto {
 
   @IsString()
   @IsNotEmpty()
+  @Validate(PepTutorDocumentNumberConstraint)
   numeroDocumento: string;
 
   @IsString()

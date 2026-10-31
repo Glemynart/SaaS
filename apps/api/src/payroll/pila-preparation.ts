@@ -3,6 +3,7 @@ import {
   PILA_RISK_ACTIVITY_CODES,
 } from './pila-risk-activity-catalog';
 import { PILA_AT2_V30_RECORD_LAYOUTS } from './pila-at2-v30-record-serializer';
+import { isValidPepTutorDocumentNumber } from '../common/validators/pep-tutor-document-number';
 import {
   mapPilaAt2V30DetailCandidate,
   PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_FIELD_NUMBERS,
@@ -121,7 +122,7 @@ export interface PilaSnapshotPreparation {
   issues: PilaPreparationIssue[];
 }
 
-const supportedDocumentTypes = new Set(['CC', 'CE', 'TI', 'PA']);
+const supportedDocumentTypes = new Set(['CC', 'CE', 'TI', 'PA', 'PC']);
 const pensionSystemEffectiveDate = '2027-04-01';
 const supportedEmployerDocumentTypes = new Set([
   'NI',
@@ -190,6 +191,7 @@ function snapshotPaymentDate(
 }
 
 function validPilaIdentification(type: string, value: string): boolean {
+  if (type === 'PC') return isValidPepTutorDocumentNumber(value);
   const numericMaxLength: Record<string, number> = {
     CC: 10,
     CE: 7,

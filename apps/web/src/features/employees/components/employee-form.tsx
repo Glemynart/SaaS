@@ -116,6 +116,7 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
             <option value="NIT">NIT</option>
             <option value="PEP">Permiso Especial de Permanencia</option>
             <option value="PPT">Permiso por Protección Temporal</option>
+            <option value="PC">PEP-TUTOR (representante o custodio)</option>
           </Select>
         </FormField>
         <FormField label="Número de documento" required error={errors.cedula?.message}>

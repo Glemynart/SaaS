@@ -8,8 +8,10 @@ import {
   IsBoolean,
   IsUUID,
   Min,
+  Validate,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { PepTutorDocumentNumberConstraint } from '../../common/validators/pep-tutor-document-number';
 
 export enum TipoDocIdentidad {
   CC = 'CC',
@@ -19,6 +21,7 @@ export enum TipoDocIdentidad {
   NIT = 'NIT',
   PEP = 'PEP',
   PPT = 'PPT',
+  PC = 'PC',
 }
 
 export enum EmpleadoEstado {
@@ -62,6 +65,7 @@ export type TipoSalarioPila =
 export class CreateEmployeeDto {
   @IsString()
   @IsNotEmpty()
+  @Validate(PepTutorDocumentNumberConstraint)
   cedula: string;
 
   @IsEnum(TipoDocIdentidad)

@@ -107,6 +107,7 @@ export function TerceroForm({ initialData, onSubmit, isLoading }: TerceroFormPro
               <option value="NIT">NIT</option>
               <option value="PEP">PEP</option>
               <option value="PPT">PPT</option>
+              <option value="PC">PEP-TUTOR</option>
             </Select>
           </FormField>
           <FormField label="Número de documento" required error={errors.numeroDocumento?.message}>

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { isValidPepTutorDocumentNumber } from '../common/validators/pep-tutor-document-number';
 import * as XLSX from 'xlsx';
 
 const MAX_ROWS = 500;
@@ -17,6 +18,7 @@ const VALID_TIPO_DOCUMENTO = [
   'NIT',
   'PEP',
   'PPT',
+  'PC',
 ] as const;
 type TipoDocIdentidad = (typeof VALID_TIPO_DOCUMENTO)[number];
 
@@ -140,7 +142,7 @@ const TEMPLATE_HEADERS = [
 
 const TEMPLATE_HINTS = [
   'Requerido. Número de documento.',
-  'Requerido. CC | CE | TI | PA | NIT | PEP | PPT',
+  'Requerido. CC | CE | TI | PA | NIT | PEP | PPT | PC (PEP-TUTOR: 7-8 dígitos)',
   'Requerido.',
   'Opcional.',
   'Requerido.',
@@ -366,6 +368,15 @@ export class EmployeeImportService {
           fila,
           campo: 'tipoDocumento',
           mensaje: `Tipo de documento inválido: "${tipoDocumento}". Valores válidos: ${VALID_TIPO_DOCUMENTO.join(', ')}.`,
+        });
+      } else if (
+        tipoDocumento === 'PC' &&
+        !isValidPepTutorDocumentNumber(cedula)
+      ) {
+        errors.push({
+          fila,
+          campo: 'cedula',
+          mensaje: 'El número PEP-TUTOR (PC) debe contener 7 u 8 dígitos.',
         });
       }
 

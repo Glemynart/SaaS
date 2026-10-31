@@ -414,8 +414,12 @@ export function mapPilaAt2V30DetailCandidate(
         );
       }
     } else {
-      unresolved(7, 'Falta un tipo de documento soportado para el campo 7.');
-      unresolved(8, 'Falta un tipo de documento soportado para el campo 8.');
+      const reason =
+        documentType === 'PC'
+          ? 'El producto aún no tiene reglas aprobadas para mapear PEP-TUTOR (PC) a los campos 7 y 8; ambos quedan pendientes.'
+          : 'Falta un tipo de documento soportado para los campos 7 y 8.';
+      unresolved(7, reason);
+      unresolved(8, reason);
     }
   } else {
     unresolved(
