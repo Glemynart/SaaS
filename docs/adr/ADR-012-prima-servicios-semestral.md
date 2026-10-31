@@ -49,6 +49,11 @@ cada cambio de reglas.
   confirma que el worker termina el lote, publica 100 documentos únicos,
   muestra el avance 100/100 al reconectar y permite descargarlos. Se verificó
   en PostgreSQL 16 desechable; el caso tardó 39,5 segundos.
+- PR #173 agrega una prueba unitaria de recuperación tras una interrupción
+  simulada de la API después de guardar el PDF y antes de publicarlo. Al vencer
+  el lease, el worker reutiliza el objeto y completa la publicación sin volver
+  a renderizarlo. No simula un reinicio real de proceso ni sustituye el Browser
+  E2E anterior.
 - La revisión técnica y los resultados esperados no reemplazan la validación
   por un responsable de nómina o asesor laboral. La interfaz y el PDF advierten
   que se verifique el resultado antes de usarlo para pagar. No se registra pago
