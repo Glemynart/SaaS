@@ -165,14 +165,16 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
     const preparationResponse = await preparationResponsePromise;
     expect(preparationResponse.status()).toBe(200);
     const preparation = (await preparationResponse.json()) as {
-      formatVersion: string;
+      formatVersion: string | null;
+      normativeSourceStatus: string;
       snapshotsRevisados: number;
       empleadosConDatosPendientes: number;
       archivoGenerable: boolean;
       estadoArchivo: string;
       issues: Array<{ code: string; affectedCount: number }>;
     };
-    expect(preparation.formatVersion).toBe('AT2_V30');
+    expect(preparation.formatVersion).toBeNull();
+    expect(preparation.normativeSourceStatus).toBe('RECONCILIATION_PENDING');
     expect(preparation.snapshotsRevisados).toBe(1);
     expect(preparation.empleadosConDatosPendientes).toBe(1);
     expect(preparation.archivoGenerable).toBe(false);
