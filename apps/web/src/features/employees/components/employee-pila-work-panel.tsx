@@ -240,7 +240,7 @@ export function EmployeePilaWorkPanel({ employeeId }: { employeeId: string }) {
         <Alert variant="destructive">No se pudo cargar el catálogo de centros PILA.</Alert>
       )}
 
-      {centers.length === 0 && !centersLoading && !isAddingCenter && (
+      {centers.length === 0 && !centersLoading && !centersError && !isAddingCenter && (
         <p className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
           Aún no hay centros ARL. Registra uno con los datos de la ARL para poder asignarlo al
           empleado.
@@ -340,7 +340,7 @@ export function EmployeePilaWorkPanel({ employeeId }: { employeeId: string }) {
           <Loader2 className="size-4 animate-spin" aria-hidden="true" />
           Cargando historial…
         </div>
-      ) : assignments.length === 0 ? (
+      ) : assignmentsError ? null : assignments.length === 0 ? (
         <p className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
           El empleado aún no tiene una asignación de centro/actividad PILA.
         </p>
