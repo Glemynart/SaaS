@@ -149,6 +149,54 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
 
     await page.reload();
     await expect(page.getByText(`ID de comprobante: ${posting.comprobanteId}`)).toBeVisible();
+
+    const pilaPreparationPanel = page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: 'Preparación de datos PILA' }) });
+    await expect(pilaPreparationPanel).toBeVisible();
+
+    const preparationResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+          `/api/payroll/periods/${payroll.periodId}/pila-preparation` &&
+        response.request().method() === 'GET',
+    );
+    await pilaPreparationPanel.getByRole('button', { name: 'Revisar datos' }).click();
+    const preparationResponse = await preparationResponsePromise;
+    expect(preparationResponse.status()).toBe(200);
+    const preparation = (await preparationResponse.json()) as {
+      formatVersion: string | null;
+      normativeSourceStatus: string;
+      snapshotsRevisados: number;
+      empleadosConDatosPendientes: number;
+      archivoGenerable: boolean;
+      estadoArchivo: string;
+      issues: Array<{ code: string; affectedCount: number }>;
+    };
+    expect(preparation.formatVersion).toBeNull();
+    expect(preparation.normativeSourceStatus).toBe('RECONCILIATION_PENDING');
+    expect(preparation.snapshotsRevisados).toBe(1);
+    expect(preparation.empleadosConDatosPendientes).toBe(1);
+    expect(preparation.archivoGenerable).toBe(false);
+    expect(preparation.estadoArchivo).toBe('NO_IMPLEMENTADO');
+    expect(preparation.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'PILA_SNAPSHOT_VERSION_NO_SOPORTADA',
+          affectedCount: 1,
+        }),
+      ]),
+    );
+    await expect(pilaPreparationPanel.getByText('Snapshots revisados: 1')).toBeVisible();
+    await expect(
+      pilaPreparationPanel.getByText(
+        /No existe un snapshot PILA aprobado con una versión compatible/,
+      ),
+    ).toBeVisible();
+    await expect(
+      pilaPreparationPanel.getByText(/no genera archivos ni confirma aceptación de un operador/i),
+    ).toBeVisible();
+
     const persisted = await payroll.inspectPersistedState();
     expect(persisted.periodStatus).toBe('CAUSADA');
     expect(persisted.vouchers).toEqual([{ id: posting.comprobanteId, estado: 'CONTABILIZADO' }]);
