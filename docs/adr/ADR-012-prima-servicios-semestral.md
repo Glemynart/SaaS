@@ -44,11 +44,12 @@ cada cambio de reglas.
 - El preview presenta períodos y conceptos de origen, días, componentes de la
   base, fórmula y resultado. La aprobación congela snapshots y deltas de
   correcciones utilizados; el PDF se publica en Expediente con hash.
-- Las PR #167 y #168 amplían el Browser E2E: genera documentos para 100
-  empleados, desconecta el navegador después de recibir la aprobación y
-  confirma que el worker termina el lote, publica 100 documentos únicos,
-  muestra el avance 100/100 al reconectar y permite descargarlos. Se verificó
-  en PostgreSQL 16 desechable; el caso tardó 39,5 segundos.
+- La PR #167 amplía el Browser E2E: genera documentos para 100 empleados,
+  desconecta el navegador tras aprobar y confirma que el lote entra en
+  `PROCESANDO` mientras sigue sin conexión, publica 100 documentos únicos y
+  permite descargar uno al reconectar. La PR #168 verifica el avance acumulado
+  y accesible 100/100 después de volver. Los checks se ejecutan sobre las ramas
+  sincronizadas con `main`.
 - La revisión técnica y los resultados esperados no reemplazan la validación
   por un responsable de nómina o asesor laboral. La interfaz y el PDF advierten
   que se verifique el resultado antes de usarlo para pagar. No se registra pago
