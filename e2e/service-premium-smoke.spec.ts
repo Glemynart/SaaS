@@ -265,6 +265,9 @@ test('genera los 100 PDF del lote aunque el navegador pierda conexión', async (
     await expect(page.getByRole('link', { name: /Ver PDF/ })).toHaveCount(fixture.employeeCount, {
       timeout: 30_000,
     });
+    await expect(
+      page.getByRole('progressbar', { name: 'PDF publicados en Expediente' }),
+    ).toHaveAttribute('aria-valuenow', String(fixture.employeeCount));
 
     const persisted = await fixture.inspectPersistedState();
     expect(persisted.batch?.status).toBe('COMPLETADO');
