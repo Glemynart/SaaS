@@ -14,6 +14,7 @@ function payload() {
       nit: '900123456',
       digitoVerif: '7',
       direccion: 'Calle Demo 10',
+      email: '',
       telefono: '6011234567',
       aportesExonerados: false,
       municipio: { codigo: '11001' },
@@ -26,6 +27,9 @@ function payload() {
         codigoActividadEconomica: '1234',
         codigoArlAportante: '123456',
         tipoAportante: '1',
+        codigoSucursal: '',
+        nombreSucursal: '',
+        fax: '',
         aportesExoneradosConfirmado: false,
         beneficioCcfLey1429: false,
         beneficioLey1429: false,
@@ -33,16 +37,18 @@ function payload() {
         representanteNumeroDocumento: '900123456',
         representanteTipoDocumento: 'CC',
         representantePrimerApellido: 'Demo',
+        representanteSegundoApellido: '',
         representantePrimerNombre: 'Ana',
+        representanteSegundoNombre: '',
       },
     },
     employee: {
       tipoDocumento: 'CC',
       cedula: '1234567890',
       primerNombre: 'Ana',
-      segundoNombre: null,
+      segundoNombre: '',
       primerApellido: 'Demo',
-      segundoApellido: null,
+      segundoApellido: '',
     },
     contract: { contractId: 'contract-1' },
     worksite: { municipio: { codigo: '11001' } },
@@ -134,6 +140,315 @@ describe('inspectPilaSnapshotPreparation', () => {
         code: 'ACTIVIDAD_ARL_SIN_VIGENCIA_PILA',
       },
     ]);
+  });
+
+  it('bloquea salario e IBC que desbordan los campos numéricos AT2 de 9 posiciones', () => {
+    const source = payload();
+    source.payroll.salarioBasicoCampo40.valor = 1_000_000_000;
+    source.payroll.ibcPorSubsistema.pension.valor = 1_000_000_000;
+    source.payroll.ibcPorSubsistema.salud.valor = 1_000_000_000;
+    source.payroll.ibcPorSubsistema.riesgos.valor = 1_000_000_000;
+    source.payroll.ibcPorSubsistema.cajaCompensacion.valor = 1_000_000_000;
+    source.payroll.ibcPorSubsistema.otrosParafiscales.valor = 1_000_000_000;
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues
+        .filter(({ code }) => code.includes('SUPERA_LONGITUD'))
+        .map(({ fieldNumber, code }) => ({ fieldNumber, code })),
+    ).toEqual([
+      { fieldNumber: 40, code: 'CAMPO_40_SALARIO_BASICO_SUPERA_LONGITUD' },
+      { fieldNumber: 42, code: 'CAMPO_42_IBC_SUPERA_LONGITUD' },
+      { fieldNumber: 43, code: 'CAMPO_43_IBC_SUPERA_LONGITUD' },
+      { fieldNumber: 44, code: 'CAMPO_44_IBC_SUPERA_LONGITUD' },
+      { fieldNumber: 45, code: 'CAMPO_45_IBC_SUPERA_LONGITUD' },
+      { fieldNumber: 95, code: 'CAMPO_95_IBC_SUPERA_LONGITUD' },
+    ]);
+  });
+
+  it('acepta el mayor valor representable en un campo numérico de 9 posiciones', () => {
+    const source = payload();
+    source.payroll.salarioBasicoCampo40.valor = 999_999_999;
+    source.payroll.ibcPorSubsistema.pension.valor = 999_999_999;
+    source.payroll.ibcPorSubsistema.salud.valor = 999_999_999;
+    source.payroll.ibcPorSubsistema.riesgos.valor = 999_999_999;
+    source.payroll.ibcPorSubsistema.cajaCompensacion.valor = 999_999_999;
+    source.payroll.ibcPorSubsistema.otrosParafiscales.valor = 999_999_999;
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(({ code }) => code.includes('SUPERA_LONGITUD')),
+    ).toEqual([]);
+  });
+
+  it('bloquea datos del aportante y representante que exceden las longitudes AT2', () => {
+    const source = payload();
+    source.employer.razonSocial = 'R'.repeat(201);
+    source.employer.direccion = 'D'.repeat(41);
+    source.employer.email = 'e'.repeat(61);
+    source.employer.pila.formaPresentacion = 'S';
+    source.employer.pila.codigoSucursal = 'S'.repeat(11);
+    source.employer.pila.nombreSucursal = 'N'.repeat(41);
+    source.employer.pila.fax = '1'.repeat(11);
+    source.employer.pila.representanteNumeroDocumento = '1'.repeat(17);
+    source.employer.pila.representantePrimerApellido = 'A'.repeat(21);
+    source.employer.pila.representanteSegundoApellido = 'B'.repeat(31);
+    source.employer.pila.representantePrimerNombre = 'C'.repeat(21);
+    source.employer.pila.representanteSegundoNombre = 'D'.repeat(31);
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues
+        .filter(
+          ({ record, code }) =>
+            record === 'APORTANTE_TIPO_1' && code.includes('LONGITUD_SUPERADA'),
+        )
+        .map(({ fieldNumber, code }) => ({ fieldNumber, code })),
+    ).toEqual([
+      { fieldNumber: 1, code: 'CAMPO_1_LONGITUD_SUPERADA' },
+      { fieldNumber: 5, code: 'CAMPO_5_LONGITUD_SUPERADA' },
+      { fieldNumber: 6, code: 'CAMPO_6_LONGITUD_SUPERADA' },
+      { fieldNumber: 11, code: 'CAMPO_11_LONGITUD_SUPERADA' },
+      { fieldNumber: 16, code: 'CAMPO_16_LONGITUD_SUPERADA' },
+      { fieldNumber: 17, code: 'CAMPO_17_LONGITUD_SUPERADA' },
+      { fieldNumber: 18, code: 'CAMPO_18_LONGITUD_SUPERADA' },
+      { fieldNumber: 21, code: 'CAMPO_21_LONGITUD_SUPERADA' },
+      { fieldNumber: 22, code: 'CAMPO_22_LONGITUD_SUPERADA' },
+      { fieldNumber: 23, code: 'CAMPO_23_LONGITUD_SUPERADA' },
+      { fieldNumber: 24, code: 'CAMPO_24_LONGITUD_SUPERADA' },
+    ]);
+  });
+
+  it('acepta las longitudes máximas de los datos de aportante y representante', () => {
+    const source = payload();
+    source.employer.razonSocial = 'R'.repeat(200);
+    source.employer.direccion = 'D'.repeat(40);
+    source.employer.email = 'e'.repeat(60);
+    source.employer.pila.formaPresentacion = 'S';
+    source.employer.pila.codigoSucursal = 'S'.repeat(10);
+    source.employer.pila.nombreSucursal = 'N'.repeat(40);
+    source.employer.pila.fax = '1'.repeat(10);
+    source.employer.pila.representanteTipoDocumento = 'PA';
+    source.employer.pila.representanteNumeroDocumento = 'A'.repeat(16);
+    source.employer.pila.representantePrimerApellido = 'A'.repeat(20);
+    source.employer.pila.representanteSegundoApellido = 'B'.repeat(30);
+    source.employer.pila.representantePrimerNombre = 'C'.repeat(20);
+    source.employer.pila.representanteSegundoNombre = 'D'.repeat(30);
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(
+        ({ record, code }) =>
+          record === 'APORTANTE_TIPO_1' && code.includes('LONGITUD_SUPERADA'),
+      ),
+    ).toEqual([]);
+  });
+
+  it.each([
+    ['CC', '1'.repeat(10)],
+    ['CE', '1'.repeat(7)],
+    ['TI', '1'.repeat(11)],
+    ['NI', '1'.repeat(11)],
+    ['PA', 'A'.repeat(16)],
+    ['CD', 'A'.repeat(11)],
+    ['SC', '1'.repeat(8)],
+    ['PE', '1'.repeat(15)],
+    ['PT', '1'.repeat(8)],
+    ['PC', '1'.repeat(8)],
+  ])('acepta identificación AT2 máxima del aportante %s', (type, value) => {
+    const source = payload();
+    source.employer.pila.tipoDocumentoAportante = type;
+    source.employer.nit = value;
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(
+        ({ record, fieldNumber }) =>
+          record === 'APORTANTE_TIPO_1' && fieldNumber === 3,
+      ),
+    ).toEqual([]);
+  });
+
+  it.each([
+    ['CC', '12345678901'],
+    ['CE', '12345678'],
+    ['TI', '123456789012'],
+    ['NI', '123456789012'],
+    ['PA', 'A'.repeat(17)],
+    ['CD', 'A'.repeat(12)],
+    ['SC', '123456789'],
+    ['PE', '1234567890123456'],
+    ['PT', '123456789'],
+    ['PC', '123456789'],
+    ['CC', 'A123'],
+    ['PA', 'AB-123'],
+  ])(
+    'bloquea el documento del aportante %s que excede o incumple la regla AT2',
+    (type, identification) => {
+      const source = payload();
+      source.employer.pila.tipoDocumentoAportante = type;
+      source.employer.nit = identification;
+
+      const result = inspectPilaSnapshotPreparation(
+        snapshot('employee-1', 'Ana', { payload: source }),
+      );
+
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          record: 'APORTANTE_TIPO_1',
+          fieldNumber: 3,
+          code: 'CAMPO_3_IDENTIFICACION_APORTANTE_NO_VALIDA',
+        }),
+      );
+    },
+  );
+
+  it.each([
+    ['CC', '1'.repeat(10)],
+    ['CE', '1'.repeat(7)],
+    ['PA', 'A'.repeat(16)],
+    ['CD', 'A'.repeat(11)],
+  ])('acepta identificación AT2 máxima del representante %s', (type, value) => {
+    const source = payload();
+    source.employer.pila.representanteTipoDocumento = type;
+    source.employer.pila.representanteNumeroDocumento = value;
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(
+        ({ record, fieldNumber }) =>
+          record === 'APORTANTE_TIPO_1' && fieldNumber === 18,
+      ),
+    ).toEqual([]);
+  });
+
+  it.each([
+    ['CC', '12345678901'],
+    ['CE', '12345678'],
+    ['CD', 'A'.repeat(12)],
+    ['CC', 'A123'],
+  ])(
+    'bloquea el documento del representante %s que incumple la regla AT2',
+    (type, identification) => {
+      const source = payload();
+      source.employer.pila.representanteTipoDocumento = type;
+      source.employer.pila.representanteNumeroDocumento = identification;
+
+      const result = inspectPilaSnapshotPreparation(
+        snapshot('employee-1', 'Ana', { payload: source }),
+      );
+
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          record: 'APORTANTE_TIPO_1',
+          fieldNumber: 18,
+          code: 'CAMPO_18_IDENTIFICACION_REPRESENTANTE_NO_VALIDA',
+        }),
+      );
+    },
+  );
+
+  it.each([
+    ['CC', '12345678901'],
+    ['CE', '12345678'],
+    ['TI', '123456789012'],
+    ['PA', 'A1234567890123456'],
+    ['CC', 'A234567890'],
+    ['PA', 'AB-123'],
+  ])(
+    'bloquea una identificación %s que no cumple los caracteres o longitud AT2',
+    (type, identification) => {
+      const source = payload();
+      source.employee.tipoDocumento = type;
+      source.employee.cedula = identification;
+
+      const result = inspectPilaSnapshotPreparation(
+        snapshot('employee-1', 'Ana', { payload: source }),
+      );
+
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          fieldNumber: 4,
+          code: 'CAMPO_4_IDENTIFICACION_NO_VALIDA',
+        }),
+      );
+    },
+  );
+
+  it.each([
+    ['CC', '1234567890'],
+    ['CE', '1234567'],
+    ['TI', '12345678901'],
+    ['PA', 'A123456789012345'],
+  ])('acepta la longitud máxima AT2 para identificación %s', (type, value) => {
+    const source = payload();
+    source.employee.tipoDocumento = type;
+    source.employee.cedula = value;
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(({ fieldNumber }) => fieldNumber === 4),
+    ).toEqual([]);
+  });
+
+  it('bloquea nombres superiores a las longitudes de los campos AT2', () => {
+    const source = payload();
+    source.employee.primerApellido = 'A'.repeat(21);
+    source.employee.segundoApellido = 'B'.repeat(31);
+    source.employee.primerNombre = 'C'.repeat(21);
+    source.employee.segundoNombre = 'D'.repeat(31);
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues
+        .filter(({ code }) => code.includes('LONGITUD_SUPERADA'))
+        .map(({ fieldNumber, code }) => ({ fieldNumber, code })),
+    ).toEqual([
+      { fieldNumber: 11, code: 'CAMPO_11_LONGITUD_SUPERADA' },
+      { fieldNumber: 12, code: 'CAMPO_12_LONGITUD_SUPERADA' },
+      { fieldNumber: 13, code: 'CAMPO_13_LONGITUD_SUPERADA' },
+      { fieldNumber: 14, code: 'CAMPO_14_LONGITUD_SUPERADA' },
+    ]);
+  });
+
+  it('acepta las longitudes máximas de los cuatro campos de nombres AT2', () => {
+    const source = payload();
+    source.employee.primerApellido = 'A'.repeat(20);
+    source.employee.segundoApellido = 'B'.repeat(30);
+    source.employee.primerNombre = 'C'.repeat(20);
+    source.employee.segundoNombre = 'D'.repeat(30);
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(({ code }) => code.includes('LONGITUD_SUPERADA')),
+    ).toEqual([]);
   });
 
   it.each([

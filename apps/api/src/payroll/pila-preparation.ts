@@ -78,6 +78,34 @@ function safeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
+function fitsNumericField(value: unknown, length: number): value is number {
+  return safeInteger(value) && String(value).length <= length;
+}
+
+function validPilaIdentification(type: string, value: string): boolean {
+  const numericMaxLength: Record<string, number> = {
+    CC: 10,
+    CE: 7,
+    TI: 11,
+    NI: 11,
+    SC: 8,
+    PE: 15,
+    PT: 8,
+    PC: 8,
+  };
+  const maxLength = numericMaxLength[type];
+  if (maxLength !== undefined) {
+    return /^\d+$/.test(value) && value.length <= maxLength;
+  }
+  const alphanumericMaxLength: Record<string, number> = { PA: 16, CD: 11 };
+  const alphanumericLength = alphanumericMaxLength[type];
+  return (
+    alphanumericLength !== undefined &&
+    /^[A-Z0-9]+$/.test(value) &&
+    value.length <= alphanumericLength
+  );
+}
+
 function date(value: unknown): string | null {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return null;
@@ -183,6 +211,23 @@ export function inspectPilaSnapshotPreparation(
       );
     }
   };
+  const validateFieldLength = (
+    record: PilaPreparationRecord,
+    fieldNumber: number,
+    value: unknown,
+    maxLength: number,
+    label: string,
+  ) => {
+    const normalized = text(value);
+    if (normalized && Array.from(normalized).length > maxLength) {
+      add(
+        record,
+        fieldNumber,
+        `CAMPO_${fieldNumber}_LONGITUD_SUPERADA`,
+        `El campo ${label} supera las ${maxLength} posiciones permitidas por AT2 v30.`,
+      );
+    }
+  };
 
   // Matriz PILA preliminar, archivo tipo 1: los valores del aportante se
   // exigen desde los datos declarados y congelados en el snapshot, no desde
@@ -193,6 +238,13 @@ export function inspectPilaSnapshotPreparation(
     1,
     employer?.razonSocial,
     'Falta la razón social del aportante.',
+  );
+  validateFieldLength(
+    employerRecord,
+    1,
+    employer?.razonSocial,
+    200,
+    'razón social del aportante',
   );
   requireChoice(
     employerRecord,
@@ -205,9 +257,8 @@ export function inspectPilaSnapshotPreparation(
   const employerId = text(employer?.nit);
   if (
     !employerId ||
-    !/^[A-Z0-9]+$/.test(employerId) ||
-    employerId.length > 16 ||
-    (employerDocumentType === 'NI' && !/^\d{1,11}$/.test(employerId))
+    !employerDocumentType ||
+    !validPilaIdentification(employerDocumentType, employerId)
   ) {
     add(
       employerRecord,
@@ -321,6 +372,45 @@ export function inspectPilaSnapshotPreparation(
       'La presentación por sucursal requiere el nombre PILA de la sucursal.',
     );
   }
+  for (const [field, value, label, maxLength] of [
+    [5, employerPila?.codigoSucursal, 'código de sucursal', 10],
+    [6, employerPila?.nombreSucursal, 'nombre de sucursal', 40],
+    [11, employer?.direccion, 'dirección del aportante', 40],
+    [16, employerPila?.fax, 'fax del aportante', 10],
+    [17, employer?.email, 'correo del aportante', 60],
+    [
+      18,
+      employerPila?.representanteNumeroDocumento,
+      'documento del representante',
+      16,
+    ],
+    [
+      21,
+      employerPila?.representantePrimerApellido,
+      'primer apellido del representante',
+      20,
+    ],
+    [
+      22,
+      employerPila?.representanteSegundoApellido,
+      'segundo apellido del representante',
+      30,
+    ],
+    [
+      23,
+      employerPila?.representantePrimerNombre,
+      'primer nombre del representante',
+      20,
+    ],
+    [
+      24,
+      employerPila?.representanteSegundoNombre,
+      'segundo nombre del representante',
+      30,
+    ],
+  ] as const) {
+    validateFieldLength(employerRecord, field, value, maxLength, label);
+  }
   requireText(
     employerRecord,
     11,
@@ -419,6 +509,9 @@ export function inspectPilaSnapshotPreparation(
     const representativeDocumentType = text(
       employerPila?.representanteTipoDocumento,
     );
+    const representativeId = text(
+      employerPila?.representanteNumeroDocumento,
+    );
     if (
       representativeDocumentType === null ||
       !representativeDocumentTypes.has(representativeDocumentType)
@@ -428,6 +521,16 @@ export function inspectPilaSnapshotPreparation(
         20,
         'CAMPO_20_DOCUMENTO_REPRESENTANTE_NO_VALIDO',
         'La persona jurídica requiere un tipo de documento válido para su representante legal.',
+      );
+    } else if (
+      representativeId &&
+      !validPilaIdentification(representativeDocumentType, representativeId)
+    ) {
+      add(
+        employerRecord,
+        18,
+        'CAMPO_18_IDENTIFICACION_REPRESENTANTE_NO_VALIDA',
+        'El documento del representante no cumple los caracteres y la longitud permitidos por AT2 v30 para su tipo.',
       );
     }
     requireText(
@@ -595,12 +698,26 @@ export function inspectPilaSnapshotPreparation(
       'El tipo de documento del cotizante falta o aún no tiene mapeo AT2 aprobado.',
     );
   }
-  requireText(
-    detailRecord,
-    4,
-    employee?.cedula,
-    'Falta el número de documento del cotizante.',
-  );
+  const identification = text(employee?.cedula);
+  if (identification === null) {
+    requireText(
+      detailRecord,
+      4,
+      employee?.cedula,
+      'Falta el número de documento del cotizante.',
+    );
+  } else if (
+    documentType &&
+    supportedDocumentTypes.has(documentType) &&
+    !validPilaIdentification(documentType, identification)
+  ) {
+    add(
+      detailRecord,
+      4,
+      'CAMPO_4_IDENTIFICACION_NO_VALIDA',
+      'El número del cotizante no cumple los caracteres y la longitud permitidos por AT2 v30 para su tipo de documento.',
+    );
+  }
   const affiliations = Array.isArray(root?.affiliations)
     ? root.affiliations
         .map(object)
@@ -681,6 +798,14 @@ export function inspectPilaSnapshotPreparation(
     employee?.primerNombre,
     'Falta el primer nombre del cotizante.',
   );
+  for (const [field, key, label, maxLength] of [
+    [11, 'primerApellido', 'primer apellido', 20],
+    [12, 'segundoApellido', 'segundo apellido', 30],
+    [13, 'primerNombre', 'primer nombre', 20],
+    [14, 'segundoNombre', 'segundo nombre', 30],
+  ] as const) {
+    validateFieldLength(detailRecord, field, employee?.[key], maxLength, label);
+  }
   const worksiteCode = text(worksiteMunicipality?.codigo);
   if (!worksite || !worksiteCode || !/^\d{5}$/.test(worksiteCode)) {
     add(
@@ -860,6 +985,13 @@ export function inspectPilaSnapshotPreparation(
       'CAMPO_40_SALARIO_BASICO_NO_VALIDO',
       'El salario básico del campo 40 debe ser un entero no negativo aprobado.',
     );
+  } else if (!fitsNumericField(basicSalary, 9)) {
+    add(
+      detailRecord,
+      40,
+      'CAMPO_40_SALARIO_BASICO_SUPERA_LONGITUD',
+      'El salario básico del campo 40 supera las 9 posiciones numéricas permitidas por AT2 v30.',
+    );
   }
   const salaryType = payroll?.tipoSalario;
   if (salaryType !== 'X' && salaryType !== 'F' && salaryType !== 'V') {
@@ -885,6 +1017,13 @@ export function inspectPilaSnapshotPreparation(
         field,
         `CAMPO_${field}_IBC_NO_APROBADO`,
         `Falta un IBC entero, no negativo y con fuente inequívoca para ${label}.`,
+      );
+    } else if (!fitsNumericField(source.valor, 9)) {
+      add(
+        detailRecord,
+        field,
+        `CAMPO_${field}_IBC_SUPERA_LONGITUD`,
+        `El IBC de ${label} supera las 9 posiciones numéricas permitidas por AT2 v30.`,
       );
     }
     if (

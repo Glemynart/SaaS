@@ -317,3 +317,15 @@ se accedió a demo, staging o producción.
   campo AT2 correspondiente. El informe de eventos no confirma la norma
   completa y conserva el archivo como no implementado; segmentación de días e
   IBC y fixtures normativos revisados siguen pendientes.
+
+- PR #173 agrega una prueba unitaria de recuperación del trabajador de prima
+  después de que vence su lease: cuando ya existe el PDF, el worker publica el
+  artefacto existente y completa el lote sin volver a renderizarlo. La prueba
+  simula la interrupción y recuperación; no equivale a una prueba de reinicio
+  real del proceso ni a aceptación end-to-end.
+- PR #174 amplía el preflight PILA con límites de campos numéricos de nueve
+  posiciones y longitudes/caracteres AT2 para identificaciones, nombres, datos
+  del aportante y representante. Los excedentes bloquean sin truncarse y las
+  pruebas cubren máximos y desbordamientos. Esto sigue siendo validación
+  preparatoria: no serializa registros, no hace `archivoGenerable` verdadero y
+  no acredita carga o compatibilidad de operador.
