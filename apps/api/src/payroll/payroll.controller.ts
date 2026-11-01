@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -14,6 +15,7 @@ import { PayrollService } from './payroll.service';
 import {
   CreatePayrollPeriodDto,
   CreatePayrollNoveltyDto,
+  CreatePayrollPilaEventDto,
   RejectPayrollPeriodDto,
   ExcludePayrollBlockDto,
   UpdatePayrollPilaPaymentDateDto,
@@ -79,6 +81,34 @@ export class PayrollController {
     @Param('id') id: string,
   ) {
     return this.service.findOnePeriod(user.tenantId, id);
+  }
+
+  @Get('payroll/periods/:id/pila-events')
+  findPilaEvents(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Query('employeeId') employeeId?: string,
+  ) {
+    return this.service.findPilaEvents(user.tenantId, id, employeeId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Post('payroll/periods/:id/pila-events')
+  createPilaEvent(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() dto: CreatePayrollPilaEventDto,
+  ) {
+    return this.service.createPilaEvent(user.tenantId, user.userId, id, dto);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Delete('payroll/pila-events/:eventId')
+  deletePilaEvent(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('eventId') eventId: string,
+  ) {
+    return this.service.deletePilaEvent(user.tenantId, user.userId, eventId);
   }
 
   @Get('payroll/periods/:id/blocks')

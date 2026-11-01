@@ -27,6 +27,7 @@ export interface Employee {
   cajaCompensacion: string | null;
   municipioExpedicionDocId: string | null;
   salarioIntegral: boolean;
+  tipoSalarioPila: 'X' | 'F' | 'V' | null;
   jornadaLaboral: string | null;
   fechaRetiro: string | null;
   motivoRetiro: string | null;

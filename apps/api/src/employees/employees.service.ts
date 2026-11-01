@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
-import { CreateEmployeeDto } from './dto/create-employee.dto';
+import { CreateEmployeeDto, TipoSalarioPila } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeeQueryDto } from './dto/employee-query.dto';
 import { Prisma } from '@prisma/client';
@@ -24,6 +24,24 @@ export class EmployeesService {
     if (!createDto.sedeId) {
       throw new BadRequestException('La sede del empleado es requerida.');
     }
+
+    if (
+      createDto.tipoSalarioPila &&
+      createDto.salarioIntegral !== undefined &&
+      (createDto.tipoSalarioPila === TipoSalarioPila.INTEGRAL) !==
+        createDto.salarioIntegral
+    ) {
+      throw new BadRequestException(
+        'El tipo de salario PILA no coincide con la opción de salario integral.',
+      );
+    }
+
+    const tipoSalarioPila =
+      createDto.tipoSalarioPila ??
+      (createDto.salarioIntegral ? TipoSalarioPila.INTEGRAL : null);
+    const salarioIntegral = tipoSalarioPila
+      ? tipoSalarioPila === TipoSalarioPila.INTEGRAL
+      : (createDto.salarioIntegral ?? false);
 
     const { employee, tenantId } = await this.tenantPrisma.execute(
       async (prisma, context) => {
@@ -59,6 +77,8 @@ export class EmployeesService {
         const employee = await prisma.empleado.create({
           data: {
             ...createDto,
+            salarioIntegral,
+            tipoSalarioPila,
             fechaIngreso: new Date(createDto.fechaIngreso),
             tenantId,
           },
@@ -142,7 +162,11 @@ export class EmployeesService {
     const { employee, tenantId } = await this.tenantPrisma.execute(
       async (prisma, context) => {
         const tenantId = context.tenantId;
-        await this.findOneInTenant(prisma, tenantId, id);
+        const currentEmployee = await this.findOneInTenant(
+          prisma,
+          tenantId,
+          id,
+        );
 
         if (updateDto.cedula) {
           const existing = await prisma.empleado.findUnique({
@@ -171,6 +195,33 @@ export class EmployeesService {
         const dataToUpdate: Prisma.EmpleadoUncheckedUpdateInput = {
           ...updateDto,
         };
+        if (
+          updateDto.tipoSalarioPila &&
+          updateDto.salarioIntegral !== undefined &&
+          (updateDto.tipoSalarioPila === TipoSalarioPila.INTEGRAL) !==
+            updateDto.salarioIntegral
+        ) {
+          throw new BadRequestException(
+            'El tipo de salario PILA no coincide con la opción de salario integral.',
+          );
+        }
+        if (updateDto.tipoSalarioPila !== undefined) {
+          const tipoSalarioPila =
+            updateDto.tipoSalarioPila ??
+            (updateDto.salarioIntegral === true
+              ? TipoSalarioPila.INTEGRAL
+              : null);
+          dataToUpdate.tipoSalarioPila = tipoSalarioPila;
+          dataToUpdate.salarioIntegral =
+            tipoSalarioPila === TipoSalarioPila.INTEGRAL;
+        } else if (updateDto.salarioIntegral !== undefined) {
+          dataToUpdate.salarioIntegral = updateDto.salarioIntegral;
+          dataToUpdate.tipoSalarioPila = updateDto.salarioIntegral
+            ? TipoSalarioPila.INTEGRAL
+            : currentEmployee.tipoSalarioPila === TipoSalarioPila.INTEGRAL
+              ? null
+              : currentEmployee.tipoSalarioPila;
+        }
         if (updateDto.fechaIngreso) {
           dataToUpdate.fechaIngreso = new Date(updateDto.fechaIngreso);
         }

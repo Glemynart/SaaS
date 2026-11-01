@@ -26,6 +26,7 @@ import {
 import {
   CreatePayrollPeriodDto,
   CreatePayrollNoveltyDto,
+  CreatePayrollPilaEventDto,
   UpdatePayrollPilaPaymentDateDto,
 } from './dto/create-payroll.dto';
 import { CreatePayrollCorrectionDto } from './dto/payroll-correction.dto';
@@ -47,6 +48,18 @@ import {
   toSnapshot,
 } from './payroll-mapper';
 import { buildPayrollPeriodSnapshot } from './payroll-snapshot-period';
+import {
+  buildPilaSourceContext,
+  buildPilaSourceSnapshot,
+} from './pila-source-snapshot';
+import {
+  parsePilaCalendarDate,
+  validatePilaEventDateRange,
+} from './pila-event-validation';
+import type {
+  PilaSourceContext,
+  PilaSourceContextInput,
+} from './pila-source-snapshot';
 import { assertTransition } from './payroll-states';
 import { assertCorrectionTransition } from './payroll-correction-states';
 import {
@@ -78,6 +91,20 @@ const RECALCULATE_ALLOWED_STATUSES: PayrollPeriodStatus[] =
 
 const SNAPSHOT_PAYLOAD_VERSION = 1;
 const CALCULATION_TRACE_VERSION = 1;
+const PILA_PAYLOAD_VERSION = 1;
+
+type PilaSourceData = {
+  tenant: PilaSourceContextInput['tenant'];
+  employeesById: Map<string, PilaSourceContextInput['employee']>;
+  affiliationsByEmployee: Map<string, PilaSourceContextInput['affiliations']>;
+  pilaEventsByEmployee: Map<string, PilaSourceContextInput['pilaEvents']>;
+  worksitesById: Map<string, NonNullable<PilaSourceContextInput['worksite']>>;
+};
+
+type PayrollPilaEmployeeRecord = PilaSourceContextInput['employee'] & {
+  salario: Prisma.Decimal;
+  salarioIntegral: boolean;
+};
 
 const PAYROLL_ACCOUNTING_VOUCHER_SELECT = {
   id: true,
@@ -706,7 +733,11 @@ export class PayrollService {
 
     return {
       period,
-      runs,
+      runs: runs.map((run) => {
+        const { pilaSource, ...publicRun } = run;
+        void pilaSource;
+        return publicRun;
+      }),
       snapshots,
       totals: { totalDevengos, totalDeducciones, totalNeto },
       accountingVoucher: voucher ? mapPayrollAccountingVoucher(voucher) : null,
@@ -2119,16 +2150,70 @@ export class PayrollService {
       this.resolveLegalParams(tenantId, period.fechaInicio),
       this.prisma.tenant.findUnique({
         where: { id: tenantId },
-        select: { aportesExonerados: true },
+        select: {
+          id: true,
+          razonSocial: true,
+          nit: true,
+          digitoVerif: true,
+          direccion: true,
+          telefono: true,
+          email: true,
+          representanteLegal: true,
+          aportesExonerados: true,
+          pilaTipoDocumentoAportante: true,
+          pilaNaturalezaJuridica: true,
+          pilaTipoPersona: true,
+          pilaFormaPresentacion: true,
+          pilaCodigoSucursal: true,
+          pilaNombreSucursal: true,
+          pilaCodigoActividadEconomica: true,
+          pilaCodigoArlAportante: true,
+          pilaTipoAportante: true,
+          pilaFax: true,
+          pilaRepresentanteTipoDocumento: true,
+          pilaRepresentanteNumeroDocumento: true,
+          pilaRepresentantePrimerApellido: true,
+          pilaRepresentanteSegundoApellido: true,
+          pilaRepresentantePrimerNombre: true,
+          pilaRepresentanteSegundoNombre: true,
+          pilaFechaMatriculaMercantil: true,
+          pilaBeneficioLey1429: true,
+          pilaBeneficioCcfLey1429: true,
+          pilaAportesExoneradosConfirmado: true,
+          pilaSinAccionEspecial: true,
+          municipio: {
+            select: {
+              id: true,
+              codigo: true,
+              nombre: true,
+              departamento: true,
+            },
+          },
+        },
       }),
     ]);
+    if (!tenant) throw new NotFoundException('Tenant no encontrado');
     const legalSnapshot = toSnapshot(legalParam);
-    const aportesExonerados = tenant!.aportesExonerados;
+    const aportesExonerados = tenant.aportesExonerados;
 
     const employees = await this.tenantPrisma.execute((prisma) =>
       prisma.empleado.findMany({
         where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
-        select: { id: true, salario: true, salarioIntegral: true },
+        select: {
+          id: true,
+          salario: true,
+          salarioIntegral: true,
+          tipoSalarioPila: true,
+          tipoDocumento: true,
+          cedula: true,
+          primerNombre: true,
+          segundoNombre: true,
+          primerApellido: true,
+          segundoApellido: true,
+          fechaNacimiento: true,
+          fechaIngreso: true,
+          fechaRetiro: true,
+        },
       }),
     );
 
@@ -2158,6 +2243,12 @@ export class PayrollService {
       },
       orderBy: { fechaInicio: 'desc' },
     });
+    const pilaSourceData = await this.loadPilaSourceData(
+      tenant,
+      period,
+      employees,
+      allContracts,
+    );
     const centroCostoBySede = await this.resolveCentrosCostoBySede(
       tenantId,
       allContracts,
@@ -2170,13 +2261,27 @@ export class PayrollService {
     }
 
     // ── Transacción ──────────────────────────────────────────────────────────
-    const created: unknown[] = [];
+    let created = 0;
     const runWarnings: Record<string, string[]> = {};
     const runBlocks: PayrollBlockMap = {};
 
     try {
       await this.prisma.$transaction(
         async (tx) => {
+          await this.lockPayrollPeriodForPilaEvents(tx, tenantId, periodId);
+          await this.assertPayrollPeriodCanBeCalculated(
+            tx,
+            tenantId,
+            periodId,
+            GENERATE_ALLOWED_STATUSES,
+          );
+          await this.reloadPilaEventsForSnapshot(
+            tx,
+            tenantId,
+            periodId,
+            pilaSourceData,
+          );
+
           for (const emp of employees) {
             const calculation = this.calculateAndCollectWarnings(
               emp,
@@ -2204,7 +2309,7 @@ export class PayrollService {
               centroCostoBySede,
             );
 
-            const run = await tx.payrollRun.create({
+            await tx.payrollRun.create({
               data: this.buildRunCreateData(
                 emp,
                 calculation.result,
@@ -2215,9 +2320,15 @@ export class PayrollService {
                 calculation,
                 this.serializeLegalParams(legalParam),
                 noveltiesByEmployee.get(emp.id) ?? [],
+                this.buildPilaSourceContext(
+                  pilaSourceData,
+                  period,
+                  emp.id,
+                  calculation.contrato,
+                ),
               ),
             });
-            created.push(run);
+            created += 1;
           }
 
           await this.syncFunctionalBlocksForPeriod(
@@ -2233,10 +2344,19 @@ export class PayrollService {
           // BORRADOR como desde CALCULADA (recalcular no debe retroceder).
           // Efecto natural del evento de cálculo, no una transición formal
           // separada — no pasa por assertTransition/transitionPeriod.
-          await tx.payrollPeriod.updateMany({
-            where: { id: periodId, tenantId },
+          const updated = await tx.payrollPeriod.updateMany({
+            where: {
+              id: periodId,
+              tenantId,
+              status: { in: GENERATE_ALLOWED_STATUSES },
+            },
             data: { status: PayrollPeriodStatus.CALCULADA },
           });
+          if (updated.count === 0) {
+            throw new ConflictException(
+              'El período fue modificado durante la generación de nómina.',
+            );
+          }
         },
         { timeout: 30000 },
       );
@@ -2263,8 +2383,8 @@ export class PayrollService {
           periodName: period.nombre,
           payrollPeriodId: periodId,
           parametroLegalId: legalParam.id,
-          runsCreated: created.length,
-          skipped: employees.length - created.length,
+          runsCreated: created,
+          skipped: employees.length - created,
           warningsCount: Object.keys(runWarnings).length,
           blocksCount: Object.keys(runBlocks).length,
         },
@@ -2272,8 +2392,8 @@ export class PayrollService {
       .catch(() => {});
 
     return {
-      created: created.length,
-      message: `${created.length} empleados liquidados`,
+      created,
+      message: `${created} empleados liquidados`,
       ...(Object.keys(runWarnings).length > 0 && { warnings: runWarnings }),
       ...(Object.keys(runBlocks).length > 0 && {
         blocks: this.blockMessages(runBlocks),
@@ -2297,16 +2417,70 @@ export class PayrollService {
       this.resolveLegalParams(tenantId, period.fechaInicio),
       this.prisma.tenant.findUnique({
         where: { id: tenantId },
-        select: { aportesExonerados: true },
+        select: {
+          id: true,
+          razonSocial: true,
+          nit: true,
+          digitoVerif: true,
+          direccion: true,
+          telefono: true,
+          email: true,
+          representanteLegal: true,
+          aportesExonerados: true,
+          pilaTipoDocumentoAportante: true,
+          pilaNaturalezaJuridica: true,
+          pilaTipoPersona: true,
+          pilaFormaPresentacion: true,
+          pilaCodigoSucursal: true,
+          pilaNombreSucursal: true,
+          pilaCodigoActividadEconomica: true,
+          pilaCodigoArlAportante: true,
+          pilaTipoAportante: true,
+          pilaFax: true,
+          pilaRepresentanteTipoDocumento: true,
+          pilaRepresentanteNumeroDocumento: true,
+          pilaRepresentantePrimerApellido: true,
+          pilaRepresentanteSegundoApellido: true,
+          pilaRepresentantePrimerNombre: true,
+          pilaRepresentanteSegundoNombre: true,
+          pilaFechaMatriculaMercantil: true,
+          pilaBeneficioLey1429: true,
+          pilaBeneficioCcfLey1429: true,
+          pilaAportesExoneradosConfirmado: true,
+          pilaSinAccionEspecial: true,
+          municipio: {
+            select: {
+              id: true,
+              codigo: true,
+              nombre: true,
+              departamento: true,
+            },
+          },
+        },
       }),
     ]);
+    if (!tenant) throw new NotFoundException('Tenant no encontrado');
     const legalSnapshot = toSnapshot(legalParam);
-    const aportesExonerados = tenant!.aportesExonerados;
+    const aportesExonerados = tenant.aportesExonerados;
 
     const employees = await this.tenantPrisma.execute((prisma) =>
       prisma.empleado.findMany({
         where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
-        select: { id: true, salario: true, salarioIntegral: true },
+        select: {
+          id: true,
+          salario: true,
+          salarioIntegral: true,
+          tipoSalarioPila: true,
+          tipoDocumento: true,
+          cedula: true,
+          primerNombre: true,
+          segundoNombre: true,
+          primerApellido: true,
+          segundoApellido: true,
+          fechaNacimiento: true,
+          fechaIngreso: true,
+          fechaRetiro: true,
+        },
       }),
     );
 
@@ -2336,6 +2510,12 @@ export class PayrollService {
       },
       orderBy: { fechaInicio: 'desc' },
     });
+    const pilaSourceData = await this.loadPilaSourceData(
+      tenant,
+      period,
+      employees,
+      allContracts,
+    );
     const centroCostoBySede = await this.resolveCentrosCostoBySede(
       tenantId,
       allContracts,
@@ -2355,6 +2535,20 @@ export class PayrollService {
     try {
       await this.prisma.$transaction(
         async (tx) => {
+          await this.lockPayrollPeriodForPilaEvents(tx, tenantId, periodId);
+          await this.assertPayrollPeriodCanBeCalculated(
+            tx,
+            tenantId,
+            periodId,
+            RECALCULATE_ALLOWED_STATUSES,
+          );
+          await this.reloadPilaEventsForSnapshot(
+            tx,
+            tenantId,
+            periodId,
+            pilaSourceData,
+          );
+
           const existingRuns = await tx.payrollRun.findMany({
             where: { tenantId, payrollPeriodId: periodId },
             select: { id: true },
@@ -2400,6 +2594,12 @@ export class PayrollService {
                 calculation,
                 this.serializeLegalParams(legalParam),
                 noveltiesByEmployee.get(emp.id) ?? [],
+                this.buildPilaSourceContext(
+                  pilaSourceData,
+                  period,
+                  emp.id,
+                  calculation.contrato,
+                ),
               ),
             });
             summary.runsCreated += 1;
@@ -2414,10 +2614,19 @@ export class PayrollService {
 
           // La reliquidación mantiene CALCULADA (nunca retrocede a BORRADOR).
           // Mismo evento de negocio que en generatePayroll: ver comentario ahí.
-          await tx.payrollPeriod.updateMany({
-            where: { id: periodId, tenantId },
+          const updated = await tx.payrollPeriod.updateMany({
+            where: {
+              id: periodId,
+              tenantId,
+              status: { in: RECALCULATE_ALLOWED_STATUSES },
+            },
             data: { status: PayrollPeriodStatus.CALCULADA },
           });
+          if (updated.count === 0) {
+            throw new ConflictException(
+              'El período fue modificado durante el recálculo de nómina.',
+            );
+          }
         },
         { timeout: 30000 },
       );
@@ -2496,6 +2705,195 @@ export class PayrollService {
       })
       .catch(() => {});
     return novelty;
+  }
+
+  async findPilaEvents(
+    tenantId: string,
+    periodId: string,
+    employeeId?: string,
+  ) {
+    const period = await this.prisma.payrollPeriod.findFirst({
+      where: { id: periodId, tenantId },
+      select: { id: true },
+    });
+    if (!period) throw new NotFoundException('Período no encontrado');
+
+    return this.prisma.payrollPilaEvent.findMany({
+      where: {
+        tenantId,
+        payrollPeriodId: period.id,
+        ...(employeeId ? { employeeId } : {}),
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            primerNombre: true,
+            segundoNombre: true,
+            primerApellido: true,
+            segundoApellido: true,
+          },
+        },
+      },
+      orderBy: [
+        { employeeId: 'asc' },
+        { fechaInicio: 'asc' },
+        { createdAt: 'asc' },
+      ],
+    });
+  }
+
+  async createPilaEvent(
+    tenantId: string,
+    userId: string,
+    periodId: string,
+    dto: CreatePayrollPilaEventDto,
+  ) {
+    const employee = await this.tenantPrisma.execute((prisma) =>
+      prisma.empleado.findFirst({
+        where: {
+          id: dto.employeeId,
+          tenantId,
+          deletedAt: null,
+          estado: 'ACTIVO',
+        },
+        select: { id: true },
+      }),
+    );
+    if (!employee) throw new NotFoundException('Empleado no encontrado');
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      await this.lockPayrollPeriodForPilaEvents(tx, tenantId, periodId);
+      const period = await tx.payrollPeriod.findFirst({
+        where: { id: periodId, tenantId },
+        select: { id: true, fechaInicio: true, fechaFin: true, status: true },
+      });
+      if (!period) throw new NotFoundException('Período no encontrado');
+      if (period.status !== PayrollPeriodStatus.BORRADOR) {
+        throw new ConflictException(
+          'Reabra el período y reliquide la nómina antes de modificar novedades PILA.',
+        );
+      }
+
+      const validationError = validatePilaEventDateRange(dto, period);
+      if (validationError) throw new BadRequestException(validationError);
+
+      const fechaInicio = parsePilaCalendarDate(dto.fechaInicio)!;
+      const fechaFin = dto.fechaFin
+        ? parsePilaCalendarDate(dto.fechaFin)!
+        : null;
+      const duplicate = await tx.payrollPilaEvent.findFirst({
+        where: {
+          tenantId,
+          payrollPeriodId: period.id,
+          employeeId: employee.id,
+          codigo: dto.codigo,
+          fechaInicio,
+          fechaFin,
+        },
+        select: { id: true },
+      });
+      if (duplicate) {
+        throw new ConflictException(
+          'Esta novedad PILA ya está registrada en el período.',
+        );
+      }
+
+      const created = await tx.payrollPilaEvent.create({
+        data: {
+          tenantId,
+          payrollPeriodId: period.id,
+          employeeId: employee.id,
+          codigo: dto.codigo,
+          fechaInicio,
+          fechaFin,
+          dias: dto.dias ?? null,
+        },
+        include: {
+          employee: {
+            select: {
+              id: true,
+              primerNombre: true,
+              segundoNombre: true,
+              primerApellido: true,
+              segundoApellido: true,
+            },
+          },
+        },
+      });
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'PAYROLL_PILA_EVENT_CREATED',
+          entityType: 'PayrollPilaEvent',
+          entityId: created.id,
+          metadata: {
+            payrollPeriodId: periodId,
+            employeeId: employee.id,
+            codigo: created.codigo,
+            fechaInicio: dto.fechaInicio,
+            fechaFin: dto.fechaFin ?? null,
+            dias: dto.dias ?? null,
+          },
+        },
+        tx,
+      );
+      return created;
+    });
+
+    return created;
+  }
+
+  async deletePilaEvent(tenantId: string, userId: string, eventId: string) {
+    await this.prisma.$transaction(async (tx) => {
+      const eventReference = await tx.payrollPilaEvent.findFirst({
+        where: { id: eventId, tenantId },
+        select: { id: true, payrollPeriodId: true },
+      });
+      if (!eventReference)
+        throw new NotFoundException('Novedad PILA no encontrada');
+
+      await this.lockPayrollPeriodForPilaEvents(
+        tx,
+        tenantId,
+        eventReference.payrollPeriodId,
+      );
+      const event = await tx.payrollPilaEvent.findFirst({
+        where: { id: eventReference.id, tenantId },
+        include: {
+          payrollPeriod: { select: { status: true } },
+        },
+      });
+      if (!event) throw new NotFoundException('Novedad PILA no encontrada');
+      if (event.payrollPeriod.status !== PayrollPeriodStatus.BORRADOR) {
+        throw new ConflictException(
+          'Reabra el período y reliquide la nómina antes de modificar novedades PILA.',
+        );
+      }
+      await tx.payrollPilaEvent.delete({ where: { id: event.id } });
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'PAYROLL_PILA_EVENT_DELETED',
+          entityType: 'PayrollPilaEvent',
+          entityId: event.id,
+          metadata: {
+            payrollPeriodId: event.payrollPeriodId,
+            employeeId: event.employeeId,
+            codigo: event.codigo,
+            fechaInicio: event.fechaInicio.toISOString().slice(0, 10),
+            fechaFin: event.fechaFin?.toISOString().slice(0, 10) ?? null,
+            dias: event.dias,
+          },
+        },
+        tx,
+      );
+      return event;
+    });
+
+    return { deleted: true };
   }
 
   async findNovelties(tenantId: string, employeeId?: string) {
@@ -2837,6 +3235,7 @@ export class PayrollService {
 
     for (const run of runs) {
       const trace = this.getCalculationTrace(run.id, run.calculationTrace);
+      const pilaSource = this.getPilaSourceContext(run.id, run.pilaSource);
       if (!run.parametroLegalId) {
         throw new BadRequestException(
           `La liquidaciÃ³n ${run.id} no tiene parÃ¡metro legal para congelar`,
@@ -2911,6 +3310,27 @@ export class PayrollService {
         },
         calculationEvidence: trace.calculationEvidence,
       };
+      const pilaPayload = pilaSource
+        ? buildPilaSourceSnapshot({
+            context: pilaSource,
+            payroll: {
+              runId: run.id,
+              fechaPrevistaPagoPila: period.fechaPrevistaPagoPila,
+              salarioBasico: this.toNumber(run.salarioBaseSnapshot),
+              salarioIntegral: trace.employee.salarioIntegralUsado,
+              ibc: this.toNumber(run.ibc),
+              concepts: run.concepts.map((concept) => ({
+                id: concept.id,
+                codigo: concept.codigo,
+                tipo: concept.tipo,
+                base: this.toNumber(concept.base),
+                factor: this.toNumber(concept.factor),
+                valor: Number(concept.valor),
+              })),
+              novelties: trace.novelties,
+            },
+          })
+        : null;
 
       await tx.payrollSnapshot.create({
         data: {
@@ -2926,6 +3346,10 @@ export class PayrollService {
           origen: origin,
           payloadVersion: SNAPSHOT_PAYLOAD_VERSION,
           payload,
+          pilaPayloadVersion: pilaPayload ? PILA_PAYLOAD_VERSION : null,
+          pilaPayload: pilaPayload
+            ? (pilaPayload as Prisma.InputJsonValue)
+            : Prisma.DbNull,
         },
       });
     }
@@ -2943,6 +3367,25 @@ export class PayrollService {
       );
     }
     return value as unknown as PayrollCalculationTrace;
+  }
+
+  private getPilaSourceContext(
+    runId: string,
+    value: Prisma.JsonValue | null | undefined,
+  ): PilaSourceContext | null {
+    if (value === null || value === undefined) return null;
+    if (typeof value !== 'object' || Array.isArray(value)) {
+      throw new BadRequestException(
+        `La liquidación ${runId} contiene una captura PILA ausente o no compatible.`,
+      );
+    }
+    const source = value;
+    if (source.schemaVersion !== 1 || typeof source.capturedAt !== 'string') {
+      throw new BadRequestException(
+        `La liquidación ${runId} contiene una captura PILA ausente o no compatible.`,
+      );
+    }
+    return value as unknown as PilaSourceContext;
   }
 
   private serializeLegalParams(p: {
@@ -3190,6 +3633,7 @@ export class PayrollService {
     },
     legalParameters: Record<string, unknown>,
     novelties: NoveltyForPayrollTrace[],
+    pilaSource: PilaSourceContext,
   ) {
     return {
       tenantId,
@@ -3216,6 +3660,7 @@ export class PayrollService {
         legalParameters,
         novelties,
       ) as Prisma.InputJsonValue,
+      pilaSource: pilaSource as Prisma.InputJsonValue,
       // Conceptos (mapeo genérico): incluye PROVISION con codigo/base/factor.
       concepts: {
         create: result.concepts.map((c) => ({
@@ -3228,6 +3673,259 @@ export class PayrollService {
         })),
       },
     };
+  }
+
+  private async loadPilaSourceData(
+    tenant: PilaSourceContextInput['tenant'],
+    period: { id: string; fechaInicio: Date; fechaFin: Date },
+    employees: PayrollPilaEmployeeRecord[],
+    contracts: Array<ContratoForPayroll>,
+  ): Promise<PilaSourceData> {
+    const employeeIds = employees.map((employee) => employee.id);
+    const affiliations = await this.prisma.afiliacionSeguridadSocial.findMany({
+      where: {
+        tenantId: tenant.id,
+        empleadoId: { in: employeeIds },
+        vigenteDesde: { lte: period.fechaFin },
+        OR: [
+          { vigenteHasta: null },
+          { vigenteHasta: { gte: period.fechaInicio } },
+        ],
+      },
+      select: {
+        id: true,
+        empleadoId: true,
+        tipoCotizanteCodigo: true,
+        subtipoCotizanteCodigo: true,
+        epsCodigo: true,
+        epsNombre: true,
+        fondoPensionCodigo: true,
+        fondoPensionNombre: true,
+        arlCodigo: true,
+        arlNombre: true,
+        arlClaseRiesgo: true,
+        cajaCompensacionCodigo: true,
+        cajaCompensacionNombre: true,
+        vigenteDesde: true,
+        vigenteHasta: true,
+        formatoNormativoVersion: true,
+      },
+      orderBy: [{ vigenteDesde: 'asc' }, { id: 'asc' }],
+    });
+    const pilaEvents = await this.prisma.payrollPilaEvent.findMany({
+      where: { tenantId: tenant.id, payrollPeriodId: period.id },
+      select: {
+        id: true,
+        employeeId: true,
+        codigo: true,
+        fechaInicio: true,
+        fechaFin: true,
+        dias: true,
+      },
+      orderBy: [
+        { employeeId: 'asc' },
+        { fechaInicio: 'asc' },
+        { createdAt: 'asc' },
+      ],
+    });
+
+    const siteIds = [
+      ...new Set(
+        contracts
+          .map((contract) => contract.sedeId)
+          .filter((siteId): siteId is string => siteId !== null),
+      ),
+    ];
+    const sites =
+      siteIds.length === 0
+        ? []
+        : await this.prisma.sede.findMany({
+            where: { tenantId: tenant.id, id: { in: siteIds } },
+            select: {
+              id: true,
+              nombre: true,
+              direccion: true,
+              municipio: {
+                select: {
+                  id: true,
+                  codigo: true,
+                  nombre: true,
+                  departamento: true,
+                },
+              },
+            },
+          });
+
+    const affiliationsByEmployee = new Map<
+      string,
+      PilaSourceContextInput['affiliations']
+    >();
+    for (const affiliation of affiliations) {
+      const { empleadoId, ...source } = affiliation;
+      const employeeAffiliations = affiliationsByEmployee.get(empleadoId) ?? [];
+      employeeAffiliations.push(source);
+      affiliationsByEmployee.set(empleadoId, employeeAffiliations);
+    }
+    const pilaEventsByEmployee = new Map<
+      string,
+      PilaSourceContextInput['pilaEvents']
+    >();
+    for (const event of pilaEvents) {
+      const employeeEvents = pilaEventsByEmployee.get(event.employeeId) ?? [];
+      employeeEvents.push({
+        id: event.id,
+        codigo: event.codigo,
+        fechaInicio: event.fechaInicio,
+        fechaFin: event.fechaFin,
+        dias: event.dias,
+      });
+      pilaEventsByEmployee.set(event.employeeId, employeeEvents);
+    }
+
+    return {
+      tenant,
+      employeesById: new Map(
+        employees.map((employee) => [
+          employee.id,
+          {
+            id: employee.id,
+            tipoDocumento: employee.tipoDocumento,
+            cedula: employee.cedula,
+            primerNombre: employee.primerNombre,
+            segundoNombre: employee.segundoNombre,
+            primerApellido: employee.primerApellido,
+            segundoApellido: employee.segundoApellido,
+            fechaNacimiento: employee.fechaNacimiento,
+            fechaIngreso: employee.fechaIngreso,
+            fechaRetiro: employee.fechaRetiro,
+            tipoSalarioPila: employee.tipoSalarioPila,
+          },
+        ]),
+      ),
+      affiliationsByEmployee,
+      pilaEventsByEmployee,
+      worksitesById: new Map(
+        sites.map((site) => [
+          site.id,
+          {
+            id: site.id,
+            nombre: site.nombre,
+            direccion: site.direccion,
+            municipio: site.municipio,
+          },
+        ]),
+      ),
+    };
+  }
+
+  private buildPilaSourceContext(
+    data: PilaSourceData,
+    period: { id: string; fechaInicio: Date; fechaFin: Date },
+    employeeId: string,
+    contract: ContratoForPayroll | null,
+  ): PilaSourceContext {
+    const employee = data.employeesById.get(employeeId);
+    if (!employee) {
+      throw new ConflictException(
+        'No fue posible congelar los datos identificadores del empleado para PILA.',
+      );
+    }
+    const worksite = contract?.sedeId
+      ? (data.worksitesById.get(contract.sedeId) ?? null)
+      : null;
+
+    return buildPilaSourceContext({
+      capturedAt: new Date(),
+      tenant: data.tenant,
+      employee,
+      period,
+      contract: contract
+        ? {
+            id: contract.id,
+            tipo: contract.tipo,
+            estado: contract.estado,
+            fechaInicio: contract.fechaInicio,
+            fechaFin: contract.fechaFin,
+            salario: Number(contract.salario),
+            sedeId: contract.sedeId,
+            claseRiesgoArl: contract.claseRiesgoArl,
+          }
+        : null,
+      worksite,
+      affiliations: data.affiliationsByEmployee.get(employeeId) ?? [],
+      pilaEvents: data.pilaEventsByEmployee.get(employeeId) ?? [],
+    });
+  }
+
+  private async lockPayrollPeriodForPilaEvents(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    periodId: string,
+  ) {
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id"
+      FROM "payroll_periods"
+      WHERE "id" = ${periodId} AND "tenantId" = ${tenantId}
+      FOR UPDATE
+    `);
+  }
+
+  private async assertPayrollPeriodCanBeCalculated(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    periodId: string,
+    allowedStatuses: readonly PayrollPeriodStatus[],
+  ) {
+    const period = await tx.payrollPeriod.findFirst({
+      where: { id: periodId, tenantId },
+      select: { status: true },
+    });
+    if (!period) throw new NotFoundException('Período no encontrado');
+    if (!allowedStatuses.includes(period.status)) {
+      throw new ConflictException(
+        `El período cambió a ${period.status} mientras se preparaba la nómina.`,
+      );
+    }
+  }
+
+  private async reloadPilaEventsForSnapshot(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    periodId: string,
+    data: PilaSourceData,
+  ) {
+    const events = await tx.payrollPilaEvent.findMany({
+      where: { tenantId, payrollPeriodId: periodId },
+      select: {
+        id: true,
+        employeeId: true,
+        codigo: true,
+        fechaInicio: true,
+        fechaFin: true,
+        dias: true,
+      },
+      orderBy: [
+        { employeeId: 'asc' },
+        { fechaInicio: 'asc' },
+        { createdAt: 'asc' },
+      ],
+    });
+    const eventsByEmployee = new Map<
+      string,
+      PilaSourceContextInput['pilaEvents']
+    >();
+    for (const event of events) {
+      const employeeEvents = eventsByEmployee.get(event.employeeId) ?? [];
+      employeeEvents.push({
+        id: event.id,
+        codigo: event.codigo,
+        fechaInicio: event.fechaInicio,
+        fechaFin: event.fechaFin,
+        dias: event.dias,
+      });
+      eventsByEmployee.set(event.employeeId, employeeEvents);
+    }
+    data.pilaEventsByEmployee = eventsByEmployee;
   }
 
   private async resolveCentrosCostoBySede(

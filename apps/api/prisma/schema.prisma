@@ -138,6 +138,12 @@ enum TipoDocIdentidad {
   PPT
 }
 
+enum TipoSalarioPila {
+  X
+  F
+  V
+}
+
 enum JornadaLaboral {
   COMPLETA
   MEDIA
@@ -242,6 +248,31 @@ model Tenant {
   // Configuración nómina colombiana
   aportesExonerados Boolean @default(false) // Art. 114-1 ET: exoneración salud pat., ICBF, SENA
 
+  // Datos declarados por el aportante para los anexos técnicos PILA.
+  // Permanecen nulos hasta que un ADMIN los confirme; no se infieren de branding,
+  // sedes operativas ni de los campos de identificación heredados.
+  pilaTipoDocumentoAportante       String?   @db.VarChar(2)
+  pilaNaturalezaJuridica           String?   @db.Char(1)
+  pilaTipoPersona                  String?   @db.Char(1)
+  pilaFormaPresentacion            String?   @db.Char(1)
+  pilaCodigoSucursal               String?   @db.VarChar(10)
+  pilaNombreSucursal               String?   @db.VarChar(40)
+  pilaCodigoActividadEconomica     String?   @db.VarChar(4)
+  pilaCodigoArlAportante           String?   @db.VarChar(16)
+  pilaTipoAportante                String?   @db.VarChar(2)
+  pilaFax                          String?   @db.VarChar(10)
+  pilaRepresentanteTipoDocumento   String?   @db.VarChar(2)
+  pilaRepresentanteNumeroDocumento String?   @db.VarChar(16)
+  pilaRepresentantePrimerApellido  String?   @db.VarChar(20)
+  pilaRepresentanteSegundoApellido String?   @db.VarChar(30)
+  pilaRepresentantePrimerNombre    String?   @db.VarChar(20)
+  pilaRepresentanteSegundoNombre   String?   @db.VarChar(30)
+  pilaFechaMatriculaMercantil      DateTime? @db.Date
+  pilaBeneficioLey1429             Boolean?
+  pilaBeneficioCcfLey1429          Boolean?
+  pilaAportesExoneradosConfirmado  Boolean?
+  pilaSinAccionEspecial            Boolean?
+
   // Configuración DIAN para facturación electrónica
   // Estos campos se completan si el tenant usa el módulo FE
   feActivo          Boolean   @default(false)
@@ -274,6 +305,7 @@ model Tenant {
   servicePremiumLines   ServicePremiumLine[]
   payrollCorrections   PayrollCorrection[]
   payrollNovelties   PayrollNovelty[]
+  payrollPilaEvents   PayrollPilaEvent[]
   payrollBlocks      PayrollBlock[]
   customers          Customer[]
   productServices    ProductService[]
@@ -485,6 +517,7 @@ model Empleado {
   municipioExpedicionDocId String?
   municipioExpedicionDoc   MunicipioDane?  @relation(fields: [municipioExpedicionDocId], references: [id])
   salarioIntegral          Boolean         @default(false)
+  tipoSalarioPila          TipoSalarioPila?
   jornadaLaboral           JornadaLaboral?
   fechaRetiro              DateTime?
   motivoRetiro             MotivoRetiro?
@@ -500,6 +533,7 @@ model Empleado {
   payrollSnapshots     PayrollSnapshot[]
   servicePremiumLines  ServicePremiumLine[]
   payrollNovelties     PayrollNovelty[]
+  payrollPilaEvents    PayrollPilaEvent[]
   payrollBlocks      PayrollBlock[]
   expediente         ExpedienteDoc[]
   alertas            Alerta[]
@@ -893,6 +927,19 @@ enum PayrollNoveltyType {
   OTHER
 }
 
+enum PilaEventCode {
+  ING
+  RET
+  VSP
+  VST
+  SLN
+  IGE
+  LMA
+  VAC_LR
+  IRL
+  VCT
+}
+
 // =============================================================================
 // PAYROLL BLOCK STATUS — Ciclo de vida de bloqueos fail-secure
 // =============================================================================
@@ -983,6 +1030,7 @@ model PayrollPeriod {
   snapshots PayrollSnapshot[]
   corrections PayrollCorrection[]
   novelties PayrollNovelty[]
+  pilaEvents PayrollPilaEvent[]
   blocks    PayrollBlock[]
 
   @@index([tenantId])
@@ -1027,6 +1075,10 @@ model PayrollRun {
 
   // U3 — huella técnica de los insumos normalizados usados por el cálculo.
   calculationTrace Json?
+
+  // Datos declarados para PILA capturados al calcular; se promueven al snapshot
+  // únicamente al aprobar. No se reconstruyen para runs históricos.
+  pilaSource Json?
 
   parametroLegal ParametroLegalNomina? @relation(fields: [parametroLegalId], references: [id], onDelete: Restrict)
 
@@ -1101,6 +1153,10 @@ model PayrollSnapshot {
   origen         String
   payloadVersion Int                 @default(1)
   payload        Json
+  // Paquete fuente inmutable para PILA, separado del payload consumido por
+  // Prima y Ledger. Los snapshots históricos permanecen en NULL.
+  pilaPayloadVersion Int?
+  pilaPayload        Json?
 
   @@index([tenantId])
   @@index([tenantId, payrollPeriodId])
@@ -1285,6 +1341,33 @@ model PayrollNovelty {
   @@index([tenantId, employeeId])
   @@index([tenantId, tipo])
   @@map("payroll_novelties")
+}
+
+// =============================================================================
+// PAYROLL PILA EVENT — Novedad explícita para reporte PILA (ADR-013)
+// =============================================================================
+
+model PayrollPilaEvent {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  payrollPeriodId String
+  payrollPeriod   PayrollPeriod @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Empleado @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  codigo     PilaEventCode
+  fechaInicio DateTime @db.Date
+  fechaFin    DateTime? @db.Date
+  dias        Int?
+
+  @@index([tenantId, payrollPeriodId, employeeId])
+  @@index([tenantId, payrollPeriodId, codigo])
+  @@map("payroll_pila_events")
 }
 
 // =============================================================================

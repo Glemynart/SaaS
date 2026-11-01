@@ -15,6 +15,7 @@ import {
   ContratoTipo,
   JornadaLaboral,
   MotivoRetiro,
+  TipoSalarioPila,
   TipoDocIdentidad,
 } from './create-employee.dto';
 
@@ -43,7 +44,9 @@ export class UpdateEmployeeDto {
   @IsOptional()
   segundoApellido?: string;
 
-  @Transform(({ value }) => (value === '' ? undefined : value))
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' ? undefined : value,
+  )
   @IsEmail()
   @IsOptional()
   email?: string;
@@ -83,6 +86,10 @@ export class UpdateEmployeeDto {
   @Transform(({ value }) => value === 'true' || value === true)
   salarioIntegral?: boolean;
 
+  @IsEnum(TipoSalarioPila)
+  @IsOptional()
+  tipoSalarioPila?: TipoSalarioPila | null;
+
   @IsEnum(JornadaLaboral)
   @IsOptional()
   jornadaLaboral?: JornadaLaboral;
@@ -95,7 +102,10 @@ export class UpdateEmployeeDto {
   @IsOptional()
   motivoRetiro?: MotivoRetiro;
 
-  @ValidateIf((o) => o.sedeId !== null && o.sedeId !== undefined)
+  @ValidateIf(
+    (employee: UpdateEmployeeDto) =>
+      employee.sedeId !== null && employee.sedeId !== undefined,
+  )
   @IsUUID()
   @IsOptional()
   sedeId?: string | null;

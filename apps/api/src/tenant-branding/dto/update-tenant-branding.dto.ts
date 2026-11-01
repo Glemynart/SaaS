@@ -1,7 +1,7 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 
 export class UpdateTenantBrandingDto {
   @IsString()
   @IsOptional()
-  representanteLegal?: string;
+  representanteLegal?: string | null;
 }

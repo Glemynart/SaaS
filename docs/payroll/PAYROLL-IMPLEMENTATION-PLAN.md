@@ -118,13 +118,13 @@ Arquitectura congelada. Dominio congelado. Solo ejecución.
 
 ## P0 — Catálogos
 
-| ID    | Unidad                             | Descripción                                                                                                                                                                      | Tamaño |
-| ----- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| P0-U1 | Factores de provisión a parámetros | Migrar `FACTOR_PROV_*` del calculator a `ParametroLegalNomina`. Añadir columnas `pctProvPrima`, `pctProvCesantias`, `pctProvIntCesantias`, `pctProvVacaciones`. Actualizar seed. | S      |
-| P0-U2 | Catálogo de conceptos completo     | Documentar `ConceptCodigo` como fuente canónica. Verificar que todo concepto del calculator tiene código. Añadir códigos faltantes si los hay.                                   | XS     |
-| P0-U3 | Calendario de períodos             | Tabla `payroll_calendars` con `(tenantId, nombre, fechaInicio, fechaFin, diasBase, frecuencia)`. Seed con calendario 2026 mensual.                                               | S      |
-| P0-U4 | Seed de parámetros legales 2026    | Actualizar `ParametroLegalNomina` con SMMLV 2026 ($1.423.500), auxilio, UVT, tasas vigentes.                                                                                     | XS     |
-| P0-U5 | Catálogo de tipos de novedad       | Completar enum `PayrollNoveltyType` con todos los tipos del research (ABSENCE, MATERNITY, PATERNITY, ENTRY, EXIT, DEDUCTION_MANUAL).                                             | XS     |
+| ID    | Unidad                             | Descripción                                                                                                                                                                                           | Tamaño |
+| ----- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| P0-U1 | Factores de provisión a parámetros | Migrar `FACTOR_PROV_*` del calculator a `ParametroLegalNomina`. Añadir columnas `pctProvPrima`, `pctProvCesantias`, `pctProvIntCesantias`, `pctProvVacaciones`. Actualizar seed.                      | S      |
+| P0-U2 | Catálogo de conceptos completo     | Documentar `ConceptCodigo` como fuente canónica. Verificar que todo concepto del calculator tiene código. Añadir códigos faltantes si los hay.                                                        | XS     |
+| P0-U3 | Calendario de períodos             | Tabla `payroll_calendars` con `(tenantId, nombre, fechaInicio, fechaFin, diasBase, frecuencia)`. Seed con calendario 2026 mensual.                                                                    | S      |
+| P0-U4 | Seed de parámetros legales 2026    | Cargar valores verificados de 2026: SMMLV $1.750.905 (Decreto 1469/2025), auxilio $249.095 (Decreto 1470/2025), UVT $52.374 (Resolución DIAN 000238/2025) y validar las demás reglas antes de operar. | XS     |
+| P0-U5 | Catálogo de tipos de novedad       | Completar enum `PayrollNoveltyType` con todos los tipos del research (ABSENCE, MATERNITY, PATERNITY, ENTRY, EXIT, DEDUCTION_MANUAL).                                                                  | XS     |
 
 ---
 
@@ -428,7 +428,7 @@ Cada prompt está diseñado para ser ejecutado en una sesión independiente, con
 | `P0-U1-factores-provision` | Añadir columnas de factores de provisión a `ParametroLegalNomina`, actualizar seed, actualizar calculator para leer de params en vez de constantes |
 | `P0-U2-catalogo-conceptos` | Auditar `ConceptCodigo` contra el research, documentar, añadir códigos faltantes                                                                   |
 | `P0-U3-calendario`         | Crear tabla `PayrollCalendar`, seed mensual 2026, exponer endpoint CRUD                                                                            |
-| `P0-U4-seed-2026`          | Actualizar seed de `ParametroLegalNomina` con SMMLV 2026 y tarifas vigentes                                                                        |
+| `P0-U4-seed-2026`          | Cargar valores 2026 verificados en `ParametroLegalNomina` (SMMLV $1.750.905, auxilio $249.095, UVT $52.374) y validar las demás reglas vigentes    |
 | `P0-U5-tipos-novedad`      | Completar `PayrollNoveltyType` con ABSENCE, MATERNITY, PATERNITY, ENTRY, EXIT, DEDUCTION_MANUAL                                                    |
 
 ## P1

@@ -250,7 +250,19 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                   label="Salario"
                   value={<span className="font-mono">{formatSalario(employee.salario)}</span>}
                 />
-                <Field label="Salario integral" value={employee.salarioIntegral ? 'Sí' : 'No'} />
+                <Field
+                  label="Tipo de salario para PILA"
+                  value={
+                    employee.tipoSalarioPila === 'X' ||
+                    (!employee.tipoSalarioPila && employee.salarioIntegral)
+                      ? 'Salario integral'
+                      : employee.tipoSalarioPila === 'F'
+                        ? 'Salario fijo'
+                        : employee.tipoSalarioPila === 'V'
+                          ? 'Salario variable'
+                          : 'Sin especificar'
+                  }
+                />
               </div>
             </dl>
           </section>

@@ -7,6 +7,7 @@ import {
   useUploadLogo,
   useUploadFirma,
 } from '@/features/tenant-branding/hooks/use-tenant-branding';
+import { PilaEmployerProfileForm } from '@/features/tenant-branding/components/pila-employer-profile-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -90,7 +91,7 @@ export default function IdentidadCorporativaPage() {
       </div>
 
       <div className="space-y-6">
-        <div className="rounded-xl border border-border bg-white p-6 shadow-sm">
+        <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
           <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
             <Building2 className="size-4 text-muted-foreground" />
             Datos de la empresa
@@ -109,7 +110,9 @@ export default function IdentidadCorporativaPage() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-white p-6 shadow-sm">
+        <PilaEmployerProfileForm />
+
+        <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
           <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
             <PenLine className="size-4 text-muted-foreground" />
             Representante legal
@@ -163,7 +166,7 @@ export default function IdentidadCorporativaPage() {
         </div>
 
         <div className="grid gap-6 sm:grid-cols-2">
-          <div className="rounded-xl border border-border bg-white p-6 shadow-sm">
+          <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
             <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
               <ImageIcon className="size-4 text-muted-foreground" />
               Logo empresarial
@@ -203,7 +206,7 @@ export default function IdentidadCorporativaPage() {
             </Button>
           </div>
 
-          <div className="rounded-xl border border-border bg-white p-6 shadow-sm">
+          <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
             <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
               <PenLine className="size-4 text-muted-foreground" />
               Firma digitalizada
@@ -255,15 +258,13 @@ export default function IdentidadCorporativaPage() {
             <Alert className="py-2 text-xs">
               <CheckCircle2 className="size-3.5 text-success" />
               Identidad corporativa completa. Las variables{' '}
-              <code className="rounded bg-muted px-1 font-mono text-[0.7rem]">
-                {'{{LOGO_EMPRESA}}'}
-              </code>
+              <code className="rounded bg-muted px-1 font-mono text-2xs">{'{{LOGO_EMPRESA}}'}</code>
               ,{' '}
-              <code className="rounded bg-muted px-1 font-mono text-[0.7rem]">
+              <code className="rounded bg-muted px-1 font-mono text-2xs">
                 {'{{REPRESENTANTE_LEGAL}}'}
               </code>{' '}
               y{' '}
-              <code className="rounded bg-muted px-1 font-mono text-[0.7rem]">
+              <code className="rounded bg-muted px-1 font-mono text-2xs">
                 {'{{FIRMA_REPRESENTANTE}}'}
               </code>{' '}
               estarán disponibles al generar documentos.
