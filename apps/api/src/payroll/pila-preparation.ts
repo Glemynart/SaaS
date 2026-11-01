@@ -87,12 +87,23 @@ function validPilaIdentification(type: string, value: string): boolean {
     CC: 10,
     CE: 7,
     TI: 11,
+    NI: 11,
+    SC: 8,
+    PE: 15,
+    PT: 8,
+    PC: 8,
   };
   const maxLength = numericMaxLength[type];
   if (maxLength !== undefined) {
     return /^\d+$/.test(value) && value.length <= maxLength;
   }
-  return type === 'PA' && /^[A-Z0-9]{1,16}$/.test(value);
+  const alphanumericMaxLength: Record<string, number> = { PA: 16, CD: 11 };
+  const alphanumericLength = alphanumericMaxLength[type];
+  return (
+    alphanumericLength !== undefined &&
+    /^[A-Z0-9]+$/.test(value) &&
+    value.length <= alphanumericLength
+  );
 }
 
 function date(value: unknown): string | null {
@@ -246,9 +257,8 @@ export function inspectPilaSnapshotPreparation(
   const employerId = text(employer?.nit);
   if (
     !employerId ||
-    !/^[A-Z0-9]+$/.test(employerId) ||
-    employerId.length > 16 ||
-    (employerDocumentType === 'NI' && !/^\d{1,11}$/.test(employerId))
+    !employerDocumentType ||
+    !validPilaIdentification(employerDocumentType, employerId)
   ) {
     add(
       employerRecord,
@@ -499,6 +509,9 @@ export function inspectPilaSnapshotPreparation(
     const representativeDocumentType = text(
       employerPila?.representanteTipoDocumento,
     );
+    const representativeId = text(
+      employerPila?.representanteNumeroDocumento,
+    );
     if (
       representativeDocumentType === null ||
       !representativeDocumentTypes.has(representativeDocumentType)
@@ -508,6 +521,16 @@ export function inspectPilaSnapshotPreparation(
         20,
         'CAMPO_20_DOCUMENTO_REPRESENTANTE_NO_VALIDO',
         'La persona jurídica requiere un tipo de documento válido para su representante legal.',
+      );
+    } else if (
+      representativeId &&
+      !validPilaIdentification(representativeDocumentType, representativeId)
+    ) {
+      add(
+        employerRecord,
+        18,
+        'CAMPO_18_IDENTIFICACION_REPRESENTANTE_NO_VALIDA',
+        'El documento del representante no cumple los caracteres y la longitud permitidos por AT2 v30 para su tipo.',
       );
     }
     requireText(

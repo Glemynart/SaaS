@@ -324,8 +324,8 @@ se accedió a demo, staging o producción.
   simula la interrupción y recuperación; no equivale a una prueba de reinicio
   real del proceso ni a aceptación end-to-end.
 - PR #174 amplía el preflight PILA con límites de campos numéricos de nueve
-  posiciones y longitudes textuales AT2 para identificación, nombres, datos del
-  aportante y representante. Los excedentes bloquean sin truncarse y las
+  posiciones y longitudes/caracteres AT2 para identificaciones, nombres, datos
+  del aportante y representante. Los excedentes bloquean sin truncarse y las
   pruebas cubren máximos y desbordamientos. Esto sigue siendo validación
   preparatoria: no serializa registros, no hace `archivoGenerable` verdadero y
   no acredita carga o compatibilidad de operador.
