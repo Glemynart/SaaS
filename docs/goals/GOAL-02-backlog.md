@@ -329,3 +329,11 @@ se accedió a demo, staging o producción.
   pruebas cubren máximos y desbordamientos. Esto sigue siendo validación
   preparatoria: no serializa registros, no hace `archivoGenerable` verdadero y
   no acredita carga o compatibilidad de operador.
+- La continuación del preflight del archivo tipo 1 valida fax numérico,
+  caracteres y dominio del correo, y la identificación del representante
+  contra CC/CE/PA/CD. La identificación puede omitirse para persona natural
+  solo si no se diligencia parcialmente. También limita el documento del
+  aportante por tipo (incluida longitud exacta para PE), exige DV cero para
+  persona natural y aplica la regla AT2 de usar el código como nombre de
+  sucursal cuando no existe nombre. El preflight sigue sin serializar ni
+  habilitar la descarga PILA.

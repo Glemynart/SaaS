@@ -232,7 +232,7 @@ describe('inspectPilaSnapshotPreparation', () => {
     const source = payload();
     source.employer.razonSocial = 'R'.repeat(200);
     source.employer.direccion = 'D'.repeat(40);
-    source.employer.email = 'e'.repeat(60);
+    source.employer.email = `${'a'.repeat(54)}@b.com`;
     source.employer.pila.formaPresentacion = 'S';
     source.employer.pila.codigoSucursal = 'S'.repeat(10);
     source.employer.pila.nombreSucursal = 'N'.repeat(40);
@@ -255,6 +255,224 @@ describe('inspectPilaSnapshotPreparation', () => {
       ),
     ).toEqual([]);
   });
+
+  it('permite usar el código PILA como nombre de sucursal cuando no hay nombre', () => {
+    const source = payload();
+    source.employer.pila.formaPresentacion = 'S';
+    source.employer.pila.codigoSucursal = 'BR01';
+    source.employer.pila.nombreSucursal = '';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(
+        ({ record, fieldNumber }) =>
+          record === 'APORTANTE_TIPO_1' && [5, 6].includes(fieldNumber ?? -1),
+      ),
+    ).toEqual([]);
+  });
+
+  it('bloquea el código de sucursal si la presentación es única', () => {
+    const source = payload();
+    source.employer.pila.formaPresentacion = 'U';
+    source.employer.pila.codigoSucursal = 'BR01';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'APORTANTE_TIPO_1',
+        fieldNumber: 5,
+        code: 'CAMPO_5_CODIGO_SUCURSAL_NO_PERMITIDO_EN_PRESENTACION_UNICA',
+      }),
+    );
+  });
+
+  it('bloquea fax no numérico y correo que incumple el formato AT2', () => {
+    const source = payload();
+    source.employer.email = 'Ana@-dominio.co';
+    source.employer.pila.fax = '601-123';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues
+        .filter(
+          ({ record, code }) =>
+            record === 'APORTANTE_TIPO_1' && code.endsWith('NO_VALIDO'),
+        )
+        .map(({ fieldNumber, code }) => ({ fieldNumber, code })),
+    ).toEqual([
+      { fieldNumber: 16, code: 'CAMPO_16_FAX_NO_VALIDO' },
+      { fieldNumber: 17, code: 'CAMPO_17_CORREO_NO_VALIDO' },
+    ]);
+  });
+
+  it('valida el documento del representante según el tipo declarado', () => {
+    const source = payload();
+    source.employer.pila.representanteNumeroDocumento = 'ABC123';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'APORTANTE_TIPO_1',
+        fieldNumber: 18,
+        code: 'CAMPO_18_IDENTIFICACION_REPRESENTANTE_NO_VALIDA',
+      }),
+    );
+  });
+
+  it('bloquea un tipo de identificación no permitido para el representante', () => {
+    const source = payload();
+    source.employer.pila.representanteTipoDocumento = 'TI';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'APORTANTE_TIPO_1',
+        fieldNumber: 20,
+        code: 'CAMPO_20_DOCUMENTO_REPRESENTANTE_NO_VALIDO',
+      }),
+    );
+  });
+
+  it('permite omitir la identificación del representante para persona natural', () => {
+    const source = payload();
+    source.employer.pila.tipoPersona = 'N';
+    source.employer.pila.tipoDocumentoAportante = 'CC';
+    source.employer.digitoVerif = '0';
+    source.employer.pila.representanteTipoDocumento = '';
+    source.employer.pila.representanteNumeroDocumento = '';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(
+        ({ record, fieldNumber }) =>
+          record === 'APORTANTE_TIPO_1' &&
+          [4, 18, 20].includes(fieldNumber ?? -1),
+      ),
+    ).toEqual([]);
+  });
+
+  it('requiere dígito de verificación cero para persona natural', () => {
+    const source = payload();
+    source.employer.pila.tipoPersona = 'N';
+    source.employer.pila.tipoDocumentoAportante = 'CC';
+    source.employer.digitoVerif = '7';
+    source.employer.pila.representanteTipoDocumento = '';
+    source.employer.pila.representanteNumeroDocumento = '';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'APORTANTE_TIPO_1',
+        fieldNumber: 4,
+        code: 'CAMPO_4_DV_PERSONA_NATURAL_DEBE_SER_CERO',
+      }),
+    );
+  });
+
+  it.each([
+    ['CC', '1234567890'],
+    ['CE', '1234567'],
+    ['TI', '12345678901'],
+    ['PA', 'A123456789012345'],
+    ['CD', 'A1234567890'],
+    ['NI', '90012345678'],
+    ['SC', '12345678'],
+    ['PE', '123456789012345'],
+    ['PT', '12345678'],
+    ['PC', '12345678'],
+  ])('acepta identificación %s en el límite AT2 del aportante', (type, id) => {
+    const source = payload();
+    source.employer.pila.tipoDocumentoAportante = type;
+    source.employer.nit = id;
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(
+        ({ record, fieldNumber }) =>
+          record === 'APORTANTE_TIPO_1' && fieldNumber === 3,
+      ),
+    ).toEqual([]);
+  });
+
+  it.each([
+    ['CC', '12345678901'],
+    ['CE', '12345678'],
+    ['TI', '123456789012'],
+    ['NI', '900ABC'],
+    ['SC', '123456789'],
+    ['PE', '12345678901234'],
+    ['PT', 'A1234567'],
+    ['PC', '1234-567'],
+    ['CD', 'A123456789012'],
+  ])(
+    'bloquea identificación %s que no cumple AT2 para el aportante',
+    (type, id) => {
+      const source = payload();
+      source.employer.pila.tipoDocumentoAportante = type;
+      source.employer.nit = id;
+
+      const result = inspectPilaSnapshotPreparation(
+        snapshot('employee-1', 'Ana', { payload: source }),
+      );
+
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          record: 'APORTANTE_TIPO_1',
+          fieldNumber: 3,
+          code: 'CAMPO_3_IDENTIFICACION_APORTANTE_NO_VALIDA',
+        }),
+      );
+    },
+  );
+
+  it.each([
+    ['CC', '1234567890'],
+    ['CE', '1234567'],
+    ['PA', 'A123456789012345'],
+    ['CD', 'A1234567890'],
+  ])(
+    'acepta identificación %s de representante en su límite oficial',
+    (tipoDocumento, numeroDocumento) => {
+      const source = payload();
+      source.employer.pila.representanteTipoDocumento = tipoDocumento;
+      source.employer.pila.representanteNumeroDocumento = numeroDocumento;
+
+      const result = inspectPilaSnapshotPreparation(
+        snapshot('employee-1', 'Ana', { payload: source }),
+      );
+
+      expect(
+        result.issues.filter(
+          ({ record, fieldNumber }) =>
+            record === 'APORTANTE_TIPO_1' && fieldNumber === 18,
+        ),
+      ).toEqual([]);
+    },
+  );
 
   it.each([
     ['CC', '1'.repeat(10)],

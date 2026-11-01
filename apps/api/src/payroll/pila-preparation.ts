@@ -106,6 +106,57 @@ function validPilaIdentification(type: string, value: string): boolean {
   );
 }
 
+function validEmployerIdentification(type: string, value: string): boolean {
+  if (type === 'PE') return /^\d{15}$/.test(value);
+  const numericMaxLength: Record<string, number> = {
+    CC: 10,
+    CE: 7,
+    TI: 11,
+    NI: 11,
+    SC: 8,
+    PT: 8,
+    PC: 8,
+  };
+  const numericLimit = numericMaxLength[type];
+  if (numericLimit !== undefined) {
+    return new RegExp(`^\\d{1,${numericLimit}}$`).test(value);
+  }
+  const alphanumericMaxLength: Record<string, number> = { PA: 16, CD: 11 };
+  const alphanumericLimit = alphanumericMaxLength[type];
+  return (
+    alphanumericLimit !== undefined &&
+    new RegExp(`^[A-Z0-9]{1,${alphanumericLimit}}$`).test(value)
+  );
+}
+
+function validRepresentativeIdentification(
+  type: string,
+  value: string,
+): boolean {
+  const numericMaxLength: Record<string, number> = { CC: 10, CE: 7 };
+  const numericLimit = numericMaxLength[type];
+  if (numericLimit !== undefined) {
+    return new RegExp(`^\\d{1,${numericLimit}}$`).test(value);
+  }
+  const alphanumericMaxLength: Record<string, number> = { PA: 16, CD: 11 };
+  const alphanumericLimit = alphanumericMaxLength[type];
+  return (
+    alphanumericLimit !== undefined &&
+    new RegExp(`^[A-Z0-9]{1,${alphanumericLimit}}$`).test(value)
+  );
+}
+
+function validPilaEmail(value: string): boolean {
+  const separator = value.indexOf('@');
+  if (separator <= 0 || separator !== value.lastIndexOf('@')) return false;
+  const username = value.slice(0, separator);
+  const domain = value.slice(separator + 1);
+  return (
+    /^[a-z0-9._'-]+$/.test(username) &&
+    /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(domain)
+  );
+}
+
 function date(value: unknown): string | null {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return null;
@@ -258,7 +309,7 @@ export function inspectPilaSnapshotPreparation(
   if (
     !employerId ||
     !employerDocumentType ||
-    !validPilaIdentification(employerDocumentType, employerId)
+    !validEmployerIdentification(employerDocumentType, employerId)
   ) {
     add(
       employerRecord,
@@ -349,6 +400,13 @@ export function inspectPilaSnapshotPreparation(
         'La persona jurídica requiere el dígito de verificación del aportante.',
       );
     }
+  } else if (personType === 'N' && text(employer?.digitoVerif) !== '0') {
+    add(
+      employerRecord,
+      4,
+      'CAMPO_4_DV_PERSONA_NATURAL_DEBE_SER_CERO',
+      'AT2 v30 requiere reportar cero como dígito de verificación para persona natural.',
+    );
   }
   if (personType === 'N' && employerDocumentType === 'NI') {
     add(
@@ -365,11 +423,20 @@ export function inspectPilaSnapshotPreparation(
       employerPila?.codigoSucursal,
       'La presentación por sucursal requiere el código PILA de la sucursal.',
     );
-    requireText(
+    if (!text(employerPila?.nombreSucursal)) {
+      requireText(
+        employerRecord,
+        6,
+        employerPila?.codigoSucursal,
+        'La sucursal requiere nombre o código PILA para el campo de nombre.',
+      );
+    }
+  } else if (presentation === 'U' && text(employerPila?.codigoSucursal)) {
+    add(
       employerRecord,
-      6,
-      employerPila?.nombreSucursal,
-      'La presentación por sucursal requiere el nombre PILA de la sucursal.',
+      5,
+      'CAMPO_5_CODIGO_SUCURSAL_NO_PERMITIDO_EN_PRESENTACION_UNICA',
+      'La presentación única requiere dejar en blanco el código de sucursal del campo 5 según AT2 v30.',
     );
   }
   for (const [field, value, label, maxLength] of [
@@ -410,6 +477,24 @@ export function inspectPilaSnapshotPreparation(
     ],
   ] as const) {
     validateFieldLength(employerRecord, field, value, maxLength, label);
+  }
+  const fax = text(employerPila?.fax);
+  if (fax && !/^\d{1,10}$/.test(fax)) {
+    add(
+      employerRecord,
+      16,
+      'CAMPO_16_FAX_NO_VALIDO',
+      'El fax debe contener solo dígitos y hasta 10 posiciones según AT2 v30.',
+    );
+  }
+  const employerEmail = text(employer?.email);
+  if (employerEmail && !validPilaEmail(employerEmail)) {
+    add(
+      employerRecord,
+      17,
+      'CAMPO_17_CORREO_NO_VALIDO',
+      'El correo no cumple los caracteres y la estructura de dominio definidos por AT2 v30.',
+    );
   }
   requireText(
     employerRecord,
@@ -499,19 +584,22 @@ export function inspectPilaSnapshotPreparation(
       'Falta confirmar si aplica la categoría de aportante beneficiario de Ley 1429.',
     );
   }
-  if (personType === 'J') {
+  const representativeDocumentType = text(
+    employerPila?.representanteTipoDocumento,
+  );
+  const representativeDocument = text(
+    employerPila?.representanteNumeroDocumento,
+  );
+  const legalEntity = personType === 'J';
+  if (legalEntity) {
     requireText(
       employerRecord,
       18,
-      employerPila?.representanteNumeroDocumento,
+      representativeDocument,
       'La persona jurídica requiere la identificación del representante legal.',
     );
-    const representativeDocumentType = text(
-      employerPila?.representanteTipoDocumento,
-    );
-    const representativeId = text(
-      employerPila?.representanteNumeroDocumento,
-    );
+  }
+  if (legalEntity || representativeDocumentType || representativeDocument) {
     if (
       representativeDocumentType === null ||
       !representativeDocumentTypes.has(representativeDocumentType)
@@ -520,19 +608,32 @@ export function inspectPilaSnapshotPreparation(
         employerRecord,
         20,
         'CAMPO_20_DOCUMENTO_REPRESENTANTE_NO_VALIDO',
-        'La persona jurídica requiere un tipo de documento válido para su representante legal.',
+        'Se requiere un tipo de documento válido para la identificación del representante legal.',
       );
     } else if (
-      representativeId &&
-      !validPilaIdentification(representativeDocumentType, representativeId)
+      representativeDocument &&
+      !validRepresentativeIdentification(
+        representativeDocumentType,
+        representativeDocument,
+      )
     ) {
       add(
         employerRecord,
         18,
         'CAMPO_18_IDENTIFICACION_REPRESENTANTE_NO_VALIDA',
-        'El documento del representante no cumple los caracteres y la longitud permitidos por AT2 v30 para su tipo.',
+        'La identificación del representante no cumple los caracteres o la longitud AT2 v30 para el tipo de documento declarado.',
       );
     }
+    if (!legalEntity && !representativeDocument) {
+      add(
+        employerRecord,
+        18,
+        'CAMPO_18_IDENTIFICACION_REPRESENTANTE_INCOMPLETA',
+        'Si se declara un tipo de documento del representante para persona natural, también se requiere su número.',
+      );
+    }
+  }
+  if (legalEntity) {
     requireText(
       employerRecord,
       21,
