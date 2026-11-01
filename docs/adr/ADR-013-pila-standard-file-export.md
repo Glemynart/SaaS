@@ -647,7 +647,7 @@ reconciliación normativa.
 | 33    | EPS/EOC                                        | AfiliacionSeguridadSocial.epsCodigo es Candidato con vigencia; falta validar catálogo y congelar el valor efectivo en el snapshot.                                                                                                                                                                            |
 | 34    | EPS/EOC de traslado                            | AT2 exige blanco.                                                                                                                                                                                                                                                                                             |
 | 35    | Caja de compensación                           | AfiliacionSeguridadSocial.cajaCompensacionCodigo es Candidato; falta catálogo/vigencia congelada y evaluar si el cotizante está obligado.                                                                                                                                                                     |
-| 36    | Días cotizados a pensión                       | Preparación local no fusionada: congela el candidato 30 para un mes calendario completo con cobertura integral, cotizante 01 sin subtipo y sin novedades; otros casos quedan null con bloqueos. No cubre días parciales ni valida el archivo.                                                                 |
+| 36    | Días cotizados a pensión                       | Preparación local no fusionada: congela el candidato 30 para un mes calendario completo con cobertura integral, cotizante 01 con subtipo explícito 00 y sin novedades; otros casos quedan null con bloqueos. No cubre días parciales ni valida el archivo.                                                    |
 | 37    | Días cotizados a salud                         | AT2 v30 permite menos de 30 días ante ING o RET para cotizantes obligados; la captura conserva null hasta que Payroll apruebe el segmento y su IBC.                                                                                                                                                           |
 | 38    | Días cotizados a riesgos laborales             | Misma captura conservadora independiente que el campo 36; todavía falta validar la obligación y las novedades que pueden cambiar los días.                                                                                                                                                                    |
 | 39    | Días cotizados a CCF                           | Misma captura conservadora independiente que el campo 36; todavía falta validar obligación CCF y novedades.                                                                                                                                                                                                   |
@@ -763,11 +763,12 @@ el hito normativo, bloqueará la generación.
 La preparación local de este worktree agrega evidencia para los campos 36–40:
 captura 30 días separados para pensión, salud, riesgos y CCF únicamente si el
 período es un mes calendario completo, empleado/contrato/una afiliación cubren
-todo el mes, el cotizante es 01 sin subtipo y no hay novedades que requieran
-segmentación PILA. En los demás casos guarda null y los códigos de bloqueo; no
-infiere días desde Payroll ni afirma que el snapshot sea exportable. La regla
-queda identificada con la regla interna `PILA_FULL_MONTH_DAYS_V1` y cuenta con prueba unitaria para el caso
-completo y el bloqueo por novedad. Esta captura sigue sin incluir los casos de
+todo el mes, el cotizante es 01 con subtipo explícito 00 y no hay novedades
+que requieran segmentación PILA. En los demás casos guarda null y los códigos
+de bloqueo; no infiere días desde Payroll ni afirma que el snapshot sea
+exportable. La regla interna `PILA_FULL_MONTH_DAYS_V1` tiene prueba unitaria
+para el caso completo y el bloqueo por novedad. Esta captura sigue sin incluir
+los casos de
 ingreso/retiro, novedades, cambios de IBC o múltiples detalles 02.
 Para el campo 40 conserva el salario básico original y publica una proyección
 separada para PILA únicamente si es un entero seguro no negativo. Si falta o
