@@ -52,6 +52,7 @@ import {
   buildPilaSourceContext,
   buildPilaSourceSnapshot,
 } from './pila-source-snapshot';
+import { buildPilaPreparationReport } from './pila-preparation';
 import {
   parsePilaCalendarDate,
   validatePilaEventDateRange,
@@ -742,6 +743,47 @@ export class PayrollService {
       totals: { totalDevengos, totalDeducciones, totalNeto },
       accountingVoucher: voucher ? mapPayrollAccountingVoucher(voucher) : null,
     };
+  }
+
+  async getPilaPreparation(tenantId: string, periodId: string) {
+    const period = await this.prisma.payrollPeriod.findFirst({
+      where: { id: periodId, tenantId },
+      select: {
+        id: true,
+        status: true,
+        fechaInicio: true,
+        fechaFin: true,
+        fechaPrevistaPagoPila: true,
+      },
+    });
+    if (!period) throw new NotFoundException('Período no encontrado');
+    if (
+      period.status !== PayrollPeriodStatus.APROBADA &&
+      period.status !== PayrollPeriodStatus.CAUSADA
+    ) {
+      throw new ConflictException(
+        'La revisión PILA requiere un período con nómina aprobada.',
+      );
+    }
+
+    const snapshots = await this.prisma.payrollSnapshot.findMany({
+      where: { tenantId, payrollPeriodId: periodId },
+      select: {
+        employeeId: true,
+        pilaPayloadVersion: true,
+        pilaPayload: true,
+      },
+      orderBy: [{ createdAt: 'asc' }, { employeeId: 'asc' }],
+    });
+
+    return buildPilaPreparationReport({
+      period,
+      snapshots: snapshots.map((snapshot) => ({
+        employeeId: snapshot.employeeId,
+        payloadVersion: snapshot.pilaPayloadVersion,
+        payload: snapshot.pilaPayload,
+      })),
+    });
   }
 
   async findPeriodBlocks(tenantId: string, periodId: string) {

@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { formatNombreCompleto } from '@saas/types';
 import { PayrollCorrectionsPanel } from '@/features/payroll/components/payroll-corrections-panel';
 import { PayrollPilaEventsPanel } from '@/features/payroll/components/payroll-pila-events-panel';
+import { PayrollPilaPreparationPanel } from '@/features/payroll/components/payroll-pila-preparation-panel';
 
 function cop(n: number) {
   return new Intl.NumberFormat('es-CO', {
@@ -248,6 +249,8 @@ export default function PeriodDetailPage({ params }: { params: Promise<{ id: str
         periodStatus={period.status}
         fechaInicio={period.fechaInicio}
       />
+
+      <PayrollPilaPreparationPanel periodId={id} periodStatus={period.status} />
 
       {(blocks ?? []).length > 0 && (
         <div className="mb-6 overflow-hidden rounded-xl border border-border bg-surface">

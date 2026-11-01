@@ -99,6 +99,32 @@ export interface PayrollPilaEvent {
   };
 }
 
+export interface PilaPreparationIssue {
+  record: 'APORTANTE_TIPO_1' | 'CABECERA_TIPO_2' | 'DETALLE_TIPO_2' | 'SNAPSHOT';
+  fieldNumber: number | null;
+  code: string;
+  message: string;
+  affectedEmployees: string[];
+  affectedCount: number;
+}
+
+export interface PilaPreparationReport {
+  formatVersion: 'AT2_V30';
+  period: {
+    id: string;
+    fechaInicio: string;
+    fechaFin: string;
+    fechaPrevistaPagoPila: string | null;
+  };
+  snapshotsRevisados: number;
+  empleadosConDatosPendientes: number;
+  empleadosSinBrechasDetectadas: number;
+  issues: PilaPreparationIssue[];
+  archivoGenerable: false;
+  estadoArchivo: 'NO_IMPLEMENTADO';
+  mensaje: string;
+}
+
 export interface PayrollDashboard {
   totalPeriodos: number;
   empleadosLiquidados: number;
@@ -390,6 +416,8 @@ export const payrollApi = {
     req<PayrollNovelty[]>(`/api/payroll/novelties${employeeId ? `?employeeId=${employeeId}` : ''}`),
   getPilaEvents: (periodId: string) =>
     req<PayrollPilaEvent[]>(`/api/payroll/periods/${periodId}/pila-events`),
+  getPilaPreparation: (periodId: string) =>
+    req<PilaPreparationReport>(`/api/payroll/periods/${periodId}/pila-preparation`),
   createPilaEvent: (
     periodId: string,
     payload: {

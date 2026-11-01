@@ -83,6 +83,15 @@ export class PayrollController {
     return this.service.findOnePeriod(user.tenantId, id);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Get('payroll/periods/:id/pila-preparation')
+  getPilaPreparation(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+  ) {
+    return this.service.getPilaPreparation(user.tenantId, id);
+  }
+
   @Get('payroll/periods/:id/pila-events')
   findPilaEvents(
     @CurrentUser() user: CurrentUserPayload,
