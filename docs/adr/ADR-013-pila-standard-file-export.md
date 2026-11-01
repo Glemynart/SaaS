@@ -15,7 +15,7 @@
 > una versión de archivo. `normativeSourceStatus` sigue
 > `RECONCILIATION_PENDING` porque faltan cotejar campos, reglas aplicables,
 > catálogos y fixtures laborales contra AT2 v30; no significa que la versión
-> oficial vigente sea desconocida. No habilitar serialización, exportación ni
+> oficial vigente sea desconocida. No habilitar composición o descarga de archivos ni
 > compatibilidad hasta completar ese cotejo y las pruebas por operador.
 
 - **Estado:** Aprobado con cambios; PR #160 incorpora la primera etapa de historial de afiliaciones. No existe todavía exportador PILA.
@@ -61,8 +61,7 @@ que lo incorporan. La [Resolución 1529 de
 2026](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-1529-de-2026.pdf)
 se conserva como fuente para verificar sus disposiciones e hitos y modifica
 también el AT3. La matriz campo por campo debe cotejarse con AT2 v30, la norma
-que este incorpora y cualquier norma posterior antes de implementar el
-serializador. Para algunos hitos,
+que este incorpora y cualquier norma posterior antes de implementar la exportación completa de archivos tipo 1 y 2. Para algunos hitos,
 la regla depende del período cotizado y de la fecha prevista de pago de aportes
 PILA; no se infiere de la fecha de pago del salario ni de generación del archivo.
 La Resolución 611 de 2026 establece condiciones para que ciertas personas
@@ -270,9 +269,7 @@ Ese documento es preparación y criterio de revisión: no declara exportación,
 no aprueba los resultados laborales candidatos ni acredita compatibilidad con
 un operador.
 
-La captura y conservación inmutable de fuentes puede prepararse sin generar un
-archivo. No se implementará el serializador ni se afirmará que un archivo es
-exportable hasta cerrar la matriz contra el anexo consolidado y su vigencia.
+La captura y conservación inmutable de fuentes puede prepararse sin generar un archivo. La primitiva de formato descrita al final de este ADR solo produce una cadena de caracteres de ancho fijo para un registro; no compone ni valida un archivo completo. No se declarará un archivo como exportable ni se ofrecerá su descarga hasta cerrar la matriz contra el anexo consolidado y su vigencia.
 Los casos ejecutables deben usar fixtures anonimizados con resultados
 revisados por Payroll y conformidad normativa; cuando el operador lo requiera,
 una cuenta de prueba del aportante.
@@ -396,9 +393,7 @@ el cotizante 75 sigue excluido del MVP.
 La lectura directa del PDF oficial AT2 v30 permitió confirmar una estructura
 física para el formato fechado 24-07-2026. La matriz describe los archivos,
 posiciones, relleno numérico y alfanumérico y longitudes de esa versión. El
-mapeo entre los campos y las fuentes de La Oficina Nítida, las reglas de
-vigencia y cualquier convención del operador siguen pendientes de revisión; no
-se habilita el serializador hasta validar esos puntos.
+mapeo entre los campos y las fuentes de La Oficina Nítida, las reglas de vigencia y cualquier convención del operador siguen pendientes de revisión; no se habilita la generación y descarga de archivos hasta validar esos puntos.
 Según AT2 v30, el archivo tipo 2 comienza con un registro 01 de
 encabezado, de 22 campos y 359 caracteres (§2.1.1.1, pp. 26–30), seguido por
 registros 02 de detalle, uno por cotizante, de 98 campos y 693 caracteres
@@ -844,7 +839,7 @@ suficiente de salario fijo. La ficha no tiene vigencias salariales; un cambio
 dentro de un período no se puede segmentar todavía y queda fuera de la
 exportación hasta modelar el evento laboral correspondiente.
 
-El serializador solo puede habilitar el subconjunto que tenga todos sus campos,
+La exportación final solo puede habilitar el subconjunto que tenga todos sus campos,
 fuentes congeladas, reglas y vigencias revisadas, fixture anonimizado con salida
 esperada y validación del operador acordado. Los escenarios que no cumplan esa
 evidencia permanecen bloqueados.
