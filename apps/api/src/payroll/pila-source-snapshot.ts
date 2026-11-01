@@ -415,10 +415,12 @@ function buildPilaDaysBySubsystem(
   if (!affiliation) {
     blockers.push('AFILIACION_NO_UNICA_EN_EL_PERIODO');
   } else {
-    if (
-      affiliation.tipoCotizanteCodigo !== '01' ||
-      affiliation.subtipoCotizanteCodigo !== null
-    ) {
+    if (affiliation.tipoCotizanteCodigo !== '01') {
+      blockers.push('COTIZANTE_FUERA_DEL_MVP_ESTANDAR');
+    }
+    if (affiliation.subtipoCotizanteCodigo === null) {
+      blockers.push('SUBTIPO_COTIZANTE_SIN_CONFIRMAR');
+    } else if (affiliation.subtipoCotizanteCodigo !== '00') {
       blockers.push('COTIZANTE_FUERA_DEL_MVP_ESTANDAR');
     }
     if (

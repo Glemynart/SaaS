@@ -88,7 +88,7 @@ const contextInput: PilaSourceContextInput = {
     {
       id: 'affiliation-1',
       tipoCotizanteCodigo: '01',
-      subtipoCotizanteCodigo: null,
+      subtipoCotizanteCodigo: '00',
       epsCodigo: 'EPS001',
       epsNombre: 'EPS de prueba',
       fondoPensionCodigo: 'AFP001',
@@ -424,6 +424,42 @@ describe('PILA source snapshot builders', () => {
       });
     }
   });
+
+  it.each([
+    ['missing', null, 'SUBTIPO_COTIZANTE_SIN_CONFIRMAR'],
+    ['special', '01', 'COTIZANTE_FUERA_DEL_MVP_ESTANDAR'],
+  ] as const)(
+    'blocks full-month day candidates when the standard subtype is %s',
+    (_, subtype, blocker) => {
+      const standardContext = buildPilaSourceContext(contextInput);
+      const context = {
+        ...standardContext,
+        affiliations: standardContext.affiliations.map((affiliation) => ({
+          ...affiliation,
+          subtipoCotizanteCodigo: subtype,
+        })),
+      };
+      const result = buildPilaSourceSnapshot({
+        context,
+        payroll: {
+          runId: 'run-subtype-not-standard',
+          fechaPrevistaPagoPila: null,
+          salarioBasico: 2_000_000,
+          salarioIntegral: false,
+          ibc: 2_000_000,
+          concepts: [],
+          novelties: [],
+        },
+      });
+
+      for (const days of Object.values(
+        result.payroll.diasCotizadosPorSubsistema,
+      )) {
+        expect(days.valor).toBeNull();
+        expect(days.bloqueos).toContain(blocker);
+      }
+    },
+  );
 
   it('freezes PILA events and blocks day values until approved segmentation exists', () => {
     const context = buildPilaSourceContext({

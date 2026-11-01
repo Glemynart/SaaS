@@ -624,11 +624,12 @@ export function inspectPilaSnapshotPreparation(
         'El MVP de PILA solo contempla trabajadores dependientes estándar (tipo 01).',
       );
     }
-    requireText(
+    requireChoice(
       detailRecord,
       6,
       affiliation.subtipoCotizanteCodigo,
-      'Falta confirmar explícitamente el subtipo de cotizante.',
+      new Set(['00']),
+      'El escenario estándar del MVP requiere confirmar el subtipo 00.',
     );
     for (const [field, key, label] of [
       [31, 'fondoPensionCodigo', 'fondo de pensiones'],

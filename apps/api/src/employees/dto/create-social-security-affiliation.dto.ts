@@ -1,6 +1,7 @@
 import { Transform } from 'class-transformer';
 import {
   IsDateString,
+  IsDefined,
   IsIn,
   IsOptional,
   IsString,
@@ -24,11 +25,14 @@ export class CreateSocialSecurityAffiliationDto {
   tipoCotizanteCodigo: string;
 
   @Transform(trimValue)
-  @IsOptional()
+  @IsDefined({
+    message:
+      'El subtipo es obligatorio; usa 00 si no aplica un subtipo especial.',
+  })
   @Matches(/^\d{2}$/, {
     message: 'Usa un subtipo de cotizante de dos dígitos.',
   })
-  subtipoCotizanteCodigo?: string;
+  subtipoCotizanteCodigo: string;
 
   @Transform(trimUppercase)
   @IsString()
