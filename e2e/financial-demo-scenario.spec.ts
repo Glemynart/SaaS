@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { seedPayrollAccrualFixture } from './helpers/payroll-accounting-fixture';
+import { seedBillingLedgerFixture } from './helpers/billing-ledger-fixture';
 
 async function registerAndSignIn(page: Page, suffix: string) {
   const nit = `5${suffix}`;
@@ -48,6 +49,7 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
   const productName = `Servicio Demo Financiero ${suffix}`;
   const invoiceNumber = `DEMO-FIN-${suffix}`;
   const { tenant, user } = await registerAndSignIn(page, suffix);
+  const billingFixture = await seedBillingLedgerFixture(tenant.id, customerNit, customerName);
 
   await page.goto('/facturacion/clientes');
   await page.getByRole('button', { name: 'Nuevo' }).click();
@@ -55,6 +57,9 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
   await customerInputs.nth(0).fill(customerName);
   await customerInputs.nth(1).fill(customerNit);
   await customerInputs.nth(2).fill(`cliente-${suffix}@example.test`);
+  await page.locator('select').selectOption({
+    label: `${customerName} — NIT ${customerNit}`,
+  });
   const createCustomerResponsePromise = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === '/api/billing/customers' &&
@@ -69,7 +74,7 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
   const productInputs = page.locator('input');
   await productInputs.nth(0).fill(productName);
   await productInputs.nth(1).fill('120000');
-  await productInputs.nth(2).fill('19');
+  await page.locator('select').selectOption('19');
   const createProductResponsePromise = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === '/api/billing/products' &&
@@ -204,5 +209,6 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
     expect(persisted.snapshotStatus).toBe('APROBADA');
   } finally {
     await payroll.disconnect();
+    await billingFixture.disconnect();
   }
 });
