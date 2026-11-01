@@ -15,7 +15,7 @@
 > una versión de archivo. `normativeSourceStatus` sigue
 > `RECONCILIATION_PENDING` porque faltan cotejar campos, reglas aplicables,
 > catálogos y fixtures laborales contra AT2 v30; no significa que la versión
-> oficial vigente sea desconocida. No habilitar serialización, exportación ni
+> oficial vigente sea desconocida. No habilitar composición o descarga de archivos ni
 > compatibilidad hasta completar ese cotejo y las pruebas por operador.
 
 - **Estado:** Aprobado con cambios; PR #160 incorpora la primera etapa de historial de afiliaciones. No existe todavía exportador PILA.
@@ -31,12 +31,13 @@ no produce ese archivo ni conserva todos sus insumos de forma estructurada:
 
 - `Empleado.eps`, `arl`, `fondoPension` y `cajaCompensacion` son campos de texto
   libre sin identificador ni historia de vigencias.
-- En `main` después de PR #162, `PayrollSnapshot` conserva los datos de nómina
+- En `main` después de PR #169, `PayrollSnapshot` conserva los datos de nómina
   aprobados y una fecha prevista de pago PILA, pero aún no trae un payload
-  completo para archivos tipo 1/2. Las PR apiladas #163–#170 agregan al snapshot
-  una fuente PILA separada con historia afiliatoria, eventos, centro ARL,
-  actividad de riesgos y candidatos de días/IBC; permanecen abiertas y no
-  equivalen a una exportación validada.
+  completo para archivos tipo 1/2. Las PR #163–#169 agregaron al snapshot una
+  fuente PILA separada con historia afiliatoria, eventos, centro ARL, actividad
+  de riesgos y candidatos de días/IBC; esto no equivale a una exportación
+  validada. PR #170 añade brechas por evento y campo sin completar la
+  segmentación normativa.
 - PR #162 agregó `PayrollPeriod.fechaPrevistaPagoPila` y congela esa previsión
   en snapshots nuevos. Es una fecha estimada, no prueba de pago. El período
   cotizado y la fecha prevista deben determinar los hitos aplicables; el archivo
@@ -45,9 +46,10 @@ no produce ese archivo ni conserva todos sus insumos de forma estructurada:
   `BONUS` y `OTHER`; no es el catálogo/código de reporte PILA.
 - PR #160 agregó captura manual y con vigencia del historial de afiliaciones;
   el formulario e importador XLSX aún no hacen carga PILA masiva ni validan
-  completamente los catálogos. En las PR abiertas #163–#170 también se capturan
-  eventos y asignaciones ARL fechadas y se congelan en el payload PILA, sin
-  segmentación normativa ni validación completa del archivo.
+  completamente los catálogos. Las PR #163–#169 fusionadas también capturan
+  eventos y asignaciones ARL fechadas y las congelan en el payload PILA; PR #170
+  identifica sus brechas sin segmentación normativa ni validación completa del
+  archivo.
 - No existe un exportador PILA funcional en la API ni en la web.
 
 El Ministerio publica anexos técnicos para PILA y los operadores documentan
@@ -59,8 +61,7 @@ que lo incorporan. La [Resolución 1529 de
 2026](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-1529-de-2026.pdf)
 se conserva como fuente para verificar sus disposiciones e hitos y modifica
 también el AT3. La matriz campo por campo debe cotejarse con AT2 v30, la norma
-que este incorpora y cualquier norma posterior antes de implementar el
-serializador. Para algunos hitos,
+que este incorpora y cualquier norma posterior antes de implementar la exportación completa de archivos tipo 1 y 2. Para algunos hitos,
 la regla depende del período cotizado y de la fecha prevista de pago de aportes
 PILA; no se infiere de la fecha de pago del salario ni de generación del archivo.
 La Resolución 611 de 2026 establece condiciones para que ciertas personas
@@ -268,9 +269,7 @@ Ese documento es preparación y criterio de revisión: no declara exportación,
 no aprueba los resultados laborales candidatos ni acredita compatibilidad con
 un operador.
 
-La captura y conservación inmutable de fuentes puede prepararse sin generar un
-archivo. No se implementará el serializador ni se afirmará que un archivo es
-exportable hasta cerrar la matriz contra el anexo consolidado y su vigencia.
+La captura y conservación inmutable de fuentes puede prepararse sin generar un archivo. La primitiva de formato descrita al final de este ADR solo produce una cadena de caracteres de ancho fijo para un registro; no compone ni valida un archivo completo. No se declarará un archivo como exportable ni se ofrecerá su descarga hasta cerrar la matriz contra el anexo consolidado y su vigencia.
 Los casos ejecutables deben usar fixtures anonimizados con resultados
 revisados por Payroll y conformidad normativa; cuando el operador lo requiera,
 una cuenta de prueba del aportante.
@@ -394,9 +393,7 @@ el cotizante 75 sigue excluido del MVP.
 La lectura directa del PDF oficial AT2 v30 permitió confirmar una estructura
 física para el formato fechado 24-07-2026. La matriz describe los archivos,
 posiciones, relleno numérico y alfanumérico y longitudes de esa versión. El
-mapeo entre los campos y las fuentes de La Oficina Nítida, las reglas de
-vigencia y cualquier convención del operador siguen pendientes de revisión; no
-se habilita el serializador hasta validar esos puntos.
+mapeo entre los campos y las fuentes de La Oficina Nítida, las reglas de vigencia y cualquier convención del operador siguen pendientes de revisión; no se habilita la generación y descarga de archivos hasta validar esos puntos.
 Según AT2 v30, el archivo tipo 2 comienza con un registro 01 de
 encabezado, de 22 campos y 359 caracteres (§2.1.1.1, pp. 26–30), seguido por
 registros 02 de detalle, uno por cotizante, de 98 campos y 693 caracteres
@@ -712,19 +709,21 @@ reconciliación normativa.
 
 #### Hallazgos que bloquean el serializador
 
-1. Las PR apiladas #163–#170 congelan en el payload PILA los datos de aportante,
-   empleado, ubicación, afiliaciones, eventos y asignaciones ARL necesarios para
-   empezar la preparación. Aún están abiertas y no forman parte de `main`.
-   Los snapshots históricos no se rellenan; el informe detecta algunos faltantes
-   leyendo solo el snapshot, pero no comprueba todos los datos obligatorios.
+1. Las PR #163–#169 fusionadas en `main` congelan en el payload PILA los datos
+   de aportante, empleado, ubicación, afiliaciones, eventos y asignaciones ARL
+   necesarios para empezar la preparación. PR #170 añade bloqueos por evento y
+   por campo. Los snapshots históricos no se rellenan; el informe detecta
+   algunos faltantes leyendo solo el snapshot, pero no comprueba todos los datos
+   obligatorios.
 2. Para una planilla E estándar aún faltan fuentes o validaciones de períodos,
    días e IBC por subsistema, CCF, exoneraciones y datos del aportante. La
    clasificación salarial declarada es nullable; snapshots sin dato siguen
    bloqueados. El informe preliminar no es un preflight normativo completo.
 3. Las novedades genéricas de nómina no tienen la semántica ni los intervalos
    aprobados para todos los campos 15–30 y 80–94 de AT2. Los eventos PILA
-   explícitos ya se congelan en la rama abierta, pero todavía no se segmentan ni
-   se mapean a un archivo. No se pueden inferir por similitud de nombre.
+   explícitos se congelan y se identifican como bloqueos por campo, pero todavía
+   no se segmentan ni se mapean a un archivo. No se pueden inferir por similitud
+   de nombre.
 4. Los valores asignados o liquidados por el operador (incluidos campos de
    encabezado y subcuentas del FSP) necesitan pruebas con el operador elegido;
    no se deben rellenar con ceros o códigos supuestos para obtener la longitud.
@@ -746,8 +745,8 @@ serializar ni descargar registros tipo 1/2 hasta completar la matriz normativa,
 los cálculos y segmentos laborales soportados, la validación de todos los campos
 y sus fixtures esperados. **ARQUITECTURA DISPONIBLE:** ADR-013, el historial
 tenant-scoped de afiliaciones del PR #160 y los payloads de preparación
-congelados por las PR abiertas #163–#170 permiten avanzar sin reescribir
-PayrollSnapshot históricos ni completar desde maestros actuales.
+congelados por las PR #163–#170 ya fusionadas en `main` permiten avanzar
+sin reescribir PayrollSnapshot históricos ni completar desde maestros actuales.
 
 El módulo `pila-at2-v30-record-serializer.ts` aporta el formato de caracteres de
 longitud fija descrito en AT2 v30: archivo tipo 1 (34 campos/567 posiciones),
@@ -761,11 +760,12 @@ carga por operador sigue pendiente.
 
 El contrato de snapshot de nómina `PayrollSnapshot.payloadVersion` permanece en
 versión 1. Los datos regulatorios se capturan por separado en
-`PayrollSnapshot.pilaPayload` con `pilaPayloadVersion`; el código de la pila
-abierta usa versión 2 para este payload. Esa captura separada incluye fuentes
-confirmadas del aportante, empleado, período, contrato/sede, afiliaciones,
-novedades PILA y asignaciones de riesgo, con datos no disponibles preservados
-como nulos y reportados por el preflight. La existencia de esos orígenes no
+`PayrollSnapshot.pilaPayload` con `pilaPayloadVersion`; la implementación
+actual en `main` usa la versión 2 para este payload. Esa captura separada
+incluye fuentes confirmadas del aportante, empleado, período, contrato/sede,
+afiliaciones, novedades PILA y asignaciones de riesgo, con datos no disponibles
+preservados como nulos y reportados por el preflight. La existencia de esos
+orígenes no
 significa que todos los campos AT2 estén calculados, validados o listos para
 serialización. Los snapshots históricos sin un payload PILA compatible no se
 rellenan desde registros mutables ni se reescriben.
@@ -781,9 +781,10 @@ PR #162 ya fue fusionada en `main` como `a459683`: la fecha prevista de pago de
 aportes PILA se conserva en períodos y snapshots nuevos y sigue siendo distinta
 del pago del salario o de la evidencia de pago de aportes.
 
-Las PR abiertas #163–#170 agregan preparación explícita para el subconjunto
-dependiente estándar: fuentes empresariales y laborales congeladas, afiliación
-efectiva, eventos, riesgo y bloqueos de eventos que requieren segmentación.
+Las PR #163–#170 fusionadas en `main` agregaron preparación explícita para
+el subconjunto dependiente estándar: fuentes empresariales y laborales
+congeladas, afiliación efectiva, eventos, riesgo y bloqueos de eventos que
+requieren segmentación.
 El payload calcula 30 días por subsistema solo para el caso de mes calendario
 completo, cobertura completa, tipo 01/subtipo 00 y sin eventos que requieran
 segmentar. La proyección del salario básico para el campo 40 debe ser un entero
@@ -807,7 +808,7 @@ escenario objetivo, pero no es por sí sola un fixture aprobado. La generación
 solo comienza cuando el conjunto soportado sea reconstruible y verificable; los
 demás escenarios permanecen bloqueados.
 
-Detalle de las reglas de preparación capturadas en la pila abierta:
+Detalle de las reglas de preparación actualmente verificables en `main`:
 captura 30 días separados para pensión, salud, riesgos y CCF únicamente si el
 período es un mes calendario completo, empleado/contrato/una afiliación cubren
 todo el mes, el cotizante es 01 con subtipo explícito 00 y no hay novedades
@@ -838,7 +839,7 @@ suficiente de salario fijo. La ficha no tiene vigencias salariales; un cambio
 dentro de un período no se puede segmentar todavía y queda fuera de la
 exportación hasta modelar el evento laboral correspondiente.
 
-El serializador solo puede habilitar el subconjunto que tenga todos sus campos,
+La exportación final solo puede habilitar el subconjunto que tenga todos sus campos,
 fuentes congeladas, reglas y vigencias revisadas, fixture anonimizado con salida
 esperada y validación del operador acordado. Los escenarios que no cumplan esa
 evidencia permanecen bloqueados.
