@@ -263,19 +263,16 @@ prueba se detuvo y no se usaron datos de demo/staging/producción. Esta preparac
 - No se ejecutó el seed financiero ni se accedió a staging, producción, VPS u
   OCI; no se transmitió información a DIAN/UGPP.
 
-### Continuación de PILA — 2026-10-31
+### Continuación de PILA — 2026-11-01
 
-- PR #163, #164 y #165 siguen abiertas y en secuencia; no se fusionaron. Sus
-  checks visibles están verdes al momento de esta revisión, y se actualizarán
-  contra `main` y se integrarán en orden cuando el usuario reponga la cuota de
-  GitHub Actions.
-- En el preflight local de #164, el perfil del aportante ya conserva la
-  respuesta sobre acciones especiales y la clase de aportante. Se detectó que
-  el informe no bloqueaba una acción declarada ni una respuesta sin confirmar,
-  y aceptaba clases A/B sin contrastar el total de cotizantes o C/D sin validar
-  evidencia de elegibilidad. La continuación en preparación añade bloqueos
-  para los campos 26, 7, 33, 34 y 76, incluidos conteos A/B y consistencia con
-  Ley 1429, sin declarar el archivo generable ni ampliar el MVP.
-- ADR-014 continúa propuesta y pendiente de decisión. La implementación de los
-  campos 62 y 98 no inicia hasta recibir esa aprobación; la investigación y
-  preparación independiente del resto de AT2 continúa.
+- PR #163 (`beccd57e`), #164 (`1460262`) y #165 (`907f727`) se auditaron y
+  fusionaron en ese orden después de pasar CI, Browser E2E y Vercel.
+- En el informe preliminar de PR #164, el perfil del aportante ya conservaba
+  la respuesta sobre acciones especiales y su clase. La auditoría detectó que
+  no se bloqueaban acciones declaradas o sin confirmar, clases A/B sin
+  contrastar el total de cotizantes, ni clases C/D sin evidencia de elegibilidad.
+  PR #166 incorpora bloqueos para los campos 26, 7, 33, 34 y 76, conteos A/B y
+  consistencia con Ley 1429, sin declarar el archivo generable ni ampliar el MVP.
+- ADR-014 permanece propuesta y pendiente de decisión. La implementación de
+  los campos 62 y 98 espera esa aprobación; la preparación independiente del
+  resto de AT2 continúa.
