@@ -109,7 +109,8 @@ export interface PilaPreparationIssue {
 }
 
 export interface PilaPreparationReport {
-  formatVersion: 'AT2_V30';
+  formatVersion: null;
+  normativeSourceStatus: 'RECONCILIATION_PENDING';
   period: {
     id: string;
     fechaInicio: string;

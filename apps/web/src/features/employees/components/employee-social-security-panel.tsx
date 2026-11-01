@@ -246,8 +246,8 @@ export function EmployeeSocialSecurityPanel({
                 />
               </dl>
               <p className="mt-3 text-xs text-muted-foreground">
-                Registrada bajo {affiliation.formatoNormativoVersion}; el código es declarado por el
-                empleador y aún requiere validación normativa antes de exportar.
+                El código es declarado por el empleador y aún requiere validación normativa antes de
+                exportar.
               </p>
               {affiliation.vigenteHasta === null && (
                 <div className="mt-3">

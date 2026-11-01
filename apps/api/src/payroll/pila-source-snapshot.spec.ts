@@ -100,7 +100,7 @@ const contextInput: PilaSourceContextInput = {
       cajaCompensacionNombre: 'Caja de prueba',
       vigenteDesde: new Date('2026-01-01T00:00:00.000Z'),
       vigenteHasta: null,
-      formatoNormativoVersion: 'AT2_V30',
+      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V1',
     },
   ],
   pilaEvents: [],
@@ -347,7 +347,7 @@ describe('PILA source snapshot builders', () => {
     )) {
       expect(days).toMatchObject({
         valor: null,
-        reglaVersion: 'AT2_V30',
+        reglaVersion: 'PILA_FULL_MONTH_DAYS_V1',
         bloqueos: ['HAY_NOVEDADES_SIN_SEGMENTACION_PILA'],
       });
     }
@@ -418,8 +418,8 @@ describe('PILA source snapshot builders', () => {
     )) {
       expect(days).toMatchObject({
         valor: 30,
-        reglaVersion: 'AT2_V30',
-        fundamento: 'AT2_V30_MES_COMPLETO_DEPENDIENTE',
+        reglaVersion: 'PILA_FULL_MONTH_DAYS_V1',
+        fundamento: 'COBERTURA_COMPLETA_MES_CALENDARIO_DEPENDIENTE',
         bloqueos: [],
       });
     }

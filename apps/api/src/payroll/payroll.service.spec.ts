@@ -2550,7 +2550,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           cajaCompensacionNombre: 'Caja anterior',
           vigenteDesde: new Date('2025-01-01T00:00:00.000Z'),
           vigenteHasta: new Date('2026-01-15T00:00:00.000Z'),
-          formatoNormativoVersion: 'AT2_V30',
+          versionCaptura: 'PILA_AFFILIATION_CAPTURE_V1',
         },
         {
           id: 'affiliation-current',
@@ -2568,7 +2568,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           cajaCompensacionNombre: 'Caja vigente',
           vigenteDesde: new Date('2026-01-16T00:00:00.000Z'),
           vigenteHasta: null,
-          formatoNormativoVersion: 'AT2_V30',
+          versionCaptura: 'PILA_AFFILIATION_CAPTURE_V1',
         },
       ]);
       mockSedeFindMany.mockResolvedValue([
@@ -2636,7 +2636,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
                 epsCodigo: 'EPS001',
                 vigenteDesde: '2026-01-16',
                 vigenteHasta: null,
-                formatoNormativoVersion: 'AT2_V30',
+                versionCaptura: 'PILA_AFFILIATION_CAPTURE_V1',
               }),
             ]),
             pilaEvents: [

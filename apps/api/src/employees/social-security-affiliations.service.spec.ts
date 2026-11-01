@@ -127,7 +127,7 @@ describe('SocialSecurityAffiliationsService', () => {
       tenantId,
       empleadoId: employeeId,
       registradoPorId: userId,
-      formatoNormativoVersion: 'AT2_V30',
+      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V1',
       tipoCotizanteCodigo: '01',
       epsCodigo: 'EPS001',
       epsNombre: 'EPS de prueba',

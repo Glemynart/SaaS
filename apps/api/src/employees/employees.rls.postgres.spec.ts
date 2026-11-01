@@ -334,7 +334,7 @@ describe('empleados PostgreSQL RLS', () => {
       cajaCompensacionNombre: 'Caja de prueba',
       vigenteDesde: new Date('2026-01-01T00:00:00.000Z'),
       vigenteHasta: null,
-      formatoNormativoVersion: 'AT2_V30',
+      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V1',
       registradoPorId: 'rls-empleados-test-user',
     };
   }

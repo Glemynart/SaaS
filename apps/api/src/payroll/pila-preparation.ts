@@ -45,6 +45,18 @@ const supportedEmployerDocumentTypes = new Set([
   'PC',
 ]);
 const representativeDocumentTypes = new Set(['CC', 'CE', 'PA', 'CD']);
+const pilaEventFieldNumbers = new Map<string, number>([
+  ['ING', 15],
+  ['RET', 16],
+  ['VSP', 21],
+  ['VST', 23],
+  ['SLN', 24],
+  ['IGE', 25],
+  ['LMA', 26],
+  ['VAC_LR', 27],
+  ['VCT', 29],
+  ['IRL', 30],
+]);
 
 function object(value: unknown): JsonRecord | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -139,6 +151,8 @@ export function inspectPilaSnapshotPreparation(
   const worksiteMunicipality = nested(worksite, 'municipio');
   const contract = nested(root, 'contract');
   const payroll = nested(root, 'payroll');
+  const payrollPilaEvents = payroll?.pilaEvents;
+  const contextPilaEvents = root?.pilaEvents;
   const periodStart = date(period?.fechaInicio);
   const periodEnd = date(period?.fechaFin);
 
@@ -170,8 +184,9 @@ export function inspectPilaSnapshotPreparation(
     }
   };
 
-  // AT2 v30, archivo tipo 1: los valores del aportante se exigen desde los
-  // datos declarados y congelados en el snapshot, no desde el maestro actual.
+  // Matriz PILA preliminar, archivo tipo 1: los valores del aportante se
+  // exigen desde los datos declarados y congelados en el snapshot, no desde
+  // el maestro actual. No representa una validación normativa completa.
   const employerRecord: PilaPreparationRecord = 'APORTANTE_TIPO_1';
   requireText(
     employerRecord,
@@ -479,6 +494,88 @@ export function inspectPilaSnapshotPreparation(
       'La preparación vigente solo soporta períodos que cubren un mes calendario completo.',
     );
   }
+
+  const eventSources = [payrollPilaEvents, contextPilaEvents].filter(
+    (value): value is unknown[] => Array.isArray(value),
+  );
+  if (
+    input.payloadVersion === 2 &&
+    payrollPilaEvents === undefined &&
+    contextPilaEvents === undefined
+  ) {
+    add(
+      'DETALLE_TIPO_2',
+      null,
+      'EVENTOS_PILA_NO_CONSERVADOS_EN_SNAPSHOT',
+      'El snapshot PILA no conserva la lista de eventos del período; no se puede confirmar que las novedades estén segmentadas.',
+    );
+  }
+  if (
+    input.payloadVersion === 2 &&
+    (payrollPilaEvents === undefined) !== (contextPilaEvents === undefined)
+  ) {
+    add(
+      'DETALLE_TIPO_2',
+      null,
+      'EVENTOS_PILA_SNAPSHOT_DESINCRONIZADO',
+      'Falta una de las copias de eventos PILA que debe conservar el snapshot v2; requiere revisar la captura aprobada.',
+    );
+  }
+  if (
+    (payrollPilaEvents !== undefined && !Array.isArray(payrollPilaEvents)) ||
+    (contextPilaEvents !== undefined && !Array.isArray(contextPilaEvents))
+  ) {
+    add(
+      'DETALLE_TIPO_2',
+      null,
+      'EVENTOS_PILA_FORMATO_NO_VALIDO',
+      'El snapshot PILA contiene una lista de eventos con formato no válido; no se puede verificar su segmentación.',
+    );
+  }
+  if (
+    Array.isArray(payrollPilaEvents) &&
+    Array.isArray(contextPilaEvents) &&
+    JSON.stringify(payrollPilaEvents) !== JSON.stringify(contextPilaEvents)
+  ) {
+    add(
+      'DETALLE_TIPO_2',
+      null,
+      'EVENTOS_PILA_SNAPSHOT_DESINCRONIZADO',
+      'Las copias de eventos PILA del snapshot no coinciden; requiere revisar la captura aprobada antes de preparar el archivo.',
+    );
+  }
+
+  if (eventSources.length > 0) {
+    const reportedEventCodes = new Set<string>();
+    for (const eventValue of eventSources.flat()) {
+      const event = object(eventValue);
+      const code = text(event?.codigo);
+      if (!code) {
+        add(
+          'DETALLE_TIPO_2',
+          null,
+          'EVENTO_PILA_SIN_CODIGO_VALIDO',
+          'El snapshot contiene una novedad PILA sin código válido; su reporte y segmentación no pueden verificarse.',
+        );
+        continue;
+      }
+
+      if (reportedEventCodes.has(code)) continue;
+      reportedEventCodes.add(code);
+      const fieldNumber = pilaEventFieldNumbers.get(code) ?? null;
+      add(
+        'DETALLE_TIPO_2',
+        fieldNumber,
+        fieldNumber === null
+          ? 'EVENTO_PILA_CODIGO_FUERA_DE_MATRIZ'
+          : `EVENTO_PILA_${code}_SIN_SEGMENTACION_APROBADA`,
+        fieldNumber === null
+          ? `La novedad PILA ${code} no pertenece a la matriz del MVP revisada y no tiene una segmentación aprobada.`
+          : `La novedad PILA ${code} está congelada en el snapshot, pero Payroll aún no conserva sus segmentos y días/IBC aprobados para el campo ${fieldNumber}.`,
+      );
+    }
+  }
+
   requireText(
     'CABECERA_TIPO_2',
     14,
@@ -912,7 +1009,8 @@ export function buildPilaPreparationReport(input: {
   ).length;
 
   return {
-    formatVersion: 'AT2_V30' as const,
+    formatVersion: null,
+    normativeSourceStatus: 'RECONCILIATION_PENDING' as const,
     period: {
       id: input.period.id,
       fechaInicio: input.period.fechaInicio.toISOString().slice(0, 10),
@@ -927,6 +1025,6 @@ export function buildPilaPreparationReport(input: {
     archivoGenerable: false as const,
     estadoArchivo: 'NO_IMPLEMENTADO' as const,
     mensaje:
-      'Este informe revisa insumos conocidos de snapshots aprobados. No genera archivos ni confirma aceptación de un operador.',
+      'Este informe revisa insumos conocidos de snapshots aprobados. La fuente oficial AT2 v30 está identificada; el mapeo de campos y las reglas aplicables siguen en reconciliación. No es una validación normativa completa, no genera archivos ni confirma aceptación de un operador.',
   };
 }

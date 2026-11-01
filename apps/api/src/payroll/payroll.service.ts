@@ -3814,7 +3814,7 @@ export class PayrollService {
           cajaCompensacionNombre: true,
           vigenteDesde: true,
           vigenteHasta: true,
-          formatoNormativoVersion: true,
+          versionCaptura: true,
         },
         orderBy: [{ vigenteDesde: 'asc' }, { id: 'asc' }],
       }),

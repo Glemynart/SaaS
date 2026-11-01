@@ -72,7 +72,8 @@ describe('PayrollService.getPilaPreparation', () => {
       orderBy: [{ createdAt: 'asc' }, { employeeId: 'asc' }],
     });
     expect(report).toMatchObject({
-      formatVersion: 'AT2_V30',
+      formatVersion: null,
+      normativeSourceStatus: 'RECONCILIATION_PENDING',
       snapshotsRevisados: 1,
       empleadosConDatosPendientes: 1,
       archivoGenerable: false,

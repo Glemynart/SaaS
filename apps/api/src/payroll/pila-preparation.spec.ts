@@ -389,6 +389,151 @@ describe('inspectPilaSnapshotPreparation', () => {
     },
   );
 
+  it.each([
+    { code: 'ING', fieldNumber: 15 },
+    { code: 'RET', fieldNumber: 16 },
+    { code: 'VSP', fieldNumber: 21 },
+    { code: 'VST', fieldNumber: 23 },
+    { code: 'SLN', fieldNumber: 24 },
+    { code: 'IGE', fieldNumber: 25 },
+    { code: 'LMA', fieldNumber: 26 },
+    { code: 'VAC_LR', fieldNumber: 27 },
+    { code: 'VCT', fieldNumber: 29 },
+    { code: 'IRL', fieldNumber: 30 },
+  ])(
+    'reports PILA event $code as an unsegmented approved snapshot source',
+    ({ code, fieldNumber }) => {
+      const source = payload() as ReturnType<typeof payload> & {
+        pilaEvents?: unknown;
+      };
+      source.schemaVersion = 2;
+      const payroll = source.payroll as typeof source.payroll & {
+        pilaEvents?: unknown;
+      };
+      const events = [
+        { codigo: code, fechaInicio: '2026-10-12', fechaFin: null, dias: null },
+      ];
+      payroll.pilaEvents = events;
+      source.pilaEvents = events;
+
+      const result = inspectPilaSnapshotPreparation({
+        employeeId: 'employee-1',
+        payloadVersion: 2,
+        payload: source,
+        totalCotizantes: 1,
+      });
+
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          record: 'DETALLE_TIPO_2',
+          fieldNumber,
+          code: `EVENTO_PILA_${code}_SIN_SEGMENTACION_APROBADA`,
+        }),
+      );
+    },
+  );
+
+  it('blocks a v2 PILA snapshot that omits its frozen event list', () => {
+    const source = payload();
+    source.schemaVersion = 2;
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 2,
+      payload: source,
+      totalCotizantes: 1,
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'DETALLE_TIPO_2',
+        fieldNumber: null,
+        code: 'EVENTOS_PILA_NO_CONSERVADOS_EN_SNAPSHOT',
+      }),
+    );
+  });
+
+  it('blocks a v2 PILA snapshot that omits one of its event copies', () => {
+    const source = payload() as ReturnType<typeof payload> & {
+      pilaEvents?: unknown;
+    };
+    source.schemaVersion = 2;
+    source.pilaEvents = [];
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 2,
+      payload: source,
+      totalCotizantes: 1,
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'DETALLE_TIPO_2',
+        fieldNumber: null,
+        code: 'EVENTOS_PILA_SNAPSHOT_DESINCRONIZADO',
+      }),
+    );
+  });
+
+  it('blocks inconsistent event copies and still reports every known event code', () => {
+    const source = payload() as ReturnType<typeof payload> & {
+      pilaEvents?: unknown;
+    };
+    source.schemaVersion = 2;
+    const payroll = source.payroll as typeof source.payroll & {
+      pilaEvents?: unknown;
+    };
+    payroll.pilaEvents = [];
+    source.pilaEvents = [
+      { codigo: 'RET', fechaInicio: '2026-10-25', fechaFin: null, dias: null },
+    ];
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 2,
+      payload: source,
+      totalCotizantes: 1,
+    });
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'EVENTOS_PILA_SNAPSHOT_DESINCRONIZADO',
+        }),
+        expect.objectContaining({
+          fieldNumber: 16,
+          code: 'EVENTO_PILA_RET_SIN_SEGMENTACION_APROBADA',
+        }),
+      ]),
+    );
+  });
+
+  it('blocks event codes outside the reviewed MVP matrix', () => {
+    const source = payload();
+    source.schemaVersion = 2;
+    const payroll = source.payroll as typeof source.payroll & {
+      pilaEvents?: unknown;
+    };
+    payroll.pilaEvents = [{ codigo: 'TDE', fechaInicio: '2026-10-12' }];
+    Object.assign(source, { pilaEvents: payroll.pilaEvents });
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 2,
+      payload: source,
+      totalCotizantes: 1,
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'DETALLE_TIPO_2',
+        fieldNumber: null,
+        code: 'EVENTO_PILA_CODIGO_FUERA_DE_MATRIZ',
+      }),
+    );
+  });
+
   it('agrupa faltantes por campo y declara expresamente que el archivo aún no se genera', () => {
     const report = buildPilaPreparationReport({
       period: {
@@ -404,7 +549,8 @@ describe('inspectPilaSnapshotPreparation', () => {
     });
 
     expect(report).toMatchObject({
-      formatVersion: 'AT2_V30',
+      formatVersion: null,
+      normativeSourceStatus: 'RECONCILIATION_PENDING',
       snapshotsRevisados: 2,
       empleadosConDatosPendientes: 2,
       empleadosSinBrechasDetectadas: 0,
