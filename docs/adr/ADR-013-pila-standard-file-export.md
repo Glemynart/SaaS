@@ -31,12 +31,13 @@ no produce ese archivo ni conserva todos sus insumos de forma estructurada:
 
 - `Empleado.eps`, `arl`, `fondoPension` y `cajaCompensacion` son campos de texto
   libre sin identificador ni historia de vigencias.
-- En `main` después de PR #162, `PayrollSnapshot` conserva los datos de nómina
+- En `main` después de PR #169, `PayrollSnapshot` conserva los datos de nómina
   aprobados y una fecha prevista de pago PILA, pero aún no trae un payload
-  completo para archivos tipo 1/2. Las PR apiladas #163–#170 agregan al snapshot
-  una fuente PILA separada con historia afiliatoria, eventos, centro ARL,
-  actividad de riesgos y candidatos de días/IBC; permanecen abiertas y no
-  equivalen a una exportación validada.
+  completo para archivos tipo 1/2. Las PR #163–#169 agregaron al snapshot una
+  fuente PILA separada con historia afiliatoria, eventos, centro ARL, actividad
+  de riesgos y candidatos de días/IBC; esto no equivale a una exportación
+  validada. PR #170 añade brechas por evento y campo sin completar la
+  segmentación normativa.
 - PR #162 agregó `PayrollPeriod.fechaPrevistaPagoPila` y congela esa previsión
   en snapshots nuevos. Es una fecha estimada, no prueba de pago. El período
   cotizado y la fecha prevista deben determinar los hitos aplicables; el archivo
@@ -45,9 +46,10 @@ no produce ese archivo ni conserva todos sus insumos de forma estructurada:
   `BONUS` y `OTHER`; no es el catálogo/código de reporte PILA.
 - PR #160 agregó captura manual y con vigencia del historial de afiliaciones;
   el formulario e importador XLSX aún no hacen carga PILA masiva ni validan
-  completamente los catálogos. En las PR abiertas #163–#170 también se capturan
-  eventos y asignaciones ARL fechadas y se congelan en el payload PILA, sin
-  segmentación normativa ni validación completa del archivo.
+  completamente los catálogos. Las PR #163–#169 fusionadas también capturan
+  eventos y asignaciones ARL fechadas y las congelan en el payload PILA; PR #170
+  identifica sus brechas sin segmentación normativa ni validación completa del
+  archivo.
 - No existe un exportador PILA funcional en la API ni en la web.
 
 El Ministerio publica anexos técnicos para PILA y los operadores documentan
@@ -704,19 +706,21 @@ reconciliación normativa.
 
 #### Hallazgos que bloquean el serializador
 
-1. Las PR apiladas #163–#170 congelan en el payload PILA los datos de aportante,
-   empleado, ubicación, afiliaciones, eventos y asignaciones ARL necesarios para
-   empezar la preparación. Aún están abiertas y no forman parte de `main`.
-   Los snapshots históricos no se rellenan; el informe detecta algunos faltantes
-   leyendo solo el snapshot, pero no comprueba todos los datos obligatorios.
+1. Las PR #163–#169 fusionadas en `main` congelan en el payload PILA los datos
+   de aportante, empleado, ubicación, afiliaciones, eventos y asignaciones ARL
+   necesarios para empezar la preparación. PR #170 añade bloqueos por evento y
+   por campo. Los snapshots históricos no se rellenan; el informe detecta
+   algunos faltantes leyendo solo el snapshot, pero no comprueba todos los datos
+   obligatorios.
 2. Para una planilla E estándar aún faltan fuentes o validaciones de períodos,
    días e IBC por subsistema, CCF, exoneraciones y datos del aportante. La
    clasificación salarial declarada es nullable; snapshots sin dato siguen
    bloqueados. El informe preliminar no es un preflight normativo completo.
 3. Las novedades genéricas de nómina no tienen la semántica ni los intervalos
    aprobados para todos los campos 15–30 y 80–94 de AT2. Los eventos PILA
-   explícitos ya se congelan en la rama abierta, pero todavía no se segmentan ni
-   se mapean a un archivo. No se pueden inferir por similitud de nombre.
+   explícitos se congelan y se identifican como bloqueos por campo, pero todavía
+   no se segmentan ni se mapean a un archivo. No se pueden inferir por similitud
+   de nombre.
 4. Los valores asignados o liquidados por el operador (incluidos campos de
    encabezado y subcuentas del FSP) necesitan pruebas con el operador elegido;
    no se deben rellenar con ceros o códigos supuestos para obtener la longitud.
