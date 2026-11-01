@@ -194,7 +194,7 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
       ),
     ).toBeVisible();
     await expect(
-      pilaPreparationPanel.getByText(/No genera archivos ni confirma aceptación de un operador/),
+      pilaPreparationPanel.getByText(/no genera archivos ni confirma aceptación de un operador/i),
     ).toBeVisible();
 
     const persisted = await payroll.inspectPersistedState();
