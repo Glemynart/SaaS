@@ -378,6 +378,7 @@ se accedió a demo, staging o producción.
   pesos enteros congelados por nómina; hay regresiones para salario, auxilio y
   trabajo suplementario.
 - Las pruebas de calculadora y servicio pasan (32/32), al igual que typecheck de
-  API, ESLint, Prettier y `git diff --check`. Los checks del commit inicial del
-  PR fallaron antes de iniciar los jobs por el límite de uso de Actions; tras
-  sincronizarlo con `main`, se volverán a ejecutar antes de merge.
+  API, ESLint, Prettier y `git diff --check`. Tras sincronizar el PR con `main`
+  en `553b90b`, CI, Browser E2E (24/24) y Vercel Preview pasaron. Las corridas
+  del head anterior fallaron antes de iniciar los jobs por el límite de Actions,
+  sin evaluar el código.
