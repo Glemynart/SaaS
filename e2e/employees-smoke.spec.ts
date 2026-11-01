@@ -74,7 +74,11 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
     has: page.getByRole('heading', { name: 'Nueva afiliación' }),
   });
   await affiliationForm.getByRole('combobox', { name: /^Tipo de cotizante/ }).selectOption('01');
-  await expect(affiliationForm.getByLabel('Subtipo de cotizante')).toBeRequired();
+  expect(
+    await affiliationForm
+      .getByLabel('Subtipo de cotizante')
+      .evaluate((element) => (element as HTMLInputElement).required),
+  ).toBe(true);
   await affiliationForm.getByLabel('Subtipo de cotizante').fill('00');
   await affiliationForm.getByLabel('Vigente desde').fill('2026-01-01');
   await affiliationForm.getByLabel('Código EPS').fill('EPS001');
