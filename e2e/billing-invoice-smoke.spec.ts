@@ -169,9 +169,10 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
     const cancelledRow = page.getByRole('link', { name: invoiceNumber }).locator('xpath=..');
     await expect(cancelledRow.getByText('Anulada', { exact: true })).toBeVisible();
     await page.getByRole('link', { name: invoiceNumber }).click();
-    await expect(page.getByText(/Reversos:/)).toBeVisible();
+    const accountingSection = page.locator('section').filter({ hasText: 'Contabilización interna' });
+    await expect(accountingSection.getByText(/· ANULADO/)).toBeVisible();
     await page.reload();
-    await expect(page.getByText(/Reversos:/)).toBeVisible();
+    await expect(accountingSection.getByText(/· ANULADO/)).toBeVisible();
   } finally {
     await accountingFixture.disconnect();
   }
