@@ -27,6 +27,10 @@ describe('Payroll accounting PostgreSQL integration', () => {
   const thirdPartyId = randomUUID();
   const payrollPeriodId = randomUUID();
   const payrollRunId = randomUUID();
+  const snapshotApprovalPeriodId = randomUUID();
+  const snapshotApprovalRunId = randomUUID();
+  const snapshotApprovalContractId = randomUUID();
+  const snapshotApprovalLegalParamId = randomUUID();
   const snapshotId = randomUUID();
   const accountingPeriodId = randomUUID();
   const contextService = new TenantContextService();
@@ -56,6 +60,21 @@ describe('Payroll accounting PostgreSQL integration', () => {
       { codigo: 'SALUD_EMP', valor: 40_000 },
       { codigo: 'PENSION_EMP', valor: 40_000 },
     ],
+  } satisfies Prisma.InputJsonValue;
+  const pilaSourcePayload = {
+    schemaVersion: 1,
+    capturedAt: '2026-03-31T00:00:00.000Z',
+    employee: { cedula: '1000000001', tipoSalarioPila: 'F' },
+    affiliations: [{ affiliationId: 'affiliation-1', epsCodigo: 'EPS001' }],
+  } satisfies Prisma.InputJsonValue;
+  const pilaSnapshotPayload = {
+    ...pilaSourcePayload,
+    payroll: {
+      payrollRunId,
+      fechaPrevistaPagoPila: '2026-04-05',
+      salarioBasico: 1_000_000,
+      tipoSalario: 'F',
+    },
   } satisfies Prisma.InputJsonValue;
   let voucherTypeCreated = false;
 
@@ -141,6 +160,7 @@ describe('Payroll accounting PostgreSQL integration', () => {
           totalAportesPatronales: new Prisma.Decimal(0),
           totalProvisiones: new Prisma.Decimal(0),
           salarioBaseSnapshot: new Prisma.Decimal(1_000_000),
+          pilaSource: pilaSourcePayload,
           concepts: {
             create: [
               {
@@ -176,6 +196,171 @@ describe('Payroll accounting PostgreSQL integration', () => {
           origen: 'INTEGRATION_TEST',
           payloadVersion: 1,
           payload: snapshotPayload,
+          pilaPayloadVersion: 1,
+          pilaPayload: pilaSnapshotPayload,
+        },
+      });
+      await tx.parametroLegalNomina.create({
+        data: {
+          id: snapshotApprovalLegalParamId,
+          tenantId,
+          vigenciaDesde: new Date('2026-03-01T00:00:00.000Z'),
+          anio: 2026,
+          smmlv: new Prisma.Decimal(1_423_500),
+          auxilioTransporte: new Prisma.Decimal(202_897),
+          uvt: new Prisma.Decimal(49_799),
+          topeIbcMinSmmlv: 1,
+          topeIbcMaxSmmlv: 25,
+          umbralAuxilioSmmlv: new Prisma.Decimal(2),
+          umbralExoneracionSmmlv: 10,
+          pctSaludEmpleado: new Prisma.Decimal(0.04),
+          pctPensionEmpleado: new Prisma.Decimal(0.04),
+          pctSaludEmpleador: new Prisma.Decimal(0.085),
+          pctPensionEmpleador: new Prisma.Decimal(0.12),
+          pctCaja: new Prisma.Decimal(0.04),
+          pctIcbf: new Prisma.Decimal(0.03),
+          pctSena: new Prisma.Decimal(0.02),
+          arlClaseI: new Prisma.Decimal(0.00522),
+          arlClaseII: new Prisma.Decimal(0.01044),
+          arlClaseIII: new Prisma.Decimal(0.02436),
+          arlClaseIV: new Prisma.Decimal(0.0435),
+          arlClaseV: new Prisma.Decimal(0.0696),
+          factorProvPrima: new Prisma.Decimal(0.0833),
+          factorProvCesantias: new Prisma.Decimal(0.0833),
+          factorProvIntCesantias: new Prisma.Decimal(0.01),
+          factorProvVacaciones: new Prisma.Decimal(0.0417),
+          fspTramos: [],
+          fuente: 'Fixture de integración',
+        },
+      });
+      await tx.contrato.create({
+        data: {
+          id: snapshotApprovalContractId,
+          tenantId,
+          empleadoId: employeeId,
+          tipo: 'TERMINO_FIJO',
+          estado: 'VIGENTE',
+          fechaInicio: new Date('2025-01-01T00:00:00.000Z'),
+          cargo: 'Docente',
+          salario: new Prisma.Decimal(1_000_000),
+          claseRiesgoArl: 1,
+        },
+      });
+      const approvalPeriodStart = new Date('2026-03-01T00:00:00.000Z');
+      const approvalPeriodEnd = new Date('2026-03-31T00:00:00.000Z');
+      const approvalPilaSource = {
+        schemaVersion: 1,
+        capturedAt: '2026-03-31T00:00:00.000Z',
+        period: {
+          payrollPeriodId: snapshotApprovalPeriodId,
+          fechaInicio: '2026-03-01',
+          fechaFin: '2026-03-31',
+        },
+        employee: {
+          cedula: '1000000001',
+          primerNombre: 'Ana',
+          tipoSalarioPila: 'F',
+        },
+        affiliations: [
+          {
+            affiliationId: 'affiliation-approval',
+            epsCodigo: 'EPS001',
+            vigenteDesde: '2026-01-01',
+            vigenteHasta: null,
+          },
+        ],
+        pilaEvents: [],
+      } satisfies Prisma.InputJsonValue;
+      await tx.payrollPeriod.create({
+        data: {
+          id: snapshotApprovalPeriodId,
+          tenantId,
+          nombre: 'Nómina aprobación PILA marzo 2026',
+          fechaInicio: approvalPeriodStart,
+          fechaFin: approvalPeriodEnd,
+          fechaPrevistaPagoPila: new Date('2026-04-05T00:00:00.000Z'),
+          status: PayrollPeriodStatus.EN_REVISION,
+        },
+      });
+      await tx.payrollRun.create({
+        data: {
+          id: snapshotApprovalRunId,
+          tenantId,
+          payrollPeriodId: snapshotApprovalPeriodId,
+          employeeId,
+          totalDevengos: new Prisma.Decimal(1_000_000),
+          totalDeducciones: new Prisma.Decimal(80_000),
+          netoPagar: new Prisma.Decimal(920_000),
+          salarioBaseSnapshot: new Prisma.Decimal(1_000_000),
+          ibc: new Prisma.Decimal(1_000_000),
+          parametroLegalId: snapshotApprovalLegalParamId,
+          calculationTrace: {
+            traceVersion: 1,
+            period: {
+              nombre: 'Nómina aprobación PILA marzo 2026',
+              fechaInicio: approvalPeriodStart.toISOString(),
+              fechaFin: approvalPeriodEnd.toISOString(),
+            },
+            employee: { salarioIntegralUsado: false },
+            contract: {
+              contratoId: snapshotApprovalContractId,
+              tipo: 'TERMINO_FIJO',
+              estado: 'VIGENTE',
+              fechaInicio: '2025-01-01T00:00:00.000Z',
+              fechaFin: null,
+              salarioContrato: 1_000_000,
+              sedeId: null,
+              claseRiesgoArlUsada: 1,
+            },
+            costCenter: null,
+            companyPolicy: { aportesExonerados: false },
+            legalParameters: { anio: 2026 },
+            novelties: [],
+            calculationEvidence: { fixture: true },
+          },
+          pilaSource: approvalPilaSource,
+          concepts: {
+            create: [
+              {
+                codigo: 'SALARIO_BASE',
+                tipo: 'EARNING',
+                nombre: 'Salario base',
+                valor: new Prisma.Decimal(1_000_000),
+              },
+              {
+                codigo: 'PENSION_EMP',
+                tipo: 'DEDUCTION',
+                nombre: 'Pensión empleado',
+                base: new Prisma.Decimal(1_000_000),
+                factor: new Prisma.Decimal(0.04),
+                valor: new Prisma.Decimal(40_000),
+              },
+              {
+                codigo: 'SALUD_EMP',
+                tipo: 'DEDUCTION',
+                nombre: 'Salud empleado',
+                base: new Prisma.Decimal(1_000_000),
+                factor: new Prisma.Decimal(0.04),
+                valor: new Prisma.Decimal(40_000),
+              },
+              {
+                codigo: 'ARL',
+                tipo: 'EMPLOYER_CONTRIBUTION',
+                nombre: 'ARL',
+                base: new Prisma.Decimal(1_000_000),
+                factor: new Prisma.Decimal(0.00522),
+                valor: new Prisma.Decimal(5_220),
+              },
+              {
+                codigo: 'CAJA',
+                tipo: 'EMPLOYER_CONTRIBUTION',
+                nombre: 'Caja de compensación',
+                base: new Prisma.Decimal(1_000_000),
+                factor: new Prisma.Decimal(0.04),
+                valor: new Prisma.Decimal(40_000),
+              },
+            ],
+          },
         },
       });
       await tx.periodoContable.create({
@@ -227,9 +412,15 @@ describe('Payroll accounting PostgreSQL integration', () => {
         await tx.comprobanteContable.deleteMany({ where: { tenantId } });
         await tx.secuenciaComprobante.deleteMany({ where: { tenantId } });
         await tx.payrollSnapshot.deleteMany({ where: { tenantId } });
-        await tx.payrollConcept.deleteMany({ where: { payrollRunId } });
+        await tx.payrollConcept.deleteMany({
+          where: {
+            payrollRunId: { in: [payrollRunId, snapshotApprovalRunId] },
+          },
+        });
         await tx.payrollRun.deleteMany({ where: { tenantId } });
         await tx.payrollPeriod.deleteMany({ where: { tenantId } });
+        await tx.contrato.deleteMany({ where: { tenantId } });
+        await tx.parametroLegalNomina.deleteMany({ where: { tenantId } });
         await tx.cuentaSistemaMap.deleteMany({ where: { tenantId } });
         await tx.cuentaContable.deleteMany({ where: { tenantId } });
         await tx.periodoContable.deleteMany({ where: { tenantId } });
@@ -265,7 +456,7 @@ describe('Payroll accounting PostgreSQL integration', () => {
 
     const persisted = await contextService.run(context, () =>
       tenantPrisma.execute(async (tx) => {
-        const [period, vouchers, snapshot, auditLogs] = await Promise.all([
+        const [period, vouchers, run, snapshot, auditLogs] = await Promise.all([
           tx.payrollPeriod.findFirst({
             where: { id: payrollPeriodId, tenantId },
           }),
@@ -283,16 +474,23 @@ describe('Payroll accounting PostgreSQL integration', () => {
               },
             },
           }),
+          tx.payrollRun.findFirst({
+            where: { id: payrollRunId, tenantId },
+            select: { pilaSource: true },
+          }),
           tx.payrollSnapshot.findFirst({ where: { id: snapshotId, tenantId } }),
           tx.auditLog.findMany({
             where: { tenantId, action: 'PAYROLL_ACCRUED' },
           }),
         ]);
-        return { period, vouchers, snapshot, auditLogs };
+        return { period, vouchers, run, snapshot, auditLogs };
       }),
     );
 
     expect(persisted.period?.status).toBe(PayrollPeriodStatus.CAUSADA);
+    expect(persisted.run?.pilaSource).toEqual(pilaSourcePayload);
+    expect(persisted.snapshot?.pilaPayloadVersion).toBe(1);
+    expect(persisted.snapshot?.pilaPayload).toEqual(pilaSnapshotPayload);
     expect(persisted.vouchers).toHaveLength(1);
     const voucher = persisted.vouchers[0];
     expect(voucher.id).toBe(first.comprobanteId);
@@ -335,5 +533,72 @@ describe('Payroll accounting PostgreSQL integration', () => {
         service.contabilizar(randomUUID(), actorId, payrollPeriodId),
       ),
     ).rejects.toThrow('Período de nómina no encontrado');
+  }, 30000);
+
+  it('persists the PILA source payload through the payroll approval service', async () => {
+    const approved = await contextService.run(context, () =>
+      service.aprobar(tenantId, actorId, snapshotApprovalPeriodId),
+    );
+    expect(approved.status).toBe(PayrollPeriodStatus.APROBADA);
+
+    const persisted = await contextService.run(context, () =>
+      tenantPrisma.execute(async (tx) => {
+        const [period, snapshot] = await Promise.all([
+          tx.payrollPeriod.findFirst({
+            where: { id: snapshotApprovalPeriodId, tenantId },
+          }),
+          tx.payrollSnapshot.findFirst({
+            where: { tenantId, payrollRunId: snapshotApprovalRunId },
+          }),
+        ]);
+        return { period, snapshot };
+      }),
+    );
+
+    expect(persisted.period?.status).toBe(PayrollPeriodStatus.APROBADA);
+    expect(persisted.snapshot?.pilaPayloadVersion).toBe(2);
+    expect(persisted.snapshot?.pilaPayload).toMatchObject({
+      schemaVersion: 2,
+      capturedAt: '2026-03-31T00:00:00.000Z',
+      employee: { cedula: '1000000001', primerNombre: 'Ana' },
+      affiliations: [
+        {
+          affiliationId: 'affiliation-approval',
+          epsCodigo: 'EPS001',
+          vigenteDesde: '2026-01-01',
+          vigenteHasta: null,
+        },
+      ],
+      payroll: {
+        payrollRunId: snapshotApprovalRunId,
+        fechaPrevistaPagoPila: '2026-04-05',
+        salarioBasico: 1_000_000,
+        tipoSalario: 'F',
+        ibc: 1_000_000,
+        novelties: [],
+        ibcPorSubsistema: {
+          pension: {
+            valor: 1_000_000,
+            sourceCount: 1,
+            conceptIds: [expect.any(String)],
+          },
+          salud: {
+            valor: 1_000_000,
+            sourceCount: 1,
+            conceptIds: [expect.any(String)],
+          },
+          riesgos: {
+            valor: 1_000_000,
+            sourceCount: 1,
+            conceptIds: [expect.any(String)],
+          },
+          cajaCompensacion: {
+            valor: 1_000_000,
+            sourceCount: 1,
+            conceptIds: [expect.any(String)],
+          },
+        },
+      },
+    });
   }, 30000);
 });

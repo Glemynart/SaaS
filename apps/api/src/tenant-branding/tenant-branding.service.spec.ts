@@ -6,6 +6,7 @@ import { TenantBrandingService } from './tenant-branding.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { StorageObjectNotFoundError } from '../storage/storage.types';
+import { AuditService } from '../audit/audit.service';
 
 describe('TenantBrandingService', () => {
   let service: TenantBrandingService;
@@ -14,6 +15,8 @@ describe('TenantBrandingService', () => {
   const mockTenantUpdate = jest.fn();
   const mockPutObject = jest.fn();
   const mockGetObject = jest.fn();
+  const mockAuditLog = jest.fn();
+  const mockTransaction = jest.fn();
 
   beforeEach(async () => {
     mockTenantFindUnique.mockReset().mockResolvedValue({ id: 't1' });
@@ -24,6 +27,12 @@ describe('TenantBrandingService', () => {
       );
     mockPutObject.mockReset().mockResolvedValue({ key: 'k', size: 1 });
     mockGetObject.mockReset();
+    mockAuditLog.mockReset().mockResolvedValue({ id: 'audit-1' });
+    mockTransaction
+      .mockReset()
+      .mockImplementation((callback) =>
+        callback({ tenant: { update: mockTenantUpdate } }),
+      );
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -35,6 +44,7 @@ describe('TenantBrandingService', () => {
               findUnique: mockTenantFindUnique,
               update: mockTenantUpdate,
             },
+            $transaction: mockTransaction,
           },
         },
         {
@@ -44,10 +54,70 @@ describe('TenantBrandingService', () => {
             getObject: mockGetObject,
           },
         },
+        {
+          provide: AuditService,
+          useValue: { log: mockAuditLog },
+        },
       ],
     }).compile();
 
     service = moduleRef.get(TenantBrandingService);
+  });
+
+  it('actualiza y audita los datos PILA sin guardar valores en la metadata', async () => {
+    mockTenantFindUnique.mockResolvedValue({
+      id: 't1',
+      aportesExonerados: false,
+    });
+
+    await service.updatePilaEmployerProfile('t1', 'user-1', {
+      pilaTipoDocumentoAportante: 'NI',
+      pilaTipoPersona: 'J',
+      pilaFechaMatriculaMercantil: '2020-02-29',
+    });
+
+    expect(mockTenantUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 't1' },
+        data: expect.objectContaining({
+          pilaTipoDocumentoAportante: 'NI',
+          pilaTipoPersona: 'J',
+          pilaFechaMatriculaMercantil: new Date('2020-02-29T00:00:00.000Z'),
+        }),
+      }),
+    );
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: 't1',
+        userId: 'user-1',
+        action: 'PILA_EMPLOYER_PROFILE_UPDATED',
+        entityType: 'Tenant',
+        metadata: {
+          fields: [
+            'pilaTipoDocumentoAportante',
+            'pilaTipoPersona',
+            'pilaFechaMatriculaMercantil',
+          ],
+        },
+      }),
+      expect.any(Object),
+    );
+  });
+
+  it('rechaza confirmar una exoneración distinta a la configuración de nómina', async () => {
+    mockTenantFindUnique.mockResolvedValue({
+      id: 't1',
+      aportesExonerados: false,
+    });
+
+    await expect(
+      service.updatePilaEmployerProfile('t1', 'user-1', {
+        pilaAportesExoneradosConfirmado: true,
+      }),
+    ).rejects.toThrow('debe coincidir con la configuración vigente de nómina');
+
+    expect(mockTenantUpdate).not.toHaveBeenCalled();
+    expect(mockAuditLog).not.toHaveBeenCalled();
   });
 
   it('uploadLogo persiste vía StorageService con la storageKey y URL esperadas', async () => {

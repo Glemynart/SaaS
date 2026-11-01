@@ -62,6 +62,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   });
   const employeeDetailPath = await employeeDetailLink.getAttribute('href');
   expect(employeeDetailPath).toBeTruthy();
+  const employeeId = employeeDetailPath!.split('/').pop()!;
   await employeeDetailLink.click();
   await expect(page).toHaveURL(new RegExp(`/empleados/.+`));
   await expect(
@@ -73,6 +74,12 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
     has: page.getByRole('heading', { name: 'Nueva afiliación' }),
   });
   await affiliationForm.getByRole('combobox', { name: /^Tipo de cotizante/ }).selectOption('01');
+  expect(
+    await affiliationForm
+      .getByLabel('Subtipo de cotizante')
+      .evaluate((element) => (element as HTMLInputElement).required),
+  ).toBe(true);
+  await affiliationForm.getByLabel('Subtipo de cotizante').fill('00');
   await affiliationForm.getByLabel('Vigente desde').fill('2026-01-01');
   await affiliationForm.getByLabel('Código EPS').fill('EPS001');
   await affiliationForm.getByLabel('Nombre EPS').fill('EPS Demo');
@@ -92,6 +99,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
     has: page.getByRole('heading', { name: 'Nueva afiliación' }),
   });
   await replacementForm.getByRole('combobox', { name: 'Tipo de cotizante' }).selectOption('01');
+  await replacementForm.getByLabel('Subtipo de cotizante').fill('00');
   await replacementForm.getByLabel('Vigente desde').fill('2026-04-01');
   await replacementForm.getByLabel('Código EPS').fill('EPS002');
   await replacementForm.getByLabel('Nombre EPS').fill('EPS Nueva');
@@ -115,6 +123,73 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await page.getByRole('button', { name: 'Guardar fecha' }).click();
   await expect(currentAffiliation).not.toContainText('Sin fecha final');
   await expect(page.getByRole('button', { name: 'Finalizar vigencia' })).toHaveCount(0);
+
+  const pilaWorkPanel = page.locator('section').filter({
+    has: page.getByRole('heading', { name: 'Centro de trabajo y actividad PILA' }),
+  });
+  await expect(pilaWorkPanel).toBeVisible();
+  await pilaWorkPanel.getByRole('button', { name: 'Crear centro ARL' }).click();
+  const centerForm = pilaWorkPanel.locator('form').filter({
+    has: page.getByRole('heading', { name: 'Nuevo centro declarado a la ARL' }),
+  });
+  await centerForm.getByLabel('Código ARL').fill('ARL001');
+  await centerForm.getByLabel('Código del centro').fill('E2E-001');
+  await centerForm.getByLabel('Nombre del centro').fill('Centro ARL E2E');
+  await centerForm.getByLabel('Sede relacionada (opcional)').selectOption({
+    label: 'Sede Principal',
+  });
+  const createCenterResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/pila-centros-trabajo' &&
+      response.request().method() === 'POST',
+  );
+  await centerForm.getByRole('button', { name: 'Guardar centro' }).click();
+  const createCenterResponse = await createCenterResponsePromise;
+  expect(createCenterResponse.status()).toBe(200);
+  const workCenter = (await createCenterResponse.json()) as { id: string };
+
+  await pilaWorkPanel.getByLabel('Centro de trabajo ARL').selectOption(workCenter.id);
+  await pilaWorkPanel.getByLabel('Actividad económica de riesgos').fill('1131202');
+  await pilaWorkPanel.getByRole('textbox', { name: 'Vigente desde' }).fill('2026-01-01');
+  const createAssignmentResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname ===
+        `/api/employees/${employeeId}/asignaciones-centro-pila` &&
+      response.request().method() === 'POST',
+  );
+  await pilaWorkPanel.getByRole('button', { name: 'Guardar asignación' }).click();
+  const createAssignmentResponse = await createAssignmentResponsePromise;
+  expect(createAssignmentResponse.status()).toBe(200);
+  const assignment = (await createAssignmentResponse.json()) as { id: string };
+  const workAssignment = pilaWorkPanel.getByRole('listitem').filter({ hasText: 'Centro ARL E2E' });
+  await expect(workAssignment).toContainText('1131202');
+  await expect(workAssignment).toContainText('Sede Principal');
+
+  await page.reload();
+  const persistedWorkAssignment = page
+    .locator('section')
+    .filter({
+      has: page.getByRole('heading', { name: 'Centro de trabajo y actividad PILA' }),
+    })
+    .getByRole('listitem')
+    .filter({ hasText: 'Centro ARL E2E' });
+  await expect(persistedWorkAssignment).toContainText('1131202');
+  await expect(persistedWorkAssignment).toContainText('Sin fecha final');
+  const closeWorkAssignmentResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname ===
+        `/api/employees/${employeeId}/asignaciones-centro-pila/${assignment.id}` &&
+      response.request().method() === 'PATCH',
+  );
+  const persistedPilaWorkPanel = page.locator('section').filter({
+    has: page.getByRole('heading', { name: 'Centro de trabajo y actividad PILA' }),
+  });
+  await persistedPilaWorkPanel.getByRole('button', { name: 'Finalizar vigencia' }).click();
+  await persistedPilaWorkPanel.getByLabel('Válida hasta').fill('2026-12-31');
+  await persistedPilaWorkPanel.getByRole('button', { name: 'Guardar fecha' }).click();
+  const closeWorkAssignmentResponse = await closeWorkAssignmentResponsePromise;
+  expect(closeWorkAssignmentResponse.status()).toBe(200);
+  await expect(persistedWorkAssignment).not.toContainText('Sin fecha final');
 
   await page.goto('/empleados');
   await search.fill(cedula);

@@ -10,7 +10,6 @@ import { useSedes } from '@/features/sedes/hooks/use-sedes';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 
 interface EmployeeFormProps {
@@ -53,7 +52,7 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
       estado: 'ACTIVO',
       municipioExpedicionDocId: '',
       sedeId: '',
-      salarioIntegral: false,
+      tipoSalarioPila: null,
       jornadaLaboral: undefined,
       fechaRetiro: '',
       motivoRetiro: undefined,
@@ -77,7 +76,7 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
         estado: initialData.estado as EmployeeFormData['estado'],
         municipioExpedicionDocId: initialData.municipioExpedicionDocId || '',
         sedeId: initialData.sedeId || '',
-        salarioIntegral: initialData.salarioIntegral ?? false,
+        tipoSalarioPila: initialData.tipoSalarioPila ?? (initialData.salarioIntegral ? 'X' : null),
         jornadaLaboral:
           (initialData.jornadaLaboral as EmployeeFormData['jornadaLaboral']) ?? undefined,
         fechaRetiro: initialData.fechaRetiro
@@ -100,6 +99,7 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
         tipoContrato: 'TERMINO_FIJO',
         fechaIngreso: new Date().toISOString().split('T')[0],
         estado: 'ACTIVO',
+        tipoSalarioPila: null,
       });
     }
   }, [initialData, reset]);
@@ -197,15 +197,18 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
             <option value="POR_HORAS">Por horas</option>
           </Select>
         </FormField>
-        <div className="flex items-center gap-3 pt-1 sm:col-span-2">
-          <input
-            id="salarioIntegral"
-            type="checkbox"
-            {...register('salarioIntegral')}
-            className="size-4 rounded border-input accent-primary"
-          />
-          <Label htmlFor="salarioIntegral">Salario integral</Label>
-        </div>
+        <FormField
+          label="Tipo de salario para PILA"
+          error={errors.tipoSalarioPila?.message}
+          hint="Registra el tipo confirmado por la empresa. Si queda sin especificar, el empleado no podrá incluirse en una exportación PILA."
+        >
+          <Select {...register('tipoSalarioPila')}>
+            <option value="">Sin especificar</option>
+            <option value="F">Salario fijo (F)</option>
+            <option value="V">Salario variable (V)</option>
+            <option value="X">Salario integral (X)</option>
+          </Select>
+        </FormField>
       </FormSection>
 
       {initialData && (

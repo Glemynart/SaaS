@@ -102,4 +102,114 @@ describe('ServicePremiumService background worker', () => {
     );
     expect(batchUpdates.at(-1)?.data.status).toBe('COMPLETADO');
   });
+
+  it('recupera un lote expirado reutilizando el PDF guardado tras reiniciar la API', async () => {
+    const batchFindFirst = jest.fn();
+    const batchUpdates: Array<{ data: { status?: string } }> = [];
+    const batchUpdateMany = jest.fn((args: { data: { status?: string } }) => {
+      batchUpdates.push(args);
+      return Promise.resolve({ count: 1 });
+    });
+    const lineTransitions: Array<{ where: unknown; data: unknown }> = [];
+    const lineUpdateMany = jest.fn(
+      (args: { where: unknown; data: unknown }) => {
+        lineTransitions.push(args);
+        return Promise.resolve({ count: 1 });
+      },
+    );
+    const lineGroupBy = jest
+      .fn()
+      .mockResolvedValue([{ status: 'DOCUMENTADA', _count: { _all: 1 } }]);
+    const transaction = {
+      servicePremiumBatch: {
+        findFirst: batchFindFirst,
+        updateMany: batchUpdateMany,
+      },
+      servicePremiumLine: {
+        updateMany: lineUpdateMany,
+        groupBy: lineGroupBy,
+      },
+    };
+    const tenantExecute = jest.fn((work: (tx: typeof transaction) => unknown) =>
+      work(transaction),
+    );
+    const pdf = Buffer.from('previously-rendered-pdf');
+    const renderPdf = jest.fn();
+    const getObject = jest.fn().mockResolvedValue(pdf);
+    const publishServicePremiumDocument = jest
+      .fn()
+      .mockResolvedValue({ outcome: 'CREATED', expedienteDocId: 'document-1' });
+    const batch = {
+      id: 'batch-1',
+      anio: 2026,
+      semestre: 1,
+      version: 1,
+      status: 'PROCESANDO',
+      approvedById: 'approver-1',
+      createdById: 'creator-1',
+      lines: [
+        {
+          id: 'line-1',
+          snapshot: {
+            employee: { fullName: 'Ana Demo', identification: '1001' },
+            sourceSnapshotIds: ['snapshot-1'],
+          },
+          salaryBase: 2_000_000,
+          variableSalary: 0,
+          transportAllowance: 200_000,
+          serviceDays360: 180,
+          amount: 1_100_000,
+          sourceFingerprint: 'fingerprint-1',
+          employee: {
+            id: 'employee-1',
+            primerNombre: 'Ana',
+            segundoNombre: null,
+            primerApellido: 'Demo',
+            segundoApellido: null,
+            cedula: '1001',
+          },
+        },
+      ],
+    };
+    batchFindFirst
+      .mockResolvedValueOnce({ id: 'batch-1' })
+      .mockResolvedValueOnce(batch);
+
+    const service = new ServicePremiumService(
+      {
+        tenant: { findMany: jest.fn().mockResolvedValue([{ id: 'tenant-1' }]) },
+      } as never,
+      { execute: tenantExecute } as never,
+      {
+        run: (_context: unknown, work: () => Promise<void>) => work(),
+      } as never,
+      { log: jest.fn() } as never,
+      { renderPdf } as never,
+      {
+        objectExists: jest.fn().mockResolvedValue(true),
+        getObject,
+      } as never,
+      { publishServicePremiumDocument } as never,
+    );
+
+    await service.processApprovedBatches();
+
+    expect(batchFindFirst).toHaveBeenCalledTimes(2);
+    expect(lineTransitions[0]).toEqual({
+      where: {
+        tenantId: 'tenant-1',
+        batchId: 'batch-1',
+        status: 'PROCESANDO',
+      },
+      data: { status: 'APROBADA' },
+    });
+    expect(getObject).toHaveBeenCalledWith(
+      'tenant-1/nomina/prima/2026/S1/v1/line-1.pdf',
+    );
+    expect(renderPdf).not.toHaveBeenCalled();
+    expect(publishServicePremiumDocument).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantId: 'tenant-1', lineId: 'line-1' }),
+    );
+    expect(batchUpdates.at(-1)?.data.status).toBe('COMPLETADO');
+  });
 });

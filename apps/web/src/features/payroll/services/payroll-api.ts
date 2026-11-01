@@ -68,6 +68,64 @@ export interface PayrollNovelty {
   };
 }
 
+export type PilaEventCode =
+  | 'ING'
+  | 'RET'
+  | 'VSP'
+  | 'VST'
+  | 'SLN'
+  | 'IGE'
+  | 'LMA'
+  | 'VAC_LR'
+  | 'IRL'
+  | 'VCT';
+
+export interface PayrollPilaEvent {
+  id: string;
+  tenantId: string;
+  payrollPeriodId: string;
+  employeeId: string;
+  codigo: PilaEventCode;
+  fechaInicio: string;
+  fechaFin: string | null;
+  dias: number | null;
+  createdAt: string;
+  employee: {
+    id: string;
+    primerNombre: string;
+    segundoNombre: string | null;
+    primerApellido: string;
+    segundoApellido: string | null;
+  };
+}
+
+export interface PilaPreparationIssue {
+  record: 'APORTANTE_TIPO_1' | 'CABECERA_TIPO_2' | 'DETALLE_TIPO_2' | 'SNAPSHOT';
+  fieldNumber: number | null;
+  code: string;
+  message: string;
+  affectedEmployees: string[];
+  affectedCount: number;
+}
+
+export interface PilaPreparationReport {
+  formatVersion: null;
+  normativeSourceStatus: 'RECONCILIATION_PENDING';
+  period: {
+    id: string;
+    fechaInicio: string;
+    fechaFin: string;
+    fechaPrevistaPagoPila: string | null;
+  };
+  snapshotsRevisados: number;
+  empleadosConDatosPendientes: number;
+  empleadosSinBrechasDetectadas: number;
+  issues: PilaPreparationIssue[];
+  archivoGenerable: false;
+  estadoArchivo: 'NO_IMPLEMENTADO';
+  mensaje: string;
+}
+
 export interface PayrollDashboard {
   totalPeriodos: number;
   empleadosLiquidados: number;
@@ -357,6 +415,26 @@ export const payrollApi = {
     }),
   getNovelties: (employeeId?: string) =>
     req<PayrollNovelty[]>(`/api/payroll/novelties${employeeId ? `?employeeId=${employeeId}` : ''}`),
+  getPilaEvents: (periodId: string) =>
+    req<PayrollPilaEvent[]>(`/api/payroll/periods/${periodId}/pila-events`),
+  getPilaPreparation: (periodId: string) =>
+    req<PilaPreparationReport>(`/api/payroll/periods/${periodId}/pila-preparation`),
+  createPilaEvent: (
+    periodId: string,
+    payload: {
+      employeeId: string;
+      codigo: PilaEventCode;
+      fechaInicio: string;
+      fechaFin?: string;
+      dias?: number;
+    },
+  ) =>
+    req<PayrollPilaEvent>(`/api/payroll/periods/${periodId}/pila-events`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  deletePilaEvent: (eventId: string) =>
+    req<{ deleted: true }>(`/api/payroll/pila-events/${eventId}`, { method: 'DELETE' }),
   createNovelty: (d: {
     employeeId: string;
     tipo: string;

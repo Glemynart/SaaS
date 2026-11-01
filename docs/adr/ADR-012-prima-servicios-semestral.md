@@ -44,12 +44,22 @@ cada cambio de reglas.
 - El preview presenta períodos y conceptos de origen, días, componentes de la
   base, fórmula y resultado. La aprobación congela snapshots y deltas de
   correcciones utilizados; el PDF se publica en Expediente con hash.
+- Las PR #167 y #168 amplían el Browser E2E: genera documentos para 100
+  empleados, desconecta el navegador tras aprobar y confirma que el lote entra
+  en `PROCESANDO` mientras sigue sin conexión, publica 100 documentos únicos,
+  muestra el avance 100/100 al reconectar y permite descargarlos. Se verificó
+  en PostgreSQL 16 desechable; el caso tardó 39,5 segundos.
+- PR #173 agrega una prueba unitaria de recuperación tras una interrupción
+  simulada de la API después de guardar el PDF y antes de publicarlo. Al vencer
+  el lease, el worker reutiliza el objeto y completa la publicación sin volver
+  a renderizarlo. No simula un reinicio real de proceso ni sustituye el Browser
+  E2E anterior.
 - La revisión técnica y los resultados esperados no reemplazan la validación
   por un responsable de nómina o asesor laboral. La interfaz y el PDF advierten
   que se verifique el resultado antes de usarlo para pagar. No se registra pago
   ni asiento contable.
-- El cambio de schema y sus migraciones existen en la rama, pero no se han
-  aplicado a ninguna base de datos.
+- Las migraciones se aplicaron solo a la base PostgreSQL desechable de la
+  prueba local. No se aplicaron a demo, staging ni producción.
 
 ## Decisión propuesta
 

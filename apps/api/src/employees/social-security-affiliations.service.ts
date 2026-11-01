@@ -12,7 +12,7 @@ import {
 import { CreateSocialSecurityAffiliationDto } from './dto/create-social-security-affiliation.dto';
 import { CloseSocialSecurityAffiliationDto } from './dto/close-social-security-affiliation.dto';
 
-const FORMAT_VERSION = 'AT2_V30';
+const CAPTURE_VERSION = 'PILA_AFFILIATION_CAPTURE_V1';
 
 @Injectable()
 export class SocialSecurityAffiliationsService {
@@ -132,7 +132,7 @@ export class SocialSecurityAffiliationsService {
             vigenteDesde,
             vigenteHasta,
             subtipoCotizanteCodigo: dto.subtipoCotizanteCodigo || null,
-            formatoNormativoVersion: FORMAT_VERSION,
+            versionCaptura: CAPTURE_VERSION,
             registradoPorId: userId,
             tenantId,
             empleadoId: employeeId,
@@ -150,7 +150,7 @@ export class SocialSecurityAffiliationsService {
               empleadoId: employeeId,
               vigenteDesde: vigenteDesde.toISOString().slice(0, 10),
               vigenteHasta: vigenteHasta?.toISOString().slice(0, 10) ?? null,
-              formatoNormativoVersion: FORMAT_VERSION,
+              versionCaptura: CAPTURE_VERSION,
               campos: Object.keys(dto),
             },
           },

@@ -21,7 +21,7 @@ const openAffiliation = {
 
 const dto: CreateSocialSecurityAffiliationDto = {
   tipoCotizanteCodigo: '01',
-  subtipoCotizanteCodigo: undefined,
+  subtipoCotizanteCodigo: '00',
   epsCodigo: 'EPS001',
   epsNombre: 'EPS de prueba',
   fondoPensionCodigo: 'AFP001',
@@ -127,8 +127,9 @@ describe('SocialSecurityAffiliationsService', () => {
       tenantId,
       empleadoId: employeeId,
       registradoPorId: userId,
-      formatoNormativoVersion: 'AT2_V30',
+      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V1',
       tipoCotizanteCodigo: '01',
+      subtipoCotizanteCodigo: '00',
       epsCodigo: 'EPS001',
       epsNombre: 'EPS de prueba',
       vigenteDesde: new Date('2026-04-01T00:00:00.000Z'),

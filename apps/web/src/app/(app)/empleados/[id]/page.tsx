@@ -21,6 +21,7 @@ import { formatNombreCompleto } from '@saas/types';
 import { cn } from '@/lib/utils';
 import { LaborRelationshipPanel } from '@/features/labor-relationships/components/labor-relationship-panel';
 import { EmployeeSocialSecurityPanel } from '@/features/employees/components/employee-social-security-panel';
+import { EmployeePilaWorkPanel } from '@/features/employees/components/employee-pila-work-panel';
 
 const TIPO_CONTRATO_LABEL: Record<string, string> = {
   TERMINO_FIJO: 'Término fijo',
@@ -250,7 +251,19 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                   label="Salario"
                   value={<span className="font-mono">{formatSalario(employee.salario)}</span>}
                 />
-                <Field label="Salario integral" value={employee.salarioIntegral ? 'Sí' : 'No'} />
+                <Field
+                  label="Tipo de salario para PILA"
+                  value={
+                    employee.tipoSalarioPila === 'X' ||
+                    (!employee.tipoSalarioPila && employee.salarioIntegral)
+                      ? 'Salario integral'
+                      : employee.tipoSalarioPila === 'F'
+                        ? 'Salario fijo'
+                        : employee.tipoSalarioPila === 'V'
+                          ? 'Salario variable'
+                          : 'Sin especificar'
+                  }
+                />
               </div>
             </dl>
           </section>
@@ -282,6 +295,8 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
           cajaCompensacion: employee.cajaCompensacion,
         }}
       />
+
+      <EmployeePilaWorkPanel employeeId={id} />
 
       {employee && (
         <GenerateDocumentForm

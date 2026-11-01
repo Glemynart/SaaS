@@ -3,9 +3,10 @@ import { PublicLogoController } from './public-logo.controller';
 import { TenantBrandingController } from './tenant-branding.controller';
 import { TenantBrandingService } from './tenant-branding.service';
 import { TenantsModule } from '../tenants/tenants.module';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
-  imports: [TenantsModule],
+  imports: [TenantsModule, AuditModule],
   controllers: [TenantBrandingController, PublicLogoController],
   providers: [TenantBrandingService],
 })

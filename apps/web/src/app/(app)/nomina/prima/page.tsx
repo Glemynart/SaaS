@@ -123,6 +123,16 @@ export default function ServicePremiumPage() {
   const failedLines = selectedBatch?.lines?.filter((line) => line.status === 'ERROR').length ?? 0;
   const blockedLines =
     selectedBatch?.lines?.filter((line) => line.status === 'BLOQUEADA').length ?? 0;
+  const premiumLines = selectedBatch?.lines ?? [];
+  const expectedPdfCount = premiumLines.filter(
+    (line) => line.status !== 'BLOQUEADA' && line.status !== 'NO_APLICA',
+  ).length;
+  const publishedPdfCount = premiumLines.filter((line) => line.expedienteDoc !== null).length;
+  const pendingPdfCount = premiumLines.filter(
+    (line) => line.status === 'APROBADA' || line.status === 'PROCESANDO',
+  ).length;
+  const progressPercent =
+    expectedPdfCount > 0 ? Math.round((publishedPdfCount / expectedPdfCount) * 100) : 0;
 
   function createPreview() {
     create.mutate({ year, semester }, { onSuccess: (batch) => setSelectedId(batch.id) });
@@ -337,12 +347,55 @@ export default function ServicePremiumPage() {
                     errorMessage(correct.error)}
                 </p>
               )}
-              {(selectedBatch.status === 'APROBADO' || selectedBatch.status === 'PROCESANDO') && (
-                <p className="mb-3 flex items-center gap-2 text-sm text-primary">
-                  <Clock3 className="size-4" />
-                  El lote se procesa en segundo plano. Puedes cerrar la página; el estado se
-                  actualizará al volver.
-                </p>
+              {selectedBatch.status !== 'BORRADOR' && expectedPdfCount > 0 && (
+                <section
+                  aria-label="Avance de documentos del lote"
+                  className="mb-3 rounded-lg border border-border bg-muted/20 p-3"
+                >
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        PDF publicados en Expediente
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {publishedPdfCount} de {expectedPdfCount}
+                      </p>
+                    </div>
+                    {failedLines > 0 && (
+                      <Badge variant="danger">
+                        {failedLines} PDF{failedLines === 1 ? '' : 's'} con error
+                      </Badge>
+                    )}
+                  </div>
+                  <div
+                    role="progressbar"
+                    aria-label="PDF publicados en Expediente"
+                    aria-valuemin={0}
+                    aria-valuemax={expectedPdfCount}
+                    aria-valuenow={publishedPdfCount}
+                    aria-valuetext={`${publishedPdfCount} de ${expectedPdfCount} PDF publicados`}
+                    className="h-2 overflow-hidden rounded-full bg-muted"
+                  >
+                    <div
+                      className="h-full rounded-full bg-primary transition-[width] duration-300"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                    {pendingPdfCount > 0 ? (
+                      <>
+                        <Clock3 className="size-3.5 shrink-0 text-primary" />
+                        {pendingPdfCount} PDF{pendingPdfCount === 1 ? '' : 's'} en proceso. Puedes
+                        cerrar la página; el servidor continuará y el avance se actualizará al
+                        volver.
+                      </>
+                    ) : failedLines > 0 ? (
+                      'Los documentos con error se pueden reintentar desde este lote.'
+                    ) : (
+                      'Todos los documentos aprobados están disponibles en Expediente.'
+                    )}
+                  </p>
+                </section>
               )}
               {blockedLines > 0 && selectedBatch.status === 'BORRADOR' && (
                 <p className="mb-3 text-sm text-warning">

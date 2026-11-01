@@ -14,6 +14,7 @@ import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TenantBrandingService } from './tenant-branding.service';
 import { UpdateTenantBrandingDto } from './dto/update-tenant-branding.dto';
+import { UpdatePilaEmployerProfileDto } from './dto/update-pila-employer-profile.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -49,6 +50,25 @@ export class TenantBrandingController {
   @Get()
   getBranding(@CurrentUser() user: CurrentUserPayload) {
     return this.service.getBranding(user.tenantId);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Get('pila')
+  getPilaEmployerProfile(@CurrentUser() user: CurrentUserPayload) {
+    return this.service.getPilaEmployerProfile(user.tenantId);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Patch('pila')
+  updatePilaEmployerProfile(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: UpdatePilaEmployerProfileDto,
+  ) {
+    return this.service.updatePilaEmployerProfile(
+      user.tenantId,
+      user.userId,
+      dto,
+    );
   }
 
   @Get('firma')

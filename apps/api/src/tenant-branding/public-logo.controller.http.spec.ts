@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { DenyByDefaultGuard } from '../auth/authorization/deny-by-default.guard';
+import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { StorageObjectNotFoundError } from '../storage/storage.types';
@@ -17,6 +18,7 @@ describe('Public logo delivery', () => {
       controllers: [PublicLogoController],
       providers: [
         TenantBrandingService,
+        { provide: AuditService, useValue: { log: jest.fn() } },
         { provide: PrismaService, useValue: {} },
         { provide: StorageService, useValue: { getObject } },
       ],

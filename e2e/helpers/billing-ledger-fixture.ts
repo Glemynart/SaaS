@@ -25,8 +25,18 @@ export async function seedBillingLedgerFixture(
     });
 
     const now = new Date();
-    const year = now.getUTCFullYear();
-    const month = now.getUTCMonth() + 1;
+    const calendarParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Bogota',
+      calendar: 'gregory',
+      year: 'numeric',
+      month: '2-digit',
+    }).formatToParts(now);
+    const year = Number(
+      calendarParts.find((part) => part.type === 'year')?.value,
+    );
+    const month = Number(
+      calendarParts.find((part) => part.type === 'month')?.value,
+    );
     const period = await tx.periodoContable.findUnique({
       where: { tenantId_anio_mes: { tenantId, anio: year, mes: month } },
     });
@@ -37,7 +47,7 @@ export async function seedBillingLedgerFixture(
           anio: year,
           mes: month,
           fechaInicio: new Date(Date.UTC(year, month - 1, 1)),
-          fechaFin: new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)),
+          fechaFin: new Date(Date.UTC(year, month, 0)),
           estado: 'ABIERTO',
         },
       });

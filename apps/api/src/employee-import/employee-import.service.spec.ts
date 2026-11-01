@@ -1,4 +1,3 @@
-import { UnprocessableEntityException } from '@nestjs/common';
 import * as XLSX from 'xlsx';
 import { AuditService } from '../audit/audit.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
@@ -22,15 +21,15 @@ const HEADERS = [
   'estado',
   'sede',
   'dependencia',
-  'salarioIntegral',
+  'tipoSalarioPila',
   'jornadaLaboral',
   'fechaRetiro',
   'motivoRetiro',
 ];
 
-function workbookBuffer(rows: unknown[][]) {
+function workbookBuffer(rows: unknown[][], headers = HEADERS) {
   const workbook = XLSX.utils.book_new();
-  const worksheet = XLSX.utils.aoa_to_sheet([HEADERS, ...rows]);
+  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Empleados');
   return Buffer.from(
     XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as ArrayBuffer,
@@ -95,7 +94,7 @@ describe('EmployeeImportService', () => {
             'ACTIVO',
             'Sede Principal',
             '',
-            'FALSE',
+            'F',
             'COMPLETA',
             '',
             '',
@@ -120,6 +119,8 @@ describe('EmployeeImportService', () => {
         tenantId: TENANT_ID,
         cedula: '1001',
         sedeId: 'sede-a',
+        tipoSalarioPila: 'F',
+        salarioIntegral: false,
       }),
     );
     expect(mockAuditLog).toHaveBeenCalledWith(
@@ -149,7 +150,7 @@ describe('EmployeeImportService', () => {
         'ACTIVO',
         '',
         '',
-        'FALSE',
+        'F',
         '',
         '',
         '',
@@ -168,5 +169,94 @@ describe('EmployeeImportService', () => {
 
     expect(mockEmpleadoCreate).not.toHaveBeenCalled();
     expect(mockAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('reads old templates and maps only an explicit integral flag to X', async () => {
+    const legacyHeaders = [...HEADERS];
+    legacyHeaders[15] = 'salarioIntegral';
+
+    await service.importFromBuffer(
+      TENANT_ID,
+      USER_ID,
+      workbookBuffer(
+        [
+          [
+            '1003',
+            'CC',
+            'Luis',
+            '',
+            'Pérez',
+            '',
+            '',
+            '',
+            'Docente',
+            2500000,
+            'TERMINO_FIJO',
+            '2025-01-15',
+            'ACTIVO',
+            'Sede Principal',
+            '',
+            'TRUE',
+            '',
+            '',
+            '',
+          ],
+        ],
+        legacyHeaders,
+      ),
+    );
+
+    const [createQuery] = mockEmpleadoCreate.mock.calls as [
+      [{ data: { tipoSalarioPila: string; salarioIntegral: boolean } }],
+    ];
+    expect(createQuery?.[0].data).toEqual(
+      expect.objectContaining({ tipoSalarioPila: 'X', salarioIntegral: true }),
+    );
+  });
+
+  it('does not infer fixed salary from FALSE in an old template', async () => {
+    const legacyHeaders = [...HEADERS];
+    legacyHeaders[15] = 'salarioIntegral';
+
+    await service.importFromBuffer(
+      TENANT_ID,
+      USER_ID,
+      workbookBuffer(
+        [
+          [
+            '1004',
+            'CC',
+            'Sara',
+            '',
+            'Rojas',
+            '',
+            '',
+            '',
+            'Docente',
+            2500000,
+            'TERMINO_FIJO',
+            '2025-01-15',
+            'ACTIVO',
+            'Sede Principal',
+            '',
+            'FALSE',
+            '',
+            '',
+            '',
+          ],
+        ],
+        legacyHeaders,
+      ),
+    );
+
+    const calls = mockEmpleadoCreate.mock.calls as unknown as Array<
+      [{ data: { tipoSalarioPila?: string; salarioIntegral: boolean } }]
+    >;
+    expect(calls[0]?.[0].data).toEqual(
+      expect.objectContaining({
+        tipoSalarioPila: undefined,
+        salarioIntegral: false,
+      }),
+    );
   });
 });

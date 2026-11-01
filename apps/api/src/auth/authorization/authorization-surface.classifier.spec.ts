@@ -23,7 +23,7 @@ describe('AuthorizationSurfaceClassifier', () => {
   it('classifies the complete current HTTP surface without ambiguity', () => {
     const operations = classifier.classifyModuleGraph(AppModule);
 
-    expect(operations).toHaveLength(187);
+    expect(operations).toHaveLength(199);
     expect(new Set(operations.map(({ operationId }) => operationId)).size).toBe(
       operations.length,
     );
@@ -49,12 +49,12 @@ describe('AuthorizationSurfaceClassifier', () => {
 
     expect(countBy(operations, 'policy')).toEqual({
       [AuthorizationPolicyKind.UNAUTHENTICATED]: 12,
-      [AuthorizationPolicyKind.AUTHENTICATED]: 61,
-      [AuthorizationPolicyKind.RBAC]: 114,
+      [AuthorizationPolicyKind.AUTHENTICATED]: 64,
+      [AuthorizationPolicyKind.RBAC]: 123,
     });
     expect(countBy(operations, 'source')).toEqual({
-      [AuthorizationClassificationSource.EXPLICIT]: 73,
-      [AuthorizationClassificationSource.EXISTING_RBAC]: 114,
+      [AuthorizationClassificationSource.EXPLICIT]: 76,
+      [AuthorizationClassificationSource.EXISTING_RBAC]: 123,
     });
     expect(
       operations.filter(
@@ -62,6 +62,49 @@ describe('AuthorizationSurfaceClassifier', () => {
           source === AuthorizationClassificationSource.LEGACY_INFERRED,
       ),
     ).toEqual([]);
+
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'PayrollController.getPilaPreparation',
+      ),
+    ).toMatchObject({
+      requestMethod: 'GET',
+      operationPath: 'payroll/periods/:id/pila-preparation',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN, UserRole.OPERADOR],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'PilaWorkCentersController.listCenters',
+      ),
+    ).toMatchObject({
+      requestMethod: 'GET',
+      operationPath: 'pila-centros-trabajo',
+      policy: AuthorizationPolicyKind.AUTHENTICATED,
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'PilaWorkCentersController.createCenter',
+      ),
+    ).toMatchObject({
+      requestMethod: 'POST',
+      operationPath: 'pila-centros-trabajo',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN, UserRole.OPERADOR],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
 
     expect(
       operations.find(
@@ -116,6 +159,74 @@ describe('AuthorizationSurfaceClassifier', () => {
       operationPath: 'payroll/periods/:id/fecha-prevista-pago-pila',
       policy: AuthorizationPolicyKind.RBAC,
       roles: [UserRole.ADMIN, UserRole.OPERADOR],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+    expect(
+      operations.find(
+        ({ operationId }) => operationId === 'PayrollController.findPilaEvents',
+      ),
+    ).toMatchObject({
+      requestMethod: 'GET',
+      operationPath: 'payroll/periods/:id/pila-events',
+      policy: AuthorizationPolicyKind.AUTHENTICATED,
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'PayrollController.createPilaEvent',
+      ),
+    ).toMatchObject({
+      requestMethod: 'POST',
+      operationPath: 'payroll/periods/:id/pila-events',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN, UserRole.OPERADOR],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'PayrollController.deletePilaEvent',
+      ),
+    ).toMatchObject({
+      requestMethod: 'DELETE',
+      operationPath: 'payroll/pila-events/:eventId',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN, UserRole.OPERADOR],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'TenantBrandingController.getPilaEmployerProfile',
+      ),
+    ).toMatchObject({
+      requestMethod: 'GET',
+      operationPath: 'pila',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'TenantBrandingController.updatePilaEmployerProfile',
+      ),
+    ).toMatchObject({
+      requestMethod: 'PATCH',
+      operationPath: 'pila',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN],
       requiresAuthentication: true,
       requiresActiveTenant: true,
       status: AuthorizationClassificationStatus.CLASSIFIED,

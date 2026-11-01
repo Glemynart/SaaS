@@ -98,6 +98,8 @@ describe('empleados PostgreSQL RLS', () => {
     const expectedTenantTables = [
       { tableName: 'afiliaciones_seguridad_social' },
       { tableName: 'empleados' },
+      { tableName: 'pila_asignaciones_centro_trabajo' },
+      { tableName: 'pila_centros_trabajo' },
       { tableName: 'service_premium_batches' },
       { tableName: 'service_premium_lines' },
     ];
@@ -332,7 +334,7 @@ describe('empleados PostgreSQL RLS', () => {
       cajaCompensacionNombre: 'Caja de prueba',
       vigenteDesde: new Date('2026-01-01T00:00:00.000Z'),
       vigenteHasta: null,
-      formatoNormativoVersion: 'AT2_V30',
+      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V1',
       registradoPorId: 'rls-empleados-test-user',
     };
   }

@@ -205,18 +205,24 @@ La corrección de una nómina depende de los parámetros legales vigentes en la 
 
 **Decisión:** todo parámetro legal y de política de empresa se almacena con **vigencia temporal** (fecha desde / fecha hasta). La Liquidación **congela una copia inmutable** de los valores al aprobarse (§8).
 
-| Parámetro                          | Ejemplo                                  | Naturaleza          |
-| ---------------------------------- | ---------------------------------------- | ------------------- |
-| SMMLV                              | $1.423.500 → $1.520.000                  | Legal, anual        |
-| Auxilio de transporte              | $200.000 → $220.000                      | Legal, anual        |
-| UVT                                | $49.799 → $53.000                        | Legal, anual        |
-| Tasas de aportes                   | Pensión 12%, salud 8.5%, ARL 0.522%      | Legal               |
-| Factores de provisión              | Prima, cesantías, intereses, vacaciones  | Legal               |
-| Escalas salariales                 | Licenciado = $2.847.600                  | Política de empresa |
-| Exoneración de aportes             | Bandera por empresa                      | Legal / política    |
-| Topes en SMMLV                     | IBC techo 25, auxilio ≤ 2, integral ≥ 13 | Legal               |
-| Días base y calendario de períodos | Mes comercial 30 días                    | Política de empresa |
-| Política de redondeo               | Redondeo a peso                          | Política de empresa |
+| Parámetro                           | Ejemplo                                  | Naturaleza          |
+| ----------------------------------- | ---------------------------------------- | ------------------- |
+| SMMLV (2025 → 2026)                 | $1.423.500 → $1.750.905                  | Legal, anual        |
+| Auxilio de transporte (2025 → 2026) | $200.000 → $249.095                      | Legal, anual        |
+| UVT (2025 → 2026)                   | $49.799 → $52.374                        | Legal, anual        |
+| Tasas de aportes                    | Pensión 12%, salud 8.5%, ARL 0.522%      | Legal               |
+| Factores de provisión               | Prima, cesantías, intereses, vacaciones  | Legal               |
+| Escalas salariales                  | Licenciado = $2.847.600                  | Política de empresa |
+| Exoneración de aportes              | Bandera por empresa                      | Legal / política    |
+| Topes en SMMLV                      | IBC techo 25, auxilio ≤ 2, integral ≥ 13 | Legal               |
+| Días base y calendario de períodos  | Mes comercial 30 días                    | Política de empresa |
+| Política de redondeo                | Redondeo a peso                          | Política de empresa |
+
+Valores 2026 verificados al 2026-10-30: SMMLV según Decreto 1469/2025 (la
+suspensión provisional fue revocada por el Consejo de Estado el 2026-07-17),
+auxilio según Decreto 1470/2025 y UVT según Resolución DIAN 000238/2025.
+Consultar fuentes vigentes antes de cada actualización anual; el litigio de
+fondo sobre el Decreto 1469 seguía pendiente al corte.
 
 **Nota de evolución (factores de provisión):** en el código N2 los factores de provisión (prima, cesantías, intereses, vacaciones) están hardcoded como constantes en el calculator; el propio código lo señala como riesgo de versionado. La arquitectura objetivo los **traslada a `ParametroLegalNomina`**, cerrando el principio 5 / D3. Es trabajo de P0.
 

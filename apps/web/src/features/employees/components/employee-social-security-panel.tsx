@@ -121,7 +121,7 @@ export function EmployeeSocialSecurityPanel({
         employeeId,
         data: {
           tipoCotizanteCodigo: form.tipoCotizanteCodigo,
-          subtipoCotizanteCodigo: form.subtipoCotizanteCodigo || null,
+          subtipoCotizanteCodigo: form.subtipoCotizanteCodigo,
           epsCodigo: form.epsCodigo,
           epsNombre: form.epsNombre,
           fondoPensionCodigo: form.fondoPensionCodigo,
@@ -246,8 +246,8 @@ export function EmployeeSocialSecurityPanel({
                 />
               </dl>
               <p className="mt-3 text-xs text-muted-foreground">
-                Registrada bajo {affiliation.formatoNormativoVersion}; el código es declarado por el
-                empleador y aún requiere validación normativa antes de exportar.
+                El código es declarado por el empleador y aún requiere validación normativa antes de
+                exportar.
               </p>
               {affiliation.vigenteHasta === null && (
                 <div className="mt-3">
@@ -324,14 +324,17 @@ export function EmployeeSocialSecurityPanel({
             </FormField>
             <FormField
               label="Subtipo de cotizante"
-              hint="Déjalo vacío cuando el soporte no indique un subtipo."
+              required
+              hint="AT2 exige un subtipo. Usa 00 si no aplica un subtipo especial; otros subtipos quedan fuera de la preparación PILA actual."
             >
               <Input
+                required
                 value={form.subtipoCotizanteCodigo}
                 onChange={(event) => setValue('subtipoCotizanteCodigo', event.target.value)}
                 inputMode="numeric"
+                pattern="[0-9]{2}"
                 maxLength={2}
-                placeholder="Opcional"
+                placeholder="00"
               />
             </FormField>
             <FormField label="Vigente desde" required>

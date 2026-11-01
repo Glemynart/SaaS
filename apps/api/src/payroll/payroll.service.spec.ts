@@ -12,7 +12,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import { PayrollCorrectionStatus } from '@prisma/client';
+import { PayrollCorrectionStatus, PilaEventCode } from '@prisma/client';
 import {
   PayrollCorrectionCalculationInput,
   PayrollCorrectionIntentKind,
@@ -40,9 +40,17 @@ const mockPayrollConceptDeleteMany = jest.fn();
 const mockParametroLegalFindFirst = jest.fn();
 const mockTenantFindUnique = jest.fn();
 const mockEmpleadoFindMany = jest.fn();
+const mockEmpleadoFindFirst = jest.fn();
+const mockAfiliacionFindMany = jest.fn();
+const mockPilaWorkAssignmentFindMany = jest.fn();
 const mockPayrollNoveltyFindMany = jest.fn();
+const mockPayrollPilaEventFindMany = jest.fn();
+const mockPayrollPilaEventFindFirst = jest.fn();
+const mockPayrollPilaEventCreate = jest.fn();
+const mockPayrollPilaEventDelete = jest.fn();
 const mockContratoFindMany = jest.fn();
 const mockCentroCostoFindMany = jest.fn();
+const mockSedeFindMany = jest.fn();
 const mockPayrollSnapshotCreate = jest.fn();
 const mockPayrollSnapshotFindMany = jest.fn();
 const mockPayrollCorrectionCreate = jest.fn();
@@ -75,11 +83,25 @@ const mockPrisma = {
   },
   payrollConcept: { deleteMany: mockPayrollConceptDeleteMany },
   parametroLegalNomina: { findFirst: mockParametroLegalFindFirst },
-  tenant: { findUnique: mockTenantFindUnique },
-  empleado: { findMany: mockEmpleadoFindMany },
+  tenant: {
+    findUnique: mockTenantFindUnique,
+  },
+  empleado: {
+    findMany: mockEmpleadoFindMany,
+    findFirst: mockEmpleadoFindFirst,
+  },
+  afiliacionSeguridadSocial: { findMany: mockAfiliacionFindMany },
+  pilaAsignacionCentroTrabajo: { findMany: mockPilaWorkAssignmentFindMany },
   payrollNovelty: { findMany: mockPayrollNoveltyFindMany },
+  payrollPilaEvent: {
+    findMany: mockPayrollPilaEventFindMany,
+    findFirst: mockPayrollPilaEventFindFirst,
+    create: mockPayrollPilaEventCreate,
+    delete: mockPayrollPilaEventDelete,
+  },
   contrato: { findMany: mockContratoFindMany },
   centroCosto: { findMany: mockCentroCostoFindMany },
+  sede: { findMany: mockSedeFindMany },
   payrollSnapshot: {
     create: mockPayrollSnapshotCreate,
     findMany: mockPayrollSnapshotFindMany,
@@ -105,6 +127,7 @@ const mockPrisma = {
   periodoContable: { findFirst: mockPeriodoContableFindFirst },
   tipoComprobante: { findFirst: mockTipoComprobanteFindFirst },
   tercero: { findMany: mockTerceroFindMany },
+  $queryRaw: jest.fn(),
   $transaction: jest.fn(),
 };
 
@@ -379,12 +402,33 @@ function setupPayrollGeneration(
 ) {
   mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('BORRADOR'));
   mockParametroLegalFindFirst.mockResolvedValue(makeLegalParam());
-  mockTenantFindUnique.mockResolvedValue({ aportesExonerados: false });
+  mockTenantFindUnique.mockResolvedValue({
+    id: TENANT,
+    razonSocial: 'Empresa de prueba S.A.S.',
+    nit: '900123456',
+    digitoVerif: '7',
+    direccion: null,
+    telefono: null,
+    email: null,
+    representanteLegal: null,
+    aportesExonerados: false,
+    municipio: null,
+  });
   mockEmpleadoFindMany.mockResolvedValue([
     {
       id: 'emp-1',
       salario: 2_000_000,
       salarioIntegral: false,
+      tipoSalarioPila: null,
+      tipoDocumento: 'CC',
+      cedula: '1000000001',
+      primerNombre: 'Ana',
+      segundoNombre: null,
+      primerApellido: 'Pérez',
+      segundoApellido: null,
+      fechaNacimiento: new Date('1990-01-01T00:00:00.000Z'),
+      fechaIngreso: new Date('2025-01-01T00:00:00.000Z'),
+      fechaRetiro: null,
     },
   ]);
   mockPayrollNoveltyFindMany.mockResolvedValue([]);
@@ -410,6 +454,9 @@ function setupPayrollGeneration(
       },
     ],
   );
+  mockAfiliacionFindMany.mockResolvedValue([]);
+  mockPilaWorkAssignmentFindMany.mockResolvedValue([]);
+  mockSedeFindMany.mockResolvedValue([]);
   mockPayrollRunFindFirst.mockResolvedValue(null);
   mockPayrollRunCreate.mockImplementation(async ({ data }) => ({
     id: 'run-1',
@@ -433,10 +480,25 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
     );
     mockPayrollRunFindMany.mockResolvedValue([]);
     mockPayrollNoveltyFindMany.mockResolvedValue([]);
+    mockPilaWorkAssignmentFindMany.mockResolvedValue([]);
     mockContratoFindMany.mockResolvedValue([]);
     mockEmpleadoFindMany.mockResolvedValue([]);
+    mockEmpleadoFindFirst.mockResolvedValue(null);
     mockParametroLegalFindFirst.mockResolvedValue(makeLegalParam());
-    mockTenantFindUnique.mockResolvedValue({ aportesExonerados: false });
+    mockTenantFindUnique.mockResolvedValue({
+      id: TENANT,
+      razonSocial: 'Empresa de prueba S.A.S.',
+      nit: '900123456',
+      digitoVerif: '7',
+      direccion: null,
+      telefono: null,
+      email: null,
+      representanteLegal: null,
+      aportesExonerados: false,
+      municipio: null,
+    });
+    mockAfiliacionFindMany.mockResolvedValue([]);
+    mockSedeFindMany.mockResolvedValue([]);
     mockPayrollSnapshotCreate.mockResolvedValue({});
     mockPayrollSnapshotFindMany.mockResolvedValue([makeCorrectionSnapshot()]);
     mockPayrollCorrectionCreate.mockResolvedValue({});
@@ -469,6 +531,198 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
     }).compile();
 
     service = module.get(PayrollService);
+  });
+
+  describe('eventos PILA', () => {
+    it('crea un evento tenant-scoped solo en un período en borrador', async () => {
+      const fechaInicio = new Date('2026-01-10T00:00:00.000Z');
+      const employee = {
+        id: 'emp-1',
+        primerNombre: 'Ana',
+        segundoNombre: null,
+        primerApellido: 'Pérez',
+        segundoApellido: null,
+      };
+      mockEmpleadoFindFirst.mockResolvedValue({ id: employee.id });
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('BORRADOR'));
+      mockPayrollPilaEventFindFirst.mockResolvedValue(null);
+      mockPayrollPilaEventCreate.mockResolvedValue({
+        id: 'event-1',
+        tenantId: TENANT,
+        payrollPeriodId: PERIOD_ID,
+        employeeId: employee.id,
+        codigo: PilaEventCode.ING,
+        fechaInicio,
+        fechaFin: null,
+        dias: null,
+        employee,
+      });
+
+      const result = await service.createPilaEvent(TENANT, USER, PERIOD_ID, {
+        employeeId: employee.id,
+        codigo: PilaEventCode.ING,
+        fechaInicio: '2026-01-10',
+      });
+
+      expect(result).toMatchObject({
+        id: 'event-1',
+        codigo: PilaEventCode.ING,
+      });
+      expect(mockEmpleadoFindFirst).toHaveBeenCalledWith({
+        where: {
+          id: employee.id,
+          tenantId: TENANT,
+          deletedAt: null,
+          estado: 'ACTIVO',
+        },
+        select: { id: true },
+      });
+      expect(mockPayrollPilaEventCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: {
+            tenantId: TENANT,
+            payrollPeriodId: PERIOD_ID,
+            employeeId: employee.id,
+            codigo: PilaEventCode.ING,
+            fechaInicio,
+            fechaFin: null,
+            dias: null,
+          },
+        }),
+      );
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PAYROLL_PILA_EVENT_CREATED' }),
+        mockPrisma,
+      );
+    });
+
+    it('falla de forma segura si no puede auditar el alta', async () => {
+      mockEmpleadoFindFirst.mockResolvedValue({ id: 'emp-1' });
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('BORRADOR'));
+      mockPayrollPilaEventFindFirst.mockResolvedValue(null);
+      mockPayrollPilaEventCreate.mockResolvedValue({
+        id: 'event-1',
+        tenantId: TENANT,
+        payrollPeriodId: PERIOD_ID,
+        employeeId: 'emp-1',
+        codigo: PilaEventCode.ING,
+        fechaInicio: new Date('2026-01-10T00:00:00.000Z'),
+        fechaFin: null,
+        dias: null,
+      });
+      mockAudit.log.mockRejectedValueOnce(new Error('audit down'));
+
+      await expect(
+        service.createPilaEvent(TENANT, USER, PERIOD_ID, {
+          employeeId: 'emp-1',
+          codigo: PilaEventCode.ING,
+          fechaInicio: '2026-01-10',
+        }),
+      ).rejects.toThrow('audit down');
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PAYROLL_PILA_EVENT_CREATED' }),
+        mockPrisma,
+      );
+    });
+
+    it('rechaza cambios cuando el período ya salió de borrador', async () => {
+      mockEmpleadoFindFirst.mockResolvedValue({ id: 'emp-1' });
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CALCULADA'));
+
+      await expect(
+        service.createPilaEvent(TENANT, USER, PERIOD_ID, {
+          employeeId: 'emp-1',
+          codigo: PilaEventCode.ING,
+          fechaInicio: '2026-01-10',
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockPayrollPilaEventCreate).not.toHaveBeenCalled();
+    });
+
+    it('rechaza duplicar el mismo evento para el mismo empleado y período', async () => {
+      mockEmpleadoFindFirst.mockResolvedValue({ id: 'emp-1' });
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('BORRADOR'));
+      mockPayrollPilaEventFindFirst.mockResolvedValue({ id: 'event-existing' });
+
+      await expect(
+        service.createPilaEvent(TENANT, USER, PERIOD_ID, {
+          employeeId: 'emp-1',
+          codigo: PilaEventCode.ING,
+          fechaInicio: '2026-01-10',
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockPayrollPilaEventCreate).not.toHaveBeenCalled();
+    });
+
+    it('elimina un evento del tenant solo mientras su período está en borrador', async () => {
+      mockPayrollPilaEventFindFirst
+        .mockResolvedValueOnce({ id: 'event-1', payrollPeriodId: PERIOD_ID })
+        .mockResolvedValueOnce({
+          id: 'event-1',
+          tenantId: TENANT,
+          payrollPeriodId: PERIOD_ID,
+          employeeId: 'emp-1',
+          codigo: PilaEventCode.ING,
+          fechaInicio: new Date('2026-01-10T00:00:00.000Z'),
+          fechaFin: null,
+          dias: null,
+          payrollPeriod: { status: 'BORRADOR' },
+        });
+
+      await expect(
+        service.deletePilaEvent(TENANT, USER, 'event-1'),
+      ).resolves.toEqual({ deleted: true });
+
+      expect(mockPayrollPilaEventDelete).toHaveBeenCalledWith({
+        where: { id: 'event-1' },
+      });
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PAYROLL_PILA_EVENT_DELETED' }),
+        mockPrisma,
+      );
+    });
+
+    it('falla de forma segura si no puede auditar el borrado', async () => {
+      mockPayrollPilaEventFindFirst
+        .mockResolvedValueOnce({ id: 'event-1', payrollPeriodId: PERIOD_ID })
+        .mockResolvedValueOnce({
+          id: 'event-1',
+          tenantId: TENANT,
+          payrollPeriodId: PERIOD_ID,
+          employeeId: 'emp-1',
+          codigo: PilaEventCode.ING,
+          fechaInicio: new Date('2026-01-10T00:00:00.000Z'),
+          fechaFin: null,
+          dias: null,
+          payrollPeriod: { status: 'BORRADOR' },
+        });
+      mockAudit.log.mockRejectedValueOnce(new Error('audit down'));
+
+      await expect(
+        service.deletePilaEvent(TENANT, USER, 'event-1'),
+      ).rejects.toThrow('audit down');
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PAYROLL_PILA_EVENT_DELETED' }),
+        mockPrisma,
+      );
+    });
+
+    it('no elimina eventos de períodos ya calculados', async () => {
+      mockPayrollPilaEventFindFirst
+        .mockResolvedValueOnce({ id: 'event-1', payrollPeriodId: PERIOD_ID })
+        .mockResolvedValueOnce({
+          id: 'event-1',
+          payrollPeriod: { status: 'CALCULADA' },
+        });
+
+      await expect(
+        service.deletePilaEvent(TENANT, USER, 'event-1'),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockPayrollPilaEventDelete).not.toHaveBeenCalled();
+    });
   });
 
   describe('bloqueos persistidos', () => {
@@ -1578,6 +1832,10 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       mockPayrollPeriodUpdateMany.mockResolvedValue({ count: 1 });
       mockPayrollRunFindMany.mockResolvedValue([makeRunForSnapshot()]);
       mockPayrollNoveltyFindMany.mockResolvedValue([]);
+      mockPayrollPilaEventFindMany.mockResolvedValue([]);
+      mockPayrollPilaEventFindFirst.mockResolvedValue(null);
+      mockPayrollPilaEventCreate.mockResolvedValue({});
+      mockPayrollPilaEventDelete.mockResolvedValue({});
       mockContratoFindMany.mockResolvedValue([
         {
           id: 'contrato-1',
@@ -1626,6 +1884,11 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         totalDeducciones: 160_000,
         netoPagar: 2_042_897,
       });
+      const snapshotData = mockPayrollSnapshotCreate.mock.calls[0][0].data;
+      expect(snapshotData.pilaPayloadVersion).toBeNull();
+      expect(snapshotData).toHaveProperty('pilaPayload');
+      expect(mockAfiliacionFindMany).not.toHaveBeenCalled();
+      expect(mockSedeFindMany).not.toHaveBeenCalled();
     });
 
     it('usa la huella calculada aunque cambien datos mutables antes de aprobar', async () => {
@@ -1643,7 +1906,8 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         },
       ]);
 
-      await service.generatePayroll(TENANT, USER, PERIOD_ID);
+      const generated = await service.generatePayroll(TENANT, USER, PERIOD_ID);
+      expect(generated.created).toBe(1);
 
       const createdData = mockPayrollRunCreate.mock.calls[0][0].data;
       const { concepts, ...runData } = createdData;
@@ -1666,7 +1930,6 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       mockPayrollNoveltyFindMany.mockClear();
       mockParametroLegalFindFirst.mockClear();
 
-      mockTenantFindUnique.mockResolvedValue({ aportesExonerados: true });
       mockEmpleadoFindMany.mockResolvedValue([
         { id: 'emp-1', salario: 2_000_000, salarioIntegral: false },
       ]);
@@ -1706,9 +1969,41 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           nombre: 'Periodo mutado',
           fechaInicio: new Date('2026-02-01'),
           fechaFin: new Date('2026-02-28'),
+          fechaPrevistaPagoPila: new Date('2026-03-05T00:00:00.000Z'),
         }),
       );
+      mockTenantFindUnique.mockResolvedValue({
+        id: TENANT,
+        razonSocial: 'Empresa mutada S.A.S.',
+        nit: '900999999',
+        digitoVerif: '9',
+        direccion: null,
+        telefono: null,
+        email: null,
+        representanteLegal: null,
+        aportesExonerados: true,
+        municipio: null,
+      });
       mockPayrollPeriodUpdateMany.mockResolvedValue({ count: 1 });
+      mockPilaWorkAssignmentFindMany.mockResolvedValue([
+        {
+          id: 'risk-assignment-at-approval',
+          tenantId: TENANT,
+          empleadoId: 'emp-1',
+          codigoActividadEconomica: '1131202',
+          formatoNormativoVersion: 'DECRETO_768_2022',
+          vigenteDesde: new Date('2026-01-01T00:00:00.000Z'),
+          vigenteHasta: null,
+          centroTrabajo: {
+            id: 'pila-center-at-approval',
+            tenantId: TENANT,
+            sedeId: 'sede-1',
+            arlCodigo: 'ARL001',
+            codigoCentro: '0001',
+            nombre: 'Centro confirmado',
+          },
+        },
+      ]);
 
       await service.aprobar(TENANT, USER, PERIOD_ID);
 
@@ -1742,6 +2037,43 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           valor: 100_000,
         },
       ]);
+      const pilaPayload =
+        mockPayrollSnapshotCreate.mock.calls[0][0].data.pilaPayload;
+      expect(pilaPayload).toMatchObject({
+        schemaVersion: 2,
+        pilaRiskAssignments: [
+          expect.objectContaining({
+            assignmentId: 'risk-assignment-at-approval',
+            codigoActividadEconomica: '1131202',
+            centroTrabajo: expect.objectContaining({
+              centroTrabajoId: 'pila-center-at-approval',
+            }),
+          }),
+        ],
+        employer: { tenantId: TENANT, nit: '900123456' },
+        employee: {
+          employeeId: 'emp-1',
+          cedula: '1000000001',
+          primerNombre: 'Ana',
+        },
+        contract: { contractId: 'contrato-1', sedeId: 'sede-1' },
+        payroll: {
+          payrollRunId: 'run-1',
+          fechaPrevistaPagoPila: '2026-03-05',
+          salarioBasico: 2_000_000,
+          tipoSalario: null,
+          ibc: 2_100_000,
+          ibcPorSubsistema: {
+            otrosParafiscales: {
+              valor: null,
+              reglaVersion: 'CO_PARAFISCAL_BASE_V1',
+            },
+          },
+        },
+      });
+      expect(mockPayrollSnapshotCreate.mock.calls[0][0].data).toMatchObject({
+        pilaPayloadVersion: 2,
+      });
     });
 
     it('no crea snapshot antes de aprobar', async () => {
@@ -2006,8 +2338,30 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       await service.generatePayroll(TENANT, USER, PERIOD_ID);
 
       expect(mockPayrollPeriodUpdateMany).toHaveBeenCalledWith({
-        where: { id: PERIOD_ID, tenantId: TENANT },
+        where: {
+          id: PERIOD_ID,
+          tenantId: TENANT,
+          status: { in: ['BORRADOR', 'CALCULADA'] },
+        },
         data: { status: 'CALCULADA' },
+      });
+    });
+
+    it('si el período se aprueba mientras se prepara la generación, no crea liquidaciones', async () => {
+      setupPayrollGeneration();
+      mockPayrollPeriodFindFirst
+        .mockResolvedValueOnce(makePeriod('BORRADOR'))
+        .mockResolvedValueOnce(makePeriod('APROBADA'));
+
+      await expect(
+        service.generatePayroll(TENANT, USER, PERIOD_ID),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockPayrollRunCreate).not.toHaveBeenCalled();
+      expect(mockPayrollPeriodUpdateMany).not.toHaveBeenCalled();
+      expect(mockPayrollPeriodFindFirst).toHaveBeenLastCalledWith({
+        where: { id: PERIOD_ID, tenantId: TENANT },
+        select: { status: true },
       });
     });
 
@@ -2137,9 +2491,30 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       await service.recalculatePayroll(TENANT, USER, PERIOD_ID);
 
       expect(mockPayrollPeriodUpdateMany).toHaveBeenCalledWith({
-        where: { id: PERIOD_ID, tenantId: TENANT },
+        where: {
+          id: PERIOD_ID,
+          tenantId: TENANT,
+          status: { in: ['BORRADOR', 'CALCULADA'] },
+        },
         data: { status: 'CALCULADA' },
       });
+    });
+
+    it('si el período se aprueba mientras se prepara el recálculo, conserva las liquidaciones existentes', async () => {
+      setupPayrollGeneration();
+      mockPayrollPeriodFindFirst
+        .mockResolvedValueOnce(makePeriod('CALCULADA'))
+        .mockResolvedValueOnce(makePeriod('APROBADA'));
+
+      await expect(
+        service.recalculatePayroll(TENANT, USER, PERIOD_ID),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockPayrollRunFindMany).not.toHaveBeenCalled();
+      expect(mockPayrollConceptDeleteMany).not.toHaveBeenCalled();
+      expect(mockPayrollRunDeleteMany).not.toHaveBeenCalled();
+      expect(mockPayrollRunCreate).not.toHaveBeenCalled();
+      expect(mockPayrollPeriodUpdateMany).not.toHaveBeenCalled();
     });
 
     it('persiste centroCostoId al recrear runs durante el recálculo', async () => {
@@ -2151,6 +2526,166 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
 
       expect(mockPayrollRunCreate).toHaveBeenCalledWith({
         data: expect.objectContaining({ centroCostoId: 'cc-1' }),
+      });
+    });
+
+    it('recaptura afiliaciones, sede y eventos PILA al recrear la nómina', async () => {
+      setupPayrollGeneration();
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CALCULADA'));
+      mockPayrollRunFindMany.mockResolvedValue([{ id: 'run-anterior' }]);
+      mockAfiliacionFindMany.mockResolvedValue([
+        {
+          id: 'affiliation-previous',
+          empleadoId: 'emp-1',
+          tipoCotizanteCodigo: '01',
+          subtipoCotizanteCodigo: null,
+          epsCodigo: 'EPS000',
+          epsNombre: 'EPS anterior',
+          fondoPensionCodigo: 'AFP000',
+          fondoPensionNombre: 'Fondo anterior',
+          arlCodigo: 'ARL000',
+          arlNombre: 'ARL anterior',
+          arlClaseRiesgo: '1',
+          cajaCompensacionCodigo: 'CCF000',
+          cajaCompensacionNombre: 'Caja anterior',
+          vigenteDesde: new Date('2025-01-01T00:00:00.000Z'),
+          vigenteHasta: new Date('2026-01-15T00:00:00.000Z'),
+          versionCaptura: 'PILA_AFFILIATION_CAPTURE_V1',
+        },
+        {
+          id: 'affiliation-current',
+          empleadoId: 'emp-1',
+          tipoCotizanteCodigo: '01',
+          subtipoCotizanteCodigo: null,
+          epsCodigo: 'EPS001',
+          epsNombre: 'EPS vigente',
+          fondoPensionCodigo: 'AFP001',
+          fondoPensionNombre: 'Fondo vigente',
+          arlCodigo: 'ARL001',
+          arlNombre: 'ARL vigente',
+          arlClaseRiesgo: '1',
+          cajaCompensacionCodigo: 'CCF001',
+          cajaCompensacionNombre: 'Caja vigente',
+          vigenteDesde: new Date('2026-01-16T00:00:00.000Z'),
+          vigenteHasta: null,
+          versionCaptura: 'PILA_AFFILIATION_CAPTURE_V1',
+        },
+      ]);
+      mockSedeFindMany.mockResolvedValue([
+        {
+          id: 'sede-1',
+          nombre: 'Sede vigente',
+          direccion: 'Calle 1',
+          municipio: {
+            id: 'municipio-1',
+            codigo: '08001',
+            nombre: 'Barranquilla',
+            departamento: 'Atlántico',
+          },
+        },
+      ]);
+      mockPilaWorkAssignmentFindMany.mockResolvedValue([
+        {
+          id: 'risk-assignment-1',
+          tenantId: TENANT,
+          empleadoId: 'emp-1',
+          codigoActividadEconomica: '1131202',
+          formatoNormativoVersion: 'DECRETO_768_2022',
+          vigenteDesde: new Date('2026-01-01T00:00:00.000Z'),
+          vigenteHasta: null,
+          centroTrabajo: {
+            id: 'pila-center-1',
+            tenantId: TENANT,
+            sedeId: 'sede-1',
+            arlCodigo: 'ARL001',
+            codigoCentro: '0001',
+            nombre: 'Centro declarado',
+          },
+        },
+      ]);
+      mockPayrollPilaEventFindMany.mockResolvedValue([
+        {
+          id: 'event-ige-1',
+          employeeId: 'emp-1',
+          codigo: PilaEventCode.IGE,
+          fechaInicio: new Date('2026-01-12T00:00:00.000Z'),
+          fechaFin: new Date('2026-01-14T00:00:00.000Z'),
+          dias: null,
+        },
+      ]);
+
+      await service.recalculatePayroll(TENANT, USER, PERIOD_ID);
+
+      expect(mockPayrollRunCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          pilaSource: expect.objectContaining({
+            employee: expect.objectContaining({ cedula: '1000000001' }),
+            worksite: expect.objectContaining({
+              sedeId: 'sede-1',
+              municipio: expect.objectContaining({ codigo: '08001' }),
+            }),
+            affiliations: expect.arrayContaining([
+              expect.objectContaining({
+                affiliationId: 'affiliation-previous',
+                epsCodigo: 'EPS000',
+                vigenteDesde: '2025-01-01',
+                vigenteHasta: '2026-01-15',
+              }),
+              expect.objectContaining({
+                affiliationId: 'affiliation-current',
+                epsCodigo: 'EPS001',
+                vigenteDesde: '2026-01-16',
+                vigenteHasta: null,
+                versionCaptura: 'PILA_AFFILIATION_CAPTURE_V1',
+              }),
+            ]),
+            pilaEvents: [
+              {
+                eventId: 'event-ige-1',
+                codigo: PilaEventCode.IGE,
+                fechaInicio: '2026-01-12',
+                fechaFin: '2026-01-14',
+                dias: null,
+              },
+            ],
+            pilaRiskAssignments: [
+              expect.objectContaining({
+                assignmentId: 'risk-assignment-1',
+                tenantId: TENANT,
+                codigoActividadEconomica: '1131202',
+                formatoNormativoVersion: 'DECRETO_768_2022',
+                vigenteDesde: '2026-01-01',
+                vigenteHasta: null,
+                centroTrabajo: expect.objectContaining({
+                  centroTrabajoId: 'pila-center-1',
+                  tenantId: TENANT,
+                  codigoCentro: '0001',
+                }),
+              }),
+            ],
+          }),
+        }),
+      });
+      expect(mockAfiliacionFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tenantId: TENANT,
+            empleadoId: { in: ['emp-1'] },
+            vigenteDesde: { lte: new Date('2026-01-31') },
+            OR: [
+              { vigenteHasta: null },
+              { vigenteHasta: { gte: new Date('2026-01-01') } },
+            ],
+          }),
+        }),
+      );
+      expect(mockSedeFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { tenantId: TENANT, id: { in: ['sede-1'] } },
+        }),
+      );
+      expect(mockPayrollRunDeleteMany).toHaveBeenCalledWith({
+        where: { tenantId: TENANT, payrollPeriodId: PERIOD_ID },
       });
     });
   });
@@ -2171,6 +2706,17 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           }),
         }),
       );
+    });
+
+    it('no expone la captura PILA previa a la aprobación', async () => {
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CALCULADA'));
+      mockPayrollRunFindMany.mockResolvedValue([
+        { ...makeRunForSnapshot(), pilaSource: { cedula: 'dato-privado' } },
+      ]);
+
+      const period = await service.findOnePeriod(TENANT, PERIOD_ID);
+
+      expect(period.runs[0]).not.toHaveProperty('pilaSource');
     });
   });
 
@@ -2449,6 +2995,9 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           where: { tenantId: TENANT, payrollPeriodId: PERIOD_ID },
         }),
       );
+      expect(
+        mockPayrollSnapshotFindMany.mock.calls[0][0].select,
+      ).not.toHaveProperty('pilaPayload');
       expect(result.snapshots).toEqual([
         {
           id: 'snapshot-1',

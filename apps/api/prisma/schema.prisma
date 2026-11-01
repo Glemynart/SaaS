@@ -138,6 +138,12 @@ enum TipoDocIdentidad {
   PPT
 }
 
+enum TipoSalarioPila {
+  X
+  F
+  V
+}
+
 enum JornadaLaboral {
   COMPLETA
   MEDIA
@@ -242,6 +248,31 @@ model Tenant {
   // Configuración nómina colombiana
   aportesExonerados Boolean @default(false) // Art. 114-1 ET: exoneración salud pat., ICBF, SENA
 
+  // Datos declarados por el aportante para los anexos técnicos PILA.
+  // Permanecen nulos hasta que un ADMIN los confirme; no se infieren de branding,
+  // sedes operativas ni de los campos de identificación heredados.
+  pilaTipoDocumentoAportante       String?   @db.VarChar(2)
+  pilaNaturalezaJuridica           String?   @db.Char(1)
+  pilaTipoPersona                  String?   @db.Char(1)
+  pilaFormaPresentacion            String?   @db.Char(1)
+  pilaCodigoSucursal               String?   @db.VarChar(10)
+  pilaNombreSucursal               String?   @db.VarChar(40)
+  pilaCodigoActividadEconomica     String?   @db.VarChar(4)
+  pilaCodigoArlAportante           String?   @db.VarChar(16)
+  pilaTipoAportante                String?   @db.VarChar(2)
+  pilaFax                          String?   @db.VarChar(10)
+  pilaRepresentanteTipoDocumento   String?   @db.VarChar(2)
+  pilaRepresentanteNumeroDocumento String?   @db.VarChar(16)
+  pilaRepresentantePrimerApellido  String?   @db.VarChar(20)
+  pilaRepresentanteSegundoApellido String?   @db.VarChar(30)
+  pilaRepresentantePrimerNombre    String?   @db.VarChar(20)
+  pilaRepresentanteSegundoNombre   String?   @db.VarChar(30)
+  pilaFechaMatriculaMercantil      DateTime? @db.Date
+  pilaBeneficioLey1429             Boolean?
+  pilaBeneficioCcfLey1429          Boolean?
+  pilaAportesExoneradosConfirmado  Boolean?
+  pilaSinAccionEspecial            Boolean?
+
   // Configuración DIAN para facturación electrónica
   // Estos campos se completan si el tenant usa el módulo FE
   feActivo          Boolean   @default(false)
@@ -260,6 +291,8 @@ model Tenant {
   userInvitations    UserInvitation[]
   empleados          Empleado[]
   afiliacionesSeguridadSocial AfiliacionSeguridadSocial[]
+  pilaCentrosTrabajo PilaCentroTrabajo[]
+  pilaAsignacionesCentroTrabajo PilaAsignacionCentroTrabajo[]
   sedes              Sede[]
   plantillas         Plantilla[]
   documentTemplates  DocumentTemplate[]
@@ -274,6 +307,7 @@ model Tenant {
   servicePremiumLines   ServicePremiumLine[]
   payrollCorrections   PayrollCorrection[]
   payrollNovelties   PayrollNovelty[]
+  payrollPilaEvents   PayrollPilaEvent[]
   payrollBlocks      PayrollBlock[]
   customers          Customer[]
   productServices    ProductService[]
@@ -485,6 +519,7 @@ model Empleado {
   municipioExpedicionDocId String?
   municipioExpedicionDoc   MunicipioDane?  @relation(fields: [municipioExpedicionDocId], references: [id])
   salarioIntegral          Boolean         @default(false)
+  tipoSalarioPila          TipoSalarioPila?
   jornadaLaboral           JornadaLaboral?
   fechaRetiro              DateTime?
   motivoRetiro             MotivoRetiro?
@@ -500,11 +535,13 @@ model Empleado {
   payrollSnapshots     PayrollSnapshot[]
   servicePremiumLines  ServicePremiumLine[]
   payrollNovelties     PayrollNovelty[]
+  payrollPilaEvents    PayrollPilaEvent[]
   payrollBlocks      PayrollBlock[]
   expediente         ExpedienteDoc[]
   alertas            Alerta[]
   liquidations       Liquidation[]
   afiliacionesSeguridadSocial AfiliacionSeguridadSocial[]
+  asignacionesCentroPila PilaAsignacionCentroTrabajo[]
 
   @@unique([tenantId, cedula])
   @@unique([id, tenantId])
@@ -548,12 +585,74 @@ model AfiliacionSeguridadSocial {
   vigenteDesde DateTime  @db.Date
   vigenteHasta DateTime? @db.Date
 
-  formatoNormativoVersion String @default("AT2_V30") @db.VarChar(32)
+  versionCaptura          String @default("PILA_AFFILIATION_CAPTURE_V1") @map("formatoNormativoVersion") @db.VarChar(32)
   registradoPorId         String
 
   @@unique([id, tenantId], map: "af_seg_id_tenant_key")
   @@index([tenantId, empleadoId, vigenteDesde], map: "af_seg_tenant_employee_since_idx")
   @@map("afiliaciones_seguridad_social")
+}
+
+// =============================================================================
+// CENTRO DE TRABAJO PILA — Código declarado por el aportante a su ARL
+// =============================================================================
+// No equivale a una sede. El vínculo opcional con Sede es administrativo; el
+// código se conserva como dato declarado por el empleador.
+// =============================================================================
+
+model PilaCentroTrabajo {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  sedeId String?
+  sede   Sede?   @relation(fields: [sedeId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  arlCodigo    String  @db.VarChar(6)
+  codigoCentro String  @db.VarChar(40)
+  nombre       String  @db.VarChar(120)
+  activo       Boolean @default(true)
+
+  asignaciones PilaAsignacionCentroTrabajo[]
+
+  @@unique([id, tenantId], map: "pila_centros_trabajo_id_tenant_key")
+  @@unique([tenantId, arlCodigo, codigoCentro], map: "pila_centros_tenant_arl_code_key")
+  @@index([tenantId, activo], map: "pila_centros_tenant_active_idx")
+  @@index([tenantId, sedeId], map: "pila_centros_tenant_sede_idx")
+  @@map("pila_centros_trabajo")
+}
+
+// =============================================================================
+// ASIGNACIÓN PILA — Centro ARL y actividad con vigencia por empleado
+// =============================================================================
+
+model PilaAsignacionCentroTrabajo {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  empleadoId String
+  empleado   Empleado @relation(fields: [empleadoId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  centroTrabajoId String
+  centroTrabajo   PilaCentroTrabajo @relation(fields: [centroTrabajoId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  codigoActividadEconomica String   @db.VarChar(7)
+  formatoNormativoVersion String   @default("DECRETO_768_2022") @db.VarChar(32)
+  vigenteDesde            DateTime @db.Date
+  vigenteHasta            DateTime? @db.Date
+  registradoPorId         String
+
+  @@unique([id, tenantId], map: "pila_asignaciones_centro_id_tenant_key")
+  @@index([tenantId, empleadoId, vigenteDesde], map: "pila_asignaciones_tenant_employee_since_idx")
+  @@index([tenantId, centroTrabajoId, vigenteDesde], map: "pila_asignaciones_tenant_center_since_idx")
+  @@map("pila_asignaciones_centro_trabajo")
 }
 
 // =============================================================================
@@ -893,6 +992,19 @@ enum PayrollNoveltyType {
   OTHER
 }
 
+enum PilaEventCode {
+  ING
+  RET
+  VSP
+  VST
+  SLN
+  IGE
+  LMA
+  VAC_LR
+  IRL
+  VCT
+}
+
 // =============================================================================
 // PAYROLL BLOCK STATUS — Ciclo de vida de bloqueos fail-secure
 // =============================================================================
@@ -983,6 +1095,7 @@ model PayrollPeriod {
   snapshots PayrollSnapshot[]
   corrections PayrollCorrection[]
   novelties PayrollNovelty[]
+  pilaEvents PayrollPilaEvent[]
   blocks    PayrollBlock[]
 
   @@index([tenantId])
@@ -1027,6 +1140,10 @@ model PayrollRun {
 
   // U3 — huella técnica de los insumos normalizados usados por el cálculo.
   calculationTrace Json?
+
+  // Datos declarados para PILA capturados al calcular; se promueven al snapshot
+  // únicamente al aprobar. No se reconstruyen para runs históricos.
+  pilaSource Json?
 
   parametroLegal ParametroLegalNomina? @relation(fields: [parametroLegalId], references: [id], onDelete: Restrict)
 
@@ -1101,6 +1218,10 @@ model PayrollSnapshot {
   origen         String
   payloadVersion Int                 @default(1)
   payload        Json
+  // Paquete fuente inmutable para PILA, separado del payload consumido por
+  // Prima y Ledger. Los snapshots históricos permanecen en NULL.
+  pilaPayloadVersion Int?
+  pilaPayload        Json?
 
   @@index([tenantId])
   @@index([tenantId, payrollPeriodId])
@@ -1285,6 +1406,33 @@ model PayrollNovelty {
   @@index([tenantId, employeeId])
   @@index([tenantId, tipo])
   @@map("payroll_novelties")
+}
+
+// =============================================================================
+// PAYROLL PILA EVENT — Novedad explícita para reporte PILA (ADR-013)
+// =============================================================================
+
+model PayrollPilaEvent {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  payrollPeriodId String
+  payrollPeriod   PayrollPeriod @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Empleado @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  codigo     PilaEventCode
+  fechaInicio DateTime @db.Date
+  fechaFin    DateTime? @db.Date
+  dias        Int?
+
+  @@index([tenantId, payrollPeriodId, employeeId])
+  @@index([tenantId, payrollPeriodId, codigo])
+  @@map("payroll_pila_events")
 }
 
 // =============================================================================
@@ -1557,7 +1705,9 @@ model Sede {
   lotes        LoteContrato[]
   empleados    Empleado[]
   centrosCosto CentroCosto[]
+  pilaCentrosTrabajo PilaCentroTrabajo[]
 
+  @@unique([id, tenantId], map: "sedes_id_tenant_key")
   @@index([tenantId, activo])
   @@index([tenantId, municipioId])
   @@map("sedes")
