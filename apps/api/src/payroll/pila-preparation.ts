@@ -17,6 +17,7 @@ export interface PilaSnapshotPreparationInput {
   employeeId: string;
   payloadVersion: number | null;
   payload: unknown;
+  totalCotizantes?: number;
 }
 
 export interface PilaSnapshotPreparation {
@@ -192,13 +193,55 @@ export function inspectPilaSnapshotPreparation(
       'Falta una identificación del aportante válida para el tipo de documento declarado.',
     );
   }
+  const employerClass = text(employerPila?.claseAportante);
   requireChoice(
     employerRecord,
     7,
-    employerPila?.claseAportante,
+    employerClass,
     new Set(['A', 'B', 'C', 'D']),
     'Falta confirmar la clase de aportante para el período.',
   );
+  if (employerClass === 'A' || employerClass === 'B') {
+    if (
+      !Number.isSafeInteger(input.totalCotizantes) ||
+      input.totalCotizantes! < 0
+    ) {
+      add(
+        employerRecord,
+        7,
+        'CAMPO_7_TOTAL_COTIZANTES_NO_DISPONIBLE',
+        'No se puede validar la clase A/B sin contar los cotizantes únicos de todas las sucursales incluidas.',
+      );
+    } else if (
+      (employerClass === 'A' && input.totalCotizantes! < 200) ||
+      (employerClass === 'B' && input.totalCotizantes! >= 200)
+    ) {
+      add(
+        employerRecord,
+        7,
+        'CAMPO_7_CLASE_NO_COINCIDE_COTIZANTES',
+        'La clase A requiere 200 o más cotizantes; la clase B requiere menos de 200 cotizantes.',
+      );
+    }
+  } else if (employerClass === 'C' || employerClass === 'D') {
+    add(
+      employerRecord,
+      7,
+      'CAMPO_7_ELEGIBILIDAD_ESPECIAL_SIN_VERIFICAR',
+      'Las clases C y D requieren evidencia de elegibilidad que este preflight aún no valida.',
+    );
+  }
+  if (
+    (employerClass === 'A' || employerClass === 'B') &&
+    employerPila?.beneficioLey1429 === true
+  ) {
+    add(
+      employerRecord,
+      7,
+      'CAMPO_7_CLASE_BENEFICIO_LEY1429_INCONSISTENTE',
+      'El beneficio de Ley 1429 requiere clasificar al aportante como clase D; esa clase sigue bloqueada hasta validar elegibilidad.',
+    );
+  }
   requireChoice(
     employerRecord,
     8,
@@ -312,6 +355,13 @@ export function inspectPilaSnapshotPreparation(
       'CAMPO_33_EXONERACION_SIN_CONFIRMAR',
       'Falta confirmar si aplica la exoneración de salud, SENA e ICBF.',
     );
+  } else if (employerPila.aportesExoneradosConfirmado) {
+    add(
+      employerRecord,
+      33,
+      'CAMPO_33_ELEGIBILIDAD_EXONERACION_SIN_VALIDAR',
+      'La exoneración fue declarada, pero aún falta validar la evidencia de elegibilidad y sus condiciones.',
+    );
   }
   if (typeof employerPila?.beneficioCcfLey1429 !== 'boolean') {
     add(
@@ -319,6 +369,13 @@ export function inspectPilaSnapshotPreparation(
       34,
       'CAMPO_34_BENEFICIO_CCF_SIN_CONFIRMAR',
       'Falta confirmar si aplica el beneficio de la Ley 1429 para CCF.',
+    );
+  } else if (employerPila.beneficioCcfLey1429) {
+    add(
+      employerRecord,
+      34,
+      'CAMPO_34_ELEGIBILIDAD_CCF_SIN_VALIDAR',
+      'El beneficio CCF fue declarado, pero aún falta validar la evidencia de elegibilidad.',
     );
   }
   if (typeof employerPila?.beneficioLey1429 !== 'boolean') {
@@ -361,6 +418,18 @@ export function inspectPilaSnapshotPreparation(
       23,
       employerPila?.representantePrimerNombre,
       'La persona jurídica requiere el primer nombre del representante legal.',
+    );
+  }
+  if (employerPila?.sinAccionEspecial !== true) {
+    add(
+      employerRecord,
+      26,
+      employerPila?.sinAccionEspecial === false
+        ? 'CAMPO_26_ACCION_ESPECIAL_FUERA_DEL_MVP'
+        : 'CAMPO_26_ACCION_ESPECIAL_SIN_CONFIRMAR',
+      employerPila?.sinAccionEspecial === false
+        ? 'El aportante declara una acción especial; el MVP solo admite el código 0 confirmado cuando no aplica ninguna acción.'
+        : 'Falta confirmar expresamente si no aplica una acción especial del aportante.',
     );
   }
   if (employerPila?.beneficioLey1429 === true) {
@@ -629,6 +698,13 @@ export function inspectPilaSnapshotPreparation(
       'CAMPO_76_EXONERACION_NO_CONFIRMADA',
       'La exoneración requiere confirmación expresa del aportante.',
     );
+  } else if (employerPilaExemption) {
+    add(
+      detailRecord,
+      76,
+      'CAMPO_76_ELEGIBILIDAD_EXONERACION_SIN_VALIDAR',
+      'La exoneración declarada requiere validar evidencia de elegibilidad y condiciones antes de usarla.',
+    );
   }
 
   return {
@@ -659,7 +735,12 @@ export function buildPilaPreparationReport(input: {
   };
   snapshots: PilaSnapshotPreparationInput[];
 }) {
-  const assessments = input.snapshots.map(inspectPilaSnapshotPreparation);
+  const totalCotizantes = new Set(
+    input.snapshots.map(({ employeeId }) => employeeId),
+  ).size;
+  const assessments = input.snapshots.map((snapshot) =>
+    inspectPilaSnapshotPreparation({ ...snapshot, totalCotizantes }),
+  );
   const grouped = new Map<
     string,
     PilaPreparationIssue & {

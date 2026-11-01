@@ -28,6 +28,7 @@ function payload() {
         aportesExoneradosConfirmado: false,
         beneficioCcfLey1429: false,
         beneficioLey1429: false,
+        sinAccionEspecial: true,
         representanteNumeroDocumento: '900123456',
         representanteTipoDocumento: 'CC',
         representantePrimerApellido: 'Demo',
@@ -93,6 +94,7 @@ function snapshot(
     employeeId,
     payloadVersion: 1,
     payload: source,
+    totalCotizantes: 1,
     ...overrides,
   };
 }
@@ -167,6 +169,148 @@ describe('inspectPilaSnapshotPreparation', () => {
       ]),
     );
   });
+
+  it('bloquea el campo 26 si el aportante declara una acción especial', () => {
+    const source = payload();
+    source.employer.pila.sinAccionEspecial = false;
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 1,
+      payload: source,
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'APORTANTE_TIPO_1',
+        fieldNumber: 26,
+        code: 'CAMPO_26_ACCION_ESPECIAL_FUERA_DEL_MVP',
+      }),
+    );
+  });
+
+  it('bloquea el campo 26 si el aportante no confirmó que no hay acción especial', () => {
+    const source = payload();
+    const incomplete = {
+      ...source,
+      employer: {
+        ...source.employer,
+        pila: { ...source.employer.pila, sinAccionEspecial: null },
+      },
+    };
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 1,
+      payload: incomplete,
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'APORTANTE_TIPO_1',
+        fieldNumber: 26,
+        code: 'CAMPO_26_ACCION_ESPECIAL_SIN_CONFIRMAR',
+      }),
+    );
+  });
+
+  it('valida la clase A/B con el total de cotizantes únicos del período', () => {
+    const source = payload();
+    source.employer.pila.claseAportante = 'B';
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 1,
+      payload: source,
+      totalCotizantes: 200,
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'APORTANTE_TIPO_1',
+        fieldNumber: 7,
+        code: 'CAMPO_7_CLASE_NO_COINCIDE_COTIZANTES',
+      }),
+    );
+  });
+
+  it('bloquea una clase A/B incompatible con el beneficio de Ley 1429', () => {
+    const source = payload();
+    source.employer.pila.claseAportante = 'B';
+    source.employer.pila.beneficioLey1429 = true;
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 1,
+      payload: source,
+      totalCotizantes: 1,
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'APORTANTE_TIPO_1',
+        fieldNumber: 7,
+        code: 'CAMPO_7_CLASE_BENEFICIO_LEY1429_INCONSISTENTE',
+      }),
+    );
+  });
+
+  it('mantiene bloqueados beneficios declarados hasta validar su elegibilidad', () => {
+    const source = payload();
+    source.employer.aportesExonerados = true;
+    source.employer.pila.aportesExoneradosConfirmado = true;
+    source.employer.pila.beneficioCcfLey1429 = true;
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 1,
+      payload: source,
+      totalCotizantes: 1,
+    });
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          record: 'APORTANTE_TIPO_1',
+          fieldNumber: 33,
+          code: 'CAMPO_33_ELEGIBILIDAD_EXONERACION_SIN_VALIDAR',
+        }),
+        expect.objectContaining({
+          record: 'APORTANTE_TIPO_1',
+          fieldNumber: 34,
+          code: 'CAMPO_34_ELEGIBILIDAD_CCF_SIN_VALIDAR',
+        }),
+        expect.objectContaining({
+          record: 'DETALLE_TIPO_2',
+          fieldNumber: 76,
+          code: 'CAMPO_76_ELEGIBILIDAD_EXONERACION_SIN_VALIDAR',
+        }),
+      ]),
+    );
+  });
+
+  it.each(['C', 'D'])(
+    'bloquea la clase especial %s sin evidencia de elegibilidad',
+    (value) => {
+      const source = payload();
+      source.employer.pila.claseAportante = value;
+
+      const result = inspectPilaSnapshotPreparation({
+        employeeId: 'employee-1',
+        payloadVersion: 1,
+        payload: source,
+        totalCotizantes: 1,
+      });
+
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          record: 'APORTANTE_TIPO_1',
+          fieldNumber: 7,
+          code: 'CAMPO_7_ELEGIBILIDAD_ESPECIAL_SIN_VERIFICAR',
+        }),
+      );
+    },
+  );
 
   it('agrupa faltantes por campo y declara expresamente que el archivo aún no se genera', () => {
     const report = buildPilaPreparationReport({

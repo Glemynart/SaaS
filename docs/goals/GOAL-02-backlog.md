@@ -262,3 +262,17 @@ prueba se detuvo y no se usaron datos de demo/staging/producción. Esta preparac
   acceso de prueba al aportante y resultado del portal.
 - No se ejecutó el seed financiero ni se accedió a staging, producción, VPS u
   OCI; no se transmitió información a DIAN/UGPP.
+
+### Continuación de PILA — 2026-11-01
+
+- PR #163 (`beccd57e`), #164 (`1460262`) y #165 (`907f727`) se auditaron y
+  fusionaron en ese orden después de pasar CI, Browser E2E y Vercel.
+- En el informe preliminar de PR #164, el perfil del aportante ya conservaba
+  la respuesta sobre acciones especiales y su clase. La auditoría detectó que
+  no se bloqueaban acciones declaradas o sin confirmar, clases A/B sin
+  contrastar el total de cotizantes, ni clases C/D sin evidencia de elegibilidad.
+  PR #166 incorpora bloqueos para los campos 26, 7, 33, 34 y 76, conteos A/B y
+  consistencia con Ley 1429, sin declarar el archivo generable ni ampliar el MVP.
+- ADR-014 permanece propuesta y pendiente de decisión. La implementación de
+  los campos 62 y 98 espera esa aprobación; la preparación independiente del
+  resto de AT2 continúa.
