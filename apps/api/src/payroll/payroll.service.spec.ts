@@ -42,6 +42,7 @@ const mockTenantFindUnique = jest.fn();
 const mockEmpleadoFindMany = jest.fn();
 const mockEmpleadoFindFirst = jest.fn();
 const mockAfiliacionFindMany = jest.fn();
+const mockPilaWorkAssignmentFindMany = jest.fn();
 const mockPayrollNoveltyFindMany = jest.fn();
 const mockPayrollPilaEventFindMany = jest.fn();
 const mockPayrollPilaEventFindFirst = jest.fn();
@@ -90,6 +91,7 @@ const mockPrisma = {
     findFirst: mockEmpleadoFindFirst,
   },
   afiliacionSeguridadSocial: { findMany: mockAfiliacionFindMany },
+  pilaAsignacionCentroTrabajo: { findMany: mockPilaWorkAssignmentFindMany },
   payrollNovelty: { findMany: mockPayrollNoveltyFindMany },
   payrollPilaEvent: {
     findMany: mockPayrollPilaEventFindMany,
@@ -453,6 +455,7 @@ function setupPayrollGeneration(
     ],
   );
   mockAfiliacionFindMany.mockResolvedValue([]);
+  mockPilaWorkAssignmentFindMany.mockResolvedValue([]);
   mockSedeFindMany.mockResolvedValue([]);
   mockPayrollRunFindFirst.mockResolvedValue(null);
   mockPayrollRunCreate.mockImplementation(async ({ data }) => ({
@@ -477,6 +480,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
     );
     mockPayrollRunFindMany.mockResolvedValue([]);
     mockPayrollNoveltyFindMany.mockResolvedValue([]);
+    mockPilaWorkAssignmentFindMany.mockResolvedValue([]);
     mockContratoFindMany.mockResolvedValue([]);
     mockEmpleadoFindMany.mockResolvedValue([]);
     mockEmpleadoFindFirst.mockResolvedValue(null);
@@ -1981,6 +1985,25 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         municipio: null,
       });
       mockPayrollPeriodUpdateMany.mockResolvedValue({ count: 1 });
+      mockPilaWorkAssignmentFindMany.mockResolvedValue([
+        {
+          id: 'risk-assignment-at-approval',
+          tenantId: TENANT,
+          empleadoId: 'emp-1',
+          codigoActividadEconomica: '1131202',
+          formatoNormativoVersion: 'DECRETO_768_2022',
+          vigenteDesde: new Date('2026-01-01T00:00:00.000Z'),
+          vigenteHasta: null,
+          centroTrabajo: {
+            id: 'pila-center-at-approval',
+            tenantId: TENANT,
+            sedeId: 'sede-1',
+            arlCodigo: 'ARL001',
+            codigoCentro: '0001',
+            nombre: 'Centro confirmado',
+          },
+        },
+      ]);
 
       await service.aprobar(TENANT, USER, PERIOD_ID);
 
@@ -2017,7 +2040,16 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       const pilaPayload =
         mockPayrollSnapshotCreate.mock.calls[0][0].data.pilaPayload;
       expect(pilaPayload).toMatchObject({
-        schemaVersion: 1,
+        schemaVersion: 2,
+        pilaRiskAssignments: [
+          expect.objectContaining({
+            assignmentId: 'risk-assignment-at-approval',
+            codigoActividadEconomica: '1131202',
+            centroTrabajo: expect.objectContaining({
+              centroTrabajoId: 'pila-center-at-approval',
+            }),
+          }),
+        ],
         employer: { tenantId: TENANT, nit: '900123456' },
         employee: {
           employeeId: 'emp-1',
@@ -2040,7 +2072,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         },
       });
       expect(mockPayrollSnapshotCreate.mock.calls[0][0].data).toMatchObject({
-        pilaPayloadVersion: 1,
+        pilaPayloadVersion: 2,
       });
     });
 
@@ -2552,6 +2584,25 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           },
         },
       ]);
+      mockPilaWorkAssignmentFindMany.mockResolvedValue([
+        {
+          id: 'risk-assignment-1',
+          tenantId: TENANT,
+          empleadoId: 'emp-1',
+          codigoActividadEconomica: '1131202',
+          formatoNormativoVersion: 'DECRETO_768_2022',
+          vigenteDesde: new Date('2026-01-01T00:00:00.000Z'),
+          vigenteHasta: null,
+          centroTrabajo: {
+            id: 'pila-center-1',
+            tenantId: TENANT,
+            sedeId: 'sede-1',
+            arlCodigo: 'ARL001',
+            codigoCentro: '0001',
+            nombre: 'Centro declarado',
+          },
+        },
+      ]);
       mockPayrollPilaEventFindMany.mockResolvedValue([
         {
           id: 'event-ige-1',
@@ -2596,6 +2647,21 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
                 fechaFin: '2026-01-14',
                 dias: null,
               },
+            ],
+            pilaRiskAssignments: [
+              expect.objectContaining({
+                assignmentId: 'risk-assignment-1',
+                tenantId: TENANT,
+                codigoActividadEconomica: '1131202',
+                formatoNormativoVersion: 'DECRETO_768_2022',
+                vigenteDesde: '2026-01-01',
+                vigenteHasta: null,
+                centroTrabajo: expect.objectContaining({
+                  centroTrabajoId: 'pila-center-1',
+                  tenantId: TENANT,
+                  codigoCentro: '0001',
+                }),
+              }),
             ],
           }),
         }),

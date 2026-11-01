@@ -9,6 +9,7 @@ function payload() {
     schemaVersion: 1,
     period: { fechaInicio: '2026-10-01', fechaFin: '2026-10-31' },
     employer: {
+      tenantId: 'tenant-1',
       razonSocial: 'Empresa Demo SAS',
       nit: '900123456',
       digitoVerif: '7',
@@ -133,6 +134,82 @@ describe('inspectPilaSnapshotPreparation', () => {
         code: 'ACTIVIDAD_ARL_SIN_VIGENCIA_PILA',
       },
     ]);
+  });
+
+  it('acepta los campos 62 y 98 con una asignación congelada y validada', () => {
+    const source = {
+      ...payload(),
+      schemaVersion: 2,
+      pilaRiskAssignments: [
+        {
+          assignmentId: 'assignment-1',
+          tenantId: 'tenant-1',
+          codigoActividadEconomica: '1131202',
+          formatoNormativoVersion: 'DECRETO_768_2022',
+          vigenteDesde: '2026-01-01',
+          vigenteHasta: null,
+          centroTrabajo: {
+            centroTrabajoId: 'center-1',
+            tenantId: 'tenant-1',
+            sedeId: 'site-1',
+            arlCodigo: 'ARL001',
+            codigoCentro: '0001',
+            nombre: 'Centro principal',
+          },
+        },
+      ],
+    };
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 2,
+      payload: source,
+    });
+
+    expect(result.issues).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ fieldNumber: 62 }),
+        expect.objectContaining({ fieldNumber: 98 }),
+      ]),
+    );
+  });
+
+  it('bloquea actividad inexistente en el catálogo aunque tenga siete dígitos', () => {
+    const source = {
+      ...payload(),
+      schemaVersion: 2,
+      pilaRiskAssignments: [
+        {
+          assignmentId: 'assignment-1',
+          tenantId: 'tenant-1',
+          codigoActividadEconomica: '1999999',
+          formatoNormativoVersion: 'DECRETO_768_2022',
+          vigenteDesde: '2026-01-01',
+          vigenteHasta: null,
+          centroTrabajo: {
+            centroTrabajoId: 'center-1',
+            tenantId: 'tenant-1',
+            sedeId: null,
+            arlCodigo: 'ARL001',
+            codigoCentro: '0001',
+            nombre: 'Centro principal',
+          },
+        },
+      ],
+    };
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 2,
+      payload: source,
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        fieldNumber: 98,
+        code: 'ACTIVIDAD_ARL_NO_VALIDA_CATALOGO_PILA',
+      }),
+    );
   });
 
   it('marca los campos obligatorios faltantes y exige segmentación para días parciales', () => {

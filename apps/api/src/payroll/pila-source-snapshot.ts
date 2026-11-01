@@ -101,9 +101,49 @@ export type PilaSourceContextInput = {
     fechaFin: Date | null;
     dias: number | null;
   }>;
+  riskAssignments?: Array<{
+    id: string;
+    tenantId: string;
+    codigoActividadEconomica: string;
+    formatoNormativoVersion: string;
+    vigenteDesde: Date;
+    vigenteHasta: Date | null;
+    centroTrabajo: {
+      id: string;
+      tenantId: string;
+      sedeId: string | null;
+      arlCodigo: string;
+      codigoCentro: string;
+      nombre: string;
+    };
+  }>;
 };
 
 export type PilaSourceContext = ReturnType<typeof buildPilaSourceContext>;
+export type PilaRiskAssignmentSource = NonNullable<
+  PilaSourceContextInput['riskAssignments']
+>[number];
+
+export function buildPilaRiskAssignmentsSnapshot(
+  assignments: readonly PilaRiskAssignmentSource[] = [],
+) {
+  return assignments.map((assignment) => ({
+    assignmentId: assignment.id,
+    tenantId: assignment.tenantId,
+    codigoActividadEconomica: assignment.codigoActividadEconomica,
+    formatoNormativoVersion: assignment.formatoNormativoVersion,
+    vigenteDesde: calendarDate(assignment.vigenteDesde)!,
+    vigenteHasta: calendarDate(assignment.vigenteHasta),
+    centroTrabajo: {
+      centroTrabajoId: assignment.centroTrabajo.id,
+      tenantId: assignment.centroTrabajo.tenantId,
+      sedeId: assignment.centroTrabajo.sedeId,
+      arlCodigo: assignment.centroTrabajo.arlCodigo,
+      codigoCentro: assignment.centroTrabajo.codigoCentro,
+      nombre: assignment.centroTrabajo.nombre,
+    },
+  }));
+}
 
 export type PilaSnapshotNovelty = {
   noveltyId: string;
@@ -123,7 +163,7 @@ export type PilaSnapshotEvent = {
 
 export function buildPilaSourceContext(input: PilaSourceContextInput) {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     capturedAt: input.capturedAt.toISOString(),
     period: {
       payrollPeriodId: input.period.id,
@@ -232,6 +272,9 @@ export function buildPilaSourceContext(input: PilaSourceContextInput) {
       fechaFin: calendarDate(event.fechaFin),
       dias: event.dias,
     })),
+    pilaRiskAssignments: buildPilaRiskAssignmentsSnapshot(
+      input.riskAssignments,
+    ),
   };
 }
 
@@ -273,6 +316,8 @@ export function buildPilaSourceSnapshot(input: {
 
   return {
     ...input.context,
+    schemaVersion: 2,
+    pilaRiskAssignments: input.context.pilaRiskAssignments ?? [],
     payroll: {
       payrollRunId: input.payroll.runId,
       fechaPrevistaPagoPila: calendarDate(input.payroll.fechaPrevistaPagoPila),

@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   employeesApi,
   type CreateSocialSecurityAffiliation,
+  type CreatePilaWorkAssignment,
+  type CreatePilaWorkCenter,
   type GetEmployeesParams,
 } from '../services/employees-api';
 
@@ -13,6 +15,9 @@ export const employeeKeys = {
   detail: (id: string) => [...employeeKeys.details(), id] as const,
   socialSecurityAffiliations: (id: string) =>
     [...employeeKeys.details(), id, 'social-security-affiliations'] as const,
+  pilaWorkAssignments: (id: string) =>
+    [...employeeKeys.details(), id, 'pila-work-assignments'] as const,
+  pilaWorkCenters: () => [...employeeKeys.all, 'pila-work-centers'] as const,
 };
 
 export function useEmployees(params: GetEmployeesParams) {
@@ -58,6 +63,54 @@ export function useCloseSocialSecurityAffiliation() {
     onSuccess: (_, { employeeId }) => {
       queryClient.invalidateQueries({
         queryKey: employeeKeys.socialSecurityAffiliations(employeeId),
+      });
+    },
+  });
+}
+
+export function usePilaWorkCenters() {
+  return useQuery({
+    queryKey: employeeKeys.pilaWorkCenters(),
+    queryFn: employeesApi.getPilaWorkCenters,
+  });
+}
+
+export function usePilaWorkAssignments(id: string) {
+  return useQuery({
+    queryKey: employeeKeys.pilaWorkAssignments(id),
+    queryFn: () => employeesApi.getPilaWorkAssignments(id),
+    enabled: !!id,
+  });
+}
+
+export function useCreatePilaWorkCenter() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreatePilaWorkCenter) => employeesApi.createPilaWorkCenter(input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: employeeKeys.pilaWorkCenters() }),
+  });
+}
+
+export function useCreatePilaWorkAssignment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { employeeId: string; data: CreatePilaWorkAssignment }) =>
+      employeesApi.createPilaWorkAssignment(input),
+    onSuccess: (_, { employeeId }) => {
+      queryClient.invalidateQueries({
+        queryKey: employeeKeys.pilaWorkAssignments(employeeId),
+      });
+    },
+  });
+}
+
+export function useClosePilaWorkAssignment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: employeesApi.closePilaWorkAssignment,
+    onSuccess: (_, { employeeId }) => {
+      queryClient.invalidateQueries({
+        queryKey: employeeKeys.pilaWorkAssignments(employeeId),
       });
     },
   });

@@ -49,6 +49,7 @@ import {
 } from './payroll-mapper';
 import { buildPayrollPeriodSnapshot } from './payroll-snapshot-period';
 import {
+  buildPilaRiskAssignmentsSnapshot,
   buildPilaSourceContext,
   buildPilaSourceSnapshot,
 } from './pila-source-snapshot';
@@ -92,12 +93,16 @@ const RECALCULATE_ALLOWED_STATUSES: PayrollPeriodStatus[] =
 
 const SNAPSHOT_PAYLOAD_VERSION = 1;
 const CALCULATION_TRACE_VERSION = 1;
-const PILA_PAYLOAD_VERSION = 1;
+const PILA_PAYLOAD_VERSION = 2;
 
 type PilaSourceData = {
   tenant: PilaSourceContextInput['tenant'];
   employeesById: Map<string, PilaSourceContextInput['employee']>;
   affiliationsByEmployee: Map<string, PilaSourceContextInput['affiliations']>;
+  riskAssignmentsByEmployee: Map<
+    string,
+    NonNullable<PilaSourceContextInput['riskAssignments']>
+  >;
   pilaEventsByEmployee: Map<string, PilaSourceContextInput['pilaEvents']>;
   worksitesById: Map<string, NonNullable<PilaSourceContextInput['worksite']>>;
 };
@@ -3275,9 +3280,64 @@ export class PayrollService {
     });
     if (runs.length === 0) return 0;
 
+    const riskAssignments = await tx.pilaAsignacionCentroTrabajo.findMany({
+      where: {
+        tenantId,
+        empleadoId: { in: [...new Set(runs.map((run) => run.employeeId))] },
+        vigenteDesde: { lte: period.fechaFin },
+        OR: [
+          { vigenteHasta: null },
+          { vigenteHasta: { gte: period.fechaInicio } },
+        ],
+      },
+      select: {
+        id: true,
+        tenantId: true,
+        empleadoId: true,
+        codigoActividadEconomica: true,
+        formatoNormativoVersion: true,
+        vigenteDesde: true,
+        vigenteHasta: true,
+        centroTrabajo: {
+          select: {
+            id: true,
+            tenantId: true,
+            sedeId: true,
+            arlCodigo: true,
+            codigoCentro: true,
+            nombre: true,
+          },
+        },
+      },
+      orderBy: [{ empleadoId: 'asc' }, { vigenteDesde: 'asc' }, { id: 'asc' }],
+    });
+    const riskAssignmentsByEmployee = new Map<
+      string,
+      NonNullable<PilaSourceContextInput['riskAssignments']>
+    >();
+    for (const assignment of riskAssignments) {
+      const { empleadoId, ...source } = assignment;
+      const employeeAssignments =
+        riskAssignmentsByEmployee.get(empleadoId) ?? [];
+      employeeAssignments.push(source);
+      riskAssignmentsByEmployee.set(empleadoId, employeeAssignments);
+    }
+
     for (const run of runs) {
       const trace = this.getCalculationTrace(run.id, run.calculationTrace);
-      const pilaSource = this.getPilaSourceContext(run.id, run.pilaSource);
+      const pilaSourceContext = this.getPilaSourceContext(
+        run.id,
+        run.pilaSource,
+      );
+      const pilaSource = pilaSourceContext
+        ? {
+            ...pilaSourceContext,
+            schemaVersion: 2,
+            pilaRiskAssignments: buildPilaRiskAssignmentsSnapshot(
+              riskAssignmentsByEmployee.get(run.employeeId) ?? [],
+            ),
+          }
+        : null;
       if (!run.parametroLegalId) {
         throw new BadRequestException(
           `La liquidaciÃ³n ${run.id} no tiene parÃ¡metro legal para congelar`,
@@ -3422,7 +3482,10 @@ export class PayrollService {
       );
     }
     const source = value;
-    if (source.schemaVersion !== 1 || typeof source.capturedAt !== 'string') {
+    if (
+      ![1, 2].includes(Number(source.schemaVersion)) ||
+      typeof source.capturedAt !== 'string'
+    ) {
       throw new BadRequestException(
         `La liquidación ${runId} contiene una captura PILA ausente o no compatible.`,
       );
@@ -3724,36 +3787,38 @@ export class PayrollService {
     contracts: Array<ContratoForPayroll>,
   ): Promise<PilaSourceData> {
     const employeeIds = employees.map((employee) => employee.id);
-    const affiliations = await this.prisma.afiliacionSeguridadSocial.findMany({
-      where: {
-        tenantId: tenant.id,
-        empleadoId: { in: employeeIds },
-        vigenteDesde: { lte: period.fechaFin },
-        OR: [
-          { vigenteHasta: null },
-          { vigenteHasta: { gte: period.fechaInicio } },
-        ],
-      },
-      select: {
-        id: true,
-        empleadoId: true,
-        tipoCotizanteCodigo: true,
-        subtipoCotizanteCodigo: true,
-        epsCodigo: true,
-        epsNombre: true,
-        fondoPensionCodigo: true,
-        fondoPensionNombre: true,
-        arlCodigo: true,
-        arlNombre: true,
-        arlClaseRiesgo: true,
-        cajaCompensacionCodigo: true,
-        cajaCompensacionNombre: true,
-        vigenteDesde: true,
-        vigenteHasta: true,
-        formatoNormativoVersion: true,
-      },
-      orderBy: [{ vigenteDesde: 'asc' }, { id: 'asc' }],
-    });
+    const affiliations = await this.tenantPrisma.execute((prisma) =>
+      prisma.afiliacionSeguridadSocial.findMany({
+        where: {
+          tenantId: tenant.id,
+          empleadoId: { in: employeeIds },
+          vigenteDesde: { lte: period.fechaFin },
+          OR: [
+            { vigenteHasta: null },
+            { vigenteHasta: { gte: period.fechaInicio } },
+          ],
+        },
+        select: {
+          id: true,
+          empleadoId: true,
+          tipoCotizanteCodigo: true,
+          subtipoCotizanteCodigo: true,
+          epsCodigo: true,
+          epsNombre: true,
+          fondoPensionCodigo: true,
+          fondoPensionNombre: true,
+          arlCodigo: true,
+          arlNombre: true,
+          arlClaseRiesgo: true,
+          cajaCompensacionCodigo: true,
+          cajaCompensacionNombre: true,
+          vigenteDesde: true,
+          vigenteHasta: true,
+          formatoNormativoVersion: true,
+        },
+        orderBy: [{ vigenteDesde: 'asc' }, { id: 'asc' }],
+      }),
+    );
     const pilaEvents = await this.prisma.payrollPilaEvent.findMany({
       where: { tenantId: tenant.id, payrollPeriodId: period.id },
       select: {
@@ -3770,6 +3835,43 @@ export class PayrollService {
         { createdAt: 'asc' },
       ],
     });
+    const riskAssignments = await this.tenantPrisma.execute((prisma) =>
+      prisma.pilaAsignacionCentroTrabajo.findMany({
+        where: {
+          tenantId: tenant.id,
+          empleadoId: { in: employeeIds },
+          vigenteDesde: { lte: period.fechaFin },
+          OR: [
+            { vigenteHasta: null },
+            { vigenteHasta: { gte: period.fechaInicio } },
+          ],
+        },
+        select: {
+          id: true,
+          tenantId: true,
+          empleadoId: true,
+          codigoActividadEconomica: true,
+          formatoNormativoVersion: true,
+          vigenteDesde: true,
+          vigenteHasta: true,
+          centroTrabajo: {
+            select: {
+              id: true,
+              tenantId: true,
+              sedeId: true,
+              arlCodigo: true,
+              codigoCentro: true,
+              nombre: true,
+            },
+          },
+        },
+        orderBy: [
+          { empleadoId: 'asc' },
+          { vigenteDesde: 'asc' },
+          { id: 'asc' },
+        ],
+      }),
+    );
 
     const siteIds = [
       ...new Set(
@@ -3823,6 +3925,17 @@ export class PayrollService {
       });
       pilaEventsByEmployee.set(event.employeeId, employeeEvents);
     }
+    const riskAssignmentsByEmployee = new Map<
+      string,
+      NonNullable<PilaSourceContextInput['riskAssignments']>
+    >();
+    for (const assignment of riskAssignments) {
+      const { empleadoId, ...source } = assignment;
+      const employeeAssignments =
+        riskAssignmentsByEmployee.get(empleadoId) ?? [];
+      employeeAssignments.push(source);
+      riskAssignmentsByEmployee.set(empleadoId, employeeAssignments);
+    }
 
     return {
       tenant,
@@ -3845,6 +3958,7 @@ export class PayrollService {
         ]),
       ),
       affiliationsByEmployee,
+      riskAssignmentsByEmployee,
       pilaEventsByEmployee,
       worksitesById: new Map(
         sites.map((site) => [
@@ -3896,6 +4010,7 @@ export class PayrollService {
       worksite,
       affiliations: data.affiliationsByEmployee.get(employeeId) ?? [],
       pilaEvents: data.pilaEventsByEmployee.get(employeeId) ?? [],
+      riskAssignments: data.riskAssignmentsByEmployee.get(employeeId) ?? [],
     });
   }
 

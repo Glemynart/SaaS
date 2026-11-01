@@ -2,7 +2,7 @@
 
 | Campo           | Valor                                                                                                  |
 | --------------- | ------------------------------------------------------------------------------------------------------ |
-| **Estado**      | proposed — requiere aprobación de Producto y Nómina                                                    |
+| **Estado**      | accepted — opción B seleccionada para el MVP de captura y snapshot                                     |
 | **Fecha**       | 2026-10-31                                                                                             |
 | **Decisores**   | Producto · Nómina · Arquitectura                                                                       |
 | **Ámbito**      | Insumos PILA AT2 v30 para trabajadores dependientes estándar, campos 62 y 98                           |
@@ -50,7 +50,12 @@ en SUIN-Juriscol](https://www.suin-juriscol.gov.co/archivo/DECRETO_768_DE_2022.p
 Los códigos y las reglas de vigencia se deben volver a comprobar contra la
 versión normativa aplicable antes de habilitar la exportación.
 
-## Decisión propuesta
+## Decisión
+
+Se adopta la opción B por delegación general de decisiones de producto e
+ingeniería descrita en el GOAL MASTER y confirmada por el usuario el
+2026-10-31. Esta decisión autoriza el modelo de captura y su snapshot; no
+autoriza generar, transmitir, liquidar ni pagar una planilla.
 
 Separar el centro de trabajo declarado a la ARL de la sede física y conservar
 una asignación efectiva por empleado:
@@ -106,26 +111,39 @@ No conserva cambios de centro/actividad independientes de la afiliación y
 mezcla ubicación laboral con administradoras. También puede alterar la
 interpretación de períodos históricos. Se descarta.
 
-## Criterios de aceptación previos al desarrollo
+## Criterios de aceptación y validación restante
 
-- Una persona de Nómina revisa ejemplos reales anonimizados de constancias de
-  centros ARL y confirma cómo identifica la empresa el centro asignado y la
-  actividad del empleado.
-- La lista de códigos de actividad se versiona y se valida contra el anexo
-  vigente del Decreto 768; valores desconocidos o fuera de vigencia bloquean.
+- Antes de habilitar una exportación para clientes, una persona de Nómina
+  revisa ejemplos reales anonimizados de constancias de centros ARL y confirma
+  cómo identifica la empresa el centro asignado y la actividad del empleado.
+- La lista de códigos se versiona y se valida contra el anexo oficial del
+  Decreto 768; valores desconocidos o con otra versión bloquean. La captura
+  actual contiene los 1.018 códigos extraídos del anexo publicado por Función
+  Pública, sin descripciones, y conserva la huella SHA-256 del PDF fuente.
 - Alta, cierre de vigencia y corrección conservan auditoría y rechazan
   solapamientos para el mismo empleado; referencias de otros tenants se
   ocultan o rechazan.
 - La asignación debe coincidir con la ARL efectiva del empleado. La relación
   con `Sede` no cambia el código ni la vigencia por sí sola.
-- Al aprobar un período estándar, el snapshot congela centro, actividad,
-  vigencias y versión normativa. Cambiar datos maestros después no modifica
-  ese snapshot.
+- Al aprobar un período estándar, el `pilaPayload` v2 congela centro,
+  actividad, tenant, sede opcional, vigencias y versión normativa. Los
+  snapshots históricos v1 siguen leyéndose sin backfill; al faltar la
+  asignación, el preflight conserva los bloqueos 62 y 98. Cambiar datos
+  maestros después no modifica un snapshot aprobado.
 - Hueco, solapamiento, cambio de centro dentro del período, código no
   reconocido, actividad no vigente o discrepancia de ARL/riesgo producen un
   bloqueo identificable; no generan un archivo parcial.
 - Datos históricos sin asignación permanecen pendientes; la migración no
   completa ni convierte campos heredados.
+- La pantalla de empleado captura el centro ARL reutilizable, la asociación
+  opcional con sede y la actividad por empleado. Alta, cierre y reemplazo de
+  vigencia quedan auditados; la API rechaza cruces de tenant, solapamientos,
+  códigos fuera del catálogo y discrepancias de ARL/clase.
+- El preflight del snapshot valida que una sola asignación cubra todo el
+  período, que el código de centro no esté vacío, que la ARL coincida con la
+  afiliación y que el código de actividad pertenezca al catálogo y su primer
+  dígito coincida con la clase de riesgo. Esto solo resuelve insumos 62 y 98;
+  no confirma el formato completo ni compatibilidad de un operador.
 - Pruebas de migración y rollback se ejecutan en una base PostgreSQL
   desechable. Las pruebas cubren varios empleados en un centro, varios centros
   en una sede, dos actividades en una sede, cambio antes/durante/después del
@@ -152,10 +170,29 @@ aplicación ignore los datos nuevos mientras no intente producir archivos.
 - Cotizantes especiales, temporales, independientes o tipo 75.
 - Segmentar múltiples detalles 02 en un mismo período.
 
-## Pregunta de aprobación
+## Implementación inicial y límites
 
-¿Se aprueba la opción B, con la entidad de centro de trabajo asociada
-opcionalmente a una sede y una asignación con vigencia y actividad económica
-por empleado, para implementar los campos 62 y 98 del MVP dependiente estándar?
-La aprobación autoriza desarrollar ese modelo y sus pantallas tenant-safe; no
-autoriza serializar ni afirmar aceptación de operadores.
+La migración añade las tablas `pila_centros_trabajo` y
+`pila_asignaciones_centro_trabajo`, además de la clave compuesta tenant-safe de
+`Sede`. No realiza backfill. El catálogo versionado actual contiene 1.018
+códigos y registra como fuente el anexo oficial de Función Pública con SHA-256
+`b1280c5a07be085cf7bba6eef5c988ae1b83151460184d20d7e22830bfd47883`.
+
+La migración se aplicó junto con las 73 anteriores en PostgreSQL 16 desechable.
+La comparación de esquema no reportó diferencias en las tablas PILA nuevas;
+sí dejó diferencias heredadas en contratos, documentos y prima de servicios.
+Esta prueba no ejercitó el rollback operativo de versión de aplicación ni una
+migración inversa; el plan conserva las tablas y deshabilita la captura, y una
+eliminación destructiva requiere un plan y aprobación independientes.
+
+El Browser E2E pasó en Chromium contra PostgreSQL 16 desechable. Recorre la UI
+del empleado, BFF, API y persistencia para registrar un centro, asociarlo
+opcionalmente a una sede, crear una asignación, comprobarla tras recargar y
+cerrar su vigencia. Las lecturas quedaron clasificadas como autenticadas
+explícitamente y las escrituras como RBAC; la superficie pasa la activación
+Deny by Default.
+
+Quedan pendientes la revisión funcional por Nómina con evidencia real
+anonimizada, la revisión del formato completo del campo 62 en el AT2 aplicable
+y pruebas de carga con operadores. Hasta entonces no se afirma que el
+exportador o los códigos de centro hayan sido aceptados por ningún operador.

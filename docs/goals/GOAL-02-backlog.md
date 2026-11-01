@@ -279,6 +279,20 @@ prueba se detuvo y no se usaron datos de demo/staging/producción. Esta preparac
   contrastar el total de cotizantes, ni clases C/D sin evidencia de elegibilidad.
   PR #166 incorpora bloqueos para los campos 26, 7, 33, 34 y 76, conteos A/B y
   consistencia con Ley 1429, sin declarar el archivo generable ni ampliar el MVP.
-- ADR-014 permanece propuesta y pendiente de decisión. La implementación de
-  los campos 62 y 98 espera esa aprobación; la preparación independiente del
-  resto de AT2 continúa.
+- PR #167 (`8a38006`) se fusionó después de probar el procesamiento en segundo
+  plano con 100 empleados y pérdida de conexión del navegador. PR #168
+  (`5b17004`) se fusionó tras añadir y probar el avance de documentos
+  publicados, pendientes y con error.
+- La implementación de PR #169 agrega centros declarados a la ARL y
+  asignaciones fechadas de actividad económica por empleado, con sede
+  opcional, historial auditado, aislamiento por tenant y sin inferir datos de
+  campos heredados. La migración no hace backfill; `pilaPayload` v2 congela
+  centro, actividad, vigencias y versión normativa y mantiene lectura de
+  snapshots v1. La captura valida solapamientos, afiliación ARL y clase de
+  riesgo.
+- El catálogo versionado incluye 1.018 códigos extraídos del anexo del Decreto
+  768/2022; se registra el hash del PDF y se omiten descripciones no verificadas.
+  El E2E cubre alta de centro, asignación, persistencia y cierre de vigencia.
+  Siguen pendientes una revisión funcional de Nómina con constancias
+  anonimizadas y confirmar el formato del campo 62 con AT2 y operadores. Esta
+  capacidad aún no serializa ni transmite archivos PILA.
