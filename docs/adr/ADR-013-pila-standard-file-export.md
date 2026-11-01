@@ -750,16 +750,17 @@ serializar ni descargar registros tipo 1/2 hasta completar la matriz normativa,
 los cálculos y segmentos laborales soportados, la validación de todos los campos
 y sus fixtures esperados. **ARQUITECTURA DISPONIBLE:** ADR-013, el historial
 tenant-scoped de afiliaciones del PR #160 y los payloads de preparación
-congelados por las PR abiertas #163–#170 permiten avanzar sin reescribir
-PayrollSnapshot históricos ni completar desde maestros actuales.
+congelados por las PR #163–#170 ya fusionadas en `main` permiten avanzar
+sin reescribir PayrollSnapshot históricos ni completar desde maestros actuales.
 
 El contrato de snapshot de nómina `PayrollSnapshot.payloadVersion` permanece en
 versión 1. Los datos regulatorios se capturan por separado en
-`PayrollSnapshot.pilaPayload` con `pilaPayloadVersion`; el código de la pila
-abierta usa versión 2 para este payload. Esa captura separada incluye fuentes
-confirmadas del aportante, empleado, período, contrato/sede, afiliaciones,
-novedades PILA y asignaciones de riesgo, con datos no disponibles preservados
-como nulos y reportados por el preflight. La existencia de esos orígenes no
+`PayrollSnapshot.pilaPayload` con `pilaPayloadVersion`; la implementación
+actual en `main` usa la versión 2 para este payload. Esa captura separada
+incluye fuentes confirmadas del aportante, empleado, período, contrato/sede,
+afiliaciones, novedades PILA y asignaciones de riesgo, con datos no disponibles
+preservados como nulos y reportados por el preflight. La existencia de esos
+orígenes no
 significa que todos los campos AT2 estén calculados, validados o listos para
 serialización. Los snapshots históricos sin un payload PILA compatible no se
 rellenan desde registros mutables ni se reescriben.
@@ -775,9 +776,10 @@ PR #162 ya fue fusionada en `main` como `a459683`: la fecha prevista de pago de
 aportes PILA se conserva en períodos y snapshots nuevos y sigue siendo distinta
 del pago del salario o de la evidencia de pago de aportes.
 
-Las PR abiertas #163–#170 agregan preparación explícita para el subconjunto
-dependiente estándar: fuentes empresariales y laborales congeladas, afiliación
-efectiva, eventos, riesgo y bloqueos de eventos que requieren segmentación.
+Las PR #163–#170 fusionadas en `main` agregaron preparación explícita para
+el subconjunto dependiente estándar: fuentes empresariales y laborales
+congeladas, afiliación efectiva, eventos, riesgo y bloqueos de eventos que
+requieren segmentación.
 El payload calcula 30 días por subsistema solo para el caso de mes calendario
 completo, cobertura completa, tipo 01/subtipo 00 y sin eventos que requieran
 segmentar. La proyección del salario básico para el campo 40 debe ser un entero
@@ -801,7 +803,7 @@ escenario objetivo, pero no es por sí sola un fixture aprobado. La generación
 solo comienza cuando el conjunto soportado sea reconstruible y verificable; los
 demás escenarios permanecen bloqueados.
 
-Detalle de las reglas de preparación capturadas en la pila abierta:
+Detalle de las reglas de preparación actualmente verificables en `main`:
 captura 30 días separados para pensión, salud, riesgos y CCF únicamente si el
 período es un mes calendario completo, empleado/contrato/una afiliación cubren
 todo el mes, el cotizante es 01 con subtipo explícito 00 y no hay novedades
