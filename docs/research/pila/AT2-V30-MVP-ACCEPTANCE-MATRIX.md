@@ -80,6 +80,39 @@ p. 9).
 | 31–32  | Fecha de matrícula y departamento del domicilio principal para Ley 1429.    | Solo aplican al beneficio; elegibilidad de clase D no está validada, por lo que el MVP la bloquea.                                                                                                                                 |
 | 33–34  | Exoneración y beneficio CCF de Ley 1429.                                    | Exigen respuesta explícita del aportante; si son afirmativas, falta validar evidencia de elegibilidad y la exportación se bloquea.                                                                                                 |
 
+### Mapa de fuentes para el encabezado tipo 2 (registro 01)
+
+AT2 v30, pp. 26–30, define 22 campos y 359 posiciones. En el alcance actual,
+la planilla es tipo `E`; el mapa separa los valores aportados por la aplicación
+de los que AT2 asigna al operador.
+
+| Campos | Fuente congelada / regla explícita                                           | Estado o bloqueo actual                                                                                                                       |
+| ------ | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1      | Constante de formato `01`.                                                   | La aplicación genera el identificador del registro.                                                                                           |
+| 2      | Modalidad de planilla (`1` electrónica o `2` asistida).                      | AT2 dice que la genera automáticamente el operador; falta confirmar cómo debe venir en el archivo de entrada de SOI.                          |
+| 3      | Secuencia del aportante, ascendente desde `0001`.                            | Para un único encabezado de planilla puede iniciarse en `0001`; generación de varias planillas en un mismo archivo no está implementada.      |
+| 4–7    | Campos 1–4 del archivo tipo 1.                                               | Reusar el snapshot aprobado; validar identidad y DV según el mapa tipo 1.                                                                     |
+| 8–10   | Tipo de planilla `E`; número y fecha de planilla asociada.                   | Para `E`, los campos 9 y 10 se dejan en blanco por AT2.                                                                                       |
+| 11–13  | Forma de presentación y sucursal, desde campos 10, 5 y 6 del archivo tipo 1. | Reusar reglas de `U`/`S`; no deducir sede laboral.                                                                                            |
+| 14     | Código ARL del aportante, `employer.pila.codigoArlAportante`.                | Hay dato explícito en el snapshot; no sustituirlo por el centro ARL del empleado.                                                             |
+| 15     | Período de pago para sistemas distintos a salud.                             | AT2 indica que lo calcula el operador; no hay regla local aprobada para asignarlo.                                                            |
+| 16     | Período de pago del sistema de salud, formato `AAAA-MM`.                     | El período mensual completo del snapshot es fuente candidata; la selección final debe contrastarse por operador y vigencia normativa.         |
+| 17     | Número de radicación/planilla.                                               | Asignado por el sistema del operador; no se inventa en el archivo de entrada.                                                                 |
+| 18     | Fecha de pago efectiva.                                                      | Asignada por el operador desde el pago real. `fechaPrevistaPagoPila` no es pago realizado y nunca se copia aquí.                              |
+| 19     | Conteo de cotizantes únicos del detalle.                                     | Calculable desde snapshots incluidos, una vez por persona y excluyendo tipo 40; el MVP solo incluye tipo 01.                                  |
+| 20     | Suma del campo 45 (IBC CCF) de los detalles aplicables, no salario bruto.    | Candidato: sumar `ibcPorSubsistema.cajaCompensacion.valor` aprobado; revisar obligación CCF y el límite de 12 posiciones antes de serializar. |
+| 21     | Tipo de aportante del campo 30 del archivo tipo 1.                           | Snapshot declara tipo `1` para empleador.                                                                                                     |
+| 22     | Código del operador de información.                                          | Asignado por el operador; no existe un código en el snapshot ni una convención de entrada confirmada.                                         |
+
+MinSalud marca los campos 2, 15, 17, 18 y 22 como generados o asignados por el
+operador/sistema. Las páginas públicas de SOI confirman carga de archivos
+planos y que el portal devuelve número de planilla y total a pagar; su
+Autocorrector revisa redondeos, topes, obligación de subsistemas y
+proporcionalidad. Esta evidencia confirma el portal candidato, no la
+convención de campos ni compatibilidad: la prueba de carga del archivo sigue
+pendiente ([servicios de SOI](https://www.soi.com.co/persona-servicios-de-soi),
+[Autocorrector SOI](https://www.soi.com.co/autocorrector)).
+
 Para el detalle 02, el alcance de datos de mayor riesgo es:
 
 | Campos        | Dato                                         | Evidencia y condición para aceptar                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -107,7 +140,7 @@ genera el archivo no determina el hito.
 
 ## Criterios de aceptación y pruebas de contrato
 
-Las pruebas `PILA-AT2-01` a `PILA-AT2-22` son criterios objetivo para la futura
+Las pruebas `PILA-AT2-01` a `PILA-AT2-23` son criterios objetivo para la futura
 validación local. **“Bloquear” significa no producir una descarga parcial.**
 La fuente normativa da el requisito del formato; donde se marca “Payroll debe
 aprobar”, AT2 no define por sí solo el cálculo laboral que alimenta el campo.
@@ -136,6 +169,7 @@ aprobar”, AT2 no define por sí solo el cálculo laboral que alimenta el campo
 | PILA-AT2-20 | Fax no numérico, correo fuera del formato AT2 o identificación del representante incompatible con el documento declarado.                             | Bloquear el campo correspondiente; no normalizar, sustituir ni truncar datos. Aceptar documentos CC/CE/PA/CD en sus límites oficiales; la identificación puede omitirse solo para persona natural si se omite completa.  | AT2 v30, pp. 13–14; cubierto en preflight unitario.                                                    |
 | PILA-AT2-21 | Identificación del aportante incompatible con el documento declarado o DV distinto de `0` para persona natural.                                       | Bloquear campo 3/4; aplicar longitud y caracteres por tipo, exigir exactamente 15 dígitos a PE y no aplicar el DV jurídico a persona natural. El DV de persona jurídica sigue sujeto a validación DIAN/operador.         | AT2 v30, pp. 10–11; cubierto en preflight unitario.                                                    |
 | PILA-AT2-22 | Presentación por sucursal sin nombre, con código de sucursal disponible, o presentación única con código.                                             | Para `S`, exigir código y si falta nombre usar el código en campo 6; para `U`, campo 5 debe quedar en blanco. No inventar una sede ni sustituir el código por la sede laboral.                                           | AT2 v30, p. 11; fallback cubierto en preflight unitario.                                               |
+| PILA-AT2-23 | El encabezado 01 contiene modalidad, período de otros sistemas, radicación, fecha real de pago o código de operador asignados por el sistema.         | No sustituir campos 2/15/17/18/22 con valores inventados; verificar su convención de entrada en SOI antes de emitir un archivo candidato. Nunca usar la fecha prevista como fecha pagada.                                | AT2 v30, pp. 26–30; carga pública de SOI confirmada, convención de entrada no verificada.              |
 
 ### Fixture numérico candidato para campo 95
 
