@@ -48,8 +48,8 @@ cada cambio de reglas.
   base, fórmula y resultado. La aprobación congela snapshots y deltas de
   correcciones utilizados; el PDF se publica en Expediente con hash.
 - Las PR #167 y #168 amplían el Browser E2E: genera documentos para 100
-  empleados, desconecta el navegador después de recibir la aprobación y
-  confirma que el worker termina el lote, publica 100 documentos únicos,
+  empleados, desconecta el navegador tras aprobar y confirma que el lote entra
+  en `PROCESANDO` mientras sigue sin conexión, publica 100 documentos únicos,
   muestra el avance 100/100 al reconectar y permite descargarlos. Se verificó
   en PostgreSQL 16 desechable; el caso tardó 39,5 segundos.
 - PR #173 agrega una prueba unitaria de recuperación tras una interrupción

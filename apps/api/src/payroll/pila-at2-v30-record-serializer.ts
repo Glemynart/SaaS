@@ -282,7 +282,9 @@ function formatField(
   input: PilaAt2V30FieldInput,
 ): string {
   if (input.value === null) {
-    if (input.emptyAs === 'spaces') return ' '.repeat(field.length);
+    if (input.emptyAs === 'spaces' && field.kind === 'A') {
+      return ' '.repeat(field.length);
+    }
     if (input.emptyAs === 'zeros' && field.kind === 'N') {
       return '0'.repeat(field.length);
     }

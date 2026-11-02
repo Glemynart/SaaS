@@ -54,10 +54,21 @@ function snapshot(employeeId = 'employee-1'): PilaSnapshotPreparationInput {
         },
       ],
       payroll: {
+        payrollRunId: 'run-1',
         ibcPorSubsistema: { cajaCompensacion: { valor: 2_000_000 } },
       },
     },
   };
+}
+
+function mapCandidate(
+  snapshots: readonly PilaSnapshotPreparationInput[],
+  expectedApprovedSnapshotCount = snapshots.length,
+) {
+  return mapPilaAt2V30HeaderCandidate({
+    snapshots,
+    expectedApprovedSnapshotCount,
+  });
 }
 
 function payloadOf(snapshotInput: PilaSnapshotPreparationInput) {
@@ -66,22 +77,25 @@ function payloadOf(snapshotInput: PilaSnapshotPreparationInput) {
     period: { payrollPeriodId: string; [key: string]: unknown };
     employee: { employeeId: string };
     affiliations: Array<Record<string, unknown>>;
-    payroll: { ibcPorSubsistema: { cajaCompensacion: { valor: number } } };
+    payroll: {
+      payrollRunId: string;
+      ibcPorSubsistema: { cajaCompensacion: { valor: number } };
+    };
     [key: string]: unknown;
   };
 }
 
 describe('mapPilaAt2V30HeaderCandidate', () => {
-  it('maps constants, shared employer data, period and totals from approved snapshots', () => {
-    const candidate = mapPilaAt2V30HeaderCandidate({
-      snapshots: [snapshot()],
-    });
+  it('maps constants, shared employer data, period and totals from a complete snapshot set', () => {
+    const candidate = mapCandidate([snapshot()]);
 
     expect(candidate).toMatchObject({
       formatVersion: 'AT2_V30',
       supportedSnapshots: true,
       tenantId: 'tenant-1',
       payrollPeriodId: 'period-1',
+      payrollRunId: 'run-1',
+      snapshotCountMatchesExpected: true,
     });
     expect(candidate.values).toMatchObject({
       1: { value: '01' },
@@ -114,18 +128,14 @@ describe('mapPilaAt2V30HeaderCandidate', () => {
     payloadOf(second).payroll.ibcPorSubsistema.cajaCompensacion.valor =
       3_000_000;
 
-    const candidate = mapPilaAt2V30HeaderCandidate({
-      snapshots: [snapshot(), second],
-    });
+    const candidate = mapCandidate([snapshot(), second]);
 
     expect(candidate.values[19]).toEqual({ value: 2 });
     expect(candidate.values[20]).toEqual({ value: 5_000_000 });
   });
 
   it('keeps fields assigned by the operator unresolved', () => {
-    const candidate = mapPilaAt2V30HeaderCandidate({
-      snapshots: [snapshot()],
-    });
+    const candidate = mapCandidate([snapshot()]);
 
     expect(
       candidate.unresolvedFields.map(({ fieldNumber }) => fieldNumber),
@@ -136,9 +146,7 @@ describe('mapPilaAt2V30HeaderCandidate', () => {
     const second = snapshot('employee-2');
     payloadOf(second).employer.tenantId = 'tenant-2';
 
-    const candidate = mapPilaAt2V30HeaderCandidate({
-      snapshots: [snapshot(), second],
-    });
+    const candidate = mapCandidate([snapshot(), second]);
 
     expect(candidate.supportedSnapshots).toBe(false);
     expect(candidate.tenantId).toBeNull();
@@ -146,9 +154,7 @@ describe('mapPilaAt2V30HeaderCandidate', () => {
   });
 
   it('does not select between duplicate employee snapshots to form totals', () => {
-    const candidate = mapPilaAt2V30HeaderCandidate({
-      snapshots: [snapshot(), snapshot()],
-    });
+    const candidate = mapCandidate([snapshot(), snapshot()]);
 
     expect(candidate.values[19]).toBeUndefined();
     expect(candidate.values[20]).toBeUndefined();
@@ -164,9 +170,7 @@ describe('mapPilaAt2V30HeaderCandidate', () => {
     const nonstandard = snapshot();
     payloadOf(nonstandard).affiliations[0].tipoCotizanteCodigo = '02';
 
-    const candidate = mapPilaAt2V30HeaderCandidate({
-      snapshots: [nonstandard],
-    });
+    const candidate = mapCandidate([nonstandard]);
 
     expect(candidate.values[19]).toBeUndefined();
     expect(candidate.values[20]).toBeUndefined();
@@ -176,11 +180,28 @@ describe('mapPilaAt2V30HeaderCandidate', () => {
     const partialPeriod = snapshot();
     payloadOf(partialPeriod).period.fechaFin = '2026-10-30';
 
-    const candidate = mapPilaAt2V30HeaderCandidate({
-      snapshots: [partialPeriod],
-    });
+    const candidate = mapCandidate([partialPeriod]);
 
     expect(candidate.supportedSnapshots).toBe(true);
     expect(candidate.values[16]).toBeUndefined();
+  });
+
+  it('blocks totals when the snapshot set is smaller than the approved run', () => {
+    const candidate = mapCandidate([snapshot()], 2);
+
+    expect(candidate.snapshotCountMatchesExpected).toBe(false);
+    expect(candidate.values[19]).toBeUndefined();
+    expect(candidate.values[20]).toBeUndefined();
+  });
+
+  it('refuses to combine snapshots from separate payroll runs', () => {
+    const second = snapshot('employee-2');
+    payloadOf(second).payroll.payrollRunId = 'run-2';
+
+    const candidate = mapCandidate([snapshot(), second]);
+
+    expect(candidate.supportedSnapshots).toBe(false);
+    expect(candidate.payrollRunId).toBeNull();
+    expect(candidate.values).toEqual({});
   });
 });

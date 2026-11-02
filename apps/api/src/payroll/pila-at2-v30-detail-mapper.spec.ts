@@ -125,6 +125,50 @@ function payloadOf(snapshotInput: PilaSnapshotPreparationInput) {
   };
 }
 
+const invalidRiskAssignmentCases: Array<{
+  name: string;
+  mutate: (assignment: Record<string, unknown>) => void;
+}> = [
+  {
+    name: 'center belongs to another tenant',
+    mutate: (assignment) => {
+      (assignment.centroTrabajo as Record<string, unknown>).tenantId =
+        'tenant-2';
+    },
+  },
+  {
+    name: 'center ARL differs from the employee affiliation',
+    mutate: (assignment) => {
+      (assignment.centroTrabajo as Record<string, unknown>).arlCodigo =
+        'ARL002';
+    },
+  },
+  {
+    name: 'assignment starts after the period begins',
+    mutate: (assignment) => {
+      assignment.vigenteDesde = '2026-10-02';
+    },
+  },
+  {
+    name: 'assignment ends before the period ends',
+    mutate: (assignment) => {
+      assignment.vigenteHasta = '2026-10-30';
+    },
+  },
+  {
+    name: 'activity catalog version is unsupported',
+    mutate: (assignment) => {
+      assignment.formatoNormativoVersion = 'DECRETO_768_2022_OLD';
+    },
+  },
+  {
+    name: 'activity code is outside the catalog',
+    mutate: (assignment) => {
+      assignment.codigoActividadEconomica = 'INVALID';
+    },
+  },
+];
+
 describe('mapPilaAt2V30DetailCandidate', () => {
   it('maps direct identity, affiliation, days, bases, salary and ARL snapshot values', () => {
     const candidate = mapPilaAt2V30DetailCandidate(snapshot());
@@ -254,6 +298,16 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     );
   });
 
+  it('keeps both flags unresolved for unsupported document types', () => {
+    const input = snapshot();
+    payloadOf(input).employee.tipoDocumento = 'ZZ';
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[7]).toBeUndefined();
+    expect(candidate.values[8]).toBeUndefined();
+  });
+
   it('does not map days or affiliations for a nonstandard cotizante', () => {
     const input = snapshot();
     payloadOf(input).affiliations[0].tipoCotizanteCodigo = '02';
@@ -264,6 +318,8 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.values[5]).toBeUndefined();
     expect(candidate.values[31]).toBeUndefined();
     expect(candidate.values[36]).toBeUndefined();
+    expect(candidate.values[7]).toBeUndefined();
+    expect(candidate.values[8]).toBeUndefined();
   });
 
   it('preserves numeric identifier and work center leading zeros', () => {
@@ -545,9 +601,44 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     ).toContain('sin novedades');
   });
 
-  it('does not map a work center across tenants or an activity outside its catalog version', () => {
+  it('does not map a work center assigned to another tenant', () => {
     const input = snapshot();
     payloadOf(input).pilaRiskAssignments[0].tenantId = 'tenant-2';
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[62]).toBeUndefined();
+    expect(candidate.values[98]).toBeUndefined();
+  });
+
+  it.each(invalidRiskAssignmentCases)(
+    'leaves ARL fields unresolved when the $name',
+    ({ mutate }) => {
+      const input = snapshot();
+      mutate(payloadOf(input).pilaRiskAssignments[0]);
+
+      const candidate = mapPilaAt2V30DetailCandidate(input);
+
+      expect(candidate.values[62]).toBeUndefined();
+      expect(candidate.values[98]).toBeUndefined();
+    },
+  );
+
+  it('leaves only the work center field unresolved when its code is not numeric', () => {
+    const input = snapshot();
+    const center = payloadOf(input).pilaRiskAssignments[0]
+      .centroTrabajo as Record<string, unknown>;
+    center.codigoCentro = 'ARL-CENTER-12';
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[62]).toBeUndefined();
+    expect(candidate.values[98]).toEqual({ value: riskActivityCode });
+  });
+
+  it('does not map ARL fields when activity class differs from the affiliation', () => {
+    const input = snapshot();
+    payloadOf(input).affiliations[0].arlClaseRiesgo = '3';
 
     const candidate = mapPilaAt2V30DetailCandidate(input);
 
