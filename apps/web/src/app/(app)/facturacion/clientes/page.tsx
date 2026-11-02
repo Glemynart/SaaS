@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import Link from 'next/link';
 import {
   useCustomers,
   useCreateCustomer,
   useUpdateCustomer,
   useDeleteCustomer,
 } from '@/features/billing/hooks/use-billing';
+import { useTerceros } from '@/features/accounting/hooks/use-accounting-configuration';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,6 +19,7 @@ import { Plus, Loader2, Pencil, Trash2 } from 'lucide-react';
 export default function ClientesPage() {
   const [search, setSearch] = useState('');
   const { data: customers, isLoading } = useCustomers(search || undefined);
+  const { data: terceros } = useTerceros({ esCliente: true, activo: true });
   const createMutation = useCreateCustomer();
   const updateMutation = useUpdateCustomer();
   const deleteMutation = useDeleteCustomer();
@@ -28,16 +31,17 @@ export default function ClientesPage() {
     email: '',
     telefono: '',
     direccion: '',
+    terceroId: '',
   });
 
   const reset = () => {
-    setForm({ razonSocial: '', nit: '', email: '', telefono: '', direccion: '' });
+    setForm({ razonSocial: '', nit: '', email: '', telefono: '', direccion: '', terceroId: '' });
     setEditId(null);
   };
   const handleSubmit = useCallback(() => {
     if (editId) {
       updateMutation.mutate(
-        { id: editId, data: form },
+        { id: editId, data: { ...form, terceroId: form.terceroId || null } },
         {
           onSuccess: () => {
             setShowForm(false);
@@ -46,12 +50,15 @@ export default function ClientesPage() {
         },
       );
     } else {
-      createMutation.mutate(form, {
-        onSuccess: () => {
-          setShowForm(false);
-          reset();
+      createMutation.mutate(
+        { ...form, terceroId: form.terceroId || null },
+        {
+          onSuccess: () => {
+            setShowForm(false);
+            reset();
+          },
         },
-      });
+      );
     }
   }, [form, editId, createMutation, updateMutation]);
 
@@ -62,6 +69,7 @@ export default function ClientesPage() {
       email: c.email ?? '',
       telefono: c.telefono ?? '',
       direccion: c.direccion ?? '',
+      terceroId: c.terceroId ?? '',
     });
     setEditId(c.id);
     setShowForm(true);
@@ -94,7 +102,7 @@ export default function ClientesPage() {
         </Button>
       </div>
       {showForm && (
-        <div className="mb-6 rounded-xl border bg-white p-5 shadow-sm grid gap-3 sm:grid-cols-3">
+        <div className="mb-6 rounded-xl border bg-surface p-5 shadow-sm grid gap-3 sm:grid-cols-3">
           <div>
             <Label>Razón social</Label>
             <Input
@@ -127,14 +135,41 @@ export default function ClientesPage() {
               onChange={(e) => setForm({ ...form, direccion: e.target.value })}
             />
           </div>
+          <div className="sm:col-span-3">
+            <Label>Tercero contable</Label>
+            <select
+              value={form.terceroId}
+              onChange={(e) => setForm({ ...form, terceroId: e.target.value })}
+              className="h-10 w-full rounded-md border px-3 text-sm"
+            >
+              <option value="">Sin vincular</option>
+              {(terceros ?? [])
+                .filter((tercero) => tercero.tipoDocumento === 'NIT')
+                .map((tercero) => (
+                  <option key={tercero.id} value={tercero.id}>
+                    {tercero.razonSocial ??
+                      `${tercero.primerNombre ?? ''} ${tercero.primerApellido ?? ''}`.trim()}{' '}
+                    — NIT {tercero.numeroDocumento}
+                    {tercero.digitoVerificacion ? `-${tercero.digitoVerificacion}` : ''}
+                  </option>
+                ))}
+            </select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              El NIT debe coincidir. Vincular el tercero es requisito para emitir y contabilizar.{' '}
+              <Link href="/contabilidad/terceros" className="underline underline-offset-2">
+                Gestionar terceros contables
+              </Link>
+            </p>
+          </div>
           <div className="flex items-end gap-2 sm:col-span-3">
             <Button
               size="sm"
               onClick={handleSubmit}
               disabled={createMutation.isPending || updateMutation.isPending}
             >
-              {createMutation.isPending ||
-                (updateMutation.isPending && <Loader2 className="mr-1 size-3 animate-spin" />)}
+              {(createMutation.isPending || updateMutation.isPending) && (
+                <Loader2 className="mr-1 size-3 animate-spin" />
+              )}
               {editId ? 'Guardar' : 'Crear'}
             </Button>
             <Button size="sm" variant="outline" onClick={() => setShowForm(false)}>
@@ -142,6 +177,11 @@ export default function ClientesPage() {
             </Button>
           </div>
         </div>
+      )}
+      {(createMutation.error ?? updateMutation.error ?? deleteMutation.error) instanceof Error && (
+        <p role="alert" className="mb-4 text-sm text-destructive">
+          {(createMutation.error ?? updateMutation.error ?? deleteMutation.error)?.message}
+        </p>
       )}
       <div className="mb-6">
         <Input
@@ -151,7 +191,7 @@ export default function ClientesPage() {
           className="max-w-sm"
         />
       </div>
-      <div className="overflow-hidden rounded-xl border bg-white">
+      <div className="overflow-hidden rounded-xl border bg-surface">
         <div className="divide-y">
           {(customers ?? []).map((c) => (
             <div key={c.id} className="flex items-center justify-between px-5 py-3.5">
@@ -160,6 +200,7 @@ export default function ClientesPage() {
                 <p className="text-xs text-muted-foreground">NIT: {c.nit}</p>
                 <div className="mt-1 flex gap-2">
                   <Badge>{c.status === 'ACTIVE' ? 'Activo' : 'Inactivo'}</Badge>
+                  <Badge>{c.terceroId ? 'Tercero vinculado' : 'Sin tercero'}</Badge>
                   {c.email && <span className="text-xs text-muted-foreground">{c.email}</span>}
                 </div>
               </div>
