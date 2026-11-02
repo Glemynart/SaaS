@@ -973,7 +973,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const input = snapshot();
     payloadOf(input).employee.tipoDocumento = 'ZZ';
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[7]).toBeUndefined();
     expect(candidate.values[8]).toBeUndefined();
@@ -1603,7 +1603,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       const input = snapshot();
       mutate(payloadOf(input).pilaRiskAssignments[0]);
 
-      const candidate = mapPilaAt2V30DetailCandidate(input);
+      const candidate = mapCandidate(input);
 
       expect(candidate.values[62]).toBeUndefined();
       expect(candidate.values[98]).toBeUndefined();
@@ -1616,7 +1616,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       .centroTrabajo as Record<string, unknown>;
     center.codigoCentro = 'ARL-CENTER-12';
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[62]).toBeUndefined();
     expect(candidate.values[98]).toEqual({ value: riskActivityCode });
@@ -1626,7 +1626,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const input = snapshot();
     payloadOf(input).affiliations[0].arlClaseRiesgo = '3';
 
-    const candidate = mapPilaAt2V30DetailCandidate(input);
+    const candidate = mapCandidate(input);
 
     expect(candidate.values[62]).toBeUndefined();
     expect(candidate.values[98]).toBeUndefined();
