@@ -27,16 +27,23 @@ export default function ProductosPage() {
   const updateMutation = useUpdateProduct();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState({ nombre: '', descripcion: '', precio: 0, impuesto: 19 });
+  const [form, setForm] = useState<{
+    nombre: string;
+    descripcion: string;
+    precio: number;
+    impuesto: number | '';
+  }>({ nombre: '', descripcion: '', precio: 0, impuesto: '' });
 
   const reset = () => {
-    setForm({ nombre: '', descripcion: '', precio: 0, impuesto: 19 });
+    setForm({ nombre: '', descripcion: '', precio: 0, impuesto: '' });
     setEditId(null);
   };
   const handleSubmit = useCallback(() => {
+    if (form.impuesto === '') return;
+    const payload = { ...form, impuesto: Number(form.impuesto) };
     if (editId) {
       updateMutation.mutate(
-        { id: editId, data: form },
+        { id: editId, data: payload },
         {
           onSuccess: () => {
             setShowForm(false);
@@ -45,7 +52,7 @@ export default function ProductosPage() {
         },
       );
     } else {
-      createMutation.mutate(form, {
+      createMutation.mutate(payload, {
         onSuccess: () => {
           setShowForm(false);
           reset();
@@ -77,7 +84,7 @@ export default function ProductosPage() {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold text-foreground">Productos y servicios</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Catálogo para facturación.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Catálogo para facturación interna.</p>
         </div>
         <Button
           size="sm"
@@ -91,7 +98,7 @@ export default function ProductosPage() {
         </Button>
       </div>
       {showForm && (
-        <div className="mb-6 rounded-xl border bg-white p-5 shadow-sm grid gap-3 sm:grid-cols-4">
+        <div className="mb-6 rounded-xl border bg-surface p-5 shadow-sm grid gap-3 sm:grid-cols-4">
           <div className="sm:col-span-2">
             <Label>Nombre</Label>
             <Input
@@ -108,15 +115,31 @@ export default function ProductosPage() {
             />
           </div>
           <div>
-            <Label>Impuesto %</Label>
-            <Input
-              type="number"
+            <Label>IVA configurado</Label>
+            <select
               value={form.impuesto}
-              onChange={(e) => setForm({ ...form, impuesto: Number(e.target.value) })}
-            />
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  impuesto: e.target.value === '' ? '' : Number(e.target.value),
+                })
+              }
+              className="h-10 w-full rounded-md border px-3 text-sm"
+            >
+              <option value="">Seleccionar tasa</option>
+              <option value={0}>0% — sin IVA en asiento</option>
+              <option value={5}>5%</option>
+              <option value={19}>19%</option>
+            </select>
           </div>
           <div className="sm:col-span-4 flex gap-2">
-            <Button size="sm" onClick={handleSubmit} disabled={createMutation.isPending}>
+            <Button
+              size="sm"
+              onClick={handleSubmit}
+              disabled={
+                createMutation.isPending || updateMutation.isPending || form.impuesto === ''
+              }
+            >
               {createMutation.isPending && <Loader2 className="mr-1 size-3 animate-spin" />}
               {editId ? 'Guardar' : 'Crear'}
             </Button>
@@ -126,6 +149,15 @@ export default function ProductosPage() {
           </div>
         </div>
       )}
+      {(createMutation.error ?? updateMutation.error) instanceof Error && (
+        <p role="alert" className="mb-4 text-sm text-destructive">
+          {(createMutation.error ?? updateMutation.error)?.message}
+        </p>
+      )}
+      <p className="mb-4 text-xs text-muted-foreground">
+        Revisa la tasa según cada servicio. 0% solo omite IVA del asiento: no determina si la
+        operación es exenta o excluida ni valida requisitos DIAN.
+      </p>
       <div className="mb-6">
         <Input
           placeholder="Buscar..."
@@ -134,7 +166,7 @@ export default function ProductosPage() {
           className="max-w-sm"
         />
       </div>
-      <div className="overflow-hidden rounded-xl border bg-white">
+      <div className="overflow-hidden rounded-xl border bg-surface">
         <div className="divide-y">
           {(products ?? []).map((p) => (
             <div key={p.id} className="flex items-center justify-between px-5 py-3.5">

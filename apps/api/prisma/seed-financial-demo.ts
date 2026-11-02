@@ -462,7 +462,7 @@ async function ensureInvoice(
     key: string;
     numero: string;
     customerId: string;
-    status: 'DRAFT' | 'ISSUED';
+    status: 'DRAFT';
     fechaEmision: Date;
     items: Array<{
       key: string;
@@ -489,24 +489,63 @@ async function ensureInvoice(
     );
   }
 
-  const items = invoice.items.map((item) => ({
-    id: demoId(tenantId, item.key),
-    productServiceId: item.productServiceId,
-    descripcion: item.descripcion,
-    cantidad: item.cantidad,
-    valorUnitario: item.valorUnitario,
-    subtotal: roundCurrency(item.cantidad * item.valorUnitario),
-  }));
+  const customer = await tx.customer.findFirst({
+    where: { id: invoice.customerId, tenantId, status: 'ACTIVE' },
+  });
+  if (!customer) {
+    throw new Error('El cliente sintético debe existir y estar activo.');
+  }
+  const productIds = [
+    ...new Set(invoice.items.map((item) => item.productServiceId)),
+  ];
+  const products = await tx.productService.findMany({
+    where: { tenantId, id: { in: productIds }, activo: true },
+    select: { id: true, impuesto: true },
+  });
+  if (products.length !== productIds.length) {
+    throw new Error(
+      'Cada línea sintética debe usar un producto activo del tenant.',
+    );
+  }
+  const productRate = new Map(
+    products.map((product) => [product.id, Number(product.impuesto)]),
+  );
+  const items = invoice.items.map((item) => {
+    const porcentajeImpuesto = productRate.get(item.productServiceId);
+    if (
+      porcentajeImpuesto === undefined ||
+      ![0, 5, 19].includes(porcentajeImpuesto)
+    ) {
+      throw new Error(
+        'El producto sintético debe tener IVA configurado como 0, 5 o 19.',
+      );
+    }
+    const subtotal = roundCurrency(item.cantidad * item.valorUnitario);
+    return {
+      id: demoId(tenantId, item.key),
+      productServiceId: item.productServiceId,
+      descripcion: item.descripcion,
+      cantidad: item.cantidad,
+      valorUnitario: item.valorUnitario,
+      subtotal,
+      porcentajeImpuesto,
+      valorImpuesto: roundCurrency((subtotal * porcentajeImpuesto) / 100),
+    };
+  });
   const subtotal = roundCurrency(
     items.reduce((sum, item) => sum + Number(item.subtotal), 0),
   );
-  const impuestos = roundCurrency(subtotal * 0.19);
+  const impuestos = roundCurrency(
+    items.reduce((sum, item) => sum + Number(item.valorImpuesto), 0),
+  );
 
   await tx.invoice.create({
     data: {
       id,
       tenantId,
       customerId: invoice.customerId,
+      customerRazonSocialSnapshot: customer.razonSocial,
+      customerNitSnapshot: customer.nit,
       numero: invoice.numero,
       subtotal,
       impuestos,
@@ -1106,7 +1145,7 @@ export async function seedFinancialDemoScenario(
             key: 'invoice-issued-001',
             numero: `DEMO-${invoiceYear}-001`,
             customerId: horizonCustomerId,
-            status: 'ISSUED',
+            status: 'DRAFT',
             fechaEmision: invoiceDate,
             items: [
               {
@@ -1127,7 +1166,7 @@ export async function seedFinancialDemoScenario(
             key: 'invoice-issued-002',
             numero: `DEMO-${invoiceYear}-002`,
             customerId: aulaCustomerId,
-            status: 'ISSUED',
+            status: 'DRAFT',
             fechaEmision: invoiceDate,
             items: [
               {

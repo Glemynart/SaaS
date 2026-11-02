@@ -174,12 +174,23 @@ function validPilaIdentification(type: string, value: string): boolean {
     CC: 10,
     CE: 7,
     TI: 11,
+    NI: 11,
+    SC: 8,
+    PE: 15,
+    PT: 8,
+    PC: 8,
   };
   const maxLength = numericMaxLength[type];
   if (maxLength !== undefined) {
     return /^\d+$/.test(value) && value.length <= maxLength;
   }
-  return type === 'PA' && /^[A-Z0-9]{1,16}$/.test(value);
+  const alphanumericMaxLength: Record<string, number> = { PA: 16, CD: 11 };
+  const alphanumericLength = alphanumericMaxLength[type];
+  return (
+    alphanumericLength !== undefined &&
+    /^[A-Z0-9]+$/.test(value) &&
+    value.length <= alphanumericLength
+  );
 }
 
 function validEmployerIdentification(type: string, value: string): boolean {
@@ -343,8 +354,8 @@ export function inspectPilaSnapshotPreparation(
     maxLength: number,
     label: string,
   ) => {
-    const normalized = text(value);
-    if (normalized && Array.from(normalized).length > maxLength) {
+    const rawValue = typeof value === 'string' ? value : null;
+    if (rawValue !== null && Array.from(rawValue).length > maxLength) {
       add(
         record,
         fieldNumber,
@@ -505,6 +516,13 @@ export function inspectPilaSnapshotPreparation(
         'La sucursal requiere nombre o código PILA para el campo de nombre.',
       );
     }
+  } else if (presentation === 'U' && text(employerPila?.codigoSucursal)) {
+    add(
+      employerRecord,
+      5,
+      'CAMPO_5_CODIGO_SUCURSAL_NO_PERMITIDO_EN_PRESENTACION_UNICA',
+      'La presentación única requiere dejar en blanco el código de sucursal del campo 5 según AT2 v30.',
+    );
   }
   for (const [field, value, label, maxLength] of [
     [5, employerPila?.codigoSucursal, 'código de sucursal', 10],
@@ -1120,7 +1138,9 @@ export function inspectPilaSnapshotPreparation(
           : 'La vigencia de la actividad económica ARL no cubre todo el período.',
       );
     } else {
-      const workCenterCode = text(center?.codigoCentro);
+      const workCenterCodeValue = center?.codigoCentro;
+      const workCenterCode =
+        typeof workCenterCodeValue === 'string' ? workCenterCodeValue : null;
       if (!workCenterCode) {
         add(
           detailRecord,
@@ -1530,6 +1550,8 @@ export function buildPilaPreparationReport(input: {
   );
   const pensionRulesCutoverAffectsPeriod =
     input.period.fechaInicio.toISOString().slice(0, 10) >=
+      pensionSystemEffectiveDate ||
+    input.period.fechaFin.toISOString().slice(0, 10) >=
       pensionSystemEffectiveDate ||
     paymentDates.some(
       (paymentDate) =>
