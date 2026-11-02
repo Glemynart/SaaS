@@ -125,6 +125,27 @@ function payloadOf(snapshotInput: PilaSnapshotPreparationInput) {
   };
 }
 
+function setStandardCcfEmployer(
+  snapshotInput: PilaSnapshotPreparationInput,
+  overrides: {
+    claseAportante?: string;
+    beneficioCcfLey1429?: boolean | null;
+    tipoAportante?: string;
+  } = {},
+) {
+  const payload = snapshotInput.payload as {
+    employer: { pila: Record<string, unknown> };
+  };
+  Object.assign(payload.employer.pila, {
+    claseAportante: overrides.claseAportante ?? 'B',
+    beneficioCcfLey1429:
+      overrides.beneficioCcfLey1429 === undefined
+        ? false
+        : overrides.beneficioCcfLey1429,
+    tipoAportante: overrides.tipoAportante ?? '1',
+  });
+}
+
 const invalidRiskAssignmentCases: Array<{
   name: string;
   mutate: (assignment: Record<string, unknown>) => void;
@@ -347,6 +368,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const employer = (input.payload as { employer: Record<string, unknown> })
       .employer;
     employer.aportesExonerados = false;
+    setStandardCcfEmployer(input);
     (employer.pila as Record<string, unknown>).aportesExoneradosConfirmado =
       false;
     payload.payroll.concepts = [
@@ -384,6 +406,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
 
     expect(candidate.values).toMatchObject({
       61: { value: '0.0104400' },
+      64: { value: '0.04000' },
       63: { value: 20_900 },
       65: { value: 80_000 },
       67: { value: 40_000 },
@@ -395,7 +418,79 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.normativeRuleVersions.contributionRounding).toBe(
       'CO_PILA_CONTRIBUTION_ROUND_UP_100_DEC1990_ART3_2_1_5_V1',
     );
+    expect(candidate.normativeRuleVersions.ccfRate).toBe(
+      'CO_CCF_STANDARD_RATE_L21_ART11_12_V1',
+    );
   });
+
+  it.each(['A', 'B'])(
+    'maps the standard CCF rate only for an explicit non-beneficiary class %s employer',
+    (claseAportante) => {
+      const input = snapshot();
+      setStandardCcfEmployer(input, { claseAportante });
+      payloadOf(input).payroll.concepts = [
+        {
+          codigo: 'CAJA',
+          tipo: 'EMPLOYER_CONTRIBUTION',
+          base: 2_000_000,
+          factor: 0.04,
+          valor: 80_000,
+        },
+      ];
+
+      const candidate = mapPilaAt2V30DetailCandidate(input);
+
+      expect(candidate.values[64]).toEqual({ value: '0.04000' });
+      expect(candidate.values[65]).toEqual({ value: 80_000 });
+    },
+  );
+
+  it.each([
+    ['class C', { claseAportante: 'C' }, 0.04, 'clase A/B'],
+    ['class D', { claseAportante: 'D' }, 0.04, 'clase A/B'],
+    [
+      'declared Law 1429 benefit',
+      { claseAportante: 'B', beneficioCcfLey1429: true },
+      0.01,
+      'beneficio CCF de Ley 1429',
+    ],
+    [
+      'missing Law 1429 declaration',
+      { claseAportante: 'B', beneficioCcfLey1429: null },
+      0.04,
+      'declaración explícita',
+    ],
+    [
+      'non-standard frozen factor',
+      { claseAportante: 'B', beneficioCcfLey1429: false },
+      0.03,
+      'no coincide con la tarifa CCF estándar versionada',
+    ],
+  ] as const)(
+    'blocks the CCF tariff for %s',
+    (_case, employerOverrides, factor, expectedReason) => {
+      const input = snapshot();
+      setStandardCcfEmployer(input, employerOverrides);
+      payloadOf(input).payroll.concepts = [
+        {
+          codigo: 'CAJA',
+          tipo: 'EMPLOYER_CONTRIBUTION',
+          base: 2_000_000,
+          factor,
+          valor: factor === 0.04 ? 80_000 : 60_000,
+        },
+      ];
+
+      const candidate = mapPilaAt2V30DetailCandidate(input);
+
+      expect(candidate.values[64]).toBeUndefined();
+      expect(
+        candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 64)
+          ?.reason,
+      ).toContain(expectedReason);
+      expect(candidate.values[65]).toBeUndefined();
+    },
+  );
 
   it.each([
     ['1', 0.00522, '0.0052200', 10_500],
@@ -455,6 +550,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const input = snapshot();
     const root = input.payload as { employer: Record<string, unknown> };
     root.employer.aportesExonerados = false;
+    setStandardCcfEmployer(input);
     (
       root.employer.pila as Record<string, unknown>
     ).aportesExoneradosConfirmado = false;

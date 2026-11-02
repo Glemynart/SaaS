@@ -17,6 +17,10 @@ import {
   isPilaContributionAmountRoundedUpToHundred,
   PILA_CONTRIBUTION_ROUNDING_RULE_VERSION,
 } from './pila-contribution-rounding';
+import {
+  getPilaCcfStandardRate,
+  PILA_CCF_STANDARD_RATE_RULE_VERSION,
+} from './pila-ccf-standard-rate-catalog';
 import type { PilaSnapshotPreparationInput } from './pila-preparation';
 
 type JsonRecord = Record<string, unknown>;
@@ -30,6 +34,7 @@ export interface PilaAt2V30DetailCandidate {
   normativeRuleVersions: {
     arlInitialRate: typeof PILA_ARL_INITIAL_RATE_RULE_VERSION | null;
     contributionRounding: typeof PILA_CONTRIBUTION_ROUNDING_RULE_VERSION | null;
+    ccfRate: typeof PILA_CCF_STANDARD_RATE_RULE_VERSION | null;
   };
   values: Partial<Record<number, PilaAt2V30FieldInput>>;
   unresolvedFields: Array<{ fieldNumber: number; reason: string }>;
@@ -188,6 +193,7 @@ export function mapPilaAt2V30DetailCandidate(
       normativeRuleVersions: {
         arlInitialRate: null,
         contributionRounding: null,
+        ccfRate: null,
       },
       values,
       unresolvedFields: [...reasons].map(([fieldNumber, reason]) => ({
@@ -439,6 +445,7 @@ export function mapPilaAt2V30DetailCandidate(
     sourceText(affiliation?.arlClaseRiesgo),
     periodStart,
   );
+  const ccfStandardRate = getPilaCcfStandardRate(periodStart);
   const arlInitialRate = riskAssignmentValid ? arlRateByClass : null;
   if (
     riskAssignmentValid &&
@@ -482,6 +489,8 @@ export function mapPilaAt2V30DetailCandidate(
     base: JsonRecord | null;
     requireExplicitNonExemption?: boolean;
     expectedFactor?: number | null;
+    expectedFactorReason?: string;
+    expectedFactorMismatchReason?: string;
   }): JsonRecord | null => {
     if (!fullMonthPilaInputsApproved) {
       unresolved(
@@ -493,7 +502,8 @@ export function mapPilaAt2V30DetailCandidate(
     if (input.expectedFactor === null) {
       unresolved(
         input.fieldNumber,
-        'No hay una tarifa ARL versionada aplicable a la clase de riesgo y al período congelados.',
+        input.expectedFactorReason ??
+          'No hay una tarifa versionada aplicable al concepto y período congelados.',
       );
       return null;
     }
@@ -545,7 +555,8 @@ export function mapPilaAt2V30DetailCandidate(
     ) {
       unresolved(
         input.fieldNumber,
-        'El factor ARL del snapshot no coincide con la tarifa inicial versionada para la clase de riesgo congelada.',
+        input.expectedFactorMismatchReason ??
+          'El factor del snapshot no coincide con la tarifa versionada para el período congelado.',
       );
       return null;
     }
@@ -561,6 +572,10 @@ export function mapPilaAt2V30DetailCandidate(
     code: 'ARL',
     base: arlBase,
     expectedFactor: arlInitialRate?.factor ?? null,
+    expectedFactorReason:
+      'No hay una tarifa ARL versionada aplicable a la clase de riesgo y al período congelados.',
+    expectedFactorMismatchReason:
+      'El factor ARL del snapshot no coincide con la tarifa inicial versionada para la clase de riesgo congelada.',
   });
   if (arlInitialRate && arlConcept) {
     put(61, arlInitialRate.fieldValue);
@@ -604,6 +619,9 @@ export function mapPilaAt2V30DetailCandidate(
     code: string;
     base: JsonRecord | null;
     requireExplicitNonExemption?: boolean;
+    expectedFactor?: number | null;
+    expectedFactorReason?: string;
+    expectedFactorMismatchReason?: string;
   }) => {
     const concept = getContributionAmountCandidate(input);
     if (!concept) return;
@@ -628,13 +646,59 @@ export function mapPilaAt2V30DetailCandidate(
     }
     put(input.fieldNumber, concept.valor as number);
   };
+  const ccfBase =
+    object(subsystemBases?.cajaCompensacion)?.sourceCount === 1
+      ? object(subsystemBases?.cajaCompensacion)
+      : null;
+  let ccfRateBlockReason: string | null = null;
+  if (!standardFullMonthEmployee) {
+    ccfRateBlockReason =
+      'La tarifa CCF solo está definida para un dependiente 01/00 de mes completo.';
+  } else if (employerPila.tipoAportante !== '1') {
+    ccfRateBlockReason =
+      'Falta declarar el aportante empleador requerido para esta tarifa CCF.';
+  } else if (
+    employerPila.claseAportante !== 'A' &&
+    employerPila.claseAportante !== 'B'
+  ) {
+    ccfRateBlockReason =
+      'La tarifa CCF solo está definida para aportantes clase A/B; las clases C/D requieren reglas de beneficio fuera del alcance actual.';
+  } else if (employerPila.beneficioCcfLey1429 !== false) {
+    ccfRateBlockReason =
+      employerPila.beneficioCcfLey1429 === true
+        ? 'El beneficio CCF de Ley 1429 requiere una tarifa y elegibilidad verificadas antes de mapear el campo.'
+        : 'Falta una declaración explícita de que no aplica el beneficio CCF de Ley 1429.';
+  } else if (!ccfStandardRate) {
+    ccfRateBlockReason =
+      'No hay una tarifa CCF versionada aplicable al período congelado.';
+  }
+
+  if (ccfRateBlockReason) {
+    unresolved(64, ccfRateBlockReason);
+  } else if (ccfStandardRate) {
+    const ccfConcept = getContributionAmountCandidate({
+      fieldNumber: 64,
+      code: 'CAJA',
+      base: ccfBase,
+      expectedFactor: ccfStandardRate.factor,
+      expectedFactorMismatchReason:
+        'El factor CAJA del snapshot no coincide con la tarifa CCF estándar versionada.',
+    });
+    if (ccfConcept) put(64, ccfStandardRate.fieldValue);
+  }
+
   mapContributionAmountCandidate({
     fieldNumber: 65,
     code: 'CAJA',
-    base:
-      object(subsystemBases?.cajaCompensacion)?.sourceCount === 1
-        ? object(subsystemBases?.cajaCompensacion)
-        : null,
+    base: ccfBase,
+    expectedFactor: ccfRateBlockReason
+      ? null
+      : (ccfStandardRate?.factor ?? null),
+    expectedFactorReason:
+      ccfRateBlockReason ??
+      'No hay una tarifa CCF versionada aplicable al período congelado.',
+    expectedFactorMismatchReason:
+      'El factor CAJA del snapshot no coincide con la tarifa CCF estándar versionada.',
   });
   mapContributionAmountCandidate({
     fieldNumber: 67,
@@ -678,6 +742,7 @@ export function mapPilaAt2V30DetailCandidate(
         ? PILA_ARL_INITIAL_RATE_RULE_VERSION
         : null,
       contributionRounding: getPilaContributionRoundingRuleVersion(periodStart),
+      ccfRate: getPilaCcfStandardRate(periodStart)?.ruleVersion ?? null,
     },
     values,
     unresolvedFields,

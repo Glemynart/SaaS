@@ -125,6 +125,16 @@ export interface PilaExportReadinessBlocker {
   evidence: string;
 }
 
+export interface PilaDetailContributionCandidateStatus {
+  fieldNumber: 61 | 63 | 64 | 65 | 67 | 69;
+  candidateEmployees: number;
+  pendingEmployees: number;
+  pendingReasons: Array<{
+    reason: string;
+    affectedEmployees: string[];
+  }>;
+}
+
 export interface PilaPreparationReport {
   formatVersion: null;
   normativeSourceStatus: 'RECONCILIATION_PENDING';
@@ -144,6 +154,7 @@ export interface PilaPreparationReport {
   snapshotsRevisados: number;
   empleadosConDatosPendientes: number;
   empleadosSinBrechasDetectadas: number;
+  detailContributionCandidates: PilaDetailContributionCandidateStatus[];
   issues: PilaPreparationIssue[];
   archivoGenerable: false;
   estadoArchivo: 'NO_IMPLEMENTADO';
