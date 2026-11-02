@@ -207,7 +207,7 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
     expect(preparation.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'PILA_SNAPSHOT_VERSION_NO_SOPORTADA',
+          code: 'CAMPO_33_EXONERACION_SIN_CONFIRMAR',
           affectedCount: 1,
         }),
       ]),
@@ -215,7 +215,7 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
     await expect(pilaPreparationPanel.getByText('Snapshots revisados: 1')).toBeVisible();
     await expect(
       pilaPreparationPanel.getByText(
-        /No existe un snapshot PILA aprobado con una versión compatible/,
+        /Falta confirmar si aplica la exoneración de salud, SENA e ICBF/,
       ),
     ).toBeVisible();
     await expect(
@@ -240,6 +240,32 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
     expect(persisted.vouchers).toEqual([{ id: posting.comprobanteId, estado: 'CONTABILIZADO' }]);
     expect(persisted.snapshotPayload).toEqual(payroll.snapshotPayload);
     expect(persisted.snapshotStatus).toBe('APROBADA');
+    expect(persisted.pilaSnapshotPayload).toEqual(payroll.pilaSnapshotPayload);
+
+    await pilaPreparationPanel.getByRole('button', { name: 'Actualizar revisión' }).click();
+    await expect(
+      page.getByRole('heading', {
+        name: 'Archivo tipo 1 · aportante · candidatos por campo',
+      }),
+    ).toBeVisible();
+    await page.getByText('Ver estado de los 34 campos del aportante').click();
+    await expect(
+      page
+        .getByRole('region', {
+          name: 'Archivo tipo 1 · aportante · candidatos por campo',
+        })
+        .getByText('Demo Financiera E2E S.A.S.', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('AT2 asigna el código del operador; no está en el snapshot.'),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Encabezado tipo 2 · candidatos por campo' }),
+    ).toBeVisible();
+    await page.getByText('Ver estado de los 22 campos del encabezado').click();
+    await expect(page.getByText('Campo 20 · Total IBC de caja de compensación')).toBeVisible();
+    await expect(page.getByText('1.000.000', { exact: true })).toBeVisible();
+    await expect(page.getByText('No implementadas', { exact: true })).toBeVisible();
   } finally {
     await payroll.disconnect();
     await billingFixture.disconnect();

@@ -3,7 +3,16 @@ import {
   PILA_RISK_ACTIVITY_CODES,
 } from './pila-risk-activity-catalog';
 import { PILA_AT2_V30_RECORD_LAYOUTS } from './pila-at2-v30-record-serializer';
-import { mapPilaAt2V30DetailCandidate } from './pila-at2-v30-detail-mapper';
+import {
+  mapPilaAt2V30DetailCandidate,
+  PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_FIELD_NUMBERS,
+  PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS,
+  PILA_AT2_V30_PRIVATE_EMPLOYER_ESAP_MEN_FIELD_NUMBERS,
+  PILA_AT2_V30_STANDARD_DEPENDENT_EMPTY_FIELD_NUMBERS,
+  PILA_AT2_V30_UNMAPPED_PENSION_CONTRIBUTION_FIELD_NUMBERS,
+} from './pila-at2-v30-detail-mapper';
+import { mapPilaAt2V30HeaderCandidate } from './pila-at2-v30-header-mapper';
+import { mapPilaAt2V30EmployerAggregateCandidate } from './pila-at2-v30-employer-mapper';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -39,8 +48,8 @@ export interface PilaExportReadinessBlocker {
   evidence: string;
 }
 
-export interface PilaDetailContributionCandidateStatus {
-  fieldNumber: 61 | 63 | 64 | 65 | 67 | 69;
+export interface PilaDetailFieldCandidateStatus {
+  fieldNumber: number;
   candidateEmployees: number;
   pendingEmployees: number;
   pendingReasons: Array<{
@@ -1508,11 +1517,15 @@ function deduplicateIssues(
   });
 }
 
-function summarizePilaDetailContributionCandidates(
+function summarizePilaDetailFieldCandidates(
   snapshots: PilaSnapshotPreparationInput[],
   assessments: PilaSnapshotPreparation[],
-): PilaDetailContributionCandidateStatus[] {
-  const fields = [61, 63, 64, 65, 67, 69] as const;
+  fields: readonly PilaDetailFieldCandidateStatus['fieldNumber'][],
+  candidatesBySnapshot: Map<
+    PilaSnapshotPreparationInput,
+    ReturnType<typeof mapPilaAt2V30DetailCandidate>
+  >,
+): PilaDetailFieldCandidateStatus[] {
   const snapshotsPerEmployee = new Map<string, number>();
   for (const snapshot of snapshots) {
     snapshotsPerEmployee.set(
@@ -1535,7 +1548,7 @@ function summarizePilaDetailContributionCandidates(
       (snapshotsPerEmployee.get(snapshot.employeeId) ?? 0) > 1;
     candidatesByEmployee.set(
       snapshot.employeeId,
-      duplicateSnapshot ? null : mapPilaAt2V30DetailCandidate(snapshot),
+      duplicateSnapshot ? null : (candidatesBySnapshot.get(snapshot) ?? null),
     );
   }
 
@@ -1587,6 +1600,7 @@ function summarizePilaDetailContributionCandidates(
 }
 
 export function buildPilaPreparationReport(input: {
+  tenantId?: string;
   period: {
     id: string;
     fechaInicio: Date;
@@ -1660,22 +1674,24 @@ export function buildPilaPreparationReport(input: {
             'Sentencia C-264/2026: las disposiciones exequibles que conforman el nuevo sistema entran en vigor el 2027-04-01; AT2 v30, pp. 147–154. La matriz vigente mantiene este mapeo pendiente.',
         }
       : null;
+  const headerCandidate = mapPilaAt2V30HeaderCandidate({
+    expectedTenantId: input.tenantId ?? null,
+    period: input.period,
+    snapshots: input.snapshots,
+  });
+  const employerCandidate = mapPilaAt2V30EmployerAggregateCandidate({
+    expectedTenantId: input.tenantId ?? null,
+    period: input.period,
+    snapshots: input.snapshots,
+  });
   const headerCcfIbcField =
     PILA_AT2_V30_RECORD_LAYOUTS.payrollHeaderType2.fields[19];
-  const ccfIbcValues = input.snapshots.map((snapshot) => {
-    const payroll = nested(object(snapshot.payload), 'payroll');
-    const subsystemBases = nested(payroll, 'ibcPorSubsistema');
-    const value = nested(subsystemBases, 'cajaCompensacion')?.valor;
-    return safeInteger(value) && fitsNumericField(value, 9) ? value : null;
-  });
-  const hasCompleteCcfIbcValues =
-    ccfIbcValues.length > 0 && ccfIbcValues.every((value) => value !== null);
-  const totalCcfIbc = hasCompleteCcfIbcValues
-    ? ccfIbcValues.reduce<number>((total, value) => total + (value ?? 0), 0)
-    : null;
   const headerCcfIbcBlocker: PilaExportReadinessBlocker | null =
-    totalCcfIbc !== null &&
-    !fitsNumericField(totalCcfIbc, headerCcfIbcField.length)
+    headerCandidate.unresolvedFields.some(
+      ({ fieldNumber, code }) =>
+        fieldNumber === 20 &&
+        code === 'AT2_HEADER_CCF_IBC_TOTAL_SUPERA_LONGITUD',
+    )
       ? {
           code: 'AT2_HEADER_CCF_IBC_TOTAL_SUPERA_LONGITUD',
           scope: 'FILE_GENERATION',
@@ -1689,7 +1705,7 @@ export function buildPilaPreparationReport(input: {
             },
           ],
           evidence:
-            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. La matriz PILA mantiene pendiente la validación de obligación y aplicabilidad antes de serializar.',
+            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots v2 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
         }
       : null;
   const readinessBlockers = [
@@ -1708,11 +1724,77 @@ export function buildPilaPreparationReport(input: {
   const totalCotizantes = new Set(
     input.snapshots.map(({ employeeId }) => employeeId),
   ).size;
-  const assessments = input.snapshots.map((snapshot) =>
-    inspectPilaSnapshotPreparation({ ...snapshot, totalCotizantes }),
+  const detailScope = {
+    expectedTenantId: input.tenantId ?? null,
+    period: input.period,
+  };
+  const detailCandidatesBySnapshot = new Map(
+    input.snapshots.map((snapshot) => [
+      snapshot,
+      mapPilaAt2V30DetailCandidate(snapshot, detailScope),
+    ]),
   );
-  const detailContributionCandidates =
-    summarizePilaDetailContributionCandidates(input.snapshots, assessments);
+  const assessments = input.snapshots.map((snapshot) => {
+    const assessment = inspectPilaSnapshotPreparation({
+      ...snapshot,
+      totalCotizantes,
+    });
+    return detailCandidatesBySnapshot.get(snapshot)?.scopeMismatch
+      ? { ...assessment, employeeName: 'Empleado con alcance no validado' }
+      : assessment;
+  });
+  const detailContributionCandidates = summarizePilaDetailFieldCandidates(
+    input.snapshots,
+    assessments,
+    [
+      46,
+      47,
+      ...PILA_AT2_V30_UNMAPPED_PENSION_CONTRIBUTION_FIELD_NUMBERS,
+      54,
+      55,
+      61,
+      63,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+    ],
+    detailCandidatesBySnapshot,
+  );
+  const detailNoEventFieldCandidates = summarizePilaDetailFieldCandidates(
+    input.snapshots,
+    assessments,
+    [57, 58, 59, 60],
+    detailCandidatesBySnapshot,
+  );
+  const detailAbsentEventCandidates = summarizePilaDetailFieldCandidates(
+    input.snapshots,
+    assessments,
+    PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS,
+    detailCandidatesBySnapshot,
+  );
+  const detailStandardDependentEmptyCandidates =
+    summarizePilaDetailFieldCandidates(
+      input.snapshots,
+      assessments,
+      PILA_AT2_V30_STANDARD_DEPENDENT_EMPTY_FIELD_NUMBERS,
+      detailCandidatesBySnapshot,
+    );
+  const detailNonExemptCotizanteCandidates = summarizePilaDetailFieldCandidates(
+    input.snapshots,
+    assessments,
+    PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_FIELD_NUMBERS,
+    detailCandidatesBySnapshot,
+  );
+  const detailPrivateEmployerEsapMenCandidates =
+    summarizePilaDetailFieldCandidates(
+      input.snapshots,
+      assessments,
+      PILA_AT2_V30_PRIVATE_EMPLOYER_ESAP_MEN_FIELD_NUMBERS,
+      detailCandidatesBySnapshot,
+    );
   const grouped = new Map<
     string,
     PilaPreparationIssue & {
@@ -1777,6 +1859,13 @@ export function buildPilaPreparationReport(input: {
     empleadosConDatosPendientes: employeesWithIssues,
     empleadosSinBrechasDetectadas: assessments.length - employeesWithIssues,
     detailContributionCandidates,
+    detailNoEventFieldCandidates,
+    detailAbsentEventCandidates,
+    detailStandardDependentEmptyCandidates,
+    detailNonExemptCotizanteCandidates,
+    detailPrivateEmployerEsapMenCandidates,
+    employerCandidate,
+    headerCandidate,
     issues,
     archivoGenerable: false as const,
     estadoArchivo: 'NO_IMPLEMENTADO' as const,

@@ -196,6 +196,7 @@ function detailCandidateSnapshot(
     Object.assign(base, { sourceCount: 1 });
   }
   Object.assign(source.payroll, { pilaEvents: [], novelties: [] });
+  Object.assign(source.affiliations[0], { colombianoEnElExterior: false });
   Object.assign(source, {
     pilaEvents: [],
     pilaRiskAssignments: [
@@ -1634,6 +1635,68 @@ describe('inspectPilaSnapshotPreparation', () => {
     );
   });
 
+  it('incluye candidatos de cabecera tipo 2 y sus motivos por campo', () => {
+    const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [detailCandidateSnapshot('employee-1', 'Ana')],
+    });
+
+    expect(report.headerCandidate).toMatchObject({
+      formatVersion: 'AT2_V30',
+      supportedSnapshots: true,
+      tenantId: 'tenant-1',
+      payrollPeriodId: 'period-1',
+      values: {
+        4: { value: 'Empresa Demo SAS' },
+        16: { value: '2026-10' },
+        19: { value: 1 },
+        20: { value: 3_000_000 },
+      },
+    });
+    expect(report.headerCandidate.unresolvedFields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldNumber: 2,
+          code: 'AT2_HEADER_FIELD_UNRESOLVED',
+        }),
+        expect.objectContaining({
+          fieldNumber: 22,
+          code: 'AT2_HEADER_FIELD_UNRESOLVED',
+        }),
+      ]),
+    );
+    expect(report.employerCandidate).toMatchObject({
+      formatVersion: 'AT2_V30',
+      supportedSnapshots: true,
+      tenantId: 'tenant-1',
+      payrollPeriodId: 'period-1',
+      values: {
+        1: { value: 'Empresa Demo SAS' },
+        3: { value: '900123456' },
+        13: { value: '11' },
+      },
+    });
+    expect(report.employerCandidate.unresolvedFields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldNumber: 28,
+          reason: 'AT2 asigna el código del operador; no está en el snapshot.',
+        }),
+        expect.objectContaining({
+          fieldNumber: 29,
+          reason:
+            'El período/código de pago lo asigna el operador; no se infiere.',
+        }),
+      ]),
+    );
+    expect(report.archivoGenerable).toBe(false);
+  });
+
   it('expone candidatos parciales por campo sin habilitar el archivo', () => {
     const compliant = detailCandidateSnapshot('employee-1', 'Ana');
     const arlAmountNotRounded = detailCandidateSnapshot(
@@ -1642,6 +1705,7 @@ describe('inspectPilaSnapshotPreparation', () => {
       15_660,
     );
     const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
       period: {
         id: 'period-1',
         fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
@@ -1655,6 +1719,40 @@ describe('inspectPilaSnapshotPreparation', () => {
       );
 
     expect(statusFor(61)).toMatchObject({
+      candidateEmployees: 2,
+      pendingEmployees: 0,
+    });
+    expect(statusFor(46)).toMatchObject({
+      candidateEmployees: 2,
+      pendingEmployees: 0,
+    });
+    expect(statusFor(47)).toMatchObject({
+      candidateEmployees: 2,
+      pendingEmployees: 0,
+    });
+    for (const fieldNumber of [48, 49, 51, 52, 53]) {
+      expect(statusFor(fieldNumber)).toMatchObject({
+        candidateEmployees: 0,
+        pendingEmployees: 2,
+      });
+      expect(
+        statusFor(fieldNumber)?.pendingReasons[0]?.affectedEmployees,
+      ).toHaveLength(2);
+    }
+    expect(statusFor(48)?.pendingReasons[0]?.reason).toContain(
+      'afiliación pensional versionada',
+    );
+    expect(statusFor(51)?.pendingReasons[0]?.reason).toContain(
+      'agregar el IBC pensional por cotizante',
+    );
+    expect(statusFor(53)?.pendingReasons[0]?.reason).toContain(
+      'diferencia de retención en la fuente',
+    );
+    expect(statusFor(54)).toMatchObject({
+      candidateEmployees: 2,
+      pendingEmployees: 0,
+    });
+    expect(statusFor(55)).toMatchObject({
       candidateEmployees: 2,
       pendingEmployees: 0,
     });
@@ -1681,12 +1779,156 @@ describe('inspectPilaSnapshotPreparation', () => {
       candidateEmployees: 2,
       pendingEmployees: 0,
     });
+    expect(report.detailNoEventFieldCandidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldNumber: 57,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 58,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 59,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 60,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+      ]),
+    );
+    expect(report.detailAbsentEventCandidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldNumber: 15,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 30,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 80,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 94,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 22,
+          candidateEmployees: 0,
+          pendingEmployees: 2,
+        }),
+        expect.objectContaining({
+          fieldNumber: 28,
+          candidateEmployees: 0,
+          pendingEmployees: 2,
+        }),
+      ]),
+    );
+    expect(report.detailStandardDependentEmptyCandidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldNumber: 32,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 34,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 74,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 75,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
+        }),
+      ]),
+    );
+    expect(report.detailNonExemptCotizanteCandidates).toEqual([
+      expect.objectContaining({
+        fieldNumber: 76,
+        candidateEmployees: 2,
+        pendingEmployees: 0,
+      }),
+    ]);
+    for (const fieldNumber of [70, 71, 72, 73]) {
+      expect(
+        report.detailPrivateEmployerEsapMenCandidates.find(
+          (candidate) => candidate.fieldNumber === fieldNumber,
+        ),
+      ).toMatchObject({
+        fieldNumber,
+        candidateEmployees: 2,
+        pendingEmployees: 0,
+      });
+    }
     expect(report.archivoGenerable).toBe(false);
+  });
+
+  it('reports IGE/LMA fields as pending when the approved snapshot has an event', () => {
+    const snapshotWithEvent = detailCandidateSnapshot('employee-1', 'Ana');
+    const payload = snapshotWithEvent.payload as {
+      pilaEvents: unknown[];
+      payroll: { pilaEvents: unknown[] };
+    };
+    const event = { codigo: 'IGE', fechaInicio: '2026-10-12' };
+    payload.pilaEvents.push(event);
+    payload.payroll.pilaEvents.push(event);
+
+    const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [snapshotWithEvent],
+    });
+    const status = report.detailNoEventFieldCandidates.find(
+      ({ fieldNumber }) => fieldNumber === 57,
+    );
+
+    expect(status).toMatchObject({
+      candidateEmployees: 0,
+      pendingEmployees: 1,
+    });
+    expect(status?.pendingReasons[0]?.reason).toContain(
+      'sin novedades ni eventos PILA',
+    );
+    expect(status?.pendingReasons[0]?.affectedEmployees).toEqual(['Ana Demo']);
+    for (const fieldNumber of [15, 30, 80, 94]) {
+      expect(
+        report.detailAbsentEventCandidates.find(
+          (candidate) => candidate.fieldNumber === fieldNumber,
+        ),
+      ).toMatchObject({
+        candidateEmployees: 0,
+        pendingEmployees: 1,
+      });
+    }
   });
 
   it('does not choose a detail candidate when an employee has duplicate snapshots', () => {
     const duplicate = detailCandidateSnapshot('employee-1', 'Ana');
     const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
       period: {
         id: 'period-1',
         fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
@@ -1695,7 +1937,9 @@ describe('inspectPilaSnapshotPreparation', () => {
       snapshots: [duplicate, duplicate],
     });
 
-    const field61 = report.detailContributionCandidates[0];
+    const field61 = report.detailContributionCandidates.find(
+      (status) => status.fieldNumber === 61,
+    )!;
     expect(field61).toMatchObject({
       fieldNumber: 61,
       candidateEmployees: 0,
@@ -1704,6 +1948,62 @@ describe('inspectPilaSnapshotPreparation', () => {
     expect(field61.pendingReasons[0]?.reason).toContain('más de un snapshot');
     expect(field61.pendingReasons[0]?.affectedEmployees).toEqual(['Ana Demo']);
   });
+
+  it.each(['tenant', 'employee id', 'period id', 'period dates'] as const)(
+    'blocks detail candidates when a frozen snapshot %s differs from the requested scope',
+    (mismatch) => {
+      const source = detailCandidateSnapshot('employee-1', 'Ana');
+      const frozen = source.payload as {
+        employer: { tenantId: string };
+        employee: { employeeId: string; primerNombre: string };
+        period: {
+          payrollPeriodId: string;
+          fechaInicio: string;
+          fechaFin: string;
+        };
+      };
+      if (mismatch === 'tenant') {
+        frozen.employer.tenantId = 'tenant-foreign';
+      } else if (mismatch === 'employee id') {
+        frozen.employee.employeeId = 'employee-foreign';
+      } else if (mismatch === 'period id') {
+        frozen.period.payrollPeriodId = 'period-foreign';
+      } else {
+        frozen.period.fechaInicio = '2026-11-01';
+        frozen.period.fechaFin = '2026-11-30';
+      }
+      frozen.employee.primerNombre = 'Nombre ajeno';
+
+      const report = buildPilaPreparationReport({
+        tenantId: 'tenant-1',
+        period: {
+          id: 'period-1',
+          fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+          fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+        },
+        snapshots: [source],
+      });
+      const field61 = report.detailContributionCandidates.find(
+        (status) => status.fieldNumber === 61,
+      )!;
+
+      expect(field61).toMatchObject({
+        candidateEmployees: 0,
+        pendingEmployees: 1,
+      });
+      expect(field61.pendingReasons[0]?.reason).toContain(
+        'tenant, empleado o período congelado en el snapshot no coincide',
+      );
+      expect(field61.pendingReasons[0]?.affectedEmployees).toEqual([
+        'Empleado con alcance no validado',
+      ]);
+      expect(
+        report.issues
+          .flatMap((issue) => issue.affectedEmployees)
+          .some((name) => name.includes('Nombre ajeno')),
+      ).toBe(false);
+    },
+  );
 
   it('explica que no hay snapshots cuando el período aprobado no los conserva', () => {
     const report = buildPilaPreparationReport({
@@ -1729,6 +2029,10 @@ describe('inspectPilaSnapshotPreparation', () => {
     );
     snapshots.forEach((item, index) => {
       const source = item.payload as ReturnType<typeof payload>;
+      Object.assign(source, { schemaVersion: 2 });
+      Object.assign(source.period, { payrollPeriodId: 'period-1' });
+      Object.assign(source.employee, { employeeId: item.employeeId });
+      item.payloadVersion = 2;
       source.employer.pila.claseAportante = 'A';
       source.payroll.ibcPorSubsistema.cajaCompensacion.valor =
         index === snapshots.length - 1 ? 999 : 999_999_999;
@@ -1739,7 +2043,14 @@ describe('inspectPilaSnapshotPreparation', () => {
       fechaFin: new Date('2026-10-31T00:00:00.000Z'),
     };
 
-    const atMaximum = buildPilaPreparationReport({ period, snapshots });
+    const atMaximum = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
+      period,
+      snapshots,
+    });
+    expect(atMaximum.headerCandidate.values[20]).toEqual({
+      value: 999_999_999_999,
+    });
     expect(atMaximum.exportReadiness.blockers).not.toContainEqual(
       expect.objectContaining({
         code: 'AT2_HEADER_CCF_IBC_TOTAL_SUPERA_LONGITUD',
@@ -1748,13 +2059,24 @@ describe('inspectPilaSnapshotPreparation', () => {
 
     const lastSource = snapshots.at(-1)!.payload as ReturnType<typeof payload>;
     lastSource.payroll.ibcPorSubsistema.cajaCompensacion.valor = 1000;
-    const overMaximum = buildPilaPreparationReport({ period, snapshots });
+    const overMaximum = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
+      period,
+      snapshots,
+    });
 
     expect(overMaximum.exportReadiness.blockers).toContainEqual(
       expect.objectContaining({
         code: 'AT2_HEADER_CCF_IBC_TOTAL_SUPERA_LONGITUD',
         scope: 'FILE_GENERATION',
         fields: [{ record: 'CABECERA_TIPO_2', fieldNumbers: [20] }],
+      }),
+    );
+    expect(overMaximum.headerCandidate.values[20]).toBeUndefined();
+    expect(overMaximum.headerCandidate.unresolvedFields).toContainEqual(
+      expect.objectContaining({
+        fieldNumber: 20,
+        code: 'AT2_HEADER_CCF_IBC_TOTAL_SUPERA_LONGITUD',
       }),
     );
   });

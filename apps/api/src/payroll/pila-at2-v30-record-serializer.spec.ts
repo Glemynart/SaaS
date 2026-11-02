@@ -117,6 +117,131 @@ describe('AT2 v30 fixed-width record formatting', () => {
     ).toBe('DECIMAL_FRACTION');
   });
 
+  it('formats the AT2 field 46 pension fractional tariff to seven positions', () => {
+    const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
+    const field46Start = layout.fields
+      .filter(({ fieldNumber }) => fieldNumber < 46)
+      .reduce((total, field) => total + field.length, 0);
+    const values = completeRecordValues('contributorDetailType2', {
+      46: { value: '0.16' },
+    });
+    const record = serializePilaAt2V30Record('contributorDetailType2', values);
+
+    expect(record.slice(field46Start, field46Start + 7)).toBe('0.16000');
+    expect(
+      layout.fields.find(({ fieldNumber }) => fieldNumber === 46)
+        ?.numericFormat,
+    ).toBe('DECIMAL_FRACTION');
+  });
+
+  it('formats the AT2 field 54 health fractional tariff to seven positions', () => {
+    const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
+    const field54Start = layout.fields
+      .filter(({ fieldNumber }) => fieldNumber < 54)
+      .reduce((total, field) => total + field.length, 0);
+    const values = completeRecordValues('contributorDetailType2', {
+      54: { value: '0.12500' },
+    });
+    const record = serializePilaAt2V30Record('contributorDetailType2', values);
+
+    expect(record.slice(field54Start, field54Start + 7)).toBe('0.12500');
+    expect(
+      layout.fields.find(({ fieldNumber }) => fieldNumber === 54)
+        ?.numericFormat,
+    ).toBe('DECIMAL_FRACTION');
+  });
+
+  it('writes AT2 no-event flags, dates and days as blanks and zeroes', () => {
+    const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
+    const values = completeRecordValues('contributorDetailType2', {
+      15: { value: null, emptyAs: 'spaces' },
+      30: { value: 0 },
+      57: { value: null, emptyAs: 'spaces' },
+      58: { value: 0 },
+      59: { value: null, emptyAs: 'spaces' },
+      60: { value: 0 },
+      80: { value: null, emptyAs: 'spaces' },
+      94: { value: null, emptyAs: 'spaces' },
+    });
+    const record = serializePilaAt2V30Record('contributorDetailType2', values);
+    const fieldStart = (fieldNumber: number) =>
+      layout.fields
+        .filter((field) => field.fieldNumber < fieldNumber)
+        .reduce((total, field) => total + field.length, 0);
+
+    expect(record.slice(fieldStart(57), fieldStart(57) + 15)).toBe(
+      ' '.repeat(15),
+    );
+    expect(record.slice(fieldStart(15), fieldStart(15) + 1)).toBe(' ');
+    expect(record.slice(fieldStart(30), fieldStart(30) + 2)).toBe('00');
+    expect(record.slice(fieldStart(58), fieldStart(58) + 9)).toBe('000000000');
+    expect(record.slice(fieldStart(59), fieldStart(59) + 15)).toBe(
+      ' '.repeat(15),
+    );
+    expect(record.slice(fieldStart(60), fieldStart(60) + 9)).toBe('000000000');
+    expect(record.slice(fieldStart(80), fieldStart(80) + 10)).toBe(
+      ' '.repeat(10),
+    );
+    expect(record.slice(fieldStart(94), fieldStart(94) + 10)).toBe(
+      ' '.repeat(10),
+    );
+  });
+
+  it('serializes non-applicable standard-dependent fields as blanks', () => {
+    const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
+    const values = completeRecordValues('contributorDetailType2', {
+      32: { value: null, emptyAs: 'spaces' },
+      34: { value: null, emptyAs: 'spaces' },
+      74: { value: null, emptyAs: 'spaces' },
+      75: { value: null, emptyAs: 'spaces' },
+      76: { value: 'N' },
+    });
+    const record = serializePilaAt2V30Record('contributorDetailType2', values);
+    const fieldStart = (fieldNumber: number) =>
+      layout.fields
+        .filter((field) => field.fieldNumber < fieldNumber)
+        .reduce((total, field) => total + field.length, 0);
+
+    for (const [fieldNumber, length] of [
+      [32, 6],
+      [34, 6],
+      [74, 2],
+      [75, 16],
+    ]) {
+      expect(
+        record.slice(fieldStart(fieldNumber), fieldStart(fieldNumber) + length),
+      ).toBe(' '.repeat(length));
+    }
+    expect(record.slice(fieldStart(76), fieldStart(76) + 1)).toBe('N');
+  });
+
+  it('serializes non-applicable private-employer ESAP/MEN fields as zero', () => {
+    const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
+    const values = completeRecordValues('contributorDetailType2', {
+      70: { value: '0.00000' },
+      71: { value: 0 },
+      72: { value: '0.00000' },
+      73: { value: 0 },
+    });
+    const record = serializePilaAt2V30Record('contributorDetailType2', values);
+    const fieldStart = (fieldNumber: number) =>
+      layout.fields
+        .filter((field) => field.fieldNumber < fieldNumber)
+        .reduce((total, field) => total + field.length, 0);
+
+    for (const [fieldNumber, value] of [
+      [70, '0.00000'],
+      [71, '000000000'],
+      [72, '0.00000'],
+      [73, '000000000'],
+    ] as const) {
+      const length = value.length;
+      expect(
+        record.slice(fieldStart(fieldNumber), fieldStart(fieldNumber) + length),
+      ).toBe(value);
+    }
+  });
+
   it('formats the AT2 field 64 CCF fractional tariff to seven positions', () => {
     const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
     const field64Start = layout.fields
@@ -133,6 +258,32 @@ describe('AT2 v30 fixed-width record formatting', () => {
         .numericFormat,
     ).toBe('DECIMAL_FRACTION');
   });
+
+  it.each([
+    [66, '0.02', '0.02000'],
+    [68, '0.03', '0.03000'],
+  ])(
+    'formats the AT2 field %i parafiscal fractional tariff',
+    (fieldNumber, value, expected) => {
+      const layout = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2;
+      const fieldStart = layout.fields
+        .filter((field) => field.fieldNumber < fieldNumber)
+        .reduce((total, field) => total + field.length, 0);
+      const field = layout.fields.find(
+        (item) => item.fieldNumber === fieldNumber,
+      );
+      const values = completeRecordValues('contributorDetailType2', {
+        [fieldNumber]: { value },
+      });
+      const record = serializePilaAt2V30Record(
+        'contributorDetailType2',
+        values,
+      );
+
+      expect(record.slice(fieldStart, fieldStart + 7)).toBe(expected);
+      expect(field?.numericFormat).toBe('DECIMAL_FRACTION');
+    },
+  );
 
   it.each([0.00522, '0.00522000', '-0.00522', '0.00522X'] as const)(
     'rejects invalid decimal encoding for AT2 field 61: %s',

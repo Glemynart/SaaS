@@ -21,13 +21,65 @@ import {
   getPilaCcfStandardRate,
   PILA_CCF_STANDARD_RATE_RULE_VERSION,
 } from './pila-ccf-standard-rate-catalog';
+import {
+  getPilaIcbfStandardRate,
+  getPilaSenaStandardRate,
+  PILA_ICBF_STANDARD_RATE_RULE_VERSION,
+  PILA_SENA_STANDARD_RATE_RULE_VERSION,
+} from './pila-parafiscal-rate-catalog';
+import {
+  getPilaPensionStandardRate,
+  PILA_NEW_PENSION_SYSTEM_EFFECTIVE_FROM,
+  PILA_PENSION_STANDARD_RATE_RULE_VERSION,
+} from './pila-pension-standard-rate-catalog';
+import {
+  getPilaHealthStandardRate,
+  PILA_HEALTH_STANDARD_RATE_RULE_VERSION,
+} from './pila-health-standard-rate-catalog';
 import type { PilaSnapshotPreparationInput } from './pila-preparation';
 
 type JsonRecord = Record<string, unknown>;
 
+const PILA_AT2_V30_NO_BENEFIT_EVENT_FIELDS_RULE_VERSION =
+  'AT2_V30_NO_IGE_LMA_FIXED_FIELDS_V1' as const;
+const PILA_AT2_V30_NO_EVENT_NOVELTY_FIELDS_RULE_VERSION =
+  'AT2_V30_NO_EVENT_NOVELTY_FIELDS_V1' as const;
+const PILA_AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_RULE_VERSION =
+  'AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_V1' as const;
+const PILA_AT2_V30_NON_COTIZANTE40_PRINCIPAL_FIELDS_RULE_VERSION =
+  'AT2_V30_NON_COTIZANTE40_PRINCIPAL_FIELDS_V1' as const;
+const PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_RULE_VERSION =
+  'AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_V1' as const;
+const PILA_AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_RULE_VERSION =
+  'AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_V1' as const;
+
+export const PILA_AT2_V30_STANDARD_DEPENDENT_EMPTY_FIELD_NUMBERS = [
+  32, 34, 74, 75,
+] as const;
+export const PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_FIELD_NUMBERS = [
+  76,
+] as const;
+export const PILA_AT2_V30_PRIVATE_EMPLOYER_ESAP_MEN_FIELD_NUMBERS = [
+  70, 71, 72, 73,
+] as const;
+export const PILA_AT2_V30_UNMAPPED_PENSION_CONTRIBUTION_FIELD_NUMBERS = [
+  48, 49, 51, 52, 53,
+] as const;
+
+export const PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS = [
+  15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 80, 81, 82,
+  83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94,
+] as const;
+
+const PILA_AT2_V30_NO_EVENT_NOVELTY_CANDIDATE_FIELDS = [
+  15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 26, 27, 29, 30, 80, 81, 82, 83, 84,
+  85, 86, 87, 88, 89, 90, 91, 92, 93, 94,
+] as const;
+
 export interface PilaAt2V30DetailCandidate {
   formatVersion: typeof PILA_AT2_V30_FORMAT_VERSION;
   supportedSnapshot: boolean;
+  scopeMismatch: boolean;
   employeeId: string;
   tenantId: string | null;
   payrollPeriodId: string | null;
@@ -35,9 +87,40 @@ export interface PilaAt2V30DetailCandidate {
     arlInitialRate: typeof PILA_ARL_INITIAL_RATE_RULE_VERSION | null;
     contributionRounding: typeof PILA_CONTRIBUTION_ROUNDING_RULE_VERSION | null;
     ccfRate: typeof PILA_CCF_STANDARD_RATE_RULE_VERSION | null;
+    senaRate: typeof PILA_SENA_STANDARD_RATE_RULE_VERSION | null;
+    icbfRate: typeof PILA_ICBF_STANDARD_RATE_RULE_VERSION | null;
+    pensionRate: typeof PILA_PENSION_STANDARD_RATE_RULE_VERSION | null;
+    healthRate: typeof PILA_HEALTH_STANDARD_RATE_RULE_VERSION | null;
+    noBenefitEventFields:
+      | typeof PILA_AT2_V30_NO_BENEFIT_EVENT_FIELDS_RULE_VERSION
+      | null;
+    noEventNoveltyFields:
+      | typeof PILA_AT2_V30_NO_EVENT_NOVELTY_FIELDS_RULE_VERSION
+      | null;
+    noTransferDestinationFields:
+      | typeof PILA_AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_RULE_VERSION
+      | null;
+    nonCotizante40PrincipalFields:
+      | typeof PILA_AT2_V30_NON_COTIZANTE40_PRINCIPAL_FIELDS_RULE_VERSION
+      | null;
+    confirmedNonExemptCotizante:
+      | typeof PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_RULE_VERSION
+      | null;
+    privateEmployerEsapMen:
+      | typeof PILA_AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_RULE_VERSION
+      | null;
   };
   values: Partial<Record<number, PilaAt2V30FieldInput>>;
   unresolvedFields: Array<{ fieldNumber: number; reason: string }>;
+}
+
+export interface PilaAt2V30DetailScope {
+  expectedTenantId: string | null;
+  period: {
+    id: string;
+    fechaInicio: Date;
+    fechaFin: Date;
+  };
 }
 
 function object(value: unknown): JsonRecord | null {
@@ -115,6 +198,7 @@ function fullCalendarMonth(start: string, end: string): boolean {
  */
 export function mapPilaAt2V30DetailCandidate(
   snapshot: PilaSnapshotPreparationInput,
+  scope: PilaAt2V30DetailScope,
 ): PilaAt2V30DetailCandidate {
   const values: Partial<Record<number, PilaAt2V30FieldInput>> = {};
   const reasons = new Map<number, string>();
@@ -163,6 +247,34 @@ export function mapPilaAt2V30DetailCandidate(
   const periodEnd = calendarDate(period?.fechaFin);
   const tenantId = sourceText(employer?.tenantId);
   const payrollPeriodId = sourceText(period?.payrollPeriodId);
+  const employeeSnapshotId = sourceText(employee?.employeeId);
+  const expectedTenantId = sourceText(scope.expectedTenantId);
+  const expectedStart = Number.isNaN(scope.period.fechaInicio.getTime())
+    ? null
+    : scope.period.fechaInicio.toISOString().slice(0, 10);
+  const expectedEnd = Number.isNaN(scope.period.fechaFin.getTime())
+    ? null
+    : scope.period.fechaFin.toISOString().slice(0, 10);
+  const matchesApprovedScope =
+    expectedTenantId !== null &&
+    expectedStart !== null &&
+    expectedEnd !== null &&
+    tenantId === expectedTenantId &&
+    payrollPeriodId === scope.period.id &&
+    periodStart === expectedStart &&
+    periodEnd === expectedEnd;
+  const scopeMismatch =
+    (expectedTenantId !== null &&
+      tenantId !== null &&
+      tenantId !== expectedTenantId) ||
+    (payrollPeriodId !== null && payrollPeriodId !== scope.period.id) ||
+    (expectedStart !== null &&
+      sourceText(period?.fechaInicio) !== null &&
+      sourceText(period?.fechaInicio) !== expectedStart) ||
+    (expectedEnd !== null &&
+      sourceText(period?.fechaFin) !== null &&
+      sourceText(period?.fechaFin) !== expectedEnd) ||
+    (employeeSnapshotId !== null && employeeSnapshotId !== snapshot.employeeId);
   const supportedSnapshot =
     snapshot.payloadVersion === 2 &&
     root?.schemaVersion === 2 &&
@@ -174,26 +286,38 @@ export function mapPilaAt2V30DetailCandidate(
     payrollPeriodId !== null &&
     periodStart !== null &&
     periodEnd !== null &&
-    sourceText(employee.employeeId) === snapshot.employeeId;
+    matchesApprovedScope &&
+    employeeSnapshotId === snapshot.employeeId;
 
   if (!supportedSnapshot || !periodStart || !periodEnd) {
+    const reason = scopeMismatch
+      ? 'El tenant, empleado o período congelado en el snapshot no coincide con el contexto autenticado solicitado.'
+      : 'Se requiere un snapshot PILA v2 válido y atribuible a un tenant y período.';
     for (const field of PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2
       .fields) {
-      unresolved(
-        field.fieldNumber,
-        'Se requiere un snapshot PILA v2 válido y atribuible a un tenant y período.',
-      );
+      unresolved(field.fieldNumber, reason);
     }
     return {
       formatVersion: PILA_AT2_V30_FORMAT_VERSION,
       supportedSnapshot: false,
+      scopeMismatch,
       employeeId: snapshot.employeeId,
-      tenantId,
-      payrollPeriodId,
+      tenantId: matchesApprovedScope ? expectedTenantId : null,
+      payrollPeriodId: matchesApprovedScope ? scope.period.id : null,
       normativeRuleVersions: {
         arlInitialRate: null,
         contributionRounding: null,
         ccfRate: null,
+        senaRate: null,
+        icbfRate: null,
+        pensionRate: null,
+        healthRate: null,
+        noBenefitEventFields: null,
+        noEventNoveltyFields: null,
+        noTransferDestinationFields: null,
+        nonCotizante40PrincipalFields: null,
+        confirmedNonExemptCotizante: null,
+        privateEmployerEsapMen: null,
       },
       values,
       unresolvedFields: [...reasons].map(([fieldNumber, reason]) => ({
@@ -218,6 +342,10 @@ export function mapPilaAt2V30DetailCandidate(
     affiliationCoversPeriod &&
     sourceText(affiliation?.tipoCotizanteCodigo) === '01' &&
     sourceText(affiliation?.subtipoCotizanteCodigo) === '00';
+  const standardPrivateEmployer =
+    standardAffiliation &&
+    sourceText(employerPila.tipoAportante) === '1' &&
+    sourceText(employerPila.naturalezaJuridica) === '2';
   const employeeCoversPeriod = coversPeriod(
     employee?.fechaIngreso,
     employee?.fechaRetiro,
@@ -304,12 +432,35 @@ export function mapPilaAt2V30DetailCandidate(
     putText(5, affiliation?.tipoCotizanteCodigo, 'el tipo de cotizante');
     putText(6, affiliation?.subtipoCotizanteCodigo, 'el subtipo del cotizante');
     putText(31, affiliation?.fondoPensionCodigo, 'el fondo de pensión');
+    blank(32);
     putText(33, affiliation?.epsCodigo, 'la EPS');
+    blank(34);
     putText(35, affiliation?.cajaCompensacionCodigo, 'la caja de compensación');
     putText(77, affiliation?.arlCodigo, 'la ARL del cotizante');
     putText(78, affiliation?.arlClaseRiesgo, 'la clase de riesgo afiliada');
+    blank(74);
+    blank(75);
+    if (
+      employer.aportesExonerados === false &&
+      employerPila.aportesExoneradosConfirmado === false
+    ) {
+      put(76, 'N');
+    } else if (
+      employer.aportesExonerados === true &&
+      employerPila.aportesExoneradosConfirmado === true
+    ) {
+      unresolved(
+        76,
+        'La exoneración positiva requiere validar la elegibilidad individual antes de proponer el campo.',
+      );
+    } else {
+      unresolved(
+        76,
+        'Falta una confirmación explícita y coherente de no exoneración en el empleador congelado.',
+      );
+    }
   } else {
-    for (const fieldNumber of [5, 6, 31, 33, 35, 77, 78]) {
+    for (const fieldNumber of [5, 6, 31, 32, 33, 34, 35, 74, 75, 76, 77, 78]) {
       unresolved(
         fieldNumber,
         'Falta una única afiliación dependiente 01/00 que cubra el período.',
@@ -369,6 +520,45 @@ export function mapPilaAt2V30DetailCandidate(
     payroll.pilaEvents.length === 0 &&
     Array.isArray(payroll?.novelties) &&
     payroll.novelties.length === 0;
+
+  if (fullMonthPilaInputsApproved) {
+    blank(57);
+    put(58, 0);
+    blank(59);
+    put(60, 0);
+  } else {
+    const reason =
+      'Los campos 57–60 solo tienen valores fijos en snapshots completos sin novedades ni eventos PILA; la incapacidad o licencia requiere datos aprobados por separado.';
+    for (const fieldNumber of [57, 58, 59, 60]) {
+      unresolved(fieldNumber, reason);
+    }
+  }
+
+  if (fullMonthPilaInputsApproved) {
+    for (const fieldNumber of [
+      15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 26, 27, 29,
+    ]) {
+      blank(fieldNumber);
+    }
+    put(30, 0);
+    for (let fieldNumber = 80; fieldNumber <= 94; fieldNumber += 1) {
+      blank(fieldNumber);
+    }
+  } else {
+    const reason =
+      'Este campo solo se propone vacío/cero para un dependiente 01/00 con cobertura completa, días aprobados y listas presentes sin eventos PILA ni novedades Payroll.';
+    for (const fieldNumber of PILA_AT2_V30_NO_EVENT_NOVELTY_CANDIDATE_FIELDS) {
+      unresolved(fieldNumber, reason);
+    }
+  }
+  unresolved(
+    22,
+    'Falta una fuente congelada que declare si el registro corresponde a una corrección de planilla; no se infiere desde la ausencia de eventos Payroll.',
+  );
+  unresolved(
+    28,
+    'No hay una fuente congelada para el aporte voluntario del afiliado a pensión; la ausencia de eventos no prueba que el valor sea cero.',
+  );
 
   const salary = object(payroll?.salarioBasicoCampo40);
   if (
@@ -446,6 +636,13 @@ export function mapPilaAt2V30DetailCandidate(
     periodStart,
   );
   const ccfStandardRate = getPilaCcfStandardRate(periodStart);
+  const senaStandardRate = getPilaSenaStandardRate(periodStart);
+  const icbfStandardRate = getPilaIcbfStandardRate(periodStart);
+  const pensionStandardRate = getPilaPensionStandardRate(
+    periodStart,
+    calendarDate(payroll?.fechaPrevistaPagoPila),
+  );
+  const healthStandardRate = getPilaHealthStandardRate(periodStart);
   const arlInitialRate = riskAssignmentValid ? arlRateByClass : null;
   if (
     riskAssignmentValid &&
@@ -481,12 +678,37 @@ export function mapPilaAt2V30DetailCandidate(
       'Falta una base parafiscal congelada con regla CO_PARAFISCAL_BASE_V1 y sin bloqueos.',
     );
   }
+  if (standardPrivateEmployer) {
+    put(70, '0.00000');
+    put(72, '0.00000');
+    if (Object.hasOwn(values, 95)) {
+      put(71, 0);
+      put(73, 0);
+    } else {
+      unresolved(
+        71,
+        'El valor ESAP requiere el IBC 95 congelado para validar el cálculo con tarifa cero.',
+      );
+      unresolved(
+        73,
+        'El valor MEN requiere el IBC 95 congelado para validar el cálculo con tarifa cero.',
+      );
+    }
+  } else {
+    const privateEmployerReason = standardAffiliation
+      ? 'Los campos ESAP/MEN solo están mapeados aquí para el empleador privado tipo 1; los empleadores públicos y otros tipos están fuera del MVP.'
+      : 'Falta una única afiliación dependiente 01/00 que cubra el período.';
+    for (const fieldNumber of [70, 71, 72, 73]) {
+      unresolved(fieldNumber, privateEmployerReason);
+    }
+  }
 
   const contributionConcepts = objectRows(payroll?.concepts);
   const getContributionAmountCandidate = (input: {
     fieldNumber: number;
     code: string;
     base: JsonRecord | null;
+    expectedType?: string;
     requireExplicitNonExemption?: boolean;
     expectedFactor?: number | null;
     expectedFactorReason?: string;
@@ -533,7 +755,7 @@ export function mapPilaAt2V30DetailCandidate(
     }
     const concept = matches[0];
     if (
-      concept.tipo !== 'EMPLOYER_CONTRIBUTION' ||
+      concept.tipo !== (input.expectedType ?? 'EMPLOYER_CONTRIBUTION') ||
       !safeInteger(concept.base, 9) ||
       typeof concept.factor !== 'number' ||
       !Number.isFinite(concept.factor) ||
@@ -618,6 +840,7 @@ export function mapPilaAt2V30DetailCandidate(
     fieldNumber: number;
     code: string;
     base: JsonRecord | null;
+    expectedType?: string;
     requireExplicitNonExemption?: boolean;
     expectedFactor?: number | null;
     expectedFactorReason?: string;
@@ -646,10 +869,403 @@ export function mapPilaAt2V30DetailCandidate(
     }
     put(input.fieldNumber, concept.valor as number);
   };
+  const pensionBase = object(subsystemBases?.pension);
+  let pensionCandidateBlockReason: string | null = null;
+  if (!standardFullMonthEmployee) {
+    pensionCandidateBlockReason =
+      'La tarifa pensional candidata solo está definida para dependiente 01/00 con empleado, contrato y afiliación que cubren el mes completo.';
+  } else if (!fullMonthPilaInputsApproved) {
+    pensionCandidateBlockReason =
+      'El candidato pensional requiere un mes completo con días aprobados y sin novedades ni eventos PILA.';
+  } else if (employerPila.tipoAportante !== '1') {
+    pensionCandidateBlockReason =
+      'El candidato pensional solo cubre aportantes empleadores tipo 1.';
+  } else if (employerPila.naturalezaJuridica !== '2') {
+    pensionCandidateBlockReason =
+      'El candidato pensional solo cubre empleadores privados; las reglas de empleadores públicos requieren validación específica.';
+  } else if (
+    (employee?.tipoDocumento === 'CC' || employee?.tipoDocumento === 'TI') &&
+    affiliation?.colombianoEnElExterior !== false
+  ) {
+    pensionCandidateBlockReason =
+      'Debe confirmarse explícitamente que el cotizante CC/TI no se encuentra en el exterior para usar el candidato pensional.';
+  } else if (
+    (employee?.tipoDocumento === 'CC' || employee?.tipoDocumento === 'TI') &&
+    affiliation?.extranjeroNoObligadoPension !== null &&
+    affiliation?.extranjeroNoObligadoPension !== undefined
+  ) {
+    pensionCandidateBlockReason =
+      'La declaración de exención extranjera es incompatible con el documento CC/TI.';
+  } else if (
+    (employee?.tipoDocumento === 'CE' || employee?.tipoDocumento === 'PA') &&
+    affiliation?.extranjeroNoObligadoPension !== false
+  ) {
+    pensionCandidateBlockReason =
+      'Debe confirmarse explícitamente que el cotizante CE/PA está obligado a cotizar a pensión para usar el candidato.';
+  } else if (
+    (employee?.tipoDocumento === 'CE' || employee?.tipoDocumento === 'PA') &&
+    affiliation?.colombianoEnElExterior !== null &&
+    affiliation?.colombianoEnElExterior !== undefined
+  ) {
+    pensionCandidateBlockReason =
+      'La declaración de residencia exterior colombiana es incompatible con el documento CE/PA.';
+  } else if (
+    employee?.tipoDocumento !== 'CC' &&
+    employee?.tipoDocumento !== 'TI' &&
+    employee?.tipoDocumento !== 'CE' &&
+    employee?.tipoDocumento !== 'PA'
+  ) {
+    pensionCandidateBlockReason =
+      'El candidato pensional requiere tipo documental CC, TI, CE o PA con declaración aplicable.';
+  } else if (!pensionStandardRate) {
+    const paymentDate = calendarDate(payroll?.fechaPrevistaPagoPila);
+    if (!paymentDate) {
+      pensionCandidateBlockReason =
+        'Falta la fecha prevista de pago PILA congelada para seleccionar la regla pensional aplicable.';
+    } else if (
+      periodStart >= PILA_NEW_PENSION_SYSTEM_EFFECTIVE_FROM ||
+      paymentDate >= PILA_NEW_PENSION_SYSTEM_EFFECTIVE_FROM
+    ) {
+      pensionCandidateBlockReason =
+        'El período o la fecha prevista de pago alcanza el 2027-04-01; falta versionar las reglas del nuevo sistema pensional.';
+    } else {
+      pensionCandidateBlockReason =
+        'No existe una tarifa pensional estándar versionada para el período congelado.';
+    }
+  } else if (
+    !pensionBase ||
+    pensionBase.sourceCount !== 1 ||
+    !safeInteger(pensionBase.valor, 9) ||
+    pensionBase.valor <= 0
+  ) {
+    pensionCandidateBlockReason =
+      'Falta una fuente única y positiva de IBC pensional en el snapshot.';
+  }
+
+  if (!pensionCandidateBlockReason && pensionBase && pensionStandardRate) {
+    const employeePensionRows = contributionConcepts?.filter(
+      (concept) => concept.codigo === 'PENSION_EMP',
+    );
+    const employerPensionRows = contributionConcepts?.filter(
+      (concept) => concept.codigo === 'PENSION_PAT',
+    );
+    const employeePension =
+      employeePensionRows?.length === 1 ? employeePensionRows[0] : null;
+    const employerPension =
+      employerPensionRows?.length === 1 ? employerPensionRows[0] : null;
+    const employeePensionAmount = employeePension?.valor;
+    const employerPensionAmount = employerPension?.valor;
+    const pensionAmountCandidate =
+      safeInteger(employeePensionAmount, 9) &&
+      safeInteger(employerPensionAmount, 9)
+        ? employeePensionAmount + employerPensionAmount
+        : null;
+    const pensionRateBlockReason =
+      employeePensionRows?.length !== 1 || employerPensionRows?.length !== 1
+        ? 'Se requieren fuentes únicas PENSION_EMP y PENSION_PAT en el snapshot.'
+        : employeePension?.tipo !== 'DEDUCTION' ||
+            employerPension?.tipo !== 'EMPLOYER_CONTRIBUTION'
+          ? 'Las fuentes de pensión no tienen los tipos de concepto esperados.'
+          : employeePension.factor !== pensionStandardRate.employeeFactor ||
+              employerPension.factor !== pensionStandardRate.employerFactor
+            ? 'Los factores PENSION_EMP/PENSION_PAT no coinciden con las tarifas estándar versionadas 4 % y 12 %.'
+            : !safeInteger(employeePension.base, 9) ||
+                !safeInteger(employeePensionAmount, 9) ||
+                !safeInteger(employerPension.base, 9) ||
+                !safeInteger(employerPensionAmount, 9) ||
+                employeePension.base !== pensionBase.valor ||
+                employerPension.base !== pensionBase.valor
+              ? 'Las bases e importes PENSION_EMP/PENSION_PAT no coinciden con el IBC pensional congelado.'
+              : !isPilaContributionAmountRoundedUpToHundred(
+                    periodStart,
+                    pensionBase.valor,
+                    4,
+                    100,
+                    employeePensionAmount,
+                  ) ||
+                  !isPilaContributionAmountRoundedUpToHundred(
+                    periodStart,
+                    pensionBase.valor,
+                    12,
+                    100,
+                    employerPensionAmount,
+                  )
+                ? 'Los importes pensionales congelados no cumplen el redondeo PILA vigente para cada concepto.'
+                : pensionAmountCandidate === null ||
+                    !safeInteger(pensionAmountCandidate, 9) ||
+                    !isPilaContributionAmountRoundedUpToHundred(
+                      periodStart,
+                      pensionBase.valor,
+                      16,
+                      100,
+                      pensionAmountCandidate,
+                    )
+                  ? 'La suma congelada de los aportes pensionales no coincide con IBC × 16 % y su redondeo PILA; no se ajustan los importes.'
+                  : null;
+
+    if (
+      pensionRateBlockReason ||
+      pensionAmountCandidate === null ||
+      !safeInteger(pensionAmountCandidate, 9)
+    ) {
+      const reason =
+        pensionRateBlockReason ??
+        'No se pueden leer los importes pensionales congelados.';
+      unresolved(46, reason);
+      unresolved(47, reason);
+    } else {
+      // Field 47 is composed only from the two approved snapshot amounts;
+      // the calculation above is a consistency check and never replaces them.
+      put(46, pensionStandardRate.fieldValue);
+      put(47, pensionAmountCandidate);
+    }
+  } else {
+    const reason =
+      pensionCandidateBlockReason ??
+      'No se puede validar el aporte pensional contra fuentes congeladas.';
+    unresolved(46, reason);
+    unresolved(47, reason);
+  }
+
+  unresolved(
+    48,
+    'Falta una afiliación pensional versionada que confirme si el afiliado realiza aportes voluntarios; el campo 28 también debe declarar esa novedad.',
+  );
+  unresolved(
+    49,
+    'Falta una fuente congelada del aporte voluntario que realiza el aportante y la confirmación correspondiente del campo 28.',
+  );
+  unresolved(
+    51,
+    'El aporte de solidaridad requiere agregar el IBC pensional por cotizante y validar su obligación; el snapshot no conserva esa base agregada ni una fuente separada de esta subcuenta.',
+  );
+  unresolved(
+    52,
+    'El aporte de subsistencia requiere la base pensional agregada y validar la regla vigente por régimen; Payroll no conserva una fuente separada de esta subcuenta.',
+  );
+  unresolved(
+    53,
+    'El valor no retenido depende de aportes voluntarios y de la diferencia de retención en la fuente; no existe una fuente congelada aprobada para calcularlo o confirmarlo.',
+  );
+
+  const healthBase = object(subsystemBases?.salud);
+  let healthRateBlockReason: string | null = null;
+  if (!standardFullMonthEmployee || !fullMonthPilaInputsApproved) {
+    healthRateBlockReason =
+      'La tarifa de salud candidata requiere un dependiente 01/00 con snapshot mensual completo y sin novedades ni eventos PILA.';
+  } else if (employerPila.tipoAportante !== '1') {
+    healthRateBlockReason =
+      'La tarifa de salud candidata solo cubre aportantes empleadores tipo 1.';
+  } else if (employerPila.naturalezaJuridica !== '2') {
+    healthRateBlockReason =
+      'La tarifa de salud candidata solo cubre empleadores privados.';
+  } else if (
+    employer.aportesExonerados !== false ||
+    employerPila.aportesExoneradosConfirmado !== false
+  ) {
+    healthRateBlockReason =
+      'Se requiere declaración expresa y coherente de no exoneración para validar la tarifa total de salud de 12,5 %.';
+  } else if (
+    (employee?.tipoDocumento !== 'CC' && employee?.tipoDocumento !== 'TI') ||
+    affiliation?.colombianoEnElExterior !== false
+  ) {
+    healthRateBlockReason =
+      'La tarifa de salud candidata requiere tipo documental CC/TI y confirmación expresa de que el trabajador no está en el exterior.';
+  } else if (
+    affiliation?.extranjeroNoObligadoPension !== null &&
+    affiliation?.extranjeroNoObligadoPension !== undefined
+  ) {
+    healthRateBlockReason =
+      'La declaración de exención extranjera es incompatible con el documento CC/TI.';
+  } else if (!healthStandardRate) {
+    healthRateBlockReason =
+      'No hay una tarifa de salud estándar versionada para el período congelado.';
+  } else if (
+    !healthBase ||
+    healthBase.sourceCount !== 1 ||
+    !safeInteger(healthBase.valor, 9) ||
+    healthBase.valor <= 0
+  ) {
+    healthRateBlockReason =
+      'Falta una fuente única y positiva de IBC de salud en el snapshot.';
+  }
+
+  const healthBaseAmount =
+    healthBase && safeInteger(healthBase.valor, 9) ? healthBase.valor : null;
+  if (
+    !healthRateBlockReason &&
+    healthBase &&
+    healthBaseAmount !== null &&
+    healthStandardRate
+  ) {
+    const employeeHealthConcept = getContributionAmountCandidate({
+      fieldNumber: 55,
+      code: 'SALUD_EMP',
+      base: healthBase,
+      expectedType: 'DEDUCTION',
+      requireExplicitNonExemption: true,
+      expectedFactor: healthStandardRate.employeeFactor,
+      expectedFactorMismatchReason:
+        'El factor SALUD_EMP del snapshot no coincide con la tarifa estándar versionada de 4 %.',
+    });
+    const employerHealthConcept = getContributionAmountCandidate({
+      fieldNumber: 55,
+      code: 'SALUD_PAT',
+      base: healthBase,
+      requireExplicitNonExemption: true,
+      expectedFactor: healthStandardRate.employerFactor,
+      expectedFactorMismatchReason:
+        'El factor SALUD_PAT del snapshot no coincide con la tarifa estándar versionada de 8,5 %.',
+    });
+    const employeeHealthAmount = employeeHealthConcept?.valor;
+    const employerHealthAmount = employerHealthConcept?.valor;
+    const healthAmountCandidate =
+      safeInteger(employeeHealthAmount, 9) &&
+      safeInteger(employerHealthAmount, 9)
+        ? employeeHealthAmount + employerHealthAmount
+        : null;
+    const employeeHealthRatio = getPilaContributionFactorRatio(
+      healthStandardRate.employeeFactor,
+    );
+    const employerHealthRatio = getPilaContributionFactorRatio(
+      healthStandardRate.employerFactor,
+    );
+    const totalHealthRatio = getPilaContributionFactorRatio(
+      healthStandardRate.factor,
+    );
+    let healthAmountBlockReason: string | null = null;
+    if (!employeeHealthConcept || !employerHealthConcept) {
+      healthAmountBlockReason =
+        reasons.get(55) ??
+        'Se requieren fuentes SALUD_EMP y SALUD_PAT únicas en el snapshot.';
+    } else if (
+      !safeInteger(employeeHealthAmount, 9) ||
+      !safeInteger(employerHealthAmount, 9) ||
+      healthAmountCandidate === null ||
+      !safeInteger(healthAmountCandidate, 9)
+    ) {
+      healthAmountBlockReason =
+        'Los importes de salud congelados superan el rango válido o no son enteros.';
+    } else if (
+      !employeeHealthRatio ||
+      !employerHealthRatio ||
+      !totalHealthRatio ||
+      !isPilaContributionAmountRoundedUpToHundred(
+        periodStart,
+        healthBaseAmount,
+        employeeHealthRatio.numerator,
+        employeeHealthRatio.denominator,
+        employeeHealthAmount,
+      ) ||
+      !isPilaContributionAmountRoundedUpToHundred(
+        periodStart,
+        healthBaseAmount,
+        employerHealthRatio.numerator,
+        employerHealthRatio.denominator,
+        employerHealthAmount,
+      )
+    ) {
+      healthAmountBlockReason =
+        'Los importes SALUD_EMP/SALUD_PAT congelados no cumplen el redondeo PILA vigente para cada concepto.';
+    } else if (
+      !isPilaContributionAmountRoundedUpToHundred(
+        periodStart,
+        healthBaseAmount,
+        totalHealthRatio.numerator,
+        totalHealthRatio.denominator,
+        healthAmountCandidate,
+      )
+    ) {
+      healthAmountBlockReason =
+        'La suma congelada de los aportes de salud no coincide con IBC × 12,5 % y su redondeo PILA; no se ajustan los importes.';
+    }
+
+    if (healthAmountBlockReason) {
+      unresolved(54, healthAmountBlockReason);
+      unresolved(55, healthAmountBlockReason);
+    } else {
+      put(54, healthStandardRate.fieldValue);
+      put(55, healthAmountCandidate!);
+    }
+  } else {
+    const reason =
+      healthRateBlockReason ??
+      'No se puede validar el aporte de salud contra fuentes congeladas.';
+    unresolved(54, reason);
+    unresolved(55, reason);
+  }
+
   const ccfBase =
     object(subsystemBases?.cajaCompensacion)?.sourceCount === 1
       ? object(subsystemBases?.cajaCompensacion)
       : null;
+  let parafiscalRateBlockReason: string | null = null;
+  if (!standardFullMonthEmployee) {
+    parafiscalRateBlockReason =
+      'Las tarifas SENA e ICBF solo están definidas aquí para un dependiente 01/00 de mes completo.';
+  } else if (employerPila.tipoAportante !== '1') {
+    parafiscalRateBlockReason =
+      'Falta declarar el aportante empleador requerido para estas tarifas parafiscales.';
+  } else if (
+    employerPila.claseAportante !== 'A' &&
+    employerPila.claseAportante !== 'B'
+  ) {
+    parafiscalRateBlockReason =
+      'Las tarifas candidatas SENA e ICBF solo cubren aportantes clase A/B; las clases C/D requieren reglas especiales fuera del alcance actual.';
+  } else if (employerPila.naturalezaJuridica !== '2') {
+    parafiscalRateBlockReason =
+      'Las tarifas estándar candidatas SENA e ICBF solo cubren empleadores privados; las demás naturalezas requieren validar reglas específicas.';
+  } else if (employerPila.beneficioLey1429 !== false) {
+    parafiscalRateBlockReason =
+      employerPila.beneficioLey1429 === true
+        ? 'El beneficio general de Ley 1429 requiere tarifas y elegibilidad verificadas antes de mapear SENA e ICBF.'
+        : 'Falta declarar explícitamente que no aplica el beneficio general de Ley 1429 para SENA e ICBF.';
+  }
+  const parafiscalBase =
+    otherParafiscalBase?.reglaVersion === 'CO_PARAFISCAL_BASE_V1' &&
+    hasNoBlockers(otherParafiscalBase)
+      ? otherParafiscalBase
+      : null;
+  const mapStandardParafiscalCandidates = (input: {
+    rateFieldNumber: number;
+    amountFieldNumber: number;
+    code: 'SENA' | 'ICBF';
+    base: JsonRecord | null;
+    factor: number | null;
+    fieldValue: string | null;
+    rateRuleAvailable: boolean;
+  }) => {
+    const expectedFactor = parafiscalRateBlockReason
+      ? null
+      : input.rateRuleAvailable
+        ? input.factor
+        : null;
+    const expectedFactorReason =
+      parafiscalRateBlockReason ??
+      `No hay una tarifa ${input.code} versionada aplicable al período congelado.`;
+    const expectedFactorMismatchReason = `El factor ${input.code} del snapshot no coincide con la tarifa estándar versionada.`;
+    const contributionCandidate = getContributionAmountCandidate({
+      fieldNumber: input.rateFieldNumber,
+      code: input.code,
+      base: input.base,
+      requireExplicitNonExemption: true,
+      expectedFactor,
+      expectedFactorReason,
+      expectedFactorMismatchReason,
+    });
+    if (contributionCandidate && input.fieldValue) {
+      put(input.rateFieldNumber, input.fieldValue);
+    }
+    mapContributionAmountCandidate({
+      fieldNumber: input.amountFieldNumber,
+      code: input.code,
+      base: input.base,
+      requireExplicitNonExemption: true,
+      expectedFactor,
+      expectedFactorReason,
+      expectedFactorMismatchReason,
+    });
+  };
   let ccfRateBlockReason: string | null = null;
   if (!standardFullMonthEmployee) {
     ccfRateBlockReason =
@@ -700,25 +1316,23 @@ export function mapPilaAt2V30DetailCandidate(
     expectedFactorMismatchReason:
       'El factor CAJA del snapshot no coincide con la tarifa CCF estándar versionada.',
   });
-  mapContributionAmountCandidate({
-    fieldNumber: 67,
+  mapStandardParafiscalCandidates({
+    rateFieldNumber: 66,
+    amountFieldNumber: 67,
     code: 'SENA',
-    base:
-      otherParafiscalBase?.reglaVersion === 'CO_PARAFISCAL_BASE_V1' &&
-      hasNoBlockers(otherParafiscalBase)
-        ? otherParafiscalBase
-        : null,
-    requireExplicitNonExemption: true,
+    base: parafiscalBase,
+    factor: senaStandardRate?.factor ?? null,
+    fieldValue: senaStandardRate?.fieldValue ?? null,
+    rateRuleAvailable: senaStandardRate !== null,
   });
-  mapContributionAmountCandidate({
-    fieldNumber: 69,
+  mapStandardParafiscalCandidates({
+    rateFieldNumber: 68,
+    amountFieldNumber: 69,
     code: 'ICBF',
-    base:
-      otherParafiscalBase?.reglaVersion === 'CO_PARAFISCAL_BASE_V1' &&
-      hasNoBlockers(otherParafiscalBase)
-        ? otherParafiscalBase
-        : null,
-    requireExplicitNonExemption: true,
+    base: parafiscalBase,
+    factor: icbfStandardRate?.factor ?? null,
+    fieldValue: icbfStandardRate?.fieldValue ?? null,
+    rateRuleAvailable: icbfStandardRate !== null,
   });
 
   const defaultReason =
@@ -734,6 +1348,7 @@ export function mapPilaAt2V30DetailCandidate(
   return {
     formatVersion: PILA_AT2_V30_FORMAT_VERSION,
     supportedSnapshot: true,
+    scopeMismatch: false,
     employeeId: snapshot.employeeId,
     tenantId,
     payrollPeriodId,
@@ -743,6 +1358,28 @@ export function mapPilaAt2V30DetailCandidate(
         : null,
       contributionRounding: getPilaContributionRoundingRuleVersion(periodStart),
       ccfRate: getPilaCcfStandardRate(periodStart)?.ruleVersion ?? null,
+      senaRate: senaStandardRate?.ruleVersion ?? null,
+      icbfRate: icbfStandardRate?.ruleVersion ?? null,
+      pensionRate: pensionStandardRate?.ruleVersion ?? null,
+      healthRate: healthStandardRate?.ruleVersion ?? null,
+      noBenefitEventFields: fullMonthPilaInputsApproved
+        ? PILA_AT2_V30_NO_BENEFIT_EVENT_FIELDS_RULE_VERSION
+        : null,
+      noEventNoveltyFields: fullMonthPilaInputsApproved
+        ? PILA_AT2_V30_NO_EVENT_NOVELTY_FIELDS_RULE_VERSION
+        : null,
+      noTransferDestinationFields: standardAffiliation
+        ? PILA_AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_RULE_VERSION
+        : null,
+      nonCotizante40PrincipalFields: standardAffiliation
+        ? PILA_AT2_V30_NON_COTIZANTE40_PRINCIPAL_FIELDS_RULE_VERSION
+        : null,
+      confirmedNonExemptCotizante: values[76]
+        ? PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_RULE_VERSION
+        : null,
+      privateEmployerEsapMen: standardPrivateEmployer
+        ? PILA_AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_RULE_VERSION
+        : null,
     },
     values,
     unresolvedFields,

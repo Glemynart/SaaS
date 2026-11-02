@@ -474,9 +474,11 @@ se accedió a demo, staging o producción.
   soportar períodos que alcancen abril de 2027.
 - El informe PILA marca ese corte con un bloqueo de exportación si el período
   o la fecha prevista de pago alcanza 2027-04-01, y señala los campos 46–47.
-  Una planilla de marzo pagada en abril también queda bloqueada hasta resolver
-  la selección de reglas. La prueba solo confirma el guard del hito; no
-  implementa ni valida las nuevas reglas pensionales.
+  Una planilla de marzo pagada en abril también queda bloqueada. Para períodos
+  anteriores se agregaron candidatos estándar 46–47 a partir de PENSION_EMP
+  (4 %) y PENSION_PAT (12 %) congelados, con obligación explícita, bases y
+  redondeo reconciliados. No implementa la distribución del nuevo sistema,
+  no permite generar archivos y requiere prueba de carga por operador.
 
 ### Mapeo candidato de aportante AT2 v30 — 2026-10-31
 
@@ -524,8 +526,8 @@ se accedió a demo, staging o producción.
   afiliación, días completos, salario, IBC por subsistema y asignación ARL desde
   un snapshot PILA v2 del mismo empleado/tenant/período. No vuelve a consultar
   maestros ni transforma novedades y no altera importes aprobados.
-- El alcance del mapa cubre campos 1–8, 11–14, 31, 33, 35, 36–45, 61–65,
-  67, 69, 77–78, 95 y 98. Los importes 63/65/67/69 son solo candidatos
+- El alcance del mapa cubre campos 1–8, 11–21, 23–27, 29–47, 54–55, 57–69,
+  74–78, 80–94, 95 y 98. Los importes 63/65/67/69 son solo candidatos
   copiados de un concepto patronal único, con tipo esperado, factor positivo y
   base coincidente. Cada importe requiere además que el valor congelado ya
   coincida con el redondeo PILA versionado al múltiplo de 100 superior; una
@@ -539,16 +541,132 @@ se accedió a demo, staging o producción.
   AT2 v30 pp. 86–87 permite dejar 7 en blanco para CC/TI y 8 para CE/PA, pero
   mantiene sin resolver la exención pensional CE/PA y la residencia exterior
   CC/TI porque todavía no se capturan como declaraciones explícitas.
-  Nunca se calcula un aporte ni se infiere cero por ausencia. Los demás campos
-  de aportes, novedades/segmentación, horas y datos faltantes siguen sin valor
-  candidato; el registro completo no es serializable ni descargable.
+  Para el caso de mes completo sin eventos ni novedades Payroll, la continuación
+  apilada sobre #202 propone los blancos/cero normativos en campos 15–21,
+  23–27, 29–30 y 80–94. Los campos 22 (corrección de planilla) y 28 (aporte
+  voluntario a pensión) siguen pendientes porque no hay una fuente congelada
+  para esos valores. Nunca se calcula un aporte ni se infiere cero cuando falta
+  fuente. El registro completo no es serializable ni descargable.
 - Las pruebas verifican snapshot v2, dependiente 01/00, cobertura del período,
   códigos afiliados, días/base salarial e IBC congelados, ceros iniciales del
   documento/centro, fuentes de concepto únicas y aislamiento del centro ARL.
 - El informe del período muestra por campo cuántos empleados tienen candidato
-  para 61/63/64/65/67/69 y las razones y nombres asociados a los pendientes. Si un
+  para 46/47, 54/55, 61/63/64/65/66/67/68/69 y las razones y nombres asociados a los pendientes. Si un
   empleado tiene snapshots duplicados no escoge uno; los candidatos parciales
   no habilitan archivo ni aceptación de operador.
+
+### Campos IGE/LMA sin eventos candidatos AT2 — 2026-10-31
+
+- `AT2_V30_NO_IGE_LMA_FIXED_FIELDS_V1` representa los campos 57 y 59 en
+  blanco y los campos 58 y 60 en cero solo para un snapshot v2 de mes completo,
+  con días aprobados, arrays de eventos presentes y vacíos, y sin novedades
+  Payroll. AT2 v30 asigna esos valores cuando no hay incapacidad general ni
+  licencia de maternidad/paternidad.
+- Si existe cualquier evento o novedad, faltan arrays de origen, o no se
+  demuestra el mes completo, los cuatro campos quedan pendientes. El código no
+  crea números de autorización ni calcula valores de incapacidad/licencia.
+- El informe API/web muestra conteos y razones por campo 57–60, incluidos los
+  empleados pendientes. El panel mantiene visible que no existe un flujo para
+  capturar importes y autorizaciones de eventos IGE/LMA.
+- El candidato no hace exportable el registro ni verifica aceptación de un
+  operador. El flujo IGE/LMA con datos de prestación permanece pendiente.
+
+### Campos de detalle sin novedades PILA — 2026-10-31
+
+- La continuación de #202 mapea los indicadores sin evento en campos 15–21,
+  23–27 y 29–30, y las fechas vacías 80–94. Exige snapshot PILA v2 de mes
+  calendario completo, afiliación `01`/`00`, empleado y contrato vigentes,
+  días aprobados de los cuatro subsistemas y arrays presentes/vacíos de eventos
+  junto con novedades Payroll vacías.
+- El campo 30 queda en cero cuando no se capturó IRL. Los campos 22 (corrección)
+  y 28 (aporte voluntario) permanecen sin candidato: no existe fuente congelada
+  que permita confirmar su valor.
+- La regla `AT2_V30_NO_EVENT_NOVELTY_FIELDS_V1` es versionada. El informe API/web
+  expone candidatos y pendientes por campo y empleados afectados. Un evento,
+  novedad, lista ausente o período incompleto mantiene los campos dependientes
+  sin candidato.
+- AT2 v30 pp. 88–89 y 98–102 define los valores vacíos; la descarga continúa
+  deshabilitada, la validación local sigue siendo parcial y no se afirma
+  compatibilidad con operador. El trabajo está en la rama
+  `codex/goal02-pila-empty-novelty-fields`, apilada sobre #202.
+
+### Campos vacíos fijos para dependientes estándar — 2026-10-31
+
+- Para una afiliación dependiente `01`/`00`, el mapper deja en blanco los
+  destinos de traslado 32 y 34, que AT2 v30 asigna vacíos, y los campos 74/75
+  de cotizante principal, que solo se reportan para tipo 40.
+- La ausencia de eventos no es requisito para estos candidatos: el valor vacío
+  proviene de la regla de aplicabilidad de AT2 y del tipo de cotizante congelado.
+  Una afiliación ausente o fuera del MVP deja los cuatro campos pendientes.
+- Las reglas `AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_V1` y
+  `AT2_V30_NON_COTIZANTE40_PRINCIPAL_FIELDS_V1` quedan versionadas. El informe
+  API/web expone estados por campo; las pruebas del serializador verifican sus
+  espacios de longitud fija. No se habilita descarga ni se declara aceptación
+  de operador.
+- Fuente: AT2 v30 pp. 90 y 95–96. El trabajo continúa en la rama
+  `codex/goal02-pila-dependent-empty-fields`, apilada sobre la rama de #203.
+
+### Campo 76 de exoneración explícita — 2026-10-31
+
+- Para la afiliación dependiente `01`/`00`, se propone `N` solo si los dos
+  valores del empleador congelado (`aportesExonerados` y
+  `aportesExoneradosConfirmado`) son explícitamente `false`.
+- Si falta la confirmación, existe contradicción o ambos valores son `true`, el
+  campo queda pendiente. No se infiere elegibilidad individual para la
+  exoneración positiva.
+- La regla `AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_V1` queda versionada y el
+  panel API/web informa candidatos y pendientes por empleado. El cambio no
+  habilita descarga.
+- Fuente: AT2 v30 p. 97; ADR-013 mantiene el uso exclusivo de snapshots
+  aprobados y limita el MVP a dependientes estándar. Trabajo apilado sobre #204
+  en `codex/goal02-pila-non-exempt-cotizante-field`.
+
+### Campos ESAP/MEN 70–73 para empleador privado — 2026-10-31
+
+- AT2 v30 pp. 163–164 establece que el campo 70 aplica a aportantes de
+  naturaleza pública reportados por ESAP y permite tarifa cero cuando el
+  cotizante no está obligado. El campo 72 aplica solo a aportantes de naturaleza
+  pública y permite cero cuando el cotizante no está obligado. Los valores 71 y
+  73 se validan contra el IBC 95 multiplicado por su tarifa.
+- La regla `AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_V1` propone 70/72 como
+  `0.00000` para empleadores privados tipo 1 con dependiente `01`/`00`. Propone
+  71/73 en cero solo cuando el snapshot incluye un IBC 95 válido. Empleadores
+  públicos, naturaleza desconocida y otros tipos permanecen pendientes.
+- El informe API/web muestra candidatos y pendientes por campo. No se habilita
+  descarga ni se declara compatibilidad de operador.
+- Fuentes primarias: [AT2 v30, Ministerio de Salud](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/OT/anexo-tecnico2-cotizantes.pdf), pp. 163–164; [Ley 21 de 1982, Gestor Normativo de Función Pública](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=4827), arts. 8, 11 y 12. Trabajo apilado sobre #205 en `codex/goal02-pila-private-esap-men-fields`.
+
+### Aportes voluntarios de pensión y subcuentas FSP pendientes — 2026-10-31
+
+- El preflight ahora muestra los campos 48, 49, 51, 52 y 53 como pendientes
+  por empleado con la causa correspondiente. Los campos voluntarios requieren
+  afiliación pensional y una declaración enlazada al campo 28; el campo 53
+  también requiere una fuente aprobada para validar la diferencia de retención.
+- Payroll conserva el FSP como concepto agregado. AT2 exige distinguir las
+  subcuentas y validar la base pensional acumulada por cotizante y su régimen;
+  no se distribuye ni calcula un importe desde la nómina actual.
+- No se infiere cero ni se habilita la descarga. Las reglas de producto y las
+  fuentes de entrada quedan pendientes antes de implementar el mapeo.
+- Fuente: AT2 v30 pp. 155–159 y ADR-013. Trabajo apilado sobre #206 en
+  `codex/goal02-pila-pension-fields-pending-report`.
+
+### Salud estándar candidata AT2 — 2026-10-31
+
+- La regla versionada `CO_HEALTH_STANDARD_RATE_L1122_ART10_V1` conserva la
+  tarifa estándar de 12,5 %: 4 % del trabajador (`SALUD_EMP`) y 8,5 % del
+  empleador (`SALUD_PAT`), conforme a la Ley 1122 de 2007, art. 10.
+- El mapper solo expone campos 54/55 para empleador privado tipo 1, dependiente
+  01/00 de mes completo, ubicación nacional expresamente confirmada,
+  no exoneración expresa y coherente y snapshot completo sin novedades ni
+  eventos PILA. Ambos conceptos deben ser únicos, tener su factor esperado y
+  una base igual al IBC 43 congelado. Los importes se copian del snapshot; cada
+  uno y su suma deben cumplir el redondeo PILA para el 12,5 %. No se calcula ni
+  se sustituye ningún valor.
+- Sin confirmación de no exoneración, con exoneración, trabajador en el
+  exterior, empleador público, período parcial o fuentes discrepantes, ambos
+  campos permanecen pendientes. El candidato decimal `0.12500` ocupa N7, pero
+  el formato vigente y la aceptación siguen pendientes de prueba por operador.
+  El archivo continúa deshabilitado.
 
 ### Tarifa inicial ARL candidata AT2 — 2026-10-31
 
@@ -594,6 +712,35 @@ se accedió a demo, staging o producción.
   2016](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-2388-2016.pdf),
   que derogó la Resolución 1747.
 
+### Tarifas estándar SENA e ICBF candidatas AT2 — 2026-10-31
+
+- Los campos 66/68 usan las reglas versionadas `CO_SENA_STANDARD_RATE_L21_ART12_V1`
+  (2 %) y `CO_ICBF_STANDARD_RATE_L89_ART1_V1` (3 %). El alcance candidato se
+  limita a empleador privado tipo 1, clase A/B, dependiente 01/00 de mes
+  completo, declaración negativa explícita de Ley 1429 y declaración coherente
+  de no exoneración entre política y perfil PILA.
+- La fuente única `SENA`/`ICBF` del snapshot debe conservar el factor legal y
+  una base igual al campo 95. Los campos 67/69 mantienen el importe aprobado
+  solo si ya satisface el redondeo PILA versionado; nunca se calcula ni
+  reemplaza el valor.
+- `0.02000` y `0.03000` son las convenciones decimales históricas de campo de
+  la Resolución 1747/2008, art. 19, hoy derogada. El AT2 v30 confirma el ancho
+  N7 y las reglas de campo, pero se requiere carga de prueba para validar el
+  formato vigente en cada operador.
+- Si el empleador declara exoneración, estos candidatos permanecen bloqueados
+  incluso para un empleado de salario alto: el mapper todavía no valida el
+  umbral individual del artículo 114-1 del Estatuto Tributario. Tampoco admite
+  clases C/D, empleadores no privados, beneficios especiales o ceros por
+  ausencia. No se habilita la descarga.
+- Las pruebas cubren tarifa/factor/base, empleador, naturaleza, clase,
+  beneficio, exoneración, ancho decimal y redondeo; no acreditan compatibilidad
+  con operador.
+- Fuentes: [Ley 21 de 1982, art. 12](https://www1.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=4827),
+  [Ley 89 de 1988, art. 1](https://www.icbf.gov.co/sites/default/files/ley_89_de_1988.pdf),
+  y el ejemplo histórico de campos decimales en el art. 19 de la
+  [Resolución 1747 de 2008](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/Resolucion-1747-de-2008.pdf),
+  derogada por la [Resolución 2388 de 2016](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-2388-2016.pdf).
+
 ### Declaraciones PILA por tipo de documento — 2026-10-31
 
 - La continuación sobre la cadena #191 agrega a la afiliación con vigencia las
@@ -626,3 +773,95 @@ se accedió a demo, staging o producción.
   operativas o pagos reales; excluir el semestre no elimina el derecho ni la
   obligación legal. Ver ADR-012 y sus fuentes oficiales para el alcance y los
   límites de esta decisión.
+
+### Candidatos del encabezado tipo 2 en el preflight PILA — 2026-10-31
+
+- La rama `codex/goal02-pila-header-preflight-report` continúa la cadena sobre
+  #207. El informe API ahora incluye los candidatos AT2 v30 para los 22 campos
+  de cabecera; la pantalla de Nómina muestra el valor o el motivo pendiente de
+  cada campo. La ruta solo acepta períodos aprobados/causados, consulta los
+  snapshots del tenant y período solicitados, y conserva `archivoGenerable =
+false`.
+- La suma del campo 20 usa el mismo mapper que presenta la cabecera. Solo
+  acepta snapshots PILA v2 únicos con afiliación dependiente 01/00 vigente para
+  el mes; un duplicado o un campo N12 desbordado no produce un total candidato.
+- El Browser E2E del recorrido financiero pasó con PostgreSQL desechable y
+  verificó el snapshot persistido, el total de campo 20, los campos pendientes
+  del operador y que la descarga sigue sin implementar. API/Web typecheck,
+  ESLint y 117 pruebas API también pasaron localmente.
+- **GOAL ACTIVO:** GOAL-02; GOAL-01 permanece pausado. **IMPLEMENTACIÓN
+  BLOQUEADA:** solo la sincronización y merge ordenado de PR remotos que esperan
+  checks de GitHub/Vercel; #207 y #208 siguen abiertos. Sus jobs `verify` y
+  `browser` terminaron en 2 segundos sin ejecutar pasos; Vercel limitó #207
+  por 24 horas y el preview de #208 terminó correctamente. Por instrucción del
+  usuario, estos estados no detienen el trabajo local ni se mergean todavía;
+  las ramas se sincronizarán con `main` y se revisarán en orden cuando vuelva
+  la cuota.
+- **ARQUITECTURA DISPONIBLE:** ADR-013 aprobada con cambios, matriz de campos
+  AT2 v30 y el mapper versionado permiten continuar cubriendo fuentes y
+  validaciones sin afirmar compatibilidad universal. Sigue pendiente la prueba
+  de carga por operador antes de declarar compatibilidad.
+
+### Candidatos del aportante tipo 1 en el preflight PILA — 2026-10-31
+
+- La PR #210, apilada sobre la PR #209, agrega un informe agregado de los
+  34 campos del archivo tipo 1 desde snapshots aprobados. Solo muestra valores
+  comunes cuando cada snapshot PILA v2 identifica el tenant autenticado y
+  coincide exactamente con el período aprobado; cada empleado debe aparecer una sola
+  vez. No completa datos desde el perfil actual del tenant.
+- Valores del aportante diferentes entre snapshots, períodos o tenants
+  inconsistentes y snapshots duplicados bloquean los candidatos afectados; un
+  problema de alcance bloquea el registro completo. Los campos 28/29 y demás
+  fuentes ausentes conservan el motivo de pendiente, sin inferir información
+  asignada por el operador.
+- La pantalla muestra los 34 candidatos y causas pendientes. Esto no valida ni
+  serializa el registro tipo 1, no habilita descargas y no demuestra aceptación
+  de un operador.
+- La verificación local pasó: 133 pruebas API de PILA/preparación/servicio,
+  typecheck y lint de API/web, build de API/web y Browser E2E financiero
+  (1/1) contra PostgreSQL desechable con las 77 migraciones aplicadas. El build
+  web conserva dos advertencias existentes de `<img>` en identidad.
+- **GOAL ACTIVO:** GOAL-02; GOAL-01 permanece pausado. **IMPLEMENTACIÓN
+  BLOQUEADA:** la sincronización y merge ordenado de PR espera recuperación de
+  cuota de GitHub Actions y límites de Vercel. Por instrucción del usuario, los
+  fallos remotos no detienen trabajo local ni la preparación de PRs apiladas;
+  no se fusionan hasta retomar la revisión en orden.
+
+### Validación de alcance en cabecera tipo 2 PILA — 2026-10-31
+
+- La siguiente rama, apilada sobre #210, valida la cabecera tipo 2 contra el
+  tenant autenticado y el ID/rango de fechas del período aprobado. Que todos
+  los snapshots coincidan entre sí no basta si corresponden a otro período o
+  tenant.
+- Si el tenant o el período congelado no coincide, la API deja los 22 campos
+  sin candidatos y no devuelve el tenant ni período de los snapshots ajenos.
+- La verificación local pasó: 121 pruebas API de mapper, preparación y
+  servicio; typecheck y lint API; build API; Browser E2E financiero (1/1) con
+  PostgreSQL desechable y las 77 migraciones. Sin cambios de schema ni descarga
+  PILA habilitada.
+- En GitHub, `verify` y `browser` fallaron en 1–3 segundos sin ejecutar pasos;
+  Vercel rechazó el preview por límite de despliegues de 24 horas. La PR queda
+  abierta para sincronización y revisión ordenada cuando vuelva la cuota, sin
+  detener la continuación local de GOAL-02.
+
+### Validación de alcance en detalle tipo 2 PILA — continuación — 2026-10-31
+
+- La revisión del mapper de detalle encontró que aceptaba un snapshot PILA v2
+  estructuralmente válido aunque su tenant o período congelado no coincidiera
+  con el contexto autenticado y el período aprobado solicitado. El endpoint
+  consultaba las filas por tenant/período, pero no validaba ese vínculo dentro
+  del payload histórico.
+- El mapper de detalle ahora exige el tenant autenticado, el ID y el rango de
+  fechas del período aprobado antes de proponer candidatos. Si no coinciden,
+  mantiene los 98 campos sin candidatos y no retorna identificadores de tenant
+  o período ajenos. El informe tampoco utiliza el nombre del snapshot fuera de
+  alcance para mostrar empleados con brechas. Los demás mapeos conservan las
+  fuentes congeladas y no completan valores desde datos maestros actuales.
+- Se agregaron casos negativos para tenant, ID y fechas del período en el
+  mapper y en el agregado del informe. La matriz registra el criterio
+  `PILA-AT2-52`. La
+  descarga sigue deshabilitada y este cambio no afirma compatibilidad con un
+  operador.
+- Esta continuación se incorporó a la consolidación PILA de #209–#213 sobre
+  #207. El nuevo head consolidado debe volver a superar CI, Browser E2E y preview
+  antes de cualquier merge.

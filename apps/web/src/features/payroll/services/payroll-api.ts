@@ -125,14 +125,36 @@ export interface PilaExportReadinessBlocker {
   evidence: string;
 }
 
-export interface PilaDetailContributionCandidateStatus {
-  fieldNumber: 61 | 63 | 64 | 65 | 67 | 69;
+export interface PilaDetailFieldCandidateStatus {
+  fieldNumber: number;
   candidateEmployees: number;
   pendingEmployees: number;
   pendingReasons: Array<{
     reason: string;
     affectedEmployees: string[];
   }>;
+}
+
+export interface PilaAt2V30HeaderCandidate {
+  formatVersion: 'AT2_V30';
+  supportedSnapshots: boolean;
+  tenantId: string | null;
+  payrollPeriodId: string | null;
+  values: Partial<Record<number, { value: string | number | null; emptyAs?: 'spaces' | 'zeros' }>>;
+  unresolvedFields: Array<{
+    fieldNumber: number;
+    code: string;
+    reason: string;
+  }>;
+}
+
+export interface PilaAt2V30EmployerCandidate {
+  formatVersion: 'AT2_V30';
+  supportedSnapshots: boolean;
+  tenantId: string | null;
+  payrollPeriodId: string;
+  values: Partial<Record<number, { value: string | number | null; emptyAs?: 'spaces' | 'zeros' }>>;
+  unresolvedFields: Array<{ fieldNumber: number; reason: string }>;
 }
 
 export interface PilaPreparationReport {
@@ -154,7 +176,14 @@ export interface PilaPreparationReport {
   snapshotsRevisados: number;
   empleadosConDatosPendientes: number;
   empleadosSinBrechasDetectadas: number;
-  detailContributionCandidates: PilaDetailContributionCandidateStatus[];
+  detailContributionCandidates: PilaDetailFieldCandidateStatus[];
+  detailNoEventFieldCandidates: PilaDetailFieldCandidateStatus[];
+  detailAbsentEventCandidates: PilaDetailFieldCandidateStatus[];
+  detailStandardDependentEmptyCandidates: PilaDetailFieldCandidateStatus[];
+  detailNonExemptCotizanteCandidates: PilaDetailFieldCandidateStatus[];
+  detailPrivateEmployerEsapMenCandidates: PilaDetailFieldCandidateStatus[];
+  employerCandidate: PilaAt2V30EmployerCandidate;
+  headerCandidate: PilaAt2V30HeaderCandidate;
   issues: PilaPreparationIssue[];
   archivoGenerable: false;
   estadoArchivo: 'NO_IMPLEMENTADO';

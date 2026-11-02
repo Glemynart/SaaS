@@ -4,10 +4,12 @@ type PayrollAccrualFixture = {
   periodId: string;
   snapshotId: string;
   snapshotPayload: Record<string, unknown>;
+  pilaSnapshotPayload: Record<string, unknown>;
   inspectPersistedState: () => Promise<{
     periodStatus: string | undefined;
     vouchers: Array<{ id: string; estado: string }>;
     snapshotPayload: unknown;
+    pilaSnapshotPayload: unknown;
     snapshotStatus: string | undefined;
   }>;
   disconnect: () => Promise<void>;
@@ -84,6 +86,57 @@ export async function seedPayrollAccrualFixture(
       { codigo: 'SALUD_EMP', valor: 40_000 },
       { codigo: 'PENSION_EMP', valor: 40_000 },
     ],
+  };
+  const pilaSnapshotPayload = {
+    schemaVersion: 2,
+    period: {
+      payrollPeriodId: periodId,
+      fechaInicio: '2026-03-01',
+      fechaFin: '2026-03-31',
+    },
+    employer: {
+      tenantId,
+      razonSocial: 'Demo Financiera E2E S.A.S.',
+      nit: '900123456',
+      digitoVerif: '7',
+      direccion: 'Calle Demo 10',
+      telefono: '6011234567',
+      email: 'demo@example.test',
+      municipio: { codigo: '11001' },
+      pila: {
+        claseAportante: 'B',
+        tipoDocumentoAportante: 'NI',
+        naturalezaJuridica: '2',
+        tipoPersona: 'J',
+        formaPresentacion: 'U',
+        codigoActividadEconomica: '1234',
+        codigoArlAportante: 'ARL001',
+        tipoAportante: '1',
+        fax: '6011234567',
+        representanteTipoDocumento: 'CC',
+        representanteNumeroDocumento: '123456789',
+        representantePrimerApellido: 'Demo',
+        representanteSegundoApellido: null,
+        representantePrimerNombre: 'Laura',
+        representanteSegundoNombre: null,
+        beneficioLey1429: false,
+        beneficioCcfLey1429: false,
+        aportesExoneradosConfirmado: false,
+        sinAccionEspecial: true,
+      },
+    },
+    employee: { employeeId },
+    affiliations: [
+      {
+        tipoCotizanteCodigo: '01',
+        subtipoCotizanteCodigo: '00',
+        vigenteDesde: '2026-01-01',
+        vigenteHasta: null,
+      },
+    ],
+    payroll: {
+      ibcPorSubsistema: { cajaCompensacion: { valor: 1_000_000 } },
+    },
   };
 
   try {
@@ -179,6 +232,8 @@ export async function seedPayrollAccrualFixture(
           origen: 'BROWSER_E2E',
           payloadVersion: 1,
           payload: snapshotPayload,
+          pilaPayloadVersion: 2,
+          pilaPayload: pilaSnapshotPayload,
         },
       });
       await tx.periodoContable.create({
@@ -220,6 +275,7 @@ export async function seedPayrollAccrualFixture(
       periodId,
       snapshotId,
       snapshotPayload,
+      pilaSnapshotPayload,
       inspectPersistedState: async () =>
         prisma.$transaction(async (tx: any) => {
           await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
@@ -240,6 +296,7 @@ export async function seedPayrollAccrualFixture(
             periodStatus: period?.status,
             vouchers,
             snapshotPayload: snapshot?.payload,
+            pilaSnapshotPayload: snapshot?.pilaPayload,
             snapshotStatus: snapshot?.estadoPeriodo,
           };
         }),

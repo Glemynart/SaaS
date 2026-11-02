@@ -1,6 +1,10 @@
-import { mapPilaAt2V30EmployerCandidate } from './pila-at2-v30-employer-mapper';
+import {
+  mapPilaAt2V30EmployerAggregateCandidate,
+  mapPilaAt2V30EmployerCandidate,
+} from './pila-at2-v30-employer-mapper';
 
 type TestSnapshot = {
+  employeeId: string;
   payloadVersion: number;
   payload: {
     schemaVersion: number;
@@ -9,16 +13,32 @@ type TestSnapshot = {
       pila: Record<string, unknown>;
       [key: string]: unknown;
     };
+    employee: { employeeId: string };
+    period: {
+      payrollPeriodId: string;
+      fechaInicio: string;
+      fechaFin: string;
+    };
   };
 };
 
-function snapshot(): TestSnapshot {
+function snapshot(
+  employeeId = 'employee-1',
+  tenantId = 'tenant-1',
+): TestSnapshot {
   return {
+    employeeId,
     payloadVersion: 2,
     payload: {
       schemaVersion: 2,
+      period: {
+        payrollPeriodId: 'period-1',
+        fechaInicio: '2026-10-01',
+        fechaFin: '2026-10-31',
+      },
+      employee: { employeeId },
       employer: {
-        tenantId: 'tenant-1',
+        tenantId,
         razonSocial: 'Empresa Demo SAS',
         nit: '900123456',
         digitoVerif: '7',
@@ -163,5 +183,152 @@ describe('mapPilaAt2V30EmployerCandidate', () => {
     expect(
       candidate.unresolvedFields.map(({ fieldNumber }) => fieldNumber),
     ).toEqual(Array.from({ length: 34 }, (_, index) => index + 1));
+  });
+});
+
+describe('mapPilaAt2V30EmployerAggregateCandidate', () => {
+  const period = {
+    id: 'period-1',
+    fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+    fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+  };
+
+  it('exposes common type 1 candidates when snapshots match the approved scope', () => {
+    const candidate = mapPilaAt2V30EmployerAggregateCandidate({
+      expectedTenantId: 'tenant-1',
+      period,
+      snapshots: [snapshot('employee-1'), snapshot('employee-2')],
+    });
+
+    expect(candidate).toMatchObject({
+      formatVersion: 'AT2_V30',
+      supportedSnapshots: true,
+      tenantId: 'tenant-1',
+      payrollPeriodId: 'period-1',
+      values: {
+        1: { value: 'Empresa Demo SAS' },
+        4: { value: '7' },
+        12: { value: '001' },
+        13: { value: '11' },
+        33: { value: 'N' },
+      },
+    });
+    expect(candidate.values[28]).toBeUndefined();
+    expect(candidate.unresolvedFields).toContainEqual({
+      fieldNumber: 28,
+      reason: 'AT2 asigna el código del operador; no está en el snapshot.',
+    });
+  });
+
+  it('leaves conflicting employer values unresolved without choosing a snapshot', () => {
+    const second = snapshot('employee-2');
+    second.payload.employer.razonSocial = 'Otra empresa';
+
+    const candidate = mapPilaAt2V30EmployerAggregateCandidate({
+      expectedTenantId: 'tenant-1',
+      period,
+      snapshots: [snapshot('employee-1'), second],
+    });
+
+    expect(candidate.supportedSnapshots).toBe(true);
+    expect(candidate.values[1]).toBeUndefined();
+    expect(candidate.unresolvedFields).toContainEqual({
+      fieldNumber: 1,
+      reason:
+        'El campo falta o presenta valores diferentes entre los snapshots aprobados.',
+    });
+    expect(candidate.values[2]).toEqual({ value: 'NI' });
+  });
+
+  it('does not expose snapshots from a tenant other than the authenticated tenant', () => {
+    const candidate = mapPilaAt2V30EmployerAggregateCandidate({
+      expectedTenantId: 'tenant-authenticated',
+      period,
+      snapshots: [snapshot('employee-1')],
+    });
+
+    expect(candidate.supportedSnapshots).toBe(false);
+    expect(candidate.tenantId).toBeNull();
+    expect(candidate.values).toEqual({});
+    expect(candidate.unresolvedFields[0]?.reason).toContain(
+      'El tenant congelado en los snapshots no coincide con el tenant autenticado.',
+    );
+  });
+
+  it('fails closed when authenticated tenant context is missing', () => {
+    const candidate = mapPilaAt2V30EmployerAggregateCandidate({
+      expectedTenantId: null,
+      period,
+      snapshots: [snapshot('employee-1')],
+    });
+
+    expect(candidate.supportedSnapshots).toBe(false);
+    expect(candidate.tenantId).toBeNull();
+    expect(candidate.values).toEqual({});
+    expect(candidate.unresolvedFields[0]?.reason).toContain(
+      'Falta el contexto del tenant autenticado para confirmar el aportante.',
+    );
+  });
+
+  it.each([
+    {
+      name: 'duplicate employee snapshots',
+      snapshots: () => [snapshot('employee-1'), snapshot('employee-1')],
+      expected: 'Hay más de un snapshot aprobado para el mismo empleado.',
+    },
+    {
+      name: 'mixed tenants',
+      snapshots: () => [
+        snapshot('employee-1'),
+        snapshot('employee-2', 'tenant-2'),
+      ],
+      expected: 'Los snapshots no comparten un tenant identificable.',
+    },
+    {
+      name: 'snapshot period mismatch',
+      snapshots: () => {
+        const outside = snapshot('employee-2');
+        outside.payload.period.payrollPeriodId = 'period-other';
+        return [snapshot('employee-1'), outside];
+      },
+      expected:
+        'El período congelado en los snapshots no coincide con el período aprobado solicitado.',
+    },
+    {
+      name: 'snapshot date range mismatch',
+      snapshots: () => {
+        const outside = snapshot('employee-2');
+        outside.payload.period.fechaFin = '2026-10-30';
+        return [snapshot('employee-1'), outside];
+      },
+      expected:
+        'El período congelado en los snapshots no coincide con el período aprobado solicitado.',
+    },
+  ])('blocks all fields for $name', ({ snapshots, expected }) => {
+    const candidate = mapPilaAt2V30EmployerAggregateCandidate({
+      expectedTenantId: 'tenant-1',
+      period,
+      snapshots: snapshots(),
+    });
+
+    expect(candidate.supportedSnapshots).toBe(false);
+    expect(candidate.values).toEqual({});
+    expect(candidate.unresolvedFields).toHaveLength(34);
+    expect(candidate.unresolvedFields[0]?.reason).toContain(expected);
+  });
+
+  it('keeps every field pending when no approved snapshots exist', () => {
+    const candidate = mapPilaAt2V30EmployerAggregateCandidate({
+      expectedTenantId: 'tenant-1',
+      period,
+      snapshots: [],
+    });
+
+    expect(candidate.supportedSnapshots).toBe(false);
+    expect(candidate.values).toEqual({});
+    expect(candidate.unresolvedFields).toHaveLength(34);
+    expect(candidate.unresolvedFields[0]?.reason).toContain(
+      'No hay snapshots aprobados para este período.',
+    );
   });
 });
