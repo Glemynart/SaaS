@@ -555,3 +555,21 @@ se accedió a demo, staging o producción.
   `false` a campo en blanco. Un valor contradictorio también bloquea.
 - Este paso no habilita el archivo PILA ni declara compatibilidad con
   operadores. Se mantienen las reglas y exclusiones vigentes del MVP.
+
+### Prima de diciembre — decisión de alcance del MVP — 2026-10-31
+
+- Artículo 306 CST confirma pago de la segunda mitad dentro de los primeros
+  veinte días de diciembre y reconocimiento por semestre trabajado o tiempo
+  proporcional. La Corte Suprema describe las primas de junio y diciembre como
+  semestres de calendario. Las fuentes oficiales consultadas no resuelven una
+  regla general para fijar, antes del pago, el corte de servicio y la base
+  variable hasta el 31 de diciembre. La sentencia SL4089-2022 cita un acuerdo
+  particular que usa el 30 de noviembre; no se extrapola como regla general.
+- **Decisión actual:** el MVP de prima solo habilita enero–junio. El segundo
+  semestre permanece excluido hasta revisión laboral que apruebe corte, base
+  y eventual ajuste. El código ya bloquea ese semestre y no genera proyección
+  ni PDF definitivo.
+- La revisión laboral independiente continúa pendiente antes de liquidaciones
+  operativas o pagos reales; excluir el semestre no elimina el derecho ni la
+  obligación legal. Ver ADR-012 y sus fuentes oficiales para el alcance y los
+  límites de esta decisión.
