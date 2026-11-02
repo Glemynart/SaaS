@@ -34,6 +34,8 @@ type FormValues = {
   arlClaseRiesgo: string;
   cajaCompensacionCodigo: string;
   cajaCompensacionNombre: string;
+  extranjeroNoObligadoPension: boolean | null;
+  colombianoEnElExterior: boolean | null;
   vigenteDesde: string;
   vigenteHasta: string;
 };
@@ -50,6 +52,8 @@ const emptyForm: FormValues = {
   arlClaseRiesgo: '',
   cajaCompensacionCodigo: '',
   cajaCompensacionNombre: '',
+  extranjeroNoObligadoPension: null,
+  colombianoEnElExterior: null,
   vigenteDesde: '',
   vigenteHasta: '',
 };
@@ -92,9 +96,11 @@ function LegacyReference({ values }: { values: LegacyValues }) {
 
 export function EmployeeSocialSecurityPanel({
   employeeId,
+  employeeDocumentType,
   legacyValues,
 }: {
   employeeId: string;
+  employeeDocumentType: string;
   legacyValues: LegacyValues;
 }) {
   const {
@@ -110,8 +116,21 @@ export function EmployeeSocialSecurityPanel({
   const [closingId, setClosingId] = useState<string | null>(null);
   const [closeDate, setCloseDate] = useState('');
 
-  const setValue = (field: keyof FormValues, value: string) => {
+  const setValue = (
+    field: Exclude<keyof FormValues, 'extranjeroNoObligadoPension' | 'colombianoEnElExterior'>,
+    value: string,
+  ) => {
     setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const setDeclaration = (
+    field: 'extranjeroNoObligadoPension' | 'colombianoEnElExterior',
+    value: string,
+  ) => {
+    setForm((current) => ({
+      ...current,
+      [field]: value === '' ? null : value === 'true',
+    }));
   };
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -131,6 +150,8 @@ export function EmployeeSocialSecurityPanel({
           arlClaseRiesgo: form.arlClaseRiesgo,
           cajaCompensacionCodigo: form.cajaCompensacionCodigo,
           cajaCompensacionNombre: form.cajaCompensacionNombre,
+          extranjeroNoObligadoPension: form.extranjeroNoObligadoPension,
+          colombianoEnElExterior: form.colombianoEnElExterior,
           vigenteDesde: form.vigenteDesde,
           vigenteHasta: form.vigenteHasta || null,
         },
@@ -191,7 +212,9 @@ export function EmployeeSocialSecurityPanel({
         del conjunto de EPS, pensión, ARL y caja desde la fecha indicada. Si cambia una entidad,
         vuelve a confirmar todas las afiliaciones que siguen vigentes. Una nueva versión sin fecha
         final cierra el día anterior la versión abierta previa; también puedes finalizarla sin
-        reemplazo. Los campos heredados nunca se convierten automáticamente.
+        reemplazo. Confirma también las declaraciones de residencia o exención aplicables al tipo de
+        documento; una afiliación histórica no se completa automáticamente. Los campos heredados
+        nunca se convierten automáticamente.
       </Alert>
 
       <LegacyReference values={legacyValues} />
@@ -244,6 +267,18 @@ export function EmployeeSocialSecurityPanel({
                   name={affiliation.cajaCompensacionNombre}
                   code={affiliation.cajaCompensacionCodigo}
                 />
+                {(employeeDocumentType === 'CC' || employeeDocumentType === 'TI') && (
+                  <DeclarationItem
+                    label="Colombiano en el exterior"
+                    value={affiliation.colombianoEnElExterior}
+                  />
+                )}
+                {(employeeDocumentType === 'CE' || employeeDocumentType === 'PA') && (
+                  <DeclarationItem
+                    label="Extranjero no obligado a cotizar a pensión"
+                    value={affiliation.extranjeroNoObligadoPension}
+                  />
+                )}
               </dl>
               <p className="mt-3 text-xs text-muted-foreground">
                 El código es declarado por el empleador y aún requiere validación normativa antes de
@@ -395,6 +430,48 @@ export function EmployeeSocialSecurityPanel({
               onCodeChange={(value) => setValue('cajaCompensacionCodigo', value)}
               onNameChange={(value) => setValue('cajaCompensacionNombre', value)}
             />
+            {(employeeDocumentType === 'CC' || employeeDocumentType === 'TI') && (
+              <FormField
+                label="¿Es colombiano en el exterior?"
+                required
+                hint="Confirma la declaración del cotizante para el campo 8 de AT2."
+              >
+                <Select
+                  required
+                  value={
+                    form.colombianoEnElExterior === null ? '' : String(form.colombianoEnElExterior)
+                  }
+                  onChange={(event) => setDeclaration('colombianoEnElExterior', event.target.value)}
+                >
+                  <option value="">Selecciona una respuesta</option>
+                  <option value="false">No</option>
+                  <option value="true">Sí</option>
+                </Select>
+              </FormField>
+            )}
+            {(employeeDocumentType === 'CE' || employeeDocumentType === 'PA') && (
+              <FormField
+                label="¿El cotizante extranjero está exento de cotizar a pensión?"
+                required
+                hint="Confirma la declaración del cotizante para el campo 7 de AT2."
+              >
+                <Select
+                  required
+                  value={
+                    form.extranjeroNoObligadoPension === null
+                      ? ''
+                      : String(form.extranjeroNoObligadoPension)
+                  }
+                  onChange={(event) =>
+                    setDeclaration('extranjeroNoObligadoPension', event.target.value)
+                  }
+                >
+                  <option value="">Selecciona una respuesta</option>
+                  <option value="false">No</option>
+                  <option value="true">Sí</option>
+                </Select>
+              </FormField>
+            )}
           </div>
 
           <div className="flex justify-end gap-2">
@@ -411,6 +488,17 @@ export function EmployeeSocialSecurityPanel({
         </form>
       )}
     </section>
+  );
+}
+
+function DeclarationItem({ label, value }: { label: string; value: boolean | null }) {
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="font-medium text-foreground">
+        {value === null ? 'Sin confirmar' : value ? 'Sí' : 'No'}
+      </dd>
+    </div>
   );
 }
 

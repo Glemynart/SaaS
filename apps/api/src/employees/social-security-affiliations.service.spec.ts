@@ -31,6 +31,8 @@ const dto: CreateSocialSecurityAffiliationDto = {
   arlClaseRiesgo: '1',
   cajaCompensacionCodigo: 'CCF001',
   cajaCompensacionNombre: 'Caja de prueba',
+  extranjeroNoObligadoPension: null,
+  colombianoEnElExterior: false,
   vigenteDesde: '2026-04-01',
   vigenteHasta: null,
 };
@@ -60,7 +62,10 @@ describe('SocialSecurityAffiliationsService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    employeeFindFirst.mockResolvedValue({ id: employeeId });
+    employeeFindFirst.mockResolvedValue({
+      id: employeeId,
+      tipoDocumento: 'CC',
+    });
     affiliationFindMany.mockResolvedValue([]);
     affiliationFindFirst.mockResolvedValue(openAffiliation);
     affiliationFindFirstOrThrow.mockResolvedValue({
@@ -69,7 +74,7 @@ describe('SocialSecurityAffiliationsService', () => {
     });
     affiliationUpdateMany.mockResolvedValue({ count: 1 });
     affiliationCreate.mockResolvedValue({ id: 'affiliation-new' });
-    queryRaw.mockResolvedValue([{ id: employeeId }]);
+    queryRaw.mockResolvedValue([{ tipoDocumento: 'CC' }]);
     auditLog.mockResolvedValue(undefined);
     execute.mockImplementation(
       (work: (client: typeof tx, context: { tenantId: string }) => unknown) =>
@@ -86,7 +91,7 @@ describe('SocialSecurityAffiliationsService', () => {
 
     expect(employeeFindFirst).toHaveBeenCalledWith({
       where: { id: employeeId, tenantId, deletedAt: null },
-      select: { id: true },
+      select: { id: true, tipoDocumento: true },
     });
     expect(affiliationFindMany).toHaveBeenCalledWith({
       where: { tenantId, empleadoId: employeeId },
@@ -127,9 +132,11 @@ describe('SocialSecurityAffiliationsService', () => {
       tenantId,
       empleadoId: employeeId,
       registradoPorId: userId,
-      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V1',
+      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V2',
       tipoCotizanteCodigo: '01',
       subtipoCotizanteCodigo: '00',
+      extranjeroNoObligadoPension: null,
+      colombianoEnElExterior: false,
       epsCodigo: 'EPS001',
       epsNombre: 'EPS de prueba',
       vigenteDesde: new Date('2026-04-01T00:00:00.000Z'),
@@ -143,6 +150,65 @@ describe('SocialSecurityAffiliationsService', () => {
       }),
       tx,
     );
+  });
+
+  it.each(['CE', 'PA'])(
+    'requires an explicit foreign pension declaration for %s employees',
+    async (tipoDocumento) => {
+      employeeFindFirst.mockResolvedValue({ id: employeeId, tipoDocumento });
+      queryRaw.mockResolvedValue([{ tipoDocumento }]);
+
+      await expect(
+        service.create(userId, employeeId, {
+          ...dto,
+          colombianoEnElExterior: null,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(affiliationCreate).not.toHaveBeenCalled();
+    },
+  );
+
+  it('stores the applicable foreign exemption and leaves the abroad declaration empty', async () => {
+    employeeFindFirst.mockResolvedValue({
+      id: employeeId,
+      tipoDocumento: 'CE',
+    });
+    queryRaw.mockResolvedValue([{ tipoDocumento: 'CE' }]);
+
+    await service.create(userId, employeeId, {
+      ...dto,
+      extranjeroNoObligadoPension: true,
+      colombianoEnElExterior: null,
+    });
+
+    const [createCall] = affiliationCreate.mock.calls as unknown as Array<
+      [{ data: Record<string, unknown> }]
+    >;
+    expect(createCall?.[0].data).toMatchObject({
+      extranjeroNoObligadoPension: true,
+      colombianoEnElExterior: null,
+      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V2',
+    });
+  });
+
+  it('rejects a declaration that does not apply to the employee document type', async () => {
+    await expect(
+      service.create(userId, employeeId, {
+        ...dto,
+        extranjeroNoObligadoPension: true,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(affiliationCreate).not.toHaveBeenCalled();
+  });
+
+  it('requires an explicit exterior declaration for Colombian document types', async () => {
+    await expect(
+      service.create(userId, employeeId, {
+        ...dto,
+        colombianoEnElExterior: null,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(affiliationCreate).not.toHaveBeenCalled();
   });
 
   it('closes an open historical affiliation on the day before a new one starts', async () => {

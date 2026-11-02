@@ -2,6 +2,7 @@ import { Transform } from 'class-transformer';
 import {
   IsDateString,
   IsDefined,
+  IsBoolean,
   IsIn,
   IsOptional,
   IsString,
@@ -77,6 +78,14 @@ export class CreateSocialSecurityAffiliationDto {
   @IsString()
   @Length(1, 120)
   cajaCompensacionNombre: string;
+
+  @IsOptional()
+  @IsBoolean()
+  extranjeroNoObligadoPension?: boolean | null;
+
+  @IsOptional()
+  @IsBoolean()
+  colombianoEnElExterior?: boolean | null;
 
   @IsDateString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)

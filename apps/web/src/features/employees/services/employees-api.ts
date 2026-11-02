@@ -50,6 +50,8 @@ export interface SocialSecurityAffiliation {
   arlClaseRiesgo: string;
   cajaCompensacionCodigo: string;
   cajaCompensacionNombre: string;
+  extranjeroNoObligadoPension: boolean | null;
+  colombianoEnElExterior: boolean | null;
   vigenteDesde: string;
   vigenteHasta: string | null;
   versionCaptura: string;

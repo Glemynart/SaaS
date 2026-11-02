@@ -99,6 +99,8 @@ const contextInput: PilaSourceContextInput = {
       arlClaseRiesgo: '2',
       cajaCompensacionCodigo: 'CCF001',
       cajaCompensacionNombre: 'Caja de prueba',
+      extranjeroNoObligadoPension: null,
+      colombianoEnElExterior: false,
       vigenteDesde: new Date('2026-01-01T00:00:00.000Z'),
       vigenteHasta: null,
       versionCaptura: 'PILA_AFFILIATION_CAPTURE_V1',
@@ -289,6 +291,10 @@ describe('PILA source snapshot builders', () => {
     expect(result.employee.fechaIngreso).toBe('2026-01-05');
     expect(result.employee.fechaNacimiento).toBeNull();
     expect(result.affiliations[0].vigenteDesde).toBe('2026-01-01');
+    expect(result.affiliations[0]).toMatchObject({
+      extranjeroNoObligadoPension: null,
+      colombianoEnElExterior: false,
+    });
     expect(result.payroll.fechaPrevistaPagoPila).toBe('2026-11-05');
     expect(result.payroll.salarioBasico).toBe(2_000_000);
     expect(result.payroll.salarioBasicoCampo40).toEqual({

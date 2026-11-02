@@ -3813,6 +3813,8 @@ export class PayrollService {
           arlClaseRiesgo: true,
           cajaCompensacionCodigo: true,
           cajaCompensacionNombre: true,
+          extranjeroNoObligadoPension: true,
+          colombianoEnElExterior: true,
           vigenteDesde: true,
           vigenteHasta: true,
           versionCaptura: true,

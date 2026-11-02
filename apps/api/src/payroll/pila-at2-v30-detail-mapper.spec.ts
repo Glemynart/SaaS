@@ -46,6 +46,8 @@ function snapshot(): PilaSnapshotPreparationInput {
           cajaCompensacionCodigo: 'CCF001',
           arlCodigo: 'ARL001',
           arlClaseRiesgo: '2',
+          extranjeroNoObligadoPension: null,
+          colombianoEnElExterior: null,
           vigenteDesde: '2026-01-01',
           vigenteHasta: null,
         },
@@ -239,6 +241,62 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       expect(candidate.values[8]).toEqual({ value: null, emptyAs: 'spaces' });
     },
   );
+
+  it.each(['CC', 'TI'])(
+    'maps the explicit exterior declaration for %s as X or blank',
+    (documentType) => {
+      const abroad = snapshot();
+      payloadOf(abroad).employee.tipoDocumento = documentType;
+      payloadOf(abroad).affiliations[0].colombianoEnElExterior = true;
+
+      const abroadCandidate = mapPilaAt2V30DetailCandidate(abroad);
+      expect(abroadCandidate.values[8]).toEqual({ value: 'X' });
+      expect(abroadCandidate.unresolvedFields).not.toContainEqual(
+        expect.objectContaining({ fieldNumber: 8 }),
+      );
+
+      payloadOf(abroad).affiliations[0].colombianoEnElExterior = false;
+      const domesticCandidate = mapPilaAt2V30DetailCandidate(abroad);
+      expect(domesticCandidate.values[8]).toEqual({
+        value: null,
+        emptyAs: 'spaces',
+      });
+    },
+  );
+
+  it.each(['CE', 'PA'])(
+    'maps the explicit foreign pension exemption for %s as X or blank',
+    (documentType) => {
+      const foreign = snapshot();
+      payloadOf(foreign).employee.tipoDocumento = documentType;
+      payloadOf(foreign).affiliations[0].extranjeroNoObligadoPension = true;
+
+      const exemptCandidate = mapPilaAt2V30DetailCandidate(foreign);
+      expect(exemptCandidate.values[7]).toEqual({ value: 'X' });
+      expect(exemptCandidate.unresolvedFields).not.toContainEqual(
+        expect.objectContaining({ fieldNumber: 7 }),
+      );
+
+      payloadOf(foreign).affiliations[0].extranjeroNoObligadoPension = false;
+      const obligatedCandidate = mapPilaAt2V30DetailCandidate(foreign);
+      expect(obligatedCandidate.values[7]).toEqual({
+        value: null,
+        emptyAs: 'spaces',
+      });
+    },
+  );
+
+  it('blocks declarations that conflict with the employee document type', () => {
+    const input = snapshot();
+    payloadOf(input).affiliations[0].extranjeroNoObligadoPension = true;
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[7]).toBeUndefined();
+    expect(candidate.unresolvedFields).toContainEqual(
+      expect.objectContaining({ fieldNumber: 7 }),
+    );
+  });
 
   it('keeps both flags unresolved for unsupported document types', () => {
     const input = snapshot();

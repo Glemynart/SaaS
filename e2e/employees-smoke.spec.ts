@@ -90,6 +90,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await affiliationForm.getByLabel('Clase de riesgo ARL').selectOption('1');
   await affiliationForm.getByLabel('Código Caja de compensación').fill('CCF001');
   await affiliationForm.getByLabel('Nombre Caja de compensación').fill('Caja Demo');
+  await affiliationForm.getByLabel('¿Es colombiano en el exterior?').selectOption('false');
   await affiliationForm.getByRole('button', { name: 'Guardar afiliación' }).click();
 
   await expect(page.getByText('EPS Demo')).toBeVisible();
@@ -110,6 +111,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await replacementForm.getByRole('combobox', { name: 'Clase de riesgo ARL' }).selectOption('1');
   await replacementForm.getByLabel('Código Caja de compensación').fill('CCF001');
   await replacementForm.getByLabel('Nombre Caja de compensación').fill('Caja Demo');
+  await replacementForm.getByLabel('¿Es colombiano en el exterior?').selectOption('false');
   await replacementForm.getByRole('button', { name: 'Guardar afiliación' }).click();
 
   await expect(page.getByText('EPS Nueva')).toBeVisible();
