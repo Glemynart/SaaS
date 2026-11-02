@@ -199,7 +199,7 @@ async function seedServicePremiumFixture(tenantId: string, actorId: string) {
 }
 
 test('genera los 100 PDF del lote aunque el navegador pierda conexión', async ({ page }) => {
-  test.setTimeout(6 * 60_000);
+  test.setTimeout(8 * 60_000);
   const { tenant, user } = await registerAndSignIn(page);
   const fixture = await seedServicePremiumFixture(tenant.id, user.id);
 
@@ -233,6 +233,13 @@ test('genera los 100 PDF del lote aunque el navegador pierda conexión', async (
     const approveResponse = await approveResponsePromise;
     expect(approveResponse.status()).toBe(200);
     await page.context().setOffline(true);
+
+    await expect
+      .poll(async () => (await fixture.inspectPersistedState()).batch?.status, {
+        timeout: 90_000,
+        intervals: [250, 500, 1_000, 2_000],
+      })
+      .toBe('PROCESANDO');
 
     await expect
       .poll(

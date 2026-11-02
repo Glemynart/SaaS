@@ -27,8 +27,8 @@ período reportado.
 
 `main` antes de PR #169 contenía `Sede`, `Contrato` y afiliaciones con ARL y
 clase de riesgo, pero no conservaba el código de centro asignado por la ARL ni
-la actividad de riesgos del empleado. La rama abierta #169 agrega
-`PilaCentroTrabajo` tenant-scoped con vínculo opcional a `Sede` y
+la actividad de riesgos del empleado. PR #169 agregó a `main`
+(`7d30bdc`) `PilaCentroTrabajo` tenant-scoped con vínculo opcional a `Sede` y
 `PilaAsignacionCentroTrabajo` con centro, actividad y vigencias por empleado.
 El payload PILA v2 congela esas asignaciones para snapshots nuevos; snapshots
 históricos no reciben backfill. Una sede continúa siendo una ubicación
@@ -49,16 +49,16 @@ ni una afiliación vigente.
   económica de riesgos laborales conforme a la tabla del Decreto 768 de 2022
   para los dependientes cubiertos por el MVP.
 - `AfiliacionSeguridadSocial` registra `arlCodigo`, `arlClaseRiesgo` y una
-  vigencia; la rama #169 guarda el centro y actividad por separado, asociados
-  al empleado y con vigencia propia.
+  vigencia; PR #169 guarda el centro y actividad por separado, asociados al
+  empleado y con vigencia propia.
 - `PilaCentroTrabajo` y `PilaAsignacionCentroTrabajo` usan relaciones compuestas
   con `tenantId`; el servicio valida código de actividad del catálogo
   `DECRETO_768_2022` y reglas de solapamiento. Esto no confirma la asignación
   ante la ARL ni la aceptación del código por un operador.
 - `Sede` y `Contrato.sedeId` describen una ubicación organizacional; no
   almacenan identificadores de centro asignados por una ARL.
-- El payload PILA v2 de la rama congela la asignación y el tenant. Los snapshots
-  históricos no se rellenan desde datos maestros actuales.
+- El payload PILA v2 congela la asignación y el tenant. Los snapshots históricos
+  no se rellenan desde datos maestros actuales.
 
 La matriz del ADR-013 usa el AT2 v30 descargado desde la
 [página de PILA de MinSalud](https://www.minsalud.gov.co/Proteccion-Social/Paginas/pila.aspx),
