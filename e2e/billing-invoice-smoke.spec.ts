@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
+import { seedBillingLedgerFixture } from './helpers/billing-ledger-fixture';
 
 async function registerAndSignIn(page: Page, suffix: string) {
   const nit = `8${suffix}`;
@@ -46,98 +47,133 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
   const customerNit = `9${suffix}`;
   const productName = `Servicio Educativo ${suffix}`;
   const invoiceNumber = `DEMO-${suffix}`;
-  await registerAndSignIn(page, suffix);
-
-  await page.goto('/facturacion/clientes');
-  await page.getByRole('button', { name: 'Nuevo' }).click();
-  const customerInputs = page.locator('input');
-  await customerInputs.nth(0).fill(customerName);
-  await customerInputs.nth(1).fill(customerNit);
-  await customerInputs.nth(2).fill(`cliente-${suffix}@example.test`);
-  const createCustomerResponsePromise = page.waitForResponse(
-    (response) =>
-      new URL(response.url()).pathname === '/api/billing/customers' &&
-      response.request().method() === 'POST',
+  const registration = await registerAndSignIn(page, suffix);
+  const accountingFixture = await seedBillingLedgerFixture(
+    registration.tenant.id,
+    customerNit,
+    customerName,
   );
-  await page.getByRole('button', { name: 'Crear', exact: true }).click();
-  const createCustomerResponse = await createCustomerResponsePromise;
-  expect(createCustomerResponse.status()).toBe(200);
-  await expect(page.getByText(customerName, { exact: true })).toBeVisible();
 
-  await page.goto('/facturacion/productos');
-  await page.getByRole('button', { name: 'Nuevo' }).click();
-  const productInputs = page.locator('input');
-  await productInputs.nth(0).fill(productName);
-  await productInputs.nth(1).fill('120000');
-  await productInputs.nth(2).fill('19');
-  const createProductResponsePromise = page.waitForResponse(
-    (response) =>
-      new URL(response.url()).pathname === '/api/billing/products' &&
-      response.request().method() === 'POST',
-  );
-  await page.getByRole('button', { name: 'Crear', exact: true }).click();
-  const createProductResponse = await createProductResponsePromise;
-  expect(createProductResponse.status()).toBe(200);
-  await expect(page.getByText(productName, { exact: true })).toBeVisible();
+  try {
+    await page.goto('/facturacion/clientes');
+    await page.getByRole('button', { name: 'Nuevo' }).click();
+    const customerInputs = page.locator('input');
+    await customerInputs.nth(0).fill(customerName);
+    await customerInputs.nth(1).fill(customerNit);
+    await customerInputs.nth(2).fill(`cliente-${suffix}@example.test`);
+    await page.locator('select').selectOption({
+      label: `${customerName} — NIT ${customerNit}`,
+    });
+    const createCustomerResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/billing/customers' &&
+        response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Crear', exact: true }).click();
+    const createCustomerResponse = await createCustomerResponsePromise;
+    expect(createCustomerResponse.status()).toBe(200);
+    await expect(page.getByText(customerName, { exact: true })).toBeVisible();
 
-  await page.goto('/facturacion/facturas');
-  await page.getByRole('button', { name: 'Nueva' }).click();
-  await page.locator('select').nth(0).selectOption({ label: customerName });
-  await page.getByPlaceholder('FAC-001').fill(invoiceNumber);
-  await page.locator('select').nth(1).selectOption({ label: productName });
-  await expect(page.getByPlaceholder('V. Unit')).toHaveValue('120000');
-  await page.getByPlaceholder('Cant').fill('1');
+    await page.goto('/facturacion/productos');
+    await page.getByRole('button', { name: 'Nuevo' }).click();
+    const productInputs = page.locator('input');
+    await productInputs.nth(0).fill(productName);
+    await productInputs.nth(1).fill('120000');
+    await page.locator('select').selectOption('19');
+    const createProductResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/billing/products' &&
+        response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Crear', exact: true }).click();
+    const createProductResponse = await createProductResponsePromise;
+    expect(createProductResponse.status()).toBe(200);
+    await expect(page.getByText(productName, { exact: true })).toBeVisible();
 
-  const createInvoiceResponsePromise = page.waitForResponse(
-    (response) =>
-      new URL(response.url()).pathname === '/api/billing/invoices' &&
-      response.request().method() === 'POST',
-  );
-  await page.getByRole('button', { name: 'Crear factura' }).click();
-  const createInvoiceResponse = await createInvoiceResponsePromise;
-  expect(createInvoiceResponse.status()).toBe(200);
-  const invoice = (await createInvoiceResponse.json()) as {
-    id: string;
-    numero: string;
-    subtotal: number | string;
-    impuestos: number | string;
-    total: number | string;
-    status: string;
-    items: Array<{ descripcion: string; subtotal: number | string }>;
-  };
-  expect(invoice).toMatchObject({ numero: invoiceNumber, status: 'DRAFT' });
-  expect(Number(invoice.subtotal)).toBe(120_000);
-  expect(Number(invoice.impuestos)).toBe(22_800);
-  expect(Number(invoice.total)).toBe(142_800);
-  expect(invoice.items).toHaveLength(1);
-  expect(invoice.items[0].descripcion).toBe(productName);
-  expect(Number(invoice.items[0].subtotal)).toBe(120_000);
+    await page.goto('/facturacion/facturas');
+    await page.getByRole('button', { name: 'Nueva' }).click();
+    await page.locator('select').nth(0).selectOption({ label: customerName });
+    await page.getByPlaceholder('FAC-001').fill(invoiceNumber);
+    await page.locator('select').nth(1).selectOption({ label: productName });
+    await expect(page.getByPlaceholder('V. Unit')).toHaveValue('120000');
+    await page.getByPlaceholder('Cant').fill('1');
 
-  const issueResponsePromise = page.waitForResponse(
-    (response) =>
-      new URL(response.url()).pathname === `/api/billing/invoices/${invoice.id}/status` &&
-      response.request().method() === 'PATCH',
-  );
-  await page.getByRole('button', { name: 'Emitir' }).click();
-  const issueResponse = await issueResponsePromise;
-  expect(issueResponse.status()).toBe(200);
-  const invoiceRow = page.getByRole('link', { name: invoiceNumber }).locator('xpath=..');
-  await expect(invoiceRow.getByText('Emitida', { exact: true })).toBeVisible();
+    const createInvoiceResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/billing/invoices' &&
+        response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Crear factura' }).click();
+    const createInvoiceResponse = await createInvoiceResponsePromise;
+    expect(createInvoiceResponse.status()).toBe(200);
+    const invoice = (await createInvoiceResponse.json()) as {
+      id: string;
+      numero: string;
+      subtotal: number | string;
+      impuestos: number | string;
+      total: number | string;
+      status: string;
+      items: Array<{ descripcion: string; subtotal: number | string }>;
+    };
+    expect(invoice).toMatchObject({ numero: invoiceNumber, status: 'DRAFT' });
+    expect(Number(invoice.subtotal)).toBe(120_000);
+    expect(Number(invoice.impuestos)).toBe(22_800);
+    expect(Number(invoice.total)).toBe(142_800);
+    expect(invoice.items).toHaveLength(1);
+    expect(invoice.items[0].descripcion).toBe(productName);
+    expect(Number(invoice.items[0].subtotal)).toBe(120_000);
 
-  await page.getByRole('link', { name: invoiceNumber }).click();
-  const invoiceHeading = page.getByRole('heading', { name: `Factura ${invoiceNumber}` });
-  await expect(invoiceHeading).toBeVisible();
-  await expect(
-    invoiceHeading.locator('xpath=..').getByText('Emitida', { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText(customerName, { exact: true })).toBeVisible();
-  await expect(page.getByText(productName, { exact: true })).toBeVisible();
-  await expect(page.getByText('IVA (19%)')).toBeVisible();
+    const issueResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/billing/invoices/${invoice.id}/status` &&
+        response.request().method() === 'PATCH',
+    );
+    await page.getByRole('button', { name: 'Emitir' }).click();
+    const issueResponse = await issueResponsePromise;
+    expect(issueResponse.status()).toBe(200);
+    const invoiceRow = page.getByRole('link', { name: invoiceNumber }).locator('xpath=..');
+    await expect(invoiceRow.getByText('Emitida', { exact: true })).toBeVisible();
 
-  await page.reload();
-  await expect(invoiceHeading).toBeVisible();
-  await expect(
-    invoiceHeading.locator('xpath=..').getByText('Emitida', { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText(productName, { exact: true })).toBeVisible();
+    await page.getByRole('link', { name: invoiceNumber }).click();
+    const invoiceHeading = page.getByRole('heading', { name: `Factura ${invoiceNumber}` });
+    await expect(invoiceHeading).toBeVisible();
+    await expect(
+      invoiceHeading.locator('xpath=..').getByText('Emitida', { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText(customerName, { exact: true })).toBeVisible();
+    await expect(page.getByText(productName, { exact: true })).toBeVisible();
+    await expect(page.getByText('Contabilización interna')).toBeVisible();
+    await expect(page.getByText(/Débitos.*Créditos/)).toBeVisible();
+    await expect(page.getByText('Impuestos según tasas congeladas en las líneas')).toBeVisible();
+
+    await page.reload();
+    await expect(invoiceHeading).toBeVisible();
+    await expect(
+      invoiceHeading.locator('xpath=..').getByText('Emitida', { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText(productName, { exact: true })).toBeVisible();
+
+    await page.goto('/facturacion/facturas');
+    const cancelResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/billing/invoices/${invoice.id}/status` &&
+        response.request().method() === 'PATCH',
+    );
+    page.once('dialog', (dialog) => dialog.accept('Cancelación de prueba E2E'));
+    await page.getByRole('button', { name: 'Revertir' }).click();
+    const cancelResponse = await cancelResponsePromise;
+    expect(cancelResponse.status()).toBe(200);
+    const cancelledInvoice = (await cancelResponse.json()) as { status: string };
+    expect(cancelledInvoice.status).toBe('CANCELLED');
+
+    const cancelledRow = page.getByRole('link', { name: invoiceNumber }).locator('xpath=..');
+    await expect(cancelledRow.getByText('Anulada', { exact: true })).toBeVisible();
+    await page.getByRole('link', { name: invoiceNumber }).click();
+    const accountingSection = page.locator('section').filter({ hasText: 'Contabilización interna' });
+    await expect(accountingSection.getByText(/· ANULADO/)).toBeVisible();
+    await page.reload();
+    await expect(accountingSection.getByText(/· ANULADO/)).toBeVisible();
+  } finally {
+    await accountingFixture.disconnect();
+  }
 });

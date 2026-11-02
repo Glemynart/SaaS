@@ -2,8 +2,15 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
+import { Prisma, TipoDocIdentidad } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
+import type { TenantPrismaClient } from '../tenant-prisma/tenant-prisma.service';
+import { LedgerService } from '../accounting/ledger/ledger.service';
+import type { LineaComprobanteInput } from '../accounting/ledger/ledger.types';
+import { AuditService } from '../audit/audit.service';
 import {
   CreateCustomerDto,
   UpdateCustomerDto,
@@ -13,9 +20,40 @@ import {
   UpdateInvoiceStatusDto,
 } from './dto/billing.dto';
 
+const BILLING_INVOICE_ORIGIN = {
+  type: 'BILLING_INVOICE',
+  event: 'ISSUED',
+} as const;
+const BILLING_ACCOUNT_ROLES = [
+  'CLIENTES_NACIONALES',
+  'INGRESOS_OPERACIONALES',
+  'IVA_GENERADO',
+] as const;
+const SUPPORTED_IVA_RATES = new Set([0, 5, 19]);
+const COP_ROUNDING = Prisma.Decimal.ROUND_HALF_UP;
+const BILLING_TIME_ZONE = 'America/Bogota';
+
+function businessCalendarDate(date: Date): Date {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: BILLING_TIME_ZONE,
+    calendar: 'gregory',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const part = (type: 'year' | 'month' | 'day') =>
+    Number(parts.find((value) => value.type === type)?.value);
+  return new Date(Date.UTC(part('year'), part('month') - 1, part('day')));
+}
+
 @Injectable()
 export class BillingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private tenantPrisma: TenantPrismaService,
+    private ledger: LedgerService,
+    private audit: AuditService,
+  ) {}
 
   // --- CUSTOMERS ---
   async createCustomer(tenantId: string, dto: CreateCustomerDto) {
@@ -24,7 +62,17 @@ export class BillingService {
     });
     if (exists)
       throw new BadRequestException('Ya existe un cliente con este NIT');
-    return this.prisma.customer.create({ data: { ...dto, tenantId } });
+    if (dto.terceroId) {
+      await this.validateCustomerThirdParty(tenantId, dto.nit, dto.terceroId);
+    }
+    return this.prisma.customer.create({
+      data: { ...dto, terceroId: dto.terceroId || null, tenantId },
+      include: {
+        tercero: {
+          select: { id: true, razonSocial: true, numeroDocumento: true },
+        },
+      },
+    });
   }
 
   async findAllCustomers(tenantId: string, search?: string) {
@@ -41,18 +89,55 @@ export class BillingService {
           : {}),
       },
       orderBy: { razonSocial: 'asc' },
+      include: {
+        tercero: {
+          select: { id: true, razonSocial: true, numeroDocumento: true },
+        },
+      },
     });
   }
 
   async findOneCustomer(tenantId: string, id: string) {
-    const c = await this.prisma.customer.findFirst({ where: { id, tenantId } });
-    if (!c) throw new NotFoundException('Cliente no encontrado');
-    return c;
+    const customer = await this.prisma.customer.findFirst({
+      where: { id, tenantId },
+      include: {
+        tercero: {
+          select: { id: true, razonSocial: true, numeroDocumento: true },
+        },
+      },
+    });
+    if (!customer) throw new NotFoundException('Cliente no encontrado');
+    return customer;
   }
 
   async updateCustomer(tenantId: string, id: string, dto: UpdateCustomerDto) {
-    await this.findOneCustomer(tenantId, id);
-    return this.prisma.customer.update({ where: { id }, data: dto });
+    const current = await this.findOneCustomer(tenantId, id);
+    const nit = dto.nit ?? current.nit;
+    const terceroId =
+      dto.terceroId === undefined ? current.terceroId : dto.terceroId;
+    if (terceroId) {
+      await this.validateCustomerThirdParty(
+        tenantId,
+        nit,
+        terceroId,
+        this.prisma,
+        id,
+      );
+    }
+    return this.prisma.customer.update({
+      where: { id },
+      data: {
+        ...dto,
+        ...(dto.terceroId !== undefined && {
+          terceroId: dto.terceroId || null,
+        }),
+      },
+      include: {
+        tercero: {
+          select: { id: true, razonSocial: true, numeroDocumento: true },
+        },
+      },
+    });
   }
 
   async removeCustomer(tenantId: string, id: string) {
@@ -79,11 +164,11 @@ export class BillingService {
   }
 
   async findOneProduct(tenantId: string, id: string) {
-    const p = await this.prisma.productService.findFirst({
+    const product = await this.prisma.productService.findFirst({
       where: { id, tenantId },
     });
-    if (!p) throw new NotFoundException('Producto no encontrado');
-    return p;
+    if (!product) throw new NotFoundException('Producto no encontrado');
+    return product;
   }
 
   async updateProduct(tenantId: string, id: string, dto: UpdateProductDto) {
@@ -93,29 +178,73 @@ export class BillingService {
 
   // --- INVOICES ---
   async createInvoice(tenantId: string, dto: CreateInvoiceDto) {
-    void (await this.findOneCustomer(tenantId, dto.customerId));
-    await this.validateInvoiceProducts(tenantId, dto.items);
+    if (dto.items.length === 0) {
+      throw new BadRequestException(
+        'La factura debe tener al menos una línea.',
+      );
+    }
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: dto.customerId, tenantId, status: 'ACTIVE' },
+    });
+    if (!customer) throw new NotFoundException('Cliente activo no encontrado');
 
-    const items = dto.items.map((item) => ({
-      productServiceId: item.productServiceId ?? null,
-      descripcion: item.descripcion,
-      cantidad: item.cantidad,
-      valorUnitario: item.valorUnitario,
-      subtotal: Number(item.cantidad) * Number(item.valorUnitario),
-    }));
+    const productRates = await this.validateInvoiceProducts(
+      tenantId,
+      dto.items,
+    );
+    const items = dto.items.map((item) => {
+      const rate = item.productServiceId
+        ? productRates.get(item.productServiceId)
+        : new Prisma.Decimal(item.porcentajeImpuesto);
+      if (!rate) {
+        throw new BadRequestException(
+          'No se pudo determinar la tasa de IVA del producto.',
+        );
+      }
+      const porcentajeImpuesto = new Prisma.Decimal(rate);
+      if (!SUPPORTED_IVA_RATES.has(porcentajeImpuesto.toNumber())) {
+        throw new BadRequestException(
+          `La tasa ${porcentajeImpuesto.toString()}% no está soportada para facturas internas. Use 0%, 5% o 19%.`,
+        );
+      }
+      const subtotal = new Prisma.Decimal(item.cantidad)
+        .mul(item.valorUnitario)
+        .toDecimalPlaces(2, COP_ROUNDING);
+      const valorImpuesto = subtotal
+        .mul(porcentajeImpuesto)
+        .div(100)
+        .toDecimalPlaces(2, COP_ROUNDING);
+      return {
+        productServiceId: item.productServiceId ?? null,
+        descripcion: item.descripcion,
+        cantidad: new Prisma.Decimal(item.cantidad),
+        valorUnitario: new Prisma.Decimal(item.valorUnitario),
+        subtotal: subtotal.toFixed(2),
+        porcentajeImpuesto: porcentajeImpuesto.toFixed(2),
+        valorImpuesto: valorImpuesto.toFixed(2),
+      };
+    });
 
-    const subtotal = items.reduce((s, i) => s + Number(i.subtotal), 0);
-    const impuestos = subtotal * 0.19;
-    const total = subtotal + impuestos;
+    const subtotal = items.reduce(
+      (sum, item) => sum.plus(item.subtotal),
+      new Prisma.Decimal(0),
+    );
+    const impuestos = items.reduce(
+      (sum, item) => sum.plus(item.valorImpuesto),
+      new Prisma.Decimal(0),
+    );
+    const total = subtotal.plus(impuestos);
 
     return this.prisma.invoice.create({
       data: {
         tenantId,
         customerId: dto.customerId,
         numero: dto.numero,
-        subtotal,
-        impuestos,
-        total,
+        customerRazonSocialSnapshot: customer.razonSocial,
+        customerNitSnapshot: customer.nit,
+        subtotal: subtotal.toFixed(2),
+        impuestos: impuestos.toFixed(2),
+        total: total.toFixed(2),
         items: { create: items },
       },
       include: {
@@ -142,27 +271,118 @@ export class BillingService {
   }
 
   async findOneInvoice(tenantId: string, id: string) {
-    const inv = await this.prisma.invoice.findFirst({
+    const invoice = await this.prisma.invoice.findFirst({
       where: { id, tenantId },
-      include: { items: true, customer: true },
+      include: { items: true, customer: true, tercero: true },
     });
-    if (!inv) throw new NotFoundException('Factura no encontrada');
-    return inv;
+    if (!invoice) throw new NotFoundException('Factura no encontrada');
+    const comprobanteContable = await this.findInvoiceVoucher(
+      this.prisma,
+      tenantId,
+      invoice.id,
+    );
+    return { ...invoice, comprobanteContable };
   }
 
   async updateInvoiceStatus(
     tenantId: string,
+    userId: string,
     id: string,
     dto: UpdateInvoiceStatusDto,
   ) {
-    const inv = await this.findOneInvoice(tenantId, id);
-    if (inv.status === 'CANCELLED')
-      throw new BadRequestException(
-        'No se puede modificar una factura cancelada',
+    return this.tenantPrisma.execute(async (tx) => {
+      await tx.$queryRaw`
+        SELECT "id" FROM "invoices"
+        WHERE "id" = ${id} AND "tenantId" = ${tenantId}
+        FOR UPDATE
+      `;
+      const invoice = await tx.invoice.findFirst({
+        where: { id, tenantId },
+        include: { items: true, customer: true },
+      });
+      if (!invoice) throw new NotFoundException('Factura no encontrada');
+
+      if (invoice.status === dto.status) {
+        if (invoice.status === 'ISSUED') {
+          const voucher = await this.findInvoiceVoucher(tx, tenantId, id);
+          if (!voucher) {
+            throw new ConflictException(
+              'Esta factura se emitió antes de la integración contable. No se contabilizará retroactivamente; cree una factura nueva.',
+            );
+          }
+          return { ...invoice, comprobanteContable: voucher };
+        }
+        return invoice;
+      }
+
+      if (invoice.status === 'CANCELLED') {
+        throw new ConflictException(
+          'Una factura cancelada no se puede modificar.',
+        );
+      }
+
+      if (dto.status === 'DRAFT') {
+        throw new BadRequestException(
+          'Una factura emitida o cancelada no puede volver a borrador.',
+        );
+      }
+
+      if (dto.status === 'ISSUED') {
+        const voucher = await this.issueInvoice(tx, tenantId, userId, invoice);
+        return { ...voucher.invoice, comprobanteContable: voucher.comprobante };
+      }
+
+      const motivo = dto.motivo?.trim();
+      if (!motivo) {
+        throw new BadRequestException(
+          'Indique el motivo para cancelar la factura.',
+        );
+      }
+
+      let reverso = null;
+      let comprobanteOriginalId: string | null = null;
+      if (invoice.status === 'ISSUED') {
+        const original = await this.findInvoiceVoucher(tx, tenantId, id);
+        if (original) {
+          comprobanteOriginalId = original.id;
+          reverso = await this.ledger.anular(
+            tenantId,
+            userId,
+            original.id,
+            motivo,
+            tx,
+          );
+        }
+      }
+
+      const cancelled = await tx.invoice.update({
+        where: { id: invoice.id },
+        data: { status: 'CANCELLED' },
+        include: { items: true, customer: true, tercero: true },
+      });
+      await this.audit.log(
+        {
+          tenantId,
+          userId,
+          action: 'BILLING_INVOICE_CANCELLED',
+          entityType: 'Invoice',
+          entityId: invoice.id,
+          metadata: {
+            motivo,
+            comprobanteOriginalId,
+            reversoId: reverso?.id ?? null,
+            facturaEmitidaSinComprobante:
+              invoice.status === 'ISSUED' && !comprobanteOriginalId,
+          },
+        },
+        tx,
       );
-    return this.prisma.invoice.update({
-      where: { id },
-      data: { status: dto.status },
+      const comprobanteContable = await this.findInvoiceVoucher(
+        tx,
+        tenantId,
+        id,
+      );
+      return { ...cancelled, comprobanteContable, reversoContable: reverso };
     });
   }
 
@@ -193,10 +413,297 @@ export class BillingService {
     };
   }
 
+  private async issueInvoice(
+    tx: TenantPrismaClient,
+    tenantId: string,
+    userId: string,
+    invoice: Prisma.InvoiceGetPayload<{
+      include: { items: true; customer: true };
+    }>,
+  ) {
+    if (
+      !invoice.customerRazonSocialSnapshot ||
+      !invoice.customerNitSnapshot ||
+      invoice.items.some(
+        (item) =>
+          item.porcentajeImpuesto === null || item.valorImpuesto === null,
+      )
+    ) {
+      throw new BadRequestException(
+        'Este borrador no tiene snapshots de cliente e impuestos. Cree una factura nueva para emitirla.',
+      );
+    }
+    if (invoice.items.length === 0) {
+      throw new BadRequestException(
+        'La factura debe tener al menos una línea.',
+      );
+    }
+    const subtotal = invoice.items.reduce(
+      (sum, item) => sum.plus(item.subtotal),
+      new Prisma.Decimal(0),
+    );
+    const impuestos = invoice.items.reduce(
+      (sum, item) => sum.plus(item.valorImpuesto!),
+      new Prisma.Decimal(0),
+    );
+    if (
+      !subtotal.eq(invoice.subtotal) ||
+      !impuestos.eq(invoice.impuestos) ||
+      !subtotal.plus(impuestos).eq(invoice.total)
+    ) {
+      throw new ConflictException(
+        'Los totales de la factura no concilian con sus líneas; no se puede emitir.',
+      );
+    }
+
+    const customer = await tx.customer.findFirst({
+      where: { id: invoice.customerId, tenantId, status: 'ACTIVE' },
+    });
+    if (!customer || !customer.terceroId) {
+      throw new BadRequestException(
+        'Vincule el cliente con un tercero contable activo antes de emitir.',
+      );
+    }
+    const thirdParty = await this.validateCustomerThirdParty(
+      tenantId,
+      customer.nit,
+      customer.terceroId,
+      tx,
+      invoice.customerId,
+    );
+
+    const fechaEmision = new Date();
+    const fechaContable = businessCalendarDate(fechaEmision);
+    const periodo = await tx.periodoContable.findFirst({
+      where: {
+        tenantId,
+        estado: 'ABIERTO',
+        fechaInicio: { lte: fechaContable },
+        fechaFin: { gte: fechaContable },
+      },
+    });
+    if (!periodo) {
+      throw new BadRequestException(
+        'No hay un período contable abierto para la fecha de emisión.',
+      );
+    }
+
+    const mappings = await tx.cuentaSistemaMap.findMany({
+      where: {
+        tenantId,
+        activo: true,
+        rol: { in: [...BILLING_ACCOUNT_ROLES] },
+      },
+      select: { rol: true, cuentaId: true },
+    });
+    const accounts = new Map(
+      mappings.map((mapping) => [mapping.rol, mapping.cuentaId]),
+    );
+    const accountId = (role: (typeof BILLING_ACCOUNT_ROLES)[number]) => {
+      const id = accounts.get(role);
+      if (!id) {
+        throw new ConflictException(
+          `Falta configurar el mapeo contable ${role} para emitir facturas.`,
+        );
+      }
+      return id;
+    };
+
+    const voucherType = await tx.tipoComprobante.findFirst({
+      where: { codigo: 'FV', activo: true },
+      select: { id: true },
+    });
+    if (!voucherType) {
+      throw new ConflictException(
+        'No está configurado el tipo de comprobante FV para facturación.',
+      );
+    }
+
+    const lines: LineaComprobanteInput[] = [
+      {
+        cuentaId: accountId('CLIENTES_NACIONALES'),
+        terceroId: customer.terceroId,
+        debito: invoice.total,
+        credito: 0,
+        descripcion: `Cuenta por cobrar factura ${invoice.numero}`,
+      },
+      {
+        cuentaId: accountId('INGRESOS_OPERACIONALES'),
+        terceroId: customer.terceroId,
+        debito: 0,
+        credito: subtotal,
+        descripcion: `Ingreso factura ${invoice.numero}`,
+      },
+    ];
+    if (impuestos.gt(0)) {
+      const taxableBase = invoice.items.reduce(
+        (sum, item) =>
+          item.porcentajeImpuesto!.gt(0) ? sum.plus(item.subtotal) : sum,
+        new Prisma.Decimal(0),
+      );
+      lines.push({
+        cuentaId: accountId('IVA_GENERADO'),
+        terceroId: customer.terceroId,
+        debito: 0,
+        credito: impuestos,
+        baseGravable: taxableBase,
+        descripcion: `IVA generado factura ${invoice.numero}`,
+      });
+    }
+
+    const comprobante = await this.ledger.registrarComprobante(
+      {
+        tenantId,
+        userId,
+        tipoComprobanteId: voucherType.id,
+        periodoId: periodo.id,
+        // El comprobante guarda DATE; usar el día comercial de Bogotá para
+        // que coincida con el período elegido incluso cerca de medianoche.
+        fecha: fechaContable,
+        concepto: `Factura interna ${invoice.numero}`,
+        lineas: lines,
+        origenTipo: BILLING_INVOICE_ORIGIN.type,
+        origenId: invoice.id,
+        origenEvento: BILLING_INVOICE_ORIGIN.event,
+      },
+      tx,
+    );
+
+    const issued = await tx.invoice.update({
+      where: { id: invoice.id },
+      data: {
+        status: 'ISSUED',
+        fechaEmision,
+        customerRazonSocialSnapshot: customer.razonSocial,
+        customerNitSnapshot: customer.nit,
+        terceroId: thirdParty.id,
+        terceroRazonSocialSnapshot: this.thirdPartyName(thirdParty),
+        terceroTipoDocumentoSnapshot: thirdParty.tipoDocumento,
+        terceroNumeroDocumentoSnapshot: thirdParty.numeroDocumento,
+        terceroDigitoVerificacionSnapshot: thirdParty.digitoVerificacion,
+      },
+      include: { items: true, customer: true, tercero: true },
+    });
+    await this.audit.log(
+      {
+        tenantId,
+        userId,
+        action: 'BILLING_INVOICE_ISSUED',
+        entityType: 'Invoice',
+        entityId: invoice.id,
+        metadata: { comprobanteId: comprobante.id, numero: invoice.numero },
+      },
+      tx,
+    );
+    return { invoice: issued, comprobante };
+  }
+
+  private async findInvoiceVoucher(
+    client: PrismaService | TenantPrismaClient,
+    tenantId: string,
+    invoiceId: string,
+  ) {
+    return client.comprobanteContable.findFirst({
+      where: {
+        tenantId,
+        origenTipo: BILLING_INVOICE_ORIGIN.type,
+        origenId: invoiceId,
+        origenEvento: BILLING_INVOICE_ORIGIN.event,
+      },
+      include: {
+        tipoComprobante: { select: { codigo: true, nombre: true } },
+        movimientos: {
+          orderBy: { linea: 'asc' },
+          include: { cuenta: { select: { codigo: true, nombre: true } } },
+        },
+        reversos: {
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, numero: true, estado: true },
+        },
+      },
+    });
+  }
+
+  private async validateCustomerThirdParty(
+    tenantId: string,
+    customerNit: string,
+    terceroId: string,
+    client: PrismaService | TenantPrismaClient = this.prisma,
+    excludeCustomerId?: string,
+  ) {
+    const thirdParty = await client.tercero.findFirst({
+      where: {
+        id: terceroId,
+        tenantId,
+        tipoDocumento: TipoDocIdentidad.NIT,
+        esCliente: true,
+        activo: true,
+        deletedAt: null,
+      },
+    });
+    if (!thirdParty) {
+      throw new BadRequestException(
+        'Seleccione un tercero NIT activo de este tenant con rol de cliente.',
+      );
+    }
+    const normalizedCustomerNit = customerNit.replace(/\D/g, '');
+    const normalizedThirdPartyNumber = thirdParty.numeroDocumento.replace(
+      /\D/g,
+      '',
+    );
+    const normalizedVerificationDigit = (
+      thirdParty.digitoVerificacion ?? ''
+    ).replace(/\D/g, '');
+    const matches =
+      normalizedCustomerNit === normalizedThirdPartyNumber ||
+      (normalizedVerificationDigit.length > 0 &&
+        normalizedCustomerNit ===
+          normalizedThirdPartyNumber + normalizedVerificationDigit);
+    if (!matches) {
+      throw new BadRequestException(
+        'El NIT del cliente no coincide con el documento del tercero contable.',
+      );
+    }
+    const existingLink = await client.customer.findFirst({
+      where: {
+        tenantId,
+        terceroId,
+        ...(excludeCustomerId && { id: { not: excludeCustomerId } }),
+      },
+      select: { id: true },
+    });
+    if (existingLink) {
+      throw new ConflictException(
+        'Este tercero ya está vinculado a otro cliente de facturación.',
+      );
+    }
+    return thirdParty;
+  }
+
+  private thirdPartyName(thirdParty: {
+    razonSocial: string | null;
+    primerNombre: string | null;
+    segundoNombre: string | null;
+    primerApellido: string | null;
+    segundoApellido: string | null;
+  }) {
+    return (
+      thirdParty.razonSocial ??
+      [
+        thirdParty.primerNombre,
+        thirdParty.segundoNombre,
+        thirdParty.primerApellido,
+        thirdParty.segundoApellido,
+      ]
+        .filter(Boolean)
+        .join(' ')
+    );
+  }
+
   private async validateInvoiceProducts(
     tenantId: string,
     items: CreateInvoiceDto['items'],
-  ): Promise<void> {
+  ): Promise<Map<string, Prisma.Decimal>> {
     const productIds = [
       ...new Set(
         items
@@ -204,16 +711,22 @@ export class BillingService {
           .filter((id): id is string => Boolean(id)),
       ),
     ];
-    if (productIds.length === 0) return;
+    if (productIds.length === 0) return new Map();
 
     const products = await this.prisma.productService.findMany({
       where: { tenantId, id: { in: productIds }, activo: true },
-      select: { id: true },
+      select: { id: true, impuesto: true },
     });
     if (products.length !== productIds.length) {
       throw new BadRequestException(
         'Uno o más productos no están disponibles para esta empresa.',
       );
     }
+    return new Map(
+      products.map((product) => [
+        product.id,
+        new Prisma.Decimal(product.impuesto),
+      ]),
+    );
   }
 }
