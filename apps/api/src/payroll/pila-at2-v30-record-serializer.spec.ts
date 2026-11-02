@@ -132,14 +132,34 @@ describe('AT2 v30 fixed-width record formatting', () => {
   );
 
   it('requires explicit treatment of empty values', () => {
+    const layout = PILA_AT2_V30_RECORD_LAYOUTS.payrollHeaderType2;
+    const spaceField = layout.fields.find(({ kind }) => kind === 'A');
+    const zeroField = layout.fields.find(({ kind }) => kind === 'N');
+    if (!spaceField || !zeroField) {
+      throw new Error('La prueba requiere campos alfanuméricos y numéricos.');
+    }
     const values = completeRecordValues('payrollHeaderType2', {
-      2: { value: null, emptyAs: 'spaces' },
-      3: { value: null, emptyAs: 'zeros' },
+      [spaceField.fieldNumber]: { value: null, emptyAs: 'spaces' },
+      [zeroField.fieldNumber]: { value: null, emptyAs: 'zeros' },
     });
     const record = serializePilaAt2V30Record('payrollHeaderType2', values);
+    const fieldStart = (fieldNumber: number) =>
+      layout.fields
+        .filter((field) => field.fieldNumber < fieldNumber)
+        .reduce((total, field) => total + field.length, 0);
 
-    expect(record.slice(2, 3)).toBe(' ');
-    expect(record.slice(3, 7)).toBe('0000');
+    expect(
+      record.slice(
+        fieldStart(spaceField.fieldNumber),
+        fieldStart(spaceField.fieldNumber) + spaceField.length,
+      ),
+    ).toBe(' '.repeat(spaceField.length));
+    expect(
+      record.slice(
+        fieldStart(zeroField.fieldNumber),
+        fieldStart(zeroField.fieldNumber) + zeroField.length,
+      ),
+    ).toBe('0'.repeat(zeroField.length));
   });
   it('requires an explicit placeholder for null values', () => {
     expect(() =>
