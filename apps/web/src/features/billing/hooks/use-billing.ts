@@ -94,8 +94,8 @@ export function useInvoice(id: string) {
 export function useUpdateInvoiceStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      billingApi.updateInvoiceStatus(id, status),
+    mutationFn: ({ id, status, motivo }: { id: string; status: string; motivo?: string }) =>
+      billingApi.updateInvoiceStatus(id, status, motivo),
     onSuccess: () => qc.invalidateQueries({ queryKey: billingKeys.all }),
   });
 }
