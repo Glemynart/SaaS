@@ -14,6 +14,7 @@ import {
 import type { PilaEmployerProfile } from '@/features/tenant-branding/services/tenant-branding-api';
 
 type PilaEmployerForm = {
+  claseAportante: string;
   tipoDocumentoAportante: string;
   naturalezaJuridica: string;
   tipoPersona: string;
@@ -38,6 +39,7 @@ type PilaEmployerForm = {
 };
 
 const EMPTY_FORM: PilaEmployerForm = {
+  claseAportante: '',
   tipoDocumentoAportante: '',
   naturalezaJuridica: '',
   tipoPersona: '',
@@ -67,6 +69,7 @@ function toForm(branding: PilaEmployerProfile): PilaEmployerForm {
     branding.pilaAportesExoneradosConfirmado === branding.aportesExonerados;
 
   return {
+    claseAportante: branding.pilaClaseAportante ?? '',
     tipoDocumentoAportante: branding.pilaTipoDocumentoAportante ?? '',
     naturalezaJuridica: branding.pilaNaturalezaJuridica ?? '',
     tipoPersona: branding.pilaTipoPersona ?? '',
@@ -118,6 +121,7 @@ export function PilaEmployerProfileForm() {
   function save() {
     if (!branding) return;
     updateMutation.mutate({
+      pilaClaseAportante: nullableString(form.claseAportante),
       pilaTipoDocumentoAportante: nullableString(form.tipoDocumentoAportante),
       pilaNaturalezaJuridica: nullableString(form.naturalezaJuridica),
       pilaTipoPersona: nullableString(form.tipoPersona),
@@ -174,6 +178,19 @@ export function PilaEmployerProfileForm() {
 
       <div className="space-y-5">
         <div className={fields}>
+          <SelectField
+            id="pila-clase-aportante"
+            label="Clase de aportante"
+            value={form.claseAportante}
+            onChange={(value) => update('claseAportante', value)}
+            options={[
+              ['', 'Sin declarar'],
+              ['A', 'A — 200 o más cotizantes'],
+              ['B', 'B — menos de 200 cotizantes'],
+              ['C', 'C — clase especial, pendiente de validar'],
+              ['D', 'D — beneficio Ley 1429, pendiente de validar'],
+            ]}
+          />
           <div className={field}>
             <Label htmlFor="pila-tipo-documento">Documento del aportante</Label>
             <Select

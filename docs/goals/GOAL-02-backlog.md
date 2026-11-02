@@ -477,3 +477,24 @@ se accedió a demo, staging o producción.
   Una planilla de marzo pagada en abril también queda bloqueada hasta resolver
   la selección de reglas. La prueba solo confirma el guard del hito; no
   implementa ni valida las nuevas reglas pensionales.
+
+### Mapeo candidato de aportante AT2 v30 — 2026-10-31
+
+- `pila-at2-v30-employer-mapper.ts` mapea fuentes explícitas del snapshot PILA
+  v2 a campos candidatos del archivo tipo 1. No valida ni serializa el registro
+  y no consulta maestros actuales; un snapshot sin versión o `tenantId` válido
+  no produce valores candidatos.
+- Los campos 28–29 asignados al operador permanecen sin valor. También queda
+  sin resolver el campo 16 cuando el fax opcional está vacío, porque falta
+  confirmar la representación vacía de ese campo numérico.
+- Se incorporó `pilaClaseAportante` al perfil PILA nullable y al snapshot v2,
+  para que la declaración viaje congelada con la nómina aprobada. Los snapshots
+  históricos anteriores a la migración siguen sin ese dato y permanecen
+  bloqueados; no se hace backfill ni se infiere desde la razón social. El
+  departamento Ley 1429 se deriva del DIVIPOLA del domicilio del aportante ya
+  congelado en `employer.municipio`, según ADR-013. Ningún valor se completa
+  desde sede laboral ni desde maestros actuales.
+- Las pruebas unitarias cubren presentación única y por sucursal, DIVIPOLA,
+  omisión de representante para persona natural, fuentes faltantes y el bloqueo
+  de campos asignados al operador. La matriz de aceptación PILA documenta el
+  alcance y las limitaciones del mapa candidato.
