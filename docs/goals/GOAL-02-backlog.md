@@ -382,3 +382,14 @@ se accedió a demo, staging o producción.
   en `553b90b`, CI, Browser E2E (24/24) y Vercel Preview pasaron. Las corridas
   del head anterior fallaron antes de iniciar los jobs por el límite de Actions,
   sin evaluar el código.
+
+### Revalidación del PR #181 — 2026-11-02
+
+- Después del plazo de 24 horas, un despliegue manual Preview del HEAD
+  `a4f123f93cfda6e545f46f70159a7f39cb41f93e` terminó `READY`; no se desplegó a
+  staging ni producción. El build de Next.js compiló correctamente.
+- Ese despliegue manual no actualizó el estado Vercel asociado al commit en
+  GitHub. El check continúa en rojo con `Deployment rate limited — retry in 24
+hours`, registrado el 2026-11-01 11:35 UTC. No se debe mergear ni avanzar al
+  siguiente PR hasta que un nuevo despliegue integrado con GitHub deje ese
+  check en verde.
