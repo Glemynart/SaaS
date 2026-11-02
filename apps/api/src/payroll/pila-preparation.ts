@@ -18,6 +18,73 @@ export interface PilaPreparationIssue {
   message: string;
 }
 
+export interface PilaExportReadinessBlocker {
+  code:
+    | 'AT2_FILE_MAPPING_NOT_IMPLEMENTED'
+    | 'SOI_OPERATOR_FIELDS_UNCONFIRMED'
+    | 'PILA_PAYMENT_DATE_REQUIRED'
+    | 'PILA_PAYMENT_DATE_SNAPSHOT_INCONSISTENT'
+    | 'OPERATOR_UPLOAD_NOT_VERIFIED';
+  scope: 'FILE_GENERATION' | 'OPERATOR_COMPATIBILITY';
+  title: string;
+  message: string;
+  fields: Array<{
+    record: PilaPreparationRecord;
+    fieldNumbers: number[];
+  }>;
+  evidence: string;
+}
+
+export interface PilaExportReadiness {
+  recordLayoutVersion: 'AT2_V30';
+  fileGenerationStatus: 'NOT_IMPLEMENTED';
+  localValidationStatus: 'PRELIMINARY';
+  operatorAcceptanceStatus: 'NOT_VERIFIED';
+  blockers: PilaExportReadinessBlocker[];
+}
+
+const pilaExportReadiness: PilaExportReadiness = {
+  recordLayoutVersion: 'AT2_V30',
+  fileGenerationStatus: 'NOT_IMPLEMENTED',
+  localValidationStatus: 'PRELIMINARY',
+  operatorAcceptanceStatus: 'NOT_VERIFIED',
+  blockers: [
+    {
+      code: 'AT2_FILE_MAPPING_NOT_IMPLEMENTED',
+      scope: 'FILE_GENERATION',
+      title: 'Falta el mapeo completo y la composición de los archivos',
+      message:
+        'El código formatea registros AT2 v30 individuales, pero todavía no mapea todos los campos desde snapshots aprobados ni compone y descarga los archivos tipo 1 y tipo 2.',
+      fields: [],
+      evidence:
+        'El módulo pila-at2-v30-record-serializer.ts solo formatea registros individuales.',
+    },
+    {
+      code: 'SOI_OPERATOR_FIELDS_UNCONFIRMED',
+      scope: 'OPERATOR_COMPATIBILITY',
+      title:
+        'Falta confirmar la convención de carga de campos asignados por SOI',
+      message:
+        'AT2 v30 asigna campos al sistema del operador. SOI confirma la carga de archivos planos, pero la documentación pública revisada no indica si estos campos se omiten, se envían vacíos o se diligencian de otra forma.',
+      fields: [
+        { record: 'APORTANTE_TIPO_1', fieldNumbers: [28, 29] },
+        { record: 'CABECERA_TIPO_2', fieldNumbers: [2, 15, 17, 18, 22] },
+      ],
+      evidence: 'AT2 v30, pp. 15, 26 y 29–30; SOI, carga de archivos planos.',
+    },
+    {
+      code: 'OPERATOR_UPLOAD_NOT_VERIFIED',
+      scope: 'OPERATOR_COMPATIBILITY',
+      title: 'No hay aceptación de carga verificada en un operador',
+      message:
+        'No se ha probado un archivo candidato en SOI ni en otro portal; el producto no debe anunciar compatibilidad con un operador.',
+      fields: [],
+      evidence:
+        'ADR-013 exige prueba aceptada por operador antes de declarar compatibilidad.',
+    },
+  ],
+};
+
 export interface PilaSnapshotPreparationInput {
   employeeId: string;
   payloadVersion: number | null;
@@ -80,6 +147,22 @@ function safeInteger(value: unknown): value is number {
 
 function fitsNumericField(value: unknown, length: number): value is number {
   return safeInteger(value) && String(value).length <= length;
+}
+
+function validCalendarDate(value: string | null): value is string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return (
+    !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+  );
+}
+
+function snapshotPaymentDate(
+  snapshot: PilaSnapshotPreparationInput,
+): string | null {
+  const payroll = nested(object(snapshot.payload), 'payroll');
+  const value = text(payroll?.fechaPrevistaPagoPila);
+  return validCalendarDate(value) ? value : null;
 }
 
 function validPilaIdentification(type: string, value: string): boolean {
@@ -226,8 +309,6 @@ export function inspectPilaSnapshotPreparation(
   const employer = nested(root, 'employer');
   const employerPila = nested(employer, 'pila');
   const period = nested(root, 'period');
-  const worksite = nested(root, 'worksite');
-  const worksiteMunicipality = nested(worksite, 'municipio');
   const contract = nested(root, 'contract');
   const payroll = nested(root, 'payroll');
   const payrollPilaEvents = payroll?.pilaEvents;
@@ -819,11 +900,20 @@ export function inspectPilaSnapshotPreparation(
       'El número del cotizante no cumple los caracteres y la longitud permitidos por AT2 v30 para su tipo de documento.',
     );
   }
-  const affiliations = Array.isArray(root?.affiliations)
+  const affiliationRows = Array.isArray(root?.affiliations)
     ? root.affiliations
-        .map(object)
-        .filter((value): value is JsonRecord => value !== null)
     : [];
+  const affiliations = affiliationRows
+    .map(object)
+    .filter((value): value is JsonRecord => value !== null);
+  if (affiliations.length !== affiliationRows.length) {
+    add(
+      detailRecord,
+      5,
+      'AFILIACION_PILA_FILA_NO_VALIDA',
+      'El snapshot PILA contiene una fila de afiliación con formato no válido; no se puede confirmar la afiliación efectiva única.',
+    );
+  }
   if (affiliations.length !== 1) {
     add(
       detailRecord,
@@ -907,26 +997,38 @@ export function inspectPilaSnapshotPreparation(
   ] as const) {
     validateFieldLength(detailRecord, field, employee?.[key], maxLength, label);
   }
-  const worksiteCode = text(worksiteMunicipality?.codigo);
-  if (!worksite || !worksiteCode || !/^\d{5}$/.test(worksiteCode)) {
+  add(
+    detailRecord,
+    9,
+    'UBICACION_LABORAL_PILA_SIN_FUENTE_CONFIRMADA',
+    'El snapshot no conserva una fuente PILA confirmada para la ubicación laboral; el municipio de la sede del contrato es solo una referencia operativa.',
+  );
+  add(
+    detailRecord,
+    10,
+    'UBICACION_LABORAL_PILA_SIN_FUENTE_CONFIRMADA',
+    'El snapshot no conserva una fuente PILA confirmada para la ubicación laboral; el municipio de la sede del contrato es solo una referencia operativa.',
+  );
+  const riskAssignmentRows = Array.isArray(root?.pilaRiskAssignments)
+    ? root.pilaRiskAssignments
+    : [];
+  const riskAssignments = riskAssignmentRows
+    .map(object)
+    .filter((value): value is JsonRecord => value !== null);
+  if (riskAssignments.length !== riskAssignmentRows.length) {
     add(
       detailRecord,
-      9,
-      'UBICACION_LABORAL_NO_CONGELADA',
-      'Falta el municipio DIVIPOLA del lugar de trabajo congelado en el snapshot.',
+      62,
+      'CENTRO_TRABAJO_PILA_FILA_NO_VALIDA',
+      'El snapshot PILA contiene una fila de centro de trabajo con formato no válido; no se puede confirmar la asignación efectiva única.',
     );
     add(
       detailRecord,
-      10,
-      'UBICACION_LABORAL_NO_CONGELADA',
-      'Falta el código DIVIPOLA municipal del lugar de trabajo congelado.',
+      98,
+      'ACTIVIDAD_ARL_PILA_FILA_NO_VALIDA',
+      'El snapshot PILA contiene una fila de actividad económica con formato no válido; no se puede confirmar la asignación efectiva única.',
     );
   }
-  const riskAssignments = Array.isArray(root?.pilaRiskAssignments)
-    ? root.pilaRiskAssignments
-        .map(object)
-        .filter((value): value is JsonRecord => value !== null)
-    : [];
   if (riskAssignments.length !== 1) {
     const multiple = riskAssignments.length > 1;
     add(
@@ -1189,10 +1291,59 @@ export function buildPilaPreparationReport(input: {
     id: string;
     fechaInicio: Date;
     fechaFin: Date;
-    fechaPrevistaPagoPila: Date | null;
   };
   snapshots: PilaSnapshotPreparationInput[];
 }) {
+  const paymentDates = input.snapshots.map(snapshotPaymentDate);
+  const distinctPaymentDates = new Set(
+    paymentDates.filter((date): date is string => date !== null),
+  );
+  const hasMissingPaymentDate =
+    input.snapshots.length > 0 && paymentDates.some((date) => date === null);
+  const hasConflictingPaymentDates = distinctPaymentDates.size > 1;
+  const snapshotPaymentDateValue =
+    !hasMissingPaymentDate && distinctPaymentDates.size === 1
+      ? [...distinctPaymentDates][0]
+      : null;
+  const paymentDateBlocker: PilaExportReadinessBlocker | null =
+    hasMissingPaymentDate
+      ? {
+          code: 'PILA_PAYMENT_DATE_REQUIRED',
+          scope: 'FILE_GENERATION',
+          title: 'Falta la fecha prevista de pago de aportes PILA',
+          message:
+            'Al menos un snapshot aprobado no conserva una fecha prevista de pago PILA válida. La fecha debe quedar congelada en todos los snapshots antes de una futura exportación; este informe no modifica los snapshots.',
+          fields: [],
+          evidence:
+            'ADR-013 establece que la aprobación congela la fecha prevista de pago en el snapshot y que la exportación consume snapshots aprobados.',
+        }
+      : null;
+  const paymentDateConflictBlocker: PilaExportReadinessBlocker | null =
+    hasConflictingPaymentDates
+      ? {
+          code: 'PILA_PAYMENT_DATE_SNAPSHOT_INCONSISTENT',
+          scope: 'FILE_GENERATION',
+          title: 'Los snapshots conservan fechas previstas diferentes',
+          message:
+            'Los snapshots aprobados del período no comparten la misma fecha prevista de pago PILA. La exportación debe detenerse hasta revisar la consistencia de sus fuentes; cambiar la fecha del período no reescribe snapshots aprobados.',
+          fields: [],
+          evidence:
+            'ADR-013 requiere conservar la fecha seleccionada con la evidencia de snapshots aprobados y prohíbe reescribirlos.',
+        }
+      : null;
+  const paymentDateBlockers = [
+    paymentDateBlocker,
+    paymentDateConflictBlocker,
+  ].filter(
+    (blocker): blocker is PilaExportReadinessBlocker => blocker !== null,
+  );
+  const exportReadiness =
+    paymentDateBlockers.length > 0
+      ? {
+          ...pilaExportReadiness,
+          blockers: [...pilaExportReadiness.blockers, ...paymentDateBlockers],
+        }
+      : pilaExportReadiness;
   const totalCotizantes = new Set(
     input.snapshots.map(({ employeeId }) => employeeId),
   ).size;
@@ -1252,12 +1403,12 @@ export function buildPilaPreparationReport(input: {
   return {
     formatVersion: null,
     normativeSourceStatus: 'RECONCILIATION_PENDING' as const,
+    exportReadiness,
     period: {
       id: input.period.id,
       fechaInicio: input.period.fechaInicio.toISOString().slice(0, 10),
       fechaFin: input.period.fechaFin.toISOString().slice(0, 10),
-      fechaPrevistaPagoPila:
-        input.period.fechaPrevistaPagoPila?.toISOString().slice(0, 10) ?? null,
+      fechaPrevistaPagoPila: snapshotPaymentDateValue,
     },
     snapshotsRevisados: assessments.length,
     empleadosConDatosPendientes: employeesWithIssues,

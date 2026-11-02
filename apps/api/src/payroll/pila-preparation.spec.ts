@@ -66,7 +66,7 @@ function payload() {
       },
     ],
     payroll: {
-      fechaPrevistaPagoPila: '2026-11-06',
+      fechaPrevistaPagoPila: '2026-11-06' as string | null,
       salarioBasicoCampo40: { valor: 3000000, bloqueos: [] },
       tipoSalario: 'F',
       diasCotizadosPorSubsistema: {
@@ -122,7 +122,7 @@ describe('inspectPilaSnapshotPreparation', () => {
     ]);
   });
 
-  it('detecta como pendientes el centro de trabajo PILA y la actividad ARL vigentes', () => {
+  it('bloquea ubicación PILA basada solo en sede y detecta centro y actividad ARL pendientes', () => {
     const result = inspectPilaSnapshotPreparation(
       snapshot('employee-1', 'Ana'),
     );
@@ -131,6 +131,14 @@ describe('inspectPilaSnapshotPreparation', () => {
     expect(
       result.issues.map(({ fieldNumber, code }) => ({ fieldNumber, code })),
     ).toEqual([
+      {
+        fieldNumber: 9,
+        code: 'UBICACION_LABORAL_PILA_SIN_FUENTE_CONFIRMADA',
+      },
+      {
+        fieldNumber: 10,
+        code: 'UBICACION_LABORAL_PILA_SIN_FUENTE_CONFIRMADA',
+      },
       {
         fieldNumber: 62,
         code: 'CENTRO_TRABAJO_SIN_CODIGO_PILA',
@@ -729,6 +737,71 @@ describe('inspectPilaSnapshotPreparation', () => {
     );
   });
 
+  it('bloquea afiliaciones si una fila malformada acompaña a la fila válida', () => {
+    const source = payload();
+    Object.assign(source, {
+      affiliations: [...source.affiliations, null],
+    });
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 1,
+      payload: source,
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        fieldNumber: 5,
+        code: 'AFILIACION_PILA_FILA_NO_VALIDA',
+      }),
+    );
+  });
+
+  it('bloquea asignaciones ARL si una fila malformada acompaña a la válida', () => {
+    const source = {
+      ...payload(),
+      schemaVersion: 2,
+      pilaRiskAssignments: [
+        {
+          assignmentId: 'assignment-1',
+          tenantId: 'tenant-1',
+          codigoActividadEconomica: '1131202',
+          formatoNormativoVersion: 'DECRETO_768_2022',
+          vigenteDesde: '2026-01-01',
+          vigenteHasta: null,
+          centroTrabajo: {
+            centroTrabajoId: 'center-1',
+            tenantId: 'tenant-1',
+            sedeId: 'site-1',
+            arlCodigo: 'ARL001',
+            codigoCentro: '0001',
+            nombre: 'Centro principal',
+          },
+        },
+        null,
+      ],
+    };
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 2,
+      payload: source,
+    });
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldNumber: 62,
+          code: 'CENTRO_TRABAJO_PILA_FILA_NO_VALIDA',
+        }),
+        expect.objectContaining({
+          fieldNumber: 98,
+          code: 'ACTIVIDAD_ARL_PILA_FILA_NO_VALIDA',
+        }),
+      ]),
+    );
+  });
+
   it('bloquea actividad inexistente en el catálogo aunque tenga siete dígitos', () => {
     const source = {
       ...payload(),
@@ -1095,7 +1168,6 @@ describe('inspectPilaSnapshotPreparation', () => {
         id: 'period-1',
         fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
         fechaFin: new Date('2026-10-31T00:00:00.000Z'),
-        fechaPrevistaPagoPila: new Date('2026-11-06T00:00:00.000Z'),
       },
       snapshots: [
         snapshot('employee-1', 'Ana'),
@@ -1112,6 +1184,10 @@ describe('inspectPilaSnapshotPreparation', () => {
       archivoGenerable: false,
       estadoArchivo: 'NO_IMPLEMENTADO',
     });
+    expect(report.exportReadiness.blockers).not.toContainEqual(
+      expect.objectContaining({ code: 'PILA_PAYMENT_DATE_REQUIRED' }),
+    );
+    expect(report.period.fechaPrevistaPagoPila).toBe('2026-11-06');
     expect(report.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1130,7 +1206,6 @@ describe('inspectPilaSnapshotPreparation', () => {
         id: 'period-1',
         fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
         fechaFin: new Date('2026-10-31T00:00:00.000Z'),
-        fechaPrevistaPagoPila: null,
       },
       snapshots: [],
     });
@@ -1138,5 +1213,74 @@ describe('inspectPilaSnapshotPreparation', () => {
     expect(report.issues).toEqual([
       expect.objectContaining({ code: 'SNAPSHOTS_APROBADOS_NO_DISPONIBLES' }),
     ]);
+    expect(report.exportReadiness.blockers).not.toContainEqual(
+      expect.objectContaining({ code: 'PILA_PAYMENT_DATE_REQUIRED' }),
+    );
+  });
+
+  it('exige fecha prevista válida en cada snapshot aprobado', () => {
+    const missingDate = snapshot('employee-1', 'Ana');
+    const source = missingDate.payload as ReturnType<typeof payload>;
+    source.payroll.fechaPrevistaPagoPila = null;
+
+    const report = buildPilaPreparationReport({
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [missingDate],
+    });
+
+    expect(report.period.fechaPrevistaPagoPila).toBeNull();
+    expect(report.exportReadiness.blockers).toContainEqual(
+      expect.objectContaining({
+        code: 'PILA_PAYMENT_DATE_REQUIRED',
+        scope: 'FILE_GENERATION',
+      }),
+    );
+  });
+
+  it('rechaza fechas previstas imposibles en snapshots aprobados', () => {
+    const malformedDate = snapshot('employee-1', 'Ana');
+    const source = malformedDate.payload as ReturnType<typeof payload>;
+    source.payroll.fechaPrevistaPagoPila = '2026-02-30';
+
+    const report = buildPilaPreparationReport({
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [malformedDate],
+    });
+
+    expect(report.period.fechaPrevistaPagoPila).toBeNull();
+    expect(report.exportReadiness.blockers).toContainEqual(
+      expect.objectContaining({ code: 'PILA_PAYMENT_DATE_REQUIRED' }),
+    );
+  });
+
+  it('bloquea si los snapshots aprobados tienen fechas previstas diferentes', () => {
+    const secondSnapshot = snapshot('employee-2', 'Luis');
+    const source = secondSnapshot.payload as ReturnType<typeof payload>;
+    source.payroll.fechaPrevistaPagoPila = '2026-11-07';
+
+    const report = buildPilaPreparationReport({
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [snapshot('employee-1', 'Ana'), secondSnapshot],
+    });
+
+    expect(report.period.fechaPrevistaPagoPila).toBeNull();
+    expect(report.exportReadiness.blockers).toContainEqual(
+      expect.objectContaining({
+        code: 'PILA_PAYMENT_DATE_SNAPSHOT_INCONSISTENT',
+        scope: 'FILE_GENERATION',
+      }),
+    );
   });
 });

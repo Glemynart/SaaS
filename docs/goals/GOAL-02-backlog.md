@@ -1,6 +1,6 @@
 # Backlog de GOAL-02 — Evolución Financiera y Cumplimiento Electrónico
 
-Actualizado: 2026-11-01. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
+Actualizado: 2026-11-02. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
 no cerrado. Este backlog conserva el resultado completo de GOAL-02 y prioriza
 primero flujos financieros internos que puedan mostrarse a futuros clientes.
 
@@ -389,7 +389,20 @@ se accedió a demo, staging o producción.
   `a4f123f93cfda6e545f46f70159a7f39cb41f93e` terminó `READY`; no se desplegó a
   staging ni producción. El build de Next.js compiló correctamente.
 - Ese despliegue manual no actualizó el estado Vercel asociado al commit en
-  GitHub. El check continúa en rojo con `Deployment rate limited — retry in 24
-hours`, registrado el 2026-11-01 11:35 UTC. No se debe mergear ni avanzar al
-  siguiente PR hasta que un nuevo despliegue integrado con GitHub deje ese
-  check en verde.
+  GitHub. El commit de documentación `1769198` disparó un nuevo despliegue por
+  la integración GitHub–Vercel; `Vercel`, `verify` y `browser` pasaron. Tras la
+  auditoría, PR #181 se fusionó en `main` como `e0dc459`.
+
+### Disponibilidad e integridad del preflight PILA — 2026-10-31
+
+- PR #182 expone en la pantalla de nómina la diferencia entre layout AT2 v30,
+  generación de archivo (`NOT_IMPLEMENTED`), validación local (`PRELIMINARY`)
+  y aceptación por operador (`NOT_VERIFIED`), con bloqueos y evidencia por
+  campo. El informe no habilita descargas ni compatibilidad.
+- El preflight ahora bloquea filas malformadas de afiliación, centro de trabajo
+  y actividad económica en lugar de descartarlas antes de validar. Tampoco
+  oculta la ausencia o inconsistencia de la fecha prevista de pago: usa solo la
+  fecha congelada en snapshots aprobados y bloquea si falta o difiere.
+- La sede operativa y su municipio DIVIPOLA no prueban la ubicación laboral
+  PILA de los campos 9–10 del AT2. PR #182 los bloquea hasta contar con una
+  fuente PILA explícita, confirmada y congelada; el archivo sigue sin generarse.

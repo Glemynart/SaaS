@@ -26,6 +26,8 @@ export function PayrollPilaPreparationPanel({
 
   if (periodStatus !== 'APROBADA' && periodStatus !== 'CAUSADA') return null;
 
+  const exportReadiness = query.data?.exportReadiness;
+
   return (
     <section
       className="mb-6 rounded-xl border border-border bg-surface p-5"
@@ -67,6 +69,73 @@ export function PayrollPilaPreparationPanel({
 
       {query.data && (
         <div className="mt-4 space-y-4" aria-live="polite">
+          {exportReadiness && (
+            <section
+              className="rounded-lg border border-border p-4"
+              aria-labelledby="pila-export-readiness-title"
+            >
+              <h3 id="pila-export-readiness-title" className="font-medium">
+                Estado de exportación PILA
+              </h3>
+              <dl className="mt-2 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-muted-foreground">Layout de registros</dt>
+                  <dd>{exportReadiness.recordLayoutVersion.replace('_', ' ')}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Generación y descarga</dt>
+                  <dd>
+                    {exportReadiness.fileGenerationStatus === 'NOT_IMPLEMENTED'
+                      ? 'No implementadas'
+                      : 'Disponibles'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Validación local</dt>
+                  <dd>
+                    {exportReadiness.localValidationStatus === 'PRELIMINARY'
+                      ? 'Preliminar; no cubre el archivo completo'
+                      : 'Completa'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Aceptación del operador</dt>
+                  <dd>
+                    {exportReadiness.operatorAcceptanceStatus === 'NOT_VERIFIED'
+                      ? 'No verificada'
+                      : 'Verificada'}
+                  </dd>
+                </div>
+              </dl>
+
+              <ul className="mt-4 space-y-3">
+                {exportReadiness.blockers.map((blocker) => (
+                  <li key={blocker.code} className="rounded-md bg-muted/40 px-3 py-2">
+                    <p className="text-sm font-medium">{blocker.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {blocker.scope === 'FILE_GENERATION'
+                        ? 'Bloquea la generación del archivo.'
+                        : 'Pendiente para declarar compatibilidad con un operador.'}{' '}
+                      {blocker.message}
+                    </p>
+                    {blocker.fields.length > 0 && (
+                      <ul className="mt-2 list-inside list-disc text-sm text-muted-foreground">
+                        {blocker.fields.map(({ record, fieldNumbers }) => (
+                          <li key={`${blocker.code}-${record}`}>
+                            {recordLabels[record]}: campos {fieldNumbers.join(', ')}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Evidencia: {blocker.evidence}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           <Alert>
             {query.data.mensaje} Período: {query.data.period.fechaInicio} a{' '}
             {query.data.period.fechaFin}. Fecha prevista de aportes:{' '}
