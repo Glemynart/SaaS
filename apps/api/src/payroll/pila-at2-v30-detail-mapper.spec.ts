@@ -64,7 +64,10 @@ function snapshot(): PilaSnapshotPreparationInput {
           },
         },
       ],
+      pilaEvents: [],
       payroll: {
+        pilaEvents: [],
+        novelties: [],
         diasCotizadosPorSubsistema: {
           pension: {
             valor: 30,
@@ -112,6 +115,8 @@ function payloadOf(snapshotInput: PilaSnapshotPreparationInput) {
     employee: Record<string, unknown>;
     payroll: {
       ibcPorSubsistema: Record<string, Record<string, unknown>>;
+      concepts?: Array<Record<string, unknown>>;
+      [key: string]: unknown;
     };
     pilaRiskAssignments: Array<Record<string, unknown>>;
     [key: string]: unknown;
@@ -236,6 +241,205 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.unresolvedFields).toEqual(
       expect.arrayContaining([expect.objectContaining({ fieldNumber: 42 })]),
     );
+  });
+
+  it('maps direct ARL, CCF and non-exempt parafiscal concept amounts as candidates', () => {
+    const input = snapshot();
+    const payload = payloadOf(input);
+    const employer = (input.payload as { employer: Record<string, unknown> })
+      .employer;
+    employer.aportesExonerados = false;
+    (employer.pila as Record<string, unknown>).aportesExoneradosConfirmado =
+      false;
+    payload.payroll.concepts = [
+      {
+        codigo: 'ARL',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.00522,
+        valor: 10_440,
+      },
+      {
+        codigo: 'CAJA',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.04,
+        valor: 80_000,
+      },
+      {
+        codigo: 'SENA',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.02,
+        valor: 40_000,
+      },
+      {
+        codigo: 'ICBF',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.03,
+        valor: 60_000,
+      },
+    ];
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values).toMatchObject({
+      63: { value: 10_440 },
+      65: { value: 80_000 },
+      67: { value: 40_000 },
+      69: { value: 60_000 },
+    });
+  });
+
+  it('does not infer zero contributions or map concepts with ambiguous or mismatched bases', () => {
+    const input = snapshot();
+    payloadOf(input).payroll.concepts = [
+      {
+        codigo: 'ARL',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.00522,
+        valor: 10_440,
+      },
+      {
+        codigo: 'ARL',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.00522,
+        valor: 10_440,
+      },
+      {
+        codigo: 'CAJA',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 1_900_000,
+        factor: 0.04,
+        valor: 76_000,
+      },
+    ];
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[63]).toBeUndefined();
+    expect(candidate.values[65]).toBeUndefined();
+    expect(candidate.values[67]).toBeUndefined();
+    expect(candidate.values[69]).toBeUndefined();
+    expect(candidate.unresolvedFields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ fieldNumber: 63 }),
+        expect.objectContaining({ fieldNumber: 65 }),
+      ]),
+    );
+  });
+
+  it('does not map SENA or ICBF amounts when employer exemption is declared', () => {
+    const input = snapshot();
+    const payload = payloadOf(input);
+    const employer = (input.payload as { employer: Record<string, unknown> })
+      .employer;
+    (employer.pila as Record<string, unknown>).aportesExoneradosConfirmado =
+      true;
+    payload.payroll.concepts = [
+      {
+        codigo: 'SENA',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.02,
+        valor: 40_000,
+      },
+      {
+        codigo: 'ICBF',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.03,
+        valor: 60_000,
+      },
+    ];
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[67]).toBeUndefined();
+    expect(candidate.values[69]).toBeUndefined();
+  });
+
+  it('does not map SENA or ICBF when employer exemption conflicts with PILA confirmation', () => {
+    const input = snapshot();
+    const payload = payloadOf(input);
+    const root = input.payload as { employer: Record<string, unknown> };
+    root.employer.aportesExonerados = true;
+    (
+      root.employer.pila as Record<string, unknown>
+    ).aportesExoneradosConfirmado = false;
+    payload.payroll.concepts = [
+      {
+        codigo: 'SENA',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.02,
+        valor: 40_000,
+      },
+      {
+        codigo: 'ICBF',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.03,
+        valor: 60_000,
+      },
+    ];
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[67]).toBeUndefined();
+    expect(candidate.values[69]).toBeUndefined();
+    const parafiscalBlockers = candidate.unresolvedFields.filter(
+      ({ fieldNumber }) => fieldNumber === 67 || fieldNumber === 69,
+    );
+    expect(parafiscalBlockers.map(({ fieldNumber }) => fieldNumber)).toEqual([
+      67, 69,
+    ]);
+    expect(
+      parafiscalBlockers.every(({ reason }) => reason.includes('coherente')),
+    ).toBe(true);
+  });
+
+  it('does not map a contribution amount with a zero factor', () => {
+    const input = snapshot();
+    payloadOf(input).payroll.concepts = [
+      {
+        codigo: 'ARL',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0,
+        valor: 0,
+      },
+    ];
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[63]).toBeUndefined();
+  });
+
+  it('does not map contribution candidates when the frozen snapshot has novelty events', () => {
+    const input = snapshot();
+    const payload = payloadOf(input);
+    payload.payroll.concepts = [
+      {
+        codigo: 'ARL',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.00522,
+        valor: 10_440,
+      },
+    ];
+    payload.payroll.novelties = [{ tipo: 'SICKNESS' }];
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[63]).toBeUndefined();
+    expect(
+      candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 63)
+        ?.reason,
+    ).toContain('sin novedades');
   });
 
   it('does not map a work center assigned to another tenant', () => {

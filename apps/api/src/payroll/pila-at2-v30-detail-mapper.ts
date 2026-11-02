@@ -268,6 +268,22 @@ export function mapPilaAt2V30DetailCandidate(
       );
     }
   }
+  const fullMonthPilaInputsApproved =
+    standardFullMonthEmployee &&
+    daySources.every(([, subsystem]) => {
+      const source = object(days?.[subsystem]);
+      return (
+        source?.valor === 30 &&
+        source.reglaVersion === 'PILA_FULL_MONTH_DAYS_V1' &&
+        hasNoBlockers(source)
+      );
+    }) &&
+    Array.isArray(root?.pilaEvents) &&
+    root.pilaEvents.length === 0 &&
+    Array.isArray(payroll?.pilaEvents) &&
+    payroll.pilaEvents.length === 0 &&
+    Array.isArray(payroll?.novelties) &&
+    payroll.novelties.length === 0;
 
   const salary = object(payroll?.salarioBasicoCampo40);
   if (
@@ -374,6 +390,102 @@ export function mapPilaAt2V30DetailCandidate(
       'Falta una base parafiscal congelada con regla CO_PARAFISCAL_BASE_V1 y sin bloqueos.',
     );
   }
+
+  const contributionConcepts = objectRows(payroll?.concepts);
+  const mapContributionAmountCandidate = (input: {
+    fieldNumber: number;
+    code: string;
+    base: JsonRecord | null;
+    requireExplicitNonExemption?: boolean;
+  }) => {
+    if (!fullMonthPilaInputsApproved) {
+      unresolved(
+        input.fieldNumber,
+        'El importe candidato requiere un mes completo con días aprobados y sin novedades ni eventos PILA.',
+      );
+      return;
+    }
+    if (input.requireExplicitNonExemption) {
+      if (
+        employer.aportesExonerados !== false ||
+        employerPila.aportesExoneradosConfirmado !== false
+      ) {
+        unresolved(
+          input.fieldNumber,
+          'Se requiere declaración expresa y coherente de no exoneración en el empleador congelado.',
+        );
+        return;
+      }
+    }
+    const matches = contributionConcepts?.filter(
+      (concept) => concept.codigo === input.code,
+    );
+    if (!matches || matches.length !== 1) {
+      unresolved(
+        input.fieldNumber,
+        matches?.length
+          ? `Hay más de una fuente ${input.code} en el snapshot.`
+          : `Falta una fuente única ${input.code} en el snapshot.`,
+      );
+      return;
+    }
+    const concept = matches[0];
+    if (
+      concept.tipo !== 'EMPLOYER_CONTRIBUTION' ||
+      !safeInteger(concept.base, 9) ||
+      typeof concept.factor !== 'number' ||
+      !Number.isFinite(concept.factor) ||
+      concept.factor <= 0 ||
+      !safeInteger(concept.valor, 9) ||
+      !input.base ||
+      !safeInteger(input.base.valor, 9) ||
+      concept.base !== input.base.valor
+    ) {
+      unresolved(
+        input.fieldNumber,
+        `La fuente ${input.code} no tiene tipo esperado, importe entero, factor positivo y base coincidente con la fuente congelada.`,
+      );
+      return;
+    }
+    put(input.fieldNumber, concept.valor);
+  };
+
+  mapContributionAmountCandidate({
+    fieldNumber: 63,
+    code: 'ARL',
+    base:
+      object(subsystemBases?.riesgos)?.sourceCount === 1
+        ? object(subsystemBases?.riesgos)
+        : null,
+  });
+  mapContributionAmountCandidate({
+    fieldNumber: 65,
+    code: 'CAJA',
+    base:
+      object(subsystemBases?.cajaCompensacion)?.sourceCount === 1
+        ? object(subsystemBases?.cajaCompensacion)
+        : null,
+  });
+  mapContributionAmountCandidate({
+    fieldNumber: 67,
+    code: 'SENA',
+    base:
+      otherParafiscalBase?.reglaVersion === 'CO_PARAFISCAL_BASE_V1' &&
+      hasNoBlockers(otherParafiscalBase)
+        ? otherParafiscalBase
+        : null,
+    requireExplicitNonExemption: true,
+  });
+  mapContributionAmountCandidate({
+    fieldNumber: 69,
+    code: 'ICBF',
+    base:
+      otherParafiscalBase?.reglaVersion === 'CO_PARAFISCAL_BASE_V1' &&
+      hasNoBlockers(otherParafiscalBase)
+        ? otherParafiscalBase
+        : null,
+    requireExplicitNonExemption: true,
+  });
 
   const defaultReason =
     'El campo aún no tiene mapeo candidato aprobado desde snapshots PILA.';

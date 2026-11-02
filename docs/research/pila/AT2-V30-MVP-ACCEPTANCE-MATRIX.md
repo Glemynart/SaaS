@@ -150,12 +150,19 @@ Para el detalle 02, el alcance de datos de mayor riesgo es:
 | 95             | IBC de otros parafiscales                    | Obligatorio para tipo 01 y limitado a 9 dígitos. Requiere origen salarial auditable, base propia en el snapshot y reglas aprobadas. El valor candidato actual no constituye por sí mismo aprobación normativa.                                                                                                                                                                                                               |
 
 `pila-at2-v30-detail-mapper.ts` mapea candidatos desde un snapshot v2 para los
-campos 1–6, 11–14, 31, 33, 35, 36–45, 62, 77–78, 95 y 98. Exige el escenario
-dependiente `01`/`00`, cobertura mensual de empleado/contrato/afiliación y, para
-el centro ARL, tenant, vigencia, ARL y catálogo versionado coincidentes.
-Conserva identificadores y códigos de centro con ceros iniciales. Tarifas,
-aportes, novedades y demás campos continúan sin mapear; el candidato no se
-valida ni serializa como registro.
+campos 1–6, 11–14, 31, 33, 35, 36–45, 62–63, 65, 67, 69, 77–78, 95 y 98. Exige
+el escenario dependiente `01`/`00`, cobertura mensual de empleado/contrato/
+afiliación y, para el centro ARL, tenant, vigencia, ARL y catálogo versionado
+coincidentes. Los importes 63/65/67/69 solo se copian desde un concepto patronal
+único, con tipo esperado, factor positivo y base coincidente; exige mes completo,
+días aprobados y ningún evento o novedad PILA. El factor todavía no se contrasta
+con una tarifa normativa. SENA e ICBF requieren además la declaración explícita
+de no exoneración, coherente con la bandera de exoneración del mismo snapshot
+del empleador. Si difieren o falta una, los campos permanecen sin resolver. La
+ausencia del aporte no se convierte en cero.
+Conserva identificadores y códigos de centro con ceros iniciales. Ninguna tarifa
+ni aporte se calcula: los candidatos no son validación normativa ni se
+serializan como registro.
 
 ### Reglas de aportes verificadas en AT2 v30
 
