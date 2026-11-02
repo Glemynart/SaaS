@@ -524,13 +524,16 @@ se accedió a demo, staging o producción.
   afiliación, días completos, salario, IBC por subsistema y asignación ARL desde
   un snapshot PILA v2 del mismo empleado/tenant/período. No vuelve a consultar
   maestros, no transforma novedades y no calcula tarifas ni aportes.
-- El alcance del mapa cubre campos 1–6, 11–14, 31, 33, 35, 36–45, 62–63, 65,
+- El alcance del mapa cubre campos 1–8, 11–14, 31, 33, 35, 36–45, 62–63, 65,
   67, 69, 77–78, 95 y 98. Los importes 63/65/67/69 son solo candidatos
   copiados de un concepto patronal único, con tipo esperado, factor positivo y
   base coincidente; aún no se contrasta el factor con una tarifa normativa.
   Requieren además días aprobados de mes completo y ausencia de novedades y
   eventos PILA; SENA e ICBF requieren declaración explícita de no exoneración,
   coherente con la bandera de exoneración del mismo snapshot del empleador.
+  AT2 v30 pp. 86–87 permite dejar 7 en blanco para CC/TI y 8 para CE/PA, pero
+  mantiene sin resolver la exención pensional CE/PA y la residencia exterior
+  CC/TI porque todavía no se capturan como declaraciones explícitas.
   Nunca se calcula un aporte ni se infiere cero por ausencia. Los demás campos
   de aportes, novedades/segmentación, horas y datos faltantes siguen sin valor
   candidato; el registro completo no es serializable ni descargable.
