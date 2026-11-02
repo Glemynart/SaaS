@@ -965,3 +965,19 @@ false`.
 - `archivoGenerable` permanece falso y `estadoArchivo` en
   `NO_IMPLEMENTADO`. No se habilita descarga ni se afirma compatibilidad con
   operadores.
+
+### Corte normativo de aportes voluntarios PILA — 2026-11-02
+
+- El cotejo del AT2 v30 oficial (24-07-2026, SHA-256
+  `BBB3C2D0486FD7D3934BD640D8E68C60D33686B1604E8EFAA980139FB5686D33`)
+  confirmó, junto con la Resolución 467 de 2025, que los campos 48–49 solo
+  admiten aportes voluntarios para períodos anteriores a julio de 2025; el
+  campo 53 solo se usa cuando el 28 está en X.
+- El mapper aplica `AT2_V30_VOLUNTARY_PENSION_PRE_JUL_2025_CUTOFF_V1` en
+  planilla E: desde 2025-07-01 propone 28 y 53 en blanco y 48/49 en cero; los
+  períodos históricos y los que cruzan el corte permanecen bloqueados. La
+  regla no crea una deducción Payroll. FSP 51–52 continúa pendiente, y esta
+  preparación local no habilita descarga ni declara compatibilidad.
+- Se agregaron criterios y pruebas para período postcorte, histórico, cruzado
+  y planilla N. La aceptación de los valores por un operador todavía requiere
+  una carga real de prueba.
