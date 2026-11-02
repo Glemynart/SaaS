@@ -230,7 +230,7 @@ describe('calculateServicePremium', () => {
     });
   });
 
-  it.each(['SICKNESS', 'VACATION'])(
+  it.each(['SICKNESS', 'VACATION', 'OVERTIME'])(
     'mantiene 180 días para novedad %s reconocida por la matriz',
     (tipo) => {
       const result = calculateServicePremium({
@@ -247,18 +247,66 @@ describe('calculateServicePremium', () => {
     },
   );
 
-  it('bloquea licencia sin subtipo y tratamiento aprobados', () => {
-    const result = calculateServicePremium({
-      employee,
-      year: 2026,
-      semester: 1,
-      snapshots: halfYearSnapshots({ novelties: [{ tipo: 'LICENSE' }] }),
-    });
-    expect(result).toMatchObject({
-      status: 'BLOQUEADA',
-      blockCode: 'NOVEDAD_NO_CARACTERIZADA',
-    });
-  });
+  it.each(['LICENSE', 'OTHER', 'SUSPENSION'])(
+    'bloquea la novedad %s si no tiene tratamiento aprobado para prima',
+    (tipo) => {
+      const result = calculateServicePremium({
+        employee,
+        year: 2026,
+        semester: 1,
+        snapshots: halfYearSnapshots({ novelties: [{ tipo }] }),
+      });
+      expect(result).toMatchObject({
+        status: 'BLOQUEADA',
+        blockCode: 'NOVEDAD_NO_CARACTERIZADA',
+      });
+    },
+  );
+
+  it.each(['concepts', 'novelties'] as const)(
+    'bloquea el snapshot si contiene una entrada malformada en %s',
+    (collection) => {
+      const snapshots = halfYearSnapshots().map((source) => {
+        const payload = source.payload as Record<string, unknown>;
+        payload[collection] = [null];
+        return source;
+      });
+      const result = calculateServicePremium({
+        employee,
+        year: 2026,
+        semester: 1,
+        snapshots,
+      });
+
+      expect(result).toMatchObject({
+        status: 'BLOQUEADA',
+        blockCode: 'SNAPSHOT_INCOMPATIBLE',
+        amount: null,
+      });
+    },
+  );
+
+  it.each([
+    ['salario base', { salary: 2_000_000.5 }, 'SNAPSHOT_INCOMPATIBLE'],
+    ['auxilio de transporte', { aid: 200_000.5 }, 'SNAPSHOT_INCOMPATIBLE'],
+    ['trabajo suplementario', { overtime: 100_000.5 }, 'CONCEPTO_INVALIDO'],
+  ] as const)(
+    'bloquea importes fraccionarios de %s en el snapshot',
+    (_label, options, blockCode) => {
+      const result = calculateServicePremium({
+        employee,
+        year: 2026,
+        semester: 1,
+        snapshots: halfYearSnapshots(options),
+      });
+
+      expect(result).toMatchObject({
+        status: 'BLOQUEADA',
+        blockCode,
+        amount: null,
+      });
+    },
+  );
 
   it('marca salario integral como no aplica', () => {
     const result = calculateServicePremium({

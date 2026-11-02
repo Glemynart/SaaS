@@ -361,3 +361,35 @@ se accedió a demo, staging o producción.
   campo, conteos y longitudes.
 - El formateador aplica relleno normativo y exige decisión explícita para valores vacíos. La auditoría agregó el rechazo de espacios para campos numéricos; los vacíos numéricos se rellenan con ceros y los alfanuméricos con espacios.
 - Es solo una primitiva: no mapea PayrollSnapshot, valida reglas laborales, codifica bytes, compone o descarga archivos ni demuestra aceptación de un operador. `archivoGenerable` continúa en `false` hasta completar preflight, fixtures normativos y pruebas por operador.
+
+### Corrección de prima — 2026-10-31
+
+- La calculadora de prima ignoraba silenciosamente cualquier tipo de novedad de
+  snapshot que no estuviera entre `LICENSE`, `OTHER` y `BONUS`; una novedad
+  desconocida podía producir una línea `LISTA`. La matriz de ADR-012 exige
+  bloquear novedades sin tratamiento aprobado.
+- El PR #181 mantiene el cálculo solo para novedades aceptadas explícitamente
+  (`VACATION`, `SICKNESS`, `OVERTIME`) y bloquea las ambiguas o desconocidas.
+  Regresiones cubren `LICENSE`, `OTHER` y el tipo histórico/desconocido
+  `SUSPENSION`; se conserva el caso de bonificación como bloqueo específico.
+  El parser también rechaza snapshots cuyo array de conceptos o novedades
+  contiene filas que no son objetos; antes las descartaba y podía calcular con
+  fuente incompleta. Rechaza además importes fraccionarios, coherente con los
+  pesos enteros congelados por nómina; hay regresiones para salario, auxilio y
+  trabajo suplementario.
+- Las pruebas de calculadora y servicio pasan (32/32), al igual que typecheck de
+  API, ESLint, Prettier y `git diff --check`. Tras sincronizar el PR con `main`
+  en `553b90b`, CI, Browser E2E (24/24) y Vercel Preview pasaron. Las corridas
+  del head anterior fallaron antes de iniciar los jobs por el límite de Actions,
+  sin evaluar el código.
+
+### Revalidación del PR #181 — 2026-11-02
+
+- Después del plazo de 24 horas, un despliegue manual Preview del HEAD
+  `a4f123f93cfda6e545f46f70159a7f39cb41f93e` terminó `READY`; no se desplegó a
+  staging ni producción. El build de Next.js compiló correctamente.
+- Ese despliegue manual no actualizó el estado Vercel asociado al commit en
+  GitHub. El check continúa en rojo con `Deployment rate limited — retry in 24
+hours`, registrado el 2026-11-01 11:35 UTC. No se debe mergear ni avanzar al
+  siguiente PR hasta que un nuevo despliegue integrado con GitHub deje ese
+  check en verde.

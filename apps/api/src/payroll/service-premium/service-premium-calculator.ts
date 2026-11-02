@@ -75,6 +75,11 @@ const SUPPORTED_CONTRACT_TYPES = new Set([
   'TERMINO_INDEFINIDO',
   'OBRA_LABOR',
 ]);
+const SUPPORTED_NON_BLOCKING_NOVELTY_TYPES = new Set([
+  'OVERTIME',
+  'SICKNESS',
+  'VACATION',
+]);
 const SUPPORTED_CORRECTION_CONCEPTS = new Set([
   'SALARIO_BASE',
   'BONUS',
@@ -136,7 +141,7 @@ export function days360(start: string, endExclusive: string): number {
 }
 
 function amount(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
     ? value
     : null;
 }
@@ -177,6 +182,8 @@ function parseSnapshot(row: ServicePremiumSnapshot): ParsedSnapshot | null {
   const legal = isRecord(row.payload.legalParameters)
     ? row.payload.legalParameters
     : null;
+  const concepts = row.payload.concepts;
+  const novelties = row.payload.novelties;
   if (!period || !employee || !contract || !totals || !legal) return null;
 
   const start = parseDate(period.fechaInicio);
@@ -194,8 +201,10 @@ function parseSnapshot(row: ServicePremiumSnapshot): ParsedSnapshot | null {
     typeof contract.contratoId !== 'string' ||
     typeof contract.tipo !== 'string' ||
     typeof employee.salarioIntegralUsado !== 'boolean' ||
-    !Array.isArray(row.payload.concepts) ||
-    !Array.isArray(row.payload.novelties)
+    !Array.isArray(concepts) ||
+    !concepts.every(isRecord) ||
+    !Array.isArray(novelties) ||
+    !novelties.every(isRecord)
   ) {
     return null;
   }
@@ -206,8 +215,8 @@ function parseSnapshot(row: ServicePremiumSnapshot): ParsedSnapshot | null {
     period: { start, end: addDays(inclusiveEnd, 1) },
     contract,
     employee,
-    concepts: row.payload.concepts.filter(isRecord),
-    novelties: row.payload.novelties.filter(isRecord),
+    concepts,
+    novelties,
     monthlyAid,
     aidWasPaid: transportTotal > 0,
     salaryBase,
@@ -648,19 +657,22 @@ export function calculateServicePremium(input: {
     variableTotal += overtimeValue;
     for (const novelty of snapshot.novelties) {
       const type = novelty.tipo;
-      if (type === 'LICENSE' || type === 'OTHER') {
-        return getBlock(
-          employee,
-          'NOVEDAD_NO_CARACTERIZADA',
-          `La novedad ${String(type)} no tiene subtipo ni tratamiento aprobado para prima.`,
-        );
-      }
       if (type === 'BONUS')
         return getBlock(
           employee,
           'BONIFICACION_SIN_NATURALEZA',
           'Existe una novedad de bonificación sin clasificación salarial explícita.',
         );
+      if (
+        typeof type !== 'string' ||
+        !SUPPORTED_NON_BLOCKING_NOVELTY_TYPES.has(type)
+      ) {
+        return getBlock(
+          employee,
+          'NOVEDAD_NO_CARACTERIZADA',
+          `La novedad ${String(type)} no tiene un tratamiento aprobado para prima.`,
+        );
+      }
     }
     const clippedPeriod = overlap(snapshot.period, base);
     if (clippedPeriod) {
