@@ -190,13 +190,15 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
     expect(targetData.products).toHaveLength(3);
     expect(targetData.invoices).toHaveLength(3);
     expect(targetData.invoices.map((invoice: any) => invoice.status)).toEqual([
-      'ISSUED',
-      'ISSUED',
+      'DRAFT',
+      'DRAFT',
       'DRAFT',
     ]);
     expect(Number(targetData.invoices[0].subtotal)).toBe(240_000);
     expect(Number(targetData.invoices[0].impuestos)).toBe(45_600);
     expect(Number(targetData.invoices[0].total)).toBe(285_600);
+    expect(Number(targetData.invoices[0].items[0].porcentajeImpuesto)).toBe(19);
+    expect(Number(targetData.invoices[0].items[0].valorImpuesto)).toBe(45_600);
     expect(targetData.employees).toHaveLength(1);
     expect(targetData.thirdParties).toHaveLength(1);
     expect(targetData.thirdParties[0]).toMatchObject({

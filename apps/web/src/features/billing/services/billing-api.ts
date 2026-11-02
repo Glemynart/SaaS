@@ -6,6 +6,7 @@ export interface Customer {
   telefono: string | null;
   direccion: string | null;
   status: string;
+  terceroId: string | null;
 }
 export interface ProductService {
   id: string;
@@ -22,6 +23,24 @@ export interface InvoiceItem {
   cantidad: number;
   valorUnitario: number;
   subtotal: number;
+  porcentajeImpuesto: number | null;
+  valorImpuesto: number | null;
+}
+export interface LedgerVoucher {
+  id: string;
+  numero: number | null;
+  estado: string;
+  totalDebito: number;
+  totalCredito: number;
+  tipoComprobante: { codigo: string; nombre: string };
+  movimientos: {
+    linea: number;
+    debito: number;
+    credito: number;
+    descripcion: string | null;
+    cuenta: { codigo: string; nombre: string };
+  }[];
+  reversos: { id: string; numero: number | null; estado: string }[];
 }
 export interface Invoice {
   id: string;
@@ -33,6 +52,12 @@ export interface Invoice {
   status: string;
   fechaEmision: string;
   customer: { razonSocial: string; nit: string };
+  customerRazonSocialSnapshot: string | null;
+  customerNitSnapshot: string | null;
+  terceroId: string | null;
+  terceroRazonSocialSnapshot: string | null;
+  terceroNumeroDocumentoSnapshot: string | null;
+  comprobanteContable?: LedgerVoucher | null;
   items?: InvoiceItem[];
   _count?: { items: number };
 }
@@ -67,7 +92,7 @@ export const billingApi = {
     req<Customer>(`/api/billing/customers/${id}`, { method: 'DELETE' }),
   getProducts: (search?: string) =>
     req<ProductService[]>(`/api/billing/products${search ? `?search=${search}` : ''}`),
-  createProduct: (d: Partial<ProductService>) =>
+  createProduct: (d: { nombre: string; descripcion?: string; precio: number; impuesto: number }) =>
     req<ProductService>('/api/billing/products', { method: 'POST', body: JSON.stringify(d) }),
   updateProduct: (id: string, d: Partial<ProductService>) =>
     req<ProductService>(`/api/billing/products/${id}`, {
@@ -84,12 +109,13 @@ export const billingApi = {
       cantidad: number;
       valorUnitario: number;
       productServiceId?: string;
+      porcentajeImpuesto: number;
     }[];
   }) => req<Invoice>('/api/billing/invoices', { method: 'POST', body: JSON.stringify(d) }),
   getInvoice: (id: string) => req<Invoice>(`/api/billing/invoices/${id}`),
-  updateInvoiceStatus: (id: string, status: string) =>
+  updateInvoiceStatus: (id: string, status: string, motivo?: string) =>
     req<Invoice>(`/api/billing/invoices/${id}/status`, {
       method: 'PATCH',
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, ...(motivo ? { motivo } : {}) }),
     }),
 };
