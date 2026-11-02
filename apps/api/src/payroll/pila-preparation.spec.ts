@@ -1904,7 +1904,13 @@ describe('inspectPilaSnapshotPreparation', () => {
       candidateEmployees: 2,
       pendingEmployees: 0,
     });
-    for (const fieldNumber of [48, 49, 51, 52, 53]) {
+    for (const fieldNumber of [48, 49, 53]) {
+      expect(statusFor(fieldNumber)).toMatchObject({
+        candidateEmployees: 2,
+        pendingEmployees: 0,
+      });
+    }
+    for (const fieldNumber of [51, 52]) {
       expect(statusFor(fieldNumber)).toMatchObject({
         candidateEmployees: 0,
         pendingEmployees: 2,
@@ -1913,14 +1919,8 @@ describe('inspectPilaSnapshotPreparation', () => {
         statusFor(fieldNumber)?.pendingReasons[0]?.affectedEmployees,
       ).toHaveLength(2);
     }
-    expect(statusFor(48)?.pendingReasons[0]?.reason).toContain(
-      'afiliación pensional versionada',
-    );
     expect(statusFor(51)?.pendingReasons[0]?.reason).toContain(
       'agregar el IBC pensional por cotizante',
-    );
-    expect(statusFor(53)?.pendingReasons[0]?.reason).toContain(
-      'diferencia de retención en la fuente',
     );
     expect(statusFor(54)).toMatchObject({
       candidateEmployees: 2,
@@ -2006,8 +2006,8 @@ describe('inspectPilaSnapshotPreparation', () => {
         }),
         expect.objectContaining({
           fieldNumber: 28,
-          candidateEmployees: 0,
-          pendingEmployees: 2,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
         }),
       ]),
     );

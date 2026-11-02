@@ -314,14 +314,16 @@ const invalidRiskAssignmentCases: Array<{
 function mapCandidate(
   input: PilaSnapshotPreparationInput,
   planillaType: string | null = 'E',
+  periodStart = '2026-10-01',
+  periodEnd = '2026-10-31',
 ) {
   return mapPilaAt2V30DetailCandidate(input, {
     expectedTenantId: 'tenant-1',
     planillaType,
     period: {
       id: 'period-1',
-      fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
-      fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      fechaInicio: new Date(`${periodStart}T00:00:00.000Z`),
+      fechaFin: new Date(`${periodEnd}T00:00:00.000Z`),
     },
   });
 }
@@ -554,8 +556,8 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     }
     expect(candidate.values[30]).toEqual({ value: 0 });
     expect(candidate.values[22]).toEqual({ value: null, emptyAs: 'spaces' });
-    expect(candidate.values[28]).toBeUndefined();
-    expect(candidate.unresolvedFields).toEqual(
+    expect(candidate.values[28]).toEqual({ value: null, emptyAs: 'spaces' });
+    expect(candidate.unresolvedFields).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ fieldNumber: 28 })]),
     );
     expect(candidate.unresolvedFields).not.toEqual(
@@ -725,18 +727,97 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.normativeRuleVersions.noEventNoveltyFields).toBeNull();
   });
 
-  it('leaves the standard planilla E correction field blank and voluntary contributions pending', () => {
-    const candidate = mapCandidate(snapshot());
+  it('maps post-cutoff voluntary pension fields as inapplicable for planilla E', () => {
+    const input = snapshot();
+    const payload = payloadOf(input);
+    (payload.period as Record<string, unknown>).fechaInicio = '2025-07-01';
+    (payload.period as Record<string, unknown>).fechaFin = '2025-07-31';
+    const candidate = mapCandidate(input, 'E', '2025-07-01', '2025-07-31');
 
     expect(candidate.values[22]).toEqual({ value: null, emptyAs: 'spaces' });
-    expect(candidate.values[28]).toBeUndefined();
+    expect(candidate.values[28]).toEqual({ value: null, emptyAs: 'spaces' });
+    expect(candidate.values[48]).toEqual({ value: 0 });
+    expect(candidate.values[49]).toEqual({ value: 0 });
+    expect(candidate.values[53]).toEqual({ value: null, emptyAs: 'spaces' });
     expect(
       candidate.unresolvedFields.some(({ fieldNumber }) => fieldNumber === 22),
     ).toBe(false);
     expect(
-      candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 28)
-        ?.reason,
-    ).toContain('aporte voluntario');
+      candidate.unresolvedFields.some(({ fieldNumber }) =>
+        [28, 48, 49, 53].includes(fieldNumber),
+      ),
+    ).toBe(false);
+    expect(candidate.normativeRuleVersions.voluntaryPensionCutoff).toBe(
+      'AT2_V30_VOLUNTARY_PENSION_PRE_JUL_2025_CUTOFF_V1',
+    );
+  });
+
+  it('keeps historical voluntary pension fields blocked without frozen Payroll sources', () => {
+    const input = snapshot();
+    const payload = payloadOf(input);
+    (payload.period as Record<string, unknown>).fechaInicio = '2025-06-01';
+    (payload.period as Record<string, unknown>).fechaFin = '2025-06-30';
+
+    const candidate = mapCandidate(input, 'E', '2025-06-01', '2025-06-30');
+
+    for (const fieldNumber of [28, 48, 49, 53]) {
+      expect(candidate.values[fieldNumber]).toBeUndefined();
+      expect(
+        candidate.unresolvedFields.find(
+          (field) => field.fieldNumber === fieldNumber,
+        )?.reason,
+      ).toContain('período permite aportes voluntarios');
+    }
+  });
+
+  it('blocks a period that crosses the voluntary pension cutoff', () => {
+    const input = snapshot();
+    const payload = payloadOf(input);
+    (payload.period as Record<string, unknown>).fechaInicio = '2025-06-15';
+    (payload.period as Record<string, unknown>).fechaFin = '2025-07-15';
+
+    const candidate = mapCandidate(input, 'E', '2025-06-15', '2025-07-15');
+
+    for (const fieldNumber of [28, 48, 49, 53]) {
+      expect(candidate.values[fieldNumber]).toBeUndefined();
+      expect(
+        candidate.unresolvedFields.find(
+          (field) => field.fieldNumber === fieldNumber,
+        )?.reason,
+      ).toContain('cruza el corte normativo');
+    }
+  });
+
+  it('blocks voluntary pension fields for an inverted payroll period', () => {
+    const input = snapshot();
+    const payload = payloadOf(input);
+    (payload.period as Record<string, unknown>).fechaInicio = '2025-07-31';
+    (payload.period as Record<string, unknown>).fechaFin = '2025-07-01';
+
+    const candidate = mapCandidate(input, 'E', '2025-07-31', '2025-07-01');
+
+    for (const fieldNumber of [28, 48, 49, 53]) {
+      expect(candidate.values[fieldNumber]).toBeUndefined();
+      expect(
+        candidate.unresolvedFields.find(
+          (field) => field.fieldNumber === fieldNumber,
+        )?.reason,
+      ).toContain('intervalo invertido');
+    }
+  });
+
+  it('does not apply the cutoff rule to unsupported planilla types', () => {
+    const candidate = mapCandidate(snapshot(), 'N');
+
+    for (const fieldNumber of [28, 48, 49, 53]) {
+      expect(candidate.values[fieldNumber]).toBeUndefined();
+      expect(
+        candidate.unresolvedFields.find(
+          (field) => field.fieldNumber === fieldNumber,
+        )?.reason,
+      ).toContain('otros tipos de planilla no están soportados');
+    }
+    expect(candidate.normativeRuleVersions.voluntaryPensionCutoff).toBeNull();
   });
 
   it('does not propose a correction field for unsupported planilla types', () => {
@@ -750,8 +831,12 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.normativeRuleVersions.planillaEField22).toBeNull();
   });
 
-  it('keeps unsupported voluntary and FSP amounts pending with source reasons', () => {
-    const candidate = mapCandidate(snapshot());
+  it('keeps historical voluntary and FSP amounts pending with source reasons', () => {
+    const input = snapshot();
+    const payload = payloadOf(input);
+    (payload.period as Record<string, unknown>).fechaInicio = '2025-06-01';
+    (payload.period as Record<string, unknown>).fechaFin = '2025-06-30';
+    const candidate = mapCandidate(input, 'E', '2025-06-01', '2025-06-30');
     const reasonFor = (fieldNumber: number) =>
       candidate.unresolvedFields.find(
         (field) => field.fieldNumber === fieldNumber,
@@ -760,13 +845,11 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     for (const fieldNumber of [48, 49, 51, 52, 53]) {
       expect(candidate.values[fieldNumber]).toBeUndefined();
     }
-    expect(reasonFor(48)).toContain('afiliación pensional versionada');
-    expect(reasonFor(49)).toContain(
-      'aporte voluntario que realiza el aportante',
-    );
+    expect(reasonFor(48)).toContain('importe del afiliado congelado');
+    expect(reasonFor(49)).toContain('importe del aportante congelado');
     expect(reasonFor(51)).toContain('agregar el IBC pensional por cotizante');
     expect(reasonFor(52)).toContain('regla vigente por régimen');
-    expect(reasonFor(53)).toContain('diferencia de retención en la fuente');
+    expect(reasonFor(53)).toContain('valor no retenido');
   });
 
   it('keeps fixed incapacity and maternity fields unresolved when a PILA event exists', () => {
@@ -860,7 +943,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.values[8]).toBeUndefined();
     expect(
       candidate.unresolvedFields.map(({ fieldNumber }) => fieldNumber),
-    ).toEqual(expect.arrayContaining([8, 46, 47, 48, 61, 63, 76, 96, 97]));
+    ).toEqual(expect.arrayContaining([8, 46, 47, 61, 63, 76, 96, 97]));
   });
 
   it('maps the standard pension rate and sums only the two rounded snapshot amounts', () => {
