@@ -450,3 +450,30 @@ se accedió a demo, staging o producción.
   999.999.999.999 y acepta el límite exacto. Esto no aprueba la obligación ni
   la aplicabilidad de CCF, no estima bases ausentes y no habilita generar un
   archivo.
+
+### Fuentes de conceptos y reglas de aportes PILA — 2026-10-31
+
+- AT2 v30 valida aportes con IBC de subsistema × tarifa y remite a las reglas
+  normativas de redondeo. El campo 61 usa la tarifa mínima de riesgos según la
+  clase ARL; los campos 51–52 separan subcuentas del FSP; salud tiene reglas de
+  exoneración cruzadas; SENA/ICBF y ESAP/MEN tienen obligaciones y alcance
+  distintos. La matriz `AT2-V30-MVP-ACCEPTANCE-MATRIX.md` registra esas reglas
+  y sus páginas, separando lo verificado de las fuentes candidatas.
+- El preflight de snapshots v2 requiere conceptos únicos de pensión, salud
+  empleado, ARL y caja con tipos y bases consistentes con sus IBC congelados;
+  valida además los datos numéricos candidatos. Revisa fuentes patronales,
+  parafiscales y FSP si existen, sin asumir que una fuente opcional ausente
+  representa un aporte cero. La generación, el mapeo final, el cálculo de
+  aportes y la compatibilidad de operadores siguen sin habilitarse.
+- La Sentencia C-264/2026 fijó el 1 de abril de 2027 para la entrada en vigor
+  de las disposiciones exequibles que conforman el nuevo sistema pensional.
+  Aunque AT2 v30 describe la distribución de pensión por componentes y el
+  umbral de 2,3 SMLMV, esas reglas no se activan para planillas de 2026 por el
+  solo hecho de aparecer en el formato. El mapeo debe versionar el corte,
+  revisar las disposiciones exceptuadas y revalidar el marco vigente antes de
+  soportar períodos que alcancen abril de 2027.
+- El informe PILA marca ese corte con un bloqueo de exportación si el período
+  o la fecha prevista de pago alcanza 2027-04-01, y señala los campos 46–47.
+  Una planilla de marzo pagada en abril también queda bloqueada hasta resolver
+  la selección de reglas. La prueba solo confirma el guard del hito; no
+  implementa ni valida las nuevas reglas pensionales.

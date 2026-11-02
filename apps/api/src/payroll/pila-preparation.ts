@@ -26,6 +26,7 @@ export interface PilaExportReadinessBlocker {
     | 'PILA_PAYMENT_DATE_REQUIRED'
     | 'PILA_PAYMENT_DATE_SNAPSHOT_INCONSISTENT'
     | 'AT2_HEADER_CCF_IBC_TOTAL_SUPERA_LONGITUD'
+    | 'PILA_PENSION_RULESET_AFTER_2027_NOT_RECONCILED'
     | 'OPERATOR_UPLOAD_NOT_VERIFIED';
   scope: 'FILE_GENERATION' | 'OPERATOR_COMPATIBILITY';
   title: string;
@@ -101,6 +102,7 @@ export interface PilaSnapshotPreparation {
 }
 
 const supportedDocumentTypes = new Set(['CC', 'CE', 'TI', 'PA']);
+const pensionSystemEffectiveDate = '2027-04-01';
 const supportedEmployerDocumentTypes = new Set([
   'NI',
   'CC',
@@ -1299,6 +1301,166 @@ export function inspectPilaSnapshotPreparation(
       );
     }
   }
+  if (root?.schemaVersion === 2) {
+    const rawConceptRows = payroll?.concepts;
+    const conceptRows = Array.isArray(rawConceptRows)
+      ? rawConceptRows
+          .map(object)
+          .filter((row): row is JsonRecord => row !== null)
+      : [];
+    if (
+      !Array.isArray(rawConceptRows) ||
+      rawConceptRows.some((row) => object(row) === null)
+    ) {
+      add(
+        'SNAPSHOT',
+        null,
+        'PILA_CONCEPTO_FILA_NO_VALIDA',
+        'El snapshot v2 debe conservar la lista completa de conceptos como filas válidas.',
+      );
+    }
+    const contributionSources = [
+      {
+        codigo: 'PENSION_EMP',
+        tipo: 'DEDUCTION',
+        required: true,
+        amountField: 47,
+        ibcField: 42,
+        ibcKey: 'pension',
+      },
+      {
+        codigo: 'PENSION_PAT',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        required: true,
+        amountField: 47,
+        ibcField: 42,
+        ibcKey: 'pension',
+      },
+      {
+        codigo: 'SALUD_EMP',
+        tipo: 'DEDUCTION',
+        required: true,
+        amountField: 55,
+        ibcField: 43,
+        ibcKey: 'salud',
+      },
+      {
+        codigo: 'SALUD_PAT',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        required: false,
+        amountField: 55,
+        ibcField: 43,
+        ibcKey: 'salud',
+      },
+      {
+        codigo: 'ARL',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        required: true,
+        amountField: 63,
+        ibcField: 44,
+        ibcKey: 'riesgos',
+      },
+      {
+        codigo: 'CAJA',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        required: true,
+        amountField: 65,
+        ibcField: 45,
+        ibcKey: 'cajaCompensacion',
+      },
+      {
+        codigo: 'SENA',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        required: false,
+        amountField: 67,
+        ibcField: null,
+        ibcKey: null,
+      },
+      {
+        codigo: 'ICBF',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        required: false,
+        amountField: 69,
+        ibcField: null,
+        ibcKey: null,
+      },
+      {
+        codigo: 'FSP',
+        tipo: 'DEDUCTION',
+        required: false,
+        amountField: 51,
+        ibcField: null,
+        ibcKey: null,
+      },
+    ] as const;
+    for (const sourceDefinition of contributionSources) {
+      const matches = conceptRows.filter(
+        (concept) => concept.codigo === sourceDefinition.codigo,
+      );
+      if (matches.length === 0) {
+        if (sourceDefinition.required) {
+          add(
+            detailRecord,
+            sourceDefinition.amountField,
+            `CAMPO_${sourceDefinition.amountField}_FUENTE_CONCEPTO_NO_DISPONIBLE`,
+            `El snapshot v2 no conserva el concepto ${sourceDefinition.codigo} como fuente candidata del aporte.`,
+          );
+        }
+        continue;
+      }
+      if (matches.length > 1) {
+        add(
+          detailRecord,
+          sourceDefinition.amountField,
+          `CAMPO_${sourceDefinition.amountField}_FUENTE_CONCEPTO_DUPLICADA`,
+          `El snapshot v2 conserva más de un concepto ${sourceDefinition.codigo}; no se puede seleccionar una fuente sin ambigüedad.`,
+        );
+        continue;
+      }
+
+      const concept = matches[0];
+      if (concept.tipo !== sourceDefinition.tipo) {
+        add(
+          detailRecord,
+          sourceDefinition.amountField,
+          `CAMPO_${sourceDefinition.amountField}_FUENTE_CONCEPTO_TIPO_INVALIDO`,
+          `El concepto ${sourceDefinition.codigo} no tiene el tipo de nómina esperado para la fuente candidata.`,
+        );
+      }
+      if (
+        !safeInteger(concept.base) ||
+        typeof concept.factor !== 'number' ||
+        !Number.isFinite(concept.factor) ||
+        concept.factor < 0 ||
+        !fitsNumericField(concept.valor, 9)
+      ) {
+        add(
+          detailRecord,
+          sourceDefinition.amountField,
+          `CAMPO_${sourceDefinition.amountField}_FUENTE_CONCEPTO_VALOR_INVALIDO`,
+          `El concepto ${sourceDefinition.codigo} debe conservar base y valor enteros no negativos, valor de hasta nueve posiciones y tarifa numérica finita.`,
+        );
+      }
+      if (sourceDefinition.ibcKey !== null) {
+        const expectedBase = nested(
+          subsystemBases,
+          sourceDefinition.ibcKey,
+        )?.valor;
+        if (
+          safeInteger(concept.base) &&
+          safeInteger(expectedBase) &&
+          concept.base !== expectedBase
+        ) {
+          add(
+            detailRecord,
+            sourceDefinition.ibcField,
+            `CAMPO_${sourceDefinition.ibcField}_FUENTE_CONCEPTO_BASE_NO_COINCIDE`,
+            `La base del concepto ${sourceDefinition.codigo} no coincide con el IBC por subsistema congelado.`,
+          );
+        }
+      }
+    }
+  }
   const employerPilaExemption = employerPila?.aportesExoneradosConfirmado;
   if (typeof employerPilaExemption !== 'boolean') {
     add(
@@ -1386,6 +1548,29 @@ export function buildPilaPreparationReport(input: {
   ].filter(
     (blocker): blocker is PilaExportReadinessBlocker => blocker !== null,
   );
+  const pensionRulesCutoverAffectsPeriod =
+    input.period.fechaInicio.toISOString().slice(0, 10) >=
+      pensionSystemEffectiveDate ||
+    input.period.fechaFin.toISOString().slice(0, 10) >=
+      pensionSystemEffectiveDate ||
+    paymentDates.some(
+      (paymentDate) =>
+        paymentDate !== null && paymentDate >= pensionSystemEffectiveDate,
+    );
+  const pensionRulesBlocker: PilaExportReadinessBlocker | null =
+    pensionRulesCutoverAffectsPeriod
+      ? {
+          code: 'PILA_PENSION_RULESET_AFTER_2027_NOT_RECONCILED',
+          scope: 'FILE_GENERATION',
+          title:
+            'Falta reconciliar las reglas pensionales vigentes desde abril de 2027',
+          message:
+            'El período o su fecha prevista de pago alcanza la entrada en vigor del nuevo sistema pensional. AT2 v30 contiene reglas de distribución entre componentes, pero el producto aún no versiona ni valida ese cálculo. No se debe presentar el preflight como completo para los campos 46 y 47.',
+          fields: [{ record: 'DETALLE_TIPO_2', fieldNumbers: [46, 47] }],
+          evidence:
+            'Sentencia C-264/2026: las disposiciones exequibles que conforman el nuevo sistema entran en vigor el 2027-04-01; AT2 v30, pp. 147–154. La matriz vigente mantiene este mapeo pendiente.',
+        }
+      : null;
   const headerCcfIbcField =
     PILA_AT2_V30_RECORD_LAYOUTS.payrollHeaderType2.fields[19];
   const ccfIbcValues = input.snapshots.map((snapshot) => {
@@ -1421,6 +1606,7 @@ export function buildPilaPreparationReport(input: {
   const readinessBlockers = [
     ...pilaExportReadiness.blockers,
     ...paymentDateBlockers,
+    ...(pensionRulesBlocker ? [pensionRulesBlocker] : []),
     ...(headerCcfIbcBlocker ? [headerCcfIbcBlocker] : []),
   ];
   const exportReadiness =

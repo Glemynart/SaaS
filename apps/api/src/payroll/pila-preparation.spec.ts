@@ -90,6 +90,83 @@ function payload() {
   };
 }
 
+function payloadV2() {
+  const source = payload();
+  return {
+    ...source,
+    schemaVersion: 2,
+    payroll: {
+      ...source.payroll,
+      concepts: [
+        {
+          conceptId: 'pension-employee',
+          codigo: 'PENSION_EMP',
+          tipo: 'DEDUCTION',
+          base: 3_000_000,
+          factor: 0.04,
+          valor: 120_000,
+        },
+        {
+          conceptId: 'pension-employer',
+          codigo: 'PENSION_PAT',
+          tipo: 'EMPLOYER_CONTRIBUTION',
+          base: 3_000_000,
+          factor: 0.12,
+          valor: 360_000,
+        },
+        {
+          conceptId: 'health-employee',
+          codigo: 'SALUD_EMP',
+          tipo: 'DEDUCTION',
+          base: 3_000_000,
+          factor: 0.04,
+          valor: 120_000,
+        },
+        {
+          conceptId: 'health-employer',
+          codigo: 'SALUD_PAT',
+          tipo: 'EMPLOYER_CONTRIBUTION',
+          base: 3_000_000,
+          factor: 0.085,
+          valor: 255_000,
+        },
+        {
+          conceptId: 'risk',
+          codigo: 'ARL',
+          tipo: 'EMPLOYER_CONTRIBUTION',
+          base: 3_000_000,
+          factor: 0.00522,
+          valor: 15_660,
+        },
+        {
+          conceptId: 'compensation-fund',
+          codigo: 'CAJA',
+          tipo: 'EMPLOYER_CONTRIBUTION',
+          base: 3_000_000,
+          factor: 0.04,
+          valor: 120_000,
+        },
+        {
+          conceptId: 'sena',
+          codigo: 'SENA',
+          tipo: 'EMPLOYER_CONTRIBUTION',
+          base: 3_000_000,
+          factor: 0.02,
+          valor: 60_000,
+        },
+        {
+          conceptId: 'icbf',
+          codigo: 'ICBF',
+          tipo: 'EMPLOYER_CONTRIBUTION',
+          base: 3_000_000,
+          factor: 0.03,
+          valor: 90_000,
+        },
+      ],
+    },
+  };
+}
+
 function snapshot(
   employeeId: string,
   employeeName: string,
@@ -120,6 +197,126 @@ describe('inspectPilaSnapshotPreparation', () => {
         record: 'SNAPSHOT',
       }),
     ]);
+  });
+
+  it('acepta fuentes de conceptos PILA completas y coherentes en snapshots v2', () => {
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 2,
+      payload: payloadV2(),
+    });
+
+    expect(
+      result.issues.filter(({ code }) => code.includes('FUENTE_CONCEPTO')),
+    ).toEqual([]);
+  });
+
+  it('bloquea la fuente obligatoria de aporte ausente en snapshot v2', () => {
+    const source = payloadV2();
+    source.payroll.concepts = source.payroll.concepts.filter(
+      ({ codigo }) => codigo !== 'ARL',
+    );
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 2,
+      payload: source,
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        fieldNumber: 63,
+        code: 'CAMPO_63_FUENTE_CONCEPTO_NO_DISPONIBLE',
+      }),
+    );
+  });
+
+  it('bloquea filas de conceptos malformadas en snapshot v2', () => {
+    const source = payloadV2();
+    (source.payroll.concepts as unknown[]).push(null);
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 2,
+      payload: source,
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'SNAPSHOT',
+        code: 'PILA_CONCEPTO_FILA_NO_VALIDA',
+      }),
+    );
+  });
+
+  it('bloquea fuentes de conceptos duplicadas en snapshots v2', () => {
+    const source = payloadV2();
+    const caja = source.payroll.concepts.find(
+      ({ codigo }) => codigo === 'CAJA',
+    )!;
+    caja.base = 2_900_000;
+    source.payroll.concepts.push({ ...caja });
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 2,
+      payload: source,
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        fieldNumber: 65,
+        code: 'CAMPO_65_FUENTE_CONCEPTO_DUPLICADA',
+      }),
+    );
+  });
+
+  it('bloquea la base del concepto cuando no coincide con el IBC del subsistema', () => {
+    const source = payloadV2();
+    const pension = source.payroll.concepts.find(
+      ({ codigo }) => codigo === 'PENSION_EMP',
+    )!;
+    pension.base = 2_900_000;
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 2,
+      payload: source,
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        fieldNumber: 42,
+        code: 'CAMPO_42_FUENTE_CONCEPTO_BASE_NO_COINCIDE',
+      }),
+    );
+  });
+
+  it('bloquea tipo o valores candidatos inválidos en el concepto de aporte', () => {
+    const source = payloadV2();
+    const arl = source.payroll.concepts.find(({ codigo }) => codigo === 'ARL')!;
+    arl.tipo = 'DEDUCTION';
+    arl.factor = -0.1;
+    arl.valor = 1_000_000_000;
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 2,
+      payload: source,
+    });
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldNumber: 63,
+          code: 'CAMPO_63_FUENTE_CONCEPTO_TIPO_INVALIDO',
+        }),
+        expect.objectContaining({
+          fieldNumber: 63,
+          code: 'CAMPO_63_FUENTE_CONCEPTO_VALOR_INVALIDO',
+        }),
+      ]),
+    );
   });
 
   it('bloquea ubicación PILA basada solo en sede y detecta centro y actividad ARL pendientes', () => {
@@ -1361,6 +1558,11 @@ describe('inspectPilaSnapshotPreparation', () => {
     expect(report.exportReadiness.blockers).not.toContainEqual(
       expect.objectContaining({ code: 'PILA_PAYMENT_DATE_REQUIRED' }),
     );
+    expect(report.exportReadiness.blockers).not.toContainEqual(
+      expect.objectContaining({
+        code: 'PILA_PENSION_RULESET_AFTER_2027_NOT_RECONCILED',
+      }),
+    );
     expect(report.period.fechaPrevistaPagoPila).toBe('2026-11-06');
     expect(report.issues).toEqual(
       expect.arrayContaining([
@@ -1427,6 +1629,42 @@ describe('inspectPilaSnapshotPreparation', () => {
       }),
     );
   });
+
+  it.each([
+    ['marzo pagado en marzo', '2027-03-01', '2027-03-31', '2027-03-06', false],
+    ['abril pagado en mayo', '2027-04-01', '2027-04-30', '2027-05-06', true],
+    ['marzo pagado en abril', '2027-03-01', '2027-03-31', '2027-04-06', true],
+    [
+      'período que cruza abril aunque comience y se pague antes',
+      '2027-03-15',
+      '2027-04-15',
+      '2027-03-31',
+      true,
+    ],
+  ])(
+    'aplica el bloqueo de reglas pensionales según el período y pago (%s)',
+    (_, fechaInicio, fechaFin, fechaPrevistaPagoPila, shouldBlock) => {
+      const payrollSnapshot = snapshot('employee-1', 'Ana');
+      const source = payrollSnapshot.payload as ReturnType<typeof payload>;
+      source.period.fechaInicio = fechaInicio;
+      source.period.fechaFin = fechaFin;
+      source.payroll.fechaPrevistaPagoPila = fechaPrevistaPagoPila;
+
+      const report = buildPilaPreparationReport({
+        period: {
+          id: 'period-1',
+          fechaInicio: new Date(`${fechaInicio}T00:00:00.000Z`),
+          fechaFin: new Date(`${fechaFin}T00:00:00.000Z`),
+        },
+        snapshots: [payrollSnapshot],
+      });
+
+      const matchingBlockers = report.exportReadiness.blockers.filter(
+        ({ code }) => code === 'PILA_PENSION_RULESET_AFTER_2027_NOT_RECONCILED',
+      );
+      expect(matchingBlockers).toHaveLength(shouldBlock ? 1 : 0);
+    },
+  );
 
   it('exige fecha prevista válida en cada snapshot aprobado', () => {
     const missingDate = snapshot('employee-1', 'Ana');
