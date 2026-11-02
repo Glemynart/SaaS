@@ -2001,8 +2001,8 @@ describe('inspectPilaSnapshotPreparation', () => {
         }),
         expect.objectContaining({
           fieldNumber: 22,
-          candidateEmployees: 0,
-          pendingEmployees: 2,
+          candidateEmployees: 2,
+          pendingEmployees: 0,
         }),
         expect.objectContaining({
           fieldNumber: 28,

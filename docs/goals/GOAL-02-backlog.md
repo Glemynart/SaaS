@@ -949,3 +949,19 @@ false`.
 - **GOAL ACTIVO:** GOAL-02; GOAL-01 permanece pausado. **ARQUITECTURA
   DISPONIBLE:** preflight y matriz AT2 v30 versionados; el exportador PILA y
   las pruebas de carga en operadores siguen pendientes.
+
+### Planilla E, campo 22 — 2026-11-02
+
+- PR #219 se fusionó en `main` como `884ae55`. Agrega la ubicación laboral
+  PILA con vigencias, separada de sede y ARL, y la congela en nuevos snapshots
+  PILA v3. Los campos 9–10 solo reciben candidatos cuando una ubicación y una
+  afiliación CCF con departamento coincidente cubren todo el período; los
+  snapshots históricos v1/v2 no se completan. Esto no genera archivos ni
+  prueba carga de operador.
+- La cabecera candidata del MVP fija planilla E. AT2 v30 limita el campo 22 a
+  planillas N de corrección y exige blanco para otros tipos; el detalle propone
+  blanco versionado para E. Planilla N y sus grupos A/C siguen fuera del MVP;
+  el campo 28, eventos y otras brechas continúan pendientes.
+- `archivoGenerable` permanece falso y `estadoArchivo` en
+  `NO_IMPLEMENTADO`. No se habilita descarga ni se afirma compatibilidad con
+  operadores.
