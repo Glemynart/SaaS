@@ -74,6 +74,12 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
     has: page.getByRole('heading', { name: 'Nueva afiliación' }),
   });
   await affiliationForm.getByRole('combobox', { name: /^Tipo de cotizante/ }).selectOption('01');
+  expect(
+    await affiliationForm
+      .getByLabel('Subtipo de cotizante')
+      .evaluate((element) => (element as HTMLInputElement).required),
+  ).toBe(true);
+  await affiliationForm.getByLabel('Subtipo de cotizante').fill('00');
   await affiliationForm.getByLabel('Vigente desde').fill('2026-01-01');
   await affiliationForm.getByLabel('Código EPS').fill('EPS001');
   await affiliationForm.getByLabel('Nombre EPS').fill('EPS Demo');
@@ -84,6 +90,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await affiliationForm.getByLabel('Clase de riesgo ARL').selectOption('1');
   await affiliationForm.getByLabel('Código Caja de compensación').fill('CCF001');
   await affiliationForm.getByLabel('Nombre Caja de compensación').fill('Caja Demo');
+  await affiliationForm.getByLabel('¿Es colombiano en el exterior?').selectOption('false');
   await affiliationForm.getByRole('button', { name: 'Guardar afiliación' }).click();
 
   await expect(page.getByText('EPS Demo')).toBeVisible();
@@ -93,6 +100,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
     has: page.getByRole('heading', { name: 'Nueva afiliación' }),
   });
   await replacementForm.getByRole('combobox', { name: 'Tipo de cotizante' }).selectOption('01');
+  await replacementForm.getByLabel('Subtipo de cotizante').fill('00');
   await replacementForm.getByLabel('Vigente desde').fill('2026-04-01');
   await replacementForm.getByLabel('Código EPS').fill('EPS002');
   await replacementForm.getByLabel('Nombre EPS').fill('EPS Nueva');
@@ -103,6 +111,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await replacementForm.getByRole('combobox', { name: 'Clase de riesgo ARL' }).selectOption('1');
   await replacementForm.getByLabel('Código Caja de compensación').fill('CCF001');
   await replacementForm.getByLabel('Nombre Caja de compensación').fill('Caja Demo');
+  await replacementForm.getByLabel('¿Es colombiano en el exterior?').selectOption('false');
   await replacementForm.getByRole('button', { name: 'Guardar afiliación' }).click();
 
   await expect(page.getByText('EPS Nueva')).toBeVisible();
