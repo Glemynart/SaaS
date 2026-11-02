@@ -1491,6 +1491,13 @@ describe('inspectPilaSnapshotPreparation', () => {
     ['marzo pagado en marzo', '2027-03-01', '2027-03-31', '2027-03-06', false],
     ['abril pagado en mayo', '2027-04-01', '2027-04-30', '2027-05-06', true],
     ['marzo pagado en abril', '2027-03-01', '2027-03-31', '2027-04-06', true],
+    [
+      'período que cruza abril aunque comience y se pague antes',
+      '2027-03-15',
+      '2027-04-15',
+      '2027-03-31',
+      true,
+    ],
   ])(
     'aplica el bloqueo de reglas pensionales según el período y pago (%s)',
     (_, fechaInicio, fechaFin, fechaPrevistaPagoPila, shouldBlock) => {

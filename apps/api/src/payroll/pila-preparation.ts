@@ -1531,6 +1531,8 @@ export function buildPilaPreparationReport(input: {
   const pensionRulesCutoverAffectsPeriod =
     input.period.fechaInicio.toISOString().slice(0, 10) >=
       pensionSystemEffectiveDate ||
+    input.period.fechaFin.toISOString().slice(0, 10) >=
+      pensionSystemEffectiveDate ||
     paymentDates.some(
       (paymentDate) =>
         paymentDate !== null && paymentDate >= pensionSystemEffectiveDate,
