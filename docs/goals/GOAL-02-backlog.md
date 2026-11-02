@@ -901,8 +901,9 @@ false`.
   (301 pruebas) y 2 suites web (10 pruebas), typecheck API/web, ESLint API/web,
   validación de Prisma y formato. La validación de Prisma usó una URL ficticia
   sin conectarse a una base de datos.
-- El nuevo head de #213 quedó con `verify` y `browser` en cola y Vercel Preview
-  pendiente; debe terminar verde antes de merge.
+- El head previo `1f9815f` superó CI, Browser E2E y Vercel Preview. Tras
+  sincronizar la rama con `main` (`0083cd9`), el nuevo head debe superar de
+  nuevo los tres checks antes del merge.
 - **GOAL ACTIVO:** GOAL-02; GOAL-01 permanece pausado. **IMPLEMENTACIÓN
   BLOQUEADA:** ninguna; el merge espera checks remotos de cada head consolidado.
   **ARQUITECTURA DISPONIBLE:** ADR-013, mapper AT2 v30 y matriz versionada; no
@@ -941,9 +942,10 @@ false`.
   candidato para la primera prueba (inferencia). Esto no aporta una muestra
   aceptada ni demuestra compatibilidad; hace falta cargar el archivo en una
   cuenta de prueba y conservar el resultado.
-- La rama #218 se sincroniza sobre el nuevo head de #213 para conservar su
-  alcance independiente; sus checks remotos se solicitarán tras publicar la
-  actualización.
+- Las correcciones originadas en #218 se incorporaron por fast-forward a la
+  rama de #213; #218 se cerró como consolidada allí, sin integrarse en `main` de
+  forma independiente. La rama de #213 ya se sincronizó directamente con
+  `main` (`0083cd9`) y sus checks deben correr sobre el nuevo head.
 - **GOAL ACTIVO:** GOAL-02; GOAL-01 permanece pausado. **ARQUITECTURA
   DISPONIBLE:** preflight y matriz AT2 v30 versionados; el exportador PILA y
   las pruebas de carga en operadores siguen pendientes.
