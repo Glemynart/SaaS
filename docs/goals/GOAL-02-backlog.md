@@ -406,3 +406,9 @@ se accedió a demo, staging o producción.
 - La sede operativa y su municipio DIVIPOLA no prueban la ubicación laboral
   PILA de los campos 9–10 del AT2. PR #182 los bloquea hasta contar con una
   fuente PILA explícita, confirmada y congelada; el archivo sigue sin generarse.
+
+- ADR-015 fue aprobada el 2026-11-02: ubicación laboral PILA histórica por
+  empleado, independiente de la sede y del centro ARL, con vigencias y auditoría,
+  congelada en el snapshot de nómina. El MVP bloquea campos 9–10 si no hay una
+  sola ubicación que cubra todo el período; no hay backfill ni exportación,
+  transmisión o compatibilidad con operadores.
