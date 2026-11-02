@@ -67,15 +67,18 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
 
   try {
     await prisma.$connect();
-    const payrollVoucherType = await prisma.tipoComprobante.findUnique({
-      where: { codigo: 'NOM' },
-    });
-    if (!payrollVoucherType) {
-      await prisma.tipoComprobante.create({
-        data: { codigo: 'NOM', nombre: 'Comprobante de nómina', prefijo: 'NOM' },
+    for (const voucherType of [
+      { codigo: 'NOM', nombre: 'Comprobante de nómina', prefijo: 'NOM' },
+      { codigo: 'FV', nombre: 'Factura de venta', prefijo: 'FV' },
+    ]) {
+      const existingVoucherType = await prisma.tipoComprobante.findUnique({
+        where: { codigo: voucherType.codigo },
       });
-    } else {
-      expect(payrollVoucherType.activo).toBe(true);
+      if (!existingVoucherType) {
+        await prisma.tipoComprobante.create({ data: voucherType });
+      } else {
+        expect(existingVoucherType.activo).toBe(true);
+      }
     }
     await prisma.tenant.create({
       data: {
@@ -110,12 +113,12 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
       invoices: 3,
       invoiceItems: 4,
       employees: 1,
-      thirdParties: 1,
+      thirdParties: 3,
       costCenters: 1,
       payrollPeriods: 1,
       payrollRuns: 1,
       payrollSnapshots: 1,
-      accountMaps: 20,
+      accountMaps: 23,
     });
 
     const second = await seedAsExplicitTarget(tenant.id, user.id);
@@ -139,8 +142,12 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
         accounts,
         accountMaps,
         vouchers,
+        invoiceVouchers,
       ] = await Promise.all([
-        tx.customer.findMany({ where: { tenantId: tenant.id } }),
+        tx.customer.findMany({
+          where: { tenantId: tenant.id },
+          include: { tercero: true },
+        }),
         tx.productService.findMany({ where: { tenantId: tenant.id } }),
         tx.invoice.findMany({
           where: { tenantId: tenant.id },
@@ -168,6 +175,17 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
             movimientos: { include: { cuenta: true } },
           },
         }),
+        tx.comprobanteContable.findMany({
+          where: {
+            tenantId: tenant.id,
+            origenTipo: 'BILLING_INVOICE',
+            origenEvento: 'ISSUED',
+            estado: 'CONTABILIZADO',
+          },
+          include: {
+            movimientos: { include: { cuenta: true } },
+          },
+        }),
       ]);
       return {
         customers,
@@ -183,6 +201,7 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
         accounts,
         accountMaps,
         vouchers,
+        invoiceVouchers,
       };
     });
 
@@ -190,8 +209,8 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
     expect(targetData.products).toHaveLength(3);
     expect(targetData.invoices).toHaveLength(3);
     expect(targetData.invoices.map((invoice: any) => invoice.status)).toEqual([
-      'DRAFT',
-      'DRAFT',
+      'ISSUED',
+      'ISSUED',
       'DRAFT',
     ]);
     expect(Number(targetData.invoices[0].subtotal)).toBe(240_000);
@@ -200,17 +219,34 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
     expect(Number(targetData.invoices[0].items[0].porcentajeImpuesto)).toBe(19);
     expect(Number(targetData.invoices[0].items[0].valorImpuesto)).toBe(45_600);
     expect(targetData.employees).toHaveLength(1);
-    expect(targetData.thirdParties).toHaveLength(1);
-    expect(targetData.thirdParties[0]).toMatchObject({
+    expect(
+      targetData.customers.every(
+        (customer: any) =>
+          customer.terceroId === customer.tercero?.id &&
+          customer.tercero?.tenantId === tenant.id &&
+          customer.tercero?.tipoDocumento === 'NIT' &&
+          customer.tercero?.numeroDocumento === customer.nit &&
+          customer.tercero?.esCliente === true &&
+          customer.tercero?.activo === true,
+      ),
+    ).toBe(true);
+    expect(targetData.thirdParties).toHaveLength(3);
+    const payrollThirdParty = targetData.thirdParties.find(
+      (thirdParty: any) => thirdParty.esEmpleado,
+    );
+    expect(payrollThirdParty).toMatchObject({
       numeroDocumento: 'DEMO-EMP-001',
       esEmpleado: true,
     });
+    expect(targetData.thirdParties.filter((thirdParty: any) => thirdParty.esCliente)).toHaveLength(
+      2,
+    );
     expect(targetData.costCenters).toHaveLength(1);
     expect(targetData.costCenters[0]).toMatchObject({ codigo: 'DEMO-NOMINA' });
     expect(targetData.periods).toHaveLength(1);
     expect(targetData.accountingPeriods.length).toBeGreaterThan(0);
     expect(targetData.accounts.length).toBeGreaterThan(0);
-    expect(targetData.accountMaps).toHaveLength(20);
+    expect(targetData.accountMaps).toHaveLength(23);
     expect(targetData.periods[0].status).toBe('CAUSADA');
     expect(targetData.runs).toHaveLength(1);
     expect(targetData.snapshots).toHaveLength(1);
@@ -226,12 +262,41 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
       targetData.vouchers[0].movimientos.find(
         (movement: any) => movement.cuenta.codigo === '250505',
       )?.terceroId,
-    ).toBe(targetData.thirdParties[0].id);
+    ).toBe(payrollThirdParty.id);
     expect(
       targetData.vouchers[0].movimientos.find(
         (movement: any) => movement.cuenta.codigo === '510506',
       )?.centroCostoId,
     ).toBe(targetData.costCenters[0].id);
+
+    expect(targetData.invoiceVouchers).toHaveLength(2);
+    const issuedInvoiceIds = targetData.invoices
+      .filter((invoice: any) => invoice.status === 'ISSUED')
+      .map((invoice: any) => invoice.id)
+      .sort();
+    expect(targetData.invoiceVouchers.map((voucher: any) => voucher.origenId).sort()).toEqual(
+      issuedInvoiceIds,
+    );
+    for (const invoiceVoucher of targetData.invoiceVouchers) {
+      expect(Number(invoiceVoucher.totalDebito)).toBe(Number(invoiceVoucher.totalCredito));
+      const invoice = targetData.invoices.find((row: any) => row.id === invoiceVoucher.origenId);
+      const customer = targetData.customers.find((row: any) => row.id === invoice.customerId);
+      expect(new Date(invoice.fechaEmision).toISOString().slice(0, 10)).toBe(
+        new Date(invoiceVoucher.fecha).toISOString().slice(0, 10),
+      );
+      expect(
+        invoiceVoucher.movimientos.some(
+          (movement: any) =>
+            movement.cuenta.codigo === '130505' && movement.terceroId === customer.terceroId,
+        ),
+      ).toBe(true);
+      expect(
+        invoiceVoucher.movimientos.some((movement: any) => movement.cuenta.codigo === '413505'),
+      ).toBe(true);
+      expect(
+        invoiceVoucher.movimientos.some((movement: any) => movement.cuenta.codigo === '240805'),
+      ).toBe(true);
+    }
 
     const foreignTenantCounts = await prisma.$transaction(async (tx: any) => {
       await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${otherTenantId}, true)`;
@@ -289,6 +354,11 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
     await page.goto('/facturacion/facturas');
     await expect(page.getByRole('link', { name: /^DEMO-\d{4}-001$/ })).toBeVisible();
     await expect(page.getByRole('link', { name: /^DEMO-\d{4}-003$/ })).toBeVisible();
+    await page.getByRole('link', { name: /^DEMO-\d{4}-001$/ }).click();
+    const invoiceAccounting = page.locator('section').filter({
+      hasText: 'Contabilización interna',
+    });
+    await expect(invoiceAccounting.getByText(/· CONTABILIZADO/)).toBeVisible();
 
     await page.goto(`/nomina/periodos/${first.payrollPeriodId}`);
     await expect(page.getByRole('heading', { name: /^DEMO Nómina / })).toBeVisible();
