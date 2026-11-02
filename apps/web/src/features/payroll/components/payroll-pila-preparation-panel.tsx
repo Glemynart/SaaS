@@ -566,12 +566,13 @@ export function PayrollPilaPreparationPanel({
             aria-labelledby="pila-absent-event-fields-title"
           >
             <h3 id="pila-absent-event-fields-title" className="font-medium">
-              Campos de novedad sin evento registrado
+              Eventos y particularidades de planilla
             </h3>
             <p className="mt-1 text-sm text-muted-foreground">
               Para snapshots completos sin eventos PILA ni novedades Payroll se proponen los blancos
-              y el cero definidos por AT2 v30. La corrección de planilla (22) y el aporte voluntario
-              a pensión (28) siguen pendientes por falta de fuentes congeladas. Este informe no
+              y el cero definidos por AT2 v30. Como el MVP usa planilla E, el campo 22 se propone
+              vacío; las correcciones de planilla N quedan fuera de alcance. El aporte voluntario a
+              pensión (28) sigue pendiente por falta de una fuente congelada. Este informe no
               habilita la descarga del archivo.
             </p>
             <details className="mt-3 rounded-md bg-muted/40 px-3 py-2">

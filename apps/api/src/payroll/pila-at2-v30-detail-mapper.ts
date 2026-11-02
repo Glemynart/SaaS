@@ -45,6 +45,8 @@ const PILA_AT2_V30_NO_BENEFIT_EVENT_FIELDS_RULE_VERSION =
   'AT2_V30_NO_IGE_LMA_FIXED_FIELDS_V1' as const;
 const PILA_AT2_V30_NO_EVENT_NOVELTY_FIELDS_RULE_VERSION =
   'AT2_V30_NO_EVENT_NOVELTY_FIELDS_V1' as const;
+const PILA_AT2_V30_PLANILLA_E_FIELD_22_RULE_VERSION =
+  'AT2_V30_PLANILLA_E_FIELD_22_BLANK_V1' as const;
 const PILA_AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_RULE_VERSION =
   'AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_V1' as const;
 const PILA_AT2_V30_NON_COTIZANTE40_PRINCIPAL_FIELDS_RULE_VERSION =
@@ -85,6 +87,9 @@ export interface PilaAt2V30DetailCandidate {
   tenantId: string | null;
   payrollPeriodId: string | null;
   normativeRuleVersions: {
+    planillaEField22:
+      | typeof PILA_AT2_V30_PLANILLA_E_FIELD_22_RULE_VERSION
+      | null;
     arlInitialRate: typeof PILA_ARL_INITIAL_RATE_RULE_VERSION | null;
     contributionRounding: typeof PILA_CONTRIBUTION_ROUNDING_RULE_VERSION | null;
     ccfRate: typeof PILA_CCF_STANDARD_RATE_RULE_VERSION | null;
@@ -117,6 +122,7 @@ export interface PilaAt2V30DetailCandidate {
 
 export interface PilaAt2V30DetailScope {
   expectedTenantId: string | null;
+  planillaType: string | null;
   period: {
     id: string;
     fechaInicio: Date;
@@ -306,6 +312,7 @@ export function mapPilaAt2V30DetailCandidate(
       tenantId: matchesApprovedScope ? expectedTenantId : null,
       payrollPeriodId: matchesApprovedScope ? scope.period.id : null,
       normativeRuleVersions: {
+        planillaEField22: null,
         arlInitialRate: null,
         contributionRounding: null,
         ccfRate: null,
@@ -625,10 +632,14 @@ export function mapPilaAt2V30DetailCandidate(
       unresolved(fieldNumber, reason);
     }
   }
-  unresolved(
-    22,
-    'Falta una fuente congelada que declare si el registro corresponde a una corrección de planilla; no se infiere desde la ausencia de eventos Payroll.',
-  );
+  if (scope.planillaType === 'E') {
+    blank(22);
+  } else {
+    unresolved(
+      22,
+      'Solo se admite planilla E en el MVP; el tipo N de correcciones no se genera.',
+    );
+  }
   unresolved(
     28,
     'No hay una fuente congelada para el aporte voluntario del afiliado a pensión; la ausencia de eventos no prueba que el valor sea cero.',
@@ -1427,6 +1438,10 @@ export function mapPilaAt2V30DetailCandidate(
     tenantId,
     payrollPeriodId,
     normativeRuleVersions: {
+      planillaEField22:
+        scope.planillaType === 'E'
+          ? PILA_AT2_V30_PLANILLA_E_FIELD_22_RULE_VERSION
+          : null,
       arlInitialRate: arlRateByClass
         ? PILA_ARL_INITIAL_RATE_RULE_VERSION
         : null,

@@ -1806,6 +1806,10 @@ export function buildPilaPreparationReport(input: {
   ).size;
   const detailScope = {
     expectedTenantId: input.tenantId ?? null,
+    planillaType:
+      typeof headerCandidate.values[8]?.value === 'string'
+        ? headerCandidate.values[8].value
+        : null,
     period: input.period,
   };
   const detailCandidatesBySnapshot = new Map(

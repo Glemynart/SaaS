@@ -311,9 +311,13 @@ const invalidRiskAssignmentCases: Array<{
     },
   },
 ];
-function mapCandidate(input: PilaSnapshotPreparationInput) {
+function mapCandidate(
+  input: PilaSnapshotPreparationInput,
+  planillaType: string | null = 'E',
+) {
   return mapPilaAt2V30DetailCandidate(input, {
     expectedTenantId: 'tenant-1',
+    planillaType,
     period: {
       id: 'period-1',
       fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
@@ -493,6 +497,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
 
       const candidate = mapPilaAt2V30DetailCandidate(input, {
         expectedTenantId: 'tenant-1',
+        planillaType: 'E',
         period: {
           id: 'period-1',
           fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
@@ -548,13 +553,16 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       });
     }
     expect(candidate.values[30]).toEqual({ value: 0 });
-    expect(candidate.values[22]).toBeUndefined();
+    expect(candidate.values[22]).toEqual({ value: null, emptyAs: 'spaces' });
     expect(candidate.values[28]).toBeUndefined();
     expect(candidate.unresolvedFields).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ fieldNumber: 22 }),
-        expect.objectContaining({ fieldNumber: 28 }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ fieldNumber: 28 })]),
+    );
+    expect(candidate.unresolvedFields).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ fieldNumber: 22 })]),
+    );
+    expect(candidate.normativeRuleVersions.planillaEField22).toBe(
+      'AT2_V30_PLANILLA_E_FIELD_22_BLANK_V1',
     );
     expect(candidate.normativeRuleVersions.noEventNoveltyFields).toBe(
       'AT2_V30_NO_EVENT_NOVELTY_FIELDS_V1',
@@ -713,22 +721,33 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     ]) {
       expect(candidate.values[fieldNumber]).toBeUndefined();
     }
+    expect(candidate.values[22]).toEqual({ value: null, emptyAs: 'spaces' });
     expect(candidate.normativeRuleVersions.noEventNoveltyFields).toBeNull();
   });
 
-  it('does not treat corrections or voluntary pension contributions as absent', () => {
+  it('leaves the standard planilla E correction field blank and voluntary contributions pending', () => {
     const candidate = mapCandidate(snapshot());
 
-    expect(candidate.values[22]).toBeUndefined();
+    expect(candidate.values[22]).toEqual({ value: null, emptyAs: 'spaces' });
     expect(candidate.values[28]).toBeUndefined();
     expect(
-      candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 22)
-        ?.reason,
-    ).toContain('corrección de planilla');
+      candidate.unresolvedFields.some(({ fieldNumber }) => fieldNumber === 22),
+    ).toBe(false);
     expect(
       candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 28)
         ?.reason,
     ).toContain('aporte voluntario');
+  });
+
+  it('does not propose a correction field for unsupported planilla types', () => {
+    const candidate = mapCandidate(snapshot(), 'N');
+
+    expect(candidate.values[22]).toBeUndefined();
+    expect(
+      candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 22)
+        ?.reason,
+    ).toContain('tipo N de correcciones no se genera');
+    expect(candidate.normativeRuleVersions.planillaEField22).toBeNull();
   });
 
   it('keeps unsupported voluntary and FSP amounts pending with source reasons', () => {
