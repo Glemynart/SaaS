@@ -86,7 +86,7 @@ export interface CuentaSistemaMapUpdatePayload {
   activo?: boolean;
 }
 
-export type TipoDocumentoTercero = 'CC' | 'CE' | 'TI' | 'PA' | 'NIT' | 'PEP' | 'PPT';
+export type TipoDocumentoTercero = 'CC' | 'CE' | 'TI' | 'PA' | 'NIT' | 'PEP' | 'PPT' | 'PC';
 export type TipoPersona = 'NATURAL' | 'JURIDICA';
 
 export interface Tercero {

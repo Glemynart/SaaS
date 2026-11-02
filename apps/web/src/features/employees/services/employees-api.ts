@@ -4,7 +4,7 @@ export interface Employee {
   id: string;
   tenantId: string;
   cedula: string;
-  tipoDocumento: 'CC' | 'CE' | 'TI' | 'PA' | 'NIT' | 'PEP' | 'PPT';
+  tipoDocumento: 'CC' | 'CE' | 'TI' | 'PA' | 'NIT' | 'PEP' | 'PPT' | 'PC';
   primerNombre: string;
   segundoNombre: string | null;
   primerApellido: string;

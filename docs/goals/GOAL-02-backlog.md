@@ -881,6 +881,71 @@ false`.
   `PILA-AT2-52`. La
   descarga sigue deshabilitada y este cambio no afirma compatibilidad con un
   operador.
-- Esta continuación se incorporó a la consolidación PILA de #209–#213 sobre
-  #207. El nuevo head consolidado debe volver a superar CI, Browser E2E y preview
-  antes de cualquier merge.
+- **Estado de consolidación (2026-11-02):** #212 reúne el preflight de #209–#212
+  sobre #207; #213 añade el soporte de identidad PEP-TUTOR sobre #212; #218 se
+  mantiene como corrección posterior sobre #213. Las ramas previas se conservan
+  y los heads consolidados deben superar sus propios checks antes de merge.
+
+### Documento PEP-TUTOR en empleados y preflight PILA — PR #213 — 2026-10-31
+
+- La Resolución 1319 de 2026 reconoce el código documental `PC` para
+  PEP-TUTOR y exige un número numérico de 7–8 dígitos. La Resolución 1529 de
+  2026 incorpora el tipo documental a las validaciones PILA. El código `PC`
+  queda disponible en alta, importación Excel, terceros y snapshots nuevos;
+  no se convierte información histórica desde PEP o PPT.
+- Formularios, DTOs y Excel rechazan números `PC` fuera del rango. PILA
+  propone únicamente los campos 3–4; 7–8 y 46–47 siguen pendientes por falta
+  de reglas aprobadas de clasificación pensional. La descarga del archivo no
+  se habilita. La matriz añade `PILA-AT2-53`.
+- Verificación local de la cadena consolidada #212–#213: 7 suites API
+  (301 pruebas) y 2 suites web (10 pruebas), typecheck API/web, ESLint API/web,
+  validación de Prisma y formato. La validación de Prisma usó una URL ficticia
+  sin conectarse a una base de datos.
+- El head previo `1f9815f` superó CI, Browser E2E y Vercel Preview. Tras
+  sincronizar la rama con `main` (`0083cd9`), el nuevo head debe superar de
+  nuevo los tres checks antes del merge.
+- **GOAL ACTIVO:** GOAL-02; GOAL-01 permanece pausado. **IMPLEMENTACIÓN
+  BLOQUEADA:** ninguna; el merge espera checks remotos de cada head consolidado.
+  **ARQUITECTURA DISPONIBLE:** ADR-013, mapper AT2 v30 y matriz versionada; no
+  hay exportación PILA ni compatibilidad con operadores habilitadas.
+
+### Validación de identidad PEP-TUTOR y días PILA — PR #218 — 2026-10-31
+
+- Se amplió `pila-source-snapshot.spec.ts` para probar meses calendario de 28,
+  29, 30 y 31 días con empleo, contrato y afiliación vigentes durante todo el
+  período. Los cuatro subsistemas deben conservar 30 días; un período parcial
+  no recibe un candidato.
+- La revisión del alta PEP-TUTOR encontró que `PATCH /employees/:id` podía
+  cambiar el tipo a `PC` conservando un número incompatible o modificar el
+  número sin enviar el tipo. `UpdateEmployeeDto` y `EmployeesService` validan
+  ahora el par efectivo al cambiar cualquiera de los dos campos y rechazan el
+  update antes de escribir.
+- La matriz añade `PILA-AT2-54` y precisa `PILA-AT2-53`: la Resolución 1319
+  define el documento PEP-TUTOR numérico de 7–8 dígitos; el campo 4 del
+  registro tipo 2 de AT2 v30 admite hasta 16. La validación del documento
+  existente permanece en 7–8; no se truncan ni se transforman IDs.
+- El Browser E2E de empleados ahora cambia desde la UI el documento a un `PC`
+  válido, guarda y confirma el valor después de recargar. Ese recorrido detectó
+  que una recarga de sedes podía dejar vacía la sede asignada en el formulario;
+  `EmployeeForm` ahora restaura la sede activa después de cargar las opciones y
+  respeta una selección que el usuario ya haya cambiado. El E2E dirigido había
+  pasado (1/1) sobre PostgreSQL 16 descartable en una revisión anterior.
+- Verificación local del árbol #218 sincronizado: 4 suites API (64 pruebas),
+  1 suite web (5 pruebas), typecheck y ESLint API/web, `prisma validate`,
+  Prettier y `git diff --check`. Los checks remotos deben validar el head
+  actualizado; no se habilita descarga PILA ni se declara compatibilidad.
+- La información empresarial pública de [SOI](https://www.soi.com.co/contactenos)
+  ofrece liquidación y soporte por archivo plano a empresas de 50–200 empleados;
+  su [guía de liquidación](https://www.soi.com.co/empresa-como-hacer-y-pagar-la-planilla)
+  confirma el cargue de un archivo plano para crear la planilla de pago. El
+  escenario demo de 100 empleados cae en ese rango, por lo que SOI sigue siendo
+  candidato para la primera prueba (inferencia). Esto no aporta una muestra
+  aceptada ni demuestra compatibilidad; hace falta cargar el archivo en una
+  cuenta de prueba y conservar el resultado.
+- Las correcciones originadas en #218 se incorporaron por fast-forward a la
+  rama de #213; #218 se cerró como consolidada allí, sin integrarse en `main` de
+  forma independiente. La rama de #213 ya se sincronizó directamente con
+  `main` (`0083cd9`) y sus checks deben correr sobre el nuevo head.
+- **GOAL ACTIVO:** GOAL-02; GOAL-01 permanece pausado. **ARQUITECTURA
+  DISPONIBLE:** preflight y matriz AT2 v30 versionados; el exportador PILA y
+  las pruebas de carga en operadores siguen pendientes.

@@ -913,6 +913,39 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     },
   );
 
+  it('maps PEP-TUTOR identity while leaving its pension classification unresolved', () => {
+    const input = snapshot();
+    payloadOf(input).employee.tipoDocumento = 'PC';
+    payloadOf(input).employee.cedula = '12345678';
+
+    const candidate = mapCandidate(input);
+
+    expect(candidate.values[3]).toEqual({ value: 'PC' });
+    expect(candidate.values[4]).toEqual({ value: '12345678' });
+    expect(candidate.values[7]).toBeUndefined();
+    expect(candidate.values[8]).toBeUndefined();
+    expect(candidate.values[46]).toBeUndefined();
+    expect(candidate.values[47]).toBeUndefined();
+    expect(
+      candidate.unresolvedFields.some(
+        ({ fieldNumber, reason }) =>
+          fieldNumber === 7 && reason.includes('PEP-TUTOR'),
+      ),
+    ).toBe(true);
+    expect(
+      candidate.unresolvedFields.some(
+        ({ fieldNumber, reason }) =>
+          fieldNumber === 8 && reason.includes('PEP-TUTOR'),
+      ),
+    ).toBe(true);
+    expect(
+      candidate.unresolvedFields.some(({ fieldNumber }) => fieldNumber === 46),
+    ).toBe(true);
+    expect(
+      candidate.unresolvedFields.some(({ fieldNumber }) => fieldNumber === 47),
+    ).toBe(true);
+  });
+
   it.each(['CC', 'TI'])(
     'maps the explicit exterior declaration for %s as X or blank',
     (documentType) => {
