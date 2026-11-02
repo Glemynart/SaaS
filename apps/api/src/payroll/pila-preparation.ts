@@ -350,8 +350,8 @@ export function inspectPilaSnapshotPreparation(
     maxLength: number,
     label: string,
   ) => {
-    const normalized = text(value);
-    if (normalized && Array.from(normalized).length > maxLength) {
+    const rawValue = typeof value === 'string' ? value : null;
+    if (rawValue !== null && Array.from(rawValue).length > maxLength) {
       add(
         record,
         fieldNumber,
@@ -867,10 +867,34 @@ export function inspectPilaSnapshotPreparation(
     employerPila?.codigoArlAportante,
     'Falta el código ARL declarado para el aportante.',
   );
+  validateFieldLength(
+    'CABECERA_TIPO_2',
+    14,
+    employerPila?.codigoArlAportante,
+    6,
+    'código ARL del aportante',
+  );
 
   // Registro tipo 2 por cotizante. Este reporte revisa insumos capturados,
   // no inventa códigos ni completa datos consultando Empleado/Sede actuales.
   const detailRecord: PilaPreparationRecord = 'DETALLE_TIPO_2';
+  if (input.totalCotizantes !== undefined) {
+    if (!safeInteger(input.totalCotizantes)) {
+      add(
+        'CABECERA_TIPO_2',
+        19,
+        'CAMPO_19_CONTEO_COTIZANTES_NO_VALIDO',
+        'El conteo de cotizantes únicos debe ser un entero no negativo.',
+      );
+    } else if (!fitsNumericField(input.totalCotizantes, 5)) {
+      add(
+        'CABECERA_TIPO_2',
+        19,
+        'CAMPO_19_CONTEO_COTIZANTES_SUPERA_LONGITUD',
+        'El campo 19 admite hasta 99.999 cotizantes únicos; el conteo no se truncará.',
+      );
+    }
+  }
   const documentType = text(employee?.tipoDocumento);
   if (!documentType || !supportedDocumentTypes.has(documentType)) {
     add(
@@ -950,7 +974,21 @@ export function inspectPilaSnapshotPreparation(
         affiliation[key],
         `Falta el código confirmado de la ${label}.`,
       );
+      validateFieldLength(detailRecord, field, affiliation[key], 6, label);
     }
+    requireText(
+      detailRecord,
+      77,
+      affiliation.arlCodigo,
+      'Falta el código confirmado de la administradora ARL para el período.',
+    );
+    validateFieldLength(
+      detailRecord,
+      77,
+      affiliation.arlCodigo,
+      6,
+      'código de la administradora ARL',
+    );
     requireText(
       detailRecord,
       78,
@@ -1096,13 +1134,22 @@ export function inspectPilaSnapshotPreparation(
           : 'La vigencia de la actividad económica ARL no cubre todo el período.',
       );
     } else {
-      const workCenterCode = text(center?.codigoCentro);
+      const workCenterCodeValue = center?.codigoCentro;
+      const workCenterCode =
+        typeof workCenterCodeValue === 'string' ? workCenterCodeValue : null;
       if (!workCenterCode) {
         add(
           detailRecord,
           62,
           'CENTRO_TRABAJO_SIN_CODIGO_PILA',
           'Falta el código del centro de trabajo declarado por la ARL.',
+        );
+      } else if (!/^\d{1,9}$/.test(workCenterCode)) {
+        add(
+          detailRecord,
+          62,
+          'CENTRO_TRABAJO_CODIGO_FORMATO_AT2_INVALIDO',
+          'El campo 62 del AT2 v30 requiere un código de centro de trabajo de 1 a 9 dígitos; no se truncará ni convertirá el valor declarado por la ARL.',
         );
       }
       if (

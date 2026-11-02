@@ -412,3 +412,35 @@ se accedió a demo, staging o producción.
   congelada en el snapshot de nómina. El MVP bloquea campos 9–10 si no hay una
   sola ubicación que cubra todo el período; no hay backfill ni exportación,
   transmisión o compatibilidad con operadores.
+
+### Formato del centro ARL en el preflight PILA — 2026-10-31
+
+- Al cotejar el informe con AT2 v30 oficial se encontró que el campo 62 ocupa
+  nueve posiciones numéricas (página 95), mientras el preflight solo exigía un
+  valor no vacío. El perfil del centro conserva el código declarado por la ARL
+  como texto de hasta 40 caracteres, por lo que un valor alfanumérico o mayor
+  de nueve dígitos podía pasar sin advertencia aunque el archivo no pudiera
+  representarlo.
+- El preflight ahora bloquea códigos incompatibles con N9 y no los recorta ni
+  transforma; valores de 1–9 dígitos conservan sus ceros iniciales para el
+  formateador fijo. La regla se cotejó con la página 95 del AT2 v30 descargado
+  del enlace oficial de MinSalud (SHA-256
+  `BBB3C2D0486FD7D3934BD640D8E68C60D33686B1604E8EFAA980139FB5686D33`). Esto
+  solo mejora un insumo del informe preliminar: el archivo continúa sin
+  implementarse y la compatibilidad con operadores no está verificada.
+
+- El mismo cotejo encontró que el código ARL del aportante se exigía, pero no
+  se bloqueaba por exceder las seis posiciones A6 del campo 14 del encabezado
+  PILA (CABECERA_TIPO_2 en el preflight). Ahora valida ese límite sin truncar ni inferir su
+  catálogo; las pruebas cubren seis posiciones y el exceso. La compatibilidad
+  y convención de carga siguen pendientes de pruebas por operador.
+- La revisión del detalle encontró que los códigos de pensión, EPS, CCF y ARL
+  se exigían parcialmente, pero no se controlaba A6; el campo 77 tampoco
+  bloqueaba la ausencia del código ARL congelado. El preflight ahora exige el
+  código ARL afiliado y bloquea códigos de administradoras con más de seis
+  posiciones sin truncarlos. La validación de catálogos oficiales y del
+  operador sigue pendiente.
+- El encabezado de planilla contaba cotizantes únicos pero el preflight no
+  detectaba el desbordamiento del campo 19 (5 N). Ahora bloquea más de 99.999
+  cotizantes sin truncar ni contar dos veces a quien tenga varias líneas 02;
+  el límite superior tiene prueba de borde.

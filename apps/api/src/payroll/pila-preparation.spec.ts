@@ -677,6 +677,136 @@ describe('inspectPilaSnapshotPreparation', () => {
     ).toEqual([]);
   });
 
+  it('bloquea el código ARL del aportante que excede las seis posiciones AT2', () => {
+    const source = payload();
+    source.employer.pila.codigoArlAportante = 'A'.repeat(7);
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'CABECERA_TIPO_2',
+        fieldNumber: 14,
+        code: 'CAMPO_14_LONGITUD_SUPERADA',
+      }),
+    );
+  });
+
+  it('acepta el código ARL del aportante en su longitud máxima de seis posiciones', () => {
+    const source = payload();
+    source.employer.pila.codigoArlAportante = 'A1B2C3';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(
+        ({ record, fieldNumber }) =>
+          record === 'CABECERA_TIPO_2' && fieldNumber === 14,
+      ),
+    ).toEqual([]);
+  });
+
+  it.each([
+    [31, 'fondoPensionCodigo'],
+    [33, 'epsCodigo'],
+    [35, 'cajaCompensacionCodigo'],
+    [77, 'arlCodigo'],
+  ] as const)(
+    'bloquea el código de afiliación del campo %i si excede seis posiciones',
+    (fieldNumber, key) => {
+      const source = payload();
+      Object.assign(source.affiliations[0], { [key]: 'A'.repeat(7) });
+
+      const result = inspectPilaSnapshotPreparation(
+        snapshot('employee-1', 'Ana', { payload: source }),
+      );
+
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          fieldNumber,
+          code: `CAMPO_${fieldNumber}_LONGITUD_SUPERADA`,
+        }),
+      );
+    },
+  );
+
+  it('acepta los códigos de afiliación de seis posiciones de AT2', () => {
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: payload() }),
+    );
+
+    expect(
+      result.issues.filter(({ fieldNumber }) =>
+        [31, 33, 35, 77].includes(fieldNumber ?? -1),
+      ),
+    ).toEqual([]);
+  });
+
+  it('bloquea la afiliación sin código ARL para el campo 77', () => {
+    const source = payload();
+    source.affiliations[0].arlCodigo = '';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'DETALLE_TIPO_2',
+        fieldNumber: 77,
+        code: 'CAMPO_77_SIN_DATO',
+      }),
+    );
+  });
+
+  it.each([
+    [99_999, false],
+    [100_000, true],
+  ])(
+    'valida que el conteo de cotizantes %i quepa en el campo 19 de cinco dígitos',
+    (totalCotizantes, shouldBlock) => {
+      const result = inspectPilaSnapshotPreparation({
+        employeeId: 'employee-1',
+        payloadVersion: 1,
+        payload: payload(),
+        totalCotizantes,
+      });
+
+      const fieldIssues = result.issues.filter(
+        ({ record, fieldNumber }) =>
+          record === 'CABECERA_TIPO_2' && fieldNumber === 19,
+      );
+      if (shouldBlock) {
+        expect(fieldIssues).toContainEqual(
+          expect.objectContaining({
+            code: 'CAMPO_19_CONTEO_COTIZANTES_SUPERA_LONGITUD',
+          }),
+        );
+      } else {
+        expect(fieldIssues).toEqual([]);
+      }
+    },
+  );
+
+  it('counts raw whitespace when validating an A6 affiliation code', () => {
+    const source = payload();
+    source.affiliations[0].arlCodigo = 'ARL001 ';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        fieldNumber: 77,
+        code: 'CAMPO_77_LONGITUD_SUPERADA',
+      }),
+    );
+  });
   it.each([
     ['faltante', null],
     ['especial', '01'],
@@ -699,43 +829,87 @@ describe('inspectPilaSnapshotPreparation', () => {
     );
   });
 
-  it('acepta los campos 62 y 98 con una asignación congelada y validada', () => {
-    const source = {
-      ...payload(),
-      schemaVersion: 2,
-      pilaRiskAssignments: [
-        {
-          assignmentId: 'assignment-1',
-          tenantId: 'tenant-1',
-          codigoActividadEconomica: '1131202',
-          formatoNormativoVersion: 'DECRETO_768_2022',
-          vigenteDesde: '2026-01-01',
-          vigenteHasta: null,
-          centroTrabajo: {
-            centroTrabajoId: 'center-1',
+  it.each(['0001', '123456789'])(
+    'acepta los campos 62 y 98 cuando el código %s cabe en N9',
+    (codigoCentro) => {
+      const source = {
+        ...payload(),
+        schemaVersion: 2,
+        pilaRiskAssignments: [
+          {
+            assignmentId: 'assignment-1',
             tenantId: 'tenant-1',
-            sedeId: 'site-1',
-            arlCodigo: 'ARL001',
-            codigoCentro: '0001',
-            nombre: 'Centro principal',
+            codigoActividadEconomica: '1131202',
+            formatoNormativoVersion: 'DECRETO_768_2022',
+            vigenteDesde: '2026-01-01',
+            vigenteHasta: null,
+            centroTrabajo: {
+              centroTrabajoId: 'center-1',
+              tenantId: 'tenant-1',
+              sedeId: 'site-1',
+              arlCodigo: 'ARL001',
+              codigoCentro,
+              nombre: 'Centro principal',
+            },
           },
-        },
-      ],
-    };
+        ],
+      };
 
-    const result = inspectPilaSnapshotPreparation({
-      employeeId: 'employee-1',
-      payloadVersion: 2,
-      payload: source,
-    });
+      const result = inspectPilaSnapshotPreparation({
+        employeeId: 'employee-1',
+        payloadVersion: 2,
+        payload: source,
+      });
 
-    expect(result.issues).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ fieldNumber: 62 }),
-        expect.objectContaining({ fieldNumber: 98 }),
-      ]),
-    );
-  });
+      expect(result.issues).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ fieldNumber: 62 }),
+          expect.objectContaining({ fieldNumber: 98 }),
+        ]),
+      );
+    },
+  );
+
+  it.each(['CENTRO-1', '1234567890', ' 0001 '])(
+    'bloquea el código de centro %s porque no cabe en el campo 62 N9',
+    (codigoCentro) => {
+      const source = {
+        ...payload(),
+        schemaVersion: 2,
+        pilaRiskAssignments: [
+          {
+            assignmentId: 'assignment-1',
+            tenantId: 'tenant-1',
+            codigoActividadEconomica: '1131202',
+            formatoNormativoVersion: 'DECRETO_768_2022',
+            vigenteDesde: '2026-01-01',
+            vigenteHasta: null,
+            centroTrabajo: {
+              centroTrabajoId: 'center-1',
+              tenantId: 'tenant-1',
+              sedeId: 'site-1',
+              arlCodigo: 'ARL001',
+              codigoCentro,
+              nombre: 'Centro principal',
+            },
+          },
+        ],
+      };
+
+      const result = inspectPilaSnapshotPreparation({
+        employeeId: 'employee-1',
+        payloadVersion: 2,
+        payload: source,
+      });
+
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          fieldNumber: 62,
+          code: 'CENTRO_TRABAJO_CODIGO_FORMATO_AT2_INVALIDO',
+        }),
+      );
+    },
+  );
 
   it('bloquea afiliaciones si una fila malformada acompaña a la fila válida', () => {
     const source = payload();
