@@ -235,10 +235,13 @@ test('genera los 100 PDF del lote aunque el navegador pierda conexión', async (
     await page.context().setOffline(true);
 
     await expect
-      .poll(async () => (await fixture.inspectPersistedState()).batch?.status, {
-        timeout: 90_000,
-        intervals: [250, 500, 1_000, 2_000],
-      })
+      .poll(
+        async () => (await fixture.inspectPersistedState()).batch?.status,
+        {
+          timeout: 90_000,
+          intervals: [250, 500, 1_000, 2_000],
+        },
+      )
       .toBe('PROCESANDO');
 
     await expect

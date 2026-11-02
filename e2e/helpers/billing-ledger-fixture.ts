@@ -31,8 +31,12 @@ export async function seedBillingLedgerFixture(
       year: 'numeric',
       month: '2-digit',
     }).formatToParts(now);
-    const year = Number(calendarParts.find((part) => part.type === 'year')?.value);
-    const month = Number(calendarParts.find((part) => part.type === 'month')?.value);
+    const year = Number(
+      calendarParts.find((part) => part.type === 'year')?.value,
+    );
+    const month = Number(
+      calendarParts.find((part) => part.type === 'month')?.value,
+    );
     const period = await tx.periodoContable.findUnique({
       where: { tenantId_anio_mes: { tenantId, anio: year, mes: month } },
     });
