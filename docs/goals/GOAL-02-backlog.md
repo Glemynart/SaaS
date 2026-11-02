@@ -407,6 +407,8 @@ se accedió a demo, staging o producción.
   PILA de los campos 9–10 del AT2. PR #182 los bloquea hasta contar con una
   fuente PILA explícita, confirmada y congelada; el archivo sigue sin generarse.
 
-- ADR-015 propone una asignación histórica de municipio laboral por empleado,
-  independiente de la sede y del centro ARL. La propuesta queda pendiente de
-  aprobación de Producto y Nómina; no se ha añadido esquema ni captura.
+- ADR-015 fue aprobada el 2026-11-02: ubicación laboral PILA histórica por
+  empleado, independiente de la sede y del centro ARL, con vigencias y auditoría,
+  congelada en el snapshot de nómina. El MVP bloquea campos 9–10 si no hay una
+  sola ubicación que cubra todo el período; no hay backfill ni exportación,
+  transmisión o compatibilidad con operadores.

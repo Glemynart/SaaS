@@ -2,7 +2,7 @@
 
 | Campo         | Valor                                                                                     |
 | ------------- | ----------------------------------------------------------------------------------------- |
-| **Estado**    | proposed — requiere aprobación de Producto y Nómina antes de implementar                  |
+| **Estado**    | accepted — opción A aprobada para el MVP de captura y snapshot PILA histórico             |
 | **Fecha**     | 2026-10-31                                                                                |
 | **Decisores** | Producto · Nómina · Arquitectura                                                          |
 | **Ámbito**    | AT2 v30, registro tipo 2, campos 9–10; fuente municipal laboral con vigencia por empleado |
@@ -37,7 +37,7 @@ Mientras no exista una fuente histórica explícita, los campos 9 y 10 deben
 seguir bloqueados. Los snapshots aprobados tampoco se pueden completar
 retroactivamente consultando la sede o los datos actuales del empleado.
 
-## Decisión propuesta
+## Decisión
 
 **Opción A: registrar por empleado una asignación histórica de ubicación
 laboral PILA, separada de `Sede` y de `PilaAsignacionCentroTrabajo`.**
@@ -61,7 +61,7 @@ laboral PILA, separada de `Sede` y de `PilaAsignacionCentroTrabajo`.**
 6. La selección de ubicación PILA no modifica el contrato, la sede del
    empleado, el centro ARL ni su actividad económica.
 
-Esta decisión propuesta solo autoriza capturar y congelar una fuente. No
+Esta decisión autoriza capturar y congelar una fuente. No
 habilita por sí sola el serializador, la descarga, la transmisión ni la
 compatibilidad con un operador.
 
@@ -117,8 +117,9 @@ para reconstruir snapshots ni auditar cambios históricos.
   aportante haya informado el municipio correcto ni que un operador acepte el
   archivo.
 
-## Aprobación requerida
+## Aprobación
 
-Se solicita aprobar la opción A y sus límites de MVP, o indicar otra fuente
-aceptable. No implementar esquema, captura ni snapshots para este dato hasta
-que Producto y Nómina aprueben esta decisión.
+Producto aprobó la opción A y sus límites de MVP el 2026-11-02. La aprobación
+autoriza implementar la captura y el congelamiento de la ubicación laboral PILA
+conforme a esta ADR. No habilita el serializador, la descarga, la transmisión ni
+la compatibilidad con operadores.
