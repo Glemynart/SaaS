@@ -50,6 +50,7 @@ import {
 import { buildPayrollPeriodSnapshot } from './payroll-snapshot-period';
 import {
   buildPilaRiskAssignmentsSnapshot,
+  buildPilaWorkLocationsSnapshot,
   buildPilaSourceContext,
   buildPilaSourceSnapshot,
 } from './pila-source-snapshot';
@@ -93,7 +94,7 @@ const RECALCULATE_ALLOWED_STATUSES: PayrollPeriodStatus[] =
 
 const SNAPSHOT_PAYLOAD_VERSION = 1;
 const CALCULATION_TRACE_VERSION = 1;
-const PILA_PAYLOAD_VERSION = 2;
+const PILA_PAYLOAD_VERSION = 3;
 
 type PilaSourceData = {
   tenant: PilaSourceContextInput['tenant'];
@@ -105,6 +106,10 @@ type PilaSourceData = {
   >;
   pilaEventsByEmployee: Map<string, PilaSourceContextInput['pilaEvents']>;
   worksitesById: Map<string, NonNullable<PilaSourceContextInput['worksite']>>;
+  workLocationsByEmployee: Map<
+    string,
+    NonNullable<PilaSourceContextInput['pilaWorkLocations']>
+  >;
 };
 
 type PayrollPilaEmployeeRecord = PilaSourceContextInput['employee'] & {
@@ -3282,6 +3287,17 @@ export class PayrollService {
     });
     if (runs.length === 0) return 0;
 
+    const employeeIds = [...new Set(runs.map((run) => run.employeeId))].sort();
+    // El mismo bloqueo serializa cambios de ubicación/afiliación con la captura
+    // del snapshot; así no se aprueba leyendo una versión anterior concurrente.
+    await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "empleados"
+      WHERE "tenantId" = ${tenantId}
+        AND "id" IN (${Prisma.join(employeeIds)})
+      ORDER BY "id"
+      FOR UPDATE
+    `;
+
     const riskAssignments = await tx.pilaAsignacionCentroTrabajo.findMany({
       where: {
         tenantId,
@@ -3325,6 +3341,40 @@ export class PayrollService {
       riskAssignmentsByEmployee.set(empleadoId, employeeAssignments);
     }
 
+    const workLocations = await tx.pilaUbicacionLaboral.findMany({
+      where: {
+        tenantId,
+        empleadoId: { in: [...new Set(runs.map((run) => run.employeeId))] },
+        vigenteDesde: { lte: period.fechaFin },
+        OR: [
+          { vigenteHasta: null },
+          { vigenteHasta: { gte: period.fechaInicio } },
+        ],
+      },
+      select: {
+        id: true,
+        tenantId: true,
+        empleadoId: true,
+        municipioId: true,
+        vigenteDesde: true,
+        vigenteHasta: true,
+        municipio: {
+          select: { id: true, codigo: true, nombre: true, departamento: true },
+        },
+      },
+      orderBy: [{ empleadoId: 'asc' }, { vigenteDesde: 'asc' }, { id: 'asc' }],
+    });
+    const workLocationsByEmployee = new Map<
+      string,
+      NonNullable<PilaSourceContextInput['pilaWorkLocations']>
+    >();
+    for (const location of workLocations) {
+      const { empleadoId, ...source } = location;
+      const employeeLocations = workLocationsByEmployee.get(empleadoId) ?? [];
+      employeeLocations.push(source);
+      workLocationsByEmployee.set(empleadoId, employeeLocations);
+    }
+
     for (const run of runs) {
       const trace = this.getCalculationTrace(run.id, run.calculationTrace);
       const pilaSourceContext = this.getPilaSourceContext(
@@ -3334,9 +3384,12 @@ export class PayrollService {
       const pilaSource = pilaSourceContext
         ? {
             ...pilaSourceContext,
-            schemaVersion: 2,
+            schemaVersion: 3,
             pilaRiskAssignments: buildPilaRiskAssignmentsSnapshot(
               riskAssignmentsByEmployee.get(run.employeeId) ?? [],
+            ),
+            pilaWorkLocations: buildPilaWorkLocationsSnapshot(
+              workLocationsByEmployee.get(run.employeeId) ?? [],
             ),
           }
         : null;
@@ -3485,7 +3538,7 @@ export class PayrollService {
     }
     const source = value;
     if (
-      ![1, 2].includes(Number(source.schemaVersion)) ||
+      ![1, 2, 3].includes(Number(source.schemaVersion)) ||
       typeof source.capturedAt !== 'string'
     ) {
       throw new BadRequestException(
@@ -3814,6 +3867,7 @@ export class PayrollService {
           arlClaseRiesgo: true,
           cajaCompensacionCodigo: true,
           cajaCompensacionNombre: true,
+          cajaCompensacionDepartamentoCodigo: true,
           extranjeroNoObligadoPension: true,
           colombianoEnElExterior: true,
           vigenteDesde: true,
@@ -3866,6 +3920,40 @@ export class PayrollService {
               arlCodigo: true,
               codigoCentro: true,
               nombre: true,
+            },
+          },
+        },
+        orderBy: [
+          { empleadoId: 'asc' },
+          { vigenteDesde: 'asc' },
+          { id: 'asc' },
+        ],
+      }),
+    );
+    const workLocations = await this.tenantPrisma.execute((prisma) =>
+      prisma.pilaUbicacionLaboral.findMany({
+        where: {
+          tenantId: tenant.id,
+          empleadoId: { in: employeeIds },
+          vigenteDesde: { lte: period.fechaFin },
+          OR: [
+            { vigenteHasta: null },
+            { vigenteHasta: { gte: period.fechaInicio } },
+          ],
+        },
+        select: {
+          id: true,
+          tenantId: true,
+          empleadoId: true,
+          municipioId: true,
+          vigenteDesde: true,
+          vigenteHasta: true,
+          municipio: {
+            select: {
+              id: true,
+              codigo: true,
+              nombre: true,
+              departamento: true,
             },
           },
         },
@@ -3940,6 +4028,16 @@ export class PayrollService {
       employeeAssignments.push(source);
       riskAssignmentsByEmployee.set(empleadoId, employeeAssignments);
     }
+    const workLocationsByEmployee = new Map<
+      string,
+      NonNullable<PilaSourceContextInput['pilaWorkLocations']>
+    >();
+    for (const location of workLocations) {
+      const { empleadoId, ...source } = location;
+      const employeeLocations = workLocationsByEmployee.get(empleadoId) ?? [];
+      employeeLocations.push(source);
+      workLocationsByEmployee.set(empleadoId, employeeLocations);
+    }
 
     return {
       tenant,
@@ -3975,6 +4073,7 @@ export class PayrollService {
           },
         ]),
       ),
+      workLocationsByEmployee,
     };
   }
 
@@ -4012,6 +4111,7 @@ export class PayrollService {
           }
         : null,
       worksite,
+      pilaWorkLocations: data.workLocationsByEmployee.get(employeeId) ?? [],
       affiliations: data.affiliationsByEmployee.get(employeeId) ?? [],
       pilaEvents: data.pilaEventsByEmployee.get(employeeId) ?? [],
       riskAssignments: data.riskAssignmentsByEmployee.get(employeeId) ?? [],

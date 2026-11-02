@@ -1,4 +1,5 @@
 import { Transform } from 'class-transformer';
+import { COLOMBIA_DANE_DEPARTMENT_CODES } from '@saas/types';
 import {
   IsDateString,
   IsDefined,
@@ -78,6 +79,12 @@ export class CreateSocialSecurityAffiliationDto {
   @IsString()
   @Length(1, 120)
   cajaCompensacionNombre: string;
+
+  @Transform(trimValue)
+  @IsIn(COLOMBIA_DANE_DEPARTMENT_CODES, {
+    message: 'Selecciona un departamento válido según DIVIPOLA.',
+  })
+  cajaCompensacionDepartamentoCodigo: string;
 
   @IsOptional()
   @IsBoolean()

@@ -43,6 +43,7 @@ const mockEmpleadoFindMany = jest.fn();
 const mockEmpleadoFindFirst = jest.fn();
 const mockAfiliacionFindMany = jest.fn();
 const mockPilaWorkAssignmentFindMany = jest.fn();
+const mockPilaWorkLocationFindMany = jest.fn();
 const mockPayrollNoveltyFindMany = jest.fn();
 const mockPayrollPilaEventFindMany = jest.fn();
 const mockPayrollPilaEventFindFirst = jest.fn();
@@ -92,6 +93,7 @@ const mockPrisma = {
   },
   afiliacionSeguridadSocial: { findMany: mockAfiliacionFindMany },
   pilaAsignacionCentroTrabajo: { findMany: mockPilaWorkAssignmentFindMany },
+  pilaUbicacionLaboral: { findMany: mockPilaWorkLocationFindMany },
   payrollNovelty: { findMany: mockPayrollNoveltyFindMany },
   payrollPilaEvent: {
     findMany: mockPayrollPilaEventFindMany,
@@ -456,6 +458,7 @@ function setupPayrollGeneration(
   );
   mockAfiliacionFindMany.mockResolvedValue([]);
   mockPilaWorkAssignmentFindMany.mockResolvedValue([]);
+  mockPilaWorkLocationFindMany.mockResolvedValue([]);
   mockSedeFindMany.mockResolvedValue([]);
   mockPayrollRunFindFirst.mockResolvedValue(null);
   mockPayrollRunCreate.mockImplementation(async ({ data }) => ({
@@ -481,6 +484,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
     mockPayrollRunFindMany.mockResolvedValue([]);
     mockPayrollNoveltyFindMany.mockResolvedValue([]);
     mockPilaWorkAssignmentFindMany.mockResolvedValue([]);
+    mockPilaWorkLocationFindMany.mockResolvedValue([]);
     mockContratoFindMany.mockResolvedValue([]);
     mockEmpleadoFindMany.mockResolvedValue([]);
     mockEmpleadoFindFirst.mockResolvedValue(null);
@@ -2004,10 +2008,44 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           },
         },
       ]);
+      mockPilaWorkLocationFindMany.mockResolvedValue([
+        {
+          id: 'work-location-at-approval',
+          tenantId: TENANT,
+          empleadoId: 'emp-1',
+          municipioId: 'municipality-at-approval',
+          vigenteDesde: new Date('2026-01-01T00:00:00.000Z'),
+          vigenteHasta: null,
+          municipio: {
+            id: 'municipality-at-approval',
+            codigo: '08001',
+            nombre: 'Barranquilla',
+            departamento: 'Atlántico',
+          },
+        },
+      ]);
 
       await service.aprobar(TENANT, USER, PERIOD_ID);
+      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
 
-      const payload = mockPayrollSnapshotCreate.mock.calls[0][0].data.payload;
+      type SnapshotCreateData = {
+        payload: {
+          period: object;
+          employee: object;
+          contract: object;
+          companyPolicy: object;
+          legalParameters: object;
+          novelties: unknown[];
+        };
+        pilaPayload: { schemaVersion: number } & Record<string, unknown>;
+        pilaPayloadVersion: number;
+      };
+      const snapshotCreateData = (
+        mockPayrollSnapshotCreate.mock.calls as unknown as Array<
+          [{ data: SnapshotCreateData }]
+        >
+      )[0][0].data;
+      const payload = snapshotCreateData.payload;
       expect(payload.period).toMatchObject({
         nombre: 'Enero 2026',
         fechaInicio: new Date('2026-01-01').toISOString(),
@@ -2037,18 +2075,32 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           valor: 100_000,
         },
       ]);
-      const pilaPayload =
-        mockPayrollSnapshotCreate.mock.calls[0][0].data.pilaPayload;
+      const pilaPayload = snapshotCreateData.pilaPayload;
       expect(pilaPayload).toMatchObject({
-        schemaVersion: 2,
+        schemaVersion: 3,
         pilaRiskAssignments: [
-          expect.objectContaining({
+          {
             assignmentId: 'risk-assignment-at-approval',
             codigoActividadEconomica: '1131202',
-            centroTrabajo: expect.objectContaining({
+            centroTrabajo: {
               centroTrabajoId: 'pila-center-at-approval',
-            }),
-          }),
+            },
+          },
+        ],
+        pilaWorkLocations: [
+          {
+            assignmentId: 'work-location-at-approval',
+            tenantId: TENANT,
+            municipioId: 'municipality-at-approval',
+            municipio: {
+              id: 'municipality-at-approval',
+              codigo: '08001',
+              nombre: 'Barranquilla',
+              departamento: 'Atlántico',
+            },
+            vigenteDesde: '2026-01-01',
+            vigenteHasta: null,
+          },
         ],
         employer: { tenantId: TENANT, nit: '900123456' },
         employee: {
@@ -2071,8 +2123,8 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           },
         },
       });
-      expect(mockPayrollSnapshotCreate.mock.calls[0][0].data).toMatchObject({
-        pilaPayloadVersion: 2,
+      expect(snapshotCreateData).toMatchObject({
+        pilaPayloadVersion: 3,
       });
     });
 

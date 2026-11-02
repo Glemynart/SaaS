@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { toast } from '@/components/ui/toast';
 import { getUserFacingError } from '@/lib/error-message';
+import { COLOMBIA_DANE_DEPARTMENTS } from '@saas/types';
 import {
   useCloseSocialSecurityAffiliation,
   useCreateSocialSecurityAffiliation,
@@ -34,6 +35,7 @@ type FormValues = {
   arlClaseRiesgo: string;
   cajaCompensacionCodigo: string;
   cajaCompensacionNombre: string;
+  cajaCompensacionDepartamentoCodigo: string;
   extranjeroNoObligadoPension: boolean | null;
   colombianoEnElExterior: boolean | null;
   vigenteDesde: string;
@@ -52,6 +54,7 @@ const emptyForm: FormValues = {
   arlClaseRiesgo: '',
   cajaCompensacionCodigo: '',
   cajaCompensacionNombre: '',
+  cajaCompensacionDepartamentoCodigo: '',
   extranjeroNoObligadoPension: null,
   colombianoEnElExterior: null,
   vigenteDesde: '',
@@ -150,6 +153,7 @@ export function EmployeeSocialSecurityPanel({
           arlClaseRiesgo: form.arlClaseRiesgo,
           cajaCompensacionCodigo: form.cajaCompensacionCodigo,
           cajaCompensacionNombre: form.cajaCompensacionNombre,
+          cajaCompensacionDepartamentoCodigo: form.cajaCompensacionDepartamentoCodigo,
           extranjeroNoObligadoPension: form.extranjeroNoObligadoPension,
           colombianoEnElExterior: form.colombianoEnElExterior,
           vigenteDesde: form.vigenteDesde,
@@ -266,6 +270,15 @@ export function EmployeeSocialSecurityPanel({
                   label="Caja de compensación"
                   name={affiliation.cajaCompensacionNombre}
                   code={affiliation.cajaCompensacionCodigo}
+                />
+                <AffiliationItem
+                  label="Departamento de la CCF (DIVIPOLA)"
+                  name={
+                    COLOMBIA_DANE_DEPARTMENTS.find(
+                      ({ codigo }) => codigo === affiliation.cajaCompensacionDepartamentoCodigo,
+                    )?.nombre ?? 'Sin dato histórico'
+                  }
+                  code={affiliation.cajaCompensacionDepartamentoCodigo ?? '—'}
                 />
                 {(employeeDocumentType === 'CC' || employeeDocumentType === 'TI') && (
                   <DeclarationItem
@@ -430,6 +443,26 @@ export function EmployeeSocialSecurityPanel({
               onCodeChange={(value) => setValue('cajaCompensacionCodigo', value)}
               onNameChange={(value) => setValue('cajaCompensacionNombre', value)}
             />
+            <FormField
+              label="Departamento donde está ubicada la CCF"
+              required
+              hint="Registra el departamento que aparece en la constancia de afiliación. Se guarda como código DIVIPOLA de dos dígitos y se compara con el municipio laboral para los campos 9 y 10 de PILA."
+            >
+              <Select
+                required
+                value={form.cajaCompensacionDepartamentoCodigo}
+                onChange={(event) =>
+                  setValue('cajaCompensacionDepartamentoCodigo', event.target.value)
+                }
+              >
+                <option value="">Selecciona un departamento</option>
+                {COLOMBIA_DANE_DEPARTMENTS.map(({ codigo, nombre }) => (
+                  <option key={codigo} value={codigo}>
+                    {codigo} · {nombre}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
             {(employeeDocumentType === 'CC' || employeeDocumentType === 'TI') && (
               <FormField
                 label="¿Es colombiano en el exterior?"

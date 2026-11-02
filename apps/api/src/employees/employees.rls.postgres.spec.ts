@@ -20,6 +20,10 @@ describe('empleados PostgreSQL RLS', () => {
   const employeeToDelete = `rls-empleado-delete-${suffix}`;
   const affiliationA = `rls-afiliacion-a-${suffix}`;
   const affiliationB = `rls-afiliacion-b-${suffix}`;
+  const municipalityId = randomUUID();
+  const municipalityCode = `RLS-${suffix}`;
+  const workLocationA = `rls-ubicacion-a-${suffix}`;
+  const workLocationB = `rls-ubicacion-b-${suffix}`;
   const tenantContext = new TenantContextService();
   const prisma = new PrismaService();
   const tenantPrisma = new TenantPrismaService(
@@ -45,6 +49,9 @@ describe('empleados PostgreSQL RLS', () => {
     await prisma.$executeRawUnsafe(
       `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "afiliaciones_seguridad_social" TO "${TEST_ROLE}"`,
     );
+    await prisma.$executeRawUnsafe(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "pila_ubicaciones_laborales" TO "${TEST_ROLE}"`,
+    );
 
     await prisma.tenant.createMany({
       data: [
@@ -65,9 +72,27 @@ describe('empleados PostgreSQL RLS', () => {
         affiliationData(affiliationB, tenantB, employeeB),
       ],
     });
+    await prisma.municipioDane.create({
+      data: {
+        id: municipalityId,
+        codigo: municipalityCode,
+        nombre: 'Municipio RLS',
+        departamento: 'Pruebas',
+      },
+    });
+    await prisma.pilaUbicacionLaboral.createMany({
+      data: [
+        workLocationData(workLocationA, tenantA, employeeA),
+        workLocationData(workLocationB, tenantB, employeeB),
+      ],
+    });
   });
 
   afterAll(async () => {
+    await prisma.pilaUbicacionLaboral.deleteMany({
+      where: { id: { in: [workLocationA, workLocationB] } },
+    });
+    await prisma.municipioDane.deleteMany({ where: { id: municipalityId } });
     await prisma.afiliacionSeguridadSocial.deleteMany({
       where: { tenantId: { in: [tenantA, tenantB] } },
     });
@@ -100,6 +125,7 @@ describe('empleados PostgreSQL RLS', () => {
       { tableName: 'empleados' },
       { tableName: 'pila_asignaciones_centro_trabajo' },
       { tableName: 'pila_centros_trabajo' },
+      { tableName: 'pila_ubicaciones_laborales' },
       { tableName: 'service_premium_batches' },
       { tableName: 'service_premium_lines' },
     ];
@@ -125,6 +151,52 @@ describe('empleados PostgreSQL RLS', () => {
 
     expect(tenantAAffiliations.map(({ id }) => id)).toEqual([affiliationA]);
     expect(tenantBAffiliations.map(({ id }) => id)).toEqual([affiliationB]);
+  });
+
+  it('isolates PILA work locations by active tenant and rejects cross-tenant inserts', async () => {
+    const tenantALocations = await runAsTenant(tenantA, () =>
+      tenantPrisma.execute((client) =>
+        client.pilaUbicacionLaboral.findMany({
+          where: { id: { in: [workLocationA, workLocationB] } },
+        }),
+      ),
+    );
+    const tenantBLocations = await runAsTenant(tenantB, () =>
+      tenantPrisma.execute((client) =>
+        client.pilaUbicacionLaboral.findMany({
+          where: { id: { in: [workLocationA, workLocationB] } },
+        }),
+      ),
+    );
+
+    expect(tenantALocations.map(({ id }) => id)).toEqual([workLocationA]);
+    expect(tenantBLocations.map(({ id }) => id)).toEqual([workLocationB]);
+
+    const crossTenantLocationId = randomUUID();
+    await expect(
+      runAsTenant(tenantA, () =>
+        tenantPrisma.execute((client) =>
+          client.pilaUbicacionLaboral.create({
+            data: workLocationData(crossTenantLocationId, tenantB, employeeB),
+          }),
+        ),
+      ),
+    ).rejects.toBeDefined();
+    await expect(
+      prisma.pilaUbicacionLaboral.findUnique({
+        where: { id: crossTenantLocationId },
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it('returns no PILA work locations without a tenant context', async () => {
+    const locations = await runAsRlsRole((client) =>
+      client.pilaUbicacionLaboral.findMany({
+        where: { id: { in: [workLocationA, workLocationB] } },
+      }),
+    );
+
+    expect(locations).toEqual([]);
   });
 
   it('allows each tenant to read only its own employees', async () => {
@@ -316,6 +388,18 @@ describe('empleados PostgreSQL RLS', () => {
     };
   }
 
+  function workLocationData(id: string, tenantId: string, empleadoId: string) {
+    return {
+      id,
+      tenantId,
+      empleadoId,
+      municipioId: municipalityId,
+      vigenteDesde: new Date('2026-01-01T00:00:00.000Z'),
+      vigenteHasta: null,
+      registradoPorId: 'rls-empleados-test-user',
+    };
+  }
+
   function affiliationData(id: string, tenantId: string, empleadoId: string) {
     return {
       id,
@@ -332,6 +416,7 @@ describe('empleados PostgreSQL RLS', () => {
       arlClaseRiesgo: '1',
       cajaCompensacionCodigo: 'CCF001',
       cajaCompensacionNombre: 'Caja de prueba',
+      cajaCompensacionDepartamentoCodigo: '08',
       vigenteDesde: new Date('2026-01-01T00:00:00.000Z'),
       vigenteHasta: null,
       versionCaptura: 'PILA_AFFILIATION_CAPTURE_V1',

@@ -295,6 +295,7 @@ model Tenant {
   afiliacionesSeguridadSocial AfiliacionSeguridadSocial[]
   pilaCentrosTrabajo PilaCentroTrabajo[]
   pilaAsignacionesCentroTrabajo PilaAsignacionCentroTrabajo[]
+  pilaUbicacionesLaborales PilaUbicacionLaboral[]
   sedes              Sede[]
   plantillas         Plantilla[]
   documentTemplates  DocumentTemplate[]
@@ -544,6 +545,7 @@ model Empleado {
   liquidations       Liquidation[]
   afiliacionesSeguridadSocial AfiliacionSeguridadSocial[]
   asignacionesCentroPila PilaAsignacionCentroTrabajo[]
+  ubicacionesLaboralesPila PilaUbicacionLaboral[]
 
   @@unique([tenantId, cedula])
   @@unique([id, tenantId])
@@ -583,6 +585,7 @@ model AfiliacionSeguridadSocial {
   arlClaseRiesgo         String  @db.VarChar(1)
   cajaCompensacionCodigo String  @db.VarChar(6)
   cajaCompensacionNombre String  @db.VarChar(120)
+  cajaCompensacionDepartamentoCodigo String? @db.VarChar(2)
 
   // Declaraciones de AT2 v30 aplicables según el documento del cotizante.
   extranjeroNoObligadoPension Boolean?
@@ -659,6 +662,33 @@ model PilaAsignacionCentroTrabajo {
   @@index([tenantId, empleadoId, vigenteDesde], map: "pila_asignaciones_tenant_employee_since_idx")
   @@index([tenantId, centroTrabajoId, vigenteDesde], map: "pila_asignaciones_tenant_center_since_idx")
   @@map("pila_asignaciones_centro_trabajo")
+}
+
+// Ubicación laboral PILA declarada por el aportante, independiente de Sede y del centro
+// declarado a la ARL. Los cambios conservan vigencias y los snapshots PILA aprobados congelan su
+// fuente; nunca se completa retrospectivamente desde datos actuales.
+model PilaUbicacionLaboral {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  empleadoId String
+  empleado   Empleado @relation(fields: [empleadoId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  municipioId String
+  municipio   MunicipioDane @relation(fields: [municipioId], references: [id], onDelete: Restrict)
+
+  vigenteDesde    DateTime  @db.Date
+  vigenteHasta    DateTime? @db.Date
+  registradoPorId String
+
+  @@unique([id, tenantId], map: "pila_ubicaciones_laborales_id_tenant_key")
+  @@index([tenantId, empleadoId, vigenteDesde], map: "pila_ubicaciones_laborales_employee_since_idx")
+  @@index([municipioId], map: "pila_ubicaciones_laborales_municipality_idx")
+  @@map("pila_ubicaciones_laborales")
 }
 
 // =============================================================================
@@ -1679,6 +1709,7 @@ model MunicipioDane {
   sedes               Sede[]
   empleadosExpedicion Empleado[]
   terceros            Tercero[]
+  ubicacionesLaboralesPila PilaUbicacionLaboral[]
 
   @@index([departamento])
   @@index([nombre])

@@ -44,6 +44,7 @@ function snapshot(): PilaSnapshotPreparationInput {
           fondoPensionCodigo: 'AFP001',
           epsCodigo: 'EPS001',
           cajaCompensacionCodigo: 'CCF001',
+          cajaCompensacionDepartamentoCodigo: '11',
           arlCodigo: 'ARL001',
           arlClaseRiesgo: '2',
           extranjeroNoObligadoPension: null,
@@ -322,6 +323,150 @@ function mapCandidate(input: PilaSnapshotPreparationInput) {
 }
 
 describe('mapPilaAt2V30DetailCandidate', () => {
+  it('maps fields 9 and 10 when the frozen work municipality matches the CCF department', () => {
+    const input = snapshot();
+    input.payloadVersion = 3;
+    const payload = payloadOf(input) as {
+      [key: string]: unknown;
+      schemaVersion?: number;
+      pilaWorkLocations?: unknown[];
+    };
+    payload.schemaVersion = 3;
+    payload.pilaWorkLocations = [
+      {
+        assignmentId: 'work-location-1',
+        tenantId: 'tenant-1',
+        municipioId: 'municipality-1',
+        municipio: {
+          id: 'municipality-1',
+          codigo: '11001',
+          nombre: 'Bogotá, D.C.',
+          departamento: 'Bogotá, D.C.',
+        },
+        vigenteDesde: '2026-01-01',
+        vigenteHasta: null,
+      },
+    ];
+
+    const candidate = mapCandidate(input);
+
+    expect(candidate.supportedSnapshot).toBe(true);
+    expect(candidate.values[9]).toEqual({ value: '11' });
+    expect(candidate.values[10]).toEqual({ value: '001' });
+    expect(candidate.unresolvedFields).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ fieldNumber: 9 }),
+        expect.objectContaining({ fieldNumber: 10 }),
+      ]),
+    );
+  });
+
+  it('blocks fields 9 and 10 when the frozen CCF department differs from the work municipality', () => {
+    const input = snapshot();
+    input.payloadVersion = 3;
+    const payload = payloadOf(input) as {
+      schemaVersion?: number;
+      affiliations: Array<Record<string, unknown>>;
+      pilaWorkLocations?: unknown[];
+    };
+    payload.schemaVersion = 3;
+    payload.affiliations[0].cajaCompensacionDepartamentoCodigo = '08';
+    payload.pilaWorkLocations = [
+      {
+        assignmentId: 'work-location-1',
+        tenantId: 'tenant-1',
+        municipioId: 'municipality-1',
+        municipio: {
+          id: 'municipality-1',
+          codigo: '11001',
+          nombre: 'Bogotá, D.C.',
+          departamento: 'Bogotá, D.C.',
+        },
+        vigenteDesde: '2026-01-01',
+        vigenteHasta: null,
+      },
+    ];
+
+    const candidate = mapCandidate(input);
+
+    expect(candidate.values[9]).toBeUndefined();
+    expect(candidate.values[10]).toBeUndefined();
+    expect(
+      candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 9)
+        ?.reason,
+    ).toContain('no coincide con el departamento de la CCF afiliada');
+  });
+
+  it('keeps fields 9 and 10 blocked when the approved snapshot has no CCF department', () => {
+    const input = snapshot();
+    input.payloadVersion = 3;
+    const payload = payloadOf(input) as {
+      schemaVersion?: number;
+      affiliations: Array<Record<string, unknown>>;
+      pilaWorkLocations?: unknown[];
+    };
+    payload.schemaVersion = 3;
+    payload.affiliations[0].cajaCompensacionDepartamentoCodigo = null;
+    payload.pilaWorkLocations = [
+      {
+        assignmentId: 'work-location-1',
+        tenantId: 'tenant-1',
+        municipioId: 'municipality-1',
+        municipio: { id: 'municipality-1', codigo: '11001' },
+        vigenteDesde: '2026-01-01',
+        vigenteHasta: null,
+      },
+    ];
+
+    const candidate = mapCandidate(input);
+
+    expect(candidate.values[9]).toBeUndefined();
+    expect(candidate.values[10]).toBeUndefined();
+    expect(
+      candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 9)
+        ?.reason,
+    ).toContain('no conserva un departamento DIVIPOLA válido');
+  });
+
+  it('does not use a current worksite to fill fields 9 and 10 of historical v2 snapshots', () => {
+    const candidate = mapCandidate(snapshot());
+
+    expect(candidate.values[9]).toBeUndefined();
+    expect(candidate.values[10]).toBeUndefined();
+    expect(
+      candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 9)
+        ?.reason,
+    ).toContain('no se completa desde la sede');
+  });
+
+  it('blocks a v3 work location that does not cover the whole period', () => {
+    const input = snapshot();
+    input.payloadVersion = 3;
+    const payload = payloadOf(input) as {
+      schemaVersion?: number;
+      pilaWorkLocations?: unknown[];
+    };
+    payload.schemaVersion = 3;
+    payload.pilaWorkLocations = [
+      {
+        assignmentId: 'work-location-1',
+        tenantId: 'tenant-1',
+        municipioId: 'municipality-1',
+        municipio: { id: 'municipality-1', codigo: '11001' },
+        vigenteDesde: '2026-10-02',
+        vigenteHasta: null,
+      },
+    ];
+
+    const candidate = mapCandidate(input);
+
+    expect(candidate.values[9]).toBeUndefined();
+    expect(
+      candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 9)
+        ?.reason,
+    ).toContain('vigencia completos');
+  });
+
   it.each(['tenant', 'employee id', 'period id', 'period dates'] as const)(
     'blocks every detail candidate when the snapshot %s differs from the approved scope',
     (mismatch) => {

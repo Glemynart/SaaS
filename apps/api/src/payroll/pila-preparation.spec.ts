@@ -61,6 +61,7 @@ function payload() {
         arlCodigo: 'ARL001',
         arlClaseRiesgo: '1',
         cajaCompensacionCodigo: 'CCF001',
+        cajaCompensacionDepartamentoCodigo: '11',
         vigenteDesde: '2026-01-01',
         vigenteHasta: null,
       },
@@ -402,6 +403,176 @@ describe('inspectPilaSnapshotPreparation', () => {
       {
         fieldNumber: 98,
         code: 'ACTIVIDAD_ARL_SIN_VIGENCIA_PILA',
+      },
+    ]);
+  });
+
+  it('acepta campos 9 y 10 en preflight cuando el departamento CCF coincide con el municipio laboral', () => {
+    const source = payload();
+    source.schemaVersion = 3;
+    Object.assign(source, {
+      pilaWorkLocations: [
+        {
+          assignmentId: 'location-1',
+          tenantId: 'tenant-1',
+          municipioId: 'municipio-1',
+          municipio: { id: 'municipio-1', codigo: '11001' },
+          vigenteDesde: '2026-01-01',
+          vigenteHasta: null,
+        },
+      ],
+    });
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 3,
+      payload: source,
+    });
+
+    expect(
+      result.issues.filter(
+        ({ fieldNumber }) => fieldNumber === 9 || fieldNumber === 10,
+      ),
+    ).toEqual([]);
+  });
+
+  it('bloquea campos 9 y 10 cuando la ubicación laboral solo cubre parte del período', () => {
+    const source = payload();
+    source.schemaVersion = 3;
+    Object.assign(source, {
+      pilaWorkLocations: [
+        {
+          assignmentId: 'location-1',
+          tenantId: 'tenant-1',
+          municipioId: 'municipio-1',
+          municipio: { id: 'municipio-1', codigo: '11001' },
+          vigenteDesde: '2026-10-15',
+          vigenteHasta: null,
+        },
+      ],
+    });
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 3,
+      payload: source,
+    });
+
+    expect(
+      result.issues
+        .filter(({ fieldNumber }) => fieldNumber === 9 || fieldNumber === 10)
+        .map(({ fieldNumber, code }) => ({ fieldNumber, code })),
+    ).toEqual([
+      {
+        fieldNumber: 9,
+        code: 'UBICACION_LABORAL_PILA_FUENTE_INVALIDA',
+      },
+      {
+        fieldNumber: 10,
+        code: 'UBICACION_LABORAL_PILA_FUENTE_INVALIDA',
+      },
+    ]);
+  });
+
+  it('bloquea los campos 9 y 10 en preflight cuando el departamento de la CCF difiere', () => {
+    const source = payload();
+    source.schemaVersion = 3;
+    source.affiliations[0].cajaCompensacionDepartamentoCodigo = '08';
+    Object.assign(source, {
+      pilaWorkLocations: [
+        {
+          assignmentId: 'location-1',
+          tenantId: 'tenant-1',
+          municipioId: 'municipio-1',
+          municipio: { id: 'municipio-1', codigo: '11001' },
+          vigenteDesde: '2026-01-01',
+          vigenteHasta: null,
+        },
+      ],
+    });
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 3,
+      payload: source,
+    });
+
+    expect(
+      result.issues
+        .filter(({ fieldNumber }) => fieldNumber === 9 || fieldNumber === 10)
+        .map(({ fieldNumber, code }) => ({ fieldNumber, code })),
+    ).toEqual([
+      {
+        fieldNumber: 9,
+        code: 'UBICACION_LABORAL_PILA_CCF_DEPARTAMENTO_NO_COINCIDE',
+      },
+      {
+        fieldNumber: 10,
+        code: 'UBICACION_LABORAL_PILA_CCF_DEPARTAMENTO_NO_COINCIDE',
+      },
+    ]);
+  });
+
+  it('bloquea los campos 9 y 10 en preflight si el snapshot no contiene departamento CCF', () => {
+    const source = payload();
+    source.schemaVersion = 3;
+    Object.assign(source.affiliations[0], {
+      cajaCompensacionDepartamentoCodigo: null,
+    });
+    Object.assign(source, {
+      pilaWorkLocations: [
+        {
+          assignmentId: 'location-1',
+          tenantId: 'tenant-1',
+          municipioId: 'municipio-1',
+          municipio: { id: 'municipio-1', codigo: '11001' },
+          vigenteDesde: '2026-01-01',
+          vigenteHasta: null,
+        },
+      ],
+    });
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 3,
+      payload: source,
+    });
+
+    expect(
+      result.issues
+        .filter(({ fieldNumber }) => fieldNumber === 9 || fieldNumber === 10)
+        .map(({ fieldNumber, code }) => ({ fieldNumber, code })),
+    ).toEqual([
+      {
+        fieldNumber: 9,
+        code: 'AFILIACION_CCF_DEPARTAMENTO_DANE_SIN_DATO',
+      },
+      {
+        fieldNumber: 10,
+        code: 'AFILIACION_CCF_DEPARTAMENTO_DANE_SIN_DATO',
+      },
+    ]);
+  });
+
+  it('mantiene el bloqueo explícito de snapshots v2 sin completar desde datos actuales', () => {
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 2,
+      payload: payloadV2(),
+    });
+
+    expect(
+      result.issues
+        .filter(({ fieldNumber }) => fieldNumber === 9 || fieldNumber === 10)
+        .map(({ fieldNumber, code }) => ({ fieldNumber, code })),
+    ).toEqual([
+      {
+        fieldNumber: 9,
+        code: 'UBICACION_LABORAL_PILA_SIN_FUENTE_CONFIRMADA',
+      },
+      {
+        fieldNumber: 10,
+        code: 'UBICACION_LABORAL_PILA_SIN_FUENTE_CONFIRMADA',
       },
     ]);
   });

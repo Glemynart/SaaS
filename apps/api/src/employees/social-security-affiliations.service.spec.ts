@@ -31,6 +31,7 @@ const dto: CreateSocialSecurityAffiliationDto = {
   arlClaseRiesgo: '1',
   cajaCompensacionCodigo: 'CCF001',
   cajaCompensacionNombre: 'Caja de prueba',
+  cajaCompensacionDepartamentoCodigo: '08',
   extranjeroNoObligadoPension: null,
   colombianoEnElExterior: false,
   vigenteDesde: '2026-04-01',
@@ -110,6 +111,17 @@ describe('SocialSecurityAffiliationsService', () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
+  it('rejects a CCF department code outside DIVIPOLA before touching persistence', async () => {
+    await expect(
+      service.create(userId, employeeId, {
+        ...dto,
+        cajaCompensacionDepartamentoCodigo: '99X',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it('rejects an employee outside the current tenant', async () => {
     employeeFindFirst.mockResolvedValue(null);
 
@@ -132,7 +144,8 @@ describe('SocialSecurityAffiliationsService', () => {
       tenantId,
       empleadoId: employeeId,
       registradoPorId: userId,
-      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V2',
+      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V3',
+      cajaCompensacionDepartamentoCodigo: '08',
       tipoCotizanteCodigo: '01',
       subtipoCotizanteCodigo: '00',
       extranjeroNoObligadoPension: null,
@@ -187,7 +200,7 @@ describe('SocialSecurityAffiliationsService', () => {
     expect(createCall?.[0].data).toMatchObject({
       extranjeroNoObligadoPension: true,
       colombianoEnElExterior: null,
-      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V2',
+      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V3',
     });
   });
 

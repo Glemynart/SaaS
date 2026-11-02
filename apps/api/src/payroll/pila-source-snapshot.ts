@@ -78,6 +78,14 @@ export type PilaSourceContextInput = {
     direccion: string | null;
     municipio: MunicipalitySource;
   } | null;
+  pilaWorkLocations?: Array<{
+    id: string;
+    tenantId: string;
+    municipioId: string;
+    municipio: MunicipalitySource;
+    vigenteDesde: Date;
+    vigenteHasta: Date | null;
+  }>;
   affiliations: Array<{
     id: string;
     tipoCotizanteCodigo: string;
@@ -91,6 +99,7 @@ export type PilaSourceContextInput = {
     arlClaseRiesgo: string;
     cajaCompensacionCodigo: string;
     cajaCompensacionNombre: string;
+    cajaCompensacionDepartamentoCodigo?: string | null;
     extranjeroNoObligadoPension?: boolean | null;
     colombianoEnElExterior?: boolean | null;
     vigenteDesde: Date;
@@ -148,6 +157,19 @@ export function buildPilaRiskAssignmentsSnapshot(
   }));
 }
 
+export function buildPilaWorkLocationsSnapshot(
+  locations: NonNullable<PilaSourceContextInput['pilaWorkLocations']>,
+) {
+  return locations.map((location) => ({
+    assignmentId: location.id,
+    tenantId: location.tenantId,
+    municipioId: location.municipioId,
+    municipio: location.municipio,
+    vigenteDesde: calendarDate(location.vigenteDesde),
+    vigenteHasta: calendarDate(location.vigenteHasta),
+  }));
+}
+
 export type PilaSnapshotNovelty = {
   noveltyId: string;
   tipo: string;
@@ -166,7 +188,7 @@ export type PilaSnapshotEvent = {
 
 export function buildPilaSourceContext(input: PilaSourceContextInput) {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     capturedAt: input.capturedAt.toISOString(),
     period: {
       payrollPeriodId: input.period.id,
@@ -252,6 +274,9 @@ export function buildPilaSourceContext(input: PilaSourceContextInput) {
           municipio: input.worksite.municipio,
         }
       : null,
+    pilaWorkLocations: buildPilaWorkLocationsSnapshot(
+      input.pilaWorkLocations ?? [],
+    ),
     affiliations: input.affiliations.map((affiliation) => ({
       affiliationId: affiliation.id,
       tipoCotizanteCodigo: affiliation.tipoCotizanteCodigo,
@@ -265,6 +290,8 @@ export function buildPilaSourceContext(input: PilaSourceContextInput) {
       arlClaseRiesgo: affiliation.arlClaseRiesgo,
       cajaCompensacionCodigo: affiliation.cajaCompensacionCodigo,
       cajaCompensacionNombre: affiliation.cajaCompensacionNombre,
+      cajaCompensacionDepartamentoCodigo:
+        affiliation.cajaCompensacionDepartamentoCodigo ?? null,
       extranjeroNoObligadoPension:
         affiliation.extranjeroNoObligadoPension ?? null,
       colombianoEnElExterior: affiliation.colombianoEnElExterior ?? null,
@@ -323,7 +350,7 @@ export function buildPilaSourceSnapshot(input: {
 
   return {
     ...input.context,
-    schemaVersion: 2,
+    schemaVersion: 3,
     pilaRiskAssignments: input.context.pilaRiskAssignments ?? [],
     payroll: {
       payrollRunId: input.payroll.runId,

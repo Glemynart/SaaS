@@ -5,14 +5,21 @@ import { TenantsModule } from '../tenants/tenants.module';
 import { SocialSecurityAffiliationsService } from './social-security-affiliations.service';
 import { PilaWorkCentersController } from './pila-work-centers.controller';
 import { PilaWorkCentersService } from './pila-work-centers.service';
+import { PilaWorkLocationsController } from './pila-work-locations.controller';
+import { PilaWorkLocationsService } from './pila-work-locations.service';
 
 @Module({
   imports: [TenantsModule],
-  controllers: [EmployeesController, PilaWorkCentersController],
+  controllers: [
+    EmployeesController,
+    PilaWorkCentersController,
+    PilaWorkLocationsController,
+  ],
   providers: [
     EmployeesService,
     SocialSecurityAffiliationsService,
     PilaWorkCentersService,
+    PilaWorkLocationsService,
   ],
   exports: [EmployeesService],
 })
