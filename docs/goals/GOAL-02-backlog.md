@@ -1,36 +1,46 @@
 # Backlog de GOAL-02 — Evolución Financiera y Cumplimiento Electrónico
 
-Actualizado: 2026-10-31. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
+Actualizado: 2026-11-02. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
 no cerrado. Este backlog conserva el resultado completo de GOAL-02 y prioriza
 primero flujos financieros internos que puedan mostrarse a futuros clientes.
 
 ## M0 — Flujos financieros internos demostrables
 
-| Prioridad | Estado                 | Iniciativa                                                                                        | Criterios de aceptación                                                                                                                                                                                           | Dependencias y riesgo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| --------- | ---------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P0        | COMPLETADO             | Validar que cada producto de una factura pertenezca al tenant activo y esté disponible.           | La API acepta productos activos del mismo tenant, rechaza IDs ajenos, inexistentes o inactivos sin crear la factura, conserva líneas manuales y tiene pruebas de regresión.                                       | Implementado y probado en el PR #151 (`3a8e1c4`); CI y Browser E2E verdes antes del merge. Sin migración; el filtro tenant-aware reduce riesgo de aislamiento multiempresa.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| P1        | PENDIENTE              | Conectar la emisión interna de facturas con el Ledger.                                            | Un acto interno genera un comprobante balanceado e idempotente con tercero, período y origen trazables; anular/corregir conserva evidencia y usa reversión del Ledger.                                            | ADR-011 se fusionó como propuesta en #154; aprobación de Producto y Contabilidad sigue pendiente. Antes de implementar deben definirse snapshots tributarios por línea y vínculo tenant-safe Customer–Tercero; riesgo financiero alto.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| P1        | EN CURSO               | Verificar de extremo a extremo la causación de nómina en el Ledger desde la UI.                   | Un período aprobado conserva su snapshot, crea una causación una sola vez, muestra el comprobante y soporta la corrección definida por el dominio. La UI y el escenario E2E financiero están integrados.          | #152, #153 y #156 están fusionadas; CI y Browser E2E pasaron. Falta demostrar el recorrido completo con una nómina representativa antes de cerrar P1.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| P1        | EN CURSO               | Preparar un escenario financiero reproducible con datos sintéticos para demo.                     | Un tenant explícitamente de demostración carga clientes, productos, facturas internas, nómina, centro de costo, tercero y causación balanceada; la carga es idempotente, tenant-scoped y se verifica desde la UI. | El seed idempotente y su Browser E2E se fusionaron en #157 con CI, E2E y Preview verdes. No está verificado el recorrido con una ejecución del seed en el tenant demo. La factura interna todavía no causa en Ledger ni transmite a DIAN.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| P1        | PROTOTIPO              | Liquidar prima semestral de empleados activos por lote y generar un comprobante PDF por empleado. | Preview muestra períodos y conceptos fuente, base, días y fórmula; aprobación congela snapshots y correcciones; PDF inmutable queda vinculado al Expediente e idempotente ante reintentos.                        | PR #159 se fusionó como `400c562`; CI, Browser E2E y Vercel pasaron. Migraciones probadas en PostgreSQL desechable, no en demo/staging/producción. Casos ambiguos se bloquean. Revisión laboral independiente antes del uso operativo; pagos, Tesorería y Ledger fuera.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| P1        | EN CURSO (EXPORTACIÓN) | Estructurar afiliaciones/novedades y exportar aportes de nómina a PILA.                           | Afiliaciones con vigencia alimentan archivos tipo 1 y 2; validación local, aceptación del operador, liquidación y pago son estados separados; compatibilidad se prueba operador por operador.                     | ADR-013 aprobada con cambios; PR #160 conserva afiliaciones con auditoría e aislamiento tenant, pero aún no valida catálogos ni genera archivos. MinSalud enlaza AT2 v30 (24-07-2026; 336 páginas; SHA-256 BBB3C2D0486FD7D3934BD640D8E68C60D33686B1604E8EFAA980139FB5686D33), que incluye la Resolución 1529/2026 entre los actos que lo incorporan; la extracción indexada que mostraba v29 estaba desactualizada; el mapeo de campos sigue provisional. La auditoría de esta rama mapea sus campos a fuentes candidatas, datos faltantes y valores asignados al operador; no es fixture ni autoriza serializar. PR #162 capturó la fecha prevista de pago de aportes y se fusionó en main como a459683 tras superar CI, Browser E2E y Vercel Preview. La preparación del snapshot agrega un payload PILA separado con empresa, empleado, contrato, sede, afiliaciones históricas del período, novedades, salario básico, tipo salarial, IBC por subsistema cuando existe un concepto fuente inequívoco y días cotizados por subsistema solo para dependientes 01/00, con mes calendario completo y cobertura completa de empleado, contrato y afiliación; los demás días quedan nulos con códigos de bloqueo. PR #163 (abierta, checks verdes al 2026-10-31) añade captura de eventos PILA desde el detalle del período (búsqueda de empleado, alta/baja tenant-scoped en BORRADOR y validación de fechas/días); al calcular, los congela en cada snapshot y bloquea días sin segmentación aprobada. Liquidación y edición bloquean la fila del período y vuelven a leer eventos dentro de la transacción para evitar snapshots incompletos por concurrencia. ADR-014 fue aceptada (opción B); PR #169 (abierta sobre #168, checks verdes al 2026-10-31) captura centro ARL y actividad de riesgos con vigencias por empleado y snapshots. PR #170 (abierta sobre #169) agrega un informe preliminar de brechas visible en el detalle de períodos aprobados/causados: lee únicamente snapshots del mismo tenant, agrupa campos pendientes conocidos y muestra empleados afectados. No completa datos desde maestros actuales; `archivoGenerable` permanece `false` y `estadoArchivo` `NO_IMPLEMENTADO`. El informe no es un preflight normativo completo: sin brechas detectadas no prueba que el período pueda exportarse. PR #180 añade un formateador de registros AT2 v30, todavía abierto; no mapea snapshots ni compone/descarga los dos archivos. Aún faltan segmentación PILA de novedades, validar catálogos y bases conforme a normas, actividad y centro ARL, reglas completas de vigencia, mapeo y composición completa de archivos, fixtures normativos revisados y pruebas de carga por operador. Dependientes estándar solamente; sin cotizante 75, transmisión ni pago. |
+| Prioridad | Estado                 | Iniciativa                                                                                        | Criterios de aceptación                                                                                                                                                                                                                                       | Dependencias y riesgo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| --------- | ---------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0        | COMPLETADO             | Validar que cada producto de una factura pertenezca al tenant activo y esté disponible.           | La API acepta productos activos del mismo tenant, rechaza IDs ajenos, inexistentes o inactivos sin crear la factura, conserva líneas manuales y tiene pruebas de regresión.                                                                                   | Implementado y probado en el PR #151 (`3a8e1c4`); CI y Browser E2E verdes antes del merge. Sin migración; el filtro tenant-aware reduce riesgo de aislamiento multiempresa.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| P1        | EN CURSO               | Conectar la emisión interna de facturas con el Ledger para demo.                                  | Emitir una factura interna válida crea factura y comprobante balanceado/idempotente en una transacción tenant-scoped, con tercero, período, origen y snapshots tributarios; cancelar conserva motivo y auditoría y revierte por Ledger cuando existe asiento. | PR #179 implementa el flujo interno, incluida asociación explícita Customer–Tercero por tenant/NIT, tasas/impuesto congelados y reversión auditable. No crea reverso para facturas históricas sin asiento. Migración no aplicada fuera de pruebas; no incluye DIAN, cartera ni pagos, y requiere revisión contable-fiscal antes de operación real.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| P1        | EN CURSO               | Verificar de extremo a extremo la causación de nómina en el Ledger desde la UI.                   | Un período aprobado conserva su snapshot, crea una causación una sola vez, muestra el comprobante y soporta la corrección definida por el dominio. La UI y el escenario E2E financiero están integrados.                                                      | #152, #153 y #156 están fusionadas; CI y Browser E2E pasaron. Falta demostrar el recorrido completo con una nómina representativa antes de cerrar P1.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| P1        | EN CURSO               | Preparar un escenario financiero reproducible con datos sintéticos para demo.                     | Un tenant explícitamente de demostración carga clientes, productos, facturas internas, nómina, centro de costo, tercero y causación balanceada; la carga es idempotente, tenant-scoped y se verifica desde la UI.                                             | El seed idempotente y su Browser E2E se fusionaron en #157 con CI, E2E y Preview verdes. No está verificado el recorrido con una ejecución del seed en el tenant demo. La factura interna todavía no causa en Ledger ni transmite a DIAN.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| P1        | PROTOTIPO              | Liquidar prima semestral de empleados activos por lote y generar un comprobante PDF por empleado. | Preview muestra períodos y conceptos fuente, base, días y fórmula; aprobación congela snapshots y correcciones; PDF inmutable queda vinculado al Expediente e idempotente ante reintentos.                                                                    | PR #159 se fusionó como `400c562`; CI, Browser E2E y Vercel pasaron. Migraciones probadas en PostgreSQL desechable, no en demo/staging/producción. Casos ambiguos se bloquean. Revisión laboral independiente antes del uso operativo; pagos, Tesorería y Ledger fuera.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| P1        | EN CURSO (EXPORTACIÓN) | Estructurar afiliaciones/novedades y exportar aportes de nómina a PILA.                           | Afiliaciones con vigencia alimentan archivos tipo 1 y 2; validación local, aceptación del operador, liquidación y pago son estados separados; compatibilidad se prueba operador por operador.                                                                 | ADR-013 aprobada con cambios. AT2 v30 oficial (24-07-2026; 336 páginas) define tipo 1 de 567 caracteres, encabezado 01 de 359 y detalle 02 de 693. PR #162 capturó fecha prevista de pago de aportes y se fusionó como a459683. La preparación congela empresa, empleado, contrato, sede, afiliaciones, novedades, salario, tipo salarial, IBC por subsistema cuando hay una fuente inequívoca y días de cotización solo en condiciones admitidas; valores no demostrables quedan bloqueados. PR #163 (beccd57e) agregó captura auditable de eventos y bloquea días sin segmentación aprobada. PR #164 (1460262) agregó un informe preliminar por snapshot del mismo tenant. PR #169 (7d30bdc) agregó centros ARL y asignaciones de actividad con vigencia, tenant-safe, historial auditado y snapshot PILA v2 sin backfill. PR #170 añade brechas por evento/campo y detecta listas de eventos ausentes, malformadas o divergentes; mantiene archivoGenerable=false, estadoArchivo=NO_IMPLEMENTADO y un estado normativo pendiente mientras no se complete la reconciliación. Sigue sin ser un preflight normativo completo ni generar archivos. Faltan segmentación de novedades; validación de catálogos, bases y vigencias; integrar la primitiva en la composición completa del archivo; fixtures normativos revisados y pruebas por operador. MVP: dependientes estándar; sin cotizante 75, transmisión ni pago. |
 
-ADR-014 fue aceptada (opción B): conservar el centro asignado por la ARL y la
-actividad económica de riesgos con vigencias por empleado, sin inferirlos de la
-sede ni de datos actuales. PR #169 implementa esta captura y permanece abierto
-con CI, Browser E2E y Vercel Preview verdes al 2026-10-31. La captura de eventos
-PILA queda ligada al período indicado; un intervalo que se extienda a otro
-período no se replica automáticamente. La UI lo advierte y los casos entre
-períodos siguen bloqueados para exportación hasta definir cómo conservarlos y
-aprobarlos en cada planilla afectada.
-Se añadió y ejecutó localmente un Browser E2E con PostgreSQL 16 desechable y
-puertos aislados; pasó el registro, la creación de sede y empleado, captura de
-una incapacidad, persistencia tras recarga y eliminación. La aplicación de 73
-migraciones descubrió un nombre de tabla incorrecto en el FK de eventos; se
-corrigió a `empleados` y la migración completa pasó en limpio. El contenedor de
-prueba se detuvo y no se usaron datos de demo/staging/producción. Esta prueba
-local se incluyó en PR #163, abierta con CI, Browser E2E y Vercel Preview
-verdes al 2026-10-31.
+La decisión de [ADR-014](../adr/ADR-014-pila-work-center-and-activity-source.md)
+fue aceptada. PR #169 (`7d30bdc`) se fusionó con captura de centros ARL y
+actividades de riesgo por empleado, asociación opcional con sede, vigencias
+auditadas, snapshot PILA v2 y sin backfill. Su Browser E2E cubre el alta,
+persistencia y cierre de vigencia; las migraciones se aplicaron en PostgreSQL
+16 desechable, sin usar tenants ni entornos reales.
+
+PR #170 presenta en el detalle del período un informe preliminar construido
+solo desde snapshots del tenant. Mapea cada evento conocido a sus campos AT2,
+bloquea datos no segmentados y detecta listas de eventos ausentes, malformadas
+o divergentes entre las copias del snapshot. No calcula Payroll/IBC, mantiene
+`archivoGenerable: false` y `estadoArchivo: NO_IMPLEMENTADO`, y expone
+`formatVersion: null` con `RECONCILIATION_PENDING` porque la reconciliación
+completa de norma y campos sigue pendiente. La página presenta el resultado
+como preparación preliminar, no como validación completa para exportar.
+
+El formato de captura de afiliaciones queda versionado por separado de la
+versión normativa. La migración de PR #170 actualiza solo los metadatos de
+captura, sin renombrar la columna heredada ni reescribir snapshots históricos;
+el CI/E2E sincronizado debe aplicar la migración en una base desechable antes
+del merge. La captura de eventos
+PILA sigue ligada al período indicado; un intervalo que cruce períodos no se
+replica automáticamente y queda bloqueado hasta definir y probar cómo se
+aprueba en cada planilla afectada. La migración de PR #169 se aplicó con las 73
+anteriores en PostgreSQL 16 desechable. No se ejecutó rollback destructivo ni
+se accedió a demo, staging o producción.
 
 ## H1 — Fundación de integraciones regulatorias
 
@@ -76,26 +86,27 @@ verdes al 2026-10-31.
   reconstruir un archivo PILA. No se encontró exportador PILA ejecutable en
   `apps/api` ni en la interfaz web.
 - La [página oficial de PILA de MinSalud](https://www.minsalud.gov.co/Proteccion-Social/Paginas/pila.aspx)
-  se revalidó el 2026-10-31. Una descarga fresca de su enlace a
-  `anexo-tecnico2-cotizantes.pdf` tiene 336 páginas y SHA-256
-  `BBB3C2D0486FD7D3934BD640D8E68C60D33686B1604E8EFAA980139FB5686D33`; la
-  página 2 identifica AT2 v30, fechado 2026-07-24, e incluye la Resolución
-  1529/2026 entre los actos que lo incorporan. El índice web aún mostraba v29,
-  pero su extracción estaba desactualizada respecto a la descarga directa. Se
-  corrige la conclusión anterior que reportaba v29 y desconocía el v30/hash.
-  La versión y el PDF están verificados; el mapeo de campos, valores esperados,
-  condiciones de vigencia y fixtures siguen siendo provisionales hasta cotejar
-  AT2 v30 y las normas posteriores. Se verificó que los cambios de
-  identificación de los campos tipo 1 (3 y 18) y tipo 2 (4 y 75) aplican a
+  se revalidó el 2026-10-31: la descarga directa del enlace a
+  `anexo-tecnico2-cotizantes.pdf` identifica AT2 v30, fechado 2026-07-24
+  (336 páginas; SHA-256
+  `BBB3C2D0486FD7D3934BD640D8E68C60D33686B1604E8EFAA980139FB5686D33`), e
+  incluye la Resolución 1529 de 2026 entre los actos incorporados. La
+  [Resolución 1529 de
+  2026](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-1529-de-2026.pdf)
+  (58 páginas, 24 de julio) modifica partes del AT2 y el AT3 con plazos
+  escalonados. La matriz debe cotejar las reglas consolidadas de v30, sus hitos
+  de vigencia y normas posteriores, sin duplicar cambios incorporados. Se
+  verificó que los cambios de identificación de los campos tipo 1 (3 y 18) y
+  tipo 2 (4 y 75) aplican a
   pagos desde 2026-10-01 para pensiones del período 2026-09. Las aclaraciones
   de planilla E tienen otro hito: pago desde 2026-11-01 para salud del período
   2026-11; el cotizante 75 también tiene un hito en esa fecha, pero queda fuera
-  del MVP. La matriz completa aún debe reconciliar cada regla de AT2 v30 y
-  normas posteriores. La propuesta de modificar 5.87/5.91 continúa en consulta
-  pública, no como norma expedida. La selección de reglas por período/fecha
-  prevista de pago PILA se aplica solo a hitos cuya vigencia dependa de ambos
-  datos; esa previsión es distinta del pago del salario y no confirma que se
-  pagaron los aportes.
+  del MVP. La matriz completa aún debe reconciliar cada regla de AT2 v30, sus
+  hitos de vigencia y normas posteriores. La propuesta de modificar 5.87/5.91
+  continúa en consulta pública, no como norma expedida. La selección de reglas
+  por período/fecha prevista de pago de aportes PILA se aplicará solo a hitos
+  cuya vigencia dependa de ambos datos; esa previsión es distinta de la fecha
+  de pago del salario y no confirma que se pagaron los aportes.
 - **Exactitud de parámetros de nómina demo:** la auditoría detectó que
   `apps/api/prisma/seed.ts` fechaba en 2026 y citaba normas de 2024, pero
   cargaba cifras de 2025. La preparación local corrigió los valores a SMMLV
@@ -165,12 +176,12 @@ verdes al 2026-10-31.
   PostgreSQL desechable. El flujo es prototipo para demo; revisión laboral
   independiente sigue pendiente antes del uso operativo. Las migraciones no se
   aplicaron a demo/staging/producción; pagos, Tesorería y Ledger quedan fuera.
-  La PR #167 amplía el Browser E2E a 100 empleados: tras aprobar el lote, corta
-  la conexión del navegador y verifica que el worker termine, publique los 100
-  PDFs en Expediente y permita descargarlos después de reconectar (39,5 s en
-  PostgreSQL 16 desechable). La PR #168 muestra el avance acumulado, pendientes
-  y errores y verifica la barra accesible 100/100 al volver. Ambas siguen
-  abiertas a continuación de la cadena PILA.
+  La PR #167 se fusionó en `main` (`8a38006`) y amplió el Browser E2E a 100
+  empleados: desconecta el navegador tras aprobar, confirma `PROCESANDO` sin
+  conexión, espera los 100 PDFs en Expediente y valida una descarga al volver.
+  La PR #168 muestra el avance acumulado, pendientes y errores y verifica la
+  barra accesible 100/100 al reconectar. Los checks de #168 deben ejecutarse
+  sobre esta rama sincronizada antes del merge.
 - **PILA:** ADR-013 está aprobada con cambios y la matriz normativa fue
   presentada. Se comprobó directamente AT2 v30 y las disposiciones de la
   Resolución 1529/2026 sobre campos de identificación y plazos; falta
@@ -215,8 +226,9 @@ verdes al 2026-10-31.
   Los registros históricos sin clasificación siguen en null y no se
   completan automáticamente. La ausencia de conceptos variables no se toma
   como salario fijo. La clasificación todavía no tiene vigencia laboral; un
-  cambio dentro del período no es segmentable y debe bloquearse. La preparación
-  actual captura 30 días independientes para los cuatro subsistemas
+  cambio dentro del período no es segmentable y debe bloquearse. Con AT2 v30,
+  captura 30 días
+  independientes para los cuatro subsistemas
   solo en un mes calendario completo, con empleado, contrato y afiliación que
   cubren todo el período, cotizante 01 con subtipo explícito 00 y sin novedades;
   si falta una condición, conserva null y códigos de bloqueo. Esto es
@@ -232,19 +244,18 @@ verdes al 2026-10-31.
   confirmaron las tres columnas nuevas y la integración de `PayrollService.aprobar`
   persistió el payload PILA aprobado en una base PostgreSQL efímera. La prueba
   no accede a bases de usuario. La captura es un prerrequisito del exportador;
-  no cubre todos los campos obligatorios, no serializa ni valida archivos tipo
+  no cubre todos los campos obligatorios, no compone ni valida archivos tipo
   1/2 y aún no constituye una capacidad utilizable por clientes.
-- AT2 v30 confirma cuatro conteos independientes de días (pensión, salud,
-  riesgos, CCF), cuatro IBC por subsistema (campos 42–45) y el campo 95
-  adicional cuando aplica. Permite múltiples registros 02 para una persona en
-  casos normativos definidos, incluidos cambios de ingreso/retiro o IBC. Esta
-  estructura está confirmada en el PDF oficial; el mapeo desde los snapshots y
-  las reglas laborales todavía no. Payroll conserva un solo IBC y sus novedades
-  no tienen intervalos PILA aprobados. No iniciar el serializador con un IBC o
-  contador general repetido: primero congelar segmentos, bases y días permitidos
-  por subsistema, con fixtures y resultados esperados revisados.
-- AT2 v30 establece que el campo 95 (IBC de otros parafiscales) es obligatorio
-  para cotizante 01. La [Ley 21 de 1982, artículo 17](https://www.funcionpublica.gov.co/eva/gestornormativo/norma_pdf.php?i=4827)
+- La relectura del AT2 v30 (pp. 91–94 y 103–104) confirmó una brecha que debe
+  guiar el siguiente incremento: tipo 2 exige cuatro conteos independientes
+  de días (pensión, salud, riesgos, CCF) y cuatro bases (salario básico e IBC
+  por subsistema); el Payroll actual conserva un solo IBC y las novedades no
+  tienen intervalos PILA. AT2 permite más de un detalle 02 por persona en
+  casos definidos de ingreso/retiro o cambio de IBC y asigna al aportante el
+  cálculo de IBC ante novedades concurrentes. No iniciar la composición del archivo con
+  un IBC/días generales repetidos: primero congelar segmentos, bases y días
+  autorizados por Payroll, con fixtures y valores esperados revisados.
+- AT2 v30 también exige el campo 95 (IBC de otros parafiscales) para cotizante 01. La [Ley 21 de 1982, artículo 17](https://www.funcionpublica.gov.co/eva/gestornormativo/norma_pdf.php?i=4827)
   define su base con factores salariales y descansos remunerados; el
   [artículo 49 de la Ley 789 de 2002](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=6778)
   aplica el 70% al salario integral. `PayrollCalculator` conserva un IBC común
@@ -266,8 +277,7 @@ verdes al 2026-10-31.
   los dos archivos de snapshot. Aún falta revisión laboral de los resultados y el
   fixture de vacaciones con un concepto salarial de descanso que Payroll
   todavía no puede producir.
-  La rama de PR #180 incorpora formato fijo de registros AT2 v30, pero no un
-  mapeo completo de snapshots ni archivos utilizables por clientes.
+  La primitiva de formato existe, pero aún no hay un exportador PILA completo ni archivos utilizables por clientes.
 - **Primer operador candidato para pruebas PILA:** SOI, planilla E, por su
   documentación de cargue de archivos planos de empresa y autocorrector para
   errores del archivo. Es una decisión de planificación, no compatibilidad
@@ -276,59 +286,38 @@ verdes al 2026-10-31.
 - No se ejecutó el seed financiero ni se accedió a staging, producción, VPS u
   OCI; no se transmitió información a DIAN/UGPP.
 
-### Continuación de PILA — 2026-10-31
+### Continuación de PILA — 2026-11-01
 
-- PR #163, #164 y #165 siguen abiertas y en secuencia; no se fusionaron. Sus
-  checks visibles están verdes al momento de esta revisión, y se actualizarán
-  contra `main` y se integrarán en orden cuando el usuario reponga la cuota de
-  GitHub Actions.
-- En el preflight local de #164, el perfil del aportante ya conserva la
-  respuesta sobre acciones especiales y la clase de aportante. Se detectó que
-  el informe no bloqueaba una acción declarada ni una respuesta sin confirmar,
-  y aceptaba clases A/B sin contrastar el total de cotizantes o C/D sin validar
-  evidencia de elegibilidad. La continuación en preparación añade bloqueos
-  para los campos 26, 7, 33, 34 y 76, incluidos conteos A/B y consistencia con
-  Ley 1429, sin declarar el archivo generable ni ampliar el MVP.
-- ADR-014 adopta la opción B por la delegación general de decisiones del
-  usuario: centro ARL reutilizable, asociación opcional con Sede y asignación
-  fechada de actividad por empleado. La pantalla de empleado captura y
-  conserva esos datos sin inferirlos desde cargo, sede ni afiliación heredada.
-- La migración agrega tablas tenant-safe sin backfill. El snapshot PILA sube a
-  v2 y congela centro, actividad, vigencias, tenant y versión normativa; el
-  lector mantiene compatibilidad con snapshots v1 y los bloquea para campos 62
-  y 98 cuando no tienen datos. Alta y cierre usan historial auditado, bloqueo
-  concurrente por empleado, validación de solapamientos, catálogo y
-  consistencia ARL/clase de riesgo.
-- El catálogo contiene 1.018 códigos extraídos del anexo oficial de Función
-  Pública para Decreto 768/2022, con hash del PDF registrado en código. No se
-  incluyeron descripciones para evitar atribuir texto que la extracción no
-  verificó. Requiere revisión de Nómina con constancias anonimizadas; el campo
-  62 aún necesita comprobar formato AT2/operador. El formateador de registros
-  de PR #180 no es un serializador de archivos ni prueba compatibilidad.
-- El Browser E2E de empleados pasó en Chromium con PostgreSQL 16 desechable:
-  registra centro ARL, sede opcional y actividad vigente desde el perfil,
-  verifica persistencia al recargar y cierra la vigencia. La API declara las
-  lecturas como autenticadas y las escrituras con roles ADMIN/OPERADOR; esto
-  corrige el bloqueo de activación Deny by Default detectado al arrancar la
-  prueba. No se usó el tenant demo ni el servidor local del usuario.
-- La continuación local del informe de preparación PILA enumera cada código
-  de evento congelado como bloqueo en su campo AT2 y detecta snapshots v2 con
-  lista ausente o desincronizada entre sus copias. No calcula segmentos, no
-  valida por completo la norma y mantiene `archivoGenerable: false`; la
-  segmentación de eventos, días e IBC
-  sigue pendiente. La revisión de `PayrollService` confirma que el cálculo
-  usa el salario mensual completo y no prorratea por ingreso/retiro; los IBC
-  del snapshot no son una fuente segura para esos períodos parciales. Payroll
-  prorrateado y sus fixtures laborales revisados son prerrequisito de esa ruta.
-  AT2 v30 permite menos de 30 días de pensión y salud cuando existe novedad
-  ING o RET para cotizantes obligados; los días y los IBC se reportan por
-  subsistema. Esto no determina por sí solo el prorrateo interno de Payroll, los
-  pisos de IBC, las bases de CCF/parafiscales, días normalizados ni concurrencia
-  de novedades. El Decreto 780 establece la base mensual devengada
-  para dependientes privados; Decreto 1072 regula aparte ciertos trabajos por
-  períodos inferiores a un mes. El Concepto 298251/2022 explica 30 días en un
-  caso de trabajador oficial y no valida por sí solo la fórmula de nómina
-  privada. Faltan expected values revisados por subsistema.
+- PR #163 (`beccd57e`), #164 (`1460262`) y #165 (`907f727`) se auditaron y
+  fusionaron en ese orden después de pasar CI, Browser E2E y Vercel.
+- En el informe preliminar de PR #164, el perfil del aportante ya conservaba
+  la respuesta sobre acciones especiales y su clase. La auditoría detectó que
+  no se bloqueaban acciones declaradas o sin confirmar, clases A/B sin
+  contrastar el total de cotizantes, ni clases C/D sin evidencia de elegibilidad.
+  PR #166 incorpora bloqueos para los campos 26, 7, 33, 34 y 76, conteos A/B y
+  consistencia con Ley 1429, sin declarar el archivo generable ni ampliar el MVP.
+- PR #167 (`8a38006`) se fusionó después de probar el procesamiento en segundo
+  plano con 100 empleados y pérdida de conexión del navegador. PR #168
+  (`5b17004`) se fusionó tras añadir y probar el avance de documentos
+  publicados, pendientes y con error.
+- La implementación de PR #169 agrega centros declarados a la ARL y
+  asignaciones fechadas de actividad económica por empleado, con sede
+  opcional, historial auditado, aislamiento por tenant y sin inferir datos de
+  campos heredados. La migración no hace backfill; `pilaPayload` v2 congela
+  centro, actividad, vigencias y versión normativa y mantiene lectura de
+  snapshots v1. La captura valida solapamientos, afiliación ARL y clase de
+  riesgo.
+- El catálogo versionado incluye 1.018 códigos extraídos del anexo del Decreto
+  768/2022; se registra el hash del PDF y se omiten descripciones no verificadas.
+  El E2E cubre alta de centro, asignación, persistencia y cierre de vigencia.
+  Siguen pendientes una revisión funcional de Nómina con constancias
+  anonimizadas y confirmar el formato del campo 62 con AT2 y operadores. Esta
+  capacidad aún no serializa ni transmite archivos PILA.
+- PR #170 distingue códigos de evento conocidos, códigos fuera del MVP y
+  payloads v2 sin lista válida o con copias divergentes. Cada bloqueo apunta al
+  campo AT2 correspondiente. El informe de eventos no confirma la norma
+  completa y conserva el archivo como no implementado; segmentación de días e
+  IBC y fixtures normativos revisados siguen pendientes.
 
 - PR #173 agrega una prueba unitaria de recuperación del trabajador de prima
   después de que vence su lease: cuando ya existe el PDF, el worker publica el
@@ -336,8 +325,8 @@ verdes al 2026-10-31.
   simula la interrupción y recuperación; no equivale a una prueba de reinicio
   real del proceso ni a aceptación end-to-end.
 - PR #174 amplía el preflight PILA con límites de campos numéricos de nueve
-  posiciones y longitudes textuales AT2 para identificación, nombres, datos del
-  aportante y representante. Los excedentes bloquean sin truncarse y las
+  posiciones y longitudes/caracteres AT2 para identificaciones, nombres, datos
+  del aportante y representante. Los excedentes bloquean sin truncarse y las
   pruebas cubren máximos y desbordamientos. Esto sigue siendo validación
   preparatoria: no serializa registros, no hace `archivoGenerable` verdadero y
   no acredita carga o compatibilidad de operador.
@@ -358,45 +347,20 @@ verdes al 2026-10-31.
   esos campos; una prueba de carga sigue pendiente. La fecha prevista PILA no
   se tratará como pago efectivo.
 
-### Estado de la continuación PILA — 2026-10-31
+### Contabilización interna y fecha de factura — 2026-10-31
 
-- PR #173–#178 permanecen abiertos y apilados; no se han actualizado contra `main` ni fusionado. #175 valida campos del tipo 1, #176 documenta el encabezado tipo 2, #177 corrige el estado de subtipo `00` y #178 reconcilia el mapa de fuentes con snapshots actuales.
-- En la última consulta, `browser` y `verify` de #177 y #178 fallaron a los 2–3 segundos. No se investigó la causa en esta continuación. Los PR quedan abiertos mientras se sigue con trabajo independiente; cuando se reponga la cuota, se sincronizarán con `main` en orden, se esperarán los checks de cada uno y se fusionarán solo después de auditarlo.
-- El Preview de #177 pasó; el de #178 seguía desplegándose al consultar. Ninguno de esos estados convierte el informe preliminar en un preflight completo. `archivoGenerable` sigue en `false`; #180 aporta únicamente formato de registros y no genera un archivo PILA utilizable por clientes.
-- En los commits de documentación de #177 y #178 pasaron Prettier y
-  `git diff --check`; no se ejecutaron pruebas porque esos cambios no tocaban
-  código. Los cambios posteriores de código y sus verificaciones se registran
-  en las secciones que siguen.
+- PR #179 conecta la emisión interna con un comprobante Ledger balanceado dentro de la transacción, vincula Customer con un tercero NIT activo del tenant, congela datos de identidad e impuesto por línea y registra cancelaciones con motivo y auditoría. La reversión se realiza por Ledger cuando existe asiento; facturas históricas sin asiento no reciben reverso inventado. Esto es facturación interna para demo, no facturación electrónica DIAN ni validación fiscal.
+- La auditoría corrigió la selección del período contable en el límite del mes: la fecha `DATE` se calcula con el calendario de `America/Bogota`, mientras Invoice conserva su instante de emisión. La prueba cubre 31 de octubre a las 21:30 de Bogotá, que ya corresponde al 1 de noviembre UTC.
+- La migración no se aplicó a bases de usuario, demo, staging o producción.
 
-### Primitiva de layout AT2 v30 — 2026-10-31
+### Primitiva de layout AT2 v30 — 2026-11-01
 
-- La nueva rama `codex/goal02-pila-at2-fixed-width-layout`, apilada sobre
-  #178, define una primitiva de formato fijo para los tres registros de entrada
-  AT2 v30: tipo 1 (567 caracteres), encabezado tipo 2 (359) y detalle tipo 2
-  (693). Los anchos y tipos `N`/`A` se cotejaron con el PDF oficial de 336
-  páginas, versión 30 de 24-07-2026, SHA-256
-  `BBB3C2D0486FD7D3934BD640D8E68C60D33686B1604E8EFAA980139FB5686D33`.
-- La utilidad exige decisión explícita para cada campo, aplica solo el relleno
-  normativo `N`/`A`, y rechaza exceso de longitud o controles; una prueba
-  unitaria cubre conteo y longitud de los tres layouts. Todavía no consume
-  `PayrollSnapshot`, elige vacíos, codifica bytes, agrega separadores, produce
-  descargas ni comprueba operadores. No cambia `archivoGenerable`, que sigue
-  siendo `false` hasta completar reglas, fixtures, mapeo/composición del
-  archivo y validación normativa.
-
-### Visibilidad de disponibilidad PILA — 2026-10-31
-
-- El informe preliminar separa las brechas de datos por empleado del estado
-  general de exportación. Indica que el layout AT2 v30 y el formateador de
-  registros existen en la rama, pero el mapeo desde snapshots, composición y
-  descarga de archivos no están implementados; la validación sigue siendo
-  parcial y la aceptación por operador no está verificada.
-- Expone como dependencia los campos que AT2 asigna al sistema del operador:
-  tipo 1, campos 28–29; encabezado tipo 2, campos 2, 15, 17, 18 y 22. La
-  documentación pública de SOI confirma cargue de archivos planos, pero la
-  búsqueda realizada no encontró cómo debe representar esos campos el archivo
-  de entrada. Se mantiene esa convención pendiente, sin inventar valores ni
-  declarar compatibilidad.
+- PR #180 incorpora layouts de caracteres de ancho fijo para tipo 1 (34
+  campos/567 posiciones), encabezado tipo 2 (22/359) y detalle tipo 2 (98/693),
+  cotejados con AT2 v30 oficial (24-07-2026). La prueba mantiene las firmas por
+  campo, conteos y longitudes.
+- El formateador aplica relleno normativo y exige decisión explícita para valores vacíos. La auditoría agregó el rechazo de espacios para campos numéricos; los vacíos numéricos se rellenan con ceros y los alfanuméricos con espacios.
+- Es solo una primitiva: no mapea PayrollSnapshot, valida reglas laborales, codifica bytes, compone o descarga archivos ni demuestra aceptación de un operador. `archivoGenerable` continúa en `false` hasta completar preflight, fixtures normativos y pruebas por operador.
 
 ### Corrección de prima — 2026-10-31
 
@@ -414,41 +378,40 @@ verdes al 2026-10-31.
   pesos enteros congelados por nómina; hay regresiones para salario, auxilio y
   trabajo suplementario.
 - Las pruebas de calculadora y servicio pasan (32/32), al igual que typecheck de
-  API, ESLint, Prettier y `git diff --check`. El PR #181 está apilado sobre
-  #180; CI y Browser E2E fallaron en 1–2 segundos al abrirse. El usuario indicó
-  que la cuota mensual de Actions está agotada; ambos PR quedan abiertos para
-  continuar trabajo local y sincronizarlos en orden cuando se reponga.
+  API, ESLint, Prettier y `git diff --check`. Tras sincronizar el PR con `main`
+  en `553b90b`, CI, Browser E2E (24/24) y Vercel Preview pasaron. Las corridas
+  del head anterior fallaron antes de iniciar los jobs por el límite de Actions,
+  sin evaluar el código.
 
-### Integridad de snapshots en el preflight PILA — 2026-10-31
+### Revalidación del PR #181 — 2026-11-02
 
-- La revisión del informe preliminar encontró que afiliaciones y asignaciones
-  ARL se filtraban a objetos antes de validar su forma. Un snapshot con una fila
-  válida más otra malformada podía aparecer como una sola asignación completa.
-  El preflight ahora reporta bloqueos explícitos para las filas inválidas de
-  afiliación, centro de trabajo y actividad económica; no activa generación de
-  archivos ni cambia el estado global `NO_IMPLEMENTADO`.
+- Después del plazo de 24 horas, un despliegue manual Preview del HEAD
+  `a4f123f93cfda6e545f46f70159a7f39cb41f93e` terminó `READY`; no se desplegó a
+  staging ni producción. El build de Next.js compiló correctamente.
+- Ese despliegue manual no actualizó el estado Vercel asociado al commit en
+  GitHub. El commit de documentación `1769198` disparó un nuevo despliegue por
+  la integración GitHub–Vercel; `Vercel`, `verify` y `browser` pasaron. Tras la
+  auditoría, PR #181 se fusionó en `main` como `e0dc459`.
 
-### Fecha de pago PILA en el preflight — 2026-10-31
+### Disponibilidad e integridad del preflight PILA — 2026-10-31
 
-- La implementación inicial consultaba la fecha del período en el informe,
-  aunque ADR-013 establece que se consume la fecha congelada en snapshots
-  aprobados. El preflight ya deriva la fecha mostrada exclusivamente de esos
-  snapshots, exige una fecha calendario válida en cada uno y bloquea si difieren.
-  Así una ausencia o inconsistencia no se oculta por separado en el dato del
-  período ni se intenta corregir reescribiendo el snapshot.
-- El archivo sigue `NO_IMPLEMENTADO`; la validación normativa es preliminar y
-  la aceptación por operador no verificada.
+- PR #182 expone en la pantalla de nómina la diferencia entre layout AT2 v30,
+  generación de archivo (`NOT_IMPLEMENTED`), validación local (`PRELIMINARY`)
+  y aceptación por operador (`NOT_VERIFIED`), con bloqueos y evidencia por
+  campo. El informe no habilita descargas ni compatibilidad.
+- El preflight ahora bloquea filas malformadas de afiliación, centro de trabajo
+  y actividad económica en lugar de descartarlas antes de validar. Tampoco
+  oculta la ausencia o inconsistencia de la fecha prevista de pago: usa solo la
+  fecha congelada en snapshots aprobados y bloquea si falta o difiere.
+- La sede operativa y su municipio DIVIPOLA no prueban la ubicación laboral
+  PILA de los campos 9–10 del AT2. PR #182 los bloquea hasta contar con una
+  fuente PILA explícita, confirmada y congelada; el archivo sigue sin generarse.
 
-### Fuente de ubicación laboral PILA — 2026-10-31
-
-- El snapshot congela el municipio de la sede asociada al contrato, pero esa
-  sede es una referencia operativa y no confirma el lugar laboral para los
-  campos 9–10 de AT2. La matriz y ADR-013 ya delimitaban esta diferencia; el
-  preflight no la aplicaba y podía dar por resueltos esos campos.
-- PR #182 ahora bloquea ambos campos incluso cuando el municipio de la sede
-  tiene un código DIVIPOLA válido. Falta una fuente PILA explícita, confirmada
-  y congelada; hasta que se defina y capture, esos campos no pueden figurar como
-  listos para exportación.
+- ADR-015 fue aprobada el 2026-11-02: ubicación laboral PILA histórica por
+  empleado, independiente de la sede y del centro ARL, con vigencias y auditoría,
+  congelada en el snapshot de nómina. El MVP bloquea campos 9–10 si no hay una
+  sola ubicación que cubra todo el período; no hay backfill ni exportación,
+  transmisión o compatibilidad con operadores.
 
 ### Formato del centro ARL en el preflight PILA — 2026-10-31
 
@@ -468,7 +431,7 @@ verdes al 2026-10-31.
 
 - El mismo cotejo encontró que el código ARL del aportante se exigía, pero no
   se bloqueaba por exceder las seis posiciones A6 del campo 14 del encabezado
-  tipo 2. El preflight ahora valida ese límite sin truncar ni inferir su
+  PILA (CABECERA_TIPO_2 en el preflight). Ahora valida ese límite sin truncar ni inferir su
   catálogo; las pruebas cubren seis posiciones y el exceso. La compatibilidad
   y convención de carga siguen pendientes de pruebas por operador.
 - La revisión del detalle encontró que los códigos de pensión, EPS, CCF y ARL
