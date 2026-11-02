@@ -207,7 +207,7 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
     expect(preparation.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'PILA_SNAPSHOT_VERSION_NO_SOPORTADA',
+          code: 'CAMPO_33_EXONERACION_SIN_CONFIRMAR',
           affectedCount: 1,
         }),
       ]),
@@ -215,7 +215,7 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
     await expect(pilaPreparationPanel.getByText('Snapshots revisados: 1')).toBeVisible();
     await expect(
       pilaPreparationPanel.getByText(
-        /No existe un snapshot PILA aprobado con una versión compatible/,
+        /Falta confirmar si aplica la exoneración de salud, SENA e ICBF/,
       ),
     ).toBeVisible();
     await expect(
