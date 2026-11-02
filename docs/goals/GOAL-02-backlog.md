@@ -908,12 +908,12 @@ false`.
   válido, guarda y confirma el valor después de recargar. Ese recorrido detectó
   que una recarga de sedes podía dejar vacía la sede asignada en el formulario;
   `EmployeeForm` ahora restaura la sede activa después de cargar las opciones y
-  respeta una selección que el usuario ya haya cambiado. El E2E dirigido pasó
-  (1/1) sobre PostgreSQL 16 descartable; el build web y ESLint también pasan.
-- Verificación local posterior a la sincronización: 29 pruebas de
-  `pila-source-snapshot.spec.ts`, pruebas focalizadas de identidad/empleados e
-  importación, typecheck y ESLint API/web. Los checks remotos deben validar el
-  head actualizado; no se habilita descarga PILA ni se declara compatibilidad.
+  respeta una selección que el usuario ya haya cambiado. El E2E dirigido había
+  pasado (1/1) sobre PostgreSQL 16 descartable en una revisión anterior.
+- Verificación local del árbol #218 sincronizado: 4 suites API (64 pruebas),
+  1 suite web (5 pruebas), typecheck y ESLint API/web, `prisma validate`,
+  Prettier y `git diff --check`. Los checks remotos deben validar el head
+  actualizado; no se habilita descarga PILA ni se declara compatibilidad.
 - La información empresarial pública de [SOI](https://www.soi.com.co/contactenos)
   ofrece liquidación y soporte por archivo plano a empresas de 50–200 empleados;
   su [guía de liquidación](https://www.soi.com.co/empresa-como-hacer-y-pagar-la-planilla)
