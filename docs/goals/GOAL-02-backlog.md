@@ -502,13 +502,18 @@ se accedió a demo, staging o producción.
 ### Mapeo candidato del encabezado PILA AT2 v30 — 2026-10-31
 
 - `pila-at2-v30-header-mapper.ts` arma valores candidatos desde snapshots PILA
-  v2 del mismo tenant y período: planilla E, campos compartidos del aportante,
-  período de salud mensual, conteo único y suma de IBC CCF congelados.
-- Rechaza conjuntos mezclados de tenant/período; no escoge entre snapshots
-  repetidos de un empleado. Solo agrega dependientes `01`/`00` con afiliación
-  vigente para todo el mes. Los operadores conservan los campos que AT2 les
-  asigna (2, 15, 17, 18 y 22). No se serializa ni se compone el archivo.
+  v2 del mismo tenant, período y ejecución de nómina: planilla E, campos
+  compartidos del aportante, período de salud mensual, conteo único y suma de
+  IBC CCF congelados. Exige que el consumidor aporte el conteo esperado de
+  snapshots aprobadas; si no coincide con el conjunto, los totales quedan
+  bloqueados.
+- Rechaza conjuntos mezclados de tenant/período/ejecución; no escoge entre
+  snapshots repetidos de un empleado. Solo agrega dependientes `01`/`00` con
+  afiliación vigente para todo el mes. Los operadores conservan los campos que
+  AT2 les asigna (2, 15, 17, 18 y 22). No se serializa ni se compone el archivo.
 - Las pruebas cubren set estándar, totales con varios empleados, campos del
-  operador, tenant cruzado, snapshot repetido, afiliación fuera de alcance y
-  período incompleto. La validación del detalle 02 y compatibilidad con
-  operadores siguen pendientes.
+  operador, tenant cruzado, snapshot repetido, afiliación fuera de alcance,
+  período incompleto, conteo no coincidente y mezcla de ejecuciones. El mapper
+  no demuestra por sí mismo que el conteo esperado venga de la ejecución
+  aprobada completa; ese origen debe verificarse al integrarlo. La validación
+  del detalle 02 y compatibilidad con operadores siguen pendientes.

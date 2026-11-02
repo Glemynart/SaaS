@@ -9,6 +9,8 @@ export interface PilaAt2V30HeaderCandidate {
   supportedSnapshots: boolean;
   tenantId: string | null;
   payrollPeriodId: string | null;
+  payrollRunId: string | null;
+  snapshotCountMatchesExpected: boolean;
   values: Partial<Record<number, PilaAt2V30FieldInput>>;
   unresolvedFields: Array<{ fieldNumber: number; reason: string }>;
 }
@@ -51,12 +53,14 @@ function fullCalendarMonth(start: string, end: string): boolean {
 
 /**
  * Maps candidate type 2 header fields from one snapshot set. It only
- * accepts snapshot payloads from one tenant and payroll period, refuses totals
- * if a contributor is duplicated or outside the standard MVP, and leaves
- * operator/system-assigned fields unresolved. It does not serialize a record.
+ * accepts snapshot payloads from one tenant, payroll period, and payroll run.
+ * The caller must supply the approved run's expected snapshot count; totals
+ * remain unresolved when it does not match. This function cannot establish
+ * approval from payloads alone and does not serialize a record.
  */
 export function mapPilaAt2V30HeaderCandidate(input: {
   snapshots: readonly PilaSnapshotPreparationInput[];
+  expectedApprovedSnapshotCount: number;
 }): PilaAt2V30HeaderCandidate {
   const values: Partial<Record<number, PilaAt2V30FieldInput>> = {};
   const unresolvedFields: Array<{ fieldNumber: number; reason: string }> = [];
@@ -91,8 +95,10 @@ export function mapPilaAt2V30HeaderCandidate(input: {
       employerPila,
       employee,
       period,
+      payroll,
       affiliations,
       ccfBase,
+      payrollRunId: text(payroll?.payrollRunId),
       tenantId: text(employer?.tenantId),
       payrollPeriodId: text(period?.payrollPeriodId),
       periodStart: calendarDate(period?.fechaInicio),
@@ -102,13 +108,18 @@ export function mapPilaAt2V30HeaderCandidate(input: {
 
   const tenantIds = new Set(parsed.map((item) => item.tenantId));
   const payrollPeriodIds = new Set(parsed.map((item) => item.payrollPeriodId));
+  const payrollRunIds = new Set(parsed.map((item) => item.payrollRunId));
   const periodRanges = new Set(
     parsed.map((item) => `${item.periodStart ?? ''}:${item.periodEnd ?? ''}`),
   );
+  const snapshotCountMatchesExpected =
+    Number.isSafeInteger(input.expectedApprovedSnapshotCount) &&
+    input.expectedApprovedSnapshotCount >= 0 &&
+    input.expectedApprovedSnapshotCount === parsed.length;
   const supportedSnapshots =
     parsed.length > 0 &&
     parsed.every(
-      ({ snapshot, root, employer, employerPila, employee, period }) =>
+      ({ snapshot, root, employer, employerPila, employee, period, payroll }) =>
         snapshot.payloadVersion === 2 &&
         root?.schemaVersion === 2 &&
         employer !== null &&
@@ -118,21 +129,26 @@ export function mapPilaAt2V30HeaderCandidate(input: {
         text(employee.employeeId) === snapshot.employeeId &&
         text(employer.tenantId) !== null &&
         text(period.payrollPeriodId) !== null &&
+        payroll !== null &&
+        text(payroll.payrollRunId) !== null &&
         calendarDate(period.fechaInicio) !== null &&
         calendarDate(period.fechaFin) !== null,
     ) &&
     tenantIds.size === 1 &&
     payrollPeriodIds.size === 1 &&
+    payrollRunIds.size === 1 &&
     periodRanges.size === 1;
   const tenantId = tenantIds.size === 1 ? (parsed[0]?.tenantId ?? null) : null;
   const payrollPeriodId =
     payrollPeriodIds.size === 1 ? (parsed[0]?.payrollPeriodId ?? null) : null;
+  const payrollRunId =
+    payrollRunIds.size === 1 ? (parsed[0]?.payrollRunId ?? null) : null;
 
   if (!supportedSnapshots) {
     for (let fieldNumber = 1; fieldNumber <= 22; fieldNumber += 1) {
       unresolved(
         fieldNumber,
-        'Se requiere un conjunto de snapshots PILA v2 del mismo tenant y período.',
+        'Se requiere un conjunto de snapshots PILA v2 del mismo tenant, período y ejecución de nómina.',
       );
     }
     return {
@@ -140,6 +156,8 @@ export function mapPilaAt2V30HeaderCandidate(input: {
       supportedSnapshots: false,
       tenantId,
       payrollPeriodId,
+      payrollRunId,
+      snapshotCountMatchesExpected,
       values,
       unresolvedFields,
     };
@@ -158,6 +176,8 @@ export function mapPilaAt2V30HeaderCandidate(input: {
       supportedSnapshots: false,
       tenantId,
       payrollPeriodId,
+      payrollRunId,
+      snapshotCountMatchesExpected,
       values,
       unresolvedFields,
     };
@@ -262,14 +282,22 @@ export function mapPilaAt2V30HeaderCandidate(input: {
       20,
       'Hay más de un snapshot para un empleado; no se suma un IBC duplicado.',
     );
-  } else if (!isFullCalendarMonth || !standardContributorSnapshots) {
+  } else if (
+    !snapshotCountMatchesExpected ||
+    !isFullCalendarMonth ||
+    !standardContributorSnapshots
+  ) {
     unresolved(
       19,
-      'El conjunto debe contener una afiliación dependiente 01/00 que cubra el período por empleado.',
+      !snapshotCountMatchesExpected
+        ? 'El conjunto no coincide con el número de snapshots aprobadas esperado para la ejecución.'
+        : 'El conjunto debe contener una afiliación dependiente 01/00 que cubra el período por empleado.',
     );
     unresolved(
       20,
-      'Solo se calcula el candidato CCF para el escenario dependiente estándar 01/00.',
+      !snapshotCountMatchesExpected
+        ? 'El conjunto no coincide con el número de snapshots aprobadas esperado para la ejecución.'
+        : 'Solo se calcula el candidato CCF para el escenario dependiente estándar 01/00.',
     );
   } else {
     if (employeeIds.length <= 99_999) {
@@ -318,6 +346,8 @@ export function mapPilaAt2V30HeaderCandidate(input: {
     supportedSnapshots: true,
     tenantId,
     payrollPeriodId,
+    payrollRunId,
+    snapshotCountMatchesExpected,
     values,
     unresolvedFields,
   };

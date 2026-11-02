@@ -115,11 +115,14 @@ de los que AT2 asigna al operador.
 | 22     | Código del operador de información.                                          | Asignado por el operador; no existe un código en el snapshot ni una convención de entrada confirmada.                                                                                                                  |
 
 `pila-at2-v30-header-mapper.ts` mapea candidatos del encabezado desde snapshots
-v2 de un mismo tenant y período. Solo calcula el conteo y la suma CCF si cada
-empleado aparece una vez con afiliación dependiente `01`/`00` que cubre el mes;
-si hay duplicados o casos fuera del MVP, ambos totales quedan sin resolver. Los
-campos asignados al operador siguen pendientes, y este mapa no valida ni
-serializa el encabezado.
+v2 de un mismo tenant, período y ejecución de nómina. Solo calcula el conteo y
+la suma CCF si cada empleado aparece una vez con afiliación dependiente `01`/`00`
+que cubre el mes y el número de snapshots recibidas coincide con el conteo
+esperado de la ejecución aprobada; si hay duplicados, un conteo distinto o casos
+fuera del MVP, ambos totales quedan sin resolver. El mapper no puede demostrar
+que el conteo esperado provenga de la consulta completa de la ejecución; el
+consumidor debe garantizar ese origen. Los campos asignados al operador siguen
+pendientes, y este mapa no valida ni serializa el encabezado.
 
 MinSalud marca los campos 2, 15, 17, 18 y 22 como generados o asignados por el
 operador/sistema. Las páginas públicas de SOI confirman carga de archivos
