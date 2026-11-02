@@ -42,7 +42,7 @@ async function registerAndSignIn(page: Page, suffix: string) {
   return registration;
 }
 
-test('muestra facturación y nómina contabilizada en el mismo tenant de demo', async ({ page }) => {
+test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant', async ({ page }) => {
   const suffix = randomInt(10_000_000, 100_000_000).toString();
   const customerName = `Cliente Demo Financiero ${suffix}`;
   const customerNit = `9${suffix}`;
@@ -266,6 +266,20 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
     await expect(page.getByText('Campo 20 · Total IBC de caja de compensación')).toBeVisible();
     await expect(page.getByText('1.000.000', { exact: true })).toBeVisible();
     await expect(page.getByText('No implementadas', { exact: true })).toBeVisible();
+
+    await page.goto('/contabilidad/comprobantes');
+    await expect(page.getByRole('heading', { name: 'Comprobantes contabilizados' })).toBeVisible();
+    const payrollVoucher = page
+      .getByRole('row')
+      .filter({ hasText: 'Causación nómina Nómina marzo 2026' });
+    await expect(payrollVoucher).toBeVisible();
+    await payrollVoucher.getByRole('button', { name: /Ver movimientos del comprobante/ }).click();
+
+    const voucherDetails = page.getByRole('dialog');
+    await expect(voucherDetails).toContainText('Gasto de sueldos');
+    await expect(voucherDetails).toContainText('Salarios netos por pagar');
+    await expect(voucherDetails).toContainText('Total débito');
+    await expect(voucherDetails).toContainText('Total crédito');
   } finally {
     await payroll.disconnect();
     await billingFixture.disconnect();

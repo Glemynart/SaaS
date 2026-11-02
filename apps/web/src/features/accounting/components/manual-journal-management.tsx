@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { FileText, Plus } from 'lucide-react';
 import { useMe } from '@/features/auth/hooks/use-auth';
 import { Alert } from '@/components/ui/alert';
@@ -9,11 +10,13 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
+import { Pagination } from '@/components/ui/pagination';
 import { Select } from '@/components/ui/select';
 import { SideSheet } from '@/components/ui/side-sheet';
 import { toast } from '@/components/ui/toast';
 import {
   useCentrosCosto,
+  useComprobantesContabilizados,
   useCuentasContables,
   usePeriodosContables,
   useRegistrarComprobante,
@@ -21,7 +24,31 @@ import {
   useTiposComprobante,
   useAnularComprobante,
 } from '../hooks/use-accounting-configuration';
-import type { ManualJournalLine, ManualJournalResult } from '../services/accounting-api';
+import type {
+  LedgerVoucher,
+  LedgerVoucherMovement,
+  ManualJournalLine,
+  ManualJournalResult,
+} from '../services/accounting-api';
+
+function formatPeso(value: string | number): string {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return '—';
+  return new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function formatCalendarDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('es-CO', {
+    dateStyle: 'medium',
+    timeZone: 'UTC',
+  }).format(date);
+}
 
 type DraftLine = ManualJournalLine & { key: string };
 const blankLine = (): DraftLine => ({
@@ -46,8 +73,15 @@ export function ManualJournalManagement() {
   const [voidOpen, setVoidOpen] = useState(false);
   const [motivo, setMotivo] = useState('');
   const [confirmVoid, setConfirmVoid] = useState(false);
+  const [voucherPage, setVoucherPage] = useState(1);
+  const [selectedVoucher, setSelectedVoucher] = useState<LedgerVoucher | null>(null);
   const { data: user } = useMe();
   const canManage = user?.user.rol === 'ADMIN';
+  const {
+    data: voucherResult,
+    isLoading: vouchersLoading,
+    error: vouchersError,
+  } = useComprobantesContabilizados(voucherPage);
   const { data: tipos } = useTiposComprobante();
   const { data: periodos } = usePeriodosContables({ estado: 'ABIERTO' });
   const { data: cuentas } = useCuentasContables({ imputable: true, activa: true });
@@ -55,6 +89,78 @@ export function ManualJournalManagement() {
   const { data: centros } = useCentrosCosto({ activo: true });
   const register = useRegistrarComprobante();
   const voidMutation = useAnularComprobante();
+  const voucherColumns: DataTableColumn<LedgerVoucher>[] = [
+    {
+      key: 'fecha',
+      header: 'Fecha',
+      render: (row) => formatCalendarDate(row.fecha),
+    },
+    {
+      key: 'numero',
+      header: 'Número',
+      render: (row) => (row.numero === null ? '—' : String(row.numero)),
+    },
+    { key: 'concepto', header: 'Concepto', render: (row) => row.concepto },
+    {
+      key: 'totalDebito',
+      header: 'Débito',
+      render: (row) => formatPeso(row.totalDebito),
+      cellClassName: 'whitespace-nowrap text-right tabular-nums',
+      headerClassName: 'text-right',
+    },
+    {
+      key: 'totalCredito',
+      header: 'Crédito',
+      render: (row) => formatPeso(row.totalCredito),
+      cellClassName: 'whitespace-nowrap text-right tabular-nums',
+      headerClassName: 'text-right',
+    },
+    {
+      key: 'actions',
+      header: 'Detalle',
+      render: (row) => (
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label={`Ver movimientos del comprobante ${row.numero ?? ''}`}
+          onClick={() => setSelectedVoucher(row)}
+        >
+          Ver movimientos
+        </Button>
+      ),
+    },
+  ];
+  const movementColumns: DataTableColumn<LedgerVoucherMovement>[] = [
+    {
+      key: 'linea',
+      header: 'Línea',
+      render: (row) => String(row.linea),
+    },
+    {
+      key: 'cuenta',
+      header: 'Cuenta',
+      render: (row) => `${row.cuentaCodigo} — ${row.cuentaNombre}`,
+    },
+    {
+      key: 'descripcion',
+      header: 'Descripción',
+      render: (row) => row.descripcion ?? '—',
+    },
+    {
+      key: 'debito',
+      header: 'Débito',
+      render: (row) => formatPeso(row.debito),
+      cellClassName: 'whitespace-nowrap text-right tabular-nums',
+      headerClassName: 'text-right',
+    },
+    {
+      key: 'credito',
+      header: 'Crédito',
+      render: (row) => formatPeso(row.credito),
+      cellClassName: 'whitespace-nowrap text-right tabular-nums',
+      headerClassName: 'text-right',
+    },
+  ];
   const updateLine = (key: string, patch: Partial<DraftLine>) =>
     setLineas((current) =>
       current.map((line) => (line.key === key ? { ...line, ...patch } : line)),
@@ -122,18 +228,89 @@ export function ManualJournalManagement() {
           </Button>
         )}
       </div>
-      <EmptyState
-        icon={FileText}
-        title="La consulta de comprobantes no está disponible."
-        description="El contrato actual expone registro y anulación, pero no listado ni detalle."
-        action={
-          canManage ? (
-            <Button size="sm" onClick={reset}>
-              Registrar comprobante
-            </Button>
-          ) : undefined
+      <section aria-labelledby="accounting-vouchers-heading" className="space-y-3">
+        <div>
+          <h3 id="accounting-vouchers-heading" className="font-semibold text-foreground">
+            Comprobantes contabilizados
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Consulta los asientos guardados en el Ledger y sus movimientos.
+          </p>
+        </div>
+        {vouchersError && (
+          <Alert variant="destructive">
+            {vouchersError instanceof Error
+              ? vouchersError.message
+              : 'No se pudieron cargar los comprobantes.'}
+          </Alert>
+        )}
+        <DataTable
+          columns={voucherColumns}
+          data={voucherResult?.items ?? []}
+          rowKey={(row) => row.comprobanteId}
+          isLoading={vouchersLoading}
+          density="compact"
+          empty={
+            <EmptyState
+              icon={FileText}
+              title="Todavía no hay comprobantes contabilizados."
+              description="Los asientos aparecerán aquí después de contabilizar una nómina o registrar un comprobante manual."
+            />
+          }
+        />
+        {voucherResult && (
+          <Pagination
+            page={voucherPage}
+            total={voucherResult.total}
+            totalPages={Math.max(1, Math.ceil(voucherResult.total / 20))}
+            itemLabel="comprobantes"
+            onPageChange={setVoucherPage}
+          />
+        )}
+      </section>
+      <SideSheet
+        open={selectedVoucher !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedVoucher(null);
+        }}
+        title={
+          selectedVoucher?.numero === null || !selectedVoucher
+            ? 'Detalle del comprobante'
+            : `Comprobante ${selectedVoucher.numero}`
         }
-      />
+        description={selectedVoucher?.concepto}
+      >
+        {selectedVoucher && (
+          <div className="space-y-5">
+            <div className="grid gap-3 rounded-md border border-border bg-canvas p-3 sm:grid-cols-2">
+              <p>
+                <span className="text-muted-foreground">Fecha: </span>
+                {formatCalendarDate(selectedVoucher.fecha)}
+              </p>
+              <p>
+                <span className="text-muted-foreground">Estado: </span>
+                {selectedVoucher.estado === 'CONTABILIZADO'
+                  ? 'Contabilizado'
+                  : selectedVoucher.estado}
+              </p>
+              <p>
+                <span className="text-muted-foreground">Total débito: </span>
+                {formatPeso(selectedVoucher.totalDebito)}
+              </p>
+              <p>
+                <span className="text-muted-foreground">Total crédito: </span>
+                {formatPeso(selectedVoucher.totalCredito)}
+              </p>
+            </div>
+            <DataTable
+              columns={movementColumns}
+              data={selectedVoucher.movimientos}
+              rowKey={(row) => String(row.linea)}
+              density="compact"
+            />
+          </div>
+        )}
+      </SideSheet>
       <SideSheet
         open={open}
         onOpenChange={setOpen}

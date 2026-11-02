@@ -263,6 +263,32 @@ export interface ManualJournalResult {
   estado?: string;
   [key: string]: unknown;
 }
+export interface LedgerVoucherMovement {
+  linea: number;
+  cuentaId: string;
+  cuentaCodigo: string;
+  cuentaNombre: string;
+  debito: string | number;
+  credito: string | number;
+  terceroId: string | null;
+  centroCostoId: string | null;
+  descripcion: string | null;
+}
+export interface LedgerVoucher {
+  comprobanteId: string;
+  numero: number | null;
+  fecha: string;
+  concepto: string;
+  estado: string;
+  tipoComprobanteId: string;
+  totalDebito: string | number;
+  totalCredito: string | number;
+  movimientos: LedgerVoucherMovement[];
+}
+export interface LedgerVoucherPage {
+  items: LedgerVoucher[];
+  total: number;
+}
 export interface ReportQuery {
   [key: string]: string | number | boolean | undefined;
 }
