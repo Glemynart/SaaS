@@ -7,6 +7,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { AuditService } from '../src/audit/audit.service';
+import { BillingService } from '../src/billing/billing.service';
 import { LedgerService } from '../src/accounting/ledger/ledger.service';
 import { DEFAULT_SYSTEM_ACCOUNT_MAPPINGS } from '../src/accounting/provisioning/system-account-mappings';
 import {
@@ -30,6 +31,11 @@ const DEMO_NAMESPACE = Buffer.from('6ba7b8109dad11d180b400c04fd430c8', 'hex');
 const PAYROLL_ACCOUNT_ROLES = new Set<string>(
   PAYROLL_ACCOUNTING_REQUIRED_ROLES,
 );
+const INVOICE_ACCOUNT_ROLES = new Set([
+  'CLIENTES_NACIONALES',
+  'INGRESOS_OPERACIONALES',
+  'IVA_GENERADO',
+]);
 
 const DEMO_CUSTOMERS = [
   {
@@ -180,14 +186,28 @@ function nextMonth(
     : { year, month: month + 1 };
 }
 
-async function ensurePayrollAccounts(
+function colombiaBusinessDate(date: Date): Date {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Bogota',
+    calendar: 'gregory',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const part = (type: 'year' | 'month' | 'day') =>
+    Number(parts.find((value) => value.type === type)?.value);
+  return new Date(Date.UTC(part('year'), part('month') - 1, part('day')));
+}
+
+async function ensureSystemAccountMappings(
   tx: Prisma.TransactionClient,
   tenantId: string,
   created: CreatedCounts,
+  requiredRoles: ReadonlySet<string>,
 ): Promise<void> {
-  const roles = [...PAYROLL_ACCOUNT_ROLES];
+  const roles = [...requiredRoles];
   const mappings = DEFAULT_SYSTEM_ACCOUNT_MAPPINGS.filter((mapping) =>
-    PAYROLL_ACCOUNT_ROLES.has(mapping.rol),
+    requiredRoles.has(mapping.rol),
   );
   const existingMaps = await tx.cuentaSistemaMap.findMany({
     where: { tenantId, rol: { in: roles } },
@@ -319,19 +339,26 @@ async function ensurePayrollAccounts(
   }
 }
 
-async function requireVoucherType(tx: Prisma.TransactionClient): Promise<void> {
+async function requireVoucherType(
+  tx: Prisma.TransactionClient,
+  codigo: 'NOM' | 'FV',
+): Promise<void> {
   const existing = await tx.tipoComprobante.findUnique({
-    where: { codigo: 'NOM' },
+    where: { codigo },
     select: { id: true, activo: true },
   });
   if (existing) {
     if (!existing.activo) {
-      throw new Error('El tipo global de comprobante NOM está inactivo.');
+      throw new Error(
+        'El tipo global de comprobante ' + codigo + ' está inactivo.',
+      );
     }
     return;
   }
   throw new Error(
-    'No existe el tipo global de comprobante NOM; ejecuta primero la configuración base de la aplicación.',
+    'No existe el tipo global de comprobante ' +
+      codigo +
+      '; ejecuta primero la configuración base de la aplicación.',
   );
 }
 
@@ -340,10 +367,9 @@ async function ensureOpenAccountingPeriod(
   tenantId: string,
   created: CreatedCounts,
 ) {
-  const now = new Date();
-  let year = now.getUTCFullYear();
-  let month = now.getUTCMonth() + 1;
-  const today = new Date(Date.UTC(year, month - 1, now.getUTCDate()));
+  const today = colombiaBusinessDate(new Date());
+  let year = today.getUTCFullYear();
+  let month = today.getUTCMonth() + 1;
 
   const periodContainingToday = await tx.periodoContable.findFirst({
     where: {
@@ -417,6 +443,110 @@ async function ensureCustomer(
   });
   created.customers += 1;
   return id;
+}
+
+async function ensureCustomerThirdParty(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  customerId: string,
+  customer: (typeof DEMO_CUSTOMERS)[number],
+  created: CreatedCounts,
+): Promise<void> {
+  const customerRow = await tx.customer.findFirst({
+    where: { id: customerId, tenantId },
+    select: { terceroId: true },
+  });
+  if (!customerRow) {
+    throw new Error(
+      'No existe el cliente demo ' + customer.key + ' en el tenant.',
+    );
+  }
+
+  if (customerRow.terceroId) {
+    const linkedThirdParty = await tx.tercero.findFirst({
+      where: {
+        id: customerRow.terceroId,
+        tenantId,
+        tipoDocumento: 'NIT',
+        numeroDocumento: customer.nit,
+        esCliente: true,
+        activo: true,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    if (!linkedThirdParty) {
+      throw new Error(
+        'El cliente demo ' +
+          customer.key +
+          ' tiene un tercero contable distinto o no disponible; no se modificó.',
+      );
+    }
+    return;
+  }
+
+  const id = demoId(tenantId, customer.key + '-third-party');
+  const existing = await tx.tercero.findUnique({ where: { id } });
+  assertTenant(existing, tenantId, customer.key + ' third party');
+  if (existing) {
+    if (
+      existing.tipoDocumento !== 'NIT' ||
+      existing.numeroDocumento !== customer.nit ||
+      !existing.esCliente ||
+      !existing.activo ||
+      existing.deletedAt
+    ) {
+      throw new Error(
+        'El tercero sintético de ' +
+          customer.key +
+          ' existe con datos incompatibles; no se modificó.',
+      );
+    }
+  } else {
+    const documentCollision = await tx.tercero.findUnique({
+      where: {
+        tenantId_tipoDocumento_numeroDocumento: {
+          tenantId,
+          tipoDocumento: 'NIT',
+          numeroDocumento: customer.nit,
+        },
+      },
+      select: { id: true },
+    });
+    if (documentCollision) {
+      throw new Error(
+        'El documento sintético ' +
+          customer.nit +
+          ' ya pertenece a otro tercero; no se vinculó automáticamente.',
+      );
+    }
+    await tx.tercero.create({
+      data: {
+        id,
+        tenantId,
+        tipoDocumento: 'NIT',
+        numeroDocumento: customer.nit,
+        tipoPersona: 'JURIDICA',
+        razonSocial: customer.razonSocial,
+        email: customer.email,
+        esCliente: true,
+        activo: true,
+      },
+    });
+    created.thirdParties += 1;
+  }
+
+  const linked = await tx.customer.updateMany({
+    where: { id: customerId, tenantId, terceroId: null },
+    data: { terceroId: id },
+  });
+  if (linked.count !== 1) {
+    throw new Error(
+      'El vínculo contable de ' +
+        customer.key +
+        ' cambió durante la carga; vuelve a ejecutarla.',
+    );
+  }
 }
 
 async function ensureProduct(
@@ -898,6 +1028,7 @@ export async function seedFinancialDemoScenario(
     const tenantPrisma = new TenantPrismaService(prisma, tenantContext);
     const audit = new AuditService(prisma);
     const ledger = new LedgerService(tenantPrisma, audit);
+    const billing = new BillingService(prisma, tenantPrisma, ledger, audit);
     const preflight = new PayrollAccountingPreflightService(prisma);
     const payroll = new PayrollService(
       prisma,
@@ -1056,8 +1187,13 @@ export async function seedFinancialDemoScenario(
         }
 
         if (existingPeriod?.status !== PayrollPeriodStatus.CAUSADA) {
-          await ensurePayrollAccounts(tx, tenantId, created);
-          await requireVoucherType(tx);
+          await ensureSystemAccountMappings(
+            tx,
+            tenantId,
+            created,
+            PAYROLL_ACCOUNT_ROLES,
+          );
+          await requireVoucherType(tx, 'NOM');
         }
 
         let accountingPeriod: { id: string; fechaInicio: Date; fechaFin: Date };
@@ -1111,17 +1247,43 @@ export async function seedFinancialDemoScenario(
       }
 
       const monthStartDate = seedSetup.accountingPeriod.fechaInicio;
-      const invoiceDate = seedSetup.accountingPeriod.fechaFin;
-      const invoiceYear = invoiceDate.getUTCFullYear();
+      const today = colombiaBusinessDate(new Date());
+      const invoiceDate = new Date(
+        Date.UTC(
+          today.getUTCFullYear(),
+          today.getUTCMonth(),
+          today.getUTCDate(),
+          12,
+        ),
+      );
+      const invoiceYear = today.getUTCFullYear();
       const payrollPeriodId = await tenantPrisma.execute(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`financial-demo:${tenantId}`}), 0)`;
 
+        await ensureSystemAccountMappings(
+          tx,
+          tenantId,
+          created,
+          INVOICE_ACCOUNT_ROLES,
+        );
+        await requireVoucherType(tx, 'FV');
+
         const customerIds = new Map<string, string>();
         for (const customer of DEMO_CUSTOMERS) {
-          customerIds.set(
-            customer.key,
-            await ensureCustomer(tx, tenantId, customer, created),
+          const customerId = await ensureCustomer(
+            tx,
+            tenantId,
+            customer,
+            created,
           );
+          await ensureCustomerThirdParty(
+            tx,
+            tenantId,
+            customerId,
+            customer,
+            created,
+          );
+          customerIds.set(customer.key, customerId);
         }
 
         const productIds = new Map<string, string>();
@@ -1221,6 +1383,15 @@ export async function seedFinancialDemoScenario(
           created,
         );
       });
+
+      for (const invoiceId of [
+        demoId(tenantId, 'invoice-issued-001'),
+        demoId(tenantId, 'invoice-issued-002'),
+      ]) {
+        await billing.updateInvoiceStatus(tenantId, actorId, invoiceId, {
+          status: 'ISSUED',
+        });
+      }
 
       if (seedSetup.existingPeriod?.status === PayrollPeriodStatus.CAUSADA) {
         const vouchers = await prisma.comprobanteContable.findMany({
