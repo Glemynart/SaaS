@@ -242,7 +242,7 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
     expect(persisted.snapshotStatus).toBe('APROBADA');
     expect(persisted.pilaSnapshotPayload).toEqual(payroll.pilaSnapshotPayload);
 
-    await page.getByRole('button', { name: 'Revisar datos' }).click();
+    await pilaPreparationPanel.getByRole('button', { name: 'Actualizar revisión' }).click();
     await expect(
       page.getByRole('heading', {
         name: 'Archivo tipo 1 · aportante · candidatos por campo',
