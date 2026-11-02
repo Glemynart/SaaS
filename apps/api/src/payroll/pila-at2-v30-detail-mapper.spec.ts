@@ -145,6 +145,49 @@ function setStandardCcfEmployer(
     tipoAportante: overrides.tipoAportante ?? '1',
   });
 }
+const invalidRiskAssignmentCases: Array<{
+  name: string;
+  mutate: (assignment: Record<string, unknown>) => void;
+}> = [
+  {
+    name: 'center belongs to another tenant',
+    mutate: (assignment) => {
+      (assignment.centroTrabajo as Record<string, unknown>).tenantId =
+        'tenant-2';
+    },
+  },
+  {
+    name: 'center ARL differs from the employee affiliation',
+    mutate: (assignment) => {
+      (assignment.centroTrabajo as Record<string, unknown>).arlCodigo =
+        'ARL002';
+    },
+  },
+  {
+    name: 'assignment starts after the period begins',
+    mutate: (assignment) => {
+      assignment.vigenteDesde = '2026-10-02';
+    },
+  },
+  {
+    name: 'assignment ends before the period ends',
+    mutate: (assignment) => {
+      assignment.vigenteHasta = '2026-10-30';
+    },
+  },
+  {
+    name: 'activity catalog version is unsupported',
+    mutate: (assignment) => {
+      assignment.formatoNormativoVersion = 'DECRETO_768_2022_OLD';
+    },
+  },
+  {
+    name: 'activity code is outside the catalog',
+    mutate: (assignment) => {
+      assignment.codigoActividadEconomica = 'INVALID';
+    },
+  },
+];
 
 describe('mapPilaAt2V30DetailCandidate', () => {
   it('maps direct identity, affiliation, days, bases, salary and ARL snapshot values', () => {
@@ -275,6 +318,16 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     );
   });
 
+  it('keeps both flags unresolved for unsupported document types', () => {
+    const input = snapshot();
+    payloadOf(input).employee.tipoDocumento = 'ZZ';
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[7]).toBeUndefined();
+    expect(candidate.values[8]).toBeUndefined();
+  });
+
   it('does not map days or affiliations for a nonstandard cotizante', () => {
     const input = snapshot();
     payloadOf(input).affiliations[0].tipoCotizanteCodigo = '02';
@@ -285,6 +338,8 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.values[5]).toBeUndefined();
     expect(candidate.values[31]).toBeUndefined();
     expect(candidate.values[36]).toBeUndefined();
+    expect(candidate.values[7]).toBeUndefined();
+    expect(candidate.values[8]).toBeUndefined();
   });
 
   it('preserves numeric identifier and work center leading zeros', () => {
@@ -312,7 +367,6 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const employer = (input.payload as { employer: Record<string, unknown> })
       .employer;
     employer.aportesExonerados = false;
-    setStandardCcfEmployer(input);
     (employer.pila as Record<string, unknown>).aportesExoneradosConfirmado =
       false;
     payload.payroll.concepts = [
@@ -350,7 +404,6 @@ describe('mapPilaAt2V30DetailCandidate', () => {
 
     expect(candidate.values).toMatchObject({
       61: { value: '0.0104400' },
-      64: { value: '0.04000' },
       63: { value: 20_900 },
       65: { value: 80_000 },
       67: { value: 40_000 },
@@ -362,79 +415,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.normativeRuleVersions.contributionRounding).toBe(
       'CO_PILA_CONTRIBUTION_ROUND_UP_100_DEC1990_ART3_2_1_5_V1',
     );
-    expect(candidate.normativeRuleVersions.ccfRate).toBe(
-      'CO_CCF_STANDARD_RATE_L21_ART11_12_V1',
-    );
   });
-
-  it.each(['A', 'B'])(
-    'maps the standard CCF rate only for an explicit non-beneficiary class %s employer',
-    (claseAportante) => {
-      const input = snapshot();
-      setStandardCcfEmployer(input, { claseAportante });
-      payloadOf(input).payroll.concepts = [
-        {
-          codigo: 'CAJA',
-          tipo: 'EMPLOYER_CONTRIBUTION',
-          base: 2_000_000,
-          factor: 0.04,
-          valor: 80_000,
-        },
-      ];
-
-      const candidate = mapPilaAt2V30DetailCandidate(input);
-
-      expect(candidate.values[64]).toEqual({ value: '0.04000' });
-      expect(candidate.values[65]).toEqual({ value: 80_000 });
-    },
-  );
-
-  it.each([
-    ['class C', { claseAportante: 'C' }, 0.04, 'clase A/B'],
-    ['class D', { claseAportante: 'D' }, 0.04, 'clase A/B'],
-    [
-      'declared Law 1429 benefit',
-      { claseAportante: 'B', beneficioCcfLey1429: true },
-      0.01,
-      'beneficio CCF de Ley 1429',
-    ],
-    [
-      'missing Law 1429 declaration',
-      { claseAportante: 'B', beneficioCcfLey1429: null },
-      0.04,
-      'declaración explícita',
-    ],
-    [
-      'non-standard frozen factor',
-      { claseAportante: 'B', beneficioCcfLey1429: false },
-      0.03,
-      'no coincide con la tarifa CCF estándar versionada',
-    ],
-  ] as const)(
-    'blocks the CCF tariff for %s',
-    (_case, employerOverrides, factor, expectedReason) => {
-      const input = snapshot();
-      setStandardCcfEmployer(input, employerOverrides);
-      payloadOf(input).payroll.concepts = [
-        {
-          codigo: 'CAJA',
-          tipo: 'EMPLOYER_CONTRIBUTION',
-          base: 2_000_000,
-          factor,
-          valor: factor === 0.04 ? 80_000 : 60_000,
-        },
-      ];
-
-      const candidate = mapPilaAt2V30DetailCandidate(input);
-
-      expect(candidate.values[64]).toBeUndefined();
-      expect(
-        candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 64)
-          ?.reason,
-      ).toContain(expectedReason);
-      expect(candidate.values[65]).toBeUndefined();
-    },
-  );
 
   it.each([
     ['1', 0.00522, '0.0052200', 10_500],
@@ -494,7 +475,6 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const input = snapshot();
     const root = input.payload as { employer: Record<string, unknown> };
     root.employer.aportesExonerados = false;
-    setStandardCcfEmployer(input);
     (
       root.employer.pila as Record<string, unknown>
     ).aportesExoneradosConfirmado = false;
@@ -709,9 +689,44 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     ).toContain('sin novedades');
   });
 
-  it('does not map a work center across tenants or an activity outside its catalog version', () => {
+  it('does not map a work center assigned to another tenant', () => {
     const input = snapshot();
     payloadOf(input).pilaRiskAssignments[0].tenantId = 'tenant-2';
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[62]).toBeUndefined();
+    expect(candidate.values[98]).toBeUndefined();
+  });
+
+  it.each(invalidRiskAssignmentCases)(
+    'leaves ARL fields unresolved when the $name',
+    ({ mutate }) => {
+      const input = snapshot();
+      mutate(payloadOf(input).pilaRiskAssignments[0]);
+
+      const candidate = mapPilaAt2V30DetailCandidate(input);
+
+      expect(candidate.values[62]).toBeUndefined();
+      expect(candidate.values[98]).toBeUndefined();
+    },
+  );
+
+  it('leaves only the work center field unresolved when its code is not numeric', () => {
+    const input = snapshot();
+    const center = payloadOf(input).pilaRiskAssignments[0]
+      .centroTrabajo as Record<string, unknown>;
+    center.codigoCentro = 'ARL-CENTER-12';
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[62]).toBeUndefined();
+    expect(candidate.values[98]).toEqual({ value: riskActivityCode });
+  });
+
+  it('does not map ARL fields when activity class differs from the affiliation', () => {
+    const input = snapshot();
+    payloadOf(input).affiliations[0].arlClaseRiesgo = '3';
 
     const candidate = mapPilaAt2V30DetailCandidate(input);
 

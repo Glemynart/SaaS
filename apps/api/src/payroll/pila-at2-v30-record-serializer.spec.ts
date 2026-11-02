@@ -81,16 +81,23 @@ describe('AT2 v30 fixed-width record formatting', () => {
   );
 
   it('pads numeric values with leading zeroes and text with trailing spaces', () => {
-    const values = completeRecordValues('employerType1', {
-      1: { value: 'Empresa Ñ' },
-      4: { value: 7 },
-    });
-    const record = serializePilaAt2V30Record('employerType1', values);
+    const employer = serializePilaAt2V30Record(
+      'employerType1',
+      completeRecordValues('employerType1', {
+        1: { value: 'Empresa Ñ' },
+      }),
+    );
+    const header = serializePilaAt2V30Record(
+      'payrollHeaderType2',
+      completeRecordValues('payrollHeaderType2', {
+        3: { value: 7 },
+      }),
+    );
 
-    expect(Array.from(record.slice(0, 200)).join('')).toBe(
+    expect(Array.from(employer.slice(0, 200)).join('')).toBe(
       `Empresa Ñ${' '.repeat(191)}`,
     );
-    expect(record.slice(218, 219)).toBe('7');
+    expect(header.slice(3, 7)).toBe('0007');
   });
 
   it('formats the AT2 field 61 fractional tariff with trailing zeroes', () => {
@@ -142,16 +149,46 @@ describe('AT2 v30 fixed-width record formatting', () => {
   );
 
   it('requires explicit treatment of empty values', () => {
+    const layout = PILA_AT2_V30_RECORD_LAYOUTS.payrollHeaderType2;
+    const spaceField = layout.fields.find(({ kind }) => kind === 'A');
+    const zeroField = layout.fields.find(({ kind }) => kind === 'N');
+    if (!spaceField || !zeroField) {
+      throw new Error('La prueba requiere campos alfanuméricos y numéricos.');
+    }
     const values = completeRecordValues('payrollHeaderType2', {
-      2: { value: null, emptyAs: 'spaces' },
-      3: { value: null, emptyAs: 'zeros' },
+      [spaceField.fieldNumber]: { value: null, emptyAs: 'spaces' },
+      [zeroField.fieldNumber]: { value: null, emptyAs: 'zeros' },
     });
     const record = serializePilaAt2V30Record('payrollHeaderType2', values);
+    const fieldStart = (fieldNumber: number) =>
+      layout.fields
+        .filter((field) => field.fieldNumber < fieldNumber)
+        .reduce((total, field) => total + field.length, 0);
 
-    expect(record.slice(2, 3)).toBe(' ');
-    expect(record.slice(3, 7)).toBe('0000');
+    expect(
+      record.slice(
+        fieldStart(spaceField.fieldNumber),
+        fieldStart(spaceField.fieldNumber) + spaceField.length,
+      ),
+    ).toBe(' '.repeat(spaceField.length));
+    expect(
+      record.slice(
+        fieldStart(zeroField.fieldNumber),
+        fieldStart(zeroField.fieldNumber) + zeroField.length,
+      ),
+    ).toBe('0'.repeat(zeroField.length));
   });
-
+  it('requires an explicit placeholder for null values', () => {
+    expect(() =>
+      serializePilaAt2V30Record(
+        'employerType1',
+        completeRecordValues('employerType1', {
+          5: { value: null },
+          10: { value: 'U' },
+        }),
+      ),
+    ).toThrow('campo 5');
+  });
   it('rejects missing field decisions and unknown field numbers', () => {
     const missingField = completeRecordValues('employerType1');
     delete missingField[12];
@@ -186,7 +223,19 @@ describe('AT2 v30 fixed-width record formatting', () => {
     },
   );
 
-  it('allows an explicitly selected blank for a numeric field', () => {
+  it('allows an explicitly selected blank for a branch in unique presentation', () => {
+    const record = serializePilaAt2V30Record(
+      'employerType1',
+      completeRecordValues('employerType1', {
+        5: { value: null, emptyAs: 'spaces' },
+        10: { value: 'U' },
+      }),
+    );
+
+    expect(record.slice(219, 229)).toBe(' '.repeat(10));
+  });
+
+  it('rejects spaces as the empty representation for numeric fields', () => {
     expect(() =>
       serializePilaAt2V30Record(
         'employerType1',
@@ -194,6 +243,18 @@ describe('AT2 v30 fixed-width record formatting', () => {
           4: { value: null, emptyAs: 'spaces' },
         }),
       ),
-    ).not.toThrow();
+    ).toThrow('campo 4');
+  });
+
+  it('fills an explicitly empty numeric field with zeroes', () => {
+    const record = serializePilaAt2V30Record(
+      'employerType1',
+      completeRecordValues('employerType1', {
+        4: { value: null, emptyAs: 'zeros' },
+        9: { value: 'N' },
+      }),
+    );
+
+    expect(record.slice(218, 219)).toBe('0');
   });
 });

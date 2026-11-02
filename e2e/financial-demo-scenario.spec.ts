@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { seedPayrollAccrualFixture } from './helpers/payroll-accounting-fixture';
+import { seedBillingLedgerFixture } from './helpers/billing-ledger-fixture';
 
 async function registerAndSignIn(page: Page, suffix: string) {
   const nit = `5${suffix}`;
@@ -48,6 +49,7 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
   const productName = `Servicio Demo Financiero ${suffix}`;
   const invoiceNumber = `DEMO-FIN-${suffix}`;
   const { tenant, user } = await registerAndSignIn(page, suffix);
+  const billingFixture = await seedBillingLedgerFixture(tenant.id, customerNit, customerName);
 
   await page.goto('/facturacion/clientes');
   await page.getByRole('button', { name: 'Nuevo' }).click();
@@ -55,6 +57,9 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
   await customerInputs.nth(0).fill(customerName);
   await customerInputs.nth(1).fill(customerNit);
   await customerInputs.nth(2).fill(`cliente-${suffix}@example.test`);
+  await page.locator('select').selectOption({
+    label: `${customerName} — NIT ${customerNit}`,
+  });
   const createCustomerResponsePromise = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === '/api/billing/customers' &&
@@ -69,7 +74,7 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
   const productInputs = page.locator('input');
   await productInputs.nth(0).fill(productName);
   await productInputs.nth(1).fill('120000');
-  await productInputs.nth(2).fill('19');
+  await page.locator('select').selectOption('19');
   const createProductResponsePromise = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === '/api/billing/products' &&
@@ -149,6 +154,87 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
 
     await page.reload();
     await expect(page.getByText(`ID de comprobante: ${posting.comprobanteId}`)).toBeVisible();
+
+    const pilaPreparationPanel = page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: 'Preparación de datos PILA' }) });
+    await expect(pilaPreparationPanel).toBeVisible();
+
+    const preparationResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+          `/api/payroll/periods/${payroll.periodId}/pila-preparation` &&
+        response.request().method() === 'GET',
+    );
+    await pilaPreparationPanel.getByRole('button', { name: 'Revisar datos' }).click();
+    const preparationResponse = await preparationResponsePromise;
+    expect(preparationResponse.status()).toBe(200);
+    const preparation = (await preparationResponse.json()) as {
+      formatVersion: string | null;
+      normativeSourceStatus: string;
+      exportReadiness: {
+        recordLayoutVersion: string;
+        fileGenerationStatus: string;
+        localValidationStatus: string;
+        operatorAcceptanceStatus: string;
+        blockers: Array<{ code: string }>;
+      };
+      snapshotsRevisados: number;
+      empleadosConDatosPendientes: number;
+      archivoGenerable: boolean;
+      estadoArchivo: string;
+      issues: Array<{ code: string; affectedCount: number }>;
+    };
+    expect(preparation.formatVersion).toBeNull();
+    expect(preparation.normativeSourceStatus).toBe('RECONCILIATION_PENDING');
+    expect(preparation.exportReadiness).toMatchObject({
+      recordLayoutVersion: 'AT2_V30',
+      fileGenerationStatus: 'NOT_IMPLEMENTED',
+      localValidationStatus: 'PRELIMINARY',
+      operatorAcceptanceStatus: 'NOT_VERIFIED',
+    });
+    expect(preparation.exportReadiness.blockers.map(({ code }) => code)).toEqual(
+      expect.arrayContaining([
+        'AT2_FILE_MAPPING_NOT_IMPLEMENTED',
+        'PILA_PAYMENT_DATE_REQUIRED',
+        'OPERATOR_UPLOAD_NOT_VERIFIED',
+      ]),
+    );
+    expect(preparation.snapshotsRevisados).toBe(1);
+    expect(preparation.empleadosConDatosPendientes).toBe(1);
+    expect(preparation.archivoGenerable).toBe(false);
+    expect(preparation.estadoArchivo).toBe('NO_IMPLEMENTADO');
+    expect(preparation.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'PILA_SNAPSHOT_VERSION_NO_SOPORTADA',
+          affectedCount: 1,
+        }),
+      ]),
+    );
+    await expect(pilaPreparationPanel.getByText('Snapshots revisados: 1')).toBeVisible();
+    await expect(
+      pilaPreparationPanel.getByText(
+        /No existe un snapshot PILA aprobado con una versión compatible/,
+      ),
+    ).toBeVisible();
+    await expect(
+      pilaPreparationPanel.getByText(/no genera archivos ni confirma aceptación de un operador/i),
+    ).toBeVisible();
+    await expect(
+      pilaPreparationPanel.getByRole('heading', {
+        name: 'Estado de exportación PILA',
+      }),
+    ).toBeVisible();
+    await expect(pilaPreparationPanel.getByText('No implementadas')).toBeVisible();
+    await expect(
+      pilaPreparationPanel.getByText('Preliminar; no cubre el archivo completo'),
+    ).toBeVisible();
+    await expect(pilaPreparationPanel.getByText('No verificada')).toBeVisible();
+    await expect(
+      pilaPreparationPanel.getByText(/No se ha probado un archivo candidato/),
+    ).toBeVisible();
+
     const persisted = await payroll.inspectPersistedState();
     expect(persisted.periodStatus).toBe('CAUSADA');
     expect(persisted.vouchers).toEqual([{ id: posting.comprobanteId, estado: 'CONTABILIZADO' }]);
@@ -156,5 +242,6 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
     expect(persisted.snapshotStatus).toBe('APROBADA');
   } finally {
     await payroll.disconnect();
+    await billingFixture.disconnect();
   }
 });
