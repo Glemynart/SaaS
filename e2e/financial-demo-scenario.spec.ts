@@ -172,6 +172,13 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
     const preparation = (await preparationResponse.json()) as {
       formatVersion: string | null;
       normativeSourceStatus: string;
+      exportReadiness: {
+        recordLayoutVersion: string;
+        fileGenerationStatus: string;
+        localValidationStatus: string;
+        operatorAcceptanceStatus: string;
+        blockers: Array<{ code: string }>;
+      };
       snapshotsRevisados: number;
       empleadosConDatosPendientes: number;
       archivoGenerable: boolean;
@@ -180,6 +187,19 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
     };
     expect(preparation.formatVersion).toBeNull();
     expect(preparation.normativeSourceStatus).toBe('RECONCILIATION_PENDING');
+    expect(preparation.exportReadiness).toMatchObject({
+      recordLayoutVersion: 'AT2_V30',
+      fileGenerationStatus: 'NOT_IMPLEMENTED',
+      localValidationStatus: 'PRELIMINARY',
+      operatorAcceptanceStatus: 'NOT_VERIFIED',
+    });
+    expect(preparation.exportReadiness.blockers.map(({ code }) => code)).toEqual(
+      expect.arrayContaining([
+        'AT2_FILE_MAPPING_NOT_IMPLEMENTED',
+        'PILA_PAYMENT_DATE_REQUIRED',
+        'OPERATOR_UPLOAD_NOT_VERIFIED',
+      ]),
+    );
     expect(preparation.snapshotsRevisados).toBe(1);
     expect(preparation.empleadosConDatosPendientes).toBe(1);
     expect(preparation.archivoGenerable).toBe(false);
@@ -200,6 +220,19 @@ test('muestra facturación y nómina contabilizada en el mismo tenant de demo', 
     ).toBeVisible();
     await expect(
       pilaPreparationPanel.getByText(/no genera archivos ni confirma aceptación de un operador/i),
+    ).toBeVisible();
+    await expect(
+      pilaPreparationPanel.getByRole('heading', {
+        name: 'Estado de exportación PILA',
+      }),
+    ).toBeVisible();
+    await expect(pilaPreparationPanel.getByText('No implementadas')).toBeVisible();
+    await expect(
+      pilaPreparationPanel.getByText('Preliminar; no cubre el archivo completo'),
+    ).toBeVisible();
+    await expect(pilaPreparationPanel.getByText('No verificada')).toBeVisible();
+    await expect(
+      pilaPreparationPanel.getByText(/No se ha probado un archivo candidato/),
     ).toBeVisible();
 
     const persisted = await payroll.inspectPersistedState();
