@@ -517,3 +517,17 @@ se accedió a demo, staging o producción.
   no demuestra por sí mismo que el conteo esperado venga de la ejecución
   aprobada completa; ese origen debe verificarse al integrarlo. La validación
   del detalle 02 y compatibilidad con operadores siguen pendientes.
+
+### Mapeo candidato de detalle PILA AT2 v30 — 2026-10-31
+
+- `pila-at2-v30-detail-mapper.ts` agrega fuentes directas de identidad,
+  afiliación, días completos, salario, IBC por subsistema y asignación ARL desde
+  un snapshot PILA v2 del mismo empleado/tenant/período. No vuelve a consultar
+  maestros, no transforma novedades y no calcula tarifas ni aportes.
+- El alcance del mapa cubre campos 1–6, 11–14, 31, 33, 35, 36–45, 62, 77–78,
+  95 y 98. Los campos de aportes 46–75, novedades/segmentación, horas y otros
+  datos todavía faltantes permanecen sin valor candidato; el registro completo
+  no es serializable ni descargable.
+- Las pruebas verifican snapshot v2, dependiente 01/00, cobertura del período,
+  códigos afiliados, días/base salarial e IBC congelados, ceros iniciales del
+  documento/centro, fuentes de concepto únicas y aislamiento del centro ARL.

@@ -149,6 +149,14 @@ Para el detalle 02, el alcance de datos de mayor riesgo es:
 | 62, 78, 98     | Centro ARL, clase y actividad económica      | Usar asignación con vigencia del empleado, código asignado por ARL y catálogo de Decreto 768/2022 versionado. El campo 62 es N9 (AT2 v30, p. 95): aceptar solo 1–9 dígitos, conservar ceros iniciales y bloquear sin truncar ni convertir valores incompatibles. Una sede no reemplaza el centro ARL.                                                                                                                        |
 | 95             | IBC de otros parafiscales                    | Obligatorio para tipo 01 y limitado a 9 dígitos. Requiere origen salarial auditable, base propia en el snapshot y reglas aprobadas. El valor candidato actual no constituye por sí mismo aprobación normativa.                                                                                                                                                                                                               |
 
+`pila-at2-v30-detail-mapper.ts` mapea candidatos desde un snapshot v2 para los
+campos 1–6, 11–14, 31, 33, 35, 36–45, 62, 77–78, 95 y 98. Exige el escenario
+dependiente `01`/`00`, cobertura mensual de empleado/contrato/afiliación y, para
+el centro ARL, tenant, vigencia, ARL y catálogo versionado coincidentes.
+Conserva identificadores y códigos de centro con ceros iniciales. Tarifas,
+aportes, novedades y demás campos continúan sin mapear; el candidato no se
+valida ni serializa como registro.
+
 ### Reglas de aportes verificadas en AT2 v30
 
 La revisión de los campos de aportes confirma fórmulas de validación, pero no

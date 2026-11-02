@@ -101,6 +101,15 @@ describe('mapPilaAt2V30EmployerCandidate', () => {
     expect(candidate.values[6]).toEqual({ value: 'SUC01' });
   });
 
+  it('preserves the frozen employer name without trimming source characters', () => {
+    const input = snapshot();
+    input.payload.employer.razonSocial = ' Empresa Demo SAS ';
+
+    const candidate = mapPilaAt2V30EmployerCandidate(input);
+
+    expect(candidate.values[1]).toEqual({ value: ' Empresa Demo SAS ' });
+  });
+
   it('keeps absent required sources and an unconfirmed fax unresolved', () => {
     const input = snapshot();
     delete input.payload.employer.pila.claseAportante;
