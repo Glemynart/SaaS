@@ -138,6 +138,6 @@ export class BillingController {
     @Param('id') id: string,
     @Body() d: UpdateInvoiceStatusDto,
   ) {
-    return this.service.updateInvoiceStatus(u.tenantId, id, d);
+    return this.service.updateInvoiceStatus(u.tenantId, u.userId, id, d);
   }
 }

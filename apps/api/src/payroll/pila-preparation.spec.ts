@@ -443,7 +443,7 @@ describe('inspectPilaSnapshotPreparation', () => {
     source.employer.pila.nombreSucursal = 'N'.repeat(40);
     source.employer.pila.fax = '1'.repeat(10);
     source.employer.pila.representanteTipoDocumento = 'PA';
-    source.employer.pila.representanteNumeroDocumento = '1'.repeat(16);
+    source.employer.pila.representanteNumeroDocumento = 'A'.repeat(16);
     source.employer.pila.representantePrimerApellido = 'A'.repeat(20);
     source.employer.pila.representanteSegundoApellido = 'B'.repeat(30);
     source.employer.pila.representantePrimerNombre = 'C'.repeat(20);
@@ -477,6 +477,24 @@ describe('inspectPilaSnapshotPreparation', () => {
           record === 'APORTANTE_TIPO_1' && [5, 6].includes(fieldNumber ?? -1),
       ),
     ).toEqual([]);
+  });
+
+  it('bloquea el código de sucursal si la presentación es única', () => {
+    const source = payload();
+    source.employer.pila.formaPresentacion = 'U';
+    source.employer.pila.codigoSucursal = 'BR01';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'APORTANTE_TIPO_1',
+        fieldNumber: 5,
+        code: 'CAMPO_5_CODIGO_SUCURSAL_NO_PERMITIDO_EN_PRESENTACION_UNICA',
+      }),
+    );
   });
 
   it('bloquea fax no numérico y correo que incumple el formato AT2', () => {
@@ -658,6 +676,116 @@ describe('inspectPilaSnapshotPreparation', () => {
             record === 'APORTANTE_TIPO_1' && fieldNumber === 18,
         ),
       ).toEqual([]);
+    },
+  );
+
+  it.each([
+    ['CC', '1'.repeat(10)],
+    ['CE', '1'.repeat(7)],
+    ['TI', '1'.repeat(11)],
+    ['NI', '1'.repeat(11)],
+    ['PA', 'A'.repeat(16)],
+    ['CD', 'A'.repeat(11)],
+    ['SC', '1'.repeat(8)],
+    ['PE', '1'.repeat(15)],
+    ['PT', '1'.repeat(8)],
+    ['PC', '1'.repeat(8)],
+  ])('acepta identificación AT2 máxima del aportante %s', (type, value) => {
+    const source = payload();
+    source.employer.pila.tipoDocumentoAportante = type;
+    source.employer.nit = value;
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(
+        ({ record, fieldNumber }) =>
+          record === 'APORTANTE_TIPO_1' && fieldNumber === 3,
+      ),
+    ).toEqual([]);
+  });
+
+  it.each([
+    ['CC', '12345678901'],
+    ['CE', '12345678'],
+    ['TI', '123456789012'],
+    ['NI', '123456789012'],
+    ['PA', 'A'.repeat(17)],
+    ['CD', 'A'.repeat(12)],
+    ['SC', '123456789'],
+    ['PE', '1234567890123456'],
+    ['PT', '123456789'],
+    ['PC', '123456789'],
+    ['CC', 'A123'],
+    ['PA', 'AB-123'],
+  ])(
+    'bloquea el documento del aportante %s que excede o incumple la regla AT2',
+    (type, identification) => {
+      const source = payload();
+      source.employer.pila.tipoDocumentoAportante = type;
+      source.employer.nit = identification;
+
+      const result = inspectPilaSnapshotPreparation(
+        snapshot('employee-1', 'Ana', { payload: source }),
+      );
+
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          record: 'APORTANTE_TIPO_1',
+          fieldNumber: 3,
+          code: 'CAMPO_3_IDENTIFICACION_APORTANTE_NO_VALIDA',
+        }),
+      );
+    },
+  );
+
+  it.each([
+    ['CC', '1'.repeat(10)],
+    ['CE', '1'.repeat(7)],
+    ['PA', 'A'.repeat(16)],
+    ['CD', 'A'.repeat(11)],
+  ])('acepta identificación AT2 máxima del representante %s', (type, value) => {
+    const source = payload();
+    source.employer.pila.representanteTipoDocumento = type;
+    source.employer.pila.representanteNumeroDocumento = value;
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(
+      result.issues.filter(
+        ({ record, fieldNumber }) =>
+          record === 'APORTANTE_TIPO_1' && fieldNumber === 18,
+      ),
+    ).toEqual([]);
+  });
+
+  it.each([
+    ['CC', '12345678901'],
+    ['CE', '12345678'],
+    ['CD', 'A'.repeat(12)],
+    ['CC', 'A123'],
+  ])(
+    'bloquea el documento del representante %s que incumple la regla AT2',
+    (type, identification) => {
+      const source = payload();
+      source.employer.pila.representanteTipoDocumento = type;
+      source.employer.pila.representanteNumeroDocumento = identification;
+
+      const result = inspectPilaSnapshotPreparation(
+        snapshot('employee-1', 'Ana', { payload: source }),
+      );
+
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          record: 'APORTANTE_TIPO_1',
+          fieldNumber: 18,
+          code: 'CAMPO_18_IDENTIFICACION_REPRESENTANTE_NO_VALIDA',
+        }),
+      );
     },
   );
 
@@ -861,6 +989,21 @@ describe('inspectPilaSnapshotPreparation', () => {
     },
   );
 
+  it('counts raw whitespace when validating an A6 affiliation code', () => {
+    const source = payload();
+    source.affiliations[0].arlCodigo = 'ARL001 ';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        fieldNumber: 77,
+        code: 'CAMPO_77_LONGITUD_SUPERADA',
+      }),
+    );
+  });
   it.each([
     ['faltante', null],
     ['especial', '01'],
@@ -924,7 +1067,7 @@ describe('inspectPilaSnapshotPreparation', () => {
     },
   );
 
-  it.each(['CENTRO-1', '1234567890'])(
+  it.each(['CENTRO-1', '1234567890', ' 0001 '])(
     'bloquea el código de centro %s porque no cabe en el campo 62 N9',
     (codigoCentro) => {
       const source = {
@@ -1491,6 +1634,13 @@ describe('inspectPilaSnapshotPreparation', () => {
     ['marzo pagado en marzo', '2027-03-01', '2027-03-31', '2027-03-06', false],
     ['abril pagado en mayo', '2027-04-01', '2027-04-30', '2027-05-06', true],
     ['marzo pagado en abril', '2027-03-01', '2027-03-31', '2027-04-06', true],
+    [
+      'período que cruza abril aunque comience y se pague antes',
+      '2027-03-15',
+      '2027-04-15',
+      '2027-03-31',
+      true,
+    ],
   ])(
     'aplica el bloqueo de reglas pensionales según el período y pago (%s)',
     (_, fechaInicio, fechaFin, fechaPrevistaPagoPila, shouldBlock) => {
