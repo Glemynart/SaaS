@@ -31,6 +31,8 @@ describe('versioned PILA ARL initial-rate catalog', () => {
   it('does not apply the table before its effective date or to unknown classes', () => {
     expect(getPilaArlInitialRate('1', '1994-08-04')).toBeNull();
     expect(getPilaArlInitialRate('6', '2026-10-01')).toBeNull();
+    expect(getPilaArlInitialRate('toString', '2026-10-01')).toBeNull();
+    expect(getPilaArlInitialRate('__proto__', '2026-10-01')).toBeNull();
     expect(getPilaArlInitialRate('1', '2026-02-30')).toBeNull();
   });
 });

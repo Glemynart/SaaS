@@ -45,5 +45,11 @@ export function getPilaArlInitialRate(
   ) {
     return null;
   }
-  return riskClass ? (INITIAL_RATE_BY_CLASS[riskClass] ?? null) : null;
+  if (
+    !riskClass ||
+    !Object.prototype.hasOwnProperty.call(INITIAL_RATE_BY_CLASS, riskClass)
+  ) {
+    return null;
+  }
+  return INITIAL_RATE_BY_CLASS[riskClass];
 }
