@@ -7,6 +7,10 @@ import {
   PILA_RISK_ACTIVITY_CATALOG_VERSION,
   PILA_RISK_ACTIVITY_CODES,
 } from './pila-risk-activity-catalog';
+import {
+  getPilaArlInitialRate,
+  PILA_ARL_INITIAL_RATE_RULE_VERSION,
+} from './pila-arl-initial-rate-catalog';
 import type { PilaSnapshotPreparationInput } from './pila-preparation';
 
 type JsonRecord = Record<string, unknown>;
@@ -17,6 +21,9 @@ export interface PilaAt2V30DetailCandidate {
   employeeId: string;
   tenantId: string | null;
   payrollPeriodId: string | null;
+  normativeRuleVersions: {
+    arlInitialRate: typeof PILA_ARL_INITIAL_RATE_RULE_VERSION | null;
+  };
   values: Partial<Record<number, PilaAt2V30FieldInput>>;
   unresolvedFields: Array<{ fieldNumber: number; reason: string }>;
 }
@@ -90,8 +97,9 @@ function fullCalendarMonth(start: string, end: string): boolean {
 
 /**
  * Maps candidate AT2 v30 type 2 detail sources from one frozen PILA snapshot.
- * It is deliberately partial: contribution rates/amounts and novelty segments
- * remain unresolved, and this function never validates or serializes a record.
+ * It is deliberately partial: the initial ARL rate is only a versioned
+ * candidate, remaining contribution rules and novelty segments are unresolved,
+ * and this function never validates or serializes a record.
  */
 export function mapPilaAt2V30DetailCandidate(
   snapshot: PilaSnapshotPreparationInput,
@@ -170,6 +178,7 @@ export function mapPilaAt2V30DetailCandidate(
       employeeId: snapshot.employeeId,
       tenantId,
       payrollPeriodId,
+      normativeRuleVersions: { arlInitialRate: null },
       values,
       unresolvedFields: [...reasons].map(([fieldNumber, reason]) => ({
         fieldNumber,
@@ -416,6 +425,11 @@ export function mapPilaAt2V30DetailCandidate(
     PILA_RISK_ACTIVITY_CODES.has(riskActivity) &&
     riskActivity[0] === sourceText(affiliation?.arlClaseRiesgo),
   );
+  const arlRateByClass = getPilaArlInitialRate(
+    sourceText(affiliation?.arlClaseRiesgo),
+    periodStart,
+  );
+  const arlInitialRate = riskAssignmentValid ? arlRateByClass : null;
   if (
     riskAssignmentValid &&
     workCenterCode &&
@@ -457,13 +471,21 @@ export function mapPilaAt2V30DetailCandidate(
     code: string;
     base: JsonRecord | null;
     requireExplicitNonExemption?: boolean;
-  }) => {
+    expectedFactor?: number | null;
+  }): JsonRecord | null => {
     if (!fullMonthPilaInputsApproved) {
       unresolved(
         input.fieldNumber,
         'El importe candidato requiere un mes completo con días aprobados y sin novedades ni eventos PILA.',
       );
-      return;
+      return null;
+    }
+    if (input.expectedFactor === null) {
+      unresolved(
+        input.fieldNumber,
+        'No hay una tarifa ARL versionada aplicable a la clase de riesgo y al período congelados.',
+      );
+      return null;
     }
     if (input.requireExplicitNonExemption) {
       if (
@@ -474,7 +496,7 @@ export function mapPilaAt2V30DetailCandidate(
           input.fieldNumber,
           'Se requiere declaración expresa y coherente de no exoneración en el empleador congelado.',
         );
-        return;
+        return null;
       }
     }
     const matches = contributionConcepts?.filter(
@@ -487,7 +509,7 @@ export function mapPilaAt2V30DetailCandidate(
           ? `Hay más de una fuente ${input.code} en el snapshot.`
           : `Falta una fuente única ${input.code} en el snapshot.`,
       );
-      return;
+      return null;
     }
     const concept = matches[0];
     if (
@@ -505,19 +527,49 @@ export function mapPilaAt2V30DetailCandidate(
         input.fieldNumber,
         `La fuente ${input.code} no tiene tipo esperado, importe entero, factor positivo y base coincidente con la fuente congelada.`,
       );
-      return;
+      return null;
+    }
+    if (
+      input.expectedFactor !== undefined &&
+      concept.factor !== input.expectedFactor
+    ) {
+      unresolved(
+        input.fieldNumber,
+        'El factor ARL del snapshot no coincide con la tarifa inicial versionada para la clase de riesgo congelada.',
+      );
+      return null;
     }
     put(input.fieldNumber, concept.valor);
+    return concept;
   };
 
-  mapContributionAmountCandidate({
+  const arlConcept = mapContributionAmountCandidate({
     fieldNumber: 63,
     code: 'ARL',
     base:
       object(subsystemBases?.riesgos)?.sourceCount === 1
         ? object(subsystemBases?.riesgos)
         : null,
+    expectedFactor: arlInitialRate?.factor ?? null,
   });
+  if (arlInitialRate && arlConcept) {
+    put(61, arlInitialRate.fieldValue);
+  } else if (!riskAssignmentValid) {
+    unresolved(
+      61,
+      'Falta una asignación ARL válida, tenant-safe y vigente para el período completo.',
+    );
+  } else if (!arlInitialRate) {
+    unresolved(
+      61,
+      'No hay una tarifa inicial versionada para la clase ARL y el período congelados.',
+    );
+  } else {
+    unresolved(
+      61,
+      'Falta un concepto ARL único cuyo factor y base coincidan con la regla y el IBC congelados.',
+    );
+  }
   mapContributionAmountCandidate({
     fieldNumber: 65,
     code: 'CAJA',
@@ -563,6 +615,11 @@ export function mapPilaAt2V30DetailCandidate(
     employeeId: snapshot.employeeId,
     tenantId,
     payrollPeriodId,
+    normativeRuleVersions: {
+      arlInitialRate: arlRateByClass
+        ? PILA_ARL_INITIAL_RATE_RULE_VERSION
+        : null,
+    },
     values,
     unresolvedFields,
   };

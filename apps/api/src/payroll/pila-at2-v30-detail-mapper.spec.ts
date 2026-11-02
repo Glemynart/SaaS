@@ -213,7 +213,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.values[8]).toBeUndefined();
     expect(
       candidate.unresolvedFields.map(({ fieldNumber }) => fieldNumber),
-    ).toEqual(expect.arrayContaining([8, 46, 47, 48, 76, 96, 97]));
+    ).toEqual(expect.arrayContaining([8, 46, 47, 48, 61, 63, 76, 96, 97]));
   });
 
   it.each(['CC', 'TI'])(
@@ -341,7 +341,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     );
   });
 
-  it('maps direct ARL, CCF and non-exempt parafiscal concept amounts as candidates', () => {
+  it('maps the versioned ARL tariff and direct contribution amounts as candidates', () => {
     const input = snapshot();
     const payload = payloadOf(input);
     const employer = (input.payload as { employer: Record<string, unknown> })
@@ -354,8 +354,8 @@ describe('mapPilaAt2V30DetailCandidate', () => {
         codigo: 'ARL',
         tipo: 'EMPLOYER_CONTRIBUTION',
         base: 2_000_000,
-        factor: 0.00522,
-        valor: 10_440,
+        factor: 0.01044,
+        valor: 20_880,
       },
       {
         codigo: 'CAJA',
@@ -383,11 +383,72 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const candidate = mapPilaAt2V30DetailCandidate(input);
 
     expect(candidate.values).toMatchObject({
-      63: { value: 10_440 },
+      61: { value: '0.0104400' },
+      63: { value: 20_880 },
       65: { value: 80_000 },
       67: { value: 40_000 },
       69: { value: 60_000 },
     });
+    expect(candidate.normativeRuleVersions.arlInitialRate).toBe(
+      'CO_ARL_INITIAL_RATE_DEC1772_ART13_V1',
+    );
+  });
+
+  it.each([
+    ['1', 0.00522, '0.0052200'],
+    ['2', 0.01044, '0.0104400'],
+    ['3', 0.02436, '0.0243600'],
+    ['4', 0.0435, '0.0435000'],
+    ['5', 0.0696, '0.0696000'],
+  ])(
+    'maps initial ARL tariff for risk class %s from the approved snapshot',
+    (riskClass, factor, fieldValue) => {
+      const input = snapshot();
+      const payload = payloadOf(input);
+      payload.affiliations[0].arlClaseRiesgo = riskClass;
+      payload.pilaRiskAssignments[0].codigoActividadEconomica = [
+        ...PILA_RISK_ACTIVITY_CODES,
+      ].find((code) => code[0] === riskClass);
+      payload.payroll.concepts = [
+        {
+          codigo: 'ARL',
+          tipo: 'EMPLOYER_CONTRIBUTION',
+          base: 2_000_000,
+          factor,
+          valor: Math.round(2_000_000 * factor),
+        },
+      ];
+
+      const candidate = mapPilaAt2V30DetailCandidate(input);
+
+      expect(candidate.values[61]).toEqual({ value: fieldValue });
+      expect(candidate.values[63]).toBeDefined();
+    },
+  );
+
+  it('blocks the ARL tariff and contribution when snapshot factor disagrees with risk class', () => {
+    const input = snapshot();
+    payloadOf(input).payroll.concepts = [
+      {
+        codigo: 'ARL',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: 2_000_000,
+        factor: 0.00522,
+        valor: 10_440,
+      },
+    ];
+
+    const candidate = mapPilaAt2V30DetailCandidate(input);
+
+    expect(candidate.values[61]).toBeUndefined();
+    expect(candidate.values[63]).toBeUndefined();
+    expect(
+      candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 63)
+        ?.reason,
+    ).toContain('no coincide con la tarifa inicial');
+    expect(
+      candidate.unresolvedFields.some(({ fieldNumber }) => fieldNumber === 61),
+    ).toBe(true);
   });
 
   it('does not infer zero contributions or map concepts with ambiguous or mismatched bases', () => {
