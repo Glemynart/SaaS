@@ -91,7 +91,10 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await affiliationForm.getByLabel('Clase de riesgo ARL').selectOption('1');
   await affiliationForm.getByLabel('Código Caja de compensación').fill('CCF001');
   await affiliationForm.getByLabel('Nombre Caja de compensación').fill('Caja Demo');
-  await affiliationForm.getByLabel('¿Es colombiano en el exterior?').selectOption('false');
+  await affiliationForm.getByLabel('Departamento donde está ubicada la CCF').selectOption('08');
+  await affiliationForm
+    .getByRole('combobox', { name: '¿Es colombiano en el exterior?' })
+    .selectOption('false');
   await affiliationForm.getByRole('button', { name: 'Guardar afiliación' }).click();
 
   await expect(page.getByText('EPS Demo')).toBeVisible();
@@ -112,7 +115,10 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await replacementForm.getByRole('combobox', { name: 'Clase de riesgo ARL' }).selectOption('1');
   await replacementForm.getByLabel('Código Caja de compensación').fill('CCF001');
   await replacementForm.getByLabel('Nombre Caja de compensación').fill('Caja Demo');
-  await replacementForm.getByLabel('¿Es colombiano en el exterior?').selectOption('false');
+  await replacementForm.getByLabel('Departamento donde está ubicada la CCF').selectOption('08');
+  await replacementForm
+    .getByRole('combobox', { name: '¿Es colombiano en el exterior?' })
+    .selectOption('false');
   await replacementForm.getByRole('button', { name: 'Guardar afiliación' }).click();
 
   await expect(page.getByText('EPS Nueva')).toBeVisible();
@@ -193,6 +199,60 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   const closeWorkAssignmentResponse = await closeWorkAssignmentResponsePromise;
   expect(closeWorkAssignmentResponse.status()).toBe(200);
   await expect(persistedWorkAssignment).not.toContainText('Sin fecha final');
+
+  const municipalities = (await page.evaluate(async () => {
+    const response = await fetch('/api/dane/municipios');
+    return (await response.json()) as Array<{ id: string; codigo: string }>;
+  })) as Array<{ id: string; codigo: string }>;
+  const workMunicipality = municipalities.find(({ codigo }) => codigo === '08001');
+  expect(workMunicipality).toBeTruthy();
+  const workLocationPanel = page.locator('section').filter({
+    has: page.getByRole('heading', { name: 'Ubicación laboral PILA' }),
+  });
+  const workLocationForm = workLocationPanel.locator('form');
+  await workLocationForm
+    .getByLabel('Municipio de trabajo declarado')
+    .selectOption(workMunicipality!.id);
+  await workLocationForm.getByLabel('Vigente desde').fill('2026-01-01');
+  await workLocationForm
+    .getByLabel(
+      'Confirmo que este es el municipio donde el empleado ejecuta su actividad laboral para PILA.',
+    )
+    .check();
+  const createWorkLocationResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname ===
+        `/api/employees/${employeeId}/ubicaciones-laborales-pila` &&
+      response.request().method() === 'POST',
+  );
+  await workLocationForm.getByRole('button', { name: 'Registrar ubicación' }).click();
+  const createWorkLocationResponse = await createWorkLocationResponsePromise;
+  expect(createWorkLocationResponse.status()).toBe(200);
+  const createdWorkLocation = (await createWorkLocationResponse.json()) as { id: string };
+  const savedWorkLocation = workLocationPanel
+    .getByRole('listitem')
+    .filter({ hasText: 'Barranquilla' });
+  await expect(savedWorkLocation).toContainText('Sin fecha final');
+  await page.reload();
+  const persistedWorkLocation = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: 'Ubicación laboral PILA' }) })
+    .getByRole('listitem')
+    .filter({ hasText: 'Barranquilla' });
+  await expect(persistedWorkLocation).toContainText('Sin fecha final');
+
+  const closeWorkLocationResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname ===
+        `/api/employees/${employeeId}/ubicaciones-laborales-pila/${createdWorkLocation.id}` &&
+      response.request().method() === 'PATCH',
+  );
+  await persistedWorkLocation.getByRole('button', { name: 'Cerrar vigencia' }).click();
+  await persistedWorkLocation.getByLabel('Vigente hasta').fill('2026-12-31');
+  await persistedWorkLocation.getByRole('button', { name: 'Guardar' }).click();
+  const closeWorkLocationResponse = await closeWorkLocationResponsePromise;
+  expect(closeWorkLocationResponse.status()).toBe(200);
+  await expect(persistedWorkLocation).not.toContainText('Sin fecha final');
 
   await page.goto('/empleados');
   await search.fill(cedula);

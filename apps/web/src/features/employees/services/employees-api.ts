@@ -50,6 +50,7 @@ export interface SocialSecurityAffiliation {
   arlClaseRiesgo: string;
   cajaCompensacionCodigo: string;
   cajaCompensacionNombre: string;
+  cajaCompensacionDepartamentoCodigo: string | null;
   extranjeroNoObligadoPension: boolean | null;
   colombianoEnElExterior: boolean | null;
   vigenteDesde: string;
@@ -66,12 +67,14 @@ export type CreateSocialSecurityAffiliation = Omit<
   | 'tenantId'
   | 'empleadoId'
   | 'subtipoCotizanteCodigo'
+  | 'cajaCompensacionDepartamentoCodigo'
   | 'versionCaptura'
   | 'registradoPorId'
   | 'createdAt'
   | 'updatedAt'
 > & {
   subtipoCotizanteCodigo: string;
+  cajaCompensacionDepartamentoCodigo: string;
 };
 
 export interface PilaWorkCenter {
@@ -110,6 +113,24 @@ export interface CreatePilaWorkAssignment {
   codigoActividadEconomica: string;
   vigenteDesde: string;
   vigenteHasta: string | null;
+}
+
+export interface PilaWorkLocation {
+  id: string;
+  tenantId: string;
+  empleadoId: string;
+  municipioId: string;
+  vigenteDesde: string;
+  vigenteHasta: string | null;
+  registradoPorId: string;
+  municipio: { id: string; codigo: string; nombre: string; departamento: string };
+}
+
+export interface CreatePilaWorkLocation {
+  municipioId: string;
+  vigenteDesde: string;
+  vigenteHasta: string | null;
+  confirmacionAportante: true;
 }
 
 export interface GetEmployeesParams {
@@ -239,6 +260,35 @@ export const employeesApi = {
   }) =>
     request<PilaWorkAssignment>(
       `/api/employees/${employeeId}/asignaciones-centro-pila/${assignmentId}`,
+      { method: 'PATCH', body: JSON.stringify({ vigenteHasta }) },
+    ),
+
+  getPilaWorkLocations: async (employeeId: string) =>
+    request<PilaWorkLocation[]>(`/api/employees/${employeeId}/ubicaciones-laborales-pila`),
+
+  createPilaWorkLocation: async ({
+    employeeId,
+    data,
+  }: {
+    employeeId: string;
+    data: CreatePilaWorkLocation;
+  }) =>
+    request<PilaWorkLocation>(`/api/employees/${employeeId}/ubicaciones-laborales-pila`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  closePilaWorkLocation: async ({
+    employeeId,
+    locationId,
+    vigenteHasta,
+  }: {
+    employeeId: string;
+    locationId: string;
+    vigenteHasta: string;
+  }) =>
+    request<PilaWorkLocation>(
+      `/api/employees/${employeeId}/ubicaciones-laborales-pila/${locationId}`,
       { method: 'PATCH', body: JSON.stringify({ vigenteHasta }) },
     ),
 

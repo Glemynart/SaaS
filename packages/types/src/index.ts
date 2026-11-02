@@ -5,3 +5,4 @@ export interface User {
 }
 
 export * from './employee';
+export * from './colombia-dane-departments';

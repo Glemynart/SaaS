@@ -23,7 +23,7 @@ describe('AuthorizationSurfaceClassifier', () => {
   it('classifies the complete current HTTP surface without ambiguity', () => {
     const operations = classifier.classifyModuleGraph(AppModule);
 
-    expect(operations).toHaveLength(199);
+    expect(operations).toHaveLength(202);
     expect(new Set(operations.map(({ operationId }) => operationId)).size).toBe(
       operations.length,
     );
@@ -49,12 +49,12 @@ describe('AuthorizationSurfaceClassifier', () => {
 
     expect(countBy(operations, 'policy')).toEqual({
       [AuthorizationPolicyKind.UNAUTHENTICATED]: 12,
-      [AuthorizationPolicyKind.AUTHENTICATED]: 64,
-      [AuthorizationPolicyKind.RBAC]: 123,
+      [AuthorizationPolicyKind.AUTHENTICATED]: 65,
+      [AuthorizationPolicyKind.RBAC]: 125,
     });
     expect(countBy(operations, 'source')).toEqual({
-      [AuthorizationClassificationSource.EXPLICIT]: 76,
-      [AuthorizationClassificationSource.EXISTING_RBAC]: 123,
+      [AuthorizationClassificationSource.EXPLICIT]: 77,
+      [AuthorizationClassificationSource.EXISTING_RBAC]: 125,
     });
     expect(
       operations.filter(
@@ -142,6 +142,44 @@ describe('AuthorizationSurfaceClassifier', () => {
     ).toMatchObject({
       requestMethod: 'POST',
       operationPath: ':id/afiliaciones-seguridad-social',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN, UserRole.OPERADOR],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+
+    expect(
+      operations.find(
+        ({ operationId }) => operationId === 'PilaWorkLocationsController.list',
+      ),
+    ).toMatchObject({
+      requestMethod: 'GET',
+      policy: AuthorizationPolicyKind.AUTHENTICATED,
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'PilaWorkLocationsController.create',
+      ),
+    ).toMatchObject({
+      requestMethod: 'POST',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN, UserRole.OPERADOR],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'PilaWorkLocationsController.close',
+      ),
+    ).toMatchObject({
+      requestMethod: 'PATCH',
       policy: AuthorizationPolicyKind.RBAC,
       roles: [UserRole.ADMIN, UserRole.OPERADOR],
       requiresAuthentication: true,

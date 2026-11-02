@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { LaborRelationshipPanel } from '@/features/labor-relationships/components/labor-relationship-panel';
 import { EmployeeSocialSecurityPanel } from '@/features/employees/components/employee-social-security-panel';
 import { EmployeePilaWorkPanel } from '@/features/employees/components/employee-pila-work-panel';
+import { EmployeePilaWorkLocationPanel } from '@/features/employees/components/employee-pila-work-location-panel';
 
 const TIPO_CONTRATO_LABEL: Record<string, string> = {
   TERMINO_FIJO: 'Término fijo',
@@ -298,6 +299,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       />
 
       <EmployeePilaWorkPanel employeeId={id} />
+      <EmployeePilaWorkLocationPanel employeeId={id} />
 
       {employee && (
         <GenerateDocumentForm

@@ -4,6 +4,7 @@ import {
   type CreateSocialSecurityAffiliation,
   type CreatePilaWorkAssignment,
   type CreatePilaWorkCenter,
+  type CreatePilaWorkLocation,
   type GetEmployeesParams,
 } from '../services/employees-api';
 
@@ -17,6 +18,8 @@ export const employeeKeys = {
     [...employeeKeys.details(), id, 'social-security-affiliations'] as const,
   pilaWorkAssignments: (id: string) =>
     [...employeeKeys.details(), id, 'pila-work-assignments'] as const,
+  pilaWorkLocations: (id: string) =>
+    [...employeeKeys.details(), id, 'pila-work-locations'] as const,
   pilaWorkCenters: () => [...employeeKeys.all, 'pila-work-centers'] as const,
 };
 
@@ -111,6 +114,39 @@ export function useClosePilaWorkAssignment() {
     onSuccess: (_, { employeeId }) => {
       queryClient.invalidateQueries({
         queryKey: employeeKeys.pilaWorkAssignments(employeeId),
+      });
+    },
+  });
+}
+
+export function usePilaWorkLocations(id: string) {
+  return useQuery({
+    queryKey: employeeKeys.pilaWorkLocations(id),
+    queryFn: () => employeesApi.getPilaWorkLocations(id),
+    enabled: !!id,
+  });
+}
+
+export function useCreatePilaWorkLocation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { employeeId: string; data: CreatePilaWorkLocation }) =>
+      employeesApi.createPilaWorkLocation(input),
+    onSuccess: (_, { employeeId }) => {
+      queryClient.invalidateQueries({
+        queryKey: employeeKeys.pilaWorkLocations(employeeId),
+      });
+    },
+  });
+}
+
+export function useClosePilaWorkLocation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: employeesApi.closePilaWorkLocation,
+    onSuccess: (_, { employeeId }) => {
+      queryClient.invalidateQueries({
+        queryKey: employeeKeys.pilaWorkLocations(employeeId),
       });
     },
   });

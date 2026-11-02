@@ -1,5 +1,6 @@
 export interface MunicipioRef {
   id: string;
+  codigo: string;
   nombre: string;
   departamento: string;
 }

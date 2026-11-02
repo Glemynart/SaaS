@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { isColombiaDaneDepartmentCode } from '@saas/types';
 import { AuditService } from '../audit/audit.service';
 import {
   TenantPrismaClient,
@@ -12,7 +13,7 @@ import {
 import { CreateSocialSecurityAffiliationDto } from './dto/create-social-security-affiliation.dto';
 import { CloseSocialSecurityAffiliationDto } from './dto/close-social-security-affiliation.dto';
 
-const CAPTURE_VERSION = 'PILA_AFFILIATION_CAPTURE_V2';
+const CAPTURE_VERSION = 'PILA_AFFILIATION_CAPTURE_V3';
 
 @Injectable()
 export class SocialSecurityAffiliationsService {
@@ -40,6 +41,12 @@ export class SocialSecurityAffiliationsService {
     const vigenteHasta = dto.vigenteHasta
       ? parseDate(dto.vigenteHasta, 'vigenteHasta')
       : null;
+
+    if (!isColombiaDaneDepartmentCode(dto.cajaCompensacionDepartamentoCodigo)) {
+      throw new BadRequestException(
+        'Selecciona un departamento válido según DIVIPOLA para la caja de compensación.',
+      );
+    }
 
     if (vigenteHasta && vigenteHasta < vigenteDesde) {
       throw new BadRequestException(

@@ -99,6 +99,7 @@ const contextInput: PilaSourceContextInput = {
       arlClaseRiesgo: '2',
       cajaCompensacionCodigo: 'CCF001',
       cajaCompensacionNombre: 'Caja de prueba',
+      cajaCompensacionDepartamentoCodigo: '08',
       extranjeroNoObligadoPension: null,
       colombianoEnElExterior: false,
       vigenteDesde: new Date('2026-01-01T00:00:00.000Z'),
@@ -166,6 +167,57 @@ function buildField95TestSnapshot(
 }
 
 describe('PILA source snapshot builders', () => {
+  it('freezes the employer-confirmed work location with tenant and effective dates', () => {
+    const context = buildPilaSourceContext({
+      ...contextInput,
+      pilaWorkLocations: [
+        {
+          id: 'work-location-1',
+          tenantId: 'tenant-1',
+          municipioId: 'municipality-2',
+          municipio: {
+            id: 'municipality-2',
+            codigo: '11001',
+            nombre: 'Bogotá, D.C.',
+            departamento: 'Bogotá, D.C.',
+          },
+          vigenteDesde: new Date('2026-10-01T00:00:00.000Z'),
+          vigenteHasta: null,
+        },
+      ],
+    });
+    const snapshot = buildPilaSourceSnapshot({
+      context,
+      payroll: {
+        runId: 'run-1',
+        fechaPrevistaPagoPila: null,
+        salarioBasico: 2_000_000,
+        salarioIntegral: false,
+        ibc: 2_000_000,
+        concepts: [],
+        novelties: [],
+      },
+    });
+
+    expect(context.schemaVersion).toBe(3);
+    expect(snapshot.schemaVersion).toBe(3);
+    expect(snapshot.pilaWorkLocations).toEqual([
+      {
+        assignmentId: 'work-location-1',
+        tenantId: 'tenant-1',
+        municipioId: 'municipality-2',
+        municipio: {
+          id: 'municipality-2',
+          codigo: '11001',
+          nombre: 'Bogotá, D.C.',
+          departamento: 'Bogotá, D.C.',
+        },
+        vigenteDesde: '2026-10-01',
+        vigenteHasta: null,
+      },
+    ]);
+  });
+
   it('freezes the current employer PILA profile into the source context', () => {
     const context = buildPilaSourceContext({
       ...contextInput,
@@ -286,7 +338,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(2);
+    expect(result.schemaVersion).toBe(3);
     expect(result.capturedAt).toBe('2026-11-02T15:00:00.000Z');
     expect(result.employee.fechaIngreso).toBe('2026-01-05');
     expect(result.employee.fechaNacimiento).toBeNull();
@@ -294,6 +346,7 @@ describe('PILA source snapshot builders', () => {
     expect(result.affiliations[0]).toMatchObject({
       extranjeroNoObligadoPension: null,
       colombianoEnElExterior: false,
+      cajaCompensacionDepartamentoCodigo: '08',
     });
     expect(result.payroll.fechaPrevistaPagoPila).toBe('2026-11-05');
     expect(result.payroll.salarioBasico).toBe(2_000_000);

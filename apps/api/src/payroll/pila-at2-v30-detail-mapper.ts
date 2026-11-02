@@ -36,6 +36,7 @@ import {
   getPilaHealthStandardRate,
   PILA_HEALTH_STANDARD_RATE_RULE_VERSION,
 } from './pila-health-standard-rate-catalog';
+import { isColombiaDaneDepartmentCode } from '@saas/types';
 import type { PilaSnapshotPreparationInput } from './pila-preparation';
 
 type JsonRecord = Record<string, unknown>;
@@ -276,8 +277,8 @@ export function mapPilaAt2V30DetailCandidate(
       sourceText(period?.fechaFin) !== expectedEnd) ||
     (employeeSnapshotId !== null && employeeSnapshotId !== snapshot.employeeId);
   const supportedSnapshot =
-    snapshot.payloadVersion === 2 &&
-    root?.schemaVersion === 2 &&
+    (snapshot.payloadVersion === 2 || snapshot.payloadVersion === 3) &&
+    root?.schemaVersion === snapshot.payloadVersion &&
     employee !== null &&
     employer !== null &&
     employerPila !== null &&
@@ -292,7 +293,7 @@ export function mapPilaAt2V30DetailCandidate(
   if (!supportedSnapshot || !periodStart || !periodEnd) {
     const reason = scopeMismatch
       ? 'El tenant, empleado o período congelado en el snapshot no coincide con el contexto autenticado solicitado.'
-      : 'Se requiere un snapshot PILA v2 válido y atribuible a un tenant y período.';
+      : 'Se requiere un snapshot PILA v2 o v3 válido y atribuible a un tenant y período.';
     for (const field of PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2
       .fields) {
       unresolved(field.fieldNumber, reason);
@@ -381,6 +382,75 @@ export function mapPilaAt2V30DetailCandidate(
 
   putText(3, employee?.tipoDocumento, 'el tipo de documento del cotizante');
   putText(4, employee?.cedula, 'la identificación del cotizante');
+  const workLocations = objectRows(root?.pilaWorkLocations);
+  const workLocation = workLocations?.length === 1 ? workLocations[0] : null;
+  if (snapshot.payloadVersion !== 3) {
+    unresolved(
+      9,
+      'El snapshot histórico no contiene una ubicación laboral PILA explícita; no se completa desde la sede ni desde datos actuales.',
+    );
+    unresolved(
+      10,
+      'El snapshot histórico no contiene una ubicación laboral PILA explícita; no se completa desde la sede ni desde datos actuales.',
+    );
+  } else if (!workLocation) {
+    const reason =
+      workLocations === null
+        ? 'El snapshot v3 no conserva una lista válida de ubicaciones laborales PILA.'
+        : workLocations.length === 0
+          ? 'Falta una ubicación laboral PILA confirmada que cubra el período.'
+          : 'Hay varias ubicaciones laborales PILA durante el período; la segmentación no está habilitada.';
+    unresolved(9, reason);
+    unresolved(10, reason);
+  } else if (
+    workLocation.tenantId !== tenantId ||
+    workLocation.municipioId !== object(workLocation.municipio)?.id ||
+    !coversPeriod(
+      workLocation.vigenteDesde,
+      workLocation.vigenteHasta,
+      periodStart,
+      periodEnd,
+    )
+  ) {
+    const reason =
+      'La ubicación laboral PILA congelada no tiene tenant, municipio o vigencia completos para el período.';
+    unresolved(9, reason);
+    unresolved(10, reason);
+  } else if (!standardAffiliation) {
+    const reason =
+      'Falta una afiliación CCF única y vigente durante todo el período para validar los campos 9 y 10.';
+    unresolved(9, reason);
+    unresolved(10, reason);
+  } else {
+    const municipalityCode = sourceText(object(workLocation.municipio)?.codigo);
+    const ccfDepartmentCode = sourceText(
+      affiliation?.cajaCompensacionDepartamentoCodigo,
+    );
+    if (!municipalityCode || !/^\d{5}$/.test(municipalityCode)) {
+      const reason =
+        'El municipio laboral congelado no tiene un código DIVIPOLA de cinco dígitos válido.';
+      unresolved(9, reason);
+      unresolved(10, reason);
+    } else if (!isColombiaDaneDepartmentCode(municipalityCode.slice(0, 2))) {
+      const reason =
+        'El departamento del municipio laboral no pertenece al catálogo DIVIPOLA utilizado por PILA.';
+      unresolved(9, reason);
+      unresolved(10, reason);
+    } else if (!isColombiaDaneDepartmentCode(ccfDepartmentCode)) {
+      const reason =
+        'La afiliación CCF congelada no conserva un departamento DIVIPOLA válido tomado de su constancia.';
+      unresolved(9, reason);
+      unresolved(10, reason);
+    } else if (ccfDepartmentCode !== municipalityCode.slice(0, 2)) {
+      const reason =
+        'El departamento de la ubicación laboral no coincide con el departamento de la CCF afiliada, como exige AT2 v30.';
+      unresolved(9, reason);
+      unresolved(10, reason);
+    } else {
+      put(9, ccfDepartmentCode);
+      put(10, municipalityCode.slice(2));
+    }
+  }
   if (standardAffiliation) {
     const documentType = sourceText(employee?.tipoDocumento);
     if (documentType === 'CC' || documentType === 'TI') {

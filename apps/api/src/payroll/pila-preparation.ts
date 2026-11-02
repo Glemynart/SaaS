@@ -14,6 +14,7 @@ import {
 } from './pila-at2-v30-detail-mapper';
 import { mapPilaAt2V30HeaderCandidate } from './pila-at2-v30-header-mapper';
 import { mapPilaAt2V30EmployerAggregateCandidate } from './pila-at2-v30-employer-mapper';
+import { isColombiaDaneDepartmentCode } from '@saas/types';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -321,7 +322,8 @@ export function inspectPilaSnapshotPreparation(
 
   const supportedPayloadVersion =
     (input.payloadVersion === 1 && root?.schemaVersion === 1) ||
-    (input.payloadVersion === 2 && root?.schemaVersion === 2);
+    ((input.payloadVersion === 2 || input.payloadVersion === 3) &&
+      root?.schemaVersion === input.payloadVersion);
   if (!supportedPayloadVersion) {
     add(
       'SNAPSHOT',
@@ -810,7 +812,7 @@ export function inspectPilaSnapshotPreparation(
     (value): value is unknown[] => Array.isArray(value),
   );
   if (
-    input.payloadVersion === 2 &&
+    (input.payloadVersion ?? 0) >= 2 &&
     payrollPilaEvents === undefined &&
     contextPilaEvents === undefined
   ) {
@@ -822,7 +824,7 @@ export function inspectPilaSnapshotPreparation(
     );
   }
   if (
-    input.payloadVersion === 2 &&
+    (input.payloadVersion ?? 0) >= 2 &&
     (payrollPilaEvents === undefined) !== (contextPilaEvents === undefined)
   ) {
     add(
@@ -1061,18 +1063,94 @@ export function inspectPilaSnapshotPreparation(
   ] as const) {
     validateFieldLength(detailRecord, field, employee?.[key], maxLength, label);
   }
-  add(
-    detailRecord,
-    9,
-    'UBICACION_LABORAL_PILA_SIN_FUENTE_CONFIRMADA',
-    'El snapshot no conserva una fuente PILA confirmada para la ubicación laboral; el municipio de la sede del contrato es solo una referencia operativa.',
+  const workLocationRows = Array.isArray(root?.pilaWorkLocations)
+    ? root.pilaWorkLocations.map(object)
+    : null;
+  const workLocation =
+    workLocationRows?.length === 1 ? workLocationRows[0] : null;
+  const workLocationMunicipality = nested(workLocation, 'municipio');
+  const confirmedWorkLocation = Boolean(
+    input.payloadVersion === 3 &&
+    workLocation &&
+    periodStart &&
+    periodEnd &&
+    workLocation.tenantId === text(employer?.tenantId) &&
+    text(workLocation.municipioId) !== null &&
+    workLocation.municipioId === workLocationMunicipality?.id &&
+    date(workLocation.vigenteDesde) !== null &&
+    date(workLocation.vigenteDesde)! <= periodStart &&
+    (workLocation.vigenteHasta === null ||
+      (date(workLocation.vigenteHasta) !== null &&
+        date(workLocation.vigenteHasta)! >= periodEnd)),
   );
-  add(
-    detailRecord,
-    10,
-    'UBICACION_LABORAL_PILA_SIN_FUENTE_CONFIRMADA',
-    'El snapshot no conserva una fuente PILA confirmada para la ubicación laboral; el municipio de la sede del contrato es solo una referencia operativa.',
+  const affiliationCoversPeriod = Boolean(
+    affiliations.length === 1 &&
+    affiliation &&
+    periodStart &&
+    periodEnd &&
+    date(affiliation.vigenteDesde) !== null &&
+    date(affiliation.vigenteDesde)! <= periodStart &&
+    (affiliation.vigenteHasta === null ||
+      (date(affiliation.vigenteHasta) !== null &&
+        date(affiliation.vigenteHasta)! >= periodEnd)) &&
+    text(affiliation.tipoCotizanteCodigo) === '01' &&
+    text(affiliation.subtipoCotizanteCodigo) === '00',
   );
+  const municipalityCode = text(workLocationMunicipality?.codigo);
+  const ccfDepartmentCode = text(
+    affiliation?.cajaCompensacionDepartamentoCodigo,
+  );
+  const locationIssue =
+    input.payloadVersion !== 3
+      ? {
+          code: 'UBICACION_LABORAL_PILA_SIN_FUENTE_CONFIRMADA',
+          message:
+            'El snapshot histórico no conserva una ubicación laboral PILA explícita; no se completa desde la sede ni desde datos actuales.',
+        }
+      : !confirmedWorkLocation
+        ? {
+            code: 'UBICACION_LABORAL_PILA_FUENTE_INVALIDA',
+            message:
+              workLocationRows === null
+                ? 'El snapshot v3 no conserva una lista válida de ubicaciones laborales PILA.'
+                : workLocationRows.length === 0
+                  ? 'Falta una ubicación laboral PILA confirmada que cubra el período.'
+                  : workLocationRows.length > 1
+                    ? 'Hay varias ubicaciones laborales PILA durante el período; la segmentación no está habilitada.'
+                    : 'La ubicación laboral PILA congelada no cubre todo el período o no conserva tenant, municipio y vigencia completos.',
+          }
+        : !affiliationCoversPeriod
+          ? {
+              code: 'AFILIACION_CCF_SIN_COBERTURA_PERIODO',
+              message:
+                'Falta una afiliación CCF única de tipo 01/00 que cubra todo el período.',
+            }
+          : !municipalityCode ||
+              !/^\d{5}$/.test(municipalityCode) ||
+              !isColombiaDaneDepartmentCode(municipalityCode.slice(0, 2))
+            ? {
+                code: 'UBICACION_LABORAL_PILA_DANE_CODIGO_INVALIDO',
+                message:
+                  'El municipio laboral congelado no conserva un código DIVIPOLA válido de cinco dígitos.',
+              }
+            : !isColombiaDaneDepartmentCode(ccfDepartmentCode)
+              ? {
+                  code: 'AFILIACION_CCF_DEPARTAMENTO_DANE_SIN_DATO',
+                  message:
+                    'La afiliación CCF congelada no conserva un departamento DIVIPOLA válido tomado de su constancia.',
+                }
+              : ccfDepartmentCode !== municipalityCode.slice(0, 2)
+                ? {
+                    code: 'UBICACION_LABORAL_PILA_CCF_DEPARTAMENTO_NO_COINCIDE',
+                    message:
+                      'El departamento de la ubicación laboral no coincide con el departamento de la CCF afiliada, como exige AT2 v30.',
+                  }
+                : null;
+  if (locationIssue) {
+    for (const fieldNumber of [9, 10]) {
+      add(detailRecord, fieldNumber, locationIssue.code, locationIssue.message);
+    }
+  }
   const riskAssignmentRows = Array.isArray(root?.pilaRiskAssignments)
     ? root.pilaRiskAssignments
     : [];
@@ -1323,7 +1401,7 @@ export function inspectPilaSnapshotPreparation(
       );
     }
   }
-  if (root?.schemaVersion === 2) {
+  if (root?.schemaVersion === 2 || root?.schemaVersion === 3) {
     const rawConceptRows = payroll?.concepts;
     const conceptRows = Array.isArray(rawConceptRows)
       ? rawConceptRows
