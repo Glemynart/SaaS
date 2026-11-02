@@ -6,16 +6,18 @@ import {
 
 describe('versioned PILA ARL initial-rate catalog', () => {
   it.each([
-    ['1', 0.00522, '0.0052200'],
-    ['2', 0.01044, '0.0104400'],
-    ['3', 0.02436, '0.0243600'],
-    ['4', 0.0435, '0.0435000'],
-    ['5', 0.0696, '0.0696000'],
+    ['1', 0.00522, 52_200, '0.0052200'],
+    ['2', 0.01044, 104_400, '0.0104400'],
+    ['3', 0.02436, 243_600, '0.0243600'],
+    ['4', 0.0435, 435_000, '0.0435000'],
+    ['5', 0.0696, 696_000, '0.0696000'],
   ])(
     'returns class %s for periods under the active rule version',
-    (riskClass, factor, fieldValue) => {
+    (riskClass, factor, factorNumerator, fieldValue) => {
       expect(getPilaArlInitialRate(riskClass, '2026-10-01')).toEqual({
         factor,
+        factorNumerator,
+        factorDenominator: 10_000_000,
         fieldValue,
       });
     },
