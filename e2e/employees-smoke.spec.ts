@@ -659,7 +659,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
       .getByRole('status')
       .filter({ hasText: '1 asignación de centro y actividad PILA nueva registrada' }),
   ).toBeVisible();
-  await workAssignmentImportDialog.getByRole('button', { name: 'Cerrar' }).click();
+  await workAssignmentImportDialog.getByRole('button', { name: 'Cerrar' }).last().click();
 
   await search.fill('12345678');
   await page
