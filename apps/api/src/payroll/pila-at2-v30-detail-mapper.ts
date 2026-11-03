@@ -73,6 +73,7 @@ export const PILA_AT2_V30_PRIVATE_EMPLOYER_ESAP_MEN_FIELD_NUMBERS = [
 export const PILA_AT2_V30_PENSION_CONTRIBUTION_FIELD_NUMBERS = [
   48, 49, 50, 51, 52, 53,
 ] as const;
+export const PILA_AT2_V30_UPC_ADDITIONAL_FIELD_NUMBERS = [56] as const;
 
 export const PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS = [
   15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 80, 81, 82,
@@ -929,6 +930,11 @@ export function mapPilaAt2V30DetailCandidate(
       'Falta un concepto ARL único cuyo factor y base coincidan con la regla y el IBC congelados.',
     );
   }
+
+  unresolved(
+    56,
+    'No hay fuente de UPC congelada. Para cotizante 01/00 falta confirmar con el operador si el campo debe ir en blanco o en cero; cotizantes 40/69 quedan fuera del MVP. No se propone candidato.',
+  );
   const mapContributionAmountCandidate = (input: {
     fieldNumber: number;
     code: string;

@@ -47,6 +47,7 @@ const detailFieldLabels: Record<PilaDetailFieldCandidateStatus['fieldNumber'], s
   53: 'Valor no retenido por aportes voluntarios',
   54: 'Tarifa de salud',
   55: 'Cotización obligatoria a salud',
+  56: 'UPC adicional / contribución solidaria',
   57: 'Autorización de incapacidad',
   58: 'Valor de incapacidad',
   59: 'Autorización de licencia maternidad/paternidad',
