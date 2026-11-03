@@ -611,7 +611,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
     { header: 1, defval: '' },
   ) as unknown[][];
   const workAssignmentHeaders = workAssignmentRows[0] as string[];
-  const workAssignment = {
+  const workAssignmentInput = {
     cedula: '12345678',
     tipoDocumento: 'CC',
     arlCodigo: 'ARL001',
@@ -623,7 +623,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   workAssignmentWorkbook.Sheets[workAssignmentSheetName] = xlsx.utils.aoa_to_sheet([
     workAssignmentHeaders,
     workAssignmentHeaders.map(
-      (header) => workAssignment[header as keyof typeof workAssignment] ?? '',
+      (header) => workAssignmentInput[header as keyof typeof workAssignmentInput] ?? '',
     ),
   ]);
   const workAssignmentBuffer = Buffer.from(
