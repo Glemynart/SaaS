@@ -2,6 +2,23 @@ import { randomInt, randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { seedFinancialDemoScenario } from '../apps/api/prisma/seed-financial-demo';
 
+function colombiaCalendarDate(value: Date | string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Bogota',
+    calendar: 'gregory',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(value));
+  const part = (type: 'year' | 'month' | 'day') =>
+    parts.find((entry) => entry.type === type)?.value;
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
+function utcCalendarDate(value: Date | string): string {
+  return new Date(value).toISOString().slice(0, 10);
+}
+
 async function registerAndSignIn(page: Page) {
   const suffix = randomInt(10_000_000, 100_000_000).toString();
   const nit = `5${suffix}`;
@@ -281,8 +298,8 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
       expect(Number(invoiceVoucher.totalDebito)).toBe(Number(invoiceVoucher.totalCredito));
       const invoice = targetData.invoices.find((row: any) => row.id === invoiceVoucher.origenId);
       const customer = targetData.customers.find((row: any) => row.id === invoice.customerId);
-      expect(new Date(invoice.fechaEmision).toISOString().slice(0, 10)).toBe(
-        new Date(invoiceVoucher.fecha).toISOString().slice(0, 10),
+      expect(colombiaCalendarDate(invoice.fechaEmision)).toBe(
+        utcCalendarDate(invoiceVoucher.fecha),
       );
       expect(
         invoiceVoucher.movimientos.some(

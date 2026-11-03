@@ -350,7 +350,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await expect(importDialog.getByRole('status')).toContainText(
     '1 afiliación PILA inicial capturada',
   );
-  await importDialog.getByRole('button', { name: 'Cerrar' }).click();
+  await importDialog.getByRole('button', { name: 'Cerrar' }).last().click();
   await expect(page.getByText('12345678', { exact: true })).toBeVisible();
 
   const importedEmployeeRow = page.getByRole('row').filter({ hasText: '12345678' });
