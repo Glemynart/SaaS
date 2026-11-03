@@ -21,6 +21,7 @@ import type { CurrentUserPayload } from '../auth/decorators/current-user.decorat
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
 import { PilaWorkLocationImportService } from './pila-work-location-import.service';
+import { PilaWorkAssignmentImportService } from './pila-work-assignment-import.service';
 
 const XLSX_MIME =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -31,6 +32,7 @@ export class EmployeeImportController {
   constructor(
     private readonly importService: EmployeeImportService,
     private readonly workLocationImportService: PilaWorkLocationImportService,
+    private readonly workAssignmentImportService: PilaWorkAssignmentImportService,
   ) {}
 
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)
@@ -66,6 +68,19 @@ export class EmployeeImportController {
       'Content-Type': XLSX_MIME,
       'Content-Disposition':
         'attachment; filename="plantilla_ubicaciones_laborales_pila.xlsx"',
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Get('pila-work-assignments/template')
+  downloadPilaWorkAssignmentsTemplate(@Res() res: Response) {
+    const buffer = this.workAssignmentImportService.generateTemplate();
+    res.set({
+      'Content-Type': XLSX_MIME,
+      'Content-Disposition':
+        'attachment; filename="plantilla_centros_actividad_arl_pila.xlsx"',
       'Content-Length': buffer.length,
     });
     res.end(buffer);
@@ -171,6 +186,43 @@ export class EmployeeImportController {
       throw new BadRequestException('Se requiere un archivo .xlsx.');
     }
     return this.workLocationImportService.importFromBuffer(
+      user.tenantId,
+      user.userId,
+      file.buffer,
+      confirmacionAportante,
+    );
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Post('pila-work-assignments')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (
+          file.mimetype === XLSX_MIME ||
+          file.originalname.toLowerCase().endsWith('.xlsx')
+        ) {
+          cb(null, true);
+        } else {
+          cb(
+            new BadRequestException('Solo se permiten archivos .xlsx.'),
+            false,
+          );
+        }
+      },
+    }),
+  )
+  async importPilaWorkAssignments(
+    @CurrentUser() user: CurrentUserPayload,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('confirmacionAportante') confirmacionAportante: string | undefined,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Se requiere un archivo .xlsx.');
+    }
+    return this.workAssignmentImportService.importFromBuffer(
       user.tenantId,
       user.userId,
       file.buffer,

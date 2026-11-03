@@ -412,3 +412,18 @@ posterior al corte indicado. Los documentos `PROJECT_STATE.md`, Goals y ADRs se
 trataron como contexto; el estado de código se verificó en la rama local. En la
 raíz del checkout no están `Decisiones de Producto.md`,
 `ENGINEERING_PLAYBOOK.md` ni `LA_OFICINA_NITIDA_CONTEXT.md`.
+
+## Captura masiva de centros de trabajo y actividad ARL — ADR-018
+
+La plantilla de empleados existentes permite reducir captura individual para
+los campos 62, 78 y 98, sin cambiar la matriz normativa ni habilitar archivos.
+Cada fila identifica al empleado dentro del tenant y referencia un centro ARL
+previamente registrado; actividad de siete dígitos y vigencias se validan con
+el catálogo y el historial de afiliaciones ya existentes. Una confirmación del
+aportante es obligatoria. Las filas duplicadas, centros de otro tenant,
+actividades/clases incompatibles, cambios de ARL, vigencias solapadas o fechas
+inválidas deben bloquear el lote completo antes de cualquier efecto persistido.
+La persistencia conserva historial, auditoría, reintentos idempotentes y
+snapshots históricos inmutables. La prueba E2E debe descargar la plantilla,
+confirmar e importar una fila válida, verificar el detalle tras recargar y
+repetir la carga sin duplicados.

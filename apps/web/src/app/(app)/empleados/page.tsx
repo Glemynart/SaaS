@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Users,
   MapPin,
+  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -21,6 +22,7 @@ import { toast } from '@/components/ui/toast';
 import { EmployeesTable } from '@/features/employees/components/employees-table';
 import { EmployeesFilters } from '@/features/employees/components/employees-filters';
 import { EmployeeForm } from '@/features/employees/components/employee-form';
+import { PilaWorkAssignmentImportSheet } from '@/features/employees/components/pila-work-assignment-import-sheet';
 import {
   useEmployees,
   useCreateEmployee,
@@ -100,6 +102,7 @@ export default function EmpleadosPage() {
     errors?: { fila: number; campo: string; mensaje: string }[];
   } | null>(null);
   const pilaWorkLocationImportFileInputRef = useRef<HTMLInputElement>(null);
+  const [pilaWorkAssignmentImportOpen, setPilaWorkAssignmentImportOpen] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useEmployees({
     page,
@@ -339,6 +342,14 @@ export default function EmpleadosPage() {
               <Button variant="outline" size="sm" onClick={handleOpenPilaWorkLocationImport}>
                 <MapPin className="size-4" aria-hidden="true" />
                 Importar ubicaciones PILA
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPilaWorkAssignmentImportOpen(true)}
+              >
+                <ShieldCheck className="size-4" aria-hidden="true" />
+                Importar centros ARL
               </Button>
               <Button variant="outline" size="sm" onClick={handleOpenImport}>
                 <Upload className="size-4" aria-hidden="true" />
@@ -772,6 +783,10 @@ export default function EmpleadosPage() {
           </div>
         </div>
       </SideSheet>
+      <PilaWorkAssignmentImportSheet
+        open={pilaWorkAssignmentImportOpen}
+        onOpenChange={setPilaWorkAssignmentImportOpen}
+      />
     </PageHeader>
   );
 }

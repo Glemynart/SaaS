@@ -584,4 +584,130 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
       .getByRole('status')
       .filter({ hasText: '0 ubicaciones laborales PILA nuevas registradas; 1 fila sin cambios.' }),
   ).toBeVisible();
+
+  const workAssignmentTemplateResponse = await page.evaluate(async () => {
+    const response = await fetch('/api/employees/import/pila-work-assignments/template');
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+    return {
+      ok: response.ok,
+      status: response.status,
+      contentType: response.headers.get('content-type'),
+      base64: btoa(binary),
+    };
+  });
+  expect(
+    workAssignmentTemplateResponse.ok,
+    `PILA assignment template request failed: ${workAssignmentTemplateResponse.status}`,
+  ).toBe(true);
+  expect(workAssignmentTemplateResponse.contentType).toContain(XLSX_MIME);
+  const workAssignmentWorkbook = xlsx.read(
+    Buffer.from(workAssignmentTemplateResponse.base64, 'base64'),
+    { type: 'buffer' },
+  );
+  const workAssignmentSheetName = workAssignmentWorkbook.SheetNames[0] as string;
+  const workAssignmentRows = xlsx.utils.sheet_to_json(
+    workAssignmentWorkbook.Sheets[workAssignmentSheetName],
+    { header: 1, defval: '' },
+  ) as unknown[][];
+  const workAssignmentHeaders = workAssignmentRows[0] as string[];
+  const workAssignmentInput = {
+    cedula: '12345678',
+    tipoDocumento: 'CC',
+    arlCodigo: 'ARL001',
+    codigoCentro: 'E2E-001',
+    codigoActividadEconomica: '1131202',
+    vigenteDesde: '2026-01-01',
+    vigenteHasta: '',
+  };
+  workAssignmentWorkbook.Sheets[workAssignmentSheetName] = xlsx.utils.aoa_to_sheet([
+    workAssignmentHeaders,
+    workAssignmentHeaders.map(
+      (header) => workAssignmentInput[header as keyof typeof workAssignmentInput] ?? '',
+    ),
+  ]);
+  const workAssignmentBuffer = Buffer.from(
+    xlsx.write(workAssignmentWorkbook, { type: 'buffer', bookType: 'xlsx' }),
+  );
+
+  await page.goto('/empleados');
+  await page.getByRole('button', { name: 'Importar centros ARL' }).click();
+  const workAssignmentImportDialog = page.getByRole('dialog', {
+    name: 'Importar centros y actividad PILA',
+  });
+  const uploadWorkAssignment = async () => {
+    await workAssignmentImportDialog.locator('input[type="file"]').setInputFiles({
+      name: 'plantilla_centros_actividad_arl_pila.xlsx',
+      mimeType: XLSX_MIME,
+      buffer: workAssignmentBuffer,
+    });
+    await workAssignmentImportDialog
+      .getByLabel(/Confirmo que los centros y las actividades reportados/)
+      .check();
+    const responsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/employees/import/pila-work-assignments' &&
+        response.request().method() === 'POST',
+    );
+    await workAssignmentImportDialog.getByRole('button', { name: 'Importar asignaciones' }).click();
+    return responsePromise;
+  };
+  const firstWorkAssignmentImportResponse = await uploadWorkAssignment();
+  expect(firstWorkAssignmentImportResponse.status()).toBe(200);
+  await expect(
+    workAssignmentImportDialog
+      .getByRole('status')
+      .filter({ hasText: '1 asignación de centro y actividad PILA nueva registrada' }),
+  ).toBeVisible();
+  await workAssignmentImportDialog.getByRole('button', { name: 'Cerrar' }).last().click();
+
+  await search.fill('12345678');
+  await page
+    .getByRole('row')
+    .filter({ hasText: '12345678' })
+    .getByRole('link', { name: /Ver detalle de/ })
+    .click();
+  const importedWorkAssignmentPanel = page.locator('section').filter({
+    has: page.getByRole('heading', { name: 'Centro de trabajo y actividad PILA' }),
+  });
+  const importedWorkAssignment = importedWorkAssignmentPanel
+    .getByRole('listitem')
+    .filter({ hasText: 'Centro ARL E2E' });
+  await expect(importedWorkAssignment).toContainText('1131202');
+  await expect(importedWorkAssignment).toContainText('Sin fecha final');
+  await page.reload();
+  await expect(
+    page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: 'Centro de trabajo y actividad PILA' }) })
+      .getByRole('listitem')
+      .filter({ hasText: 'Centro ARL E2E' }),
+  ).toContainText('1131202');
+
+  await page.goto('/empleados');
+  await page.getByRole('button', { name: 'Importar centros ARL' }).click();
+  const retryWorkAssignmentDialog = page.getByRole('dialog', {
+    name: 'Importar centros y actividad PILA',
+  });
+  await retryWorkAssignmentDialog.locator('input[type="file"]').setInputFiles({
+    name: 'plantilla_centros_actividad_arl_pila.xlsx',
+    mimeType: XLSX_MIME,
+    buffer: workAssignmentBuffer,
+  });
+  await retryWorkAssignmentDialog
+    .getByLabel(/Confirmo que los centros y las actividades reportados/)
+    .check();
+  const retryWorkAssignmentResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/employees/import/pila-work-assignments' &&
+      response.request().method() === 'POST',
+  );
+  await retryWorkAssignmentDialog.getByRole('button', { name: 'Importar asignaciones' }).click();
+  const retryWorkAssignmentResponse = await retryWorkAssignmentResponsePromise;
+  expect(retryWorkAssignmentResponse.status()).toBe(200);
+  await expect(
+    retryWorkAssignmentDialog.getByRole('status').filter({
+      hasText: '0 asignaciones de centro y actividad PILA nuevas registradas; 1 fila sin cambios.',
+    }),
+  ).toBeVisible();
 });

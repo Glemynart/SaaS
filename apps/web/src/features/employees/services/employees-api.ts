@@ -93,6 +93,12 @@ export interface ImportPilaWorkLocationsResult {
   message: string;
 }
 
+export interface ImportPilaWorkAssignmentsResult {
+  created: number;
+  unchanged: number;
+  message: string;
+}
+
 export interface PilaWorkCenter {
   id: string;
   tenantId: string;
@@ -439,6 +445,44 @@ export const employeesApi = {
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = 'plantilla_ubicaciones_laborales_pila.xlsx';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
+  importPilaWorkAssignmentsFile: async (file: File, confirmacionAportante: boolean) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('confirmacionAportante', String(confirmacionAportante));
+    const response = await fetch('/api/employees/import/pila-work-assignments', {
+      method: 'POST',
+      body: formData,
+    });
+    const body = (await response.json().catch(() => ({}))) as ApiEnvelope<
+      ImportPilaWorkAssignmentsResult & {
+        errors?: { fila: number; campo: string; mensaje: string }[];
+      }
+    >;
+    if (!response.ok) {
+      throw new ImportError(
+        getApiErrorMessage(body, 'No pudimos importar las asignaciones de centro y actividad.'),
+        body.errors ?? [],
+      );
+    }
+    return body as ImportPilaWorkAssignmentsResult;
+  },
+
+  downloadPilaWorkAssignmentsTemplate: async () => {
+    const response = await fetch('/api/employees/import/pila-work-assignments/template');
+    if (!response.ok) {
+      throw new Error('Error al descargar la plantilla de centros y actividad PILA.');
+    }
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'plantilla_centros_actividad_arl_pila.xlsx';
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
