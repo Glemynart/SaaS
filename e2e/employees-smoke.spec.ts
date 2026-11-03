@@ -469,4 +469,118 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
       .getByRole('status')
       .filter({ hasText: '0 afiliaciones nuevas registradas; 1 fila sin cambios.' }),
   ).toBeVisible();
+  await retryImportDialog.getByRole('button', { name: 'Cerrar' }).last().click();
+
+  const workLocationTemplateResponse = await page.evaluate(async () => {
+    const response = await fetch('/api/employees/import/pila-work-locations/template');
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+    return {
+      ok: response.ok,
+      status: response.status,
+      contentType: response.headers.get('content-type'),
+      base64: btoa(binary),
+    };
+  });
+  expect(
+    workLocationTemplateResponse.ok,
+    `PILA location template request failed: ${workLocationTemplateResponse.status}`,
+  ).toBe(true);
+  expect(workLocationTemplateResponse.contentType).toContain(XLSX_MIME);
+  const workLocationWorkbook = xlsx.read(
+    Buffer.from(workLocationTemplateResponse.base64, 'base64'),
+    { type: 'buffer' },
+  );
+  const workLocationSheetName = workLocationWorkbook.SheetNames[0] as string;
+  const workLocationRows = xlsx.utils.sheet_to_json(
+    workLocationWorkbook.Sheets[workLocationSheetName],
+    { header: 1, defval: '' },
+  ) as unknown[][];
+  const workLocationHeaders = workLocationRows[0] as string[];
+  const workLocation = {
+    cedula: '12345678',
+    tipoDocumento: 'CC',
+    municipioCodigo: '08001',
+    vigenteDesde: '2026-01-01',
+    vigenteHasta: '',
+  };
+  workLocationWorkbook.Sheets[workLocationSheetName] = xlsx.utils.aoa_to_sheet([
+    workLocationHeaders,
+    workLocationHeaders.map((header) => workLocation[header as keyof typeof workLocation] ?? ''),
+  ]);
+  const workLocationBuffer = Buffer.from(
+    xlsx.write(workLocationWorkbook, { type: 'buffer', bookType: 'xlsx' }),
+  );
+
+  await page.goto('/empleados');
+  await page.getByRole('button', { name: 'Importar ubicaciones PILA' }).click();
+  const workLocationImportDialog = page.getByRole('dialog', {
+    name: 'Importar ubicaciones laborales PILA',
+  });
+  const uploadPilaWorkLocation = async () => {
+    await workLocationImportDialog.locator('input[type="file"]').setInputFiles({
+      name: 'plantilla_ubicaciones_laborales_pila.xlsx',
+      mimeType: XLSX_MIME,
+      buffer: workLocationBuffer,
+    });
+    await workLocationImportDialog.getByLabel(/Confirmo que cada municipio indicado/).check();
+    const responsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/employees/import/pila-work-locations' &&
+        response.request().method() === 'POST',
+    );
+    await workLocationImportDialog.getByRole('button', { name: 'Importar ubicaciones' }).click();
+    return responsePromise;
+  };
+  const firstWorkLocationImportResponse = await uploadPilaWorkLocation();
+  expect(firstWorkLocationImportResponse.status()).toBe(200);
+  await expect(
+    workLocationImportDialog
+      .getByRole('status')
+      .filter({ hasText: '1 ubicación laboral PILA nueva registrada' }),
+  ).toBeVisible();
+  await workLocationImportDialog.getByRole('button', { name: 'Cerrar' }).last().click();
+
+  await search.fill('12345678');
+  const bulkLocationEmployeeRow = page.getByRole('row').filter({ hasText: '12345678' });
+  await bulkLocationEmployeeRow.getByRole('link', { name: /Ver detalle de/ }).click();
+  const importedLocation = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: 'Ubicación laboral PILA' }) })
+    .getByRole('listitem')
+    .filter({ hasText: 'Barranquilla' });
+  await expect(importedLocation).toContainText('Sin fecha final');
+  await page.reload();
+  await expect(
+    page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: 'Ubicación laboral PILA' }) })
+      .getByRole('listitem')
+      .filter({ hasText: 'Barranquilla' }),
+  ).toContainText('Sin fecha final');
+
+  await page.goto('/empleados');
+  await page.getByRole('button', { name: 'Importar ubicaciones PILA' }).click();
+  const retryWorkLocationImportDialog = page.getByRole('dialog', {
+    name: 'Importar ubicaciones laborales PILA',
+  });
+  await retryWorkLocationImportDialog.locator('input[type="file"]').setInputFiles({
+    name: 'plantilla_ubicaciones_laborales_pila.xlsx',
+    mimeType: XLSX_MIME,
+    buffer: workLocationBuffer,
+  });
+  await retryWorkLocationImportDialog.getByLabel(/Confirmo que cada municipio indicado/).check();
+  const retryWorkLocationResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/employees/import/pila-work-locations' &&
+      response.request().method() === 'POST',
+  );
+  await retryWorkLocationImportDialog.getByRole('button', { name: 'Importar ubicaciones' }).click();
+  const retryWorkLocationResponse = await retryWorkLocationResponsePromise;
+  expect(retryWorkLocationResponse.status()).toBe(200);
+  await expect(
+    retryWorkLocationImportDialog
+      .getByRole('status')
+      .filter({ hasText: '0 ubicaciones laborales PILA nuevas registradas; 1 fila sin cambios.' }),
+  ).toBeVisible();
 });

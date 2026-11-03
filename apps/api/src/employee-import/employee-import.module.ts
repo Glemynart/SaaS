@@ -3,10 +3,11 @@ import { EmployeeImportController } from './employee-import.controller';
 import { EmployeeImportService } from './employee-import.service';
 import { TenantsModule } from '../tenants/tenants.module';
 import { EmployeesModule } from '../employees/employees.module';
+import { PilaWorkLocationImportService } from './pila-work-location-import.service';
 
 @Module({
   imports: [TenantsModule, EmployeesModule],
   controllers: [EmployeeImportController],
-  providers: [EmployeeImportService],
+  providers: [EmployeeImportService, PilaWorkLocationImportService],
 })
 export class EmployeeImportModule {}

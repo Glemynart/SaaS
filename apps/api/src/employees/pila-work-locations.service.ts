@@ -45,144 +45,145 @@ export class PilaWorkLocationsService {
     employeeId: string,
     dto: CreatePilaWorkLocationDto,
   ) {
-    const vigenteDesde = parseDate(dto.vigenteDesde, 'vigenteDesde');
-    const vigenteHasta = dto.vigenteHasta
-      ? parseDate(dto.vigenteHasta, 'vigenteHasta')
-      : null;
-    if (vigenteHasta && vigenteHasta < vigenteDesde) {
-      throw new BadRequestException(
-        'La fecha final no puede ser anterior a la fecha inicial.',
-      );
-    }
+    parseLocationDates(dto);
+    return this.tenantPrisma.execute((prisma, { tenantId }) =>
+      this.createInTransaction(prisma, tenantId, userId, employeeId, dto),
+    );
+  }
 
-    return this.tenantPrisma.execute(async (prisma, { tenantId }) => {
-      await this.requireEmployee(prisma, tenantId, employeeId);
-      await prisma.$queryRaw<Array<{ id: string }>>`
+  async createInTransaction(
+    prisma: TenantPrismaClient,
+    tenantId: string,
+    userId: string,
+    employeeId: string,
+    dto: CreatePilaWorkLocationDto,
+  ) {
+    const { vigenteDesde, vigenteHasta } = parseLocationDates(dto);
+
+    await this.requireEmployee(prisma, tenantId, employeeId);
+    await prisma.$queryRaw<Array<{ id: string }>>`
         SELECT "id" FROM "empleados"
         WHERE "id" = ${employeeId} AND "tenantId" = ${tenantId}
         FOR UPDATE
       `;
-      const municipality = await prisma.municipioDane.findUnique({
-        where: { id: dto.municipioId },
-        select: { id: true },
-      });
-      if (!municipality) {
-        throw new NotFoundException(
-          'El municipio DANE seleccionado no existe.',
-        );
-      }
+    const municipality = await prisma.municipioDane.findUnique({
+      where: { id: dto.municipioId },
+      select: { id: true },
+    });
+    if (!municipality) {
+      throw new NotFoundException('El municipio DANE seleccionado no existe.');
+    }
 
-      const existing = await prisma.pilaUbicacionLaboral.findMany({
-        where: { tenantId, empleadoId: employeeId },
-        orderBy: { vigenteDesde: 'asc' },
-      });
-      const requestedEnd = vigenteHasta ?? FAR_FUTURE;
-      const overlaps = existing.filter(
-        (record) =>
-          record.vigenteDesde <= requestedEnd &&
-          (record.vigenteHasta === null || record.vigenteHasta >= vigenteDesde),
+    const existing = await prisma.pilaUbicacionLaboral.findMany({
+      where: { tenantId, empleadoId: employeeId },
+      orderBy: { vigenteDesde: 'asc' },
+    });
+    const requestedEnd = vigenteHasta ?? FAR_FUTURE;
+    const overlaps = existing.filter(
+      (record) =>
+        record.vigenteDesde <= requestedEnd &&
+        (record.vigenteHasta === null || record.vigenteHasta >= vigenteDesde),
+    );
+    const superseded =
+      vigenteHasta === null
+        ? overlaps.find(
+            (record) =>
+              record.vigenteHasta === null &&
+              record.vigenteDesde < vigenteDesde,
+          )
+        : undefined;
+    if (overlaps.some((record) => record.id !== superseded?.id)) {
+      throw new ConflictException(
+        'La vigencia se cruza con otra ubicación laboral PILA del empleado.',
       );
-      const superseded =
-        vigenteHasta === null
-          ? overlaps.find(
-              (record) =>
-                record.vigenteHasta === null &&
-                record.vigenteDesde < vigenteDesde,
-            )
-          : undefined;
-      if (overlaps.some((record) => record.id !== superseded?.id)) {
+    }
+
+    if (superseded) {
+      const previousEnd = new Date(vigenteDesde);
+      previousEnd.setUTCDate(previousEnd.getUTCDate() - 1);
+      if (previousEnd < superseded.vigenteDesde) {
         throw new ConflictException(
-          'La vigencia se cruza con otra ubicación laboral PILA del empleado.',
+          'La nueva ubicación debe iniciar después de la ubicación vigente.',
         );
       }
-
-      if (superseded) {
-        const previousEnd = new Date(vigenteDesde);
-        previousEnd.setUTCDate(previousEnd.getUTCDate() - 1);
-        if (previousEnd < superseded.vigenteDesde) {
-          throw new ConflictException(
-            'La nueva ubicación debe iniciar después de la ubicación vigente.',
-          );
-        }
-        await prisma.pilaUbicacionLaboral.updateMany({
-          where: {
-            id: superseded.id,
-            tenantId,
-            empleadoId: employeeId,
-            vigenteHasta: null,
-          },
-          data: { vigenteHasta: previousEnd },
-        });
-        await this.auditService.log(
-          {
-            tenantId,
-            userId,
-            action: 'PILA_WORK_LOCATION_CLOSED',
-            entityType: 'PilaUbicacionLaboral',
-            entityId: superseded.id,
-            metadata: {
-              empleadoId: employeeId,
-              vigenteHasta: formatDate(previousEnd),
-              reemplazadaDesde: formatDate(vigenteDesde),
-            },
-          },
-          prisma,
-        );
-      }
-
-      let location;
-      try {
-        location = await prisma.pilaUbicacionLaboral.create({
-          data: {
-            tenantId,
-            empleadoId: employeeId,
-            municipioId: municipality.id,
-            vigenteDesde,
-            vigenteHasta,
-            registradoPorId: userId,
-          },
-          include: {
-            municipio: {
-              select: {
-                id: true,
-                codigo: true,
-                nombre: true,
-                departamento: true,
-              },
-            },
-          },
-        });
-      } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === 'P2003'
-        ) {
-          throw new NotFoundException(
-            'El municipio DANE seleccionado no existe.',
-          );
-        }
-        throw error;
-      }
-
+      await prisma.pilaUbicacionLaboral.updateMany({
+        where: {
+          id: superseded.id,
+          tenantId,
+          empleadoId: employeeId,
+          vigenteHasta: null,
+        },
+        data: { vigenteHasta: previousEnd },
+      });
       await this.auditService.log(
         {
           tenantId,
           userId,
-          action: 'PILA_WORK_LOCATION_RECORDED',
+          action: 'PILA_WORK_LOCATION_CLOSED',
           entityType: 'PilaUbicacionLaboral',
-          entityId: location.id,
+          entityId: superseded.id,
           metadata: {
             empleadoId: employeeId,
-            municipioId: location.municipioId,
-            confirmadoPorAportante: true,
-            vigenteDesde: formatDate(vigenteDesde),
-            vigenteHasta: vigenteHasta ? formatDate(vigenteHasta) : null,
+            vigenteHasta: formatDate(previousEnd),
+            reemplazadaDesde: formatDate(vigenteDesde),
           },
         },
         prisma,
       );
-      return location;
-    });
+    }
+
+    let location;
+    try {
+      location = await prisma.pilaUbicacionLaboral.create({
+        data: {
+          tenantId,
+          empleadoId: employeeId,
+          municipioId: municipality.id,
+          vigenteDesde,
+          vigenteHasta,
+          registradoPorId: userId,
+        },
+        include: {
+          municipio: {
+            select: {
+              id: true,
+              codigo: true,
+              nombre: true,
+              departamento: true,
+            },
+          },
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2003'
+      ) {
+        throw new NotFoundException(
+          'El municipio DANE seleccionado no existe.',
+        );
+      }
+      throw error;
+    }
+
+    await this.auditService.log(
+      {
+        tenantId,
+        userId,
+        action: 'PILA_WORK_LOCATION_RECORDED',
+        entityType: 'PilaUbicacionLaboral',
+        entityId: location.id,
+        metadata: {
+          empleadoId: employeeId,
+          municipioId: location.municipioId,
+          confirmadoPorAportante: true,
+          vigenteDesde: formatDate(vigenteDesde),
+          vigenteHasta: vigenteHasta ? formatDate(vigenteHasta) : null,
+        },
+      },
+      prisma,
+    );
+    return location;
   }
 
   async close(
@@ -302,6 +303,19 @@ function parseDate(value: string, field: string): Date {
     throw new BadRequestException(`La fecha ${field} no existe.`);
   }
   return parsed;
+}
+
+function parseLocationDates(dto: CreatePilaWorkLocationDto) {
+  const vigenteDesde = parseDate(dto.vigenteDesde, 'vigenteDesde');
+  const vigenteHasta = dto.vigenteHasta
+    ? parseDate(dto.vigenteHasta, 'vigenteHasta')
+    : null;
+  if (vigenteHasta && vigenteHasta < vigenteDesde) {
+    throw new BadRequestException(
+      'La fecha final no puede ser anterior a la fecha inicial.',
+    );
+  }
+  return { vigenteDesde, vigenteHasta };
 }
 
 function formatDate(value: Date) {

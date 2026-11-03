@@ -1,7 +1,16 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { Plus, Upload, Download, Loader2, AlertTriangle, CheckCircle2, Users } from 'lucide-react';
+import {
+  Plus,
+  Upload,
+  Download,
+  Loader2,
+  AlertTriangle,
+  CheckCircle2,
+  Users,
+  MapPin,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
@@ -19,6 +28,7 @@ import {
   useDeleteEmployee,
   useImportEmployees,
   useImportPilaAffiliations,
+  useImportPilaWorkLocations,
 } from '@/features/employees/hooks/use-employees';
 import {
   type Employee,
@@ -80,6 +90,16 @@ export default function EmpleadosPage() {
   } | null>(null);
   const [pilaImportFile, setPilaImportFile] = useState<File | null>(null);
   const pilaImportFileInputRef = useRef<HTMLInputElement>(null);
+  const [pilaWorkLocationImportOpen, setPilaWorkLocationImportOpen] = useState(false);
+  const [pilaWorkLocationImportFile, setPilaWorkLocationImportFile] = useState<File | null>(null);
+  const [pilaWorkLocationImportConfirmed, setPilaWorkLocationImportConfirmed] = useState(false);
+  const [pilaWorkLocationImportResult, setPilaWorkLocationImportResult] = useState<{
+    created?: number;
+    unchanged?: number;
+    message?: string;
+    errors?: { fila: number; campo: string; mensaje: string }[];
+  } | null>(null);
+  const pilaWorkLocationImportFileInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading, isError, error, refetch } = useEmployees({
     page,
@@ -92,6 +112,7 @@ export default function EmpleadosPage() {
   const deleteMutation = useDeleteEmployee();
   const importMutation = useImportEmployees();
   const pilaImportMutation = useImportPilaAffiliations();
+  const pilaWorkLocationImportMutation = useImportPilaWorkLocations();
 
   const hasFilters = search !== '' || estado !== '';
 
@@ -177,6 +198,13 @@ export default function EmpleadosPage() {
     setPilaImportOpen(true);
   };
 
+  const handleOpenPilaWorkLocationImport = () => {
+    setPilaWorkLocationImportResult(null);
+    setPilaWorkLocationImportFile(null);
+    setPilaWorkLocationImportConfirmed(false);
+    setPilaWorkLocationImportOpen(true);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -254,6 +282,47 @@ export default function EmpleadosPage() {
     });
   }, [pilaImportFile, pilaImportMutation]);
 
+  const handleDownloadPilaWorkLocationsTemplate = useCallback(async () => {
+    try {
+      await employeesApi.downloadPilaWorkLocationsTemplate();
+    } catch (error) {
+      toast.error(
+        getUserFacingError(error, 'No se pudo descargar la plantilla de ubicaciones PILA.'),
+      );
+    }
+  }, []);
+
+  const handlePilaWorkLocationImport = useCallback(() => {
+    if (!pilaWorkLocationImportFile || !pilaWorkLocationImportConfirmed) return;
+    pilaWorkLocationImportMutation.mutate(
+      {
+        file: pilaWorkLocationImportFile,
+        confirmacionAportante: pilaWorkLocationImportConfirmed,
+      },
+      {
+        onSuccess: (data) => {
+          setPilaWorkLocationImportResult(data);
+          setPilaWorkLocationImportFile(null);
+          if (pilaWorkLocationImportFileInputRef.current) {
+            pilaWorkLocationImportFileInputRef.current.value = '';
+          }
+        },
+        onError: (error) => {
+          if (error instanceof ImportError) {
+            setPilaWorkLocationImportResult({ errors: error.errors, message: error.message });
+          } else {
+            setPilaWorkLocationImportResult({
+              message: getUserFacingError(
+                error,
+                'No pudimos importar las ubicaciones. Corrige los errores y vuelve a intentarlo.',
+              ),
+            });
+          }
+        },
+      },
+    );
+  }, [pilaWorkLocationImportFile, pilaWorkLocationImportConfirmed, pilaWorkLocationImportMutation]);
+
   return (
     <PageHeader
       title="Empleados"
@@ -266,6 +335,10 @@ export default function EmpleadosPage() {
               <Button variant="outline" size="sm" onClick={handleOpenPilaImport}>
                 <Upload className="size-4" aria-hidden="true" />
                 Importar afiliaciones PILA
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleOpenPilaWorkLocationImport}>
+                <MapPin className="size-4" aria-hidden="true" />
+                Importar ubicaciones PILA
               </Button>
               <Button variant="outline" size="sm" onClick={handleOpenImport}>
                 <Upload className="size-4" aria-hidden="true" />
@@ -561,6 +634,139 @@ export default function EmpleadosPage() {
                   <Loader2 className="size-4 animate-spin" aria-hidden="true" />
                 )}
                 Importar afiliaciones
+              </Button>
+            )}
+          </div>
+        </div>
+      </SideSheet>
+
+      <SideSheet
+        open={pilaWorkLocationImportOpen}
+        onOpenChange={setPilaWorkLocationImportOpen}
+        title="Importar ubicaciones laborales PILA"
+        description="Carga el municipio de trabajo declarado para empleados existentes."
+      >
+        <div className="flex h-full flex-col">
+          <div className="flex-1 space-y-5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadPilaWorkLocationsTemplate}
+              className="w-full"
+            >
+              <Download className="size-4" aria-hidden="true" />
+              Descargar plantilla de ubicaciones
+            </Button>
+            <Alert>
+              La plantilla usa el tipo y número de documento para identificar cada empleado. Solo
+              registra el municipio de actividad laboral y sus vigencias; no modifica la sede,
+              afiliaciones ni el centro ARL. Todas las filas se validan y guardan como una sola
+              operación. Las cargas idénticas se informan sin cambios.
+            </Alert>
+            <p className="text-xs text-muted-foreground">
+              Usa códigos DANE de 5 dígitos del catálogo local. Esta captura conserva historial,
+              pero no genera ni transmite archivos PILA; los períodos con cambios de municipio
+              siguen bloqueados para los campos 9–10 del preflight.
+            </p>
+            <div className="rounded-(--radius-card) border border-dashed border-border bg-canvas p-6 text-center">
+              <input
+                ref={pilaWorkLocationImportFileInputRef}
+                type="file"
+                accept=".xlsx"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) {
+                    setPilaWorkLocationImportFile(file);
+                    setPilaWorkLocationImportResult(null);
+                  }
+                }}
+                className="hidden"
+              />
+              <Upload className="mx-auto size-8 text-muted-foreground" aria-hidden="true" />
+              <p className="mt-2 text-sm text-muted-foreground">
+                {pilaWorkLocationImportFile
+                  ? pilaWorkLocationImportFile.name
+                  : 'Selecciona un archivo .xlsx'}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => pilaWorkLocationImportFileInputRef.current?.click()}
+                className="mt-3"
+              >
+                Seleccionar archivo
+              </Button>
+            </div>
+            <label className="flex items-start gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={pilaWorkLocationImportConfirmed}
+                onChange={(event) => setPilaWorkLocationImportConfirmed(event.target.checked)}
+                className="mt-1"
+              />
+              Confirmo que cada municipio indicado corresponde al lugar donde el empleado ejecuta su
+              actividad laboral para PILA. Esta confirmación quedará auditada con mi usuario.
+            </label>
+
+            {pilaWorkLocationImportResult?.errors &&
+              pilaWorkLocationImportResult.errors.length > 0 && (
+                <Alert variant="destructive">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">No se guardó ninguna ubicación</p>
+                      <div className="mt-2 max-h-56 space-y-2 overflow-y-auto">
+                        {pilaWorkLocationImportResult.errors.map((error, index) => (
+                          <div
+                            key={index}
+                            className="rounded-md border border-destructive/25 bg-destructive/8 px-2 py-1 text-xs"
+                          >
+                            <span className="font-medium">Fila {error.fila}</span>
+                            <span className="text-muted-foreground"> — {error.campo}</span>
+                            <p className="mt-0.5">{error.mensaje}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </Alert>
+              )}
+            {pilaWorkLocationImportResult?.message &&
+              pilaWorkLocationImportResult.created === undefined &&
+              !pilaWorkLocationImportResult.errors?.length && (
+                <Alert variant="destructive">{pilaWorkLocationImportResult.message}</Alert>
+              )}
+            {pilaWorkLocationImportResult?.created !== undefined && (
+              <Alert variant="success">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="size-4" aria-hidden="true" />
+                  <p className="text-sm">{pilaWorkLocationImportResult.message}</p>
+                </div>
+              </Alert>
+            )}
+          </div>
+          <div className="mt-6 flex items-center gap-3 border-t border-border pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setPilaWorkLocationImportOpen(false)}
+              className="flex-1"
+            >
+              {pilaWorkLocationImportResult?.created !== undefined ? 'Cerrar' : 'Cancelar'}
+            </Button>
+            {pilaWorkLocationImportResult?.created === undefined && (
+              <Button
+                onClick={handlePilaWorkLocationImport}
+                disabled={
+                  !pilaWorkLocationImportFile ||
+                  !pilaWorkLocationImportConfirmed ||
+                  pilaWorkLocationImportMutation.isPending
+                }
+                className="flex-1"
+              >
+                {pilaWorkLocationImportMutation.isPending && (
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                )}
+                Importar ubicaciones
               </Button>
             )}
           </div>
