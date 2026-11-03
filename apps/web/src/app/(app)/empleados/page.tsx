@@ -18,6 +18,7 @@ import {
   useUpdateEmployee,
   useDeleteEmployee,
   useImportEmployees,
+  useImportPilaAffiliations,
 } from '@/features/employees/hooks/use-employees';
 import {
   type Employee,
@@ -27,6 +28,7 @@ import {
 } from '@/features/employees/services/employees-api';
 import { type EmployeeFormData } from '@/features/employees/schemas/employee-schemas';
 import { getUserFacingError } from '@/lib/error-message';
+import { useMe } from '@/features/auth/hooks/use-auth';
 
 function toInitialPilaAffiliation(
   values: NonNullable<EmployeeFormData['afiliacionPilaInicial']>,
@@ -54,6 +56,8 @@ function toInitialPilaAffiliation(
 }
 
 export default function EmpleadosPage() {
+  const me = useMe();
+  const canImportEmployees = me.data?.user.rol === 'ADMIN';
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [estado, setEstado] = useState('');
@@ -67,6 +71,15 @@ export default function EmpleadosPage() {
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [pilaImportOpen, setPilaImportOpen] = useState(false);
+  const [pilaImportResult, setPilaImportResult] = useState<{
+    created?: number;
+    unchanged?: number;
+    message?: string;
+    errors?: { fila: number; campo: string; mensaje: string }[];
+  } | null>(null);
+  const [pilaImportFile, setPilaImportFile] = useState<File | null>(null);
+  const pilaImportFileInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading, isError, error, refetch } = useEmployees({
     page,
@@ -78,6 +91,7 @@ export default function EmpleadosPage() {
   const updateMutation = useUpdateEmployee();
   const deleteMutation = useDeleteEmployee();
   const importMutation = useImportEmployees();
+  const pilaImportMutation = useImportPilaAffiliations();
 
   const hasFilters = search !== '' || estado !== '';
 
@@ -157,6 +171,12 @@ export default function EmpleadosPage() {
     setImportOpen(true);
   };
 
+  const handleOpenPilaImport = () => {
+    setPilaImportResult(null);
+    setPilaImportFile(null);
+    setPilaImportOpen(true);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -198,6 +218,42 @@ export default function EmpleadosPage() {
     }
   }, []);
 
+  const handleDownloadPilaTemplate = useCallback(async () => {
+    try {
+      await employeesApi.downloadPilaAffiliationsTemplate();
+    } catch (error) {
+      toast.error(
+        getUserFacingError(
+          error,
+          'No se pudo descargar la plantilla de afiliaciones PILA. Inténtalo de nuevo.',
+        ),
+      );
+    }
+  }, []);
+
+  const handlePilaImport = useCallback(() => {
+    if (!pilaImportFile) return;
+    pilaImportMutation.mutate(pilaImportFile, {
+      onSuccess: (data) => {
+        setPilaImportResult(data);
+        setPilaImportFile(null);
+        if (pilaImportFileInputRef.current) pilaImportFileInputRef.current.value = '';
+      },
+      onError: (error) => {
+        if (error instanceof ImportError) {
+          setPilaImportResult({ errors: error.errors, message: error.message });
+        } else {
+          setPilaImportResult({
+            message: getUserFacingError(
+              error,
+              'No pudimos importar las afiliaciones. Corrige los errores y vuelve a intentarlo.',
+            ),
+          });
+        }
+      },
+    });
+  }, [pilaImportFile, pilaImportMutation]);
+
   return (
     <PageHeader
       title="Empleados"
@@ -205,10 +261,18 @@ export default function EmpleadosPage() {
       width="wide"
       actions={
         <>
-          <Button variant="outline" size="sm" onClick={handleOpenImport}>
-            <Upload className="size-4" aria-hidden="true" />
-            Importar
-          </Button>
+          {canImportEmployees && (
+            <>
+              <Button variant="outline" size="sm" onClick={handleOpenPilaImport}>
+                <Upload className="size-4" aria-hidden="true" />
+                Importar afiliaciones PILA
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleOpenImport}>
+                <Upload className="size-4" aria-hidden="true" />
+                Importar
+              </Button>
+            </>
+          )}
           <Button size="sm" onClick={handleOpenCreate}>
             <Plus className="size-4" aria-hidden="true" />
             Nuevo empleado
@@ -381,6 +445,122 @@ export default function EmpleadosPage() {
                   <Loader2 className="size-4 animate-spin" aria-hidden="true" />
                 )}
                 Importar
+              </Button>
+            )}
+          </div>
+        </div>
+      </SideSheet>
+
+      <SideSheet
+        open={pilaImportOpen}
+        onOpenChange={setPilaImportOpen}
+        title="Importar afiliaciones PILA"
+        description="Carga afiliaciones para empleados que ya están registrados en esta empresa."
+      >
+        <div className="flex h-full flex-col">
+          <div className="flex-1 space-y-5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadPilaTemplate}
+              className="w-full"
+            >
+              <Download className="size-4" aria-hidden="true" />
+              Descargar plantilla de afiliaciones
+            </Button>
+            <Alert>
+              La plantilla identifica cada empleado por tipo y número de documento. Solo agrega
+              versiones completas al historial de afiliaciones; no modifica otros datos del
+              empleado. Todas las filas se validan antes de guardar y el archivo se procesa como una
+              sola operación. Puedes repetir una carga idéntica: las filas existentes se informan
+              sin cambios.
+            </Alert>
+            <p className="text-xs text-muted-foreground">
+              Esta captura admite dependientes estándar 01/00 y contratos laborales estándar. Los
+              códigos no se contrastan con los catálogos del operador; esta carga no genera ni
+              transmite archivos PILA.
+            </p>
+            <div className="rounded-(--radius-card) border border-dashed border-border bg-canvas p-6 text-center">
+              <input
+                ref={pilaImportFileInputRef}
+                type="file"
+                accept=".xlsx"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) {
+                    setPilaImportFile(file);
+                    setPilaImportResult(null);
+                  }
+                }}
+                className="hidden"
+              />
+              <Upload className="mx-auto size-8 text-muted-foreground" aria-hidden="true" />
+              <p className="mt-2 text-sm text-muted-foreground">
+                {pilaImportFile ? pilaImportFile.name : 'Selecciona un archivo .xlsx'}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => pilaImportFileInputRef.current?.click()}
+                className="mt-3"
+              >
+                Seleccionar archivo
+              </Button>
+            </div>
+
+            {pilaImportResult?.errors && pilaImportResult.errors.length > 0 && (
+              <Alert variant="destructive">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">No se guardó ninguna afiliación</p>
+                    <div className="mt-2 max-h-56 space-y-2 overflow-y-auto">
+                      {pilaImportResult.errors.map((error, index) => (
+                        <div
+                          key={index}
+                          className="rounded-md border border-destructive/25 bg-destructive/8 px-2 py-1 text-xs"
+                        >
+                          <span className="font-medium">Fila {error.fila}</span>
+                          <span className="text-muted-foreground"> — {error.campo}</span>
+                          <p className="mt-0.5">{error.mensaje}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </Alert>
+            )}
+
+            {pilaImportResult?.message &&
+              pilaImportResult.created === undefined &&
+              !pilaImportResult.errors?.length && (
+                <Alert variant="destructive">{pilaImportResult.message}</Alert>
+              )}
+
+            {pilaImportResult?.created !== undefined && (
+              <Alert variant="success">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="size-4" aria-hidden="true" />
+                  <p className="text-sm">{pilaImportResult.message}</p>
+                </div>
+              </Alert>
+            )}
+          </div>
+
+          <div className="mt-6 flex items-center gap-3 border-t border-border pt-4">
+            <Button variant="outline" onClick={() => setPilaImportOpen(false)} className="flex-1">
+              {pilaImportResult?.created !== undefined ? 'Cerrar' : 'Cancelar'}
+            </Button>
+            {pilaImportResult?.created === undefined && (
+              <Button
+                onClick={handlePilaImport}
+                disabled={!pilaImportFile || pilaImportMutation.isPending}
+                className="flex-1"
+              >
+                {pilaImportMutation.isPending && (
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                )}
+                Importar afiliaciones
               </Button>
             )}
           </div>

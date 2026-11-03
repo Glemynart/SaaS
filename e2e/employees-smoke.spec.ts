@@ -353,4 +353,116 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
     page.getByRole('heading', { name: 'Afiliaciones de seguridad social' }),
   ).toBeVisible();
   await expect(page.getByText('EPS Demo E2E')).toBeVisible();
+
+  const pilaAffiliationTemplateResponse = await page.evaluate(async () => {
+    const response = await fetch('/api/employees/import/pila-affiliations/template');
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+    return {
+      ok: response.ok,
+      status: response.status,
+      contentType: response.headers.get('content-type'),
+      base64: btoa(binary),
+    };
+  });
+  expect(
+    pilaAffiliationTemplateResponse.ok,
+    `PILA affiliation template request failed: ${pilaAffiliationTemplateResponse.status}`,
+  ).toBe(true);
+  expect(pilaAffiliationTemplateResponse.contentType).toContain(XLSX_MIME);
+  const pilaAffiliationWorkbook = xlsx.read(
+    Buffer.from(pilaAffiliationTemplateResponse.base64, 'base64'),
+    { type: 'buffer' },
+  );
+  const pilaAffiliationSheetName = pilaAffiliationWorkbook.SheetNames[0] as string;
+  const pilaAffiliationHeaders = xlsx.utils.sheet_to_json(
+    pilaAffiliationWorkbook.Sheets[pilaAffiliationSheetName],
+    { header: 1, defval: '' },
+  )[0] as string[];
+  const updatedAffiliation: Record<string, string> = {
+    cedula: '12345678',
+    tipoDocumento: 'CC',
+    tipoCotizanteCodigo: '01',
+    subtipoCotizanteCodigo: '00',
+    epsCodigo: 'EPS002',
+    epsNombre: 'EPS Nueva E2E',
+    fondoPensionCodigo: 'AFP001',
+    fondoPensionNombre: 'Fondo Demo E2E',
+    arlCodigo: 'ARL001',
+    arlNombre: 'ARL Demo E2E',
+    arlClaseRiesgo: '1',
+    cajaCompensacionCodigo: 'CCF001',
+    cajaCompensacionNombre: 'Caja Demo E2E',
+    cajaCompensacionDepartamentoCodigo: '08',
+    colombianoEnElExterior: 'NO',
+    afiliacionVigenteDesde: '2026-04-01',
+  };
+  const pilaAffiliationRow = pilaAffiliationHeaders.map(
+    (header) => updatedAffiliation[header] ?? '',
+  );
+  pilaAffiliationWorkbook.Sheets[pilaAffiliationSheetName] = xlsx.utils.aoa_to_sheet([
+    pilaAffiliationHeaders,
+    pilaAffiliationRow,
+  ]);
+  const pilaAffiliationBuffer = Buffer.from(
+    xlsx.write(pilaAffiliationWorkbook, { type: 'buffer', bookType: 'xlsx' }),
+  );
+
+  await page.goto('/empleados');
+  await page.getByRole('button', { name: 'Importar afiliaciones PILA' }).click();
+  const pilaImportDialog = page.getByRole('dialog', { name: 'Importar afiliaciones PILA' });
+  const uploadPilaAffiliation = async () => {
+    await pilaImportDialog.locator('input[type="file"]').setInputFiles({
+      name: 'plantilla_afiliaciones_pila.xlsx',
+      mimeType: XLSX_MIME,
+      buffer: pilaAffiliationBuffer,
+    });
+    const responsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/employees/import/pila-affiliations' &&
+        response.request().method() === 'POST',
+    );
+    await pilaImportDialog.getByRole('button', { name: 'Importar afiliaciones' }).click();
+    return responsePromise;
+  };
+  const firstPilaImportResponse = await uploadPilaAffiliation();
+  expect(firstPilaImportResponse.status()).toBe(200);
+  await expect(pilaImportDialog.getByRole('status')).toContainText('1 afiliación nueva registrada');
+  await pilaImportDialog.getByRole('button', { name: 'Cerrar' }).click();
+
+  await search.fill('12345678');
+  const bulkUpdatedEmployeeRow = page.getByRole('row').filter({ hasText: '12345678' });
+  await bulkUpdatedEmployeeRow.getByRole('link', { name: /Ver detalle de/ }).click();
+  const pilaAffiliationPanel = page.locator('section').filter({
+    has: page.getByRole('heading', { name: 'Afiliaciones de seguridad social' }),
+  });
+  const bulkPriorAffiliation = pilaAffiliationPanel.getByRole('listitem').filter({
+    hasText: 'EPS Demo E2E',
+  });
+  const bulkCurrentAffiliation = pilaAffiliationPanel.getByRole('listitem').filter({
+    hasText: 'EPS Nueva E2E',
+  });
+  await expect(bulkPriorAffiliation).toBeVisible();
+  await expect(bulkPriorAffiliation).not.toContainText('Sin fecha final');
+  await expect(bulkCurrentAffiliation).toContainText('Sin fecha final');
+
+  await page.goto('/empleados');
+  await page.getByRole('button', { name: 'Importar afiliaciones PILA' }).click();
+  const retryImportDialog = page.getByRole('dialog', { name: 'Importar afiliaciones PILA' });
+  await retryImportDialog.locator('input[type="file"]').setInputFiles({
+    name: 'plantilla_afiliaciones_pila.xlsx',
+    mimeType: XLSX_MIME,
+    buffer: pilaAffiliationBuffer,
+  });
+  const retryResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/employees/import/pila-affiliations' &&
+      response.request().method() === 'POST',
+  );
+  await retryImportDialog.getByRole('button', { name: 'Importar afiliaciones' }).click();
+  const retryResponse = await retryResponsePromise;
+  expect(retryResponse.status()).toBe(200);
+  await expect(retryImportDialog.getByRole('status')).toContainText(
+    '0 afiliaciones nuevas registradas; 1 fila sin cambios.',
+  );
 });

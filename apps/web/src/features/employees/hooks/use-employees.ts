@@ -197,3 +197,14 @@ export function useImportEmployees() {
     },
   });
 }
+
+export function useImportPilaAffiliations() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: employeesApi.importPilaAffiliationsFile,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: employeeKeys.details() });
+    },
+  });
+}

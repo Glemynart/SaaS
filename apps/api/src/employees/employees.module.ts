@@ -21,6 +21,6 @@ import { PilaWorkLocationsService } from './pila-work-locations.service';
     PilaWorkCentersService,
     PilaWorkLocationsService,
   ],
-  exports: [EmployeesService],
+  exports: [EmployeesService, SocialSecurityAffiliationsService],
 })
 export class EmployeesModule {}
