@@ -41,6 +41,7 @@ const detailFieldLabels: Record<PilaDetailFieldCandidateStatus['fieldNumber'], s
   47: 'Cotización obligatoria a pensiones',
   48: 'Aporte voluntario del afiliado a pensión',
   49: 'Aporte voluntario del aportante a pensión',
+  50: 'Total de aportes a pensión (campos 47–49)',
   51: 'FSP, subcuenta de solidaridad',
   52: 'FSP, subcuenta de subsistencia',
   53: 'Valor no retenido por aportes voluntarios',
