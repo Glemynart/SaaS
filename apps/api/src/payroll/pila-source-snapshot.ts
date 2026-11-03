@@ -1,5 +1,6 @@
-import { PilaEventCode } from '@prisma/client';
+import { PayrollPilaFspSourceScope, PilaEventCode } from '@prisma/client';
 import { roundPeso } from './calculator/payroll-calculator';
+import { assessPilaFspSubaccounts } from './pila-fsp-subaccounts';
 
 type MunicipalitySource = {
   id: string;
@@ -322,6 +323,9 @@ export function buildPilaSourceSnapshot(input: {
     salarioBasico: number | null;
     salarioIntegral: boolean;
     ibc: number | null;
+    fspSourceScope?: PayrollPilaFspSourceScope;
+    fspSourceScopeUpdatedAt?: Date | null;
+    fspSourceScopeUpdatedById?: string | null;
     concepts: Array<{
       id?: string;
       codigo: string | null;
@@ -349,10 +353,35 @@ export function buildPilaSourceSnapshot(input: {
     input.context,
     input.payroll.novelties,
   );
+  const pensionIbcSource = payrollConceptBaseSource(
+    input.payroll.concepts,
+    'PENSION_EMP',
+    'DEDUCTION',
+  );
+  const payrollFspConcepts = input.payroll.concepts
+    .filter((concept) => concept.codigo === 'FSP')
+    .map(({ tipo, base, factor, valor }) => ({ tipo, base, factor, valor }));
+  const legalSmmlv = input.payroll.legalParameters?.smmlv;
+  const fspSubaccounts = assessPilaFspSubaccounts({
+    sourceScope:
+      input.payroll.fspSourceScope ?? PayrollPilaFspSourceScope.UNCONFIRMED,
+    sourceScopeUpdatedAt: input.payroll.fspSourceScopeUpdatedAt,
+    sourceScopeUpdatedById: input.payroll.fspSourceScopeUpdatedById,
+    periodStart: input.context.period.fechaInicio ?? '',
+    periodEnd: input.context.period.fechaFin ?? '',
+    paymentDate: calendarDate(input.payroll.fechaPrevistaPagoPila),
+    ibcPensional:
+      pensionIbcSource.sourceCount === 1 ? pensionIbcSource.valor : null,
+    smmlv:
+      typeof legalSmmlv === 'number' && Number.isSafeInteger(legalSmmlv)
+        ? legalSmmlv
+        : null,
+    fspConcepts: payrollFspConcepts,
+  });
 
   return {
     ...input.context,
-    schemaVersion: 5,
+    schemaVersion: 6,
     pilaRiskAssignments: input.context.pilaRiskAssignments ?? [],
     payroll: {
       payrollRunId: input.payroll.runId,
@@ -368,6 +397,7 @@ export function buildPilaSourceSnapshot(input: {
       tipoSalario: salaryType.valor,
       tipoSalarioBloqueos: salaryType.bloqueos,
       ibc: input.payroll.ibc,
+      fspSubaccounts,
       diasCotizadosPorSubsistema,
       pilaEvents: input.context.pilaEvents.map((event) => ({ ...event })),
       ibcPorSubsistema: {

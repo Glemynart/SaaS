@@ -478,7 +478,7 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
 
     await page.goto(`/nomina/periodos/${first.payrollPeriodId}`);
     await expect(page.getByRole('heading', { name: /^DEMO Nómina / })).toBeVisible();
-    await expect(page.getByText('Ana Demo Pérez')).toBeVisible();
+    await expect(page.getByText('Ana Demo Pérez', { exact: true }).last()).toBeVisible();
     await expect(page.getByText('Contabilizado', { exact: true })).toBeVisible();
     await expect(page.getByText(`ID de comprobante: ${first.comprobanteId}`)).toBeVisible();
     await expect(page.getByText(/510506 · Sueldos/)).toBeVisible();

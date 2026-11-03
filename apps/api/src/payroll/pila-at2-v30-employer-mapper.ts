@@ -50,7 +50,8 @@ function supportedPilaSnapshot(
     (payloadVersion === 2 ||
       payloadVersion === 3 ||
       payloadVersion === 4 ||
-      payloadVersion === 5) &&
+      payloadVersion === 5 ||
+      payloadVersion === 6) &&
     root?.schemaVersion === payloadVersion
   );
 }
@@ -98,7 +99,7 @@ function employerPeriod(snapshot: PilaAt2V30EmployerCandidateInput) {
 
 /**
  * Builds source candidates for AT2 v30 employer file fields from one frozen
- * PayrollSnapshot PILA v2/v3/v4/v5 payload. This does not validate or serialize a record.
+ * PayrollSnapshot PILA v2/v3/v4/v5/v6 payload. This does not validate or serialize a record.
  * Fields assigned by the operator are explicit blank-position candidates;
  * sources not frozen in the payload stay unresolved. The candidate input
  * convention still requires operator verification before compatibility claims.

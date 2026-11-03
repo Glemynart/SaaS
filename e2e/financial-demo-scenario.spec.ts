@@ -291,7 +291,7 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
   try {
     await page.goto(`/nomina/periodos/${payroll.periodId}`);
     await expect(page.getByRole('heading', { name: 'Nómina marzo 2026' })).toBeVisible();
-    await expect(page.getByText('Ana Pérez')).toBeVisible();
+    await expect(page.getByText('Ana Pérez', { exact: true }).last()).toBeVisible();
 
     const postingResponsePromise = page.waitForResponse(
       (response) =>

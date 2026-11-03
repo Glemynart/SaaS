@@ -23,6 +23,9 @@ export interface PayrollPeriod {
 export interface PayrollRun {
   id: string;
   employeeId: string;
+  pilaFspSourceScope: 'UNCONFIRMED' | 'SINGLE_SOURCE_CONFIRMED' | 'MULTIPLE_SOURCES';
+  pilaFspSourceScopeUpdatedAt: string | null;
+  pilaFspSourceScopeUpdatedById: string | null;
   centroCostoId: string | null;
   totalDevengos: number;
   totalDeducciones: number;
@@ -425,6 +428,20 @@ export const payrollApi = {
     req<PayrollPeriod>(`/api/payroll/periods/${id}/fecha-prevista-pago-pila`, {
       method: 'PATCH',
       body: JSON.stringify({ fechaPrevistaPagoPila }),
+    }),
+  updatePilaFspSourceScope: (runId: string, sourceScope: PayrollRun['pilaFspSourceScope']) =>
+    req<
+      Pick<
+        PayrollRun,
+        | 'id'
+        | 'employeeId'
+        | 'pilaFspSourceScope'
+        | 'pilaFspSourceScopeUpdatedAt'
+        | 'pilaFspSourceScopeUpdatedById'
+      >
+    >(`/api/payroll/runs/${runId}/pila-fsp-source-scope`, {
+      method: 'PATCH',
+      body: JSON.stringify({ sourceScope }),
     }),
   getPeriod: (id: string) => req<PeriodDetail>(`/api/payroll/periods/${id}`),
   getCorrections: (periodId: string) =>

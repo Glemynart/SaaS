@@ -191,6 +191,19 @@ export function useUpdatePilaPaymentDate() {
     onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.periods() }),
   });
 }
+export function useUpdatePilaFspSourceScope(periodId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      runId,
+      sourceScope,
+    }: {
+      runId: string;
+      sourceScope: 'UNCONFIRMED' | 'SINGLE_SOURCE_CONFIRMED' | 'MULTIPLE_SOURCES';
+    }) => payrollApi.updatePilaFspSourceScope(runId, sourceScope),
+    onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.period(periodId) }),
+  });
+}
 export function useRecalculatePayroll() {
   const qc = useQueryClient();
   return useMutation({

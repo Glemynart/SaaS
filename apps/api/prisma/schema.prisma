@@ -1018,6 +1018,12 @@ enum PayrollConceptType {
   PROVISION // N2B — provisión prestacional: prima, cesantías, intereses, vacaciones
 }
 
+enum PayrollPilaFspSourceScope {
+  UNCONFIRMED
+  SINGLE_SOURCE_CONFIRMED
+  MULTIPLE_SOURCES
+}
+
 // =============================================================================
 // PAYROLL NOVELTY TYPE — Tipo de novedad de nómina
 // =============================================================================
@@ -1183,6 +1189,12 @@ model PayrollRun {
   // Datos declarados para PILA capturados al calcular; se promueven al snapshot
   // únicamente al aprobar. No se reconstruyen para runs históricos.
   pilaSource Json?
+
+  // Declaración por período sobre el alcance de ingresos pensionales del cotizante.
+  // Solo la confirmación explícita de fuente única permite evaluar los campos 51/52.
+  pilaFspSourceScope            PayrollPilaFspSourceScope @default(UNCONFIRMED)
+  pilaFspSourceScopeUpdatedAt   DateTime?
+  pilaFspSourceScopeUpdatedById String?
 
   parametroLegal ParametroLegalNomina? @relation(fields: [parametroLegalId], references: [id], onDelete: Restrict)
 

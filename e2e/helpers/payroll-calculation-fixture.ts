@@ -6,7 +6,12 @@ type PayrollCalculationFixture = {
   inspect: (periodId: string) => Promise<{
     periodStatus: string | undefined;
     runs: Array<{ id: string; totalDevengos: number; totalDeducciones: number; netoPagar: number }>;
-    snapshots: Array<{ estadoPeriodo: string; payload: any }>;
+    snapshots: Array<{
+      estadoPeriodo: string;
+      payload: any;
+      pilaPayloadVersion: number | null;
+      pilaPayload: any;
+    }>;
     vouchers: Array<{
       id: string;
       totalDebito: number;
@@ -115,7 +120,7 @@ export async function seedPayrollCalculationFixture(
           primerNombre: 'Ana',
           primerApellido: 'Gómez',
           cargo: 'Auxiliar administrativa',
-          salario: 2_000_000,
+          salario: 8_000_000,
           fechaIngreso: new Date('2025-01-01T00:00:00.000Z'),
         },
       });
@@ -140,7 +145,7 @@ export async function seedPayrollCalculationFixture(
           estado: 'VIGENTE',
           fechaInicio: new Date('2025-01-01T00:00:00.000Z'),
           cargo: 'Auxiliar administrativa',
-          salario: 2_000_000,
+          salario: 8_000_000,
           claseRiesgoArl: 1,
         },
       });
@@ -201,7 +206,12 @@ export async function seedPayrollCalculationFixture(
             }),
             tx.payrollSnapshot.findMany({
               where: { tenantId, payrollPeriodId: periodId, employeeId },
-              select: { estadoPeriodo: true, payload: true },
+              select: {
+                estadoPeriodo: true,
+                payload: true,
+                pilaPayloadVersion: true,
+                pilaPayload: true,
+              },
             }),
             tx.comprobanteContable.findMany({
               where: {
@@ -225,6 +235,8 @@ export async function seedPayrollCalculationFixture(
             snapshots: snapshots.map((snapshot: any) => ({
               estadoPeriodo: snapshot.estadoPeriodo,
               payload: snapshot.payload,
+              pilaPayloadVersion: snapshot.pilaPayloadVersion,
+              pilaPayload: snapshot.pilaPayload,
             })),
             vouchers: vouchers.map((voucher: any) => ({
               id: voucher.id,

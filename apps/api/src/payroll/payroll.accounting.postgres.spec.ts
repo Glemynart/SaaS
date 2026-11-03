@@ -556,9 +556,9 @@ describe('Payroll accounting PostgreSQL integration', () => {
     );
 
     expect(persisted.period?.status).toBe(PayrollPeriodStatus.APROBADA);
-    expect(persisted.snapshot?.pilaPayloadVersion).toBe(5);
+    expect(persisted.snapshot?.pilaPayloadVersion).toBe(6);
     expect(persisted.snapshot?.pilaPayload).toMatchObject({
-      schemaVersion: 5,
+      schemaVersion: 6,
       capturedAt: '2026-03-31T00:00:00.000Z',
       employee: { cedula: '1000000001', primerNombre: 'Ana' },
       affiliations: [
