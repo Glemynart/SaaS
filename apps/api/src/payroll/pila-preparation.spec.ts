@@ -1861,6 +1861,52 @@ describe('inspectPilaSnapshotPreparation', () => {
     expect(report.archivoGenerable).toBe(false);
   });
 
+  it('construye candidatos de aportante y cabecera desde snapshots PILA v3', () => {
+    const currentSnapshot = detailCandidateSnapshot('employee-1', 'Ana');
+    currentSnapshot.payloadVersion = 3;
+    const payload = currentSnapshot.payload as {
+      schemaVersion: number;
+      [key: string]: unknown;
+    };
+    payload.schemaVersion = 3;
+    payload.pilaWorkLocations = [
+      {
+        assignmentId: 'location-1',
+        tenantId: 'tenant-1',
+        municipioId: 'municipio-1',
+        municipio: { id: 'municipio-1', codigo: '11001' },
+        vigenteDesde: '2026-01-01',
+        vigenteHasta: null,
+      },
+    ];
+
+    const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [currentSnapshot],
+    });
+
+    expect(report.headerCandidate).toMatchObject({
+      supportedSnapshots: true,
+      values: {
+        4: { value: 'Empresa Demo SAS' },
+        16: { value: '2026-10' },
+        19: { value: 1 },
+      },
+    });
+    expect(report.employerCandidate).toMatchObject({
+      supportedSnapshots: true,
+      values: {
+        1: { value: 'Empresa Demo SAS' },
+        13: { value: '11' },
+      },
+    });
+  });
+
   it('expone candidatos parciales por campo sin habilitar el archivo', () => {
     const compliant = detailCandidateSnapshot('employee-1', 'Ana');
     const arlAmountNotRounded = detailCandidateSnapshot(

@@ -42,6 +42,16 @@ function object(value: unknown): JsonRecord | null {
     : null;
 }
 
+function supportedPilaSnapshot(
+  payloadVersion: number | null,
+  root: JsonRecord | null,
+): boolean {
+  return (
+    (payloadVersion === 2 || payloadVersion === 3) &&
+    root?.schemaVersion === payloadVersion
+  );
+}
+
 function valueText(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   return value.trim().length > 0 ? value : null;
@@ -70,8 +80,7 @@ function employerPeriod(snapshot: PilaAt2V30EmployerCandidateInput) {
   const period = object(root?.period);
   return {
     supported:
-      snapshot.payloadVersion === 2 &&
-      root?.schemaVersion === 2 &&
+      supportedPilaSnapshot(snapshot.payloadVersion, root) &&
       employee !== null &&
       employer !== null &&
       object(employer.pila) !== null &&
@@ -86,7 +95,7 @@ function employerPeriod(snapshot: PilaAt2V30EmployerCandidateInput) {
 
 /**
  * Builds source candidates for AT2 v30 employer file fields from one frozen
- * PayrollSnapshot PILA payload. This does not validate or serialize a record.
+ * PayrollSnapshot PILA v2/v3 payload. This does not validate or serialize a record.
  * Fields assigned by the operator are explicit blank-position candidates;
  * sources not frozen in the payload stay unresolved. The candidate input
  * convention still requires operator verification before compatibility claims.
@@ -99,9 +108,7 @@ export function mapPilaAt2V30EmployerCandidate(
   const employerPila = object(employer?.pila);
   const tenantId = valueText(employer?.tenantId);
   const supportedSnapshot =
-    input.payloadVersion === 2 &&
-    root?.schemaVersion === 2 &&
-    tenantId !== null;
+    supportedPilaSnapshot(input.payloadVersion, root) && tenantId !== null;
   const values: Partial<Record<number, PilaAt2V30FieldInput>> = {};
   const unresolvedFields: Array<{ fieldNumber: number; reason: string }> = [];
   const unresolved = (fieldNumber: number, reason: string) => {
@@ -129,7 +136,7 @@ export function mapPilaAt2V30EmployerCandidate(
     for (let fieldNumber = 1; fieldNumber <= 34; fieldNumber += 1) {
       unresolved(
         fieldNumber,
-        'Se requiere un snapshot PILA v2 con datos congelados del aportante.',
+        'Se requiere un snapshot PILA v2 o v3 con datos congelados del aportante.',
       );
     }
     return {
@@ -359,7 +366,7 @@ export function mapPilaAt2V30EmployerAggregateCandidate(
     )
   ) {
     scopeReasons.push(
-      'Se requiere un snapshot PILA v2 con empleado y datos congelados del aportante consistentes.',
+      'Se requiere un snapshot PILA v2 o v3 con empleado y datos congelados del aportante consistentes.',
     );
   }
   if (tenantIds.size !== 1 || parsed.some(({ scope }) => !scope.tenantId)) {
