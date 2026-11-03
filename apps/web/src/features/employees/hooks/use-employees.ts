@@ -208,3 +208,15 @@ export function useImportPilaAffiliations() {
     },
   });
 }
+
+export function useImportPilaWorkLocations() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ file, confirmacionAportante }: { file: File; confirmacionAportante: boolean }) =>
+      employeesApi.importPilaWorkLocationsFile(file, confirmacionAportante),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: employeeKeys.details() });
+    },
+  });
+}

@@ -7,6 +7,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Body,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -19,6 +20,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
+import { PilaWorkLocationImportService } from './pila-work-location-import.service';
 
 const XLSX_MIME =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -26,7 +28,10 @@ const XLSX_MIME =
 @UseGuards(JwtAuthGuard, ActiveTenantGuard, RolesGuard)
 @Controller('employees/import')
 export class EmployeeImportController {
-  constructor(private readonly importService: EmployeeImportService) {}
+  constructor(
+    private readonly importService: EmployeeImportService,
+    private readonly workLocationImportService: PilaWorkLocationImportService,
+  ) {}
 
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Get('template')
@@ -48,6 +53,19 @@ export class EmployeeImportController {
       'Content-Type': XLSX_MIME,
       'Content-Disposition':
         'attachment; filename="plantilla_afiliaciones_pila.xlsx"',
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Get('pila-work-locations/template')
+  downloadPilaWorkLocationsTemplate(@Res() res: Response) {
+    const buffer = this.workLocationImportService.generateTemplate();
+    res.set({
+      'Content-Type': XLSX_MIME,
+      'Content-Disposition':
+        'attachment; filename="plantilla_ubicaciones_laborales_pila.xlsx"',
       'Content-Length': buffer.length,
     });
     res.end(buffer);
@@ -120,6 +138,43 @@ export class EmployeeImportController {
       user.tenantId,
       user.userId,
       file.buffer,
+    );
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Post('pila-work-locations')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (
+          file.mimetype === XLSX_MIME ||
+          file.originalname.toLowerCase().endsWith('.xlsx')
+        ) {
+          cb(null, true);
+        } else {
+          cb(
+            new BadRequestException('Solo se permiten archivos .xlsx.'),
+            false,
+          );
+        }
+      },
+    }),
+  )
+  async importPilaWorkLocations(
+    @CurrentUser() user: CurrentUserPayload,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('confirmacionAportante') confirmacionAportante: string | undefined,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Se requiere un archivo .xlsx.');
+    }
+    return this.workLocationImportService.importFromBuffer(
+      user.tenantId,
+      user.userId,
+      file.buffer,
+      confirmacionAportante,
     );
   }
 }

@@ -23,7 +23,7 @@ describe('AuthorizationSurfaceClassifier', () => {
   it('classifies the complete current HTTP surface without ambiguity', () => {
     const operations = classifier.classifyModuleGraph(AppModule);
 
-    expect(operations).toHaveLength(204);
+    expect(operations).toHaveLength(206);
     expect(new Set(operations.map(({ operationId }) => operationId)).size).toBe(
       operations.length,
     );
@@ -50,11 +50,11 @@ describe('AuthorizationSurfaceClassifier', () => {
     expect(countBy(operations, 'policy')).toEqual({
       [AuthorizationPolicyKind.UNAUTHENTICATED]: 12,
       [AuthorizationPolicyKind.AUTHENTICATED]: 65,
-      [AuthorizationPolicyKind.RBAC]: 127,
+      [AuthorizationPolicyKind.RBAC]: 129,
     });
     expect(countBy(operations, 'source')).toEqual({
       [AuthorizationClassificationSource.EXPLICIT]: 77,
-      [AuthorizationClassificationSource.EXISTING_RBAC]: 127,
+      [AuthorizationClassificationSource.EXISTING_RBAC]: 129,
     });
     expect(
       operations.filter(
@@ -88,6 +88,37 @@ describe('AuthorizationSurfaceClassifier', () => {
       requestMethod: 'POST',
       controllerPath: 'employees/import',
       operationPath: 'pila-affiliations',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId ===
+          'EmployeeImportController.downloadPilaWorkLocationsTemplate',
+      ),
+    ).toMatchObject({
+      requestMethod: 'GET',
+      controllerPath: 'employees/import',
+      operationPath: 'pila-work-locations/template',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'EmployeeImportController.importPilaWorkLocations',
+      ),
+    ).toMatchObject({
+      requestMethod: 'POST',
+      controllerPath: 'employees/import',
+      operationPath: 'pila-work-locations',
       policy: AuthorizationPolicyKind.RBAC,
       roles: [UserRole.ADMIN],
       requiresAuthentication: true,

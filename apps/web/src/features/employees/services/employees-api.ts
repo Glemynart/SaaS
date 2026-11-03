@@ -87,6 +87,12 @@ export interface ImportPilaAffiliationsResult {
   message: string;
 }
 
+export interface ImportPilaWorkLocationsResult {
+  created: number;
+  unchanged: number;
+  message: string;
+}
+
 export interface PilaWorkCenter {
   id: string;
   tenantId: string;
@@ -392,6 +398,47 @@ export const employeesApi = {
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = 'plantilla_afiliaciones_pila.xlsx';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
+  importPilaWorkLocationsFile: async (file: File, confirmacionAportante: boolean) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('confirmacionAportante', String(confirmacionAportante));
+    const response = await fetch('/api/employees/import/pila-work-locations', {
+      method: 'POST',
+      body: formData,
+    });
+    const body = (await response.json().catch(() => ({}))) as ApiEnvelope<
+      ImportPilaWorkLocationsResult & {
+        errors?: { fila: number; campo: string; mensaje: string }[];
+      }
+    >;
+    if (!response.ok) {
+      throw new ImportError(
+        getApiErrorMessage(
+          body,
+          'No pudimos importar las ubicaciones laborales PILA. Corrige los errores y vuelve a intentarlo.',
+        ),
+        body.errors ?? [],
+      );
+    }
+    return body as ImportPilaWorkLocationsResult;
+  },
+
+  downloadPilaWorkLocationsTemplate: async () => {
+    const response = await fetch('/api/employees/import/pila-work-locations/template');
+    if (!response.ok) {
+      throw new Error('Error al descargar la plantilla de ubicaciones laborales PILA.');
+    }
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'plantilla_ubicaciones_laborales_pila.xlsx';
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
