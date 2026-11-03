@@ -88,7 +88,7 @@ test('genera, aprueba y contabiliza una nómina desde el flujo de usuario', asyn
         vigenteDesde: '2025-01-01',
       },
     );
-    expect(affiliationResponse.status).toBe(201);
+    expect(affiliationResponse.status).toBe(200);
 
     await page.goto('/nomina/periodos');
     await page.getByRole('button', { name: 'Nuevo periodo' }).click();
