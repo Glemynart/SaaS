@@ -171,7 +171,7 @@ test('genera, aprueba y contabiliza una nómina desde el flujo de usuario', asyn
     await periodCard().getByRole('link', { name: periodName }).click();
     await expect(page).toHaveURL(new RegExp(`/nomina/periodos/${periodId}$`));
     await expect(page.getByRole('heading', { name: periodName })).toBeVisible();
-    await expect(page.getByText(fixture.employeeName)).toBeVisible();
+    await expect(page.getByText(fixture.employeeName, { exact: true }).last()).toBeVisible();
     await expect(page.getByText('8.000.000', { exact: false }).first()).toBeVisible();
 
     const approved = await fixture.inspect(periodId);
