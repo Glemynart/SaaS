@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
-import { seedPayrollAccrualFixture } from './helpers/payroll-accounting-fixture';
+import { seedPayrollCalculationFixture } from './helpers/payroll-calculation-fixture';
 
 async function registerAndSignIn(page: Page) {
   const suffix = randomInt(10_000_000, 100_000_000).toString();
@@ -23,12 +23,10 @@ async function registerAndSignIn(page: Page) {
       response.request().method() === 'POST',
   );
   await page.getByRole('button', { name: 'Crear empresa' }).click();
-
   const registrationResponse = await registrationResponsePromise;
   expect(registrationResponse.status()).toBe(201);
   const registration = (await registrationResponse.json()) as {
     tenant: { id: string };
-    user: { id: string };
   };
 
   await expect(page).toHaveURL(/\/login\?registered=1$/);
@@ -38,23 +36,93 @@ async function registerAndSignIn(page: Page) {
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 
-  return { tenantId: registration.tenant.id, userId: registration.user.id };
+  return registration.tenant.id;
 }
 
-test('contabiliza una nómina aprobada y confirma el comprobante persistido', async ({ page }) => {
-  const { tenantId, userId } = await registerAndSignIn(page);
-  const fixture = await seedPayrollAccrualFixture(tenantId, userId);
+test('genera, aprueba y contabiliza una nómina desde el flujo de usuario', async ({ page }) => {
+  test.setTimeout(90_000);
+  const tenantId = await registerAndSignIn(page);
+  const fixture = await seedPayrollCalculationFixture(tenantId);
+  const periodName = 'Nómina octubre 2026';
+  let periodId = '';
 
   try {
-    await page.goto(`/nomina/periodos/${fixture.periodId}`);
-    await expect(page.getByRole('heading', { name: 'Nómina marzo 2026' })).toBeVisible();
-    await expect(page.getByText('Contabilizar en Ledger')).toBeVisible();
-    await expect(page.getByText('Ana Pérez')).toBeVisible();
+    await page.goto('/nomina/periodos');
+    await page.getByRole('button', { name: 'Nuevo periodo' }).click();
+    await page.getByPlaceholder('Octubre 2026').fill(periodName);
+    const periodDates = page.locator('input[type="date"]');
+    await periodDates.nth(0).fill('2026-10-01');
+    await periodDates.nth(1).fill('2026-10-31');
+
+    const createResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/payroll/periods' &&
+        response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Crear', exact: true }).click();
+    const createResponse = await createResponsePromise;
+    expect(createResponse.status()).toBe(200);
+    periodId = ((await createResponse.json()) as { id: string }).id;
+
+    const periodCard = () => page.getByText(periodName, { exact: true }).locator('xpath=../..');
+    await expect(periodCard()).toBeVisible();
+
+    const generateResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/payroll/periods/${periodId}/generate` &&
+        response.request().method() === 'POST',
+    );
+    await periodCard().getByRole('button', { name: 'Generar' }).click();
+    const generateResponse = await generateResponsePromise;
+    expect(generateResponse.status()).toBe(200);
+    expect(await generateResponse.json()).toMatchObject({ created: 1 });
+
+    await page.reload();
+    await expect(periodCard()).toContainText('Calculada');
+    const reviewResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/payroll/periods/${periodId}/enviar-revision` &&
+        response.request().method() === 'POST',
+    );
+    await periodCard().getByRole('button', { name: 'Enviar' }).click();
+    expect((await reviewResponsePromise).status()).toBe(200);
+
+    await page.reload();
+    await expect(periodCard()).toContainText('En revisión');
+    const approveResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/payroll/periods/${periodId}/aprobar` &&
+        response.request().method() === 'POST',
+    );
+    await periodCard().getByRole('button', { name: 'Aprobar' }).click();
+    expect((await approveResponsePromise).status()).toBe(200);
+
+    await page.reload();
+    await expect(periodCard()).toContainText('Aprobada');
+    await periodCard().getByRole('link', { name: periodName }).click();
+    await expect(page).toHaveURL(new RegExp(`/nomina/periodos/${periodId}$`));
+    await expect(page.getByRole('heading', { name: periodName })).toBeVisible();
+    await expect(page.getByText(fixture.employeeName)).toBeVisible();
+    await expect(page.getByText('2.000.000', { exact: false }).first()).toBeVisible();
+
+    const approved = await fixture.inspect(periodId);
+    expect(approved.periodStatus).toBe('APROBADA');
+    expect(approved.runs).toHaveLength(1);
+    expect(approved.runs[0].totalDevengos).toBeGreaterThan(0);
+    expect(approved.runs[0].totalDeducciones).toBeGreaterThan(0);
+    expect(approved.runs[0].netoPagar).toBeGreaterThan(0);
+    expect(approved.runs[0].totalDevengos - approved.runs[0].totalDeducciones).toBe(
+      approved.runs[0].netoPagar,
+    );
+    expect(approved.snapshots).toHaveLength(1);
+    expect(approved.snapshots[0].estadoPeriodo).toBe('APROBADA');
+    expect(approved.snapshots[0].payload.employee).toMatchObject({
+      salarioBaseUsado: 2_000_000,
+    });
 
     const postingResponsePromise = page.waitForResponse(
       (response) =>
-        new URL(response.url()).pathname ===
-          `/api/payroll/periods/${fixture.periodId}/contabilizar` &&
+        new URL(response.url()).pathname === `/api/payroll/periods/${periodId}/contabilizar` &&
         response.request().method() === 'POST',
     );
     await page.getByRole('button', { name: 'Contabilizar en Ledger' }).click();
@@ -62,7 +130,6 @@ test('contabiliza una nómina aprobada y confirma el comprobante persistido', as
       .getByRole('alertdialog')
       .getByRole('button', { name: 'Contabilizar nómina' })
       .click();
-
     const postingResponse = await postingResponsePromise;
     expect(postingResponse.status()).toBe(200);
     const posting = (await postingResponse.json()) as {
@@ -70,18 +137,12 @@ test('contabiliza una nómina aprobada y confirma el comprobante persistido', as
       payrollPeriodId: string;
       comprobanteId: string;
     };
-    expect(posting).toMatchObject({
-      status: 'CAUSADA',
-      payrollPeriodId: fixture.periodId,
-    });
+    expect(posting).toMatchObject({ status: 'CAUSADA', payrollPeriodId: periodId });
 
     await expect(page.getByText('Nómina contabilizada en el Ledger.')).toBeVisible();
-    await expect(page.getByText(/Comprobante \d+/)).toBeVisible();
-    await expect(
-      page.getByText(new RegExp(`ID de comprobante: ${posting.comprobanteId}`)),
-    ).toBeVisible();
-    await expect(page.getByText('Gasto de sueldos')).toBeVisible();
-    await expect(page.getByText('Salarios netos por pagar', { exact: true })).toBeVisible();
+    await expect(page.getByText(`ID de comprobante: ${posting.comprobanteId}`)).toBeVisible();
+    await expect(page.getByText('GASTO_SUELDOS')).toBeVisible();
+    await expect(page.getByText('SALARIOS_POR_PAGAR')).toBeVisible();
 
     const retryResponse = await page.evaluate(async (path) => {
       const response = await fetch(path, {
@@ -90,24 +151,25 @@ test('contabiliza una nómina aprobada y confirma el comprobante persistido', as
         body: JSON.stringify({}),
       });
       return { status: response.status, body: await response.json() };
-    }, `/api/payroll/periods/${fixture.periodId}/contabilizar`);
+    }, `/api/payroll/periods/${periodId}/contabilizar`);
     expect(retryResponse.status).toBe(200);
     expect(retryResponse.body).toEqual({
       status: 'YA_CAUSADA',
-      payrollPeriodId: fixture.periodId,
+      payrollPeriodId: periodId,
       comprobanteId: posting.comprobanteId,
     });
 
     await page.reload();
-    await expect(
-      page.getByText(new RegExp(`ID de comprobante: ${posting.comprobanteId}`)),
-    ).toBeVisible();
+    await expect(page.getByText(`ID de comprobante: ${posting.comprobanteId}`)).toBeVisible();
 
-    const persisted = await fixture.inspectPersistedState();
-    expect(persisted.periodStatus).toBe('CAUSADA');
-    expect(persisted.vouchers).toEqual([{ id: posting.comprobanteId, estado: 'CONTABILIZADO' }]);
-    expect(persisted.snapshotPayload).toEqual(fixture.snapshotPayload);
-    expect(persisted.snapshotStatus).toBe('APROBADA');
+    const caused = await fixture.inspect(periodId);
+    expect(caused.periodStatus).toBe('CAUSADA');
+    expect(caused.runs).toEqual(approved.runs);
+    expect(caused.snapshots).toEqual(approved.snapshots);
+    expect(caused.vouchers).toHaveLength(1);
+    expect(caused.vouchers[0].id).toBe(posting.comprobanteId);
+    expect(caused.vouchers[0].totalDebito).toBe(caused.vouchers[0].totalCredito);
+    expect(caused.vouchers[0].movimientoCount).toBeGreaterThan(2);
   } finally {
     await fixture.disconnect();
   }
