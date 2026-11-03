@@ -1089,3 +1089,11 @@ false`.
   envía vacío o cero y disponer de la fuente UPC. El preflight ahora muestra el
   campo y el motivo; 40/69 siguen fuera del MVP. No se genera ni descarga un
   archivo PILA.
+
+### Guardrail del segundo semestre de prima — 2026-11-03
+
+- La decisión aprobada en ADR-012 limita el MVP a enero–junio. La interfaz
+  deshabilita julio–diciembre y la API lo rechaza antes de acceder a datos o
+  guardar un lote, evitando borradores no aprobables llenos de líneas
+  bloqueadas. El cálculo y publicación del segundo semestre siguen fuera del
+  alcance hasta la revisión laboral del corte.

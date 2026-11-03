@@ -19,7 +19,7 @@ export class CreateServicePremiumBatchDto {
 
   @Type(() => Number)
   @IsInt()
-  @IsIn([1, 2])
+  @IsIn([1], { message: 'La prima de julio–diciembre aún no está habilitada.' })
   semester!: number;
 }
 

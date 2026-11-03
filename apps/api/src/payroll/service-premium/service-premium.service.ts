@@ -799,5 +799,10 @@ export class ServicePremiumService {
     ) {
       throw new BadRequestException('Año o semestre inválido.');
     }
+    if (semester !== 1) {
+      throw new BadRequestException(
+        'La prima de julio–diciembre aún no está habilitada.',
+      );
+    }
   }
 }

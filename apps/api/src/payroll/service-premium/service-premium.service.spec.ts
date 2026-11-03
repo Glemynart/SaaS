@@ -1,4 +1,8 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ServicePremiumService } from './service-premium.service';
 
 describe('ServicePremiumService tenant-scoped lifecycle', () => {
@@ -56,6 +60,14 @@ describe('ServicePremiumService tenant-scoped lifecycle', () => {
         where: { tenantId: 'tenant-a', id: 'batch-1' },
       }),
     );
+  });
+
+  it('rechaza julio–diciembre antes de consultar o persistir un lote', async () => {
+    await expect(
+      service.createPreview('tenant-a', 'user-a', { year: 2026, semester: 2 }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(tenantExecute).not.toHaveBeenCalled();
   });
 
   it('no aprueba un lote de otro tenant ni intenta leer sus empleados', async () => {

@@ -215,7 +215,9 @@ export default function ServicePremiumPage() {
               className="h-9 rounded-md border border-input bg-background px-3 text-sm"
             >
               <option value={1}>Enero–junio</option>
-              <option value={2}>Julio–diciembre (bloqueado)</option>
+              <option value={2} disabled>
+                Julio–diciembre (no disponible)
+              </option>
             </select>
           </div>
           <Button
