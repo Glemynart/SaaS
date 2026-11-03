@@ -47,7 +47,7 @@ const detailFieldLabels: Record<PilaDetailFieldCandidateStatus['fieldNumber'], s
   53: 'Valor no retenido por aportes voluntarios',
   54: 'Tarifa de salud',
   55: 'Cotización obligatoria a salud',
-  56: 'UPC adicional / contribución solidaria',
+  56: 'Valor de UPC adicional (solo cotizante 40)',
   57: 'Autorización de incapacidad',
   58: 'Valor de incapacidad',
   59: 'Autorización de licencia maternidad/paternidad',
@@ -421,9 +421,10 @@ export function PayrollPilaPreparationPanel({
               Campos no aplicables a dependientes estándar
             </h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              AT2 v30 exige dejar vacíos los destinos de traslado 32 y 34. Los datos del cotizante
-              principal 74 y 75 solo aplican al cotizante tipo 40. Estos candidatos no habilitan la
-              descarga PILA.
+              AT2 v30 exige dejar vacíos los destinos de traslado 32 y 34 y el campo 56 para
+              dependientes 01/00; este último solo se diligencia para el cotizante tipo 40. Los
+              datos del cotizante principal 74 y 75 también aplican únicamente al tipo 40. Estos
+              candidatos no habilitan la descarga PILA.
             </p>
             <ul className="mt-3 space-y-3">
               {query.data.detailStandardDependentEmptyCandidates.map((status) => (

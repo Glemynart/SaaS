@@ -11,7 +11,6 @@ import {
   PILA_AT2_V30_PRIVATE_EMPLOYER_ESAP_MEN_FIELD_NUMBERS,
   PILA_AT2_V30_STANDARD_DEPENDENT_EMPTY_FIELD_NUMBERS,
   PILA_AT2_V30_PENSION_CONTRIBUTION_FIELD_NUMBERS,
-  PILA_AT2_V30_UPC_ADDITIONAL_FIELD_NUMBERS,
 } from './pila-at2-v30-detail-mapper';
 import { mapPilaAt2V30HeaderCandidate } from './pila-at2-v30-header-mapper';
 import { mapPilaAt2V30EmployerAggregateCandidate } from './pila-at2-v30-employer-mapper';
@@ -1835,7 +1834,6 @@ export function buildPilaPreparationReport(input: {
       46,
       47,
       ...PILA_AT2_V30_PENSION_CONTRIBUTION_FIELD_NUMBERS,
-      ...PILA_AT2_V30_UPC_ADDITIONAL_FIELD_NUMBERS,
       54,
       55,
       61,

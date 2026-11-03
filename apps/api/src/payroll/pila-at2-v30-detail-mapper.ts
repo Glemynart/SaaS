@@ -62,7 +62,7 @@ const PILA_AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_RULE_VERSION =
   'AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_V1' as const;
 
 export const PILA_AT2_V30_STANDARD_DEPENDENT_EMPTY_FIELD_NUMBERS = [
-  32, 34, 74, 75,
+  32, 34, 56, 74, 75,
 ] as const;
 export const PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_FIELD_NUMBERS = [
   76,
@@ -73,8 +73,6 @@ export const PILA_AT2_V30_PRIVATE_EMPLOYER_ESAP_MEN_FIELD_NUMBERS = [
 export const PILA_AT2_V30_PENSION_CONTRIBUTION_FIELD_NUMBERS = [
   48, 49, 50, 51, 52, 53,
 ] as const;
-export const PILA_AT2_V30_UPC_ADDITIONAL_FIELD_NUMBERS = [56] as const;
-
 export const PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS = [
   15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 80, 81, 82,
   83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94,
@@ -931,10 +929,14 @@ export function mapPilaAt2V30DetailCandidate(
     );
   }
 
-  unresolved(
-    56,
-    'No hay fuente de UPC congelada. Para cotizante 01/00 falta confirmar con el operador si el campo debe ir en blanco o en cero; cotizantes 40/69 quedan fuera del MVP. No se propone candidato.',
-  );
+  if (standardAffiliation) {
+    blank(56);
+  } else {
+    unresolved(
+      56,
+      'AT2 v30 reserva el campo 56 para cotizantes tipo 40. El MVP solo admite 01/00; 40 y 69 quedan fuera de alcance.',
+    );
+  }
   const mapContributionAmountCandidate = (input: {
     fieldNumber: number;
     code: string;

@@ -371,8 +371,18 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     ).toEqual(layoutFields);
   });
 
-  it.each(['01', '40', '69'])(
-    'keeps field 56 unresolved for cotizante %s until its source and blank/zero convention are verified',
+  it('leaves field 56 blank for a standard dependent because AT2 reserves it for cotizante 40', () => {
+    const input = snapshot();
+    const candidate = mapCandidate(input);
+
+    expect(candidate.values[56]).toEqual({ value: null, emptyAs: 'spaces' });
+    expect(
+      candidate.unresolvedFields.some(({ fieldNumber }) => fieldNumber === 56),
+    ).toBe(false);
+  });
+
+  it.each(['40', '69'])(
+    'keeps field 56 unresolved for cotizante %s outside the MVP',
     (tipoCotizanteCodigo) => {
       const input = snapshot();
       payloadOf(input).affiliations[0].tipoCotizanteCodigo =
@@ -384,8 +394,10 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       );
 
       expect(candidate.values[56]).toBeUndefined();
-      expect(field56?.reason).toContain('No hay fuente de UPC congelada');
-      expect(field56?.reason).toContain('en blanco o en cero');
+      expect(field56?.reason).toContain(
+        'reserva el campo 56 para cotizantes tipo 40',
+      );
+      expect(field56?.reason).toContain('fuera de alcance');
     },
   );
 
