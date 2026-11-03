@@ -12,8 +12,10 @@ import {
 } from '../tenant-prisma/tenant-prisma.service';
 import { CreateSocialSecurityAffiliationDto } from './dto/create-social-security-affiliation.dto';
 import { CloseSocialSecurityAffiliationDto } from './dto/close-social-security-affiliation.dto';
-
-const CAPTURE_VERSION = 'PILA_AFFILIATION_CAPTURE_V3';
+import {
+  SOCIAL_SECURITY_AFFILIATION_CAPTURE_VERSION,
+  validatePilaAffiliationDeclarations,
+} from './social-security-affiliation.policy';
 
 @Injectable()
 export class SocialSecurityAffiliationsService {
@@ -149,7 +151,7 @@ export class SocialSecurityAffiliationsService {
             vigenteDesde,
             vigenteHasta,
             subtipoCotizanteCodigo: dto.subtipoCotizanteCodigo || null,
-            versionCaptura: CAPTURE_VERSION,
+            versionCaptura: SOCIAL_SECURITY_AFFILIATION_CAPTURE_VERSION,
             registradoPorId: userId,
             tenantId,
             empleadoId: employeeId,
@@ -167,7 +169,7 @@ export class SocialSecurityAffiliationsService {
               empleadoId: employeeId,
               vigenteDesde: vigenteDesde.toISOString().slice(0, 10),
               vigenteHasta: vigenteHasta?.toISOString().slice(0, 10) ?? null,
-              versionCaptura: CAPTURE_VERSION,
+              versionCaptura: SOCIAL_SECURITY_AFFILIATION_CAPTURE_VERSION,
               campos: Object.keys(dto),
             },
           },
@@ -284,41 +286,16 @@ export class SocialSecurityAffiliationsService {
     tipoDocumento: string,
     dto: CreateSocialSecurityAffiliationDto,
   ) {
-    const foreignPensionExemption = dto.extranjeroNoObligadoPension ?? null;
-    const colombianAbroad = dto.colombianoEnElExterior ?? null;
+    const declarationError = validatePilaAffiliationDeclarations(
+      tipoDocumento,
+      {
+        extranjeroNoObligadoPension: dto.extranjeroNoObligadoPension ?? null,
+        colombianoEnElExterior: dto.colombianoEnElExterior ?? null,
+      },
+    )[0];
 
-    if (tipoDocumento === 'CC' || tipoDocumento === 'TI') {
-      if (typeof colombianAbroad !== 'boolean') {
-        throw new BadRequestException(
-          'Confirma si el cotizante colombiano reside en el exterior.',
-        );
-      }
-      if (foreignPensionExemption !== null) {
-        throw new BadRequestException(
-          'La exención pensional del extranjero no aplica a documentos CC/TI.',
-        );
-      }
-      return;
-    }
-
-    if (tipoDocumento === 'CE' || tipoDocumento === 'PA') {
-      if (typeof foreignPensionExemption !== 'boolean') {
-        throw new BadRequestException(
-          'Confirma si el cotizante extranjero está exento de cotizar a pensión.',
-        );
-      }
-      if (colombianAbroad !== null) {
-        throw new BadRequestException(
-          'La declaración de colombiano en el exterior no aplica a documentos CE/PA.',
-        );
-      }
-      return;
-    }
-
-    if (foreignPensionExemption !== null || colombianAbroad !== null) {
-      throw new BadRequestException(
-        'Las declaraciones de los campos 7 y 8 de AT2 v30 solo aplican a documentos CC, TI, CE o PA.',
-      );
+    if (declarationError) {
+      throw new BadRequestException(declarationError.message);
     }
   }
 }

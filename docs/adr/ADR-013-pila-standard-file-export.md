@@ -44,10 +44,14 @@ no produce ese archivo ni conserva todos sus insumos de forma estructurada:
   final aún deberá confirmar y conservar la fecha elegida para la exportación.
 - `PayrollNoveltyType` ofrece `VACATION`, `SICKNESS`, `LICENSE`, `OVERTIME`,
   `BONUS` y `OTHER`; no es el catálogo/código de reporte PILA.
-- PR #160 agregó captura manual y con vigencia del historial de afiliaciones;
-  el formulario e importador XLSX aún no hacen carga PILA masiva ni validan
-  completamente los catálogos. Las PR #163–#169 fusionadas también capturan
-  eventos y asignaciones ARL fechadas y las congelan en el payload PILA; PR #170
+- PR #160 agregó captura manual y con vigencia del historial de afiliaciones.
+  La plantilla Excel conserva compatibilidad con versiones anteriores y permite
+  declarar una afiliación PILA inicial al crear empleados nuevos; la captura y
+  el empleado se guardan en la misma transacción tenant-scoped y usan la
+  versión de captura vigente. No modifica empleados existentes, no convierte
+  campos heredados ni valida códigos de administradoras contra catálogos u
+  operadores. Las PR #163–#169 fusionadas también capturan eventos y
+  asignaciones ARL fechadas y las congelan en el payload PILA; PR #170
   identifica sus brechas sin segmentación normativa ni validación completa del
   archivo.
 - No existe un exportador PILA funcional en la API ni en la web.

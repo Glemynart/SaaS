@@ -6,6 +6,11 @@ import {
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { isValidPepTutorDocumentNumber } from '../common/validators/pep-tutor-document-number';
+import { isColombiaDaneDepartmentCode } from '@saas/types';
+import {
+  SOCIAL_SECURITY_AFFILIATION_CAPTURE_VERSION,
+  validatePilaAffiliationDeclarations,
+} from '../employees/social-security-affiliation.policy';
 import * as XLSX from 'xlsx';
 
 const MAX_ROWS = 500;
@@ -76,6 +81,41 @@ interface RawRow {
   jornadaLaboral?: unknown;
   fechaRetiro?: unknown;
   motivoRetiro?: unknown;
+  tipoCotizanteCodigo?: unknown;
+  subtipoCotizanteCodigo?: unknown;
+  epsCodigo?: unknown;
+  epsNombre?: unknown;
+  fondoPensionCodigo?: unknown;
+  fondoPensionNombre?: unknown;
+  arlCodigo?: unknown;
+  arlNombre?: unknown;
+  arlClaseRiesgo?: unknown;
+  cajaCompensacionCodigo?: unknown;
+  cajaCompensacionNombre?: unknown;
+  cajaCompensacionDepartamentoCodigo?: unknown;
+  extranjeroNoObligadoPension?: unknown;
+  colombianoEnElExterior?: unknown;
+  afiliacionVigenteDesde?: unknown;
+  afiliacionVigenteHasta?: unknown;
+}
+
+interface InitialPilaAffiliationData {
+  tipoCotizanteCodigo: string;
+  subtipoCotizanteCodigo: string;
+  epsCodigo: string;
+  epsNombre: string;
+  fondoPensionCodigo: string;
+  fondoPensionNombre: string;
+  arlCodigo: string;
+  arlNombre: string;
+  arlClaseRiesgo: string;
+  cajaCompensacionCodigo: string;
+  cajaCompensacionNombre: string;
+  cajaCompensacionDepartamentoCodigo: string;
+  extranjeroNoObligadoPension: boolean | null;
+  colombianoEnElExterior: boolean | null;
+  vigenteDesde: Date;
+  vigenteHasta: Date | null;
 }
 
 function str(val: unknown): string | undefined {
@@ -138,6 +178,22 @@ const TEMPLATE_HEADERS = [
   'jornadaLaboral',
   'fechaRetiro',
   'motivoRetiro',
+  'tipoCotizanteCodigo',
+  'subtipoCotizanteCodigo',
+  'epsCodigo',
+  'epsNombre',
+  'fondoPensionCodigo',
+  'fondoPensionNombre',
+  'arlCodigo',
+  'arlNombre',
+  'arlClaseRiesgo',
+  'cajaCompensacionCodigo',
+  'cajaCompensacionNombre',
+  'cajaCompensacionDepartamentoCodigo',
+  'extranjeroNoObligadoPension',
+  'colombianoEnElExterior',
+  'afiliacionVigenteDesde',
+  'afiliacionVigenteHasta',
 ];
 
 const TEMPLATE_HINTS = [
@@ -160,7 +216,327 @@ const TEMPLATE_HINTS = [
   'Opcional. COMPLETA | MEDIA | POR_HORAS',
   'Opcional. Formato YYYY-MM-DD.',
   'Opcional. RENUNCIA | TERMINACION_CONTRATO | MUTUO_ACUERDO | JUSTA_CAUSA | FALLECIMIENTO | OTRO',
+  'Opcional por empleado. Si completas cualquier dato PILA, completa el bloque. Usa 01 (trabajador dependiente estándar).',
+  'Opcional por empleado. El MVP admite el subtipo estándar 00; casos especiales quedan fuera.',
+  'Código EPS (texto, 1–6 caracteres); no se valida contra catálogo.',
+  'Nombre EPS (1–120 caracteres).',
+  'Código de fondo de pensión (texto, 1–6 caracteres); no se valida contra catálogo.',
+  'Nombre de fondo de pensión (1–120 caracteres).',
+  'Código ARL (texto, 1–6 caracteres); no se valida contra catálogo.',
+  'Nombre ARL (1–120 caracteres).',
+  'Clase de riesgo: 1 | 2 | 3 | 4 | 5.',
+  'Código de caja de compensación (texto, 1–6 caracteres); no se valida contra catálogo.',
+  'Nombre de caja de compensación (1–120 caracteres).',
+  'Código DIVIPOLA del departamento de la CCF (dos dígitos, ej. 08).',
+  'Para CE/PA: SI o NO. Para otros documentos, dejar vacío.',
+  'Para CC/TI: SI o NO. Para otros documentos, dejar vacío.',
+  'Vigente desde. Formato YYYY-MM-DD.',
+  'Vigente hasta. Opcional; formato YYYY-MM-DD.',
 ];
+
+const PILA_AFFILIATION_FIELDS = [
+  'tipoCotizanteCodigo',
+  'subtipoCotizanteCodigo',
+  'epsCodigo',
+  'epsNombre',
+  'fondoPensionCodigo',
+  'fondoPensionNombre',
+  'arlCodigo',
+  'arlNombre',
+  'arlClaseRiesgo',
+  'cajaCompensacionCodigo',
+  'cajaCompensacionNombre',
+  'cajaCompensacionDepartamentoCodigo',
+  'extranjeroNoObligadoPension',
+  'colombianoEnElExterior',
+  'afiliacionVigenteDesde',
+  'afiliacionVigenteHasta',
+] as const;
+
+function hasImportValue(value: unknown): boolean {
+  if (value instanceof Date) return !Number.isNaN(value.getTime());
+  const normalized = str(value);
+  return normalized !== undefined && normalized.length > 0;
+}
+
+function normalizeTwoDigitCode(value: unknown): string | undefined {
+  const normalized = str(value);
+  if (!normalized || !/^\d{1,2}$/.test(normalized)) return normalized;
+  return normalized.padStart(2, '0');
+}
+
+function parsePilaDate(value: unknown): { date?: Date; invalid: boolean } {
+  if (value === undefined || value === null || value === '') {
+    return { invalid: false };
+  }
+
+  const dateText =
+    value instanceof Date && !Number.isNaN(value.getTime())
+      ? value.toISOString().slice(0, 10)
+      : str(value);
+  if (!dateText || !/^\d{4}-\d{2}-\d{2}$/.test(dateText)) {
+    return { invalid: true };
+  }
+
+  const date = new Date(`${dateText}T00:00:00.000Z`);
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.toISOString().slice(0, 10) !== dateText
+  ) {
+    return { invalid: true };
+  }
+
+  return { date, invalid: false };
+}
+
+function parsePilaDeclaration(value: unknown): {
+  value?: boolean;
+  invalid: boolean;
+} {
+  if (!hasImportValue(value)) return { invalid: false };
+  if (typeof value === 'boolean') return { value, invalid: false };
+  if (typeof value === 'number' && (value === 1 || value === 0)) {
+    return { value: value === 1, invalid: false };
+  }
+
+  const normalized = str(value)
+    ?.normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+  if (
+    normalized === 'SI' ||
+    normalized === 'S' ||
+    normalized === 'TRUE' ||
+    normalized === '1'
+  ) {
+    return { value: true, invalid: false };
+  }
+  if (
+    normalized === 'NO' ||
+    normalized === 'N' ||
+    normalized === 'FALSE' ||
+    normalized === '0'
+  ) {
+    return { value: false, invalid: false };
+  }
+  return { invalid: true };
+}
+
+function parseInitialPilaAffiliation(
+  row: RawRow,
+  fila: number,
+  tipoDocumento: string | undefined,
+  errors: ImportError[],
+): InitialPilaAffiliationData | undefined {
+  if (!PILA_AFFILIATION_FIELDS.some((field) => hasImportValue(row[field]))) {
+    return undefined;
+  }
+
+  const requiredText = (field: string, label: string, maxLength: number) => {
+    const rawValue = row[field as keyof RawRow];
+    if (typeof rawValue !== 'string') {
+      errors.push({
+        fila,
+        campo: field,
+        mensaje:
+          rawValue === undefined || rawValue === null || rawValue === ''
+            ? `${label} es requerido.`
+            : `${label} debe estar como texto en Excel.`,
+      });
+      return undefined;
+    }
+    const value = rawValue.trim();
+    if (!value) {
+      errors.push({ fila, campo: field, mensaje: `${label} es requerido.` });
+      return undefined;
+    }
+    if (value.length > maxLength) {
+      errors.push({
+        fila,
+        campo: field,
+        mensaje: `${label} no puede superar ${maxLength} caracteres.`,
+      });
+      return undefined;
+    }
+    return value;
+  };
+
+  const tipoCotizanteCodigo = normalizeTwoDigitCode(row.tipoCotizanteCodigo);
+  if (tipoCotizanteCodigo !== '01') {
+    errors.push({
+      fila,
+      campo: 'tipoCotizanteCodigo',
+      mensaje: 'El MVP PILA solo admite el cotizante dependiente estándar 01.',
+    });
+  }
+
+  const subtipoCotizanteCodigo = normalizeTwoDigitCode(
+    row.subtipoCotizanteCodigo,
+  );
+  if (subtipoCotizanteCodigo !== '00') {
+    errors.push({
+      fila,
+      campo: 'subtipoCotizanteCodigo',
+      mensaje: 'El MVP PILA solo admite el subtipo estándar 00.',
+    });
+  }
+
+  const epsCodigo = requiredText(
+    'epsCodigo',
+    'El código EPS',
+    6,
+  )?.toUpperCase();
+  const epsNombre = requiredText('epsNombre', 'El nombre EPS', 120);
+  const fondoPensionCodigo = requiredText(
+    'fondoPensionCodigo',
+    'El código de fondo de pensión',
+    6,
+  )?.toUpperCase();
+  const fondoPensionNombre = requiredText(
+    'fondoPensionNombre',
+    'El nombre de fondo de pensión',
+    120,
+  );
+  const arlCodigo = requiredText(
+    'arlCodigo',
+    'El código ARL',
+    6,
+  )?.toUpperCase();
+  const arlNombre = requiredText('arlNombre', 'El nombre ARL', 120);
+  const arlClaseRiesgo = str(row.arlClaseRiesgo);
+  if (!arlClaseRiesgo || !['1', '2', '3', '4', '5'].includes(arlClaseRiesgo)) {
+    errors.push({
+      fila,
+      campo: 'arlClaseRiesgo',
+      mensaje: 'La clase de riesgo debe ser 1, 2, 3, 4 o 5.',
+    });
+  }
+  const cajaCompensacionCodigo = requiredText(
+    'cajaCompensacionCodigo',
+    'El código de caja de compensación',
+    6,
+  )?.toUpperCase();
+  const cajaCompensacionNombre = requiredText(
+    'cajaCompensacionNombre',
+    'El nombre de caja de compensación',
+    120,
+  );
+
+  const cajaCompensacionDepartamentoCodigo = normalizeTwoDigitCode(
+    row.cajaCompensacionDepartamentoCodigo,
+  );
+  if (
+    !cajaCompensacionDepartamentoCodigo ||
+    !isColombiaDaneDepartmentCode(cajaCompensacionDepartamentoCodigo)
+  ) {
+    errors.push({
+      fila,
+      campo: 'cajaCompensacionDepartamentoCodigo',
+      mensaje: 'Usa un código de departamento válido según DIVIPOLA.',
+    });
+  }
+
+  const foreignDeclaration = parsePilaDeclaration(
+    row.extranjeroNoObligadoPension,
+  );
+  const colombianAbroadDeclaration = parsePilaDeclaration(
+    row.colombianoEnElExterior,
+  );
+  if (foreignDeclaration.invalid) {
+    errors.push({
+      fila,
+      campo: 'extranjeroNoObligadoPension',
+      mensaje: 'Usa SI o NO para la declaración de cotizante extranjero.',
+    });
+  }
+  if (colombianAbroadDeclaration.invalid) {
+    errors.push({
+      fila,
+      campo: 'colombianoEnElExterior',
+      mensaje: 'Usa SI o NO para la declaración de colombiano en el exterior.',
+    });
+  }
+
+  const extranjeroNoObligadoPension = foreignDeclaration.value ?? null;
+  const colombianoEnElExterior = colombianAbroadDeclaration.value ?? null;
+  for (const declarationError of validatePilaAffiliationDeclarations(
+    tipoDocumento ?? '',
+    { extranjeroNoObligadoPension, colombianoEnElExterior },
+  )) {
+    errors.push({
+      fila,
+      campo: declarationError.field,
+      mensaje: declarationError.message,
+    });
+  }
+
+  const startDate = parsePilaDate(row.afiliacionVigenteDesde);
+  if (!startDate.date) {
+    errors.push({
+      fila,
+      campo: 'afiliacionVigenteDesde',
+      mensaje: startDate.invalid
+        ? 'Fecha inválida; usa el formato YYYY-MM-DD.'
+        : 'La fecha inicial de afiliación es requerida.',
+    });
+  }
+  const endDate = parsePilaDate(row.afiliacionVigenteHasta);
+  if (endDate.invalid) {
+    errors.push({
+      fila,
+      campo: 'afiliacionVigenteHasta',
+      mensaje: 'Fecha inválida; usa el formato YYYY-MM-DD.',
+    });
+  }
+  if (startDate.date && endDate.date && endDate.date < startDate.date) {
+    errors.push({
+      fila,
+      campo: 'afiliacionVigenteHasta',
+      mensaje: 'La fecha final no puede ser anterior a la fecha inicial.',
+    });
+  }
+
+  if (
+    tipoCotizanteCodigo !== '01' ||
+    subtipoCotizanteCodigo !== '00' ||
+    !epsCodigo ||
+    !epsNombre ||
+    !fondoPensionCodigo ||
+    !fondoPensionNombre ||
+    !arlCodigo ||
+    !arlNombre ||
+    !arlClaseRiesgo ||
+    !['1', '2', '3', '4', '5'].includes(arlClaseRiesgo) ||
+    !cajaCompensacionCodigo ||
+    !cajaCompensacionNombre ||
+    !cajaCompensacionDepartamentoCodigo ||
+    !isColombiaDaneDepartmentCode(cajaCompensacionDepartamentoCodigo) ||
+    !startDate.date ||
+    endDate.invalid ||
+    (endDate.date !== undefined && endDate.date < startDate.date)
+  ) {
+    return undefined;
+  }
+
+  return {
+    tipoCotizanteCodigo,
+    subtipoCotizanteCodigo,
+    epsCodigo,
+    epsNombre,
+    fondoPensionCodigo,
+    fondoPensionNombre,
+    arlCodigo,
+    arlNombre,
+    arlClaseRiesgo,
+    cajaCompensacionCodigo,
+    cajaCompensacionNombre,
+    cajaCompensacionDepartamentoCodigo,
+    extranjeroNoObligadoPension,
+    colombianoEnElExterior,
+    vigenteDesde: startDate.date,
+    vigenteHasta: endDate.date ?? null,
+  };
+}
 
 @Injectable()
 export class EmployeeImportService {
@@ -196,6 +572,7 @@ export class EmployeeImportService {
         'COMPLETA',
         '',
         '',
+        ...PILA_AFFILIATION_FIELDS.map(() => ''),
       ],
     ]);
 
@@ -326,7 +703,10 @@ export class EmployeeImportService {
       tenantId: string;
     };
 
-    const validatedRows: EmployeeCreateData[] = [];
+    const validatedRows: Array<{
+      employee: EmployeeCreateData;
+      initialPilaAffiliation?: InitialPilaAffiliationData;
+    }> = [];
 
     for (let i = 0; i < dataRows.length; i++) {
       const row = dataRows[i];
@@ -379,6 +759,13 @@ export class EmployeeImportService {
           mensaje: 'El número PEP-TUTOR (PC) debe contener 7 u 8 dígitos.',
         });
       }
+
+      const initialPilaAffiliation = parseInitialPilaAffiliation(
+        row,
+        fila,
+        tipoDocumento,
+        errors,
+      );
 
       // primerNombre
       const primerNombre = str(row.primerNombre);
@@ -593,29 +980,34 @@ export class EmployeeImportService {
         !errors.find((e) => e.fila === fila)
       ) {
         validatedRows.push({
-          cedula,
-          tipoDocumento,
-          primerNombre,
-          segundoNombre: str(row.segundoNombre),
-          primerApellido,
-          segundoApellido: str(row.segundoApellido),
-          email: str(row.email) || undefined,
-          telefono: str(row.telefono),
-          cargo,
-          salario,
-          tipoContrato,
-          fechaIngreso: fechaIngresoParsed,
-          estado: (estadoRaw || undefined) as ValidEstado | undefined,
-          sedeId: resolvedSedeId,
-          dependencia: str(row.dependencia),
-          salarioIntegral: tipoSalarioPila === 'X',
-          tipoSalarioPila,
-          jornadaLaboral: (jornadaRaw || undefined) as ValidJornada | undefined,
-          fechaRetiro: fechaRetiroParsed,
-          motivoRetiro: (motivoRaw || undefined) as
-            | ValidMotivoRetiro
-            | undefined,
-          tenantId,
+          employee: {
+            cedula,
+            tipoDocumento,
+            primerNombre,
+            segundoNombre: str(row.segundoNombre),
+            primerApellido,
+            segundoApellido: str(row.segundoApellido),
+            email: str(row.email) || undefined,
+            telefono: str(row.telefono),
+            cargo,
+            salario,
+            tipoContrato,
+            fechaIngreso: fechaIngresoParsed,
+            estado: (estadoRaw || undefined) as ValidEstado | undefined,
+            sedeId: resolvedSedeId,
+            dependencia: str(row.dependencia),
+            salarioIntegral: tipoSalarioPila === 'X',
+            tipoSalarioPila,
+            jornadaLaboral: (jornadaRaw || undefined) as
+              | ValidJornada
+              | undefined,
+            fechaRetiro: fechaRetiroParsed,
+            motivoRetiro: (motivoRaw || undefined) as
+              | ValidMotivoRetiro
+              | undefined,
+            tenantId,
+          },
+          initialPilaAffiliation,
         });
       }
     }
@@ -649,10 +1041,48 @@ export class EmployeeImportService {
 
     // Atomic import
     await this.tenantPrisma.execute(async (prisma) => {
-      for (const data of validatedRows) {
-        await prisma.empleado.create({ data });
+      for (const row of validatedRows) {
+        const employee = await prisma.empleado.create({ data: row.employee });
+        if (row.initialPilaAffiliation) {
+          const affiliation = await prisma.afiliacionSeguridadSocial.create({
+            data: {
+              ...row.initialPilaAffiliation,
+              versionCaptura: SOCIAL_SECURITY_AFFILIATION_CAPTURE_VERSION,
+              registradoPorId: userId,
+              tenantId,
+              empleadoId: employee.id,
+            },
+          });
+          await this.auditService.log(
+            {
+              tenantId,
+              userId,
+              action: 'EMPLOYEE_SOCIAL_SECURITY_AFFILIATION_RECORDED',
+              entityType: 'AfiliacionSeguridadSocial',
+              entityId: affiliation.id,
+              metadata: {
+                empleadoId: employee.id,
+                source: 'EMPLOYEE_XLSX_IMPORT',
+                vigenteDesde: row.initialPilaAffiliation.vigenteDesde
+                  .toISOString()
+                  .slice(0, 10),
+                vigenteHasta:
+                  row.initialPilaAffiliation.vigenteHasta
+                    ?.toISOString()
+                    .slice(0, 10) ?? null,
+                versionCaptura: SOCIAL_SECURITY_AFFILIATION_CAPTURE_VERSION,
+                campos: Object.keys(row.initialPilaAffiliation),
+              },
+            },
+            prisma,
+          );
+        }
       }
     });
+
+    const affiliationsCreated = validatedRows.filter(
+      (row) => row.initialPilaAffiliation,
+    ).length;
 
     this.auditService
       .log({
@@ -662,14 +1092,15 @@ export class EmployeeImportService {
         entityType: 'Empleado',
         metadata: {
           importados: validatedRows.length,
-          cedulas: validatedRows.map((r) => r.cedula),
+          cedulas: validatedRows.map((r) => r.employee.cedula),
+          afiliacionesPilaIniciales: affiliationsCreated,
         },
       })
       .catch(() => {});
 
     return {
       imported: validatedRows.length,
-      message: `${validatedRows.length} empleado${validatedRows.length !== 1 ? 's' : ''} importado${validatedRows.length !== 1 ? 's' : ''} correctamente.`,
+      message: `${validatedRows.length} empleado${validatedRows.length !== 1 ? 's' : ''} importado${validatedRows.length !== 1 ? 's' : ''} correctamente.${affiliationsCreated > 0 ? ` ${affiliationsCreated} afiliación${affiliationsCreated !== 1 ? 'es' : ''} PILA inicial${affiliationsCreated !== 1 ? 'es' : ''} capturada${affiliationsCreated !== 1 ? 's' : ''}.` : ''}`,
     };
   }
 }

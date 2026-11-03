@@ -1,7 +1,10 @@
 import { expect, test } from '@playwright/test';
+import { createRequire } from 'node:module';
+import { join } from 'node:path';
 import { createSede } from './helpers/create-sede';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const xlsx = createRequire(join(process.cwd(), 'apps/api/package.json'))('xlsx');
 
 test('registra, busca, edita, desactiva e importa empleados desde la UI', async ({
   page,
@@ -298,6 +301,40 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   expect(templateResponse.ok, `template request failed: ${templateResponse.status}`).toBe(true);
   expect(templateResponse.contentType).toContain(XLSX_MIME);
   const templateBuffer = Buffer.from(templateResponse.base64, 'base64');
+  const templateWorkbook = xlsx.read(templateBuffer, { type: 'buffer' });
+  const templateSheetName = templateWorkbook.SheetNames[0] as string;
+  const templateRows = xlsx.utils.sheet_to_json(templateWorkbook.Sheets[templateSheetName], {
+    header: 1,
+    defval: '',
+  }) as unknown[][];
+  const templateHeaders = templateRows[0] as string[];
+  const sampleEmployee = templateRows[2] as unknown[];
+  const initialAffiliation: Record<string, string> = {
+    tipoCotizanteCodigo: '01',
+    subtipoCotizanteCodigo: '00',
+    epsCodigo: 'EPS001',
+    epsNombre: 'EPS Demo E2E',
+    fondoPensionCodigo: 'AFP001',
+    fondoPensionNombre: 'Fondo Demo E2E',
+    arlCodigo: 'ARL001',
+    arlNombre: 'ARL Demo E2E',
+    arlClaseRiesgo: '1',
+    cajaCompensacionCodigo: 'CCF001',
+    cajaCompensacionNombre: 'Caja Demo E2E',
+    cajaCompensacionDepartamentoCodigo: '08',
+    colombianoEnElExterior: 'NO',
+    afiliacionVigenteDesde: '2026-01-01',
+  };
+  for (const [header, value] of Object.entries(initialAffiliation)) {
+    const column = templateHeaders.indexOf(header);
+    expect(column, `missing template column ${header}`).toBeGreaterThanOrEqual(0);
+    sampleEmployee[column] = value;
+  }
+  templateRows[2] = sampleEmployee;
+  templateWorkbook.Sheets[templateSheetName] = xlsx.utils.aoa_to_sheet(templateRows);
+  const affiliationTemplateBuffer = Buffer.from(
+    xlsx.write(templateWorkbook, { type: 'buffer', bookType: 'xlsx' }),
+  );
 
   await search.fill('');
   await page.getByRole('button', { name: 'Importar', exact: true }).click();
@@ -305,10 +342,21 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await importDialog.locator('input[type="file"]').setInputFiles({
     name: 'plantilla_empleados.xlsx',
     mimeType: XLSX_MIME,
-    buffer: templateBuffer,
+    buffer: affiliationTemplateBuffer,
   });
   await importDialog.getByRole('button', { name: 'Importar', exact: true }).click();
 
   await expect(importDialog.getByRole('status')).toContainText('1 empleado');
+  await expect(importDialog.getByRole('status')).toContainText(
+    '1 afiliación PILA inicial capturada',
+  );
+  await importDialog.getByRole('button', { name: 'Cerrar' }).click();
   await expect(page.getByText('12345678', { exact: true })).toBeVisible();
+
+  const importedEmployeeRow = page.getByRole('row').filter({ hasText: '12345678' });
+  await importedEmployeeRow.getByRole('link', { name: /Ver detalle de/ }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Afiliaciones de seguridad social' }),
+  ).toBeVisible();
+  await expect(page.getByText('EPS Demo E2E')).toBeVisible();
 });

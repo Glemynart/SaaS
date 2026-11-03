@@ -269,6 +269,11 @@ export default function EmpleadosPage() {
               Asigna una sede activa a cada empleado en la columna sede; el nombre debe coincidir
               con una sede de tu organización.
             </p>
+            <p className="text-xs text-muted-foreground">
+              La afiliación PILA inicial es opcional por empleado: deja vacío todo el bloque o
+              completa sus datos y vigencia. Las declaraciones aplicables dependen del tipo de
+              documento; los códigos de administradoras no se validan contra catálogos oficiales.
+            </p>
 
             <div className="rounded-(--radius-card) border border-dashed border-border bg-canvas p-6 text-center">
               <input
