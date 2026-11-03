@@ -430,7 +430,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await expect(
     pilaImportDialog.getByRole('status').filter({ hasText: '1 afiliación nueva registrada' }),
   ).toBeVisible();
-  await pilaImportDialog.getByRole('button', { name: 'Cerrar' }).click();
+  await pilaImportDialog.getByRole('button', { name: 'Cerrar' }).last().click();
 
   await search.fill('12345678');
   const bulkUpdatedEmployeeRow = page.getByRole('row').filter({ hasText: '12345678' });
