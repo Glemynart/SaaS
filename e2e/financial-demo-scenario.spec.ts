@@ -411,6 +411,18 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
         exact: true,
       }),
     ).toBeVisible();
+    for (const [fieldNumber, label] of [
+      [28, 'Aporte voluntario a pensión (AVP)'],
+      [48, 'Aporte voluntario del afiliado a pensión'],
+      [49, 'Aporte voluntario del aportante a pensión'],
+      [50, 'Total de aportes a pensión (campos 47–49)'],
+      [53, 'Valor no retenido por aportes voluntarios'],
+    ] as const) {
+      const fieldStatus = pilaPreparationPanel
+        .getByText('Campo ' + fieldNumber + ' · ' + label, { exact: true })
+        .locator('xpath=..');
+      await expect(fieldStatus).toContainText('Con candidato: 0; pendientes: 1.');
+    }
     const upcFieldStatus = pilaPreparationPanel
       .getByText('Campo 56 · Valor de UPC adicional (solo cotizante 40)', { exact: true })
       .locator('xpath=..');

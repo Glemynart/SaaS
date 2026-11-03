@@ -1989,12 +1989,16 @@ describe('inspectPilaSnapshotPreparation', () => {
       candidateEmployees: 2,
       pendingEmployees: 0,
     });
-    for (const fieldNumber of [48, 49, 53]) {
+    for (const fieldNumber of [48, 49, 50, 53]) {
       expect(statusFor(fieldNumber)).toMatchObject({
-        candidateEmployees: 2,
-        pendingEmployees: 0,
+        candidateEmployees: 0,
+        pendingEmployees: 2,
       });
+      expect(
+        statusFor(fieldNumber)?.pendingReasons[0]?.affectedEmployees,
+      ).toHaveLength(2);
     }
+    expect(statusFor(50)?.pendingReasons[0]?.reason).toContain('47–49');
     for (const fieldNumber of [51, 52]) {
       expect(statusFor(fieldNumber)).toMatchObject({
         candidateEmployees: 0,
@@ -2091,8 +2095,8 @@ describe('inspectPilaSnapshotPreparation', () => {
         }),
         expect.objectContaining({
           fieldNumber: 28,
-          candidateEmployees: 2,
-          pendingEmployees: 0,
+          candidateEmployees: 0,
+          pendingEmployees: 2,
         }),
       ]),
     );
