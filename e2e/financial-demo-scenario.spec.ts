@@ -204,6 +204,11 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
       empleadosConDatosPendientes: number;
       archivoGenerable: boolean;
       estadoArchivo: string;
+      employerCandidate: {
+        values: Partial<
+          Record<number, { value: string | number | null; emptyAs?: 'spaces' | 'zeros' }>
+        >;
+      };
       issues: Array<{ code: string; affectedCount: number }>;
     };
     expect(preparation.formatVersion).toBeNull();
@@ -225,6 +230,10 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
     expect(preparation.empleadosConDatosPendientes).toBe(1);
     expect(preparation.archivoGenerable).toBe(false);
     expect(preparation.estadoArchivo).toBe('NO_IMPLEMENTADO');
+    expect(preparation.employerCandidate.values[16]).toEqual({
+      value: null,
+      emptyAs: 'zeros',
+    });
     expect(preparation.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -279,13 +288,16 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
       }),
     ).toBeVisible();
     await page.getByText('Ver estado de los 34 campos del aportante').click();
+    const employerCandidateRegion = page.getByRole('region', {
+      name: 'Archivo tipo 1 · aportante · candidatos por campo',
+    });
     await expect(
-      page
-        .getByRole('region', {
-          name: 'Archivo tipo 1 · aportante · candidatos por campo',
-        })
-        .getByText('Demo Financiera E2E S.A.S.', { exact: true }),
+      employerCandidateRegion.getByText('Demo Financiera E2E S.A.S.', { exact: true }),
     ).toBeVisible();
+    const employerFaxField = employerCandidateRegion
+      .getByText('Campo 16 · Fax', { exact: true })
+      .locator('xpath=..');
+    await expect(employerFaxField).toContainText('Ceros según regla candidata');
     const employerOperatorCodeField = page
       .getByText('Campo 28 · Código del operador', { exact: true })
       .locator('xpath=..');

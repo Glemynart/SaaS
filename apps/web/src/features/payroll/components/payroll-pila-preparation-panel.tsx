@@ -158,7 +158,9 @@ function candidateDisplay(
   const value = candidate.values[fieldNumber];
   if (value) {
     if (value.value === null) {
-      return value.emptyAs === 'spaces' ? 'En blanco según regla candidata' : 'Sin valor';
+      if (value.emptyAs === 'spaces') return 'En blanco según regla candidata';
+      if (value.emptyAs === 'zeros') return 'Ceros según regla candidata';
+      return 'Sin valor';
     }
     return typeof value.value === 'number'
       ? new Intl.NumberFormat('es-CO').format(value.value)

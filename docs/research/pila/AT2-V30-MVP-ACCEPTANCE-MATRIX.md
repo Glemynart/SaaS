@@ -85,11 +85,13 @@ p. 9).
 `pila-at2-v30-employer-mapper.ts` produce ahora un mapa candidato parcial de
 campos a valores congelados. Las posiciones 28–29 se representan vacías como
 candidatas para la carga; la aceptación de esta convención sigue pendiente de
-prueba real con SOI. El mapa no valida el registro ni lo serializa y deja
-explícitos los datos obligatorios ausentes (incluida la clase 7 en snapshots
-anteriores a su captura); no produce un archivo descargable. El campo 16 sin fax
-permanece pendiente porque todavía no está aprobada su representación vacía
-numérica.
+prueba real con SOI. El AT2 v30, p. 9, dispone que los campos numéricos se
+rellenen con ceros a la izquierda; por eso, cuando no se suministra fax, el
+campo 16 produce un candidato numérico de ceros, dado que el campo no se marca
+como obligatorio en la p. 13. Esta representación tampoco se ha validado con
+un operador. El mapa no valida el registro ni lo serializa y deja explícitos
+los datos obligatorios ausentes (incluida la clase 7 en snapshots anteriores a
+su captura); no produce un archivo descargable.
 
 ### Mapa de fuentes para el encabezado tipo 2 (registro 01)
 

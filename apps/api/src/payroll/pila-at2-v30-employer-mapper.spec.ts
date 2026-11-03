@@ -130,7 +130,7 @@ describe('mapPilaAt2V30EmployerCandidate', () => {
     expect(candidate.values[1]).toEqual({ value: ' Empresa Demo SAS ' });
   });
 
-  it('keeps absent required sources and an unconfirmed fax unresolved', () => {
+  it('keeps absent required sources unresolved and zero-fills an absent fax candidate', () => {
     const input = snapshot();
     delete input.payload.employer.pila.claseAportante;
     input.payload.employer.pila.fax = null;
@@ -138,12 +138,12 @@ describe('mapPilaAt2V30EmployerCandidate', () => {
     const candidate = mapPilaAt2V30EmployerCandidate(input);
 
     expect(candidate.values[7]).toBeUndefined();
-    expect(candidate.values[16]).toBeUndefined();
+    expect(candidate.values[16]).toEqual({ value: null, emptyAs: 'zeros' });
     expect(candidate.unresolvedFields).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ fieldNumber: 7 }),
-        expect.objectContaining({ fieldNumber: 16 }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ fieldNumber: 7 })]),
+    );
+    expect(candidate.unresolvedFields).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ fieldNumber: 16 })]),
     );
   });
 

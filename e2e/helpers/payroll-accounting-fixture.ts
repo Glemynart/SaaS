@@ -112,7 +112,7 @@ export async function seedPayrollAccrualFixture(
         codigoActividadEconomica: '1234',
         codigoArlAportante: 'ARL001',
         tipoAportante: '1',
-        fax: '6011234567',
+        fax: null,
         representanteTipoDocumento: 'CC',
         representanteNumeroDocumento: '123456789',
         representantePrimerApellido: 'Demo',
