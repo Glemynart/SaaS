@@ -339,8 +339,9 @@ export function PayrollPilaPreparationPanel({
               {query.data.headerCandidate.supportedSnapshots
                 ? 'Valores candidatos calculados desde snapshots PILA v2 del mismo tenant y período.'
                 : 'Se requieren snapshots PILA v2 del mismo tenant y período para proponer valores.'}{' '}
-              Los campos asignados al operador y los datos faltantes muestran su motivo. Esta
-              revisión no genera el archivo ni confirma su aceptación.
+              Los campos asignados al operador muestran la posición vacía candidata; los datos
+              faltantes muestran su motivo. Esta revisión no genera el archivo ni confirma su
+              aceptación.
             </p>
             <details className="mt-3 rounded-md bg-muted/40 px-3 py-2">
               <summary className="cursor-pointer text-sm font-medium">
