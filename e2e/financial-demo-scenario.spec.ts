@@ -244,6 +244,11 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
 
     await pilaPreparationPanel.getByRole('button', { name: 'Actualizar revisión' }).click();
     await expect(
+      pilaPreparationPanel.getByText('Campo 50 · Total de aportes a pensión (campos 47–49)', {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
       page.getByRole('heading', {
         name: 'Archivo tipo 1 · aportante · candidatos por campo',
       }),
