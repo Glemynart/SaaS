@@ -113,6 +113,9 @@ export function mapPilaAt2V30EmployerCandidate(
   const putBlank = (fieldNumber: number) => {
     values[fieldNumber] = { value: null, emptyAs: 'spaces' };
   };
+  const putNumericZeros = (fieldNumber: number) => {
+    values[fieldNumber] = { value: null, emptyAs: 'zeros' };
+  };
   const putRequiredText = (fieldNumber: number, value: unknown) => {
     const normalized = valueText(value);
     if (normalized === null) {
@@ -188,7 +191,13 @@ export function mapPilaAt2V30EmployerCandidate(
 
   putRequiredText(14, employerPila.codigoActividadEconomica);
   putRequiredText(15, employer.telefono);
-  putRequiredText(16, employerPila.fax);
+  if (valueText(employerPila.fax) === null) {
+    // AT2 v30 makes fax non-mandatory and specifies zero-fill for numeric
+    // fields. Keep this as a candidate; operator acceptance is still pending.
+    putNumericZeros(16);
+  } else {
+    putRequiredText(16, employerPila.fax);
+  }
   if (valueText(employer.email) === null) {
     // Email is optional and alphanumeric AT2 fields are blank-filled.
     putBlank(17);

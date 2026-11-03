@@ -510,9 +510,10 @@ se accedió a demo, staging o producción.
   v2 a campos candidatos del archivo tipo 1. No valida ni serializa el registro
   y no consulta maestros actuales; un snapshot sin versión o `tenantId` válido
   no produce valores candidatos.
-- Los campos 28–29 asignados al operador permanecen sin valor. También queda
-  sin resolver el campo 16 cuando el fax opcional está vacío, porque falta
-  confirmar la representación vacía de ese campo numérico.
+- Los campos 28–29 asignados al operador permanecen sin valor. Si el fax
+  opcional está vacío, el mapper propone el campo 16 como cero numérico según
+  la regla general de relleno AT2 v30; esa representación candidata aún
+  requiere aceptación por un operador antes de declarar compatibilidad.
 - Se incorporó `pilaClaseAportante` al perfil PILA nullable y al snapshot v2,
   para que la declaración viaje congelada con la nómina aprobada. Los snapshots
   históricos anteriores a la migración siguen sin ese dato y permanecen
