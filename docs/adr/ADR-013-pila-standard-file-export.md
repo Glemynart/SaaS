@@ -11,6 +11,12 @@
 > la conclusión previa de que la versión oficial era v29 y se corrigen las
 > afirmaciones sobre la falta de verificación de v30 y del hash.
 >
+> Nota de procedencia: los metadatos internos del PDF conservan un título ajeno
+> al anexo y la página 1 muestra un pie heredado «VERSIÓN 2 (28 de Noviembre del
+> 2014)». La página 2 identifica el documento como AT2 versión 30, fecha
+> 24-07-2026, y enumera la Resolución 1529 de 2026; esa página es la referencia
+> usada para identificar la versión normativa.
+>
 > El informe preliminar conserva `formatVersion: null` porque no genera ni fija
 > una versión de archivo. `normativeSourceStatus` sigue
 > `RECONCILIATION_PENDING` porque faltan cotejar campos, reglas aplicables,
