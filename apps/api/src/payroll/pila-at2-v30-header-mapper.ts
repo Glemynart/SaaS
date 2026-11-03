@@ -56,8 +56,8 @@ function fullCalendarMonth(start: string, end: string): boolean {
  * Maps candidate type 2 header fields from one snapshot set. It only
  * accepts snapshots matching the authenticated tenant and approved period,
  * refuses totals if a contributor is duplicated or outside the standard MVP,
- * and leaves operator/system-assigned fields unresolved. It does not serialize
- * a record.
+ * and represents operator-assigned fields as explicit blank-position
+ * candidates. It does not serialize a record or establish operator acceptance.
  */
 export function mapPilaAt2V30HeaderCandidate(input: {
   expectedTenantId: string | null;
@@ -206,7 +206,7 @@ export function mapPilaAt2V30HeaderCandidate(input: {
   );
 
   put(1, '01');
-  unresolved(2, 'AT2 asigna la modalidad de planilla al operador.');
+  putBlank(2);
   put(3, '1');
   const mapSharedEmployerField = (
     headerField: number,
@@ -258,14 +258,14 @@ export function mapPilaAt2V30HeaderCandidate(input: {
     unresolved(14, 'Falta un código ARL del aportante único y congelado.');
   }
 
-  unresolved(15, 'AT2 asigna este período de pago al operador.');
+  putBlank(15);
   if (isFullCalendarMonth) {
     put(16, periodStart.slice(0, 7));
   } else {
     unresolved(16, 'El snapshot no cubre un mes calendario completo.');
   }
-  unresolved(17, 'El número de radicación lo asigna el operador.');
-  unresolved(18, 'La fecha de pago efectiva la asigna el operador.');
+  putBlank(17);
+  putBlank(18);
 
   const employeeIds = parsed.map(({ snapshot }) => snapshot.employeeId);
   const duplicateEmployees = new Set(employeeIds).size !== employeeIds.length;
@@ -348,7 +348,7 @@ export function mapPilaAt2V30HeaderCandidate(input: {
   }
 
   mapSharedEmployerField(21, 30);
-  unresolved(22, 'AT2 asigna el código del operador al sistema del operador.');
+  putBlank(22);
 
   return {
     formatVersion: 'AT2_V30',

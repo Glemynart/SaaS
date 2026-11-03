@@ -1129,3 +1129,26 @@ false`.
   únicamente para enero–junio con fuentes aprobadas; sin pagos ni Ledger.
   **VALIDACIÓN OPERATIVA PENDIENTE:** revisión laboral independiente y regla
   para el segundo semestre; no bloquean la demo controlada ni el resto del Goal.
+
+### Campos PILA que asigna el operador — 2026-11-03
+
+- **Fuente oficial comprobada:** la descarga directa del Anexo Técnico 2 que
+  enlaza MinSalud tiene SHA-256
+  `BBB3C2D0486FD7D3934BD640D8E68C60D33686B1604E8EFAA980139FB5686D33`; al
+  renderizar la página impresa 15 se confirma AT2 v30, fechado 2026-07-24, y
+  que el aportante tipo 1, campos 28 y 29, son asignados por el sistema. La
+  página pública actual de SOI solicita tipo de planilla y período (mes/año)
+  antes de liquidar o cargar el archivo.
+- **Inferencia delimitada:** los mapas candidatos de tipo 1 y cabecera tipo 2
+  dejan vacías, manteniendo sus posiciones, las celdas cuyo valor final asigna
+  el operador. El serializer solo permite esa representación vacía en campos
+  marcados como asignados por el operador. Una carga real todavía debe confirmar
+  que SOI acepta la convención; no se declara compatibilidad ni se habilita la
+  descarga.
+- Se conserva fuera de alcance cualquier dato no congelado en el snapshot; en
+  particular la fecha prevista de pago no se convierte en fecha efectiva ni en
+  número de radicación. La composición del archivo, la validación local
+  completa y los campos laborales/FSP aún pendientes siguen bloqueando la
+  exportación.
+- Fuentes: [Anexo Técnico 2 de MinSalud](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/OT/anexo-tecnico2-cotizantes.pdf);
+  [pasos de liquidación y carga de SOI](https://www.soi.com.co/empresa-como-hacer-y-pagar-la-planilla).

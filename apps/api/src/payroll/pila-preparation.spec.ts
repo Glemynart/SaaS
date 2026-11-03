@@ -1826,24 +1826,17 @@ describe('inspectPilaSnapshotPreparation', () => {
       tenantId: 'tenant-1',
       payrollPeriodId: 'period-1',
       values: {
+        2: { value: null, emptyAs: 'spaces' },
         4: { value: 'Empresa Demo SAS' },
         16: { value: '2026-10' },
+        15: { value: null, emptyAs: 'spaces' },
+        17: { value: null, emptyAs: 'spaces' },
+        18: { value: null, emptyAs: 'spaces' },
         19: { value: 1 },
         20: { value: 3_000_000 },
+        22: { value: null, emptyAs: 'spaces' },
       },
     });
-    expect(report.headerCandidate.unresolvedFields).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          fieldNumber: 2,
-          code: 'AT2_HEADER_FIELD_UNRESOLVED',
-        }),
-        expect.objectContaining({
-          fieldNumber: 22,
-          code: 'AT2_HEADER_FIELD_UNRESOLVED',
-        }),
-      ]),
-    );
     expect(report.employerCandidate).toMatchObject({
       formatVersion: 'AT2_V30',
       supportedSnapshots: true,
@@ -1853,18 +1846,15 @@ describe('inspectPilaSnapshotPreparation', () => {
         1: { value: 'Empresa Demo SAS' },
         3: { value: '900123456' },
         13: { value: '11' },
+        28: { value: null, emptyAs: 'spaces' },
+        29: { value: null, emptyAs: 'spaces' },
       },
     });
-    expect(report.employerCandidate.unresolvedFields).toEqual(
+    expect(report.exportReadiness.blockers).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          fieldNumber: 28,
-          reason: 'AT2 asigna el código del operador; no está en el snapshot.',
-        }),
-        expect.objectContaining({
-          fieldNumber: 29,
-          reason:
-            'El período/código de pago lo asigna el operador; no se infiere.',
+          code: 'SOI_OPERATOR_FIELDS_UNCONFIRMED',
+          scope: 'OPERATOR_COMPATIBILITY',
         }),
       ]),
     );

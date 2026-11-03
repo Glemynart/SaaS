@@ -286,13 +286,18 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
         })
         .getByText('Demo Financiera E2E S.A.S.', { exact: true }),
     ).toBeVisible();
-    await expect(
-      page.getByText('AT2 asigna el código del operador; no está en el snapshot.'),
-    ).toBeVisible();
+    const employerOperatorCodeField = page
+      .getByText('Campo 28 · Código del operador', { exact: true })
+      .locator('xpath=..');
+    await expect(employerOperatorCodeField).toContainText('En blanco según regla candidata');
     await expect(
       page.getByRole('heading', { name: 'Encabezado tipo 2 · candidatos por campo' }),
     ).toBeVisible();
     await page.getByText('Ver estado de los 22 campos del encabezado').click();
+    const headerOperatorModeField = page
+      .getByText('Campo 2 · Modalidad de planilla', { exact: true })
+      .locator('xpath=..');
+    await expect(headerOperatorModeField).toContainText('En blanco según regla candidata');
     await expect(page.getByText('Campo 20 · Total IBC de caja de compensación')).toBeVisible();
     await expect(page.getByText('1.000.000', { exact: true })).toBeVisible();
     await expect(page.getByText('No implementadas', { exact: true })).toBeVisible();

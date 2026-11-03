@@ -73,7 +73,7 @@ function snapshot(
 }
 
 describe('mapPilaAt2V30EmployerCandidate', () => {
-  it('maps explicit employer snapshot sources and leaves operator fields unresolved', () => {
+  it('maps snapshot data and leaves operator-assigned fields as blank candidates', () => {
     const candidate = mapPilaAt2V30EmployerCandidate(snapshot());
 
     expect(candidate).toMatchObject({
@@ -96,12 +96,12 @@ describe('mapPilaAt2V30EmployerCandidate', () => {
       22: { value: null, emptyAs: 'spaces' },
       24: { value: null, emptyAs: 'spaces' },
       26: { value: '0' },
+      28: { value: null, emptyAs: 'spaces' },
+      29: { value: null, emptyAs: 'spaces' },
       33: { value: 'N' },
       34: { value: 'N' },
     });
-    expect(candidate.values[28]).toBeUndefined();
-    expect(candidate.values[29]).toBeUndefined();
-    expect(candidate.unresolvedFields).toEqual(
+    expect(candidate.unresolvedFields).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ fieldNumber: 28 }),
         expect.objectContaining({ fieldNumber: 29 }),
@@ -213,11 +213,14 @@ describe('mapPilaAt2V30EmployerAggregateCandidate', () => {
         33: { value: 'N' },
       },
     });
-    expect(candidate.values[28]).toBeUndefined();
-    expect(candidate.unresolvedFields).toContainEqual({
-      fieldNumber: 28,
-      reason: 'AT2 asigna el código del operador; no está en el snapshot.',
-    });
+    expect(candidate.values[28]).toEqual({ value: null, emptyAs: 'spaces' });
+    expect(candidate.values[29]).toEqual({ value: null, emptyAs: 'spaces' });
+    expect(candidate.unresolvedFields).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ fieldNumber: 28 }),
+        expect.objectContaining({ fieldNumber: 29 }),
+      ]),
+    );
   });
 
   it('leaves conflicting employer values unresolved without choosing a snapshot', () => {
