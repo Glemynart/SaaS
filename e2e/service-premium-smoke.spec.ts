@@ -53,6 +53,9 @@ async function seedServicePremiumFixture(tenantId: string, actorId: string) {
     name: `Empleado Prima ${String(index + 1).padStart(3, '0')}`,
     document: `service-premium-${suffix}-${index + 1}`,
   }));
+  const correctionId = randomUUID();
+  const correctedSnapshotId = randomUUID();
+  let correctionPeriodId: string | null = null;
   const salary = 2_000_000;
   const transport = 200_000;
 
@@ -91,6 +94,7 @@ async function seedServicePremiumFixture(tenantId: string, actorId: string) {
 
       for (let month = 1; month <= 6; month += 1) {
         const periodId = randomUUID();
+        if (month === 1) correctionPeriodId = periodId;
         const monthString = String(month).padStart(2, '0');
         const start = new Date(Date.UTC(2026, month - 1, 1));
         const end = new Date(Date.UTC(2026, month, 0));
@@ -109,12 +113,13 @@ async function seedServicePremiumFixture(tenantId: string, actorId: string) {
             aprobadoEn: end,
           },
         });
-        const runs = employees.map((employee) => {
+        const runs = employees.map((employee, index) => {
           const payrollRunId = randomUUID();
+          const snapshotId = month === 1 && index === 0 ? correctedSnapshotId : randomUUID();
           return {
             employee,
             payrollRunId,
-            snapshotId: randomUUID(),
+            snapshotId,
             run: {
               id: payrollRunId,
               tenantId,
@@ -169,12 +174,56 @@ async function seedServicePremiumFixture(tenantId: string, actorId: string) {
           })),
         });
       }
+
+      if (!correctionPeriodId) throw new Error('Falta el período corregido.');
+      await tx.payrollCorrection.create({
+        data: {
+          id: correctionId,
+          tenantId,
+          payrollPeriodId: correctionPeriodId,
+          status: 'APROBADA',
+          descripcion: 'Ajuste aprobado de horas extra para prueba de prima.',
+          intentVersion: 1,
+          intent: {
+            version: 1,
+            intents: [
+              {
+                id: correctionId,
+                kind: 'SET_CALCULATION_INPUT',
+                snapshotId: correctedSnapshotId,
+                input: 'OVERTIME',
+                targetAmount: 60_000,
+              },
+            ],
+          },
+          materializationVersion: 1,
+          materialization: {
+            version: 1,
+            generatedAt: '2026-07-01T00:00:00.000Z',
+            snapshotIds: [correctedSnapshotId],
+            approvedCorrectionIds: [correctionId],
+            entries: [
+              {
+                snapshotId: correctedSnapshotId,
+                employeeId: employees[0].id,
+                centroCostoId: null,
+                concept: { codigo: 'OVERTIME', tipo: 'EARNING' },
+                delta: 60_000,
+              },
+            ],
+          },
+          materializedAt: new Date('2026-07-01T00:00:00.000Z'),
+        },
+      });
     });
 
     return {
       employeeCount,
       employeeIds: employees.map((employee) => employee.id),
       firstEmployeeName: employees[0].name,
+      correctedEmployeeId: employees[0].id,
+      correctedSnapshotId,
+      correctionId,
       inspectPersistedState: async () =>
         prisma.$transaction(async (tx: any) => {
           await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
@@ -198,7 +247,9 @@ async function seedServicePremiumFixture(tenantId: string, actorId: string) {
   }
 }
 
-test('genera los 100 PDF del lote aunque el navegador pierda conexión', async ({ page }) => {
+test('aplica una corrección aprobada y genera los 100 PDFs aunque el navegador pierda conexión', async ({
+  page,
+}) => {
   test.setTimeout(8 * 60_000);
   const { tenant, user } = await registerAndSignIn(page);
   const fixture = await seedServicePremiumFixture(tenant.id, user.id);
@@ -221,7 +272,12 @@ test('genera los 100 PDF del lote aunque el navegador pierda conexión', async (
 
     await expect(page.getByText(fixture.firstEmployeeName, { exact: true })).toBeVisible();
     await expect(page.getByText('Lista para aprobar', { exact: true }).first()).toBeVisible();
-    await expect(page.getByText('1.100.000', { exact: false }).first()).toBeVisible();
+    const correctedEmployeeRow = page
+      .getByRole('row')
+      .filter({ hasText: fixture.firstEmployeeName });
+    await expect(correctedEmployeeRow).toContainText('1.105.000');
+    const regularEmployeeRow = page.getByRole('row').filter({ hasText: 'Empleado Prima 002' });
+    await expect(regularEmployeeRow).toContainText('1.100.000');
     await expect(page.getByRole('row')).toHaveCount(fixture.employeeCount + 1);
 
     const approveResponsePromise = page.waitForResponse(
@@ -272,15 +328,41 @@ test('genera los 100 PDF del lote aunque el navegador pierda conexión', async (
     const persisted = await fixture.inspectPersistedState();
     expect(persisted.batch?.status).toBe('COMPLETADO');
     expect(persisted.batch?.lines).toHaveLength(fixture.employeeCount);
+    const correctedLine = persisted.batch?.lines.find(
+      (line: { employeeId: string }) => line.employeeId === fixture.correctedEmployeeId,
+    );
+    expect(Number(correctedLine?.amount)).toBe(1_105_000);
+    expect(correctedLine?.snapshot).toMatchObject({
+      correctionIds: [fixture.correctionId],
+      correctionEvidence: [
+        {
+          id: fixture.correctionId,
+          entries: [
+            {
+              snapshotId: fixture.correctedSnapshotId,
+              codigo: 'OVERTIME',
+              tipo: 'EARNING',
+              delta: 60_000,
+            },
+          ],
+        },
+      ],
+    });
     expect(
       persisted.batch?.lines.every((line: { status: string }) => line.status === 'DOCUMENTADA'),
     ).toBe(true);
     expect(
-      persisted.batch?.lines.every(
+      persisted.batch?.lines.filter(
+        (line: { amount: unknown; serviceDays360: number }) =>
+          Number(line.amount) === 1_105_000 && line.serviceDays360 === 180,
+      ),
+    ).toHaveLength(1);
+    expect(
+      persisted.batch?.lines.filter(
         (line: { amount: unknown; serviceDays360: number }) =>
           Number(line.amount) === 1_100_000 && line.serviceDays360 === 180,
       ),
-    ).toBe(true);
+    ).toHaveLength(fixture.employeeCount - 1);
     expect(
       persisted.batch?.lines.every((line: { documentSha256: string | null }) =>
         /^[a-f0-9]{64}$/.test(line.documentSha256 ?? ''),

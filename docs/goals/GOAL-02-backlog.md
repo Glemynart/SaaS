@@ -1153,3 +1153,23 @@ false`.
   exportación.
 - Fuentes: [Anexo Técnico 2 de MinSalud](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/OT/anexo-tecnico2-cotizantes.pdf);
   [pasos de liquidación y carga de SOI](https://www.soi.com.co/empresa-como-hacer-y-pagar-la-planilla).
+
+### Corrección aprobada en lote de prima masiva — 2026-11-03
+
+- El Browser E2E de 100 empleados incluye una corrección aprobada de horas
+  extra (+$60.000) congelada en el snapshot de enero. El preview calcula
+  $1.105.000 para esa persona y $1.100.000 para las otras 99, con 180 días
+  computables para cada una.
+- Tras aprobar, la prueba desconecta el navegador, confirma la finalización del
+  lote, verifica las 100 publicaciones inmutables con SHA-256 y descarga un PDF
+  válido. También comprueba que la línea conserva la identidad y evidencia de
+  la corrección aplicada.
+- La prueba unitaria del worker verifica que el HTML enviado al renderizador
+  contiene identidad, componentes de la base, días, importe aprobado y versión
+  de fórmula. Esto valida la entrada al renderizador; el E2E comprueba la
+  descarga del PDF, no extrae su contenido textual.
+- Evidencia local: Browser E2E (1/1, 39,6 s) sobre PostgreSQL 16 desechable con
+  81 migraciones; pruebas de cálculo, servicio y worker (52/52); typecheck API
+  y web; builds API y web. La base de desarrollo no se usó. La prima sigue
+  limitada a enero–junio para demo; revisión laboral independiente y regla del
+  segundo semestre siguen pendientes antes de uso operativo.

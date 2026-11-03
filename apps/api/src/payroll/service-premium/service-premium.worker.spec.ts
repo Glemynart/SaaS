@@ -29,7 +29,11 @@ describe('ServicePremiumService background worker', () => {
       work(transaction),
     );
     const pdf = Buffer.from('synthetic-pdf');
-    const renderPdf = jest.fn().mockResolvedValue(pdf);
+    const renderedHtmlInputs: string[] = [];
+    const renderPdf = jest.fn((html: string) => {
+      renderedHtmlInputs.push(html);
+      return Promise.resolve(pdf);
+    });
     const putObject = jest.fn().mockResolvedValue(undefined);
     const publishServicePremiumDocument = jest
       .fn()
@@ -50,10 +54,10 @@ describe('ServicePremiumService background worker', () => {
             sourceSnapshotIds: ['snapshot-1'],
           },
           salaryBase: 2_000_000,
-          variableSalary: 0,
+          variableSalary: 10_000,
           transportAllowance: 200_000,
           serviceDays360: 180,
-          amount: 1_100_000,
+          amount: 1_105_000,
           sourceFingerprint: 'fingerprint-1',
           employee: {
             id: 'employee-1',
@@ -90,6 +94,15 @@ describe('ServicePremiumService background worker', () => {
     await service.processApprovedBatches();
 
     expect(renderPdf).toHaveBeenCalledTimes(1);
+    const renderedHtml = renderedHtmlInputs.at(0) ?? '';
+    expect(renderedHtml).toContain('Ana Demo');
+    expect(renderedHtml).toContain('1001');
+    expect(renderedHtml).toContain('2.000.000');
+    expect(renderedHtml).toContain('10.000');
+    expect(renderedHtml).toContain('200.000');
+    expect(renderedHtml).toContain('180');
+    expect(renderedHtml).toContain('1.105.000');
+    expect(renderedHtml).toContain('PRIMA_SEMESTRAL_V1');
     expect(putObject).toHaveBeenCalledWith(
       expect.objectContaining({
         key: 'tenant-1/nomina/prima/2026/S1/v1/line-1.pdf',
