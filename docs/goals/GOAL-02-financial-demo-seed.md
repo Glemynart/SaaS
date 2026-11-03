@@ -39,8 +39,11 @@ no se identifiquen como demostración.
 
 - Dos clientes y tres productos ficticios.
 - Dos facturas internas `ISSUED` y una `DRAFT`, con impuesto interno del 19%.
-  `ISSUED` no significa transmisión ni validación fiscal DIAN; no se genera
-  comprobante contable para estas facturas.
+  Cada factura `ISSUED` se emite mediante `BillingService` y crea, en la misma
+  transacción tenant-scoped, un comprobante balanceado en Ledger con cuentas
+  por cobrar, ingreso y el impuesto aplicable. La factura `DRAFT` no crea
+  comprobante. `ISSUED` es un estado interno: no significa transmisión ni
+  validación fiscal DIAN.
 - Un empleado sintético, su tercero canónico marcado como empleado y un centro
   de costo para satisfacer las dimensiones requeridas por el PUC.
 - Un período de nómina aprobado con un snapshot marcado como sintético y no
@@ -59,9 +62,10 @@ sobrescribe datos existentes.
 
 Los datos usan nombres, correos y documentos reservados para demostración. No
 son apropiados para liquidaciones laborales, facturación fiscal, DIAN, UGPP,
-pagos o declaraciones reales. La causación sí crea un comprobante interno
-contabilizado; el Ledger es append-only y el comprobante no se elimina. Para
-corregir un comprobante, se debe usar el flujo de reversión contable vigente.
+pagos o declaraciones reales. Las facturas emitidas y la causación de nómina
+crean comprobantes internos contabilizados; el Ledger es append-only y esos
+comprobantes no se eliminan. Para corregirlos, se debe usar el flujo de
+reversión contable vigente.
 
 No se incluye una rutina de limpieza. Para repetir una grabación, reutiliza la
 misma demo sin volver a crear filas; para una demo limpia, usa un tenant local
