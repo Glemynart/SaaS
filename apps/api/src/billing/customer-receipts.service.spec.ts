@@ -362,6 +362,24 @@ describe('CustomerReceiptsService', () => {
     expect(ledger.registrarComprobante).toHaveBeenCalledTimes(1);
   });
 
+  it('rechecks idempotency after a concurrent request releases the invoice lock', async () => {
+    await service.create('tenant-1', 'user-1', dto);
+    const requestHash = createdReceiptInputs[0]?.data.requestHash;
+    tx.customerReceipt.findUnique.mockReset();
+    tx.customerReceipt.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'receipt-1', requestHash });
+    const invoiceReadCount = tx.invoice.findMany.mock.calls.length;
+
+    const replay = await service.create('tenant-1', 'user-1', dto);
+
+    expect(tx.customerReceipt.findUnique).toHaveBeenCalledTimes(2);
+    expect(tx.invoice.findMany).toHaveBeenCalledTimes(invoiceReadCount);
+    expect(createdReceiptInputs).toHaveLength(1);
+    expect(ledger.registrarComprobante).toHaveBeenCalledTimes(1);
+    expect(replay).toEqual(expect.objectContaining({ id: 'receipt-1' }));
+  });
+
   it('rechaza reutilizar la clave de idempotencia con otro contenido', async () => {
     tx.customerReceipt.findUnique.mockResolvedValue({
       id: 'receipt-1',

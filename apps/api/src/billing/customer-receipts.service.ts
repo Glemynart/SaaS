@@ -127,6 +127,27 @@ export class CustomerReceiptsService {
         }
 
         await this.lockInvoices(tx, tenantId, ids);
+        const concurrentReceipt = await tx.customerReceipt.findUnique({
+          where: {
+            tenantId_idempotencyKey: {
+              tenantId,
+              idempotencyKey: dto.idempotencyKey,
+            },
+          },
+        });
+        if (concurrentReceipt) {
+          if (concurrentReceipt.requestHash !== normalized.requestHash) {
+            throw new ConflictException(
+              'La clave de idempotencia ya se usó con otros datos.',
+            );
+          }
+          return this.findReceiptWithVoucher(
+            tx,
+            tenantId,
+            concurrentReceipt.id,
+          );
+        }
+
         const invoices = await tx.invoice.findMany({
           where: { id: { in: ids }, tenantId },
           select: {
