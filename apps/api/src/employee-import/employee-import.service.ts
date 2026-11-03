@@ -1034,7 +1034,7 @@ export class EmployeeImportService {
 
     return {
       ...result,
-      message: `${result.created} afiliación${result.created === 1 ? '' : 'es'} nueva${result.created === 1 ? '' : 's'} registrada${result.created === 1 ? '' : 's'}; ${result.unchanged} fila${result.unchanged === 1 ? '' : 's'} sin cambios.`,
+      message: `${result.created} ${result.created === 1 ? 'afiliación' : 'afiliaciones'} ${result.created === 1 ? 'nueva registrada' : 'nuevas registradas'}; ${result.unchanged} fila${result.unchanged === 1 ? '' : 's'} sin cambios.`,
     };
   }
 

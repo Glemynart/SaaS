@@ -330,7 +330,11 @@ describe('EmployeeImportService', () => {
         USER_ID,
         workbookBuffer([pilaBulkAffiliationRow()], PILA_BULK_HEADERS),
       ),
-    ).resolves.toMatchObject({ created: 0, unchanged: 1 });
+    ).resolves.toMatchObject({
+      created: 0,
+      unchanged: 1,
+      message: '0 afiliaciones nuevas registradas; 1 fila sin cambios.',
+    });
     expect(mockCreateAffiliationInTransaction).not.toHaveBeenCalled();
   });
 
