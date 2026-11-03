@@ -1242,3 +1242,6 @@ false`.
   ejecución creó un recaudo; la segunda reportó cero recaudos nuevos. La
   consulta confirmó factura $285.600, aplicación $100.000, saldo $185.600 y
   comprobante CI balanceado con Banco 111005 y Cartera 130505.
+- Browser E2E local pasó (1/1, 23,7 s) sobre la misma clase de base temporal;
+  el test ejecuta el seed con `ts-node` y el `tsconfig` de API para no importar
+  directamente servicios Nest decorados desde el transformador Playwright.

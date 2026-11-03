@@ -1,6 +1,8 @@
+import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
 import { randomInt, randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
-import { seedFinancialDemoScenario } from '../apps/api/prisma/seed-financial-demo';
 
 function colombiaCalendarDate(value: Date | string): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -59,17 +61,53 @@ async function registerAndSignIn(page: Page) {
 }
 
 async function seedAsExplicitTarget(tenantId: string, actorId: string) {
-  const previousTenantId = process.env.FINANCIAL_DEMO_SEED_TENANT_ID;
-  process.env.FINANCIAL_DEMO_SEED_TENANT_ID = tenantId;
+  const apiDirectory = resolve(process.cwd(), 'apps/api');
+  const apiRequire = createRequire(resolve(apiDirectory, 'package.json'));
+  const tsNodeCli = apiRequire.resolve('ts-node/dist/bin.js');
+  const runner = `
+    const { seedFinancialDemoScenario } = require('./prisma/seed-financial-demo');
+    seedFinancialDemoScenario(${JSON.stringify(tenantId)}, ${JSON.stringify(actorId)})
+      .then((result: unknown) => console.log('FINANCIAL_DEMO_SEED_RESULT=' + JSON.stringify(result)))
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.log('FINANCIAL_DEMO_SEED_ERROR=' + message);
+        process.exitCode = 1;
+      });
+  `;
+  let stdout: string;
   try {
-    return await seedFinancialDemoScenario(tenantId, actorId);
-  } finally {
-    if (previousTenantId === undefined) {
-      delete process.env.FINANCIAL_DEMO_SEED_TENANT_ID;
-    } else {
-      process.env.FINANCIAL_DEMO_SEED_TENANT_ID = previousTenantId;
-    }
+    stdout = execFileSync(
+      process.execPath,
+      [tsNodeCli, '--project', 'tsconfig.json', '-r', 'tsconfig-paths/register', '-e', runner],
+      {
+        cwd: apiDirectory,
+        env: {
+          ...process.env,
+          FINANCIAL_DEMO_SEED_TENANT_ID: tenantId,
+        },
+        encoding: 'utf8',
+      },
+    );
+  } catch (error) {
+    const output =
+      typeof error === 'object' && error !== null
+        ? [
+            'stdout' in error ? String(error.stdout) : '',
+            'stderr' in error ? String(error.stderr) : '',
+          ].join('\n')
+        : String(error);
+    const errorLine = output
+      .split(/\r?\n/)
+      .find((line) => line.startsWith('FINANCIAL_DEMO_SEED_ERROR='));
+    throw new Error(errorLine?.slice('FINANCIAL_DEMO_SEED_ERROR='.length) || output.trim());
   }
+  const resultLine = stdout
+    .split(/\r?\n/)
+    .find((line) => line.startsWith('FINANCIAL_DEMO_SEED_RESULT='));
+  if (!resultLine) {
+    throw new Error('El proceso del seed no devolvió un resultado JSON.');
+  }
+  return JSON.parse(resultLine.slice('FINANCIAL_DEMO_SEED_RESULT='.length));
 }
 
 test('carga datos financieros de demo de forma tenant-scoped e idempotente', async ({ page }) => {
