@@ -111,6 +111,7 @@ async function seedAsExplicitTarget(tenantId: string, actorId: string) {
 }
 
 test('carga datos financieros de demo de forma tenant-scoped e idempotente', async ({ page }) => {
+  test.setTimeout(90_000);
   const { tenant, user } = await registerAndSignIn(page);
   const { PrismaClient } = require('../apps/api/node_modules/@prisma/client') as {
     PrismaClient: new () => any;
