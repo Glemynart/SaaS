@@ -13,6 +13,7 @@ const PAYROLL_CORRECTION_ADJUSTMENT_ORIGIN = {
   type: 'PAYROLL_CORRECTION',
   event: 'AJUSTE',
 } as const;
+const CUSTOMER_RECEIPT_ORIGIN = 'BILLING_RECEIPT';
 
 class AccountedCorrectionDependentsException extends ConflictException {
   constructor(
@@ -66,6 +67,15 @@ export class ManualJournalService {
             origenEvento: true,
           },
         });
+
+        if (
+          comprobante?.estado !== 'ANULADO' &&
+          comprobante?.origenTipo === CUSTOMER_RECEIPT_ORIGIN
+        ) {
+          throw new ConflictException(
+            'Este comprobante pertenece a un recaudo. Use la opción de reversión del módulo de cartera para conservar la trazabilidad.',
+          );
+        }
 
         if (
           comprobante?.estado !== 'ANULADO' &&
