@@ -23,7 +23,7 @@ describe('AuthorizationSurfaceClassifier', () => {
   it('classifies the complete current HTTP surface without ambiguity', () => {
     const operations = classifier.classifyModuleGraph(AppModule);
 
-    expect(operations).toHaveLength(211);
+    expect(operations).toHaveLength(212);
     expect(new Set(operations.map(({ operationId }) => operationId)).size).toBe(
       operations.length,
     );
@@ -49,11 +49,11 @@ describe('AuthorizationSurfaceClassifier', () => {
 
     expect(countBy(operations, 'policy')).toEqual({
       [AuthorizationPolicyKind.UNAUTHENTICATED]: 12,
-      [AuthorizationPolicyKind.AUTHENTICATED]: 66,
+      [AuthorizationPolicyKind.AUTHENTICATED]: 67,
       [AuthorizationPolicyKind.RBAC]: 133,
     });
     expect(countBy(operations, 'source')).toEqual({
-      [AuthorizationClassificationSource.EXPLICIT]: 78,
+      [AuthorizationClassificationSource.EXPLICIT]: 79,
       [AuthorizationClassificationSource.EXISTING_RBAC]: 133,
     });
     expect(
@@ -62,6 +62,19 @@ describe('AuthorizationSurfaceClassifier', () => {
           source === AuthorizationClassificationSource.LEGACY_INFERRED,
       ),
     ).toEqual([]);
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'CustomerReceiptsController.findReceivableInvoices',
+      ),
+    ).toMatchObject({
+      requestMethod: 'GET',
+      operationPath: 'billing/customers/:id/receivable-invoices',
+      policy: AuthorizationPolicyKind.AUTHENTICATED,
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
     expect(
       operations.find(
         ({ operationId }) =>
