@@ -81,6 +81,12 @@ export type CreateEmployeeInput = Partial<Employee> & {
   afiliacionPilaInicial?: CreateSocialSecurityAffiliation;
 };
 
+export interface ImportPilaAffiliationsResult {
+  created: number;
+  unchanged: number;
+  message: string;
+}
+
 export interface PilaWorkCenter {
   id: string;
   tenantId: string;
@@ -351,6 +357,44 @@ export const employeesApi = {
     document.body.appendChild(a);
     a.click();
     a.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
+  importPilaAffiliationsFile: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch('/api/employees/import/pila-affiliations', {
+      method: 'POST',
+      body: formData,
+    });
+    const body = (await response.json().catch(() => ({}))) as ApiEnvelope<
+      ImportPilaAffiliationsResult & {
+        errors?: { fila: number; campo: string; mensaje: string }[];
+      }
+    >;
+    if (!response.ok) {
+      throw new ImportError(
+        getApiErrorMessage(
+          body,
+          'No pudimos importar las afiliaciones. Corrige los errores y vuelve a intentarlo.',
+        ),
+        body.errors ?? [],
+      );
+    }
+    return body as ImportPilaAffiliationsResult;
+  },
+
+  downloadPilaAffiliationsTemplate: async () => {
+    const response = await fetch('/api/employees/import/pila-affiliations/template');
+    if (!response.ok) throw new Error('Error al descargar la plantilla de afiliaciones PILA.');
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'plantilla_afiliaciones_pila.xlsx';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
     window.URL.revokeObjectURL(url);
   },
 };

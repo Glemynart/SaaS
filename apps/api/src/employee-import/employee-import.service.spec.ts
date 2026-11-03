@@ -1,6 +1,7 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import * as XLSX from 'xlsx';
 import { AuditService } from '../audit/audit.service';
+import { SocialSecurityAffiliationsService } from '../employees/social-security-affiliations.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { EmployeeImportService } from './employee-import.service';
 
@@ -45,6 +46,7 @@ const PILA_HEADERS = [
   'afiliacionVigenteDesde',
   'afiliacionVigenteHasta',
 ];
+const PILA_BULK_HEADERS = ['cedula', 'tipoDocumento', ...PILA_HEADERS];
 
 function workbookBuffer(rows: unknown[][], headers = HEADERS) {
   const workbook = XLSX.utils.book_new();
@@ -97,6 +99,31 @@ function pilaImportRow(overrides: Record<string, unknown> = {}) {
   return [...HEADERS, ...PILA_HEADERS].map((header) => values[header] ?? '');
 }
 
+function pilaBulkAffiliationRow(overrides: Record<string, unknown> = {}) {
+  const values: Record<string, unknown> = {
+    cedula: '1001',
+    tipoDocumento: 'CC',
+    tipoCotizanteCodigo: '01',
+    subtipoCotizanteCodigo: '00',
+    epsCodigo: 'EPS001',
+    epsNombre: 'EPS de prueba',
+    fondoPensionCodigo: 'AFP001',
+    fondoPensionNombre: 'Fondo de prueba',
+    arlCodigo: 'ARL001',
+    arlNombre: 'ARL de prueba',
+    arlClaseRiesgo: '1',
+    cajaCompensacionCodigo: 'CCF001',
+    cajaCompensacionNombre: 'Caja de prueba',
+    cajaCompensacionDepartamentoCodigo: '08',
+    extranjeroNoObligadoPension: '',
+    colombianoEnElExterior: 'NO',
+    afiliacionVigenteDesde: '2026-01-01',
+    afiliacionVigenteHasta: '',
+    ...overrides,
+  };
+  return PILA_BULK_HEADERS.map((header) => values[header] ?? '');
+}
+
 function importErrors(error: unknown): Array<{ campo: string; fila: number }> {
   if (!(error instanceof UnprocessableEntityException)) return [];
 
@@ -118,6 +145,9 @@ describe('EmployeeImportService', () => {
   const mockEmpleadoFindMany = jest.fn();
   const mockEmpleadoCreate = jest.fn();
   const mockAffiliationCreate = jest.fn();
+  const mockAffiliationFindFirst = jest.fn();
+  const mockEmployeeLock = jest.fn();
+  const mockCreateAffiliationInTransaction = jest.fn();
   const mockAuditLog = jest.fn();
   const mockTenantPrismaExecute = jest.fn();
   const mockPrismaClient = {
@@ -126,7 +156,11 @@ describe('EmployeeImportService', () => {
       findMany: mockEmpleadoFindMany,
       create: mockEmpleadoCreate,
     },
-    afiliacionSeguridadSocial: { create: mockAffiliationCreate },
+    afiliacionSeguridadSocial: {
+      create: mockAffiliationCreate,
+      findFirst: mockAffiliationFindFirst,
+    },
+    $queryRaw: mockEmployeeLock,
   };
   let service: EmployeeImportService;
 
@@ -138,6 +172,18 @@ describe('EmployeeImportService', () => {
     mockEmpleadoFindMany.mockResolvedValue([]);
     mockEmpleadoCreate.mockResolvedValue({ id: 'employee-a' });
     mockAffiliationCreate.mockResolvedValue({ id: 'affiliation-a' });
+    mockAffiliationFindFirst.mockResolvedValue(null);
+    mockEmployeeLock.mockResolvedValue([
+      {
+        id: 'employee-a',
+        cedula: '1001',
+        tipoDocumento: 'CC',
+        tipoContrato: 'TERMINO_FIJO',
+      },
+    ]);
+    mockCreateAffiliationInTransaction.mockResolvedValue({
+      id: 'affiliation-a',
+    });
     mockAuditLog.mockResolvedValue(undefined);
     mockTenantPrismaExecute.mockImplementation(
       (work: (client: unknown, context: { tenantId: string }) => unknown) =>
@@ -147,6 +193,9 @@ describe('EmployeeImportService', () => {
     service = new EmployeeImportService(
       { execute: mockTenantPrismaExecute } as unknown as TenantPrismaService,
       { log: mockAuditLog } as unknown as AuditService,
+      {
+        createInTransaction: mockCreateAffiliationInTransaction,
+      } as unknown as SocialSecurityAffiliationsService,
     );
   });
 
@@ -162,6 +211,269 @@ describe('EmployeeImportService', () => {
     expect(rows[1]).toHaveLength(HEADERS.length + PILA_HEADERS.length);
     expect(rows[2]).toHaveLength(HEADERS.length + PILA_HEADERS.length);
     expect(rows[2]?.slice(HEADERS.length)).toEqual(PILA_HEADERS.map(() => ''));
+  });
+
+  it('creates a separate XLSX template for existing employees', () => {
+    const workbook = XLSX.read(service.generatePilaAffiliationsTemplate(), {
+      type: 'buffer',
+    });
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
+      header: 1,
+      defval: '',
+    });
+
+    expect(rows[0]).toEqual(PILA_BULK_HEADERS);
+    expect(rows[1]).toHaveLength(PILA_BULK_HEADERS.length);
+    expect(rows).toHaveLength(2);
+  });
+
+  it('imports a complete affiliation for an existing employee in the tenant transaction', async () => {
+    mockEmpleadoFindMany.mockResolvedValue([
+      {
+        id: 'employee-a',
+        cedula: '1001',
+        tipoDocumento: 'CC',
+        tipoContrato: 'TERMINO_FIJO',
+      },
+    ]);
+
+    await expect(
+      service.importPilaAffiliationsFromBuffer(
+        TENANT_ID,
+        USER_ID,
+        workbookBuffer([pilaBulkAffiliationRow()], PILA_BULK_HEADERS),
+      ),
+    ).resolves.toEqual({
+      created: 1,
+      unchanged: 0,
+      message: '1 afiliación nueva registrada; 0 filas sin cambios.',
+    });
+    expect(mockTenantPrismaExecute).toHaveBeenNthCalledWith(
+      2,
+      expect.any(Function),
+      { maxWait: 10_000, timeout: 30_000 },
+    );
+
+    expect(mockEmpleadoFindMany).toHaveBeenCalledWith({
+      where: {
+        tenantId: TENANT_ID,
+        deletedAt: null,
+        cedula: { in: ['1001'] },
+      },
+      select: {
+        id: true,
+        cedula: true,
+        tipoDocumento: true,
+        tipoContrato: true,
+      },
+    });
+    expect(mockCreateAffiliationInTransaction).toHaveBeenCalledWith(
+      mockPrismaClient,
+      TENANT_ID,
+      USER_ID,
+      'employee-a',
+      expect.objectContaining({
+        epsCodigo: 'EPS001',
+        vigenteDesde: '2026-01-01',
+        vigenteHasta: null,
+      }),
+    );
+    const [auditEvent, auditTransaction] = mockAuditLog.mock
+      .calls[0] as unknown as [
+      {
+        tenantId: string;
+        action: string;
+        metadata: { creadas: number; sinCambios: number };
+      },
+      unknown,
+    ];
+    expect(auditEvent).toMatchObject({
+      tenantId: TENANT_ID,
+      action: 'EMPLOYEE_PILA_AFFILIATION_BULK_IMPORT',
+      metadata: { creadas: 1, sinCambios: 0 },
+    });
+    expect(auditTransaction).toBe(mockPrismaClient);
+  });
+
+  it('treats an identical retry as unchanged and does not duplicate affiliation history', async () => {
+    mockEmpleadoFindMany.mockResolvedValue([
+      {
+        id: 'employee-a',
+        cedula: '1001',
+        tipoDocumento: 'CC',
+        tipoContrato: 'TERMINO_FIJO',
+      },
+    ]);
+    mockAffiliationFindFirst.mockResolvedValue({
+      tipoCotizanteCodigo: '01',
+      subtipoCotizanteCodigo: '00',
+      epsCodigo: 'EPS001',
+      epsNombre: 'EPS de prueba',
+      fondoPensionCodigo: 'AFP001',
+      fondoPensionNombre: 'Fondo de prueba',
+      arlCodigo: 'ARL001',
+      arlNombre: 'ARL de prueba',
+      arlClaseRiesgo: '1',
+      cajaCompensacionCodigo: 'CCF001',
+      cajaCompensacionNombre: 'Caja de prueba',
+      cajaCompensacionDepartamentoCodigo: '08',
+      extranjeroNoObligadoPension: null,
+      colombianoEnElExterior: false,
+      vigenteDesde: new Date('2026-01-01T00:00:00.000Z'),
+      vigenteHasta: null,
+    });
+
+    await expect(
+      service.importPilaAffiliationsFromBuffer(
+        TENANT_ID,
+        USER_ID,
+        workbookBuffer([pilaBulkAffiliationRow()], PILA_BULK_HEADERS),
+      ),
+    ).resolves.toMatchObject({
+      created: 0,
+      unchanged: 1,
+      message: '0 afiliaciones nuevas registradas; 1 fila sin cambios.',
+    });
+    expect(mockCreateAffiliationInTransaction).not.toHaveBeenCalled();
+  });
+
+  it('validates every row before writing any affiliation', async () => {
+    mockEmpleadoFindMany.mockResolvedValue([
+      {
+        id: 'employee-a',
+        cedula: '1001',
+        tipoDocumento: 'CC',
+        tipoContrato: 'TERMINO_FIJO',
+      },
+      {
+        id: 'employee-b',
+        cedula: '1002',
+        tipoDocumento: 'CC',
+        tipoContrato: 'TERMINO_FIJO',
+      },
+    ]);
+
+    let thrown: unknown;
+    try {
+      await service.importPilaAffiliationsFromBuffer(
+        TENANT_ID,
+        USER_ID,
+        workbookBuffer(
+          [
+            pilaBulkAffiliationRow(),
+            pilaBulkAffiliationRow({ cedula: '1002', arlClaseRiesgo: '6' }),
+          ],
+          PILA_BULK_HEADERS,
+        ),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(importErrors(thrown)).toContainEqual({
+      campo: 'arlClaseRiesgo',
+      fila: 3,
+      mensaje: 'La clase de riesgo debe ser 1, 2, 3, 4 o 5.',
+    });
+    expect(mockCreateAffiliationInTransaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects duplicate employees in one file before starting the write transaction', async () => {
+    mockEmpleadoFindMany.mockResolvedValue([
+      {
+        id: 'employee-a',
+        cedula: '1001',
+        tipoDocumento: 'CC',
+        tipoContrato: 'TERMINO_FIJO',
+      },
+    ]);
+
+    let thrown: unknown;
+    try {
+      await service.importPilaAffiliationsFromBuffer(
+        TENANT_ID,
+        USER_ID,
+        workbookBuffer(
+          [pilaBulkAffiliationRow(), pilaBulkAffiliationRow()],
+          PILA_BULK_HEADERS,
+        ),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(importErrors(thrown)).toContainEqual(
+      expect.objectContaining({ campo: 'cedula', fila: 3 }),
+    );
+    expect(mockCreateAffiliationInTransaction).not.toHaveBeenCalled();
+    expect(mockEmployeeLock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a document type that does not match the tenant employee record', async () => {
+    mockEmpleadoFindMany.mockResolvedValue([
+      {
+        id: 'employee-a',
+        cedula: '1001',
+        tipoDocumento: 'CE',
+        tipoContrato: 'TERMINO_FIJO',
+      },
+    ]);
+
+    let thrown: unknown;
+    try {
+      await service.importPilaAffiliationsFromBuffer(
+        TENANT_ID,
+        USER_ID,
+        workbookBuffer([pilaBulkAffiliationRow()], PILA_BULK_HEADERS),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(importErrors(thrown)).toContainEqual(
+      expect.objectContaining({ campo: 'tipoDocumento', fila: 2 }),
+    );
+    expect(mockCreateAffiliationInTransaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects a document number changed after preflight while acquiring the employee lock', async () => {
+    mockEmpleadoFindMany.mockResolvedValue([
+      {
+        id: 'employee-a',
+        cedula: '1001',
+        tipoDocumento: 'CC',
+        tipoContrato: 'TERMINO_FIJO',
+      },
+    ]);
+    mockEmployeeLock.mockResolvedValueOnce([
+      {
+        id: 'employee-a',
+        cedula: '1009',
+        tipoDocumento: 'CC',
+        tipoContrato: 'TERMINO_FIJO',
+      },
+    ]);
+
+    let thrown: unknown;
+    try {
+      await service.importPilaAffiliationsFromBuffer(
+        TENANT_ID,
+        USER_ID,
+        workbookBuffer([pilaBulkAffiliationRow()], PILA_BULK_HEADERS),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(importErrors(thrown)).toContainEqual(
+      expect.objectContaining({
+        campo: 'cedula',
+        mensaje:
+          'El número de documento del empleado cambió durante la importación.',
+      }),
+    );
+    expect(mockCreateAffiliationInTransaction).not.toHaveBeenCalled();
   });
 
   it('imports valid rows through the tenant-aware transaction boundary', async () => {

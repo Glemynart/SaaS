@@ -45,6 +45,18 @@ describe('TenantPrismaService', () => {
     );
   });
 
+  it('passes bounded transaction options through to Prisma', async () => {
+    await service.execute(jest.fn().mockResolvedValue(undefined), {
+      maxWait: 10_000,
+      timeout: 30_000,
+    });
+
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
+      maxWait: 10_000,
+      timeout: 30_000,
+    });
+  });
+
   it('does not execute data work when no tenant context exists', async () => {
     const work = jest.fn();
     requireTenantContext.mockImplementation(() => {

@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  HttpException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
@@ -12,6 +13,8 @@ import {
   isSupportedPilaDependentContract,
   validatePilaAffiliationDeclarations,
 } from '../employees/social-security-affiliation.policy';
+import { SocialSecurityAffiliationsService } from '../employees/social-security-affiliations.service';
+import type { CreateSocialSecurityAffiliationDto } from '../employees/dto/create-social-security-affiliation.dto';
 import * as XLSX from 'xlsx';
 
 const MAX_ROWS = 500;
@@ -58,6 +61,15 @@ export interface ImportError {
   fila: number;
   campo: string;
   mensaje: string;
+}
+
+class ImportRowValidationError extends Error {
+  constructor(
+    readonly campo: string,
+    message: string,
+  ) {
+    super(message);
+  }
 }
 
 interface RawRow {
@@ -254,6 +266,50 @@ const PILA_AFFILIATION_FIELDS = [
   'afiliacionVigenteHasta',
 ] as const;
 
+const PILA_AFFILIATION_IMPORT_HEADERS = [
+  'cedula',
+  'tipoDocumento',
+  ...PILA_AFFILIATION_FIELDS,
+];
+
+const PILA_AFFILIATION_IMPORT_HINTS = [
+  'Requerido. Número exacto del documento de un empleado existente.',
+  'Requerido. Debe coincidir con el tipo de documento registrado.',
+  'Usa 01 (trabajador dependiente estándar).',
+  'Usa 00 (sin subtipo especial).',
+  'Código EPS (texto, 1–6 caracteres); no se valida contra catálogo.',
+  'Nombre EPS (1–120 caracteres).',
+  'Código de fondo de pensión (texto, 1–6 caracteres); no se valida contra catálogo.',
+  'Nombre de fondo de pensión (1–120 caracteres).',
+  'Código ARL (texto, 1–6 caracteres); no se valida contra catálogo.',
+  'Nombre ARL (1–120 caracteres).',
+  'Clase de riesgo: 1 | 2 | 3 | 4 | 5.',
+  'Código de caja de compensación (texto, 1–6 caracteres); no se valida contra catálogo.',
+  'Nombre de caja de compensación (1–120 caracteres).',
+  'Código DIVIPOLA del departamento de la CCF (dos dígitos, ej. 08).',
+  'Para CE/PA: SI o NO. Para otros documentos, dejar vacío.',
+  'Para CC/TI: SI o NO. Para otros documentos, dejar vacío.',
+  'Vigente desde. Formato YYYY-MM-DD.',
+  'Vigente hasta. Opcional; formato YYYY-MM-DD.',
+];
+
+const AFFILIATION_COMPARISON_FIELDS = [
+  'tipoCotizanteCodigo',
+  'subtipoCotizanteCodigo',
+  'epsCodigo',
+  'epsNombre',
+  'fondoPensionCodigo',
+  'fondoPensionNombre',
+  'arlCodigo',
+  'arlNombre',
+  'arlClaseRiesgo',
+  'cajaCompensacionCodigo',
+  'cajaCompensacionNombre',
+  'cajaCompensacionDepartamentoCodigo',
+  'extranjeroNoObligadoPension',
+  'colombianoEnElExterior',
+] as const;
+
 function hasImportValue(value: unknown): boolean {
   if (value instanceof Date) return !Number.isNaN(value.getTime());
   const normalized = str(value);
@@ -321,6 +377,21 @@ function parsePilaDeclaration(value: unknown): {
     return { value: false, invalid: false };
   }
   return { invalid: true };
+}
+
+function getHttpExceptionMessage(error: HttpException): string {
+  const response = error.getResponse();
+  if (typeof response === 'string') return response;
+  if (
+    typeof response === 'object' &&
+    response !== null &&
+    'message' in response
+  ) {
+    const message = response.message;
+    if (typeof message === 'string') return message;
+    if (Array.isArray(message)) return message.join(' ');
+  }
+  return error.message;
 }
 
 function parseInitialPilaAffiliation(
@@ -554,6 +625,7 @@ export class EmployeeImportService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private auditService: AuditService,
+    private readonly socialSecurityAffiliations: SocialSecurityAffiliationsService,
   ) {}
 
   generateTemplate(): Buffer {
@@ -603,6 +675,385 @@ export class EmployeeImportService {
 
     return Buffer.from(
       XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as ArrayBuffer,
+    );
+  }
+
+  generatePilaAffiliationsTemplate(): Buffer {
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.aoa_to_sheet([
+      PILA_AFFILIATION_IMPORT_HEADERS,
+      PILA_AFFILIATION_IMPORT_HINTS,
+    ]);
+    worksheet['!freeze'] = {
+      xSplit: 0,
+      ySplit: 1,
+      topLeftCell: 'A2',
+      activePane: 'bottomLeft',
+      state: 'frozen',
+    };
+    worksheet['!cols'] = PILA_AFFILIATION_IMPORT_HEADERS.map(() => ({
+      wch: 28,
+    }));
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Afiliaciones PILA');
+
+    return Buffer.from(
+      XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as ArrayBuffer,
+    );
+  }
+
+  async importPilaAffiliationsFromBuffer(
+    tenantId: string,
+    userId: string,
+    buffer: Buffer,
+  ): Promise<{ created: number; unchanged: number; message: string }> {
+    let workbook: XLSX.WorkBook;
+    try {
+      workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+    } catch {
+      throw new BadRequestException('No se pudo leer el archivo XLSX.');
+    }
+
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) {
+      throw new BadRequestException('El archivo Excel no contiene hojas.');
+    }
+    const worksheet = workbook.Sheets[sheetName];
+    const [headerRow] = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
+      header: 1,
+      range: 0,
+      defval: undefined,
+      blankrows: false,
+    });
+    const headers = headerRow?.map((cell) => str(cell) ?? '') ?? [];
+    const duplicateHeaders = headers.filter(
+      (header, index) => header.length > 0 && headers.indexOf(header) !== index,
+    );
+    if (duplicateHeaders.length > 0) {
+      throw new BadRequestException(
+        `La plantilla contiene columnas repetidas: ${[...new Set(duplicateHeaders)].join(', ')}.`,
+      );
+    }
+    const missingHeaders = PILA_AFFILIATION_IMPORT_HEADERS.filter(
+      (header) => !headers.includes(header),
+    );
+    if (missingHeaders.length > 0) {
+      throw new BadRequestException(
+        `Faltan columnas obligatorias: ${missingHeaders.join(', ')}. Descarga la plantilla vigente.`,
+      );
+    }
+
+    const rows = XLSX.utils.sheet_to_json<RawRow>(worksheet, {
+      header: headers,
+      range: 1,
+      defval: undefined,
+      blankrows: false,
+    });
+    const dataRows = rows.filter((row) => {
+      const document = str(row.cedula);
+      return !(
+        document?.startsWith('Requerido') || document?.startsWith('Opcional')
+      );
+    });
+    if (dataRows.length === 0) {
+      throw new BadRequestException(
+        'El archivo no contiene filas de afiliaciones para importar.',
+      );
+    }
+    if (dataRows.length > MAX_ROWS) {
+      throw new BadRequestException(
+        `El archivo contiene ${dataRows.length} filas. El máximo permitido es ${MAX_ROWS}.`,
+      );
+    }
+
+    const errors: ImportError[] = [];
+    const identityRows: Array<{
+      fila: number;
+      cedula: string;
+      tipoDocumento: TipoDocIdentidad;
+      row: RawRow;
+    }> = [];
+    const firstRowsByDocument = new Map<string, number>();
+    for (let index = 0; index < dataRows.length; index += 1) {
+      const row = dataRows[index];
+      const fila = index + 2;
+      const cedula = str(row.cedula);
+      const tipoDocumento = str(row.tipoDocumento)?.toUpperCase();
+      if (!cedula) {
+        errors.push({
+          fila,
+          campo: 'cedula',
+          mensaje: 'El número de documento es requerido.',
+        });
+      }
+      if (
+        !tipoDocumento ||
+        !VALID_TIPO_DOCUMENTO.includes(tipoDocumento as TipoDocIdentidad)
+      ) {
+        errors.push({
+          fila,
+          campo: 'tipoDocumento',
+          mensaje: `Tipo de documento inválido. Valores admitidos: ${VALID_TIPO_DOCUMENTO.join(', ')}.`,
+        });
+      }
+      if (
+        !cedula ||
+        !tipoDocumento ||
+        !VALID_TIPO_DOCUMENTO.includes(tipoDocumento as TipoDocIdentidad)
+      ) {
+        continue;
+      }
+
+      const firstRow = firstRowsByDocument.get(cedula);
+      if (firstRow !== undefined) {
+        errors.push({
+          fila,
+          campo: 'cedula',
+          mensaje: `El empleado está repetido en el archivo (primera aparición en fila ${firstRow}).`,
+        });
+        continue;
+      }
+      firstRowsByDocument.set(cedula, fila);
+      identityRows.push({
+        fila,
+        cedula,
+        tipoDocumento: tipoDocumento as TipoDocIdentidad,
+        row,
+      });
+    }
+
+    const employees =
+      identityRows.length === 0
+        ? []
+        : await this.tenantPrisma.execute((prisma) =>
+            prisma.empleado.findMany({
+              where: {
+                tenantId,
+                deletedAt: null,
+                cedula: { in: identityRows.map(({ cedula }) => cedula) },
+              },
+              select: {
+                id: true,
+                cedula: true,
+                tipoDocumento: true,
+                tipoContrato: true,
+              },
+            }),
+          );
+    const employeesByDocument = new Map(
+      employees.map((employee) => [employee.cedula, employee]),
+    );
+
+    const validatedRows: Array<{
+      fila: number;
+      employeeId: string;
+      cedula: string;
+      tipoDocumento: TipoDocIdentidad;
+      affiliation: InitialPilaAffiliationData;
+    }> = [];
+    for (const identity of identityRows) {
+      const employee = employeesByDocument.get(identity.cedula);
+      if (!employee) {
+        errors.push({
+          fila: identity.fila,
+          campo: 'cedula',
+          mensaje:
+            'No existe un empleado activo con este número de documento en la empresa actual.',
+        });
+        continue;
+      }
+      if (employee.tipoDocumento !== identity.tipoDocumento) {
+        errors.push({
+          fila: identity.fila,
+          campo: 'tipoDocumento',
+          mensaje:
+            'El tipo de documento no coincide con el empleado registrado.',
+        });
+        continue;
+      }
+
+      if (
+        !PILA_AFFILIATION_FIELDS.some((field) =>
+          hasImportValue(identity.row[field]),
+        )
+      ) {
+        errors.push({
+          fila: identity.fila,
+          campo: '*',
+          mensaje:
+            'Completa todos los datos de afiliación PILA para esta fila.',
+        });
+        continue;
+      }
+
+      const rowErrorsBefore = errors.length;
+      const affiliation = parseInitialPilaAffiliation(
+        identity.row,
+        identity.fila,
+        identity.tipoDocumento,
+        employee.tipoContrato,
+        errors,
+      );
+      if (affiliation && errors.length === rowErrorsBefore) {
+        validatedRows.push({
+          fila: identity.fila,
+          employeeId: employee.id,
+          cedula: identity.cedula,
+          tipoDocumento: identity.tipoDocumento,
+          affiliation,
+        });
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new UnprocessableEntityException({ errors });
+    }
+
+    const orderedRows = [...validatedRows].sort((left, right) =>
+      left.employeeId.localeCompare(right.employeeId),
+    );
+    const result = await this.tenantPrisma.execute(
+      async (prisma) => {
+        let created = 0;
+        let unchanged = 0;
+
+        for (const row of orderedRows) {
+          try {
+            const locked = await prisma.$queryRaw<
+              Array<{
+                id: string;
+                cedula: string;
+                tipoDocumento: string;
+                tipoContrato: string;
+              }>
+            >`
+            SELECT "id", "cedula", "tipoDocumento", "tipoContrato" FROM "empleados"
+            WHERE "id" = ${row.employeeId} AND "tenantId" = ${tenantId} AND "deletedAt" IS NULL
+            FOR UPDATE
+          `;
+            if (locked.length === 0) {
+              throw new ImportRowValidationError(
+                'cedula',
+                'El empleado dejó de estar disponible durante la importación.',
+              );
+            }
+            if (locked[0].cedula !== row.cedula) {
+              throw new ImportRowValidationError(
+                'cedula',
+                'El número de documento del empleado cambió durante la importación.',
+              );
+            }
+            if (locked[0].tipoDocumento !== row.tipoDocumento) {
+              throw new ImportRowValidationError(
+                'tipoDocumento',
+                'El tipo de documento del empleado cambió durante la importación.',
+              );
+            }
+            if (!isSupportedPilaDependentContract(locked[0].tipoContrato)) {
+              throw new ImportRowValidationError(
+                'tipoContrato',
+                'El empleado ya no tiene un contrato laboral estándar compatible con el MVP PILA.',
+              );
+            }
+
+            const existing = await prisma.afiliacionSeguridadSocial.findFirst({
+              where: {
+                tenantId,
+                empleadoId: row.employeeId,
+                vigenteDesde: row.affiliation.vigenteDesde,
+                vigenteHasta: row.affiliation.vigenteHasta,
+              },
+            });
+            if (
+              existing &&
+              this.isSamePilaAffiliation(existing, row.affiliation)
+            ) {
+              unchanged += 1;
+              continue;
+            }
+
+            await this.socialSecurityAffiliations.createInTransaction(
+              prisma,
+              tenantId,
+              userId,
+              row.employeeId,
+              {
+                ...row.affiliation,
+                vigenteDesde: row.affiliation.vigenteDesde
+                  .toISOString()
+                  .slice(0, 10),
+                vigenteHasta:
+                  row.affiliation.vigenteHasta?.toISOString().slice(0, 10) ??
+                  null,
+              } satisfies CreateSocialSecurityAffiliationDto,
+            );
+            created += 1;
+          } catch (error) {
+            if (error instanceof ImportRowValidationError) {
+              throw new UnprocessableEntityException({
+                errors: [
+                  {
+                    fila: row.fila,
+                    campo: error.campo,
+                    mensaje: error.message,
+                  },
+                ],
+              });
+            }
+            if (!(error instanceof HttpException)) throw error;
+            throw new UnprocessableEntityException({
+              errors: [
+                {
+                  fila: row.fila,
+                  campo: 'vigencia',
+                  mensaje: getHttpExceptionMessage(error),
+                },
+              ],
+            });
+          }
+        }
+
+        await this.auditService.log(
+          {
+            tenantId,
+            userId,
+            action: 'EMPLOYEE_PILA_AFFILIATION_BULK_IMPORT',
+            entityType: 'AfiliacionSeguridadSocial',
+            metadata: {
+              filas: validatedRows.length,
+              creadas: created,
+              sinCambios: unchanged,
+              versionCaptura: SOCIAL_SECURITY_AFFILIATION_CAPTURE_VERSION,
+            },
+          },
+          prisma,
+        );
+        return { created, unchanged };
+      },
+      { maxWait: 10_000, timeout: 30_000 },
+    );
+
+    return {
+      ...result,
+      message: `${result.created} ${result.created === 1 ? 'afiliación' : 'afiliaciones'} ${result.created === 1 ? 'nueva registrada' : 'nuevas registradas'}; ${result.unchanged} fila${result.unchanged === 1 ? '' : 's'} sin cambios.`,
+    };
+  }
+
+  private isSamePilaAffiliation(
+    existing: Record<string, unknown>,
+    requested: InitialPilaAffiliationData,
+  ) {
+    const existingEnd = existing.vigenteHasta;
+    const endMatches =
+      existingEnd instanceof Date
+        ? existingEnd.getTime() === requested.vigenteHasta?.getTime()
+        : existingEnd == null && requested.vigenteHasta == null;
+    return (
+      AFFILIATION_COMPARISON_FIELDS.every(
+        (field) => (existing[field] ?? null) === (requested[field] ?? null),
+      ) &&
+      existing.vigenteDesde instanceof Date &&
+      existing.vigenteDesde.getTime() === requested.vigenteDesde.getTime() &&
+      endMatches
     );
   }
 
