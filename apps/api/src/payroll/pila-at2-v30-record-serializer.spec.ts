@@ -397,6 +397,34 @@ describe('AT2 v30 fixed-width record formatting', () => {
     ).toThrow('campo 4');
   });
 
+  it('allows blank positions only for fields assigned by the operator', () => {
+    const employer = serializePilaAt2V30Record(
+      'employerType1',
+      completeRecordValues('employerType1', {
+        28: { value: null, emptyAs: 'spaces' },
+        29: { value: null, emptyAs: 'spaces' },
+      }),
+    );
+    const header = serializePilaAt2V30Record(
+      'payrollHeaderType2',
+      completeRecordValues('payrollHeaderType2', {
+        2: { value: null, emptyAs: 'spaces' },
+        15: { value: null, emptyAs: 'spaces' },
+        17: { value: null, emptyAs: 'spaces' },
+        18: { value: null, emptyAs: 'spaces' },
+        22: { value: null, emptyAs: 'spaces' },
+      }),
+    );
+
+    expect(employer).toHaveLength(567);
+    expect(employer.slice(542, 551)).toBe(' '.repeat(9));
+    expect(header).toHaveLength(359);
+    expect(header.slice(2, 3)).toBe(' ');
+    expect(header.slice(304, 311)).toBe(' '.repeat(7));
+    expect(header.slice(318, 338)).toBe(' '.repeat(20));
+    expect(header.slice(357, 359)).toBe(' '.repeat(2));
+  });
+
   it('fills an explicitly empty numeric field with zeroes', () => {
     const record = serializePilaAt2V30Record(
       'employerType1',

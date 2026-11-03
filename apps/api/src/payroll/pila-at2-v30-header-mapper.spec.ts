@@ -101,6 +101,7 @@ describe('mapPilaAt2V30HeaderCandidate', () => {
     });
     expect(candidate.values).toMatchObject({
       1: { value: '01' },
+      2: { value: null, emptyAs: 'spaces' },
       3: { value: '1' },
       4: { value: 'Empresa Demo SAS' },
       5: { value: 'NI' },
@@ -113,16 +114,15 @@ describe('mapPilaAt2V30HeaderCandidate', () => {
       12: { value: null, emptyAs: 'spaces' },
       13: { value: null, emptyAs: 'spaces' },
       14: { value: 'ARL001' },
+      15: { value: null, emptyAs: 'spaces' },
       16: { value: '2026-10' },
+      17: { value: null, emptyAs: 'spaces' },
+      18: { value: null, emptyAs: 'spaces' },
       19: { value: 1 },
       20: { value: 2_000_000 },
       21: { value: '1' },
+      22: { value: null, emptyAs: 'spaces' },
     });
-    expect(candidate.values[2]).toBeUndefined();
-    expect(candidate.values[15]).toBeUndefined();
-    expect(candidate.values[17]).toBeUndefined();
-    expect(candidate.values[18]).toBeUndefined();
-    expect(candidate.values[22]).toBeUndefined();
   });
 
   it('aggregates distinct standard cotizantes and their frozen CCF IBCs', () => {
@@ -136,12 +136,18 @@ describe('mapPilaAt2V30HeaderCandidate', () => {
     expect(candidate.values[20]).toEqual({ value: 5_000_000 });
   });
 
-  it('keeps fields assigned by the operator unresolved', () => {
+  it('keeps operator-assigned fields as blank candidates, not snapshot data', () => {
     const candidate = mapCandidateForDemoScope([snapshot()]);
 
-    expect(
-      candidate.unresolvedFields.map(({ fieldNumber }) => fieldNumber),
-    ).toEqual(expect.arrayContaining([2, 15, 17, 18, 22]));
+    for (const fieldNumber of [2, 15, 17, 18, 22]) {
+      expect(candidate.values[fieldNumber]).toEqual({
+        value: null,
+        emptyAs: 'spaces',
+      });
+      expect(candidate.unresolvedFields).not.toContainEqual(
+        expect.objectContaining({ fieldNumber }),
+      );
+    }
   });
 
   it('refuses to map a mixed-tenant snapshot set', () => {

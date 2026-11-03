@@ -21,6 +21,8 @@ export interface PilaAt2V30FieldLayout {
   readonly length: number;
   readonly kind: PilaAt2V30FieldKind;
   readonly numericFormat?: 'DECIMAL_FRACTION';
+  /** AT2 says the operator's system assigns this field after upload. */
+  readonly assignedByOperator?: true;
 }
 
 export interface PilaAt2V30RecordLayout {
@@ -68,6 +70,8 @@ export const PILA_AT2_V30_RECORD_LAYOUTS = {
       [1, 'A'],
     ],
     567,
+    [],
+    [28, 29],
   ),
   payrollHeaderType2: defineLayout(
     [
@@ -95,6 +99,8 @@ export const PILA_AT2_V30_RECORD_LAYOUTS = {
       [2, 'N'],
     ],
     359,
+    [],
+    [2, 15, 17, 18, 22],
   ),
   contributorDetailType2: defineLayout(
     [
@@ -282,7 +288,10 @@ function formatField(
   input: PilaAt2V30FieldInput,
 ): string {
   if (input.value === null) {
-    if (input.emptyAs === 'spaces' && field.kind === 'A') {
+    if (
+      input.emptyAs === 'spaces' &&
+      (field.kind === 'A' || field.assignedByOperator === true)
+    ) {
       return ' '.repeat(field.length);
     }
     if (input.emptyAs === 'zeros' && field.kind === 'N') {
@@ -370,6 +379,7 @@ function defineLayout(
   compactFields: readonly (readonly [number, PilaAt2V30FieldKind])[],
   recordLength: number,
   decimalFieldNumbers: readonly number[] = [],
+  operatorAssignedFieldNumbers: readonly number[] = [],
 ): PilaAt2V30RecordLayout {
   const fields = compactFields.map(([length, kind], index) => {
     const fieldNumber = index + 1;
@@ -379,6 +389,9 @@ function defineLayout(
       kind,
       ...(decimalFieldNumbers.includes(fieldNumber)
         ? { numericFormat: 'DECIMAL_FRACTION' as const }
+        : {}),
+      ...(operatorAssignedFieldNumbers.includes(fieldNumber)
+        ? { assignedByOperator: true as const }
         : {}),
     };
   });

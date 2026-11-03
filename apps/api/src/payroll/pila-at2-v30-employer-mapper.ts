@@ -87,8 +87,9 @@ function employerPeriod(snapshot: PilaAt2V30EmployerCandidateInput) {
 /**
  * Builds source candidates for AT2 v30 employer file fields from one frozen
  * PayrollSnapshot PILA payload. This does not validate or serialize a record.
- * Fields assigned by the operator and sources not frozen in the payload stay
- * unresolved; callers must keep the local preflight as a separate gate.
+ * Fields assigned by the operator are explicit blank-position candidates;
+ * sources not frozen in the payload stay unresolved. The candidate input
+ * convention still requires operator verification before compatibility claims.
  */
 export function mapPilaAt2V30EmployerCandidate(
   input: PilaAt2V30EmployerCandidateInput,
@@ -241,11 +242,10 @@ export function mapPilaAt2V30EmployerCandidate(
     }
   }
 
-  unresolved(28, 'AT2 asigna el código del operador; no está en el snapshot.');
-  unresolved(
-    29,
-    'El período/código de pago lo asigna el operador; no se infiere.',
-  );
+  // AT2 v30 assigns both values to the operator's system. Keep the fixed-width
+  // positions explicit and blank; do not source them from the tenant snapshot.
+  putBlank(28);
+  putBlank(29);
   putRequiredText(30, employerPila.tipoAportante);
 
   if (employerPila.beneficioLey1429 === false) {

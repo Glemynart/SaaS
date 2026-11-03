@@ -87,15 +87,15 @@ const pilaExportReadiness: PilaExportReadiness = {
     {
       code: 'SOI_OPERATOR_FIELDS_UNCONFIRMED',
       scope: 'OPERATOR_COMPATIBILITY',
-      title:
-        'Falta confirmar la convención de carga de campos asignados por SOI',
+      title: 'Falta verificar los campos asignados por SOI durante la carga',
       message:
-        'AT2 v30 asigna campos al sistema del operador. SOI confirma la carga de archivos planos, pero la documentación pública revisada no indica si estos campos se omiten, se envían vacíos o se diligencian de otra forma.',
+        'Los mapas conservan posiciones vacías candidatas para campos que AT2 v30 asigna al operador. La carga real debe confirmar que SOI completa esas posiciones; no se declara compatibilidad hasta probar el archivo.',
       fields: [
         { record: 'APORTANTE_TIPO_1', fieldNumbers: [28, 29] },
         { record: 'CABECERA_TIPO_2', fieldNumbers: [2, 15, 17, 18, 22] },
       ],
-      evidence: 'AT2 v30, pp. 15, 26 y 29–30; SOI, carga de archivos planos.',
+      evidence:
+        'AT2 v30, pp. 15, 26 y 29–30; SOI selecciona tipo de planilla y período antes de cargar el archivo, pero la representación vacía no está confirmada por una carga real.',
     },
     {
       code: 'OPERATOR_UPLOAD_NOT_VERIFIED',
