@@ -2139,7 +2139,7 @@ Goal activo y usa esta referencia junto con su backlog específico.
 - [`GOAL-02 backlog`](docs/goals/GOAL-02-backlog.md): primer incremento, dependencias, riesgos y criterios de aceptación.
 - GOAL-01 — Primer Cliente Operando está pausado, no cerrado; sus pendientes y evidencia permanecen preservados en [`su ficha`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
-Estado contrastado en `main` al `00c15b6` (2026-11-02): Billing emite facturas
+Estado contrastado en `main` al `120ca3a` (2026-11-03): Billing emite facturas
 internas con tasas explícitas congeladas por línea y las integra al Ledger; el
 escenario financiero de demo y la consulta de comprobantes existen, aunque la
 aceptación con un tenant demo real sigue pendiente. Nómina aprobada conserva
@@ -2147,8 +2147,14 @@ snapshots y puede causarse en el Ledger. La liquidación masiva de prima y sus
 PDF individuales siguen siendo prototipo para enero–junio, pendiente revisión
 laboral antes del uso operativo. En PILA, #225–#227 completan la captura masiva
 de afiliaciones, ubicaciones laborales y asignaciones de centro ARL/actividad;
-el preflight AT2 v30 existe, pero todavía no compone ni descarga archivos tipo
-1 y tipo 2 ni acredita compatibilidad con operadores. El estado detallado y sus
+el preflight AT2 v30 conserva los 98 campos como candidatos o bloqueos y hace
+visible el bloqueo UPC del campo 56. No compone ni descarga archivos tipo 1 y
+tipo 2 ni acredita compatibilidad con operadores. Nómina solo calcula
+empleados activos y no prorratea salario/IBC por fecha de retiro; la UI y API
+rechazan RET para un empleado inactivo hasta que exista soporte de período
+parcial y snapshot aprobado. La interfaz y API de prima limitan el MVP a
+enero–junio y rechazan el segundo semestre. El
+estado detallado y sus
 brechas están en [`GOAL-02 backlog`](docs/goals/GOAL-02-backlog.md).
 
 Los Milestones de GOAL-01 quedan en pausa; GOAL-02 prioriza los flujos financieros demostrables y conserva las puertas regulatorias de dominio, proveedor, seguridad y operación.

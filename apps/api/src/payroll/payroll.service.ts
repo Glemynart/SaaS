@@ -2319,7 +2319,7 @@ export class PayrollService {
     const runBlocks: PayrollBlockMap = {};
 
     try {
-      await this.prisma.$transaction(
+      await this.tenantPrisma.execute(
         async (tx) => {
           await this.lockPayrollPeriodForPilaEvents(tx, tenantId, periodId);
           await this.assertPayrollPeriodCanBeCalculated(
@@ -2333,6 +2333,12 @@ export class PayrollService {
             tenantId,
             periodId,
             pilaSourceData,
+          );
+          await this.assertPilaEventsHavePayrollEmployees(
+            tx,
+            tenantId,
+            pilaSourceData,
+            employees,
           );
 
           for (const emp of employees) {
@@ -2587,7 +2593,7 @@ export class PayrollService {
     const summary = { runsDeleted: 0, runsCreated: 0 };
 
     try {
-      await this.prisma.$transaction(
+      await this.tenantPrisma.execute(
         async (tx) => {
           await this.lockPayrollPeriodForPilaEvents(tx, tenantId, periodId);
           await this.assertPayrollPeriodCanBeCalculated(
@@ -2601,6 +2607,12 @@ export class PayrollService {
             tenantId,
             periodId,
             pilaSourceData,
+          );
+          await this.assertPilaEventsHavePayrollEmployees(
+            tx,
+            tenantId,
+            pilaSourceData,
+            employees,
           );
 
           const existingRuns = await tx.payrollRun.findMany({
@@ -2803,20 +2815,7 @@ export class PayrollService {
     periodId: string,
     dto: CreatePayrollPilaEventDto,
   ) {
-    const employee = await this.tenantPrisma.execute((prisma) =>
-      prisma.empleado.findFirst({
-        where: {
-          id: dto.employeeId,
-          tenantId,
-          deletedAt: null,
-          estado: 'ACTIVO',
-        },
-        select: { id: true },
-      }),
-    );
-    if (!employee) throw new NotFoundException('Empleado no encontrado');
-
-    const created = await this.prisma.$transaction(async (tx) => {
+    const created = await this.tenantPrisma.execute(async (tx) => {
       await this.lockPayrollPeriodForPilaEvents(tx, tenantId, periodId);
       const period = await tx.payrollPeriod.findFirst({
         where: { id: periodId, tenantId },
@@ -2826,6 +2825,18 @@ export class PayrollService {
       if (period.status !== PayrollPeriodStatus.BORRADOR) {
         throw new ConflictException(
           'Reabra el período y reliquide la nómina antes de modificar novedades PILA.',
+        );
+      }
+
+      const employee = await tx.empleado.findFirst({
+        where: { id: dto.employeeId, tenantId, deletedAt: null },
+        select: { id: true, estado: true },
+      });
+      if (!employee) throw new NotFoundException('Empleado no encontrado');
+
+      if (employee.estado !== 'ACTIVO') {
+        throw new BadRequestException(
+          'No se puede registrar una novedad PILA para un empleado inactivo: Nómina aún no liquida proporcionalmente el período desde su fecha de retiro.',
         );
       }
 
@@ -4187,6 +4198,46 @@ export class PayrollService {
       eventsByEmployee.set(event.employeeId, employeeEvents);
     }
     data.pilaEventsByEmployee = eventsByEmployee;
+  }
+
+  private async assertPilaEventsHavePayrollEmployees(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    data: PilaSourceData,
+    employees: PayrollPilaEmployeeRecord[],
+  ) {
+    const eventEmployeeIds = [...data.pilaEventsByEmployee.keys()];
+    if (eventEmployeeIds.length === 0) return;
+
+    const eventEmployees = await tx.$queryRaw<
+      Array<{ id: string; estado: string; deletedAt: Date | null }>
+    >(Prisma.sql`
+      SELECT "id", "estado", "deletedAt"
+      FROM "empleados"
+      WHERE "tenantId" = ${tenantId}
+        AND "id" IN (${Prisma.join(eventEmployeeIds)})
+      FOR UPDATE
+    `);
+    const currentlyActiveEmployeeIds = new Set(
+      eventEmployees
+        .filter(
+          (employee) => employee.estado === 'ACTIVO' && !employee.deletedAt,
+        )
+        .map((employee) => employee.id),
+    );
+    const payrollEmployeeIds = new Set(
+      employees.map((employee) => employee.id),
+    );
+    const excludedEmployeeIds = eventEmployeeIds.filter(
+      (employeeId) =>
+        !payrollEmployeeIds.has(employeeId) ||
+        !currentlyActiveEmployeeIds.has(employeeId),
+    );
+    if (excludedEmployeeIds.length > 0) {
+      throw new BadRequestException(
+        `${excludedEmployeeIds.length} empleado(s) asociado(s) a novedades PILA no está(n) activo(s) o no fue(ron) incluido(s) en la generación. Revise su estado y corrija el período antes de continuar.`,
+      );
+    }
   }
 
   private async resolveCentrosCostoBySede(

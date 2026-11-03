@@ -37,7 +37,7 @@ async function registerAndSignIn(page: Page) {
 async function browserJsonRequest(
   page: Page,
   path: string,
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'PATCH',
   data?: Record<string, unknown>,
 ) {
   return page.evaluate(
@@ -106,7 +106,8 @@ test('configura los datos PILA y registra, conserva y elimina una novedad del pe
 
   await page.goto('/empleados');
   await page.getByRole('button', { name: 'Nuevo empleado' }).first().click();
-  await page.getByLabel('Número de documento').fill(`pila-event-${suffix}`);
+  const employeeDocument = `pila-event-${suffix}`;
+  await page.getByLabel('Número de documento').fill(employeeDocument);
   await page.getByLabel('Primer nombre').fill('Ana');
   await page.getByLabel('Primer apellido').fill('Pérez');
   await page.getByLabel('Cargo').fill('Docente');
@@ -182,6 +183,42 @@ test('configura los datos PILA y registra, conserva y elimina una novedad del pe
   await pilaPanel.getByRole('button', { name: 'Eliminar novedad de Ana Pérez' }).click();
   const deleteEventResponse = await deleteEventResponsePromise;
   expect(deleteEventResponse.status()).toBe(200);
+  await expect(
+    pilaPanel.getByText('No hay novedades PILA registradas en este período.'),
+  ).toBeVisible();
+
+  const retireEmployeeResponse = await browserJsonRequest(
+    page,
+    `/api/employees/${employee.id}`,
+    'PATCH',
+    { estado: 'INACTIVO', fechaRetiro: '2026-10-31' },
+  );
+  expect(retireEmployeeResponse.status).toBe(200);
+
+  await page.reload();
+  await pilaPanel.getByLabel('Novedad').selectOption('RET');
+  await expect(
+    pilaPanel.getByText(
+      'Los empleados inactivos no aparecen porque la nómina aún no liquida proporcionalmente el período desde la fecha de retiro.',
+    ),
+  ).toBeVisible();
+  await expect(
+    pilaPanel.getByLabel('Empleado', { exact: true }).locator('option').filter({
+      hasText: employeeDocument,
+    }),
+  ).toHaveCount(0);
+
+  const inactiveRetirementResponse = await browserJsonRequest(
+    page,
+    `/api/payroll/periods/${periodId}/pila-events`,
+    'POST',
+    {
+      employeeId: employee.id,
+      codigo: 'RET',
+      fechaInicio: '2026-10-31',
+    },
+  );
+  expect(inactiveRetirementResponse.status).toBe(400);
   await expect(
     pilaPanel.getByText('No hay novedades PILA registradas en este período.'),
   ).toBeVisible();
