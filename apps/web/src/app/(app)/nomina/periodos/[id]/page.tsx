@@ -271,7 +271,7 @@ export default function PeriodDetailPage({ params }: { params: Promise<{ id: str
                     </p>
                   )}
                 </div>
-                {block.status === 'ACTIVE' && (
+                {block.status === 'ACTIVE' && block.code !== 'STALE_FSP_CALCULATION' && (
                   <Button
                     variant="outline"
                     size="sm"

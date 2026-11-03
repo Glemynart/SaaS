@@ -100,16 +100,40 @@ async function seedPucPlantilla() {
 async function seedParametrosLegales2026() {
   const vigenciaDesde = new Date('2026-01-01');
 
-  // FSP tramos (Ley 100 Art. 27, Ley 797/2003 Art. 5)
-  // pct = tasa TOTAL del tramo (no adicional), expresada como fracción
+  // FSP por tramos bajo Decreto 1833/2016 arts. 2.2.3.1.9 y 2.2.14.1.6.
+  // pct = tasa TOTAL del tramo (no adicional), expresada como fracción.
+  // Los límites 17/18/19/20 son inclusivos en el tramo anterior.
   const fspTramos = [
     { desdeSmmlv: 0, hastaSmmlv: 4, pct: 0 }, // < 4 SMMLV: exento
     { desdeSmmlv: 4, hastaSmmlv: 16, pct: 0.01 }, // 4–16 SMMLV: 1%
-    { desdeSmmlv: 16, hastaSmmlv: 17, pct: 0.012 }, // 16–17 SMMLV: 1.2%
-    { desdeSmmlv: 17, hastaSmmlv: 18, pct: 0.014 }, // 17–18 SMMLV: 1.4%
-    { desdeSmmlv: 18, hastaSmmlv: 19, pct: 0.016 }, // 18–19 SMMLV: 1.6%
-    { desdeSmmlv: 19, hastaSmmlv: 20, pct: 0.018 }, // 19–20 SMMLV: 1.8%
-    { desdeSmmlv: 20, hastaSmmlv: null, pct: 0.02 }, // ≥ 20 SMMLV: 2%
+    { desdeSmmlv: 16, hastaSmmlv: 17, hastaIncluido: true, pct: 0.012 },
+    {
+      desdeSmmlv: 17,
+      desdeIncluido: false,
+      hastaSmmlv: 18,
+      hastaIncluido: true,
+      pct: 0.014,
+    },
+    {
+      desdeSmmlv: 18,
+      desdeIncluido: false,
+      hastaSmmlv: 19,
+      hastaIncluido: true,
+      pct: 0.016,
+    },
+    {
+      desdeSmmlv: 19,
+      desdeIncluido: false,
+      hastaSmmlv: 20,
+      hastaIncluido: true,
+      pct: 0.018,
+    },
+    {
+      desdeSmmlv: 20,
+      desdeIncluido: false,
+      hastaSmmlv: null,
+      pct: 0.02,
+    }, // > 20 SMMLV: 2%
   ];
 
   const data = {

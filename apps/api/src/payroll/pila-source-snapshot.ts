@@ -352,7 +352,7 @@ export function buildPilaSourceSnapshot(input: {
 
   return {
     ...input.context,
-    schemaVersion: 4,
+    schemaVersion: 5,
     pilaRiskAssignments: input.context.pilaRiskAssignments ?? [],
     payroll: {
       payrollRunId: input.payroll.runId,
@@ -421,6 +421,8 @@ function buildPilaPayrollCalculationParameters(
         const tramo = value as Record<string, unknown>;
         const desdeSmmlv = tramo.desdeSmmlv;
         const hastaSmmlv = tramo.hastaSmmlv;
+        const desdeIncluido = tramo.desdeIncluido;
+        const hastaIncluido = tramo.hastaIncluido;
         const pct = tramo.pct;
         if (
           typeof desdeSmmlv !== 'number' ||
@@ -430,19 +432,27 @@ function buildPilaPayrollCalculationParameters(
             (typeof hastaSmmlv !== 'number' ||
               !Number.isFinite(hastaSmmlv) ||
               hastaSmmlv < desdeSmmlv)) ||
+          (desdeIncluido !== undefined && typeof desdeIncluido !== 'boolean') ||
+          (hastaIncluido !== undefined && typeof hastaIncluido !== 'boolean') ||
           typeof pct !== 'number' ||
           !Number.isFinite(pct) ||
           pct < 0
         ) {
           return null;
         }
-        return { desdeSmmlv, hastaSmmlv, pct };
+        return {
+          desdeSmmlv,
+          hastaSmmlv,
+          ...(desdeIncluido === undefined ? {} : { desdeIncluido }),
+          ...(hastaIncluido === undefined ? {} : { hastaIncluido }),
+          pct,
+        };
       })
     : null;
   const hasValidTramos = fspTramos !== null && fspTramos.every(Boolean);
 
   return {
-    sourceVersion: 'PAYROLL_LEGAL_PARAMETERS_V1',
+    sourceVersion: 'PAYROLL_LEGAL_PARAMETERS_V2',
     parametroLegalId,
     smmlv:
       typeof smmlv === 'number' && Number.isFinite(smmlv) && smmlv > 0

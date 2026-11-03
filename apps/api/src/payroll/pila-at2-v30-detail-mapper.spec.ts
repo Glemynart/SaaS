@@ -341,6 +341,16 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.values[1]).toBeDefined();
   });
 
+  it('accepts a PILA v5 snapshot with versioned FSP boundary semantics', () => {
+    const input = snapshot();
+    input.payloadVersion = 5;
+    (input.payload as { schemaVersion: number }).schemaVersion = 5;
+
+    const candidate = mapCandidate(input);
+
+    expect(candidate.supportedSnapshot).toBe(true);
+  });
+
   it('accounts for every AT2 detail field as a candidate or an explicit blocker', () => {
     const candidate = mapCandidate(snapshot());
     const layoutFields =

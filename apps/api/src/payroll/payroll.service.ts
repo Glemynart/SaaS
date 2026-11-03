@@ -30,7 +30,7 @@ import {
   UpdatePayrollPilaPaymentDateDto,
 } from './dto/create-payroll.dto';
 import { CreatePayrollCorrectionDto } from './dto/payroll-correction.dto';
-import { calculate } from './calculator/payroll-calculator';
+import { calculate, resolveFspPct } from './calculator/payroll-calculator';
 import {
   PayrollCalculationInput,
   PayrollCalculationResult,
@@ -94,7 +94,7 @@ const RECALCULATE_ALLOWED_STATUSES: PayrollPeriodStatus[] =
 
 const SNAPSHOT_PAYLOAD_VERSION = 1;
 const CALCULATION_TRACE_VERSION = 1;
-const PILA_PAYLOAD_VERSION = 4;
+const PILA_PAYLOAD_VERSION = 5;
 
 type PilaSourceData = {
   tenant: PilaSourceContextInput['tenant'];
@@ -1016,6 +1016,12 @@ export class PayrollService {
         where: { id: blockId, tenantId },
       });
       if (!block) throw new NotFoundException('Bloqueo no encontrado');
+
+      if (block.code === PayrollBlockCode.STALE_FSP_CALCULATION) {
+        throw new BadRequestException(
+          'No se puede excluir un cálculo FSP desactualizado; reliquide el período para corregirlo',
+        );
+      }
 
       if (block.status === PayrollBlockStatus.RESOLVED) {
         throw new BadRequestException(
@@ -1969,6 +1975,22 @@ export class PayrollService {
                 'El tramo FSP no es válido.',
               ),
         pct: this.asFiniteNumber(item.pct, 'El tramo FSP no es válido.'),
+        ...(item.desdeIncluido === undefined
+          ? {}
+          : {
+              desdeIncluido: this.asBoolean(
+                item.desdeIncluido,
+                'El límite inferior del tramo FSP no es válido.',
+              ),
+            }),
+        ...(item.hastaIncluido === undefined
+          ? {}
+          : {
+              hastaIncluido: this.asBoolean(
+                item.hastaIncluido,
+                'El límite superior del tramo FSP no es válido.',
+              ),
+            }),
       };
     });
     return {
@@ -3123,6 +3145,46 @@ export class PayrollService {
         warnings,
         blocks,
       );
+    }
+
+    const existingRuns = await tx.payrollRun.findMany({
+      where: { tenantId, payrollPeriodId: period.id },
+      select: {
+        employeeId: true,
+        ibc: true,
+        concepts: {
+          where: { codigo: ConceptCodigo.FSP },
+          select: { factor: true },
+        },
+      },
+    });
+    for (const run of existingRuns) {
+      const ibc = this.toNumber(run.ibc) ?? 0;
+      const expectedRate = resolveFspPct(
+        ibc,
+        legalSnapshot.smmlv,
+        legalSnapshot.fspTramos,
+      );
+      const recordedRate = run.concepts[0]?.factor;
+      const actualRate =
+        recordedRate === null || recordedRate === undefined
+          ? 0
+          : Number(recordedRate);
+      if (
+        Number.isFinite(actualRate) &&
+        Math.abs(actualRate - expectedRate) < 1e-9
+      ) {
+        continue;
+      }
+
+      const employeeBlocks = blocks[run.employeeId] ?? [];
+      employeeBlocks.push(
+        functionalBlock(
+          PayrollBlockCode.STALE_FSP_CALCULATION,
+          'La tasa FSP de esta liquidación no coincide con los parámetros legales vigentes. Reliquide el período antes de aprobarlo.',
+        ),
+      );
+      blocks[run.employeeId] = employeeBlocks;
     }
 
     return blocks;

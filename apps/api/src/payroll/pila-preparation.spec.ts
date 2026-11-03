@@ -259,6 +259,21 @@ describe('inspectPilaSnapshotPreparation', () => {
     ]);
   });
 
+  it('reconoce un snapshot PILA v5 con esquema coincidente', () => {
+    const source = payload();
+    source.schemaVersion = 5;
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 5,
+      payload: source,
+    });
+
+    expect(result.issues).not.toContainEqual(
+      expect.objectContaining({ code: 'PILA_SNAPSHOT_VERSION_NO_SOPORTADA' }),
+    );
+  });
+
   it('acepta fuentes de conceptos PILA completas y coherentes en snapshots v2', () => {
     const result = inspectPilaSnapshotPreparation({
       employeeId: 'employee-1',

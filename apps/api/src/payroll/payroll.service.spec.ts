@@ -918,6 +918,24 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       );
     });
 
+    it('no permite excluir una liquidación con tasa FSP desactualizada', async () => {
+      mockPayrollBlockFindFirst.mockResolvedValue({
+        id: 'block-fsp',
+        tenantId: TENANT,
+        payrollPeriodId: PERIOD_ID,
+        employeeId: 'emp-1',
+        code: 'STALE_FSP_CALCULATION',
+        message: 'Reliquide el período',
+        status: 'ACTIVE',
+      });
+
+      await expect(
+        service.excludeBlock(TENANT, USER, 'block-fsp', 'ignorar'),
+      ).rejects.toThrow('reliquide el período');
+      expect(mockPayrollBlockUpdate).not.toHaveBeenCalled();
+      expect(mockAudit.log).not.toHaveBeenCalled();
+    });
+
     it('no excluye un bloqueo ya resuelto', async () => {
       mockPayrollBlockFindFirst.mockResolvedValue({
         id: 'block-1',
@@ -1809,6 +1827,105 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       expect(mockAudit.log).not.toHaveBeenCalled();
     });
 
+    it('bloquea aprobar una ejecución con tasa FSP calculada bajo los tramos anteriores', async () => {
+      const smmlv = 1_423_500;
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('EN_REVISION'));
+      mockParametroLegalFindFirst.mockResolvedValue({
+        ...makeLegalParam(),
+        fspTramos: [
+          { desdeSmmlv: 4, hastaSmmlv: 16, pct: 0.01 },
+          {
+            desdeSmmlv: 16,
+            hastaSmmlv: 17,
+            pct: 0.012,
+            hastaIncluido: true,
+          },
+          {
+            desdeSmmlv: 17,
+            hastaSmmlv: 18,
+            pct: 0.014,
+            desdeIncluido: false,
+            hastaIncluido: true,
+          },
+          {
+            desdeSmmlv: 18,
+            hastaSmmlv: 19,
+            pct: 0.016,
+            desdeIncluido: false,
+            hastaIncluido: true,
+          },
+          {
+            desdeSmmlv: 19,
+            hastaSmmlv: 20,
+            pct: 0.018,
+            desdeIncluido: false,
+            hastaIncluido: true,
+          },
+          {
+            desdeSmmlv: 20,
+            hastaSmmlv: null,
+            pct: 0.02,
+            desdeIncluido: false,
+          },
+        ],
+      });
+      mockPayrollRunFindMany.mockResolvedValue([
+        {
+          employeeId: 'emp-1',
+          ibc: 17 * smmlv,
+          concepts: [{ factor: 0.014 }],
+        },
+      ]);
+      mockPayrollBlockFindMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ employeeId: 'emp-1' }]);
+      mockEmpleadoFindMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          salario: 17 * smmlv,
+          salarioIntegral: false,
+        },
+      ]);
+      mockContratoFindMany.mockResolvedValue([
+        {
+          id: 'contrato-1',
+          empleadoId: 'emp-1',
+          estado: 'VIGENTE',
+          fechaInicio: new Date('2025-01-01'),
+          fechaFin: null,
+          sedeId: 'sede-1',
+          salario: 17 * smmlv,
+          claseRiesgoArl: 1,
+        },
+      ]);
+
+      await expect(service.aprobar(TENANT, USER, PERIOD_ID)).rejects.toThrow(
+        'bloqueos funcionales activos',
+      );
+
+      expect(mockPayrollRunFindMany).toHaveBeenCalledWith({
+        where: { tenantId: TENANT, payrollPeriodId: PERIOD_ID },
+        select: {
+          employeeId: true,
+          ibc: true,
+          concepts: { where: { codigo: 'FSP' }, select: { factor: true } },
+        },
+      });
+      expect(mockPayrollBlockCreate).toHaveBeenCalledWith({
+        data: {
+          tenantId: TENANT,
+          payrollPeriodId: PERIOD_ID,
+          employeeId: 'emp-1',
+          code: 'STALE_FSP_CALCULATION',
+          message:
+            'La tasa FSP de esta liquidación no coincide con los parámetros legales vigentes. Reliquide el período antes de aprobarlo.',
+          status: 'ACTIVE',
+        },
+      });
+      expect(mockPayrollSnapshotCreate).not.toHaveBeenCalled();
+      expect(mockPayrollPeriodUpdateMany).not.toHaveBeenCalled();
+    });
+
     it('bloqueos excluidos no se reactivan durante la validación de aprobación', async () => {
       mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('EN_REVISION'));
       mockPayrollPeriodUpdateMany.mockResolvedValue({ count: 1 });
@@ -2154,7 +2271,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       ]);
       const pilaPayload = snapshotCreateData.pilaPayload;
       expect(pilaPayload).toMatchObject({
-        schemaVersion: 4,
+        schemaVersion: 5,
         pilaRiskAssignments: [
           {
             assignmentId: 'risk-assignment-at-approval',
@@ -2189,7 +2306,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         payroll: {
           payrollRunId: 'run-1',
           payrollCalculationParameters: {
-            sourceVersion: 'PAYROLL_LEGAL_PARAMETERS_V1',
+            sourceVersion: 'PAYROLL_LEGAL_PARAMETERS_V2',
             parametroLegalId: 'param-1',
             smmlv: 1_423_500,
             fspTramos: [],
@@ -2207,7 +2324,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         },
       });
       expect(snapshotCreateData).toMatchObject({
-        pilaPayloadVersion: 4,
+        pilaPayloadVersion: 5,
       });
     });
 

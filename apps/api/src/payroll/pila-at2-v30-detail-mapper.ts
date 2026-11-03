@@ -295,7 +295,8 @@ export function mapPilaAt2V30DetailCandidate(
   const supportedSnapshot =
     (snapshot.payloadVersion === 2 ||
       snapshot.payloadVersion === 3 ||
-      snapshot.payloadVersion === 4) &&
+      snapshot.payloadVersion === 4 ||
+      snapshot.payloadVersion === 5) &&
     root?.schemaVersion === snapshot.payloadVersion &&
     employee !== null &&
     employer !== null &&
@@ -417,7 +418,7 @@ export function mapPilaAt2V30DetailCandidate(
   } else if (!workLocation) {
     const reason =
       workLocations === null
-        ? 'El snapshot v3/v4 no conserva una lista válida de ubicaciones laborales PILA.'
+        ? 'El snapshot v3/v4/v5 no conserva una lista válida de ubicaciones laborales PILA.'
         : workLocations.length === 0
           ? 'Falta una ubicación laboral PILA confirmada que cubra el período.'
           : 'Hay varias ubicaciones laborales PILA durante el período; la segmentación no está habilitada.';

@@ -111,7 +111,7 @@ export function calculate(
       p.pctPensionEmpleado,
     ),
   );
-  const fspPct = resolveFspPct(ibc / p.smmlv, p.fspTramos);
+  const fspPct = resolveFspPct(ibc, p.smmlv, p.fspTramos);
   if (fspPct > 0) {
     concepts.push(
       deduction(
@@ -312,12 +312,26 @@ function arlFactor(clase: ArlClase, p: LegalParamsSnapshot): number {
   return p.arlPorClase[clase];
 }
 
-/** Resuelve la tasa FSP para un IBC expresado en múltiplos de SMMLV. */
-function resolveFspPct(ibcEnSmmlv: number, tramos: FspTramo[]): number {
+/** Resuelve la tasa FSP comparando el IBC en COP con límites versionados. */
+export function resolveFspPct(
+  ibc: number,
+  smmlv: number,
+  tramos: FspTramo[],
+): number {
+  if (!Number.isFinite(ibc) || !Number.isFinite(smmlv) || smmlv <= 0) {
+    return 0;
+  }
+
   for (const t of tramos) {
-    const dentroDelTramo =
-      ibcEnSmmlv >= t.desdeSmmlv &&
-      (t.hastaSmmlv === null || ibcEnSmmlv < t.hastaSmmlv);
+    const limiteInferior = t.desdeSmmlv * smmlv;
+    const superaLimiteInferior =
+      t.desdeIncluido === false ? ibc > limiteInferior : ibc >= limiteInferior;
+    const noSuperaLimiteSuperior =
+      t.hastaSmmlv === null ||
+      (t.hastaIncluido
+        ? ibc <= t.hastaSmmlv * smmlv
+        : ibc < t.hastaSmmlv * smmlv);
+    const dentroDelTramo = superaLimiteInferior && noSuperaLimiteSuperior;
     if (dentroDelTramo) return t.pct;
   }
   return 0;
