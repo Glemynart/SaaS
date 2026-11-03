@@ -64,6 +64,14 @@ export interface Invoice {
   items?: InvoiceItem[];
   _count?: { items: number };
 }
+export interface CustomerReceivableInvoice {
+  id: string;
+  numero: string;
+  total: number | string;
+  totalPagado: number | string;
+  saldoPendiente: number | string;
+  fechaVencimiento: string | null;
+}
 export type CustomerReceiptMethod = 'EFECTIVO' | 'TRANSFERENCIA';
 export interface InvoiceReceiptApplication {
   id: string;
@@ -74,6 +82,11 @@ export interface InvoiceReceiptApplication {
     medio: CustomerReceiptMethod;
     referencia: string | null;
     monto: number;
+    aplicaciones: Array<{
+      invoiceId: string;
+      numero: string;
+      amount: number | string;
+    }>;
     reversal: { id: string; reason: string; createdAt: string } | null;
     registradoPorId: string;
   };
@@ -132,6 +145,10 @@ export const billingApi = {
     }[];
   }) => req<Invoice>('/api/billing/invoices', { method: 'POST', body: JSON.stringify(d) }),
   getInvoice: (id: string) => req<Invoice>(`/api/billing/invoices/${id}`),
+  getCustomerReceivableInvoices: (customerId: string) =>
+    req<CustomerReceivableInvoice[]>(
+      `/api/billing/customers/${encodeURIComponent(customerId)}/receivable-invoices`,
+    ),
   getInvoiceReceiptApplications: (id: string) =>
     req<InvoiceReceiptApplication[]>(`/api/billing/invoices/${id}/receipts`),
   createCustomerReceipt: (d: {

@@ -129,8 +129,10 @@ se accedió a demo, staging o producción.
   devuelvan registros. El cálculo de saldo ejecuta bajo `TenantPrismaService`.
 - Quedan fuera: recaudos no aplicados, anticipos, devoluciones, conciliación
   bancaria, transmisión DIAN, manejo de intereses y operación de tesorería. La
-  captura de esta UI aplica el recaudo a una factura por vez; la API admite
-  varias facturas del mismo cliente en una solicitud.
+  versión inicial de la captura aplica el recaudo a una factura por vez; la API
+  admite varias facturas del mismo cliente en una solicitud. La ampliación de
+  interfaz descrita abajo está en una rama candidata y aún no acredita uso en
+  `main`.
 - La migración es aditiva y conserva las facturas históricas sin vencimiento.
   Una vez existan recaudos reales no debe revertirse eliminando esas tablas; se
   debe corregir hacia adelante para preservar evidencia financiera.
@@ -142,6 +144,25 @@ se accedió a demo, staging o producción.
   antes de diseñar una migración que dependa de esos objetos.
 - Validación local actual: 30 pruebas de Billing/autorización, 11 pruebas RLS,
   typechecks API/web, builds API/web y Browser E2E financiero (1/1) pasan.
+
+### Reparto de un recaudo entre facturas — candidato, 2026-11-03
+
+- En la rama candidata, la captura desde una factura consulta las facturas
+  pendientes del mismo cliente y tenant. Solo incluye facturas emitidas con
+  comprobante activo de emisión en Ledger y saldo calculado desde aplicaciones
+  de recaudo vigentes.
+- El operador distribuye el valor recibido entre una o más facturas; el total
+  se deriva de los importes en centavos, se limita a 100 facturas y debe coincidir
+  con la suma de aplicaciones que valida el servicio existente. La UI rechaza
+  valores que no pueda representar exactamente en centavos.
+- El historial identifica todas las facturas afectadas. Como el servicio solo
+  soporta reversar el recaudo completo, la UI lo confirma explícitamente y
+  presenta el total y las facturas antes de pedir el motivo.
+- Validación local en la rama candidata: API/web typecheck, builds API/web,
+  pruebas del servicio y Browser E2E en PostgreSQL 16 desechable; todos pasan.
+  No requiere migración nueva. Sigue pendiente la auditoría del PR y la
+  aceptación operativa de un cliente; no añade anticipos, pagos no aplicados,
+  reversos parciales ni conciliación bancaria.
 
 ## Evidencia inicial (corte 2026-10-29) y límites vigentes
 
