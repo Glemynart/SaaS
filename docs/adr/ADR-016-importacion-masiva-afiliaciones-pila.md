@@ -22,7 +22,7 @@ de la importación de empleados y no edita otros datos del empleado.
 
 La primera versión:
 
-1. Acepta hasta 500 filas, un empleado por archivo y trabajadores con contratos
+1. Acepta hasta 500 filas, una fila por empleado y trabajadores con contratos
    laborales estándar admitidos por el MVP PILA (`TERMINO_FIJO`,
    `TERMINO_INDEFINIDO`, `OBRA_LABOR`), cotizante `01` y subtipo `00`.
 2. Exige el conjunto completo de administradoras, centro/actividad no incluidos,
