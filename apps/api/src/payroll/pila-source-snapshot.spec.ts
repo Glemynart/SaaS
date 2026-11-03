@@ -200,7 +200,7 @@ describe('PILA source snapshot builders', () => {
     });
 
     expect(context.schemaVersion).toBe(3);
-    expect(snapshot.schemaVersion).toBe(3);
+    expect(snapshot.schemaVersion).toBe(4);
     expect(snapshot.pilaWorkLocations).toEqual([
       {
         assignmentId: 'work-location-1',
@@ -274,6 +274,66 @@ describe('PILA source snapshot builders', () => {
     });
   });
 
+  it('freezes the Payroll FSP calculation inputs without treating them as PILA rules', () => {
+    const snapshot = buildPilaSourceSnapshot({
+      context: buildPilaSourceContext(contextInput),
+      payroll: {
+        runId: 'run-fsp-inputs',
+        parametroLegalId: 'legal-2026',
+        legalParameters: {
+          smmlv: 1_423_500,
+          fspTramos: [
+            { desdeSmmlv: 0, hastaSmmlv: 4, pct: 0 },
+            { desdeSmmlv: 4, hastaSmmlv: 16, pct: 0.01 },
+          ],
+        },
+        fechaPrevistaPagoPila: null,
+        salarioBasico: 2_000_000,
+        salarioIntegral: false,
+        ibc: 2_000_000,
+        concepts: [],
+        novelties: [],
+      },
+    });
+
+    expect(snapshot.schemaVersion).toBe(4);
+    expect(snapshot.payroll.payrollCalculationParameters).toEqual({
+      sourceVersion: 'PAYROLL_LEGAL_PARAMETERS_V1',
+      parametroLegalId: 'legal-2026',
+      smmlv: 1_423_500,
+      fspTramos: [
+        { desdeSmmlv: 0, hastaSmmlv: 4, pct: 0 },
+        { desdeSmmlv: 4, hastaSmmlv: 16, pct: 0.01 },
+      ],
+    });
+  });
+
+  it('keeps malformed Payroll FSP inputs unresolved instead of inferring values', () => {
+    const snapshot = buildPilaSourceSnapshot({
+      context: buildPilaSourceContext(contextInput),
+      payroll: {
+        runId: 'run-malformed-fsp-inputs',
+        parametroLegalId: 'legal-2026',
+        legalParameters: {
+          smmlv: '1423500',
+          fspTramos: [{ desdeSmmlv: 4, hastaSmmlv: 16, pct: -0.01 }],
+        },
+        fechaPrevistaPagoPila: null,
+        salarioBasico: 2_000_000,
+        salarioIntegral: false,
+        ibc: 2_000_000,
+        concepts: [],
+        novelties: [],
+      },
+    });
+
+    expect(snapshot.payroll.payrollCalculationParameters).toMatchObject({
+      parametroLegalId: 'legal-2026',
+      smmlv: null,
+      fspTramos: null,
+    });
+  });
+
   it('freezes declared sources and approved payroll values without deriving fields', () => {
     const context = buildPilaSourceContext(contextInput);
     const result = buildPilaSourceSnapshot({
@@ -338,7 +398,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(3);
+    expect(result.schemaVersion).toBe(4);
     expect(result.capturedAt).toBe('2026-11-02T15:00:00.000Z');
     expect(result.employee.fechaIngreso).toBe('2026-01-05');
     expect(result.employee.fechaNacimiento).toBeNull();

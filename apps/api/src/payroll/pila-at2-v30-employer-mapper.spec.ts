@@ -198,6 +198,16 @@ describe('mapPilaAt2V30EmployerCandidate', () => {
     expect(candidate.values[32]).toEqual({ value: '11' });
   });
 
+  it('supports a PILA v4 snapshot for the existing type 1 field candidates', () => {
+    const input = snapshot();
+    input.payloadVersion = 4;
+    input.payload.schemaVersion = 4;
+
+    const candidate = mapPilaAt2V30EmployerCandidate(input);
+
+    expect(candidate.supportedSnapshot).toBe(true);
+  });
+
   it('does not map an unsupported or unattributed snapshot', () => {
     const input = snapshot();
     input.payloadVersion = 1;

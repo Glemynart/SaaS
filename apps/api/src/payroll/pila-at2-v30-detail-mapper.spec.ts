@@ -330,6 +330,17 @@ function mapCandidate(
 }
 
 describe('mapPilaAt2V30DetailCandidate', () => {
+  it('accepts a PILA v4 snapshot for the candidates supported by its source data', () => {
+    const input = snapshot();
+    input.payloadVersion = 4;
+    (input.payload as { schemaVersion: number }).schemaVersion = 4;
+
+    const candidate = mapCandidate(input);
+
+    expect(candidate.supportedSnapshot).toBe(true);
+    expect(candidate.values[1]).toBeDefined();
+  });
+
   it('accounts for every AT2 detail field as a candidate or an explicit blocker', () => {
     const candidate = mapCandidate(snapshot());
     const layoutFields =

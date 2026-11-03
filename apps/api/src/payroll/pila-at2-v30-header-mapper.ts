@@ -145,7 +145,9 @@ export function mapPilaAt2V30HeaderCandidate(input: {
     parsed.length > 0 &&
     parsed.every(
       ({ snapshot, root, employer, employerPila, employee, period }) =>
-        (snapshot.payloadVersion === 2 || snapshot.payloadVersion === 3) &&
+        (snapshot.payloadVersion === 2 ||
+          snapshot.payloadVersion === 3 ||
+          snapshot.payloadVersion === 4) &&
         root?.schemaVersion === snapshot.payloadVersion &&
         employer !== null &&
         employerPila !== null &&
