@@ -75,7 +75,9 @@ describe('SocialSecurityAffiliationsService', () => {
     });
     affiliationUpdateMany.mockResolvedValue({ count: 1 });
     affiliationCreate.mockResolvedValue({ id: 'affiliation-new' });
-    queryRaw.mockResolvedValue([{ tipoDocumento: 'CC' }]);
+    queryRaw.mockResolvedValue([
+      { tipoDocumento: 'CC', tipoContrato: 'TERMINO_FIJO' },
+    ]);
     auditLog.mockResolvedValue(undefined);
     execute.mockImplementation(
       (work: (client: typeof tx, context: { tenantId: string }) => unknown) =>
@@ -165,11 +167,26 @@ describe('SocialSecurityAffiliationsService', () => {
     );
   });
 
+  it('rejects standard PILA affiliation for a contractor', async () => {
+    queryRaw.mockResolvedValue([
+      { tipoDocumento: 'CC', tipoContrato: 'PRESTACION_SERVICIOS' },
+    ]);
+
+    await expect(
+      service.create(userId, employeeId, dto),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(affiliationFindMany).not.toHaveBeenCalled();
+    expect(affiliationCreate).not.toHaveBeenCalled();
+  });
+
   it.each(['CE', 'PA'])(
     'requires an explicit foreign pension declaration for %s employees',
     async (tipoDocumento) => {
       employeeFindFirst.mockResolvedValue({ id: employeeId, tipoDocumento });
-      queryRaw.mockResolvedValue([{ tipoDocumento }]);
+      queryRaw.mockResolvedValue([
+        { tipoDocumento, tipoContrato: 'TERMINO_FIJO' },
+      ]);
 
       await expect(
         service.create(userId, employeeId, {
@@ -186,7 +203,9 @@ describe('SocialSecurityAffiliationsService', () => {
       id: employeeId,
       tipoDocumento: 'CE',
     });
-    queryRaw.mockResolvedValue([{ tipoDocumento: 'CE' }]);
+    queryRaw.mockResolvedValue([
+      { tipoDocumento: 'CE', tipoContrato: 'TERMINO_FIJO' },
+    ]);
 
     await service.create(userId, employeeId, {
       ...dto,

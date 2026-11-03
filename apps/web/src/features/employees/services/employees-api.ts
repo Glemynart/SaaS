@@ -77,6 +77,10 @@ export type CreateSocialSecurityAffiliation = Omit<
   cajaCompensacionDepartamentoCodigo: string;
 };
 
+export type CreateEmployeeInput = Partial<Employee> & {
+  afiliacionPilaInicial?: CreateSocialSecurityAffiliation;
+};
+
 export interface PilaWorkCenter {
   id: string;
   tenantId: string;
@@ -292,7 +296,7 @@ export const employeesApi = {
       { method: 'PATCH', body: JSON.stringify({ vigenteHasta }) },
     ),
 
-  create: async (data: Partial<Employee>) => {
+  create: async (data: CreateEmployeeInput) => {
     return request<Employee>('/api/employees', {
       method: 'POST',
       body: JSON.stringify(data),

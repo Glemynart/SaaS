@@ -21,11 +21,37 @@ import {
 } from '@/features/employees/hooks/use-employees';
 import {
   type Employee,
+  type CreateSocialSecurityAffiliation,
   employeesApi,
   ImportError,
 } from '@/features/employees/services/employees-api';
 import { type EmployeeFormData } from '@/features/employees/schemas/employee-schemas';
 import { getUserFacingError } from '@/lib/error-message';
+
+function toInitialPilaAffiliation(
+  values: NonNullable<EmployeeFormData['afiliacionPilaInicial']>,
+): CreateSocialSecurityAffiliation {
+  const declaration = (value?: string) => (value === 'SI' ? true : value === 'NO' ? false : null);
+
+  return {
+    tipoCotizanteCodigo: '01',
+    subtipoCotizanteCodigo: '00',
+    epsCodigo: values.epsCodigo?.trim() ?? '',
+    epsNombre: values.epsNombre?.trim() ?? '',
+    fondoPensionCodigo: values.fondoPensionCodigo?.trim() ?? '',
+    fondoPensionNombre: values.fondoPensionNombre?.trim() ?? '',
+    arlCodigo: values.arlCodigo?.trim() ?? '',
+    arlNombre: values.arlNombre?.trim() ?? '',
+    arlClaseRiesgo: values.arlClaseRiesgo ?? '',
+    cajaCompensacionCodigo: values.cajaCompensacionCodigo?.trim() ?? '',
+    cajaCompensacionNombre: values.cajaCompensacionNombre?.trim() ?? '',
+    cajaCompensacionDepartamentoCodigo: values.cajaCompensacionDepartamentoCodigo ?? '',
+    extranjeroNoObligadoPension: declaration(values.extranjeroNoObligadoPension),
+    colombianoEnElExterior: declaration(values.colombianoEnElExterior),
+    vigenteDesde: values.vigenteDesde ?? '',
+    vigenteHasta: values.vigenteHasta || null,
+  };
+}
 
 export default function EmpleadosPage() {
   const [page, setPage] = useState(1);
@@ -77,7 +103,8 @@ export default function EmpleadosPage() {
   };
 
   const handleSubmit = (formData: EmployeeFormData) => {
-    const cleaned = { ...formData, sedeId: formData.sedeId || null };
+    const { registrarAfiliacionPilaInicial, afiliacionPilaInicial, ...employeeFields } = formData;
+    const cleaned = { ...employeeFields, sedeId: formData.sedeId || null };
     if (selectedEmployee) {
       updateMutation.mutate(
         { id: selectedEmployee.id, data: cleaned },
@@ -93,16 +120,24 @@ export default function EmpleadosPage() {
         },
       );
     } else {
-      createMutation.mutate(cleaned, {
-        onSuccess: () => {
-          setIsSheetOpen(false);
-          toast.success('Empleado creado.');
+      createMutation.mutate(
+        {
+          ...cleaned,
+          ...(registrarAfiliacionPilaInicial && afiliacionPilaInicial
+            ? { afiliacionPilaInicial: toInitialPilaAffiliation(afiliacionPilaInicial) }
+            : {}),
         },
-        onError: (error) =>
-          toast.error(
-            getUserFacingError(error, 'No se pudo crear el empleado. Inténtalo de nuevo.'),
-          ),
-      });
+        {
+          onSuccess: () => {
+            setIsSheetOpen(false);
+            toast.success('Empleado creado.');
+          },
+          onError: (error) =>
+            toast.error(
+              getUserFacingError(error, 'No se pudo crear el empleado. Inténtalo de nuevo.'),
+            ),
+        },
+      );
     }
   };
 

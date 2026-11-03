@@ -7,6 +7,7 @@ import {
   TenantPrismaClient,
   TenantPrismaService,
 } from '../tenant-prisma/tenant-prisma.service';
+import { SocialSecurityAffiliationsService } from './social-security-affiliations.service';
 import { EmployeesService } from './employees.service';
 
 const TEST_ROLE = 'rls_empleados_test_role';
@@ -30,9 +31,16 @@ describe('empleados PostgreSQL RLS', () => {
     { $transaction: runAsRlsRole } as unknown as PrismaService,
     new TenantContextBoundary(tenantContext),
   );
-  const employeesService = new EmployeesService(tenantPrisma, {
-    log: jest.fn(),
-  } as unknown as AuditService);
+  const auditService = { log: jest.fn() } as unknown as AuditService;
+  const affiliationsService = new SocialSecurityAffiliationsService(
+    tenantPrisma,
+    auditService,
+  );
+  const employeesService = new EmployeesService(
+    tenantPrisma,
+    auditService,
+    affiliationsService,
+  );
 
   beforeAll(async () => {
     await prisma.$connect();

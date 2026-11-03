@@ -1,6 +1,16 @@
 export const SOCIAL_SECURITY_AFFILIATION_CAPTURE_VERSION =
   'PILA_AFFILIATION_CAPTURE_V3';
 
+export function isSupportedPilaDependentContract(
+  tipoContrato: string | null | undefined,
+): boolean {
+  return (
+    tipoContrato === 'TERMINO_FIJO' ||
+    tipoContrato === 'TERMINO_INDEFINIDO' ||
+    tipoContrato === 'OBRA_LABOR'
+  );
+}
+
 export interface PilaAffiliationDeclarations {
   extranjeroNoObligadoPension: boolean | null;
   colombianoEnElExterior: boolean | null;

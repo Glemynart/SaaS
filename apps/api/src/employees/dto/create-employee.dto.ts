@@ -9,9 +9,11 @@ import {
   IsUUID,
   Min,
   Validate,
+  ValidateNested,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { PepTutorDocumentNumberConstraint } from '../../common/validators/pep-tutor-document-number';
+import { CreateSocialSecurityAffiliationDto } from './create-social-security-affiliation.dto';
 
 export enum TipoDocIdentidad {
   CC = 'CC',
@@ -147,4 +149,9 @@ export class CreateEmployeeDto {
 
   @IsUUID()
   sedeId: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CreateSocialSecurityAffiliationDto)
+  afiliacionPilaInicial?: CreateSocialSecurityAffiliationDto;
 }
