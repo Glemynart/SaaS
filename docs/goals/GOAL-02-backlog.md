@@ -1226,3 +1226,22 @@ false`.
   API/web se verificaron en el corte anterior de esta misma rama funcional. La
   prima sigue limitada a enero–junio para demo; revisión laboral independiente
   y regla del segundo semestre siguen pendientes antes de uso operativo.
+
+### Recaudo parcial en el seed de demo financiera — 2026-11-03
+
+- El escenario sintético crea un recaudo por transferencia de $100.000 y lo
+  aplica a la factura demo emitida por $285.600 usando `CustomerReceiptsService`.
+  La operación es tenant-scoped e idempotente; no borra ni reemplaza recaudos
+  existentes y genera el comprobante CI balanceado con débito a Banco y crédito
+  a Cartera.
+- El Browser E2E verifica la aplicación, los movimientos asociados al tercero,
+  el saldo pendiente de $185.600, la repetición idempotente del seed y la vista
+  desde Facturación. Los datos siguen marcados como sintéticos; no representan
+  recaudos reales ni una validación operativa contable.
+- Verificación local en PostgreSQL 16 desechable con 82 migraciones: primera
+  ejecución creó un recaudo; la segunda reportó cero recaudos nuevos. La
+  consulta confirmó factura $285.600, aplicación $100.000, saldo $185.600 y
+  comprobante CI balanceado con Banco 111005 y Cartera 130505.
+- Browser E2E local pasó (1/1, 23,7 s) sobre la misma clase de base temporal;
+  el test ejecuta el seed con `ts-node` y el `tsconfig` de API para no importar
+  directamente servicios Nest decorados desde el transformador Playwright.

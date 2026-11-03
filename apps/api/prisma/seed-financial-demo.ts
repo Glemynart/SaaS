@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { createHash } from 'node:crypto';
 import {
   ClaseContable,
@@ -8,6 +9,8 @@ import {
 } from '@prisma/client';
 import { AuditService } from '../src/audit/audit.service';
 import { BillingService } from '../src/billing/billing.service';
+import { CustomerReceiptsService } from '../src/billing/customer-receipts.service';
+import { ReceiptMethod } from '../src/billing/dto/billing.dto';
 import { LedgerService } from '../src/accounting/ledger/ledger.service';
 import { DEFAULT_SYSTEM_ACCOUNT_MAPPINGS } from '../src/accounting/provisioning/system-account-mappings';
 import {
@@ -87,6 +90,7 @@ type CreatedCounts = {
   accountingPeriods: number;
   accounts: number;
   accountMaps: number;
+  receipts: number;
 };
 
 export type FinancialDemoSeedResult = {
@@ -341,7 +345,7 @@ async function ensureSystemAccountMappings(
 
 async function requireVoucherType(
   tx: Prisma.TransactionClient,
-  codigo: 'NOM' | 'FV',
+  codigo: 'NOM' | 'FV' | 'CI',
 ): Promise<void> {
   const existing = await tx.tipoComprobante.findUnique({
     where: { codigo },
@@ -995,6 +999,7 @@ export async function seedFinancialDemoScenario(
     accountingPeriods: 0,
     accounts: 0,
     accountMaps: 0,
+    receipts: 0,
   };
 
   try {
@@ -1029,6 +1034,11 @@ export async function seedFinancialDemoScenario(
     const audit = new AuditService(prisma);
     const ledger = new LedgerService(tenantPrisma, audit);
     const billing = new BillingService(prisma, tenantPrisma, ledger, audit);
+    const customerReceipts = new CustomerReceiptsService(
+      tenantPrisma,
+      ledger,
+      audit,
+    );
     const preflight = new PayrollAccountingPreflightService(prisma);
     const payroll = new PayrollService(
       prisma,
@@ -1264,9 +1274,10 @@ export async function seedFinancialDemoScenario(
           tx,
           tenantId,
           created,
-          INVOICE_ACCOUNT_ROLES,
+          new Set([...INVOICE_ACCOUNT_ROLES, 'BANCO_PRINCIPAL']),
         );
         await requireVoucherType(tx, 'FV');
+        await requireVoucherType(tx, 'CI');
 
         const customerIds = new Map<string, string>();
         for (const customer of DEMO_CUSTOMERS) {
@@ -1393,6 +1404,59 @@ export async function seedFinancialDemoScenario(
         });
       }
 
+      const demoInvoiceId = demoId(tenantId, 'invoice-issued-001');
+      const demoInvoice = await tenantPrisma.execute((tx) =>
+        tx.invoice.findFirst({
+          where: { id: demoInvoiceId, tenantId },
+          select: { customerId: true, fechaEmision: true },
+        }),
+      );
+      if (
+        !demoInvoice ||
+        demoInvoice.customerId !== demoId(tenantId, 'customer-horizonte')
+      ) {
+        throw new Error(
+          'La factura sintética de cartera no pertenece al cliente demo esperado.',
+        );
+      }
+
+      const demoReceiptInput = {
+        customerId: demoInvoice.customerId,
+        fechaRecibo: demoInvoice.fechaEmision.toISOString().slice(0, 10),
+        medio: ReceiptMethod.TRANSFERENCIA,
+        referencia: 'DEMO-TRX-001',
+        monto: 100_000,
+        idempotencyKey: demoId(tenantId, 'receipt-issued-001'),
+        aplicaciones: [
+          {
+            invoiceId: demoInvoiceId,
+            amount: 100_000,
+          },
+        ],
+      };
+      const existingDemoReceipt = await tenantPrisma.execute((tx) =>
+        tx.customerReceipt.findUnique({
+          where: {
+            tenantId_idempotencyKey: {
+              tenantId,
+              idempotencyKey: demoReceiptInput.idempotencyKey,
+            },
+          },
+          select: { id: true },
+        }),
+      );
+      if (!existingDemoReceipt) created.receipts += 1;
+      const demoReceipt = await customerReceipts.create(
+        tenantId,
+        actorId,
+        demoReceiptInput,
+      );
+      if (demoReceipt.reversal) {
+        throw new Error(
+          'El recaudo sintético de la demo está reversado; no se modificó.',
+        );
+      }
+
       if (seedSetup.existingPeriod?.status === PayrollPeriodStatus.CAUSADA) {
         const vouchers = await prisma.comprobanteContable.findMany({
           where: {
@@ -1467,8 +1531,10 @@ async function main(): Promise<void> {
     );
   }
   const tenant = await seedFinancialDemoScenario(tenantId, actorId);
+  const receiptLabel =
+    tenant.created.receipts === 1 ? 'recaudo nuevo' : 'recaudos nuevos';
   console.log(
-    `Demo financiera lista para tenant ${tenant.tenantId}: ${tenant.created.customers} clientes, ${tenant.created.products} productos, ${tenant.created.invoices} facturas nuevas; nómina ${tenant.payrollPeriodId} ${tenant.status}, comprobante ${tenant.comprobanteId}.`,
+    `Demo financiera lista para tenant ${tenant.tenantId}: ${tenant.created.customers} clientes, ${tenant.created.products} productos, ${tenant.created.invoices} facturas nuevas, ${tenant.created.receipts} ${receiptLabel}; nómina ${tenant.payrollPeriodId} ${tenant.status}, comprobante ${tenant.comprobanteId}.`,
   );
 }
 
