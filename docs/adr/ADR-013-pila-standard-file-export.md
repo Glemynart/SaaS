@@ -360,18 +360,36 @@ auditoría en la misma transacción. La pantalla pide confirmar la fuente única
 solo después de verificarla; la existencia de una sola relación laboral en el
 tenant no se usa como prueba.
 
-Al aprobar, el snapshot v6 congela la declaración, el IBC pensional proveniente
-del concepto único `PENSION_EMP`, el SMMLV, las dos subcuentas calculadas y las
+Al aprobar, el snapshot v7 congela la declaración, el estado S/N de afiliación,
+el IBC pensional proveniente del concepto único `PENSION_EMP`, el SMMLV, las dos subcuentas calculadas y las
 versiones de regla y redondeo. La rama solo propone los campos 51/52 para
-dependientes 01/00 de mes calendario completo, con días aprobados, sin
-novedades ni eventos sin segmentar y con fecha prevista de pago anterior al 1
-de abril de 2027. Cada importe debe conciliar con el concepto `FSP` ya aprobado;
+períodos que terminan antes de 2025-07-01 y dependientes 01/00 de mes calendario
+completo, con días aprobados, sin novedades ni eventos sin segmentar y con fecha
+prevista de pago anterior al 1 de abril de 2027. Cada importe debe conciliar con el concepto `FSP` ya aprobado;
 si el redondeo separado a centenas cambia el total, se bloquean ambos campos y
 no se modifica Payroll. Las fuentes múltiples, la declaración ausente, los
 datos incompletos y el período o pago de transición permanecen bloqueados.
-Los snapshots v1–v5 mantienen sus razones históricas y no se completan ni
+Los snapshots v1–v6 mantienen sus razones históricas y no se completan ni
 reescriben. Estos candidatos locales no habilitan serialización o descarga ni
 afirman aceptación de un operador.
+
+#### Vigencia de los ajustes FSP de PILA desde julio de 2025
+
+La [Circular Externa 028 de 2025 del Ministerio de Salud](https://www.minsalud.gov.co/Normatividad_Nuevo/Circular%20Externa%20No%20028%20de%202025.pdf)
+suspendió los ajustes PILA de la Resolución 467 de 2025 relacionados con la
+implementación de la Ley 2381, salvo los ajustes enumerados en la propia circular.
+Los campos 51/52 no aparecen expresamente en esa lista de excepciones. La
+[Sentencia C-264 de 2026](https://www.corteconstitucional.gov.co/relatoria/2026/C-264-26.htm)
+posteriormente fijó el 1 de abril de 2027 para las disposiciones exequibles que
+componen el nuevo sistema y condicionó la vigencia de otras al trámite de
+subsanación. No se encontró una instrucción oficial posterior que aclare cómo
+se reactivan, ni desde qué fecha aplican antes del corte de 2027, los ajustes
+PILA de la Resolución 467 afectados por esa suspensión.
+
+Por esta incertidumbre, el preflight mantiene 51/52 bloqueados para períodos
+desde 2025-07-01, incluso si el snapshot conserva S o N. La captura de S/N es
+histórica y útil para una futura regla versionada, pero no demuestra por sí sola
+que la ruta ya esté operativa. No se serializa ni descarga el archivo.
 
 La migración agrega el enum y los tres campos con `UNCONFIRMED` como valor
 predeterminado para ejecuciones existentes; no infiere declaraciones pasadas
@@ -390,10 +408,10 @@ Pruebas normativas y límites vigentes del candidato:
 | Fuente única confirmada; límites 16, 17, 18, 19 y 20 SMMLV y un valor por encima de 20         | Verificar por separado solidaridad y cada tarifa marginal de subsistencia: a 16/17/18/19/20/21 SMMLV sintéticos de $1.000.000, los campos 51/52 antes de redondeo son $80.000/$112.000, $85.000/$119.000, $90.000/$162.000, $95.000/$209.000, $100.000/$260.000 y $105.000/$315.000. Incluir también valores justo debajo y un peso por encima de cada límite; aplicar el redondeo PILA versionado sin reemplazar valores de Payroll. |
 | Dos fuentes cuyos IBC individuales quedan bajo 4 SMMLV pero cuya suma cruza el umbral          | Bloquear si no se han capturado y aprobado ambas fuentes y la distribución normativa; nunca decidir por el IBC del tenant aislado.                                                                                                                                                                                                                                                                                                    |
 | Fuentes múltiples, alcance de ingresos desconocido o dato de régimen ausente                   | Bloquear campos 51/52 con causa por cotizante; no asumir fuente única ni cero.                                                                                                                                                                                                                                                                                                                                                        |
-| Período desde 2025-07-01 o que cruza el corte; falta el estado de afiliación pensional S/N     | Bloquear campos 51/52 incluso si un snapshot v6 conserva `READY`; AT2 v30 condiciona el destino FSP a ese estado, que no se infiere del fondo, de la declaración de fuente única ni de otro dato. Reconciliar además la vigencia de esta regla frente al nuevo sistema pensional antes de habilitar candidatos.                                                                                                                       |
+| Período desde 2025-07-01 o que cruza el corte; cualquier estado de afiliación                  | Bloquear 51/52 incluso con S/N y aunque snapshot v6/v7 conserve `READY`: la Circular 028/2025 suspendió los ajustes PILA de la Resolución 467 asociados a Ley 2381 salvo excepciones enumeradas, y no se encontró aclaración oficial posterior que reconcilie su vigencia frente a C-264/2026.                                                                                                                                        |
 | Total FSP aprobado no concilia con las subcuentas bajo los insumos y redondeo congelados       | Bloquear sin ajustar Payroll ni reemplazar los importes.                                                                                                                                                                                                                                                                                                                                                                              |
 | Período o fecha prevista de pago alcanza el cambio de régimen de 2027                          | Bloquear hasta reconciliar la regla vigente por período y pago; no reutilizar porcentajes del régimen anterior.                                                                                                                                                                                                                                                                                                                       |
-| Snapshot v1–v5 sin esos datos congelados                                                       | Bloquear; no leer datos maestros actuales ni hacer backfill.                                                                                                                                                                                                                                                                                                                                                                          |
+| Snapshot v1–v6 sin esos datos congelados                                                       | Bloquear; no leer datos maestros actuales ni hacer backfill.                                                                                                                                                                                                                                                                                                                                                                          |
 
 La matriz de aceptación debe registrar casos incluidos, códigos oficiales,
 archivos de entrada/salida esperados, regla normativa exacta, fecha de vigencia,

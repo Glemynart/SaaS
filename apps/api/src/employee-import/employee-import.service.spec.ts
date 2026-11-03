@@ -35,6 +35,7 @@ const PILA_HEADERS = [
   'epsNombre',
   'fondoPensionCodigo',
   'fondoPensionNombre',
+  'estadoAfiliacionPensional',
   'arlCodigo',
   'arlNombre',
   'arlClaseRiesgo',
@@ -99,7 +100,10 @@ function pilaImportRow(overrides: Record<string, unknown> = {}) {
   return [...HEADERS, ...PILA_HEADERS].map((header) => values[header] ?? '');
 }
 
-function pilaBulkAffiliationRow(overrides: Record<string, unknown> = {}) {
+function pilaBulkAffiliationRow(
+  overrides: Record<string, unknown> = {},
+  headers = PILA_BULK_HEADERS,
+) {
   const values: Record<string, unknown> = {
     cedula: '1001',
     tipoDocumento: 'CC',
@@ -109,6 +113,7 @@ function pilaBulkAffiliationRow(overrides: Record<string, unknown> = {}) {
     epsNombre: 'EPS de prueba',
     fondoPensionCodigo: 'AFP001',
     fondoPensionNombre: 'Fondo de prueba',
+    estadoAfiliacionPensional: '',
     arlCodigo: 'ARL001',
     arlNombre: 'ARL de prueba',
     arlClaseRiesgo: '1',
@@ -121,7 +126,7 @@ function pilaBulkAffiliationRow(overrides: Record<string, unknown> = {}) {
     afiliacionVigenteHasta: '',
     ...overrides,
   };
-  return PILA_BULK_HEADERS.map((header) => values[header] ?? '');
+  return headers.map((header) => values[header] ?? '');
 }
 
 function importErrors(error: unknown): Array<{ campo: string; fila: number }> {
@@ -275,6 +280,7 @@ describe('EmployeeImportService', () => {
       'employee-a',
       expect.objectContaining({
         epsCodigo: 'EPS001',
+        estadoAfiliacionPensional: null,
         vigenteDesde: '2026-01-01',
         vigenteHasta: null,
       }),
@@ -294,6 +300,82 @@ describe('EmployeeImportService', () => {
       metadata: { creadas: 1, sinCambios: 0 },
     });
     expect(auditTransaction).toBe(mockPrismaClient);
+  });
+
+  it('accepts an older affiliation template without the optional pension state column', async () => {
+    mockEmpleadoFindMany.mockResolvedValue([
+      {
+        id: 'employee-a',
+        cedula: '1001',
+        tipoDocumento: 'CC',
+        tipoContrato: 'TERMINO_FIJO',
+      },
+    ]);
+    const previousHeaders = PILA_BULK_HEADERS.filter(
+      (header) => header !== 'estadoAfiliacionPensional',
+    );
+
+    await service.importPilaAffiliationsFromBuffer(
+      TENANT_ID,
+      USER_ID,
+      workbookBuffer(
+        [pilaBulkAffiliationRow({}, previousHeaders)],
+        previousHeaders,
+      ),
+    );
+
+    expect(mockCreateAffiliationInTransaction).toHaveBeenCalledWith(
+      mockPrismaClient,
+      TENANT_ID,
+      USER_ID,
+      'employee-a',
+      expect.objectContaining({ estadoAfiliacionPensional: null }),
+    );
+  });
+
+  it('preserves an existing pension state when an older template is re-imported', async () => {
+    mockEmpleadoFindMany.mockResolvedValue([
+      {
+        id: 'employee-a',
+        cedula: '1001',
+        tipoDocumento: 'CC',
+        tipoContrato: 'TERMINO_FIJO',
+      },
+    ]);
+    mockAffiliationFindFirst.mockResolvedValue({
+      tipoCotizanteCodigo: '01',
+      subtipoCotizanteCodigo: '00',
+      epsCodigo: 'EPS001',
+      epsNombre: 'EPS de prueba',
+      fondoPensionCodigo: 'AFP001',
+      fondoPensionNombre: 'Fondo de prueba',
+      estadoAfiliacionPensional: 'S',
+      arlCodigo: 'ARL001',
+      arlNombre: 'ARL de prueba',
+      arlClaseRiesgo: '1',
+      cajaCompensacionCodigo: 'CCF001',
+      cajaCompensacionNombre: 'Caja de prueba',
+      cajaCompensacionDepartamentoCodigo: '08',
+      extranjeroNoObligadoPension: null,
+      colombianoEnElExterior: false,
+      vigenteDesde: new Date('2026-01-01T00:00:00.000Z'),
+      vigenteHasta: null,
+    });
+    const previousHeaders = PILA_BULK_HEADERS.filter(
+      (header) => header !== 'estadoAfiliacionPensional',
+    );
+
+    await expect(
+      service.importPilaAffiliationsFromBuffer(
+        TENANT_ID,
+        USER_ID,
+        workbookBuffer(
+          [pilaBulkAffiliationRow({}, previousHeaders)],
+          previousHeaders,
+        ),
+      ),
+    ).resolves.toMatchObject({ created: 0, unchanged: 1 });
+    expect(mockCreateAffiliationInTransaction).not.toHaveBeenCalled();
   });
 
   it('treats an identical retry as unchanged and does not duplicate affiliation history', async () => {
@@ -594,7 +676,7 @@ describe('EmployeeImportService', () => {
       tenantId: TENANT_ID,
       empleadoId: 'employee-a',
       registradoPorId: USER_ID,
-      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V3',
+      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V4',
       tipoCotizanteCodigo: '01',
       subtipoCotizanteCodigo: '00',
       epsCodigo: 'EPS001',

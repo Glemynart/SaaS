@@ -10,6 +10,7 @@ const period = {
   periodStart: '2025-06-01',
   periodEnd: '2025-06-30',
   paymentDate: '2025-07-01',
+  estadoAfiliacionPensional: null,
   smmlv: 1_000_000,
 };
 
@@ -124,11 +125,11 @@ describe('PILA FSP subaccounts for supported pre-July-2025 periods', () => {
 
   it.each([
     [
-      'starts on the routing cutoff',
+      'starts on the unresolved regulatory cutoff',
       { periodStart: '2025-07-01', periodEnd: '2025-07-31' },
     ],
     [
-      'crosses the routing cutoff',
+      'crosses the unresolved regulatory cutoff',
       { periodStart: '2025-06-15', periodEnd: '2025-07-15' },
     ],
   ])('blocks FSP subaccounts when the period %s', (_case, overrides) => {
@@ -140,10 +141,32 @@ describe('PILA FSP subaccounts for supported pre-July-2025 periods', () => {
     });
 
     expect(result.status).toBe('BLOCKED');
-    expect(result.blocker).toContain('estado de afiliación pensional S/N');
+    expect(result.blocker).toContain('vigencia y ruta');
     expect(result.solidaridad).toBeNull();
     expect(result.subsistencia).toBeNull();
   });
+
+  it.each(['S', 'N'] as const)(
+    'keeps post-cutoff state %s blocked until current FSP routing is confirmed',
+    (estadoAfiliacionPensional) => {
+      const result = assessPilaFspSubaccounts({
+        ...period,
+        periodStart: '2025-07-01',
+        periodEnd: '2025-07-31',
+        estadoAfiliacionPensional,
+        ibcPensional: 4_000_000,
+        fspConcepts: [fspConcept(4_000_000, 100, 40_000)],
+      });
+
+      expect(result).toMatchObject({
+        estadoAfiliacionPensional,
+        status: 'BLOCKED',
+        solidaridad: null,
+        subsistencia: null,
+      });
+      expect(result.blocker).toContain('vigencia y ruta');
+    },
+  );
 
   it('does not publish values if separate rounded amounts differ from Payroll FSP', () => {
     const result = assessPilaFspSubaccounts({

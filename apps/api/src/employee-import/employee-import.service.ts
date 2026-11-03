@@ -100,6 +100,7 @@ interface RawRow {
   epsNombre?: unknown;
   fondoPensionCodigo?: unknown;
   fondoPensionNombre?: unknown;
+  estadoAfiliacionPensional?: unknown;
   arlCodigo?: unknown;
   arlNombre?: unknown;
   arlClaseRiesgo?: unknown;
@@ -119,6 +120,7 @@ interface InitialPilaAffiliationData {
   epsNombre: string;
   fondoPensionCodigo: string;
   fondoPensionNombre: string;
+  estadoAfiliacionPensional: 'S' | 'N' | null;
   arlCodigo: string;
   arlNombre: string;
   arlClaseRiesgo: string;
@@ -197,6 +199,7 @@ const TEMPLATE_HEADERS = [
   'epsNombre',
   'fondoPensionCodigo',
   'fondoPensionNombre',
+  'estadoAfiliacionPensional',
   'arlCodigo',
   'arlNombre',
   'arlClaseRiesgo',
@@ -235,6 +238,7 @@ const TEMPLATE_HINTS = [
   'Nombre EPS (1–120 caracteres).',
   'Código de fondo de pensión (texto, 1–6 caracteres); no se valida contra catálogo.',
   'Nombre de fondo de pensión (1–120 caracteres).',
+  'Opcional. S o N según el campo 5 del soporte de afiliación a pensiones; no lo infieras.',
   'Código ARL (texto, 1–6 caracteres); no se valida contra catálogo.',
   'Nombre ARL (1–120 caracteres).',
   'Clase de riesgo: 1 | 2 | 3 | 4 | 5.',
@@ -254,6 +258,7 @@ const PILA_AFFILIATION_FIELDS = [
   'epsNombre',
   'fondoPensionCodigo',
   'fondoPensionNombre',
+  'estadoAfiliacionPensional',
   'arlCodigo',
   'arlNombre',
   'arlClaseRiesgo',
@@ -281,6 +286,7 @@ const PILA_AFFILIATION_IMPORT_HINTS = [
   'Nombre EPS (1–120 caracteres).',
   'Código de fondo de pensión (texto, 1–6 caracteres); no se valida contra catálogo.',
   'Nombre de fondo de pensión (1–120 caracteres).',
+  'Opcional. S o N según el campo 5 del soporte de afiliación a pensiones; no lo infieras.',
   'Código ARL (texto, 1–6 caracteres); no se valida contra catálogo.',
   'Nombre ARL (1–120 caracteres).',
   'Clase de riesgo: 1 | 2 | 3 | 4 | 5.',
@@ -479,6 +485,23 @@ function parseInitialPilaAffiliation(
     'El nombre de fondo de pensión',
     120,
   );
+  const pensionStatusText = str(row.estadoAfiliacionPensional)?.toUpperCase();
+  if (
+    pensionStatusText &&
+    pensionStatusText !== 'S' &&
+    pensionStatusText !== 'N'
+  ) {
+    errors.push({
+      fila,
+      campo: 'estadoAfiliacionPensional',
+      mensaje:
+        'Usa S o N según el campo 5 del soporte de afiliación a pensiones.',
+    });
+  }
+  const estadoAfiliacionPensional =
+    pensionStatusText === 'S' || pensionStatusText === 'N'
+      ? pensionStatusText
+      : null;
   const arlCodigo = requiredText(
     'arlCodigo',
     'El código ARL',
@@ -607,6 +630,7 @@ function parseInitialPilaAffiliation(
     epsNombre,
     fondoPensionCodigo,
     fondoPensionNombre,
+    estadoAfiliacionPensional,
     arlCodigo,
     arlNombre,
     arlClaseRiesgo,
@@ -734,7 +758,8 @@ export class EmployeeImportService {
       );
     }
     const missingHeaders = PILA_AFFILIATION_IMPORT_HEADERS.filter(
-      (header) => !headers.includes(header),
+      (header) =>
+        header !== 'estadoAfiliacionPensional' && !headers.includes(header),
     );
     if (missingHeaders.length > 0) {
       throw new BadRequestException(
@@ -1051,6 +1076,9 @@ export class EmployeeImportService {
       AFFILIATION_COMPARISON_FIELDS.every(
         (field) => (existing[field] ?? null) === (requested[field] ?? null),
       ) &&
+      (requested.estadoAfiliacionPensional === null ||
+        (existing.estadoAfiliacionPensional ?? null) ===
+          requested.estadoAfiliacionPensional) &&
       existing.vigenteDesde instanceof Date &&
       existing.vigenteDesde.getTime() === requested.vigenteDesde.getTime() &&
       endMatches

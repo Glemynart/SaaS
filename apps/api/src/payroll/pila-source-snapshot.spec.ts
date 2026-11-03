@@ -199,8 +199,8 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(context.schemaVersion).toBe(3);
-    expect(snapshot.schemaVersion).toBe(6);
+    expect(context.schemaVersion).toBe(4);
+    expect(snapshot.schemaVersion).toBe(7);
     expect(snapshot.pilaWorkLocations).toEqual([
       {
         assignmentId: 'work-location-1',
@@ -255,7 +255,7 @@ describe('PILA source snapshot builders', () => {
     });
 
     expect(snapshot).toMatchObject({
-      schemaVersion: 6,
+      schemaVersion: 7,
       payroll: {
         fspSubaccounts: {
           sourceScope: 'SINGLE_SOURCE_CONFIRMED',
@@ -270,7 +270,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
     expect(snapshot.payroll.fspSubaccounts.blocker).toContain(
-      'estado de afiliación pensional S/N',
+      'vigencia y ruta',
     );
   });
 
@@ -365,7 +365,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(snapshot.schemaVersion).toBe(6);
+    expect(snapshot.schemaVersion).toBe(7);
     expect(snapshot.payroll.payrollCalculationParameters).toEqual({
       sourceVersion: 'PAYROLL_LEGAL_PARAMETERS_V2',
       parametroLegalId: 'legal-2026',
@@ -480,7 +480,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(6);
+    expect(result.schemaVersion).toBe(7);
     expect(result.capturedAt).toBe('2026-11-02T15:00:00.000Z');
     expect(result.employee.fechaIngreso).toBe('2026-01-05');
     expect(result.employee.fechaNacimiento).toBeNull();

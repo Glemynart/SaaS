@@ -57,6 +57,14 @@ export class CreateSocialSecurityAffiliationDto {
   fondoPensionNombre: string;
 
   @Transform(trimUppercase)
+  @IsOptional()
+  @IsIn(['S', 'N'], {
+    message:
+      'El estado de afiliación pensional debe ser S o N según el soporte.',
+  })
+  estadoAfiliacionPensional?: 'S' | 'N' | null;
+
+  @Transform(trimUppercase)
   @IsString()
   @Length(1, 6)
   arlCodigo: string;

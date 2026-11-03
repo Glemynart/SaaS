@@ -18,6 +18,7 @@ const emptyInitialPilaAffiliation = {
   epsNombre: '',
   fondoPensionCodigo: '',
   fondoPensionNombre: '',
+  estadoAfiliacionPensional: '',
   arlCodigo: '',
   arlNombre: '',
   arlClaseRiesgo: '',
@@ -305,6 +306,16 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
                     maxLength={120}
                     {...register('afiliacionPilaInicial.fondoPensionNombre')}
                   />
+                </FormField>
+                <FormField
+                  label="Estado de afiliación a pensiones (campo 5)"
+                  hint="Registra S/N tal como aparece en el soporte vigente. Si no lo tienes, déjalo sin confirmar. El dato se conserva para validaciones futuras; por sí solo no habilita los campos FSP de PILA."
+                >
+                  <Select {...register('afiliacionPilaInicial.estadoAfiliacionPensional')}>
+                    <option value="">Sin confirmar</option>
+                    <option value="S">S</option>
+                    <option value="N">N</option>
+                  </Select>
                 </FormField>
                 <FormField
                   label="Código ARL"

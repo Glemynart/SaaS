@@ -60,6 +60,7 @@ export const employeeSchema = z
         epsNombre: z.string().optional(),
         fondoPensionCodigo: z.string().optional(),
         fondoPensionNombre: z.string().optional(),
+        estadoAfiliacionPensional: z.string().optional(),
         arlCodigo: z.string().optional(),
         arlNombre: z.string().optional(),
         arlClaseRiesgo: z.string().optional(),
@@ -134,6 +135,16 @@ export const employeeSchema = z
       requiredText('epsNombre', 'El nombre EPS', 120);
       requiredText('fondoPensionCodigo', 'El código de pensión', 6);
       requiredText('fondoPensionNombre', 'El nombre del fondo de pensión', 120);
+      if (
+        affiliation.estadoAfiliacionPensional &&
+        !['S', 'N'].includes(affiliation.estadoAfiliacionPensional)
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['afiliacionPilaInicial', 'estadoAfiliacionPensional'],
+          message: 'Usa S o N según el soporte de afiliación a pensiones.',
+        });
+      }
       requiredText('arlCodigo', 'El código ARL', 6);
       requiredText('arlNombre', 'El nombre ARL', 120);
       requiredText('cajaCompensacionCodigo', 'El código CCF', 6);

@@ -4039,6 +4039,7 @@ export class PayrollService {
           epsNombre: true,
           fondoPensionCodigo: true,
           fondoPensionNombre: true,
+          estadoAfiliacionPensional: true,
           arlCodigo: true,
           arlNombre: true,
           arlClaseRiesgo: true,

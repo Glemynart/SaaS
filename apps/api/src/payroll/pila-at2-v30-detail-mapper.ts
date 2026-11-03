@@ -302,7 +302,8 @@ export function mapPilaAt2V30DetailCandidate(
       snapshot.payloadVersion === 3 ||
       snapshot.payloadVersion === 4 ||
       snapshot.payloadVersion === 5 ||
-      snapshot.payloadVersion === 6) &&
+      snapshot.payloadVersion === 6 ||
+      snapshot.payloadVersion === 7) &&
     root?.schemaVersion === snapshot.payloadVersion &&
     employee !== null &&
     employer !== null &&
@@ -1206,7 +1207,7 @@ export function mapPilaAt2V30DetailCandidate(
         return 'El período o la fecha prevista de pago alcanza el 2027-04-01; falta versionar las reglas del nuevo sistema pensional.';
       }
       if (periodEnd >= PILA_FSP_AFFILIATION_ROUTING_REVIEW_FROM) {
-        return 'AT2 v30 diferencia el destino FSP por estado de afiliación pensional S/N desde 2025-07-01; el snapshot no conserva ese estado y su aplicación frente al nuevo sistema pensional requiere reconciliación.';
+        return 'La vigencia y ruta de los ajustes PILA de la Resolución 467 para FSP desde 2025-07-01 no está reconciliada tras la Circular 028 de 2025 y la Sentencia C-264 de 2026; mantener 51/52 pendientes aunque exista estado S/N.';
       }
       const ibc = pensionBase.valor;
       const smmlv = fspSubaccounts.smmlv;
