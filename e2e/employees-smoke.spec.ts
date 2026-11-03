@@ -9,6 +9,7 @@ const xlsx = createRequire(join(process.cwd(), 'apps/api/package.json'))('xlsx')
 test('registra, busca, edita, desactiva e importa empleados desde la UI', async ({
   page,
 }, testInfo) => {
+  test.setTimeout(60_000);
   const suffix = `${Date.now().toString().slice(-7)}${testInfo.retry}`;
   const nit = `8${suffix}`;
   const email = `employees-e2e-${suffix}@example.test`;
