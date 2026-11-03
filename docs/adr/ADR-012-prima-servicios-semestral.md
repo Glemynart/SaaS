@@ -44,6 +44,9 @@ cada cambio de reglas.
   julio–diciembre: no hay una regla general aprobada para fijar, antes del 20
   de diciembre, el corte de servicio y remuneración variable del semestre que
   termina el 31 de diciembre.
+- La UI deja julio–diciembre no disponible y la API rechaza ese semestre antes
+  de consultar o persistir lotes; así no se guardan previews compuestos solo por
+  líneas bloqueadas para un período excluido del MVP.
 - El preview presenta períodos y conceptos de origen, días, componentes de la
   base, fórmula y resultado. La aprobación congela snapshots y deltas de
   correcciones utilizados; el PDF se publica en Expediente con hash.

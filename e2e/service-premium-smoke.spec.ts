@@ -205,6 +205,9 @@ test('genera los 100 PDF del lote aunque el navegador pierda conexión', async (
 
   try {
     await page.goto('/nomina/prima');
+    await expect(
+      page.getByRole('option', { name: 'Julio–diciembre (no disponible)' }),
+    ).toBeDisabled();
     await page.getByLabel('Año', { exact: true }).fill('2026');
 
     const previewResponsePromise = page.waitForResponse(
@@ -235,13 +238,10 @@ test('genera los 100 PDF del lote aunque el navegador pierda conexión', async (
     await page.context().setOffline(true);
 
     await expect
-      .poll(
-        async () => (await fixture.inspectPersistedState()).batch?.status,
-        {
-          timeout: 90_000,
-          intervals: [250, 500, 1_000, 2_000],
-        },
-      )
+      .poll(async () => (await fixture.inspectPersistedState()).batch?.status, {
+        timeout: 90_000,
+        intervals: [250, 500, 1_000, 2_000],
+      })
       .toBe('PROCESANDO');
 
     await expect
