@@ -2139,7 +2139,7 @@ Goal activo y usa esta referencia junto con su backlog específico.
 - [`GOAL-02 backlog`](docs/goals/GOAL-02-backlog.md): primer incremento, dependencias, riesgos y criterios de aceptación.
 - GOAL-01 — Primer Cliente Operando está pausado, no cerrado; sus pendientes y evidencia permanecen preservados en [`su ficha`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
-Estado contrastado en `main` al `d187233` (2026-11-03): Billing emite facturas
+Estado contrastado en `main` al `f8f6675` (2026-11-03): Billing emite facturas
 internas con tasas explícitas congeladas por línea y las integra al Ledger; el
 escenario financiero de demo y la consulta de comprobantes existen, aunque la
 aceptación con un tenant demo real sigue pendiente. Nómina aprobada conserva
@@ -2158,9 +2158,11 @@ estado detallado y sus
 brechas están en [`GOAL-02 backlog`](docs/goals/GOAL-02-backlog.md).
 
 La matriz de prima semestral cubre todos los códigos estables de Payroll con
-tipo esperado y tratamiento explícito. El cálculo bloquea códigos desconocidos
-aunque estén tipificados como deducción o aporte; la validación operativa por
-un responsable laboral sigue pendiente.
+tipo esperado y tratamiento explícito (#235). El cálculo bloquea códigos
+desconocidos aunque estén tipificados como deducción o aporte; la validación
+operativa por un responsable laboral sigue pendiente. El seed financiero emite
+facturas por BillingService y registra sus comprobantes balanceados en Ledger;
+la factura en borrador no genera un asiento.
 
 Los Milestones de GOAL-01 quedan en pausa; GOAL-02 prioriza los flujos financieros demostrables y conserva las puertas regulatorias de dominio, proveedor, seguridad y operación.
 
