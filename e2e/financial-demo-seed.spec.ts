@@ -87,6 +87,7 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
     for (const voucherType of [
       { codigo: 'NOM', nombre: 'Comprobante de nómina', prefijo: 'NOM' },
       { codigo: 'FV', nombre: 'Factura de venta', prefijo: 'FV' },
+      { codigo: 'CI', nombre: 'Comprobante de ingreso', prefijo: 'CI' },
     ]) {
       const existingVoucherType = await prisma.tipoComprobante.findUnique({
         where: { codigo: voucherType.codigo },
@@ -135,7 +136,8 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
       payrollPeriods: 1,
       payrollRuns: 1,
       payrollSnapshots: 1,
-      accountMaps: 23,
+      accountMaps: 24,
+      receipts: 1,
     });
 
     const second = await seedAsExplicitTarget(tenant.id, user.id);
@@ -149,6 +151,8 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
         customers,
         products,
         invoices,
+        receipts,
+        receiptVouchers,
         employees,
         thirdParties,
         costCenters,
@@ -170,6 +174,19 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
           where: { tenantId: tenant.id },
           include: { items: true },
           orderBy: { numero: 'asc' },
+        }),
+        tx.customerReceipt.findMany({
+          where: { tenantId: tenant.id },
+          include: { aplicaciones: true, reversal: true },
+        }),
+        tx.comprobanteContable.findMany({
+          where: {
+            tenantId: tenant.id,
+            origenTipo: 'BILLING_RECEIPT',
+            origenEvento: 'POSTED',
+            estado: 'CONTABILIZADO',
+          },
+          include: { movimientos: { include: { cuenta: true } } },
         }),
         tx.empleado.findMany({ where: { tenantId: tenant.id } }),
         tx.tercero.findMany({ where: { tenantId: tenant.id } }),
@@ -208,6 +225,8 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
         customers,
         products,
         invoices,
+        receipts,
+        receiptVouchers,
         employees,
         thirdParties,
         costCenters,
@@ -235,6 +254,35 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
     expect(Number(targetData.invoices[0].total)).toBe(285_600);
     expect(Number(targetData.invoices[0].items[0].porcentajeImpuesto)).toBe(19);
     expect(Number(targetData.invoices[0].items[0].valorImpuesto)).toBe(45_600);
+    expect(targetData.receipts).toHaveLength(1);
+    expect(Number(targetData.receipts[0].monto)).toBe(100_000);
+    expect(targetData.receipts[0].medio).toBe('TRANSFERENCIA');
+    expect(targetData.receipts[0].referencia).toBe('DEMO-TRX-001');
+    expect(targetData.receipts[0].reversal).toBeNull();
+    expect(targetData.receipts[0].aplicaciones).toHaveLength(1);
+    expect(Number(targetData.receipts[0].aplicaciones[0].amount)).toBe(100_000);
+    expect(targetData.receipts[0].aplicaciones[0].invoiceId).toBe(targetData.invoices[0].id);
+    expect(targetData.receiptVouchers).toHaveLength(1);
+    expect(Number(targetData.receiptVouchers[0].totalDebito)).toBe(100_000);
+    expect(Number(targetData.receiptVouchers[0].totalCredito)).toBe(100_000);
+    expect(targetData.receiptVouchers[0].origenId).toBe(targetData.receipts[0].id);
+    expect(
+      targetData.receiptVouchers[0].movimientos.some(
+        (movement: any) =>
+          movement.cuenta.codigo === '111005' && Number(movement.debito) === 100_000,
+      ),
+    ).toBe(true);
+    expect(
+      targetData.receiptVouchers[0].movimientos.some(
+        (movement: any) =>
+          movement.cuenta.codigo === '130505' && Number(movement.credito) === 100_000,
+      ),
+    ).toBe(true);
+    expect(
+      targetData.receiptVouchers[0].movimientos.find(
+        (movement: any) => movement.cuenta.codigo === '130505',
+      )?.terceroId,
+    ).toBe(targetData.customers[0].terceroId);
     expect(targetData.employees).toHaveLength(1);
     expect(
       targetData.customers.every(
@@ -263,7 +311,7 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
     expect(targetData.periods).toHaveLength(1);
     expect(targetData.accountingPeriods.length).toBeGreaterThan(0);
     expect(targetData.accounts.length).toBeGreaterThan(0);
-    expect(targetData.accountMaps).toHaveLength(23);
+    expect(targetData.accountMaps).toHaveLength(24);
     expect(targetData.periods[0].status).toBe('CAUSADA');
     expect(targetData.runs).toHaveLength(1);
     expect(targetData.snapshots).toHaveLength(1);
@@ -331,6 +379,8 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
         accounts,
         accountMaps,
         vouchers,
+        receipts,
+        receiptAllocations,
       ] = await Promise.all([
         tx.customer.count({ where: { tenantId: otherTenantId } }),
         tx.productService.count({ where: { tenantId: otherTenantId } }),
@@ -345,6 +395,8 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
         tx.cuentaContable.count({ where: { tenantId: otherTenantId } }),
         tx.cuentaSistemaMap.count({ where: { tenantId: otherTenantId } }),
         tx.comprobanteContable.count({ where: { tenantId: otherTenantId } }),
+        tx.customerReceipt.count({ where: { tenantId: otherTenantId } }),
+        tx.invoiceReceiptAllocation.count({ where: { tenantId: otherTenantId } }),
       ]);
       return {
         customers,
@@ -360,6 +412,8 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
         accounts,
         accountMaps,
         vouchers,
+        receipts,
+        receiptAllocations,
       };
     });
     expect(Object.values(foreignTenantCounts).every((count) => count === 0)).toBe(true);
@@ -376,6 +430,12 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
       hasText: 'Contabilización interna',
     });
     await expect(invoiceAccounting.getByText(/· CONTABILIZADO/)).toBeVisible();
+    const receivables = page.getByRole('region', { name: 'Cartera y recaudos' });
+    await expect(receivables.locator('strong').nth(0)).toContainText('100.000');
+    await expect(receivables.locator('strong').nth(1)).toContainText('185.600');
+    await expect(
+      receivables.getByText('Ref. DEMO-TRX-001 · Comprobante', { exact: false }),
+    ).toBeVisible();
 
     await page.goto(`/nomina/periodos/${first.payrollPeriodId}`);
     await expect(page.getByRole('heading', { name: /^DEMO Nómina / })).toBeVisible();
