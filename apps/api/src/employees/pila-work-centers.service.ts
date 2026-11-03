@@ -150,134 +150,112 @@ export class PilaWorkCentersService {
         `El código no pertenece al catálogo ${PILA_RISK_ACTIVITY_CATALOG_VERSION}. Confirma el dato con la ARL.`,
       );
     }
+    return this.tenantPrisma.execute((prisma, { tenantId }) =>
+      this.createAssignmentInTransaction(
+        prisma,
+        tenantId,
+        userId,
+        employeeId,
+        dto,
+      ),
+    );
+  }
 
-    return this.tenantPrisma.execute(async (prisma, { tenantId }) => {
-      await this.requireEmployee(prisma, tenantId, employeeId);
-      await prisma.$queryRaw<Array<{ id: string }>>`
-        SELECT "id" FROM "empleados"
-        WHERE "id" = ${employeeId} AND "tenantId" = ${tenantId}
-        FOR UPDATE
-      `;
-
-      const center = await prisma.pilaCentroTrabajo.findFirst({
-        where: { id: dto.centroTrabajoId, tenantId, activo: true },
-      });
-      if (!center) {
-        throw new NotFoundException('Centro de trabajo no encontrado.');
-      }
-
-      const affiliations = await prisma.afiliacionSeguridadSocial.findMany({
-        where: {
-          tenantId,
-          empleadoId: employeeId,
-          vigenteDesde: { lte: vigenteHasta ?? FAR_FUTURE },
-          OR: [{ vigenteHasta: null }, { vigenteHasta: { gte: vigenteDesde } }],
-        },
-        select: { arlCodigo: true, arlClaseRiesgo: true },
-      });
-      if (
-        affiliations.some(
-          (affiliation) =>
-            affiliation.arlCodigo !== center.arlCodigo ||
-            affiliation.arlClaseRiesgo !== dto.codigoActividadEconomica[0],
-        )
-      ) {
-        throw new ConflictException(
-          'La ARL o clase de riesgo del centro/actividad no coincide con alguna afiliación vigente en ese intervalo.',
-        );
-      }
-
-      const existing = await prisma.pilaAsignacionCentroTrabajo.findMany({
-        where: { tenantId, empleadoId: employeeId },
-        orderBy: { vigenteDesde: 'asc' },
-      });
-      const requestedEnd = vigenteHasta ?? FAR_FUTURE;
-      const overlaps = existing.filter(
-        (record) =>
-          record.vigenteDesde <= requestedEnd &&
-          (record.vigenteHasta === null || record.vigenteHasta >= vigenteDesde),
+  async createAssignmentInTransaction(
+    prisma: TenantPrismaClient,
+    tenantId: string,
+    userId: string,
+    employeeId: string,
+    dto: CreatePilaWorkAssignmentDto,
+  ) {
+    const { vigenteDesde, vigenteHasta, center, superseded } =
+      await this.prepareAssignmentInTransaction(
+        prisma,
+        tenantId,
+        employeeId,
+        dto,
       );
-      const superseded =
-        vigenteHasta === null
-          ? overlaps.find(
-              (record) =>
-                record.vigenteHasta === null &&
-                record.vigenteDesde < vigenteDesde,
-            )
-          : undefined;
-      if (overlaps.some((record) => record.id !== superseded?.id)) {
+
+    if (superseded) {
+      const previousEnd = new Date(vigenteDesde);
+      previousEnd.setUTCDate(previousEnd.getUTCDate() - 1);
+      if (previousEnd < superseded.vigenteDesde) {
         throw new ConflictException(
-          'La vigencia se cruza con otra asignación de centro/actividad del empleado.',
+          'La nueva asignación debe iniciar después de la asignación vigente.',
         );
       }
-
-      if (superseded) {
-        const previousEnd = new Date(vigenteDesde);
-        previousEnd.setUTCDate(previousEnd.getUTCDate() - 1);
-        if (previousEnd < superseded.vigenteDesde) {
-          throw new ConflictException(
-            'La nueva asignación debe iniciar después de la asignación vigente.',
-          );
-        }
-        await prisma.pilaAsignacionCentroTrabajo.updateMany({
-          where: {
-            id: superseded.id,
-            tenantId,
-            empleadoId: employeeId,
-            vigenteHasta: null,
-          },
-          data: { vigenteHasta: previousEnd },
-        });
-        await this.auditService.log(
-          {
-            tenantId,
-            userId,
-            action: 'PILA_WORK_ASSIGNMENT_CLOSED',
-            entityType: 'PilaAsignacionCentroTrabajo',
-            entityId: superseded.id,
-            metadata: {
-              empleadoId: employeeId,
-              vigenteHasta: formatDate(previousEnd),
-              reemplazadaDesde: formatDate(vigenteDesde),
-            },
-          },
-          prisma,
-        );
-      }
-
-      const assignment = await prisma.pilaAsignacionCentroTrabajo.create({
-        data: {
+      await prisma.pilaAsignacionCentroTrabajo.updateMany({
+        where: {
+          id: superseded.id,
           tenantId,
           empleadoId: employeeId,
-          centroTrabajoId: center.id,
-          codigoActividadEconomica: dto.codigoActividadEconomica,
-          formatoNormativoVersion: PILA_RISK_ACTIVITY_CATALOG_VERSION,
-          vigenteDesde,
-          vigenteHasta,
-          registradoPorId: userId,
+          vigenteHasta: null,
         },
-        include: { centroTrabajo: true },
+        data: { vigenteHasta: previousEnd },
       });
       await this.auditService.log(
         {
           tenantId,
           userId,
-          action: 'PILA_WORK_ASSIGNMENT_RECORDED',
+          action: 'PILA_WORK_ASSIGNMENT_CLOSED',
           entityType: 'PilaAsignacionCentroTrabajo',
-          entityId: assignment.id,
+          entityId: superseded.id,
           metadata: {
             empleadoId: employeeId,
-            centroTrabajoId: center.id,
-            codigoActividadEconomica: assignment.codigoActividadEconomica,
-            formatoNormativoVersion: assignment.formatoNormativoVersion,
-            vigenteDesde: formatDate(vigenteDesde),
-            vigenteHasta: vigenteHasta ? formatDate(vigenteHasta) : null,
+            vigenteHasta: formatDate(previousEnd),
+            reemplazadaDesde: formatDate(vigenteDesde),
           },
         },
         prisma,
       );
-      return assignment;
+    }
+
+    const assignment = await prisma.pilaAsignacionCentroTrabajo.create({
+      data: {
+        tenantId,
+        empleadoId: employeeId,
+        centroTrabajoId: center.id,
+        codigoActividadEconomica: dto.codigoActividadEconomica,
+        formatoNormativoVersion: PILA_RISK_ACTIVITY_CATALOG_VERSION,
+        vigenteDesde,
+        vigenteHasta,
+        registradoPorId: userId,
+      },
+      include: { centroTrabajo: true },
     });
+    await this.auditService.log(
+      {
+        tenantId,
+        userId,
+        action: 'PILA_WORK_ASSIGNMENT_RECORDED',
+        entityType: 'PilaAsignacionCentroTrabajo',
+        entityId: assignment.id,
+        metadata: {
+          empleadoId: employeeId,
+          centroTrabajoId: center.id,
+          codigoActividadEconomica: assignment.codigoActividadEconomica,
+          formatoNormativoVersion: assignment.formatoNormativoVersion,
+          vigenteDesde: formatDate(vigenteDesde),
+          vigenteHasta: vigenteHasta ? formatDate(vigenteHasta) : null,
+        },
+      },
+      prisma,
+    );
+    return assignment;
+  }
+
+  async validateAssignmentInTransaction(
+    prisma: TenantPrismaClient,
+    tenantId: string,
+    employeeId: string,
+    dto: CreatePilaWorkAssignmentDto,
+  ) {
+    await this.prepareAssignmentInTransaction(
+      prisma,
+      tenantId,
+      employeeId,
+      dto,
+    );
   }
 
   async closeAssignment(
@@ -370,6 +348,98 @@ export class PilaWorkCentersService {
     });
     if (!employee) throw new NotFoundException('Empleado no encontrado.');
     return employee;
+  }
+
+  private async prepareAssignmentInTransaction(
+    prisma: TenantPrismaClient,
+    tenantId: string,
+    employeeId: string,
+    dto: CreatePilaWorkAssignmentDto,
+  ) {
+    const vigenteDesde = parseDate(dto.vigenteDesde, 'vigenteDesde');
+    const vigenteHasta = dto.vigenteHasta
+      ? parseDate(dto.vigenteHasta, 'vigenteHasta')
+      : null;
+    if (vigenteHasta && vigenteHasta < vigenteDesde) {
+      throw new BadRequestException(
+        'La fecha final no puede ser anterior a la fecha inicial.',
+      );
+    }
+    if (!PILA_RISK_ACTIVITY_CODES.has(dto.codigoActividadEconomica)) {
+      throw new BadRequestException(
+        `El código no pertenece al catálogo ${PILA_RISK_ACTIVITY_CATALOG_VERSION}. Confirma el dato con la ARL.`,
+      );
+    }
+
+    await this.requireEmployee(prisma, tenantId, employeeId);
+    await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "empleados"
+      WHERE "id" = ${employeeId} AND "tenantId" = ${tenantId}
+      FOR UPDATE
+    `;
+
+    const center = await prisma.pilaCentroTrabajo.findFirst({
+      where: { id: dto.centroTrabajoId, tenantId, activo: true },
+    });
+    if (!center) {
+      throw new NotFoundException('Centro de trabajo no encontrado.');
+    }
+
+    const affiliations = await prisma.afiliacionSeguridadSocial.findMany({
+      where: {
+        tenantId,
+        empleadoId: employeeId,
+        vigenteDesde: { lte: vigenteHasta ?? FAR_FUTURE },
+        OR: [{ vigenteHasta: null }, { vigenteHasta: { gte: vigenteDesde } }],
+      },
+      select: { arlCodigo: true, arlClaseRiesgo: true },
+    });
+    if (
+      affiliations.some(
+        (affiliation) =>
+          affiliation.arlCodigo !== center.arlCodigo ||
+          affiliation.arlClaseRiesgo !== dto.codigoActividadEconomica[0],
+      )
+    ) {
+      throw new ConflictException(
+        'La ARL o clase de riesgo del centro/actividad no coincide con alguna afiliación vigente en ese intervalo.',
+      );
+    }
+
+    const existing = await prisma.pilaAsignacionCentroTrabajo.findMany({
+      where: { tenantId, empleadoId: employeeId },
+      orderBy: { vigenteDesde: 'asc' },
+    });
+    const requestedEnd = vigenteHasta ?? FAR_FUTURE;
+    const overlaps = existing.filter(
+      (record) =>
+        record.vigenteDesde <= requestedEnd &&
+        (record.vigenteHasta === null || record.vigenteHasta >= vigenteDesde),
+    );
+    const superseded =
+      vigenteHasta === null
+        ? overlaps.find(
+            (record) =>
+              record.vigenteHasta === null &&
+              record.vigenteDesde < vigenteDesde,
+          )
+        : undefined;
+    if (overlaps.some((record) => record.id !== superseded?.id)) {
+      throw new ConflictException(
+        'La vigencia se cruza con otra asignación de centro/actividad del empleado.',
+      );
+    }
+    if (superseded) {
+      const previousEnd = new Date(vigenteDesde);
+      previousEnd.setUTCDate(previousEnd.getUTCDate() - 1);
+      if (previousEnd < superseded.vigenteDesde) {
+        throw new ConflictException(
+          'La nueva asignación debe iniciar después de la asignación vigente.',
+        );
+      }
+    }
+
+    return { vigenteDesde, vigenteHasta, center, superseded };
   }
 }
 

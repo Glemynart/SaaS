@@ -24,6 +24,7 @@ import { PilaWorkLocationsService } from './pila-work-locations.service';
   exports: [
     EmployeesService,
     SocialSecurityAffiliationsService,
+    PilaWorkCentersService,
     PilaWorkLocationsService,
   ],
 })
