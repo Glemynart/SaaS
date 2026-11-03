@@ -176,6 +176,7 @@ describe('EmployeeImportService', () => {
     mockEmployeeLock.mockResolvedValue([
       {
         id: 'employee-a',
+        cedula: '1001',
         tipoDocumento: 'CC',
         tipoContrato: 'TERMINO_FIJO',
       },
@@ -423,6 +424,45 @@ describe('EmployeeImportService', () => {
 
     expect(importErrors(thrown)).toContainEqual(
       expect.objectContaining({ campo: 'tipoDocumento', fila: 2 }),
+    );
+    expect(mockCreateAffiliationInTransaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects a document number changed after preflight while acquiring the employee lock', async () => {
+    mockEmpleadoFindMany.mockResolvedValue([
+      {
+        id: 'employee-a',
+        cedula: '1001',
+        tipoDocumento: 'CC',
+        tipoContrato: 'TERMINO_FIJO',
+      },
+    ]);
+    mockEmployeeLock.mockResolvedValueOnce([
+      {
+        id: 'employee-a',
+        cedula: '1009',
+        tipoDocumento: 'CC',
+        tipoContrato: 'TERMINO_FIJO',
+      },
+    ]);
+
+    let thrown: unknown;
+    try {
+      await service.importPilaAffiliationsFromBuffer(
+        TENANT_ID,
+        USER_ID,
+        workbookBuffer([pilaBulkAffiliationRow()], PILA_BULK_HEADERS),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(importErrors(thrown)).toContainEqual(
+      expect.objectContaining({
+        campo: 'cedula',
+        mensaje:
+          'El número de documento del empleado cambió durante la importación.',
+      }),
     );
     expect(mockCreateAffiliationInTransaction).not.toHaveBeenCalled();
   });

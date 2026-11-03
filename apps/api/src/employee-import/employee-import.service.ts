@@ -918,9 +918,14 @@ export class EmployeeImportService {
       for (const row of orderedRows) {
         try {
           const locked = await prisma.$queryRaw<
-            Array<{ id: string; tipoDocumento: string; tipoContrato: string }>
+            Array<{
+              id: string;
+              cedula: string;
+              tipoDocumento: string;
+              tipoContrato: string;
+            }>
           >`
-            SELECT "id", "tipoDocumento", "tipoContrato" FROM "empleados"
+            SELECT "id", "cedula", "tipoDocumento", "tipoContrato" FROM "empleados"
             WHERE "id" = ${row.employeeId} AND "tenantId" = ${tenantId} AND "deletedAt" IS NULL
             FOR UPDATE
           `;
@@ -928,6 +933,12 @@ export class EmployeeImportService {
             throw new ImportRowValidationError(
               'cedula',
               'El empleado dejó de estar disponible durante la importación.',
+            );
+          }
+          if (locked[0].cedula !== row.cedula) {
+            throw new ImportRowValidationError(
+              'cedula',
+              'El número de documento del empleado cambió durante la importación.',
             );
           }
           if (locked[0].tipoDocumento !== row.tipoDocumento) {
