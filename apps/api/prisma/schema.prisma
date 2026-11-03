@@ -2496,8 +2496,9 @@ model ParametroLegalNomina {
   factorProvVacaciones   Decimal @db.Decimal(8, 6) // 0.041700
 
   // FSP — escala progresiva por tramos (Ley 100 Art. 27, Ley 797/2003)
-  // Shape: [{ desdeSmmlv: number, hastaSmmlv: number | null, pct: number }]
-  // Ejemplo: [{ desdeSmmlv: 4, hastaSmmlv: 16, pct: 0.01 }, { desdeSmmlv: 16, hastaSmmlv: 17, pct: 0.012 }, ...]
+  // Shape: [{ desdeSmmlv, hastaSmmlv, desdeIncluido?, hastaIncluido?, pct }].
+  // Los límites superiores son exclusivos por defecto; `desdeIncluido` y
+  // `hastaIncluido` representan los extremos exactos de los tramos legales FSP.
   // pct = tasa TOTAL para el tramo (no adicional)
   fspTramos Json
 

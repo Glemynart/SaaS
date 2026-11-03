@@ -41,11 +41,29 @@ function baseParams(): LegalParamsSnapshot {
     fspTramos: [
       { desdeSmmlv: 0, hastaSmmlv: 4, pct: 0 },
       { desdeSmmlv: 4, hastaSmmlv: 16, pct: 0.01 },
-      { desdeSmmlv: 16, hastaSmmlv: 17, pct: 0.012 },
-      { desdeSmmlv: 17, hastaSmmlv: 18, pct: 0.014 },
-      { desdeSmmlv: 18, hastaSmmlv: 19, pct: 0.016 },
-      { desdeSmmlv: 19, hastaSmmlv: 20, pct: 0.018 },
-      { desdeSmmlv: 20, hastaSmmlv: null, pct: 0.02 },
+      { desdeSmmlv: 16, hastaSmmlv: 17, hastaIncluido: true, pct: 0.012 },
+      {
+        desdeSmmlv: 17,
+        desdeIncluido: false,
+        hastaSmmlv: 18,
+        hastaIncluido: true,
+        pct: 0.014,
+      },
+      {
+        desdeSmmlv: 18,
+        desdeIncluido: false,
+        hastaSmmlv: 19,
+        hastaIncluido: true,
+        pct: 0.016,
+      },
+      {
+        desdeSmmlv: 19,
+        desdeIncluido: false,
+        hastaSmmlv: 20,
+        hastaIncluido: true,
+        pct: 0.018,
+      },
+      { desdeSmmlv: 20, desdeIncluido: false, hastaSmmlv: null, pct: 0.02 },
     ],
   };
 }
@@ -183,6 +201,27 @@ describe('PayrollCalculator — casos obligatorios N2A', () => {
     const r = calculate(baseInput({ salarioBase: 2_000_000 }));
     expect(byCodigo(r.concepts, 'FSP')).toBeUndefined();
   });
+
+  it.each([
+    [16, 0, 0.012],
+    [17, 0, 0.012],
+    [17, 1, 0.014],
+    [18, 0, 0.014],
+    [18, 1, 0.016],
+    [19, 0, 0.016],
+    [19, 1, 0.018],
+    [20, 0, 0.018],
+    [20, 1, 0.02],
+  ])(
+    'aplica la tarifa FSP legal en %i SMMLV + %i COP',
+    (multiple, pesosAbove, expectedRate) => {
+      const result = calculate(
+        baseInput({ salarioBase: SMMLV * multiple + pesosAbove }),
+      );
+
+      expect(byCodigo(result.concepts, 'FSP')?.factor).toBe(expectedRate);
+    },
+  );
 });
 
 describe('PayrollCalculator — invariantes', () => {

@@ -44,8 +44,10 @@ export type ConceptCodigo = (typeof ConceptCodigo)[keyof typeof ConceptCodigo];
 
 /** Un tramo de la escala progresiva del Fondo de Solidaridad Pensional. */
 export interface FspTramo {
-  desdeSmmlv: number; // inclusivo
-  hastaSmmlv: number | null; // exclusivo; null = sin tope superior
+  desdeSmmlv: number; // inclusivo por defecto
+  hastaSmmlv: number | null; // exclusivo por defecto; null = sin tope superior
+  desdeIncluido?: boolean; // false cuando el tramo empieza después del límite
+  hastaIncluido?: boolean; // true cuando la norma asigna el límite al tramo
   pct: number; // tasa TOTAL del tramo (fracción), no adicional
 }
 

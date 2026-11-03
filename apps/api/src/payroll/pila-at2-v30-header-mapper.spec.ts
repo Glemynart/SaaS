@@ -151,6 +151,16 @@ describe('mapPilaAt2V30HeaderCandidate', () => {
     expect(candidate.values[16]).toEqual({ value: '2026-10' });
   });
 
+  it('accepts PILA v5 snapshots for the type 2 header', () => {
+    const input = snapshot();
+    input.payloadVersion = 5;
+    (input.payload as { schemaVersion: number }).schemaVersion = 5;
+
+    const candidate = mapCandidateForDemoScope([input]);
+
+    expect(candidate.supportedSnapshots).toBe(true);
+  });
+
   it('rejects a header snapshot whose payload and schema versions disagree', () => {
     const input = snapshot();
     input.payloadVersion = 3;

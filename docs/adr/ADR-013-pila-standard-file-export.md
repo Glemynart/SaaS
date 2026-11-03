@@ -15,8 +15,12 @@
 > una versión de archivo. `normativeSourceStatus` sigue
 > `RECONCILIATION_PENDING` porque faltan cotejar campos, reglas aplicables,
 > catálogos y fixtures laborales contra AT2 v30; no significa que la versión
-> oficial vigente sea desconocida. No habilitar composición o descarga de archivos ni
-> compatibilidad hasta completar ese cotejo y las pruebas por operador.
+> oficial vigente sea desconocida. La composición y descarga de un archivo
+> estándar solo podrá habilitarse para escenarios que pasen la matriz normativa
+> local y sus fixtures de salida. La aceptación y compatibilidad de cada operador
+> se mantienen como estados separados y solo se declaran después de una prueba
+> de carga exitosa en ese operador. Generar o validar localmente un archivo no
+> significa que esté liquidado ni pagado.
 
 - **Estado:** Aprobado con cambios; PR #160 incorpora la primera etapa de historial de afiliaciones. No existe todavía exportador PILA.
 - **Fecha:** 2026-10-30.
@@ -318,6 +322,65 @@ una cuenta de prueba del aportante.
 | Reintento/corrección                                                                                             | Reintentar la misma exportación sin duplicar; una corrección crea una exportación nueva vinculada, conserva archivo/versiones/hash previos.                                                                                                                          |
 | Diferencia de estados                                                                                            | La generación local solo presenta “generado” o “validado localmente”; aceptación, liquidación y pago requieren evidencia del operador/usuario y no se simulan.                                                                                                       |
 | Carga en operador                                                                                                | Mantener evidencia fechada y versionada. SOI, Enlace Operativo/SuAporte o Aportes en Línea solo se marcan compatibles si su carga real de prueba fue aceptada.                                                                                                       |
+
+### Subcuentas FSP — campos 51 y 52
+
+AT2 v30 §§2.1.2.3.18–19 (pp. 155–158) determina la obligación con la suma de
+los IBC pensionales del cotizante y separa solidaridad (campo 51) de
+subsistencia (campo 52). Para el régimen anterior al nuevo sistema, desde 4
+SMMLV se aporta 0,5 % a cada subcuenta. Subsistencia agrega 0,2 % desde 16
+hasta 17 SMMLV, 0,4 % para más de 17 y hasta 18, 0,6 % para más de 18 y hasta
+19, 0,8 % para más de 19 y hasta 20, y 1 % por encima de 20. Por tanto, los
+valores exactamente iguales a 17, 18, 19 y 20 pertenecen al tramo anterior.
+La norma y las instrucciones AT2 gobiernan las tasas y su aplicación; los
+tramos de Payroll no son por sí solos una regla PILA. Con varias fuentes de
+ingreso aplican además las instrucciones de AT2 para FSP001 y la distribución
+del aporte.
+
+La auditoría de código en `main` detectó que Payroll modelaba todos los
+límites superiores como exclusivos. Así, un IBC exactamente igual a 17, 18,
+19 o 20 SMMLV caía en la tarifa siguiente y descontaba 0,2 puntos porcentuales
+de más. Esta rama corrige los parámetros y el cálculo; una migración actualiza
+las vigencias previas al 1 de abril de 2027. Antes de aprobar, el servicio
+compara la tasa FSP guardada en cada ejecución con la vigente para su IBC y
+bloquea las discrepancias hasta reliquidar. No modifica snapshots aprobados.
+
+Los snapshots PILA v4 existentes en `main` y la versión v5 de esta rama aún
+no bastan para completar esos campos: conservan IBC por subsistema, el concepto
+Payroll `FSP` agregado y sus parámetros de cálculo,
+pero no congela el alcance de todas las fuentes de ingreso del cotizante ni
+montos separados y aprobados para las dos subcuentas. No se inferirá que el
+empleador actual es la única fuente por el mero hecho de que solo exista una
+relación laboral en el tenant. Tampoco se calcularán los campos 51/52 a partir
+del concepto agregado durante el preflight o la exportación.
+
+Antes de habilitar ambos campos, un incremento debe definir y congelar en una
+nueva versión del snapshot PILA: (a) el alcance confirmado de fuentes de
+ingreso del cotizante para el período; (b) el IBC pensional agregado que
+sustenta los umbrales; (c) régimen y versión normativa aplicables según
+período y fecha prevista de pago; y (d) los importes aprobados, separados por
+subcuenta y con la regla de redondeo versionada. Los snapshots históricos no
+se completan retrospectivamente. Mientras falte alguno de esos datos, haya
+múltiples fuentes no representadas, no coincida el total con el concepto FSP
+aprobado según la regla aplicable, o el período/pago esté sujeto a una regla
+de transición no reconciliada, los campos 51/52 permanecen bloqueados. La
+generación de un archivo y la aceptación del operador continúan siendo estados
+distintos.
+
+Fixtures normativos mínimos antes del código que resuelva los campos:
+
+| Caso anonimizado                                                                               | Expected values / resultado                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tasa FSP anterior a migración en un PayrollRun sin aprobar, con IBC justo en 17/18/19/20 SMMLV | Bloquear la aprobación si la tasa guardada difiere de la regla corregida; exigir reliquidación sin alterar snapshots aprobados.                                                                                                                                                                                                                                                                                                       |
+| Tramos de Payroll — pruebas con SMMLV sintético de $1.000.000                                  | Esperar factor FSP total 0, 1 %, 1,2 %, 1,4 %, 1,6 %, 1,8 % y 2 % en los intervalos legales; el IBC exacto de 17/18/19/20 conserva respectivamente 1,2/1,4/1,6/1,8 %, y un peso por encima pasa a 1,4/1,6/1,8/2 %.                                                                                                                                                                                                                    |
+| Fuente única confirmada; IBC pensional agregado menor a 4 SMMLV                                | Campos 51 y 52 en cero solo si la versión normativa aplicable confirma que no hay obligación; Payroll FSP debe ser coherente con esa regla.                                                                                                                                                                                                                                                                                           |
+| Fuente única confirmada; 4 SMMLV y menos de 16 SMMLV                                           | 0,5 % del IBC para cada subcuenta, con los importes fuente ya aprobados y redondeados bajo la regla versionada. A 4 SMMLV exactos y SMMLV sintético de $1.000.000: campos 51/52 = $20.000/$20.000.                                                                                                                                                                                                                                    |
+| Fuente única confirmada; límites 16, 17, 18, 19 y 20 SMMLV y un valor por encima de 20         | Verificar por separado solidaridad y cada tarifa marginal de subsistencia: a 16/17/18/19/20/21 SMMLV sintéticos de $1.000.000, los campos 51/52 antes de redondeo son $80.000/$112.000, $85.000/$119.000, $90.000/$162.000, $95.000/$209.000, $100.000/$260.000 y $105.000/$315.000. Incluir también valores justo debajo y un peso por encima de cada límite; aplicar el redondeo PILA versionado sin reemplazar valores de Payroll. |
+| Dos fuentes cuyos IBC individuales quedan bajo 4 SMMLV pero cuya suma cruza el umbral          | Bloquear si no se han capturado y aprobado ambas fuentes y la distribución normativa; nunca decidir por el IBC del tenant aislado.                                                                                                                                                                                                                                                                                                    |
+| Fuentes múltiples, alcance de ingresos desconocido o dato de régimen ausente                   | Bloquear campos 51/52 con causa por cotizante; no asumir fuente única ni cero.                                                                                                                                                                                                                                                                                                                                                        |
+| Total FSP aprobado no concilia con las subcuentas bajo los insumos y redondeo congelados       | Bloquear sin ajustar Payroll ni reemplazar los importes.                                                                                                                                                                                                                                                                                                                                                                              |
+| Período o fecha prevista de pago alcanza el cambio de régimen de 2027                          | Bloquear hasta reconciliar la regla vigente por período y pago; no reutilizar porcentajes del régimen anterior.                                                                                                                                                                                                                                                                                                                       |
+| Snapshot v1–v5 sin esos datos congelados                                                       | Bloquear; no leer datos maestros actuales ni hacer backfill.                                                                                                                                                                                                                                                                                                                                                                          |
 
 La matriz de aceptación debe registrar casos incluidos, códigos oficiales,
 archivos de entrada/salida esperados, regla normativa exacta, fecha de vigencia,
@@ -789,7 +852,7 @@ carga por operador sigue pendiente.
 El contrato de snapshot de nómina `PayrollSnapshot.payloadVersion` permanece en
 versión 1. Los datos regulatorios se capturan por separado en
 `PayrollSnapshot.pilaPayload` con `pilaPayloadVersion`; la implementación
-actual en `main` usa la versión 2 para este payload. Esa captura separada
+actual en `main` usa la versión 4; esta rama la incrementa a v5 por los límites FSP explícitos. Esa captura separada
 incluye fuentes confirmadas del aportante, empleado, período, contrato/sede,
 afiliaciones, novedades PILA y asignaciones de riesgo, con datos no disponibles
 preservados como nulos y reportados por el preflight. La existencia de esos
@@ -990,6 +1053,12 @@ la exportación y a cualquier afirmación de compatibilidad.
   adicional del AT2. El cotejo debe verificar los campos y plazos de AT2 v30,
   la Resolución 1529 citada por el anexo y normas posteriores, sin aplicar como
   delta un cambio ya incorporado.
+- [Decreto 1833 de 2016, Gestor Normativo de Función Pública](https://www.funcionpublica.gov.co/eva/gestornormativo/norma_pdf.php?i=85319),
+  arts. 2.2.3.1.9 y 2.2.14.1.6: define los tramos adicionales de
+  subsistencia y su límite superior inclusivo (16–17, más de 17–18, más de
+  18–19, más de 19–20 y más de 20 SMMLV), además de la asignación del 50 %
+  base a cada subcuenta desde 4 SMMLV. Se cotejó el texto oficial el
+  2026-11-03.
 - [Resolución 611 de 2026](https://www.minsalud.gov.co/Normatividad_Nuevo/Resolucion%20No%20611%20de%202026.pdf),
   permanencia temporal en régimen subsidiado de ciertas personas vinculadas
   laboralmente; establece un plazo de seis meses para ajustes operativos PILA.

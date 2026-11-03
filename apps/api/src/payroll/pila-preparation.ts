@@ -324,7 +324,8 @@ export function inspectPilaSnapshotPreparation(
     (input.payloadVersion === 1 && root?.schemaVersion === 1) ||
     ((input.payloadVersion === 2 ||
       input.payloadVersion === 3 ||
-      input.payloadVersion === 4) &&
+      input.payloadVersion === 4 ||
+      input.payloadVersion === 5) &&
       root?.schemaVersion === input.payloadVersion);
   if (!supportedPayloadVersion) {
     add(
@@ -1114,7 +1115,7 @@ export function inspectPilaSnapshotPreparation(
             code: 'UBICACION_LABORAL_PILA_FUENTE_INVALIDA',
             message:
               workLocationRows === null
-                ? 'El snapshot v3/v4 no conserva una lista válida de ubicaciones laborales PILA.'
+                ? 'El snapshot v3/v4/v5 no conserva una lista válida de ubicaciones laborales PILA.'
                 : workLocationRows.length === 0
                   ? 'Falta una ubicación laboral PILA confirmada que cubra el período.'
                   : workLocationRows.length > 1
@@ -1787,7 +1788,7 @@ export function buildPilaPreparationReport(input: {
             },
           ],
           evidence:
-            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots v2/v3/v4 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
+            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots v2/v3/v4/v5 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
         }
       : null;
   const readinessBlockers = [

@@ -200,7 +200,7 @@ describe('PILA source snapshot builders', () => {
     });
 
     expect(context.schemaVersion).toBe(3);
-    expect(snapshot.schemaVersion).toBe(4);
+    expect(snapshot.schemaVersion).toBe(5);
     expect(snapshot.pilaWorkLocations).toEqual([
       {
         assignmentId: 'work-location-1',
@@ -285,6 +285,19 @@ describe('PILA source snapshot builders', () => {
           fspTramos: [
             { desdeSmmlv: 0, hastaSmmlv: 4, pct: 0 },
             { desdeSmmlv: 4, hastaSmmlv: 16, pct: 0.01 },
+            {
+              desdeSmmlv: 16,
+              hastaSmmlv: 17,
+              hastaIncluido: true,
+              pct: 0.012,
+            },
+            {
+              desdeSmmlv: 17,
+              desdeIncluido: false,
+              hastaSmmlv: 18,
+              hastaIncluido: true,
+              pct: 0.014,
+            },
           ],
         },
         fechaPrevistaPagoPila: null,
@@ -296,14 +309,27 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(snapshot.schemaVersion).toBe(4);
+    expect(snapshot.schemaVersion).toBe(5);
     expect(snapshot.payroll.payrollCalculationParameters).toEqual({
-      sourceVersion: 'PAYROLL_LEGAL_PARAMETERS_V1',
+      sourceVersion: 'PAYROLL_LEGAL_PARAMETERS_V2',
       parametroLegalId: 'legal-2026',
       smmlv: 1_423_500,
       fspTramos: [
         { desdeSmmlv: 0, hastaSmmlv: 4, pct: 0 },
         { desdeSmmlv: 4, hastaSmmlv: 16, pct: 0.01 },
+        {
+          desdeSmmlv: 16,
+          hastaSmmlv: 17,
+          hastaIncluido: true,
+          pct: 0.012,
+        },
+        {
+          desdeSmmlv: 17,
+          desdeIncluido: false,
+          hastaSmmlv: 18,
+          hastaIncluido: true,
+          pct: 0.014,
+        },
       ],
     });
   });
@@ -398,7 +424,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(4);
+    expect(result.schemaVersion).toBe(5);
     expect(result.capturedAt).toBe('2026-11-02T15:00:00.000Z');
     expect(result.employee.fechaIngreso).toBe('2026-01-05');
     expect(result.employee.fechaNacimiento).toBeNull();
