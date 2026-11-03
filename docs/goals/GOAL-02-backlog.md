@@ -91,12 +91,44 @@ se accedió a demo, staging o producción.
 
 ## H4 — Operación financiera ampliada
 
-| Prioridad | Estado    | Iniciativa                        | Criterios de aceptación                                                                                                    | Dependencias y riesgo                                                 |
-| --------- | --------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| P2        | PENDIENTE | Cartera y aplicación de recaudos. | Saldos, vencimientos, pagos parciales y aplicación contra facturas se derivan de hechos trazables y cuadran con el Ledger. | Facturación estable, tercero canónico y caso comercial verificable.   |
-| P2        | PENDIENTE | Tesorería y conciliación.         | Obligaciones y pagos se concilian con extractos para un banco/flujo concreto con auditoría e idempotencia.                 | Necesidad real de cliente, Cartera/Payroll/Compras y datos bancarios. |
-| P3        | PENDIENTE | Compras y cuentas por pagar.      | Proveedor, obligación, soporte, causación y pago se rastrean hasta el Ledger.                                              | Tercero canónico, aprobaciones y necesidades de proveedor.            |
-| P3        | PENDIENTE | Reportes financieros integrados.  | Los reportes se calculan desde fuentes completas; cualquier cobertura parcial se identifica claramente.                    | H4.1–H4.3 o fuentes equivalentes ya verificadas.                      |
+| Prioridad | Estado            | Iniciativa                        | Criterios de aceptación                                                                                                    | Dependencias y riesgo                                                 |
+| --------- | ----------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| P2        | EN IMPLEMENTACIÓN | Cartera y aplicación de recaudos. | Saldos, vencimientos, pagos parciales y aplicación contra facturas se derivan de hechos trazables y cuadran con el Ledger. | Facturación estable, tercero canónico y caso comercial verificable.   |
+| P2        | PENDIENTE         | Tesorería y conciliación.         | Obligaciones y pagos se concilian con extractos para un banco/flujo concreto con auditoría e idempotencia.                 | Necesidad real de cliente, Cartera/Payroll/Compras y datos bancarios. |
+| P3        | PENDIENTE         | Compras y cuentas por pagar.      | Proveedor, obligación, soporte, causación y pago se rastrean hasta el Ledger.                                              | Tercero canónico, aprobaciones y necesidades de proveedor.            |
+| P3        | PENDIENTE         | Reportes financieros integrados.  | Los reportes se calculan desde fuentes completas; cualquier cobertura parcial se identifica claramente.                    | H4.1–H4.3 o fuentes equivalentes ya verificadas.                      |
+
+### Cartera y aplicación de recaudos — 2026-11-03
+
+- ADR-019 fue aceptada por delegación explícita de Producto. Define recaudos
+  recibidos en COP aplicados a facturas internas emitidas, vencimiento explícito
+  para facturas nuevas, saldo derivado desde aplicaciones activas y reversión
+  append-only con comprobante de Ledger.
+- La implementación candidata agrega el formulario de recaudo al detalle de la
+  factura y la consulta de vencido/al día al listado. El Browser E2E en
+  PostgreSQL 16 desechable verificó emisión y asiento, abono parcial, repetición
+  idempotente, bloqueo de cancelación, reversión y dos solicitudes concurrentes
+  donde solo una pudo aplicar al saldo disponible. No acredita aceptación
+  operativa de un cliente ni revisión contable-fiscal.
+- La migración habilita y fuerza RLS para recaudos, aplicaciones y reversos. La
+  suite PostgreSQL verifica con un rol `NOSUPERUSER NOBYPASSRLS` que cada tenant
+  vea únicamente sus filas y que las consultas sin contexto de tenant no
+  devuelvan registros. El cálculo de saldo ejecuta bajo `TenantPrismaService`.
+- Quedan fuera: recaudos no aplicados, anticipos, devoluciones, conciliación
+  bancaria, transmisión DIAN, manejo de intereses y operación de tesorería. La
+  captura de esta UI aplica el recaudo a una factura por vez; la API admite
+  varias facturas del mismo cliente en una solicitud.
+- La migración es aditiva y conserva las facturas históricas sin vencimiento.
+  Una vez existan recaudos reales no debe revertirse eliminando esas tablas; se
+  debe corregir hacia adelante para preservar evidencia financiera.
+- El `prisma migrate diff` posterior a aplicar las 82 migraciones en PostgreSQL
+  16 no reporta diferencias en las tablas nuevas de recaudos. Sí muestra
+  diferencias heredadas en nombres de índices/restricciones de Expediente,
+  prima y generación de documentos, además de la FK de plantilla del lote de
+  contratos. No se modifican en esta entrega; se deben auditar por separado
+  antes de diseñar una migración que dependa de esos objetos.
+- Validación local actual: 30 pruebas de Billing/autorización, 11 pruebas RLS,
+  typechecks API/web, builds API/web y Browser E2E financiero (1/1) pasan.
 
 ## Evidencia inicial (corte 2026-10-29) y límites vigentes
 

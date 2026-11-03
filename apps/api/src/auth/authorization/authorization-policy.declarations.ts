@@ -3,6 +3,7 @@ import { AuthorizationPolicyKind } from './authorization-policy';
 const AUTHENTICATED_CONTROLLER_POLICIES = new Set([
   'AlertsController',
   'BillingController',
+  'CustomerReceiptsController',
   'CentrosCostoController',
   'ContractsController',
   'ContractualProfilesController',

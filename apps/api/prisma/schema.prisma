@@ -313,6 +313,9 @@ model Tenant {
   payrollPilaEvents   PayrollPilaEvent[]
   payrollBlocks      PayrollBlock[]
   customers          Customer[]
+  customerReceipts   CustomerReceipt[]
+  invoiceReceiptApplications InvoiceReceiptAllocation[]
+  customerReceiptReversals CustomerReceiptReversal[]
   productServices    ProductService[]
   invoices           Invoice[]
   contratos          Contrato[]
@@ -1555,6 +1558,11 @@ enum InvoiceStatus {
   CANCELLED
 }
 
+enum CustomerReceiptMethod {
+  EFECTIVO
+  TRANSFERENCIA
+}
+
 // =============================================================================
 // CUSTOMER — Cliente para facturación
 // =============================================================================
@@ -1578,8 +1586,10 @@ model Customer {
   tercero   Tercero? @relation(fields: [terceroId, tenantId], references: [id, tenantId], onDelete: Restrict)
 
   invoices Invoice[]
+  receipts CustomerReceipt[]
 
   @@unique([tenantId, nit])
+  @@unique([id, tenantId], map: "customers_id_tenant_key")
   @@unique([terceroId, tenantId])
   @@index([tenantId])
   @@index([tenantId, status])
@@ -1638,13 +1648,17 @@ model Invoice {
   total        Decimal       @db.Decimal(12, 2)
   status       InvoiceStatus @default(DRAFT)
   fechaEmision DateTime      @default(now())
+  fechaVencimiento DateTime? @db.Date
 
-  items InvoiceItem[]
+  items               InvoiceItem[]
+  receiptApplications InvoiceReceiptAllocation[]
 
+  @@unique([id, tenantId], map: "invoices_id_tenant_key")
   @@index([tenantId])
   @@index([tenantId, customerId])
   @@index([tenantId, terceroId])
   @@index([tenantId, status])
+  @@index([tenantId, status, fechaVencimiento], map: "invoices_tenant_status_due_date_idx")
   @@map("invoices")
 }
 
@@ -1670,6 +1684,79 @@ model InvoiceItem {
 
   @@index([invoiceId])
   @@map("invoice_items")
+}
+
+// =============================================================================
+// CUSTOMER RECEIPT — Hecho inmutable de dinero recibido y aplicado a facturas
+// =============================================================================
+
+model CustomerReceipt {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  customerId String
+  customer   Customer @relation(fields: [customerId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  fechaRecibo     DateTime              @db.Date
+  medio           CustomerReceiptMethod
+  referencia      String?               @db.VarChar(120)
+  monto           Decimal               @db.Decimal(14, 2)
+  idempotencyKey  String                @db.VarChar(36)
+  requestHash     String                @db.VarChar(64)
+  registradoPorId String
+
+  aplicaciones InvoiceReceiptAllocation[]
+  reversal     CustomerReceiptReversal?
+
+  @@unique([id, tenantId], map: "customer_receipts_id_tenant_key")
+  @@unique([tenantId, idempotencyKey], map: "customer_receipts_tenant_idempotency_key")
+  @@index([tenantId, customerId, fechaRecibo], map: "customer_receipts_tenant_customer_date_idx")
+  @@map("customer_receipts")
+}
+
+// Aplicación inmutable de una parte del recaudo a una factura del mismo cliente.
+model InvoiceReceiptAllocation {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  receiptId String
+  receipt   CustomerReceipt @relation(fields: [receiptId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  amount Decimal @db.Decimal(14, 2)
+
+  @@unique([receiptId, invoiceId], map: "invoice_receipt_allocations_receipt_invoice_key")
+  @@index([tenantId, invoiceId], map: "invoice_receipt_allocations_tenant_invoice_idx")
+  @@map("invoice_receipt_allocations")
+}
+
+// Reversión append-only del recaudo; su Ledger reversal conserva el asiento.
+model CustomerReceiptReversal {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  receiptId String
+  receipt   CustomerReceipt @relation(fields: [receiptId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  reason            String @db.VarChar(500)
+  reversedById      String
+  originalVoucherId String
+  reversalVoucherId String
+
+  @@unique([receiptId, tenantId], map: "customer_receipt_reversals_receipt_tenant_key")
+  @@index([tenantId, createdAt], map: "customer_receipt_reversals_tenant_created_idx")
+  @@map("customer_receipt_reversals")
 }
 
 // =============================================================================

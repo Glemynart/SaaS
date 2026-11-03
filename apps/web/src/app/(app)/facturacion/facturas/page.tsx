@@ -25,6 +25,18 @@ function cop(n: number) {
   }).format(n);
 }
 
+function calendarDate(value: string) {
+  return new Intl.DateTimeFormat('es-CO', {
+    dateStyle: 'medium',
+    timeZone: 'UTC',
+  }).format(new Date(value));
+}
+
+function localToday() {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 export default function FacturasPage() {
   const me = useMe();
   const canManageInvoiceStatus = me.data?.user.rol === 'ADMIN';
@@ -38,6 +50,7 @@ export default function FacturasPage() {
   const [form, setForm] = useState({
     customerId: '',
     numero: '',
+    fechaVencimiento: '',
     items: [
       {
         descripcion: '',
@@ -93,7 +106,12 @@ export default function FacturasPage() {
       porcentajeImpuesto: Number(i.porcentajeImpuesto),
     }));
     createMutation.mutate(
-      { customerId: form.customerId, numero: form.numero, items: cleanItems },
+      {
+        customerId: form.customerId,
+        numero: form.numero,
+        fechaVencimiento: form.fechaVencimiento,
+        items: cleanItems,
+      },
       { onSuccess: () => setShowForm(false) },
     );
   }, [form, createMutation]);
@@ -151,6 +169,17 @@ export default function FacturasPage() {
                 value={form.numero}
                 onChange={(e) => setForm({ ...form, numero: e.target.value })}
                 placeholder="FAC-001"
+              />
+            </div>
+            <div>
+              <Label htmlFor="invoice-due-date">Fecha de vencimiento</Label>
+              <Input
+                id="invoice-due-date"
+                type="date"
+                min={localToday()}
+                required
+                value={form.fechaVencimiento}
+                onChange={(event) => setForm({ ...form, fechaVencimiento: event.target.value })}
               />
             </div>
           </div>
@@ -237,6 +266,7 @@ export default function FacturasPage() {
                 createMutation.isPending ||
                 !form.customerId ||
                 !form.numero.trim() ||
+                !form.fechaVencimiento ||
                 form.items.some((item) => item.porcentajeImpuesto === '')
               }
             >
@@ -302,6 +332,21 @@ export default function FacturasPage() {
                     {inv.customerRazonSocialSnapshot ?? inv.customer?.razonSocial} —{' '}
                     {cop(inv.total)}
                   </p>
+                  {inv.status === 'ISSUED' && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Vence:{' '}
+                      {inv.fechaVencimiento
+                        ? calendarDate(inv.fechaVencimiento)
+                        : 'sin vencimiento registrado'}
+                      {' · '}Abonado: {cop(Number(inv.totalPagado ?? 0))}
+                      {' · '}Pendiente: {cop(Number(inv.saldoPendiente ?? inv.total))}
+                      {Number(inv.saldoPendiente ?? 0) > 0 &&
+                        inv.fechaVencimiento &&
+                        inv.fechaVencimiento.slice(0, 10) < localToday() && (
+                          <span className="ml-1 font-medium text-destructive">Vencida</span>
+                        )}
+                    </p>
+                  )}
                   {!canManageInvoiceStatus && inv.status === 'DRAFT' && (
                     <p className="mt-1 text-xs text-muted-foreground">
                       La emisión o cancelación requiere un usuario ADMIN.

@@ -23,7 +23,7 @@ describe('AuthorizationSurfaceClassifier', () => {
   it('classifies the complete current HTTP surface without ambiguity', () => {
     const operations = classifier.classifyModuleGraph(AppModule);
 
-    expect(operations).toHaveLength(208);
+    expect(operations).toHaveLength(211);
     expect(new Set(operations.map(({ operationId }) => operationId)).size).toBe(
       operations.length,
     );
@@ -49,12 +49,12 @@ describe('AuthorizationSurfaceClassifier', () => {
 
     expect(countBy(operations, 'policy')).toEqual({
       [AuthorizationPolicyKind.UNAUTHENTICATED]: 12,
-      [AuthorizationPolicyKind.AUTHENTICATED]: 65,
-      [AuthorizationPolicyKind.RBAC]: 131,
+      [AuthorizationPolicyKind.AUTHENTICATED]: 66,
+      [AuthorizationPolicyKind.RBAC]: 133,
     });
     expect(countBy(operations, 'source')).toEqual({
-      [AuthorizationClassificationSource.EXPLICIT]: 77,
-      [AuthorizationClassificationSource.EXISTING_RBAC]: 131,
+      [AuthorizationClassificationSource.EXPLICIT]: 78,
+      [AuthorizationClassificationSource.EXISTING_RBAC]: 133,
     });
     expect(
       operations.filter(
@@ -62,6 +62,47 @@ describe('AuthorizationSurfaceClassifier', () => {
           source === AuthorizationClassificationSource.LEGACY_INFERRED,
       ),
     ).toEqual([]);
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'CustomerReceiptsController.findInvoiceApplications',
+      ),
+    ).toMatchObject({
+      requestMethod: 'GET',
+      operationPath: 'billing/invoices/:id/receipts',
+      policy: AuthorizationPolicyKind.AUTHENTICATED,
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'CustomerReceiptsController.create',
+      ),
+    ).toMatchObject({
+      requestMethod: 'POST',
+      operationPath: 'billing/receipts',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN, UserRole.OPERADOR],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'CustomerReceiptsController.reverse',
+      ),
+    ).toMatchObject({
+      requestMethod: 'POST',
+      operationPath: 'billing/receipts/:id/reversal',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
 
     expect(
       operations.find(

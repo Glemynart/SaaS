@@ -2,6 +2,12 @@ import { randomInt } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { seedBillingLedgerFixture } from './helpers/billing-ledger-fixture';
 
+function dateInDays(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 async function registerAndSignIn(page: Page, suffix: string) {
   const nit = `8${suffix}`;
   const email = `billing-invoice-${suffix}@example.test`;
@@ -47,6 +53,7 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
   const customerNit = `9${suffix}`;
   const productName = `Servicio Educativo ${suffix}`;
   const invoiceNumber = `DEMO-${suffix}`;
+  const fechaVencimiento = dateInDays(30);
   const registration = await registerAndSignIn(page, suffix);
   const accountingFixture = await seedBillingLedgerFixture(
     registration.tenant.id,
@@ -94,6 +101,7 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
     await page.getByRole('button', { name: 'Nueva' }).click();
     await page.locator('select').nth(0).selectOption({ label: customerName });
     await page.getByPlaceholder('FAC-001').fill(invoiceNumber);
+    await page.getByLabel('Fecha de vencimiento').fill(fechaVencimiento);
     await page.locator('select').nth(1).selectOption({ label: productName });
     await expect(page.getByPlaceholder('V. Unit')).toHaveValue('120000');
     await page.getByPlaceholder('Cant').fill('1');
@@ -169,7 +177,9 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
     const cancelledRow = page.getByRole('link', { name: invoiceNumber }).locator('xpath=..');
     await expect(cancelledRow.getByText('Anulada', { exact: true })).toBeVisible();
     await page.getByRole('link', { name: invoiceNumber }).click();
-    const accountingSection = page.locator('section').filter({ hasText: 'Contabilización interna' });
+    const accountingSection = page
+      .locator('section')
+      .filter({ hasText: 'Contabilización interna' });
     await expect(accountingSection.getByText(/· ANULADO/)).toBeVisible();
     await page.reload();
     await expect(accountingSection.getByText(/· ANULADO/)).toBeVisible();

@@ -25,6 +25,16 @@ describe('empleados PostgreSQL RLS', () => {
   const municipalityCode = `RLS-${suffix}`;
   const workLocationA = `rls-ubicacion-a-${suffix}`;
   const workLocationB = `rls-ubicacion-b-${suffix}`;
+  const customerA = `rls-customer-a-${suffix}`;
+  const customerB = `rls-customer-b-${suffix}`;
+  const invoiceA = `rls-invoice-a-${suffix}`;
+  const invoiceB = `rls-invoice-b-${suffix}`;
+  const receiptA = `rls-receipt-a-${suffix}`;
+  const receiptB = `rls-receipt-b-${suffix}`;
+  const allocationA = `rls-allocation-a-${suffix}`;
+  const allocationB = `rls-allocation-b-${suffix}`;
+  const reversalA = `rls-reversal-a-${suffix}`;
+  const reversalB = `rls-reversal-b-${suffix}`;
   const tenantContext = new TenantContextService();
   const prisma = new PrismaService();
   const tenantPrisma = new TenantPrismaService(
@@ -60,6 +70,9 @@ describe('empleados PostgreSQL RLS', () => {
     await prisma.$executeRawUnsafe(
       `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "pila_ubicaciones_laborales" TO "${TEST_ROLE}"`,
     );
+    await prisma.$executeRawUnsafe(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "customer_receipts", "invoice_receipt_allocations", "customer_receipt_reversals" TO "${TEST_ROLE}"`,
+    );
 
     await prisma.tenant.createMany({
       data: [
@@ -94,9 +107,82 @@ describe('empleados PostgreSQL RLS', () => {
         workLocationData(workLocationB, tenantB, employeeB),
       ],
     });
+    await prisma.customer.createMany({
+      data: [
+        {
+          id: customerA,
+          tenantId: tenantA,
+          razonSocial: 'Cliente RLS A',
+          nit: `900${suffix}`,
+        },
+        {
+          id: customerB,
+          tenantId: tenantB,
+          razonSocial: 'Cliente RLS B',
+          nit: `901${suffix}`,
+        },
+      ],
+    });
+    await prisma.invoice.createMany({
+      data: [
+        {
+          id: invoiceA,
+          tenantId: tenantA,
+          customerId: customerA,
+          numero: `RLS-A-${suffix}`,
+          subtotal: 100,
+          impuestos: 0,
+          total: 100,
+          status: 'ISSUED',
+        },
+        {
+          id: invoiceB,
+          tenantId: tenantB,
+          customerId: customerB,
+          numero: `RLS-B-${suffix}`,
+          subtotal: 100,
+          impuestos: 0,
+          total: 100,
+          status: 'ISSUED',
+        },
+      ],
+    });
+    await prisma.customerReceipt.createMany({
+      data: [
+        receiptData(receiptA, tenantA, customerA),
+        receiptData(receiptB, tenantB, customerB),
+      ],
+    });
+    await prisma.invoiceReceiptAllocation.createMany({
+      data: [
+        allocationData(allocationA, tenantA, receiptA, invoiceA),
+        allocationData(allocationB, tenantB, receiptB, invoiceB),
+      ],
+    });
+    await prisma.customerReceiptReversal.createMany({
+      data: [
+        reversalData(reversalA, tenantA, receiptA),
+        reversalData(reversalB, tenantB, receiptB),
+      ],
+    });
   });
 
   afterAll(async () => {
+    await prisma.customerReceiptReversal.deleteMany({
+      where: { id: { in: [reversalA, reversalB] } },
+    });
+    await prisma.invoiceReceiptAllocation.deleteMany({
+      where: { id: { in: [allocationA, allocationB] } },
+    });
+    await prisma.customerReceipt.deleteMany({
+      where: { id: { in: [receiptA, receiptB] } },
+    });
+    await prisma.invoice.deleteMany({
+      where: { id: { in: [invoiceA, invoiceB] } },
+    });
+    await prisma.customer.deleteMany({
+      where: { id: { in: [customerA, customerB] } },
+    });
     await prisma.pilaUbicacionLaboral.deleteMany({
       where: { id: { in: [workLocationA, workLocationB] } },
     });
@@ -114,7 +200,7 @@ describe('empleados PostgreSQL RLS', () => {
     await prisma.$disconnect();
   });
 
-  it('enables and forces RLS for tenant-scoped payroll tables and empleados', async () => {
+  it('enables and forces RLS for tenant-scoped tables', async () => {
     const protectedTables = await prisma.$queryRaw<{ tableName: string }[]>`
       SELECT relname AS "tableName"
       FROM pg_class
@@ -130,7 +216,10 @@ describe('empleados PostgreSQL RLS', () => {
 
     const expectedTenantTables = [
       { tableName: 'afiliaciones_seguridad_social' },
+      { tableName: 'customer_receipt_reversals' },
+      { tableName: 'customer_receipts' },
       { tableName: 'empleados' },
+      { tableName: 'invoice_receipt_allocations' },
       { tableName: 'pila_asignaciones_centro_trabajo' },
       { tableName: 'pila_centros_trabajo' },
       { tableName: 'pila_ubicaciones_laborales' },
@@ -139,6 +228,39 @@ describe('empleados PostgreSQL RLS', () => {
     ];
     expect(protectedTables).toEqual(expectedTenantTables);
     expect(forcedTables).toEqual(expectedTenantTables);
+  });
+
+  it('isolates receipts, invoice allocations, and reversals by tenant', async () => {
+    const readFinancialRows = (client: TenantPrismaClient) =>
+      Promise.all([
+        client.customerReceipt.findMany({
+          where: { id: { in: [receiptA, receiptB] } },
+        }),
+        client.invoiceReceiptAllocation.findMany({
+          where: { id: { in: [allocationA, allocationB] } },
+        }),
+        client.customerReceiptReversal.findMany({
+          where: { id: { in: [reversalA, reversalB] } },
+        }),
+      ]);
+    const readForTenant = (tenantId: string) =>
+      runAsTenant(tenantId, () => tenantPrisma.execute(readFinancialRows));
+
+    const [tenantAResults, tenantBResults, noTenantResults] = await Promise.all(
+      [
+        readForTenant(tenantA),
+        readForTenant(tenantB),
+        runAsRlsRole(readFinancialRows),
+      ],
+    );
+
+    expect(
+      tenantAResults.map((rows) => rows.map(({ tenantId }) => tenantId)),
+    ).toEqual([[tenantA], [tenantA], [tenantA]]);
+    expect(
+      tenantBResults.map((rows) => rows.map(({ tenantId }) => tenantId)),
+    ).toEqual([[tenantB], [tenantB], [tenantB]]);
+    expect(noTenantResults.map((rows) => rows.length)).toEqual([0, 0, 0]);
   });
 
   it('allows each tenant to read only its own security affiliation history', async () => {
@@ -405,6 +527,41 @@ describe('empleados PostgreSQL RLS', () => {
       vigenteDesde: new Date('2026-01-01T00:00:00.000Z'),
       vigenteHasta: null,
       registradoPorId: 'rls-empleados-test-user',
+    };
+  }
+
+  function receiptData(id: string, tenantId: string, customerId: string) {
+    return {
+      id,
+      tenantId,
+      customerId,
+      fechaRecibo: new Date('2026-01-01T00:00:00.000Z'),
+      medio: 'EFECTIVO' as const,
+      monto: 100,
+      idempotencyKey: randomUUID(),
+      requestHash: 'f'.repeat(64),
+      registradoPorId: 'rls-empleados-test-user',
+    };
+  }
+
+  function allocationData(
+    id: string,
+    tenantId: string,
+    receiptId: string,
+    invoiceId: string,
+  ) {
+    return { id, tenantId, receiptId, invoiceId, amount: 100 };
+  }
+
+  function reversalData(id: string, tenantId: string, receiptId: string) {
+    return {
+      id,
+      tenantId,
+      receiptId,
+      reason: 'Reversión de prueba RLS',
+      reversedById: 'rls-empleados-test-user',
+      originalVoucherId: randomUUID(),
+      reversalVoucherId: randomUUID(),
     };
   }
 

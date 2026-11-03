@@ -10,6 +10,11 @@ import {
   Min,
   IsEmail,
   IsIn,
+  IsUUID,
+  IsDateString,
+  MaxLength,
+  MinLength,
+  ArrayMaxSize,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { InvoiceStatus } from '@prisma/client';
@@ -63,6 +68,7 @@ export class InvoiceItemDto {
 export class CreateInvoiceDto {
   @IsString() @IsNotEmpty() customerId: string;
   @IsString() @IsNotEmpty() numero: string;
+  @IsDateString() fechaVencimiento: string;
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
@@ -73,4 +79,34 @@ export class CreateInvoiceDto {
 export class UpdateInvoiceStatusDto {
   @IsEnum(InvoiceStatus) @IsNotEmpty() status: InvoiceStatus;
   @IsString() @IsOptional() motivo?: string;
+}
+
+export enum ReceiptMethod {
+  EFECTIVO = 'EFECTIVO',
+  TRANSFERENCIA = 'TRANSFERENCIA',
+}
+
+export class InvoiceReceiptAllocationDto {
+  @IsUUID() invoiceId: string;
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01) amount: number;
+}
+
+export class CreateCustomerReceiptDto {
+  @IsUUID() customerId: string;
+  @IsDateString() fechaRecibo: string;
+  @IsEnum(ReceiptMethod) medio: ReceiptMethod;
+  @IsString() @IsOptional() @MaxLength(120) referencia?: string;
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01) monto: number;
+  @IsUUID() idempotencyKey: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => InvoiceReceiptAllocationDto)
+  aplicaciones: InvoiceReceiptAllocationDto[];
+}
+
+export class ReverseCustomerReceiptDto {
+  @IsString() @MinLength(3) @MaxLength(500) reason: string;
 }
