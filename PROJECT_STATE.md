@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-02 activo; GOAL-01 pausado; evidencia financiera sincronizada con main (2026-11-02)
+## Última actualización: GOAL-02 activo; GOAL-01 pausado; evidencia financiera sincronizada con main (2026-11-03)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -2139,7 +2139,7 @@ Goal activo y usa esta referencia junto con su backlog específico.
 - [`GOAL-02 backlog`](docs/goals/GOAL-02-backlog.md): primer incremento, dependencias, riesgos y criterios de aceptación.
 - GOAL-01 — Primer Cliente Operando está pausado, no cerrado; sus pendientes y evidencia permanecen preservados en [`su ficha`](docs/goals/GOAL-01-primer-cliente-operando.md).
 
-Estado contrastado en `main` al `120ca3a` (2026-11-03): Billing emite facturas
+Estado contrastado en `main` al `d187233` (2026-11-03): Billing emite facturas
 internas con tasas explícitas congeladas por línea y las integra al Ledger; el
 escenario financiero de demo y la consulta de comprobantes existen, aunque la
 aceptación con un tenant demo real sigue pendiente. Nómina aprobada conserva
@@ -2156,6 +2156,11 @@ parcial y snapshot aprobado. La interfaz y API de prima limitan el MVP a
 enero–junio y rechazan el segundo semestre. El
 estado detallado y sus
 brechas están en [`GOAL-02 backlog`](docs/goals/GOAL-02-backlog.md).
+
+La matriz de prima semestral cubre todos los códigos estables de Payroll con
+tipo esperado y tratamiento explícito. El cálculo bloquea códigos desconocidos
+aunque estén tipificados como deducción o aporte; la validación operativa por
+un responsable laboral sigue pendiente.
 
 Los Milestones de GOAL-01 quedan en pausa; GOAL-02 prioriza los flujos financieros demostrables y conserva las puertas regulatorias de dominio, proveedor, seguridad y operación.
 

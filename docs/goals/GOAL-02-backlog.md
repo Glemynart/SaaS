@@ -1120,6 +1120,12 @@ false`.
   PILA por inferencia. **ARQUITECTURA DISPONIBLE:** ADR-013 consume snapshots
   aprobados y exige segmentación normativa validada; no se añade una nueva
   arquitectura ni se habilita exportación.
-- El trabajo siguiente dentro del alcance es completar las condiciones
-  pendientes de ADR-012 para prima semestral: matriz de conceptos salariales,
-  días/novedades, corte de diciembre y fixtures laborales revisados.
+- Las condiciones internas de ADR-012 para la demostración enero–junio están
+  cubiertas: matriz exhaustiva de códigos `ConceptCodigo` con tipos esperados;
+  conceptos o tipos desconocidos bloqueados; fixtures revisados para importes,
+  días 30/360 y novedades; y julio–diciembre rechazado antes de persistir.
+  `service-premium-calculator.spec.ts` verifica la cobertura y los bloqueos.
+  **GOAL ACTIVO:** GOAL-02. **IMPLEMENTACIÓN DISPONIBLE:** prima demostrable
+  únicamente para enero–junio con fuentes aprobadas; sin pagos ni Ledger.
+  **VALIDACIÓN OPERATIVA PENDIENTE:** revisión laboral independiente y regla
+  para el segundo semestre; no bloquean la demo controlada ni el resto del Goal.
