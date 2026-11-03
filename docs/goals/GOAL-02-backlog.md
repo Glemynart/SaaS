@@ -1,6 +1,6 @@
 # Backlog de GOAL-02 — Evolución Financiera y Cumplimiento Electrónico
 
-Actualizado: 2026-11-02. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
+Actualizado: 2026-11-03. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
 no cerrado. Este backlog conserva el resultado completo de GOAL-02 y prioriza
 primero flujos financieros internos que puedan mostrarse a futuros clientes.
 
@@ -1067,3 +1067,16 @@ false`.
   pago. **GOAL ACTIVO:** GOAL-02. **ARQUITECTURA DISPONIBLE:** composición
   determinista desde candidatos congelados. Continúan los bloqueos normativos
   y de fuentes registrados en la matriz AT2 v30.
+
+### Cobertura completa de campos del detalle AT2 — 2026-11-03
+
+- PR #229 se fusionó en `main` como `4eedd84` y PR #230 como `b9ac011`. El
+  primero compone el candidato del campo 50 desde 47–49; el segundo explica
+  esa relación en la interfaz y la verifica en Browser E2E. CI y Browser E2E
+  post-merge de #230 terminaron exitosamente.
+- La matriz agrega `PILA-AT2-61`: cada uno de los 98 campos del registro de
+  detalle debe estar representado como candidato o pendiente explícito. La
+  prueba automatizada compara esa cobertura con el layout AT2 v30 y verifica
+  que un snapshot no soportado bloquee los 98 campos. Esto protege el
+  preflight ante campos omitidos; no constituye validación normativa completa
+  ni habilita composición, descarga o compatibilidad con operadores.
