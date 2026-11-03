@@ -69,6 +69,7 @@ const mockCuentaSistemaMapFindMany = jest.fn();
 const mockPeriodoContableFindFirst = jest.fn();
 const mockTipoComprobanteFindFirst = jest.fn();
 const mockTerceroFindMany = jest.fn();
+const mockQueryRaw = jest.fn();
 
 const mockPrisma = {
   payrollPeriod: {
@@ -129,7 +130,7 @@ const mockPrisma = {
   periodoContable: { findFirst: mockPeriodoContableFindFirst },
   tipoComprobante: { findFirst: mockTipoComprobanteFindFirst },
   tercero: { findMany: mockTerceroFindMany },
-  $queryRaw: jest.fn(),
+  $queryRaw: mockQueryRaw,
   $transaction: jest.fn(),
 };
 
@@ -483,6 +484,8 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
     );
     mockPayrollRunFindMany.mockResolvedValue([]);
     mockPayrollNoveltyFindMany.mockResolvedValue([]);
+    mockPayrollPilaEventFindMany.mockResolvedValue([]);
+    mockQueryRaw.mockResolvedValue([]);
     mockPilaWorkAssignmentFindMany.mockResolvedValue([]);
     mockPilaWorkLocationFindMany.mockResolvedValue([]);
     mockContratoFindMany.mockResolvedValue([]);
@@ -547,7 +550,11 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         primerApellido: 'Pérez',
         segundoApellido: null,
       };
-      mockEmpleadoFindFirst.mockResolvedValue({ id: employee.id });
+      mockEmpleadoFindFirst.mockResolvedValue({
+        id: employee.id,
+        estado: 'ACTIVO',
+        fechaRetiro: null,
+      });
       mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('BORRADOR'));
       mockPayrollPilaEventFindFirst.mockResolvedValue(null);
       mockPayrollPilaEventCreate.mockResolvedValue({
@@ -577,9 +584,8 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           id: employee.id,
           tenantId: TENANT,
           deletedAt: null,
-          estado: 'ACTIVO',
         },
-        select: { id: true },
+        select: { id: true, estado: true },
       });
       expect(mockPayrollPilaEventCreate).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -601,7 +607,11 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
     });
 
     it('falla de forma segura si no puede auditar el alta', async () => {
-      mockEmpleadoFindFirst.mockResolvedValue({ id: 'emp-1' });
+      mockEmpleadoFindFirst.mockResolvedValue({
+        id: 'emp-1',
+        estado: 'ACTIVO',
+        fechaRetiro: null,
+      });
       mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('BORRADOR'));
       mockPayrollPilaEventFindFirst.mockResolvedValue(null);
       mockPayrollPilaEventCreate.mockResolvedValue({
@@ -630,7 +640,11 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
     });
 
     it('rechaza cambios cuando el período ya salió de borrador', async () => {
-      mockEmpleadoFindFirst.mockResolvedValue({ id: 'emp-1' });
+      mockEmpleadoFindFirst.mockResolvedValue({
+        id: 'emp-1',
+        estado: 'ACTIVO',
+        fechaRetiro: null,
+      });
       mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CALCULADA'));
 
       await expect(
@@ -645,7 +659,11 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
     });
 
     it('rechaza duplicar el mismo evento para el mismo empleado y período', async () => {
-      mockEmpleadoFindFirst.mockResolvedValue({ id: 'emp-1' });
+      mockEmpleadoFindFirst.mockResolvedValue({
+        id: 'emp-1',
+        estado: 'ACTIVO',
+        fechaRetiro: null,
+      });
       mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('BORRADOR'));
       mockPayrollPilaEventFindFirst.mockResolvedValue({ id: 'event-existing' });
 
@@ -656,6 +674,65 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           fechaInicio: '2026-01-10',
         }),
       ).rejects.toThrow(ConflictException);
+
+      expect(mockPayrollPilaEventCreate).not.toHaveBeenCalled();
+    });
+
+    it('rechaza RET para un empleado inactivo porque Nómina no liquida períodos parciales', async () => {
+      mockEmpleadoFindFirst.mockResolvedValue({
+        id: 'emp-1',
+        estado: 'INACTIVO',
+        fechaRetiro: new Date('2026-01-20T00:00:00.000Z'),
+      });
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('BORRADOR'));
+      await expect(
+        service.createPilaEvent(TENANT, USER, PERIOD_ID, {
+          employeeId: 'emp-1',
+          codigo: PilaEventCode.RET,
+          fechaInicio: '2026-01-20',
+        }),
+      ).rejects.toThrow(
+        'Nómina aún no liquida proporcionalmente el período desde su fecha de retiro',
+      );
+
+      expect(mockPayrollPilaEventCreate).not.toHaveBeenCalled();
+    });
+
+    it('rechaza otras novedades para empleados inactivos', async () => {
+      mockEmpleadoFindFirst.mockResolvedValue({
+        id: 'emp-1',
+        estado: 'INACTIVO',
+        fechaRetiro: new Date('2026-01-20T00:00:00.000Z'),
+      });
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('BORRADOR'));
+
+      await expect(
+        service.createPilaEvent(TENANT, USER, PERIOD_ID, {
+          employeeId: 'emp-1',
+          codigo: PilaEventCode.IGE,
+          fechaInicio: '2026-01-20',
+          fechaFin: '2026-01-21',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(mockPayrollPilaEventCreate).not.toHaveBeenCalled();
+    });
+
+    it('rechaza RET si la fecha informada no coincide con el retiro registrado', async () => {
+      mockEmpleadoFindFirst.mockResolvedValue({
+        id: 'emp-1',
+        estado: 'INACTIVO',
+        fechaRetiro: new Date('2026-01-20T00:00:00.000Z'),
+      });
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('BORRADOR'));
+
+      await expect(
+        service.createPilaEvent(TENANT, USER, PERIOD_ID, {
+          employeeId: 'emp-1',
+          codigo: PilaEventCode.RET,
+          fechaInicio: '2026-01-21',
+        }),
+      ).rejects.toThrow(BadRequestException);
 
       expect(mockPayrollPilaEventCreate).not.toHaveBeenCalled();
     });
@@ -2399,6 +2476,34 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       });
     });
 
+    it('bloquea generación si un RET quedó asociado a un empleado inactivo', async () => {
+      setupPayrollGeneration();
+      mockEmpleadoFindMany.mockResolvedValue([]);
+      mockPayrollPilaEventFindMany.mockResolvedValue([
+        {
+          id: 'event-ret',
+          employeeId: 'emp-retired',
+          codigo: PilaEventCode.RET,
+          fechaInicio: new Date('2026-01-20T00:00:00.000Z'),
+          fechaFin: null,
+          dias: null,
+          createdAt: new Date('2026-01-20T00:00:00.000Z'),
+        },
+      ]);
+      mockQueryRaw
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          { id: 'emp-retired', estado: 'INACTIVO', deletedAt: null },
+        ]);
+
+      await expect(
+        service.generatePayroll(TENANT, USER, PERIOD_ID),
+      ).rejects.toThrow('asociado(s) a novedades PILA no está(n) activo(s)');
+
+      expect(mockPayrollRunCreate).not.toHaveBeenCalled();
+      expect(mockPayrollPeriodUpdateMany).not.toHaveBeenCalled();
+    });
+
     it('si el período se aprueba mientras se prepara la generación, no crea liquidaciones', async () => {
       setupPayrollGeneration();
       mockPayrollPeriodFindFirst
@@ -2552,6 +2657,36 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       });
     });
 
+    it('bloquea reliquidación si un RET quedó asociado a un empleado inactivo', async () => {
+      setupPayrollGeneration();
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CALCULADA'));
+      mockEmpleadoFindMany.mockResolvedValue([]);
+      mockPayrollPilaEventFindMany.mockResolvedValue([
+        {
+          id: 'event-ret',
+          employeeId: 'emp-retired',
+          codigo: PilaEventCode.RET,
+          fechaInicio: new Date('2026-01-20T00:00:00.000Z'),
+          fechaFin: null,
+          dias: null,
+          createdAt: new Date('2026-01-20T00:00:00.000Z'),
+        },
+      ]);
+      mockQueryRaw
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          { id: 'emp-retired', estado: 'INACTIVO', deletedAt: null },
+        ]);
+
+      await expect(
+        service.recalculatePayroll(TENANT, USER, PERIOD_ID),
+      ).rejects.toThrow('asociado(s) a novedades PILA no está(n) activo(s)');
+
+      expect(mockPayrollRunFindMany).not.toHaveBeenCalled();
+      expect(mockPayrollRunDeleteMany).not.toHaveBeenCalled();
+      expect(mockPayrollRunCreate).not.toHaveBeenCalled();
+    });
+
     it('si el período se aprueba mientras se prepara el recálculo, conserva las liquidaciones existentes', async () => {
       setupPayrollGeneration();
       mockPayrollPeriodFindFirst
@@ -2665,6 +2800,11 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           dias: null,
         },
       ]);
+      mockQueryRaw
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          { id: 'emp-1', estado: 'ACTIVO', deletedAt: null },
+        ]);
 
       await service.recalculatePayroll(TENANT, USER, PERIOD_ID);
 

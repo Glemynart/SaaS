@@ -1097,3 +1097,29 @@ false`.
   guardar un lote, evitando borradores no aprobables llenos de líneas
   bloqueadas. El cálculo y publicación del segundo semestre siguen fuera del
   alcance hasta la revisión laboral del corte.
+
+### RET PILA para empleado que ya está inactivo — dependencia pendiente — 2026-11-03
+
+- **Hechos confirmados en código:** `generatePayroll` y
+  `recalculatePayroll` solo seleccionan empleados `ACTIVO`;
+  `calculate()` recibe salario mensual, sin días trabajados del período; el
+  evento RET solo forma parte del payload de empleados que sí tienen un run.
+  Capturar RET para un inactivo permitiría guardar un evento que no aparecería
+  en un snapshot aprobado y podría ocultar la liquidación salarial pendiente.
+- Por ese motivo la pantalla explica que los inactivos no aparecen y la API
+  rechaza el alta con un error explícito. Si un empleado se inactiva después de
+  registrar una novedad, generación y reliquidación bloquean el período antes
+  de crear o borrar runs, en lugar de excluirlo silenciosamente del snapshot.
+  Las guardas de cálculo se verifican en el servicio y el rechazo de alta en
+  Browser E2E. La consulta y escritura del evento se realizan en la transacción
+  tenant-scoped que instala el contexto RLS de `empleados`.
+- **GOAL ACTIVO:** GOAL-02. **IMPLEMENTACIÓN BLOQUEADA:** solo esta capacidad de
+  retiro PILA para empleado inactivo; no bloquea el resto del Goal. Antes de
+  habilitarla se deben definir y probar el período laboral parcial, días e IBC
+  en nómina y su inclusión inmutable en `PayrollSnapshot`, sin derivar valores
+  PILA por inferencia. **ARQUITECTURA DISPONIBLE:** ADR-013 consume snapshots
+  aprobados y exige segmentación normativa validada; no se añade una nueva
+  arquitectura ni se habilita exportación.
+- El trabajo siguiente dentro del alcance es completar las condiciones
+  pendientes de ADR-012 para prima semestral: matriz de conceptos salariales,
+  días/novedades, corte de diciembre y fixtures laborales revisados.

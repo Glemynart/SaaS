@@ -115,6 +115,7 @@ export function PayrollPilaEventsPanel({
     () => eventOptions.find((option) => option.code === codigo) ?? eventOptions[0],
     [codigo],
   );
+  const employees = employeesQuery.data?.data ?? [];
   const canEdit = periodStatus === 'BORRADOR';
 
   useEffect(() => {
@@ -197,7 +198,7 @@ export function PayrollPilaEventsPanel({
                 required
               >
                 <option value="">Seleccionar empleado</option>
-                {(employeesQuery.data?.data ?? []).map((employee) => (
+                {employees.map((employee) => (
                   <option key={employee.id} value={employee.id}>
                     {employeeLabel(employee)}
                   </option>
@@ -206,6 +207,12 @@ export function PayrollPilaEventsPanel({
               {employeesQuery.data && employeesQuery.data.meta.total > 100 && (
                 <p className="text-2xs text-muted-foreground">
                   Escribe para buscar entre los {employeesQuery.data.meta.total} empleados.
+                </p>
+              )}
+              {codigo === 'RET' && (
+                <p className="text-2xs text-muted-foreground">
+                  Los empleados inactivos no aparecen porque la nómina aún no liquida
+                  proporcionalmente el período desde la fecha de retiro.
                 </p>
               )}
             </div>
@@ -219,6 +226,7 @@ export function PayrollPilaEventsPanel({
                 value={codigo}
                 onChange={(event) => {
                   setCodigo(event.target.value as PilaEventCode);
+                  setEmployeeId('');
                   setEventEnd('');
                   setIrlDays('');
                 }}
