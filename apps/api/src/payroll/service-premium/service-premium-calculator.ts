@@ -3,6 +3,10 @@ import {
   parseCorrectionIntentPayload,
   parseCorrectionMaterialization,
 } from '../corrections/payroll-correction.types';
+import {
+  ConceptCodigo,
+  type PayrollConceptType,
+} from '../calculator/payroll-types';
 
 export type ServicePremiumStatus = 'LISTA' | 'BLOQUEADA' | 'NO_APLICA';
 
@@ -98,6 +102,76 @@ const SUPPORTED_CORRECTION_CONCEPTS = new Set([
   'PROV_INT_CESANTIAS',
   'PROV_VACACIONES',
 ]);
+
+type ServicePremiumConceptTreatment =
+  | 'FIXED_SALARY'
+  | 'TRANSPORT_ALLOWANCE'
+  | 'VARIABLE_SALARY'
+  | 'UNCLASSIFIED_BONUS'
+  | 'EXCLUDED';
+
+/** Exhaustive mapping for every stable PayrollCalculator concept code. */
+export const SERVICE_PREMIUM_CONCEPT_POLICY = {
+  [ConceptCodigo.SALARIO_BASE]: {
+    type: 'EARNING',
+    treatment: 'FIXED_SALARY',
+  },
+  [ConceptCodigo.BONUS]: {
+    type: 'EARNING',
+    treatment: 'UNCLASSIFIED_BONUS',
+  },
+  [ConceptCodigo.OVERTIME]: {
+    type: 'EARNING',
+    treatment: 'VARIABLE_SALARY',
+  },
+  [ConceptCodigo.AUX_TRANSP]: {
+    type: 'EARNING',
+    treatment: 'TRANSPORT_ALLOWANCE',
+  },
+  [ConceptCodigo.SALUD_EMP]: { type: 'DEDUCTION', treatment: 'EXCLUDED' },
+  [ConceptCodigo.PENSION_EMP]: { type: 'DEDUCTION', treatment: 'EXCLUDED' },
+  [ConceptCodigo.FSP]: { type: 'DEDUCTION', treatment: 'EXCLUDED' },
+  [ConceptCodigo.SALUD_PAT]: {
+    type: 'EMPLOYER_CONTRIBUTION',
+    treatment: 'EXCLUDED',
+  },
+  [ConceptCodigo.PENSION_PAT]: {
+    type: 'EMPLOYER_CONTRIBUTION',
+    treatment: 'EXCLUDED',
+  },
+  [ConceptCodigo.ARL]: {
+    type: 'EMPLOYER_CONTRIBUTION',
+    treatment: 'EXCLUDED',
+  },
+  [ConceptCodigo.CAJA]: {
+    type: 'EMPLOYER_CONTRIBUTION',
+    treatment: 'EXCLUDED',
+  },
+  [ConceptCodigo.ICBF]: {
+    type: 'EMPLOYER_CONTRIBUTION',
+    treatment: 'EXCLUDED',
+  },
+  [ConceptCodigo.SENA]: {
+    type: 'EMPLOYER_CONTRIBUTION',
+    treatment: 'EXCLUDED',
+  },
+  [ConceptCodigo.PROV_PRIMA]: { type: 'PROVISION', treatment: 'EXCLUDED' },
+  [ConceptCodigo.PROV_CESANTIAS]: {
+    type: 'PROVISION',
+    treatment: 'EXCLUDED',
+  },
+  [ConceptCodigo.PROV_INT_CESANTIAS]: {
+    type: 'PROVISION',
+    treatment: 'EXCLUDED',
+  },
+  [ConceptCodigo.PROV_VACACIONES]: {
+    type: 'PROVISION',
+    treatment: 'EXCLUDED',
+  },
+} satisfies Record<
+  ConceptCodigo,
+  { type: PayrollConceptType; treatment: ServicePremiumConceptTreatment }
+>;
 
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -618,34 +692,39 @@ export function calculateServicePremium(input: {
           'Un concepto salarial del snapshot no tiene código, tipo o valor válido.',
         );
       }
-      if (
-        ['SALARIO_BASE', 'AUX_TRANSP', 'OVERTIME', 'BONUS'].includes(code) &&
-        type !== 'EARNING'
-      ) {
+      const policy = Object.hasOwn(SERVICE_PREMIUM_CONCEPT_POLICY, code)
+        ? SERVICE_PREMIUM_CONCEPT_POLICY[code as ConceptCodigo]
+        : null;
+      if (!policy) {
+        return getBlock(
+          employee,
+          'CONCEPTO_SALARIAL_NO_SOPORTADO',
+          `El concepto ${code} no tiene una regla de prima aprobada.`,
+        );
+      }
+      if (type !== policy.type) {
         return getBlock(
           employee,
           'CONCEPTO_INVALIDO',
           `El concepto ${code} tiene una clasificación incompatible con su código.`,
         );
       }
-      if (type !== 'EARNING' || value === 0) continue;
-      if (code === 'SALARIO_BASE' || code === 'AUX_TRANSP') continue;
-      if (code === 'OVERTIME') {
+      if (value === 0 || policy.treatment === 'EXCLUDED') continue;
+      if (
+        policy.treatment === 'FIXED_SALARY' ||
+        policy.treatment === 'TRANSPORT_ALLOWANCE'
+      ) {
+        continue;
+      }
+      if (policy.treatment === 'VARIABLE_SALARY') {
         overtimeValue += value;
         continue;
       }
-      if (code === 'BONUS')
-        return getBlock(
-          employee,
-          'BONIFICACION_SIN_NATURALEZA',
-          'Existe una bonificación cuya naturaleza salarial no está clasificada.',
-        );
-      else
-        return getBlock(
-          employee,
-          'CONCEPTO_SALARIAL_NO_SOPORTADO',
-          `El concepto ${code} no tiene regla de prima aprobada.`,
-        );
+      return getBlock(
+        employee,
+        'BONIFICACION_SIN_NATURALEZA',
+        'Existe una bonificación cuya naturaleza salarial no está clasificada.',
+      );
     }
     if (overtimeValue < 0) {
       return getBlock(

@@ -1,9 +1,11 @@
 import {
   calculateServicePremium,
+  SERVICE_PREMIUM_CONCEPT_POLICY,
   ServicePremiumCorrection,
   ServicePremiumEmployee,
   ServicePremiumSnapshot,
 } from './service-premium-calculator';
+import { ConceptCodigo } from '../calculator/payroll-types';
 
 type TestPayrollPayload = {
   concepts: Array<{ codigo: string; tipo: string; valor: number }>;
@@ -83,6 +85,48 @@ function halfYearSnapshots(options: Parameters<typeof snapshot>[1] = {}) {
 }
 
 describe('calculateServicePremium', () => {
+  it('clasifica todos los códigos estables del catálogo de nómina', () => {
+    expect(Object.keys(SERVICE_PREMIUM_CONCEPT_POLICY).sort()).toEqual(
+      Object.values(ConceptCodigo).sort(),
+    );
+  });
+
+  it.each(
+    Object.entries(SERVICE_PREMIUM_CONCEPT_POLICY).filter(
+      ([, policy]) => policy.treatment === 'EXCLUDED',
+    ),
+  )('excluye el concepto no salarial %s de la base', (codigo, policy) => {
+    const result = calculateServicePremium({
+      employee,
+      year: 2026,
+      semester: 1,
+      snapshots: halfYearSnapshots({
+        extraConcepts: [{ codigo, tipo: policy.type, valor: 100_000 }],
+      }),
+    });
+
+    expect(result).toMatchObject({ status: 'LISTA', amount: 1_100_000 });
+  });
+
+  it('bloquea un código conocido si el tipo contable no coincide con la matriz', () => {
+    const result = calculateServicePremium({
+      employee,
+      year: 2026,
+      semester: 1,
+      snapshots: halfYearSnapshots({
+        extraConcepts: [
+          { codigo: ConceptCodigo.SALUD_EMP, tipo: 'EARNING', valor: 100_000 },
+        ],
+      }),
+    });
+
+    expect(result).toMatchObject({
+      status: 'BLOQUEADA',
+      blockCode: 'CONCEPTO_INVALIDO',
+      amount: null,
+    });
+  });
+
   it('calcula prima fija para seis meses: $2.000.000 + $200.000 de auxilio', () => {
     const result = calculateServicePremium({
       employee,
@@ -124,6 +168,25 @@ describe('calculateServicePremium', () => {
       status: 'LISTA',
       variableSalary: 800_000 / 6,
       amount: 1_166_667,
+    });
+  });
+
+  it('no vuelve a sumar el concepto AUX_TRANSP cuando ya está en totales', () => {
+    const result = calculateServicePremium({
+      employee,
+      year: 2026,
+      semester: 1,
+      snapshots: halfYearSnapshots({
+        extraConcepts: [
+          { codigo: ConceptCodigo.AUX_TRANSP, tipo: 'EARNING', valor: 200_000 },
+        ],
+      }),
+    });
+
+    expect(result).toMatchObject({
+      status: 'LISTA',
+      transportAllowance: 200_000,
+      amount: 1_100_000,
     });
   });
 
@@ -227,6 +290,25 @@ describe('calculateServicePremium', () => {
     expect(result).toMatchObject({
       status: 'BLOQUEADA',
       blockCode: 'BONIFICACION_SIN_NATURALEZA',
+    });
+  });
+
+  it('bloquea un concepto desconocido aunque esté clasificado como deducción', () => {
+    const result = calculateServicePremium({
+      employee,
+      year: 2026,
+      semester: 1,
+      snapshots: halfYearSnapshots({
+        extraConcepts: [
+          { codigo: 'UNKNOWN_DEDUCTION', tipo: 'DEDUCTION', valor: 100_000 },
+        ],
+      }),
+    });
+
+    expect(result).toMatchObject({
+      status: 'BLOQUEADA',
+      blockCode: 'CONCEPTO_SALARIAL_NO_SOPORTADO',
+      amount: null,
     });
   });
 
