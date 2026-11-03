@@ -249,6 +249,16 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
       }),
     ).toBeVisible();
     await expect(
+      pilaPreparationPanel.getByText('Campo 56 · UPC adicional / contribución solidaria', {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      pilaPreparationPanel.getByText(
+        /falta confirmar con el operador si el campo debe ir en blanco o en cero/i,
+      ),
+    ).toBeVisible();
+    await expect(
       page.getByRole('heading', {
         name: 'Archivo tipo 1 · aportante · candidatos por campo',
       }),

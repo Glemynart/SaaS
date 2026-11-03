@@ -371,6 +371,24 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     ).toEqual(layoutFields);
   });
 
+  it.each(['01', '40', '69'])(
+    'keeps field 56 unresolved for cotizante %s until its source and blank/zero convention are verified',
+    (tipoCotizanteCodigo) => {
+      const input = snapshot();
+      payloadOf(input).affiliations[0].tipoCotizanteCodigo =
+        tipoCotizanteCodigo;
+
+      const candidate = mapCandidate(input);
+      const field56 = candidate.unresolvedFields.find(
+        ({ fieldNumber }) => fieldNumber === 56,
+      );
+
+      expect(candidate.values[56]).toBeUndefined();
+      expect(field56?.reason).toContain('No hay fuente de UPC congelada');
+      expect(field56?.reason).toContain('en blanco o en cero');
+    },
+  );
+
   it('maps fields 9 and 10 when the frozen work municipality matches the CCF department', () => {
     const input = snapshot();
     input.payloadVersion = 3;

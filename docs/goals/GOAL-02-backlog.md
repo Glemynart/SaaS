@@ -1080,3 +1080,12 @@ false`.
   que un snapshot no soportado bloquee los 98 campos. Esto protege el
   preflight ante campos omitidos; no constituye validación normativa completa
   ni habilita composición, descarga o compatibilidad con operadores.
+
+### Bloqueo explícito del campo UPC adicional — 2026-11-03
+
+- PR #231 se fusionó en `main` como `89820be`; su prueba de cobertura conserva
+  los 98 campos del detalle como candidatos explícitos o bloqueos.
+- El campo 56 AT2 v30 permanece sin candidato hasta confirmar si para 01/00 se
+  envía vacío o cero y disponer de la fuente UPC. El preflight ahora muestra el
+  campo y el motivo; 40/69 siguen fuera del MVP. No se genera ni descarga un
+  archivo PILA.
