@@ -1050,3 +1050,20 @@ false`.
 - Quedaron implementadas las tres importaciones PILA por lote: afiliaciones
   (#225), ubicaciones laborales (#226) y centro ARL/actividad (#227). Ninguna
   rellena snapshots aprobados ni habilita o genera archivos PILA.
+
+### Total de cotización pensional en detalle PILA — 2026-11-02
+
+- AT2 v30 define el campo 50 del detalle tipo 2 como la suma de los campos
+  47–49. La regla es de composición del formato; no modifica importes ni vuelve
+  a calcular contribuciones Payroll.
+- La rama `codex/goal02-pila-file-export-v1` propone el campo 50 solo si los
+  tres campos ya tienen valores numéricos resueltos y la suma cabe en N9 bajo
+  `AT2_V30_PENSION_TOTAL_FIELD_50_SUM_47_49_V1`. En planilla E desde
+  2025-07-01, los campos voluntarios 48–49 son cero por la regla versionada;
+  en períodos históricos/cruzados siguen sin resolverse y el campo 50 también
+  se bloquea.
+- La matriz añade `PILA-AT2-60`. Esto completa un candidato parcial; no
+  habilita serialización, descarga, aceptación de operador, liquidación ni
+  pago. **GOAL ACTIVO:** GOAL-02. **ARQUITECTURA DISPONIBLE:** composición
+  determinista desde candidatos congelados. Continúan los bloqueos normativos
+  y de fuentes registrados en la matriz AT2 v30.
