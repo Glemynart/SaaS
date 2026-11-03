@@ -322,7 +322,9 @@ export function inspectPilaSnapshotPreparation(
 
   const supportedPayloadVersion =
     (input.payloadVersion === 1 && root?.schemaVersion === 1) ||
-    ((input.payloadVersion === 2 || input.payloadVersion === 3) &&
+    ((input.payloadVersion === 2 ||
+      input.payloadVersion === 3 ||
+      input.payloadVersion === 4) &&
       root?.schemaVersion === input.payloadVersion);
   if (!supportedPayloadVersion) {
     add(
@@ -1070,7 +1072,7 @@ export function inspectPilaSnapshotPreparation(
     workLocationRows?.length === 1 ? workLocationRows[0] : null;
   const workLocationMunicipality = nested(workLocation, 'municipio');
   const confirmedWorkLocation = Boolean(
-    input.payloadVersion === 3 &&
+    (input.payloadVersion ?? 0) >= 3 &&
     workLocation &&
     periodStart &&
     periodEnd &&
@@ -1101,7 +1103,7 @@ export function inspectPilaSnapshotPreparation(
     affiliation?.cajaCompensacionDepartamentoCodigo,
   );
   const locationIssue =
-    input.payloadVersion !== 3
+    (input.payloadVersion ?? 0) < 3
       ? {
           code: 'UBICACION_LABORAL_PILA_SIN_FUENTE_CONFIRMADA',
           message:
@@ -1112,7 +1114,7 @@ export function inspectPilaSnapshotPreparation(
             code: 'UBICACION_LABORAL_PILA_FUENTE_INVALIDA',
             message:
               workLocationRows === null
-                ? 'El snapshot v3 no conserva una lista válida de ubicaciones laborales PILA.'
+                ? 'El snapshot v3/v4 no conserva una lista válida de ubicaciones laborales PILA.'
                 : workLocationRows.length === 0
                   ? 'Falta una ubicación laboral PILA confirmada que cubra el período.'
                   : workLocationRows.length > 1
@@ -1401,7 +1403,7 @@ export function inspectPilaSnapshotPreparation(
       );
     }
   }
-  if (root?.schemaVersion === 2 || root?.schemaVersion === 3) {
+  if ([2, 3, 4].includes(Number(root?.schemaVersion))) {
     const rawConceptRows = payroll?.concepts;
     const conceptRows = Array.isArray(rawConceptRows)
       ? rawConceptRows
@@ -1785,7 +1787,7 @@ export function buildPilaPreparationReport(input: {
             },
           ],
           evidence:
-            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots v2/v3 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
+            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots v2/v3/v4 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
         }
       : null;
   const readinessBlockers = [

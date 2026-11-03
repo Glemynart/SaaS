@@ -2154,7 +2154,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       ]);
       const pilaPayload = snapshotCreateData.pilaPayload;
       expect(pilaPayload).toMatchObject({
-        schemaVersion: 3,
+        schemaVersion: 4,
         pilaRiskAssignments: [
           {
             assignmentId: 'risk-assignment-at-approval',
@@ -2188,6 +2188,12 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         contract: { contractId: 'contrato-1', sedeId: 'sede-1' },
         payroll: {
           payrollRunId: 'run-1',
+          payrollCalculationParameters: {
+            sourceVersion: 'PAYROLL_LEGAL_PARAMETERS_V1',
+            parametroLegalId: 'param-1',
+            smmlv: 1_423_500,
+            fspTramos: [],
+          },
           fechaPrevistaPagoPila: '2026-03-05',
           salarioBasico: 2_000_000,
           tipoSalario: null,
@@ -2201,7 +2207,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         },
       });
       expect(snapshotCreateData).toMatchObject({
-        pilaPayloadVersion: 3,
+        pilaPayloadVersion: 4,
       });
     });
 

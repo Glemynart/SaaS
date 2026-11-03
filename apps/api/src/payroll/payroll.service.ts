@@ -94,7 +94,7 @@ const RECALCULATE_ALLOWED_STATUSES: PayrollPeriodStatus[] =
 
 const SNAPSHOT_PAYLOAD_VERSION = 1;
 const CALCULATION_TRACE_VERSION = 1;
-const PILA_PAYLOAD_VERSION = 3;
+const PILA_PAYLOAD_VERSION = 4;
 
 type PilaSourceData = {
   tenant: PilaSourceContextInput['tenant'];
@@ -3483,6 +3483,8 @@ export class PayrollService {
             context: pilaSource,
             payroll: {
               runId: run.id,
+              parametroLegalId: run.parametroLegalId,
+              legalParameters: trace.legalParameters,
               fechaPrevistaPagoPila: period.fechaPrevistaPagoPila,
               salarioBasico: this.toNumber(run.salarioBaseSnapshot),
               salarioIntegral: trace.employee.salarioIntegralUsado,

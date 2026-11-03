@@ -293,7 +293,9 @@ export function mapPilaAt2V30DetailCandidate(
       sourceText(period?.fechaFin) !== expectedEnd) ||
     (employeeSnapshotId !== null && employeeSnapshotId !== snapshot.employeeId);
   const supportedSnapshot =
-    (snapshot.payloadVersion === 2 || snapshot.payloadVersion === 3) &&
+    (snapshot.payloadVersion === 2 ||
+      snapshot.payloadVersion === 3 ||
+      snapshot.payloadVersion === 4) &&
     root?.schemaVersion === snapshot.payloadVersion &&
     employee !== null &&
     employer !== null &&
@@ -309,7 +311,7 @@ export function mapPilaAt2V30DetailCandidate(
   if (!supportedSnapshot || !periodStart || !periodEnd) {
     const reason = scopeMismatch
       ? 'El tenant, empleado o período congelado en el snapshot no coincide con el contexto autenticado solicitado.'
-      : 'Se requiere un snapshot PILA v2 o v3 válido y atribuible a un tenant y período.';
+      : 'Se requiere un snapshot PILA v2, v3 o v4 válido y atribuible a un tenant y período.';
     for (const field of PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2
       .fields) {
       unresolved(field.fieldNumber, reason);
@@ -403,7 +405,7 @@ export function mapPilaAt2V30DetailCandidate(
   putText(4, employee?.cedula, 'la identificación del cotizante');
   const workLocations = objectRows(root?.pilaWorkLocations);
   const workLocation = workLocations?.length === 1 ? workLocations[0] : null;
-  if (snapshot.payloadVersion !== 3) {
+  if ((snapshot.payloadVersion ?? 0) < 3) {
     unresolved(
       9,
       'El snapshot histórico no contiene una ubicación laboral PILA explícita; no se completa desde la sede ni desde datos actuales.',
@@ -415,7 +417,7 @@ export function mapPilaAt2V30DetailCandidate(
   } else if (!workLocation) {
     const reason =
       workLocations === null
-        ? 'El snapshot v3 no conserva una lista válida de ubicaciones laborales PILA.'
+        ? 'El snapshot v3/v4 no conserva una lista válida de ubicaciones laborales PILA.'
         : workLocations.length === 0
           ? 'Falta una ubicación laboral PILA confirmada que cubra el período.'
           : 'Hay varias ubicaciones laborales PILA durante el período; la segmentación no está habilitada.';

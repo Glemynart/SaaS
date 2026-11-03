@@ -316,6 +316,8 @@ export function buildPilaSourceSnapshot(input: {
   context: PilaSourceContext;
   payroll: {
     runId: string;
+    parametroLegalId?: string | null;
+    legalParameters?: Record<string, unknown>;
     fechaPrevistaPagoPila: Date | null;
     salarioBasico: number | null;
     salarioIntegral: boolean;
@@ -350,10 +352,14 @@ export function buildPilaSourceSnapshot(input: {
 
   return {
     ...input.context,
-    schemaVersion: 3,
+    schemaVersion: 4,
     pilaRiskAssignments: input.context.pilaRiskAssignments ?? [],
     payroll: {
       payrollRunId: input.payroll.runId,
+      payrollCalculationParameters: buildPilaPayrollCalculationParameters(
+        input.payroll.parametroLegalId ?? null,
+        input.payroll.legalParameters ?? null,
+      ),
       fechaPrevistaPagoPila: calendarDate(input.payroll.fechaPrevistaPagoPila),
       salarioBasico: input.payroll.salarioBasico,
       salarioBasicoCampo40: validatePilaBasicSalary(
@@ -398,6 +404,51 @@ export function buildPilaSourceSnapshot(input: {
       concepts,
       novelties: input.payroll.novelties.map((novelty) => ({ ...novelty })),
     },
+  };
+}
+
+function buildPilaPayrollCalculationParameters(
+  parametroLegalId: string | null,
+  legalParameters: Record<string, unknown> | null,
+) {
+  const smmlv = legalParameters?.smmlv;
+  const rawTramos = legalParameters?.fspTramos;
+  const fspTramos = Array.isArray(rawTramos)
+    ? rawTramos.map((value) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return null;
+        }
+        const tramo = value as Record<string, unknown>;
+        const desdeSmmlv = tramo.desdeSmmlv;
+        const hastaSmmlv = tramo.hastaSmmlv;
+        const pct = tramo.pct;
+        if (
+          typeof desdeSmmlv !== 'number' ||
+          !Number.isFinite(desdeSmmlv) ||
+          desdeSmmlv < 0 ||
+          (hastaSmmlv !== null &&
+            (typeof hastaSmmlv !== 'number' ||
+              !Number.isFinite(hastaSmmlv) ||
+              hastaSmmlv < desdeSmmlv)) ||
+          typeof pct !== 'number' ||
+          !Number.isFinite(pct) ||
+          pct < 0
+        ) {
+          return null;
+        }
+        return { desdeSmmlv, hastaSmmlv, pct };
+      })
+    : null;
+  const hasValidTramos = fspTramos !== null && fspTramos.every(Boolean);
+
+  return {
+    sourceVersion: 'PAYROLL_LEGAL_PARAMETERS_V1',
+    parametroLegalId,
+    smmlv:
+      typeof smmlv === 'number' && Number.isFinite(smmlv) && smmlv > 0
+        ? smmlv
+        : null,
+    fspTramos: hasValidTramos ? fspTramos : null,
   };
 }
 
