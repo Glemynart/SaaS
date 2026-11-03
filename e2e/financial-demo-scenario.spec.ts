@@ -124,6 +124,27 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
   await page.getByRole('link', { name: invoiceNumber }).click();
   await expect(page.getByText(productName, { exact: true })).toBeVisible();
 
+  await page.goto('/contabilidad/comprobantes');
+  await expect(page.getByRole('heading', { name: 'Comprobantes contabilizados' })).toBeVisible();
+  const invoiceVoucher = page
+    .getByRole('row')
+    .filter({ hasText: `Factura interna ${invoiceNumber}` });
+  await expect(invoiceVoucher).toBeVisible();
+  await invoiceVoucher.getByRole('button', { name: /Ver movimientos del comprobante/ }).click();
+  const invoiceVoucherDetails = page.getByRole('dialog');
+  await expect(invoiceVoucherDetails).toContainText(`Cuenta por cobrar factura ${invoiceNumber}`);
+  await expect(invoiceVoucherDetails).toContainText(`Ingreso factura ${invoiceNumber}`);
+  await expect(invoiceVoucherDetails).toContainText(`IVA generado factura ${invoiceNumber}`);
+  await expect(invoiceVoucherDetails).toContainText('Clientes nacionales E2E');
+  await expect(invoiceVoucherDetails).toContainText('Ingresos operacionales E2E');
+  await expect(invoiceVoucherDetails).toContainText('IVA generado E2E');
+  await expect(invoiceVoucherDetails.getByText(/Total débito:/).locator('..')).toContainText(
+    '142.800',
+  );
+  await expect(invoiceVoucherDetails.getByText(/Total crédito:/).locator('..')).toContainText(
+    '142.800',
+  );
+
   const payroll = await seedPayrollAccrualFixture(tenant.id, user.id);
   try {
     await page.goto(`/nomina/periodos/${payroll.periodId}`);
