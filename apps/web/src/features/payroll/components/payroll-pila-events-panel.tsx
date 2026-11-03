@@ -226,7 +226,6 @@ export function PayrollPilaEventsPanel({
                 value={codigo}
                 onChange={(event) => {
                   setCodigo(event.target.value as PilaEventCode);
-                  setEmployeeId('');
                   setEventEnd('');
                   setIrlDays('');
                 }}

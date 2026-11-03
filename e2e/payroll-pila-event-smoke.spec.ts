@@ -156,8 +156,8 @@ test('configura los datos PILA y registra, conserva y elimina una novedad del pe
   await expect(
     pilaPanel.getByText('No hay novedades PILA registradas en este período.'),
   ).toBeVisible();
-  await pilaPanel.getByLabel('Novedad').selectOption('IGE');
   await pilaPanel.getByLabel('Empleado', { exact: true }).selectOption(employee.id);
+  await pilaPanel.getByLabel('Novedad').selectOption('IGE');
   await pilaPanel.getByLabel('Fecha inicial').fill('2026-10-12');
   await pilaPanel.getByLabel('Fecha final').fill('2026-10-14');
 
