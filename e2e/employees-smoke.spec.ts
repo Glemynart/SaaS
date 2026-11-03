@@ -427,7 +427,9 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   };
   const firstPilaImportResponse = await uploadPilaAffiliation();
   expect(firstPilaImportResponse.status()).toBe(200);
-  await expect(pilaImportDialog.getByRole('status')).toContainText('1 afiliación nueva registrada');
+  await expect(
+    pilaImportDialog.getByRole('status').filter({ hasText: '1 afiliación nueva registrada' }),
+  ).toBeVisible();
   await pilaImportDialog.getByRole('button', { name: 'Cerrar' }).click();
 
   await search.fill('12345678');
@@ -462,7 +464,9 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await retryImportDialog.getByRole('button', { name: 'Importar afiliaciones' }).click();
   const retryResponse = await retryResponsePromise;
   expect(retryResponse.status()).toBe(200);
-  await expect(retryImportDialog.getByRole('status')).toContainText(
-    '0 afiliaciones nuevas registradas; 1 fila sin cambios.',
-  );
+  await expect(
+    retryImportDialog
+      .getByRole('status')
+      .filter({ hasText: '0 afiliaciones nuevas registradas; 1 fila sin cambios.' }),
+  ).toBeVisible();
 });
