@@ -19,6 +19,7 @@ import {
   RejectPayrollPeriodDto,
   ExcludePayrollBlockDto,
   UpdatePayrollPilaPaymentDateDto,
+  UpdatePayrollPilaFspSourceScopeDto,
 } from './dto/create-payroll.dto';
 import {
   CreatePayrollCorrectionDto,
@@ -71,6 +72,21 @@ export class PayrollController {
       user.tenantId,
       user.userId,
       id,
+      dto,
+    );
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Patch('payroll/runs/:runId/pila-fsp-source-scope')
+  updatePilaFspSourceScope(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('runId') runId: string,
+    @Body() dto: UpdatePayrollPilaFspSourceScopeDto,
+  ) {
+    return this.service.updatePilaFspSourceScope(
+      user.tenantId,
+      user.userId,
+      runId,
       dto,
     );
   }

@@ -325,7 +325,8 @@ export function inspectPilaSnapshotPreparation(
     ((input.payloadVersion === 2 ||
       input.payloadVersion === 3 ||
       input.payloadVersion === 4 ||
-      input.payloadVersion === 5) &&
+      input.payloadVersion === 5 ||
+      input.payloadVersion === 6) &&
       root?.schemaVersion === input.payloadVersion);
   if (!supportedPayloadVersion) {
     add(
@@ -1115,7 +1116,7 @@ export function inspectPilaSnapshotPreparation(
             code: 'UBICACION_LABORAL_PILA_FUENTE_INVALIDA',
             message:
               workLocationRows === null
-                ? 'El snapshot v3/v4/v5 no conserva una lista válida de ubicaciones laborales PILA.'
+                ? 'El snapshot v3/v4/v5/v6 no conserva una lista válida de ubicaciones laborales PILA.'
                 : workLocationRows.length === 0
                   ? 'Falta una ubicación laboral PILA confirmada que cubra el período.'
                   : workLocationRows.length > 1
@@ -1404,7 +1405,7 @@ export function inspectPilaSnapshotPreparation(
       );
     }
   }
-  if ([2, 3, 4].includes(Number(root?.schemaVersion))) {
+  if ([2, 3, 4, 5, 6].includes(Number(root?.schemaVersion))) {
     const rawConceptRows = payroll?.concepts;
     const conceptRows = Array.isArray(rawConceptRows)
       ? rawConceptRows
@@ -1419,7 +1420,7 @@ export function inspectPilaSnapshotPreparation(
         'SNAPSHOT',
         null,
         'PILA_CONCEPTO_FILA_NO_VALIDA',
-        'El snapshot v2 debe conservar la lista completa de conceptos como filas válidas.',
+        'El snapshot PILA debe conservar la lista completa de conceptos como filas válidas.',
       );
     }
     const contributionSources = [
@@ -1506,7 +1507,7 @@ export function inspectPilaSnapshotPreparation(
             detailRecord,
             sourceDefinition.amountField,
             `CAMPO_${sourceDefinition.amountField}_FUENTE_CONCEPTO_NO_DISPONIBLE`,
-            `El snapshot v2 no conserva el concepto ${sourceDefinition.codigo} como fuente candidata del aporte.`,
+            `El snapshot PILA no conserva el concepto ${sourceDefinition.codigo} como fuente candidata del aporte.`,
           );
         }
         continue;
@@ -1516,7 +1517,7 @@ export function inspectPilaSnapshotPreparation(
           detailRecord,
           sourceDefinition.amountField,
           `CAMPO_${sourceDefinition.amountField}_FUENTE_CONCEPTO_DUPLICADA`,
-          `El snapshot v2 conserva más de un concepto ${sourceDefinition.codigo}; no se puede seleccionar una fuente sin ambigüedad.`,
+          `El snapshot PILA conserva más de un concepto ${sourceDefinition.codigo}; no se puede seleccionar una fuente sin ambigüedad.`,
         );
         continue;
       }
@@ -1788,7 +1789,7 @@ export function buildPilaPreparationReport(input: {
             },
           ],
           evidence:
-            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots v2/v3/v4/v5 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
+            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots v2/v3/v4/v5/v6 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
         }
       : null;
   const readinessBlockers = [

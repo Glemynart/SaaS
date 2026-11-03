@@ -148,7 +148,8 @@ export function mapPilaAt2V30HeaderCandidate(input: {
         (snapshot.payloadVersion === 2 ||
           snapshot.payloadVersion === 3 ||
           snapshot.payloadVersion === 4 ||
-          snapshot.payloadVersion === 5) &&
+          snapshot.payloadVersion === 5 ||
+          snapshot.payloadVersion === 6) &&
         root?.schemaVersion === snapshot.payloadVersion &&
         employer !== null &&
         employerPila !== null &&

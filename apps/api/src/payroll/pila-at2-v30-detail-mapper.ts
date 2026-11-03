@@ -36,6 +36,12 @@ import {
   getPilaHealthStandardRate,
   PILA_HEALTH_STANDARD_RATE_RULE_VERSION,
 } from './pila-health-standard-rate-catalog';
+import {
+  getFspSubaccountRates,
+  PILA_FSP_AFFILIATION_ROUTING_REVIEW_FROM,
+  PILA_FSP_NEW_SYSTEM_EFFECTIVE_FROM,
+  PILA_FSP_SUBACCOUNT_RULE_VERSION,
+} from './pila-fsp-subaccounts';
 import { isColombiaDaneDepartmentCode } from '@saas/types';
 import type { PilaSnapshotPreparationInput } from './pila-preparation';
 
@@ -107,6 +113,7 @@ export interface PilaAt2V30DetailCandidate {
     icbfRate: typeof PILA_ICBF_STANDARD_RATE_RULE_VERSION | null;
     pensionRate: typeof PILA_PENSION_STANDARD_RATE_RULE_VERSION | null;
     healthRate: typeof PILA_HEALTH_STANDARD_RATE_RULE_VERSION | null;
+    fspSubaccounts: typeof PILA_FSP_SUBACCOUNT_RULE_VERSION | null;
     noBenefitEventFields:
       | typeof PILA_AT2_V30_NO_BENEFIT_EVENT_FIELDS_RULE_VERSION
       | null;
@@ -296,7 +303,8 @@ export function mapPilaAt2V30DetailCandidate(
     (snapshot.payloadVersion === 2 ||
       snapshot.payloadVersion === 3 ||
       snapshot.payloadVersion === 4 ||
-      snapshot.payloadVersion === 5) &&
+      snapshot.payloadVersion === 5 ||
+      snapshot.payloadVersion === 6) &&
     root?.schemaVersion === snapshot.payloadVersion &&
     employee !== null &&
     employer !== null &&
@@ -335,6 +343,7 @@ export function mapPilaAt2V30DetailCandidate(
         icbfRate: null,
         pensionRate: null,
         healthRate: null,
+        fspSubaccounts: null,
         noBenefitEventFields: null,
         noEventNoveltyFields: null,
         noTransferDestinationFields: null,
@@ -418,7 +427,7 @@ export function mapPilaAt2V30DetailCandidate(
   } else if (!workLocation) {
     const reason =
       workLocations === null
-        ? 'El snapshot v3/v4/v5 no conserva una lista válida de ubicaciones laborales PILA.'
+        ? 'El snapshot v3/v4/v5/v6 no conserva una lista válida de ubicaciones laborales PILA.'
         : workLocations.length === 0
           ? 'Falta una ubicación laboral PILA confirmada que cubra el período.'
           : 'Hay varias ubicaciones laborales PILA durante el período; la segmentación no está habilitada.';
@@ -1139,14 +1148,128 @@ export function mapPilaAt2V30DetailCandidate(
     49,
     'El período permite aportes voluntarios, pero falta el importe del aportante congelado desde Payroll y la confirmación del campo 28.',
   );
-  unresolved(
-    51,
-    'El aporte de solidaridad requiere agregar el IBC pensional por cotizante y validar su obligación; el snapshot no conserva esa base agregada ni una fuente separada de esta subcuenta.',
-  );
-  unresolved(
-    52,
-    'El aporte de subsistencia requiere la base pensional agregada y validar la regla vigente por régimen; Payroll no conserva una fuente separada de esta subcuenta.',
-  );
+  const fspSubaccounts = object(payroll?.fspSubaccounts);
+  if (snapshot.payloadVersion === null || snapshot.payloadVersion < 6) {
+    unresolved(
+      51,
+      'El aporte de solidaridad requiere agregar el IBC pensional por cotizante y validar su obligación; el snapshot no conserva esa base agregada ni una fuente separada de esta subcuenta.',
+    );
+    unresolved(
+      52,
+      'El aporte de subsistencia requiere la base pensional agregada y validar la regla vigente por régimen; Payroll no conserva una fuente separada de esta subcuenta.',
+    );
+  } else {
+    const fspSubaccountBlockReason = (() => {
+      if (!standardFullMonthEmployee || !fullMonthPilaInputsApproved) {
+        return 'Las subcuentas FSP solo están candidatas para dependientes 01/00 con mes completo, días aprobados y sin novedades ni eventos.';
+      }
+      if (
+        !pensionBase ||
+        pensionBase.sourceCount !== 1 ||
+        !safeInteger(pensionBase.valor, 9)
+      ) {
+        return 'Falta una fuente única y válida de IBC pensional en el snapshot.';
+      }
+      if (!fspSubaccounts) {
+        return 'El snapshot PILA no conserva la evaluación de las subcuentas FSP.';
+      }
+      if (fspSubaccounts.sourceScope !== 'SINGLE_SOURCE_CONFIRMED') {
+        return (
+          sourceText(fspSubaccounts.blocker) ??
+          'Falta confirmar que el alcance de ingresos pensionales de este cotizante sea una fuente única.'
+        );
+      }
+      if (
+        typeof fspSubaccounts.sourceScopeUpdatedAt !== 'string' ||
+        Number.isNaN(Date.parse(fspSubaccounts.sourceScopeUpdatedAt)) ||
+        sourceText(fspSubaccounts.sourceScopeUpdatedById) === null
+      ) {
+        return 'La confirmación de fuente única no conserva actor y fecha de declaración.';
+      }
+      if (
+        fspSubaccounts.status !== 'READY' ||
+        fspSubaccounts.blocker !== null
+      ) {
+        return (
+          sourceText(fspSubaccounts.blocker) ??
+          'La evaluación de subcuentas FSP no está aprobada para este snapshot.'
+        );
+      }
+      const paymentDate = calendarDate(payroll?.fechaPrevistaPagoPila);
+      if (
+        periodStart >= PILA_FSP_NEW_SYSTEM_EFFECTIVE_FROM ||
+        periodEnd >= PILA_FSP_NEW_SYSTEM_EFFECTIVE_FROM ||
+        paymentDate === null ||
+        paymentDate >= PILA_FSP_NEW_SYSTEM_EFFECTIVE_FROM
+      ) {
+        return 'El período o la fecha prevista de pago alcanza el 2027-04-01; falta versionar las reglas del nuevo sistema pensional.';
+      }
+      if (periodEnd >= PILA_FSP_AFFILIATION_ROUTING_REVIEW_FROM) {
+        return 'AT2 v30 diferencia el destino FSP por estado de afiliación pensional S/N desde 2025-07-01; el snapshot no conserva ese estado y su aplicación frente al nuevo sistema pensional requiere reconciliación.';
+      }
+      const ibc = pensionBase.valor;
+      const smmlv = fspSubaccounts.smmlv;
+      const solidarityAmount = fspSubaccounts.solidaridad;
+      const subsistenceAmount = fspSubaccounts.subsistencia;
+      const payrollFspAmount = fspSubaccounts.payrollFspAmount;
+      if (
+        fspSubaccounts.ruleVersion !== PILA_FSP_SUBACCOUNT_RULE_VERSION ||
+        fspSubaccounts.roundingRuleVersion !==
+          PILA_CONTRIBUTION_ROUNDING_RULE_VERSION ||
+        fspSubaccounts.ibcPensionalAgregado !== ibc ||
+        !safeInteger(smmlv, 9) ||
+        smmlv <= 0 ||
+        !safeInteger(solidarityAmount, 9) ||
+        !safeInteger(subsistenceAmount, 9) ||
+        !safeInteger(payrollFspAmount, 9)
+      ) {
+        return 'La base, las reglas versionadas o los importes separados del FSP no son válidos.';
+      }
+
+      const rates = getFspSubaccountRates(ibc, smmlv);
+      const fspRows = contributionConcepts?.filter(
+        (concept) => concept.codigo === 'FSP',
+      );
+      const fspConcept = fspRows?.length === 1 ? fspRows[0] : null;
+      const conceptMatches =
+        rates.totalBps === 0
+          ? (fspRows?.length ?? 0) === 0 && payrollFspAmount === 0
+          : fspRows?.length === 1 &&
+            fspConcept?.tipo === 'DEDUCTION' &&
+            fspConcept.base === ibc &&
+            typeof fspConcept.factor === 'number' &&
+            Math.abs(fspConcept.factor - rates.totalBps / 10_000) < 1e-9 &&
+            fspConcept.valor === payrollFspAmount;
+      const subaccountsMatch =
+        solidarityAmount + subsistenceAmount === payrollFspAmount &&
+        isPilaContributionAmountRoundedUpToHundred(
+          periodStart,
+          ibc,
+          rates.solidarityBps,
+          10_000,
+          solidarityAmount,
+        ) &&
+        isPilaContributionAmountRoundedUpToHundred(
+          periodStart,
+          ibc,
+          rates.subsistenceBps,
+          10_000,
+          subsistenceAmount,
+        );
+      if (!conceptMatches || !subaccountsMatch) {
+        return 'El total de las subcuentas no concilia con el concepto FSP congelado en nómina; no se ajustan importes aprobados.';
+      }
+      return null;
+    })();
+
+    if (fspSubaccountBlockReason) {
+      unresolved(51, fspSubaccountBlockReason);
+      unresolved(52, fspSubaccountBlockReason);
+    } else {
+      put(51, fspSubaccounts!.solidaridad as number);
+      put(52, fspSubaccounts!.subsistencia as number);
+    }
+  }
   unresolved(
     53,
     'El período permite aportes voluntarios, pero falta una fuente aprobada para calcular el valor no retenido y validar la diferencia de retención.',
@@ -1538,6 +1661,11 @@ export function mapPilaAt2V30DetailCandidate(
       icbfRate: icbfStandardRate?.ruleVersion ?? null,
       pensionRate: pensionStandardRate?.ruleVersion ?? null,
       healthRate: healthStandardRate?.ruleVersion ?? null,
+      fspSubaccounts:
+        object(payroll?.fspSubaccounts)?.ruleVersion ===
+        PILA_FSP_SUBACCOUNT_RULE_VERSION
+          ? PILA_FSP_SUBACCOUNT_RULE_VERSION
+          : null,
       noBenefitEventFields: fullMonthPilaInputsApproved
         ? PILA_AT2_V30_NO_BENEFIT_EVENT_FIELDS_RULE_VERSION
         : null,

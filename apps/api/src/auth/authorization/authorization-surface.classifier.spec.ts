@@ -23,7 +23,7 @@ describe('AuthorizationSurfaceClassifier', () => {
   it('classifies the complete current HTTP surface without ambiguity', () => {
     const operations = classifier.classifyModuleGraph(AppModule);
 
-    expect(operations).toHaveLength(211);
+    expect(operations).toHaveLength(212);
     expect(new Set(operations.map(({ operationId }) => operationId)).size).toBe(
       operations.length,
     );
@@ -47,14 +47,29 @@ describe('AuthorizationSurfaceClassifier', () => {
       status: AuthorizationClassificationStatus.CLASSIFIED,
     });
 
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'PayrollController.updatePilaFspSourceScope',
+      ),
+    ).toMatchObject({
+      requestMethod: 'PATCH',
+      operationPath: 'payroll/runs/:runId/pila-fsp-source-scope',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN, UserRole.OPERADOR],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+
     expect(countBy(operations, 'policy')).toEqual({
       [AuthorizationPolicyKind.UNAUTHENTICATED]: 12,
       [AuthorizationPolicyKind.AUTHENTICATED]: 66,
-      [AuthorizationPolicyKind.RBAC]: 133,
+      [AuthorizationPolicyKind.RBAC]: 134,
     });
     expect(countBy(operations, 'source')).toEqual({
       [AuthorizationClassificationSource.EXPLICIT]: 78,
-      [AuthorizationClassificationSource.EXISTING_RBAC]: 133,
+      [AuthorizationClassificationSource.EXISTING_RBAC]: 134,
     });
     expect(
       operations.filter(

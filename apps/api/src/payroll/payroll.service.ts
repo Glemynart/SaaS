@@ -28,6 +28,7 @@ import {
   CreatePayrollNoveltyDto,
   CreatePayrollPilaEventDto,
   UpdatePayrollPilaPaymentDateDto,
+  UpdatePayrollPilaFspSourceScopeDto,
 } from './dto/create-payroll.dto';
 import { CreatePayrollCorrectionDto } from './dto/payroll-correction.dto';
 import { calculate, resolveFspPct } from './calculator/payroll-calculator';
@@ -94,7 +95,7 @@ const RECALCULATE_ALLOWED_STATUSES: PayrollPeriodStatus[] =
 
 const SNAPSHOT_PAYLOAD_VERSION = 1;
 const CALCULATION_TRACE_VERSION = 1;
-const PILA_PAYLOAD_VERSION = 5;
+const PILA_PAYLOAD_VERSION = 6;
 
 type PilaSourceData = {
   tenant: PilaSourceContextInput['tenant'];
@@ -652,6 +653,96 @@ export class PayrollService {
 
       return tx.payrollPeriod.findFirstOrThrow({
         where: { id: periodId, tenantId },
+      });
+    });
+  }
+
+  async updatePilaFspSourceScope(
+    tenantId: string,
+    userId: string,
+    runId: string,
+    dto: UpdatePayrollPilaFspSourceScopeDto,
+  ) {
+    const editableStatuses: PayrollPeriodStatus[] = [
+      PayrollPeriodStatus.CALCULADA,
+      PayrollPeriodStatus.EN_REVISION,
+    ];
+
+    return this.tenantPrisma.execute(async (tx) => {
+      const runReference = await tx.payrollRun.findFirst({
+        where: { id: runId, tenantId },
+        select: {
+          id: true,
+          payrollPeriodId: true,
+          employeeId: true,
+          pilaFspSourceScope: true,
+        },
+      });
+      if (!runReference)
+        throw new NotFoundException('Liquidación no encontrada');
+
+      await this.lockPayrollPeriodForPilaEvents(
+        tx,
+        tenantId,
+        runReference.payrollPeriodId,
+      );
+      const period = await tx.payrollPeriod.findFirst({
+        where: { id: runReference.payrollPeriodId, tenantId },
+        select: { status: true },
+      });
+      if (!period) throw new NotFoundException('Período no encontrado');
+      if (!editableStatuses.includes(period.status)) {
+        throw new ConflictException(
+          'El alcance de ingresos PILA solo se puede declarar antes de aprobar la nómina.',
+        );
+      }
+
+      const updated = await tx.payrollRun.updateMany({
+        where: {
+          id: runReference.id,
+          tenantId,
+          payrollPeriodId: runReference.payrollPeriodId,
+          pilaFspSourceScope: runReference.pilaFspSourceScope,
+        },
+        data: {
+          pilaFspSourceScope: dto.sourceScope,
+          pilaFspSourceScopeUpdatedAt: new Date(),
+          pilaFspSourceScopeUpdatedById: userId,
+        },
+      });
+      if (updated.count === 0) {
+        throw new ConflictException(
+          'La liquidación cambió durante la declaración; actualice la página e intente de nuevo.',
+        );
+      }
+
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'PAYROLL_PILA_FSP_SOURCE_SCOPE_UPDATED',
+          entityType: 'PayrollRun',
+          entityId: runReference.id,
+          metadata: {
+            payrollPeriodId: runReference.payrollPeriodId,
+            employeeId: runReference.employeeId,
+            previousScope: runReference.pilaFspSourceScope,
+            newScope: dto.sourceScope,
+          },
+        },
+        tx,
+      );
+
+      return tx.payrollRun.findFirstOrThrow({
+        where: { id: runReference.id, tenantId },
+        select: {
+          id: true,
+          employeeId: true,
+          payrollPeriodId: true,
+          pilaFspSourceScope: true,
+          pilaFspSourceScopeUpdatedAt: true,
+          pilaFspSourceScopeUpdatedById: true,
+        },
       });
     });
   }
@@ -3551,6 +3642,9 @@ export class PayrollService {
               salarioBasico: this.toNumber(run.salarioBaseSnapshot),
               salarioIntegral: trace.employee.salarioIntegralUsado,
               ibc: this.toNumber(run.ibc),
+              fspSourceScope: run.pilaFspSourceScope,
+              fspSourceScopeUpdatedAt: run.pilaFspSourceScopeUpdatedAt,
+              fspSourceScopeUpdatedById: run.pilaFspSourceScopeUpdatedById,
               concepts: run.concepts.map((concept) => ({
                 id: concept.id,
                 codigo: concept.codigo,
@@ -3580,7 +3674,7 @@ export class PayrollService {
           payload,
           pilaPayloadVersion: pilaPayload ? PILA_PAYLOAD_VERSION : null,
           pilaPayload: pilaPayload
-            ? (pilaPayload as Prisma.InputJsonValue)
+            ? (pilaPayload as unknown as Prisma.InputJsonValue)
             : Prisma.DbNull,
         },
       });
