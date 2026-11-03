@@ -50,6 +50,8 @@ const PILA_AT2_V30_PLANILLA_E_FIELD_22_RULE_VERSION =
 const PILA_AT2_V30_VOLUNTARY_PENSION_CUTOFF_RULE_VERSION =
   'AT2_V30_VOLUNTARY_PENSION_PRE_JUL_2025_CUTOFF_V1' as const;
 const PILA_AT2_V30_VOLUNTARY_PENSION_CUTOFF = '2025-07-01';
+const PILA_AT2_V30_PENSION_TOTAL_FIELD_50_RULE_VERSION =
+  'AT2_V30_PENSION_TOTAL_FIELD_50_SUM_47_49_V1' as const;
 const PILA_AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_RULE_VERSION =
   'AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_V1' as const;
 const PILA_AT2_V30_NON_COTIZANTE40_PRINCIPAL_FIELDS_RULE_VERSION =
@@ -69,7 +71,7 @@ export const PILA_AT2_V30_PRIVATE_EMPLOYER_ESAP_MEN_FIELD_NUMBERS = [
   70, 71, 72, 73,
 ] as const;
 export const PILA_AT2_V30_PENSION_CONTRIBUTION_FIELD_NUMBERS = [
-  48, 49, 51, 52, 53,
+  48, 49, 50, 51, 52, 53,
 ] as const;
 
 export const PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS = [
@@ -92,6 +94,9 @@ export interface PilaAt2V30DetailCandidate {
   normativeRuleVersions: {
     planillaEField22:
       | typeof PILA_AT2_V30_PLANILLA_E_FIELD_22_RULE_VERSION
+      | null;
+    pensionTotalField50:
+      | typeof PILA_AT2_V30_PENSION_TOTAL_FIELD_50_RULE_VERSION
       | null;
     voluntaryPensionCutoff:
       | typeof PILA_AT2_V30_VOLUNTARY_PENSION_CUTOFF_RULE_VERSION
@@ -319,6 +324,7 @@ export function mapPilaAt2V30DetailCandidate(
       payrollPeriodId: matchesApprovedScope ? scope.period.id : null,
       normativeRuleVersions: {
         planillaEField22: null,
+        pensionTotalField50: null,
         voluntaryPensionCutoff: null,
         arlInitialRate: null,
         contributionRounding: null,
@@ -1170,6 +1176,34 @@ export function mapPilaAt2V30DetailCandidate(
     }
   }
 
+  const pensionContributionAmounts: number[] = [];
+  for (const fieldNumber of [47, 48, 49]) {
+    const value = values[fieldNumber]?.value;
+    if (!safeInteger(value, 9)) break;
+    pensionContributionAmounts.push(value);
+  }
+  if (pensionContributionAmounts.length === 3) {
+    const totalPensionContribution = pensionContributionAmounts.reduce(
+      (total, value) => total + value,
+      0,
+    );
+    if (safeInteger(totalPensionContribution, 9)) {
+      // AT2 v30 defines field 50 as the sum of fields 47–49. This derives no
+      // new contribution: every component must already be a resolved value.
+      put(50, totalPensionContribution);
+    } else {
+      unresolved(
+        50,
+        'La suma AT2 de los campos 47–49 excede la longitud permitida para el campo 50.',
+      );
+    }
+  } else {
+    unresolved(
+      50,
+      'AT2 define el campo 50 como la suma de los campos 47–49; no se propone mientras alguno permanezca sin resolver.',
+    );
+  }
+
   const healthBase = object(subsystemBases?.salud);
   let healthRateBlockReason: string | null = null;
   if (!standardFullMonthEmployee || !fullMonthPilaInputsApproved) {
@@ -1479,6 +1513,7 @@ export function mapPilaAt2V30DetailCandidate(
         scope.planillaType === 'E'
           ? PILA_AT2_V30_PLANILLA_E_FIELD_22_RULE_VERSION
           : null,
+      pensionTotalField50: PILA_AT2_V30_PENSION_TOTAL_FIELD_50_RULE_VERSION,
       voluntaryPensionCutoff:
         scope.planillaType === 'E'
           ? PILA_AT2_V30_VOLUNTARY_PENSION_CUTOFF_RULE_VERSION

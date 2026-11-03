@@ -955,16 +955,39 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.values).toMatchObject({
       46: { value: '0.16000' },
       47: { value: 320_000 },
+      48: { value: 0 },
+      49: { value: 0 },
+      50: { value: 320_000 },
     });
     expect(candidate.normativeRuleVersions.pensionRate).toBe(
       'CO_PENSION_STANDARD_RATE_L797_ART7_DEC1833_2_2_3_1_13_V1',
+    );
+    expect(candidate.normativeRuleVersions.pensionTotalField50).toBe(
+      'AT2_V30_PENSION_TOTAL_FIELD_50_SUM_47_49_V1',
     );
     expect(candidate.unresolvedFields).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ fieldNumber: 46 }),
         expect.objectContaining({ fieldNumber: 47 }),
+        expect.objectContaining({ fieldNumber: 50 }),
       ]),
     );
+  });
+
+  it('keeps AT2 field 50 unresolved when a source contribution is unresolved', () => {
+    const input = snapshot();
+    setStandardPensionInputs(input, { employeeAmount: 80_100 });
+
+    const candidate = mapCandidate(input);
+
+    expect(candidate.values[47]).toBeUndefined();
+    expect(candidate.values[48]).toEqual({ value: 0 });
+    expect(candidate.values[49]).toEqual({ value: 0 });
+    expect(candidate.values[50]).toBeUndefined();
+    expect(
+      candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 50)
+        ?.reason,
+    ).toContain('47–49');
   });
 
   it('maps an explicit CE/PA declaration that the foreign worker is obligated', () => {
