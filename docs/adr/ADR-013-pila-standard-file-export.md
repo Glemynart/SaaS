@@ -942,11 +942,18 @@ la exportación y a cualquier afirmación de compatibilidad.
 - `apps/api/prisma/schema.prisma` — campos afiliatorios de `Empleado`, tipos de
   novedades, `PayrollRun` y `PayrollSnapshot`.
 - `apps/api/src/employees/dto/create-employee.dto.ts`,
-  `apps/api/src/employees/dto/update-employee.dto.ts`,
+  `apps/api/src/employees/employees.service.ts`,
   `apps/web/src/features/employees/schemas/employee-schemas.ts` y
-  `apps/api/src/employee-import/employee-import.service.ts` — DTOs y formulario
-  no reciben afiliaciones; la plantilla/importación XLSX valida sede y datos
-  laborales, sin columnas de administradora, cotizante, subtipo ni novedades.
+  `apps/web/src/features/employees/components/employee-form.tsx` — el alta
+  individual acepta una afiliación PILA inicial opcional 01/00 para contratos
+  laborales estándar; la afiliación y el empleado comparten la transacción
+  tenant-scoped. `update-employee.dto.ts` no permite editar el historial desde
+  la actualización del empleado.
+- `apps/api/src/employee-import/employee-import.service.ts` — la importación
+  XLSX acepta un bloque opcional de afiliación inicial y conserva compatibilidad
+  con plantillas anteriores. Ambos puntos de captura validan los datos locales;
+  no consultan catálogos oficiales de administradoras ni declaran compatibilidad
+  con operadores.
 - `apps/api/src/payroll/payroll.service.ts` — snapshots aprobados conservan
   IBC, aportes, conceptos, novedades y evidencia de cálculo.
 - `apps/api/src/payroll/pila-event-validation.ts`, `apps/api/src/payroll/payroll.service.ts`,

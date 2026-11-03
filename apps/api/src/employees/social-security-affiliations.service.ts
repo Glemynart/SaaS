@@ -14,8 +14,14 @@ import { CreateSocialSecurityAffiliationDto } from './dto/create-social-security
 import { CloseSocialSecurityAffiliationDto } from './dto/close-social-security-affiliation.dto';
 import {
   SOCIAL_SECURITY_AFFILIATION_CAPTURE_VERSION,
+  isSupportedPilaDependentContract,
   validatePilaAffiliationDeclarations,
 } from './social-security-affiliation.policy';
+
+interface ParsedAffiliationDates {
+  vigenteDesde: Date;
+  vigenteHasta: Date | null;
+}
 
 @Injectable()
 export class SocialSecurityAffiliationsService {
@@ -39,6 +45,40 @@ export class SocialSecurityAffiliationsService {
     employeeId: string,
     dto: CreateSocialSecurityAffiliationDto,
   ) {
+    const dates = this.parseAndValidateDates(dto);
+    return this.tenantPrisma.execute((prisma, { tenantId }) =>
+      this.createValidatedInTransaction(
+        prisma,
+        tenantId,
+        userId,
+        employeeId,
+        dto,
+        dates,
+      ),
+    );
+  }
+
+  async createInTransaction(
+    prisma: TenantPrismaClient,
+    tenantId: string,
+    userId: string,
+    employeeId: string,
+    dto: CreateSocialSecurityAffiliationDto,
+  ) {
+    const dates = this.parseAndValidateDates(dto);
+    return this.createValidatedInTransaction(
+      prisma,
+      tenantId,
+      userId,
+      employeeId,
+      dto,
+      dates,
+    );
+  }
+
+  private parseAndValidateDates(
+    dto: CreateSocialSecurityAffiliationDto,
+  ): ParsedAffiliationDates {
     const vigenteDesde = parseDate(dto.vigenteDesde, 'vigenteDesde');
     const vigenteHasta = dto.vigenteHasta
       ? parseDate(dto.vigenteHasta, 'vigenteHasta')
@@ -49,138 +89,138 @@ export class SocialSecurityAffiliationsService {
         'Selecciona un departamento válido según DIVIPOLA para la caja de compensación.',
       );
     }
-
     if (vigenteHasta && vigenteHasta < vigenteDesde) {
       throw new BadRequestException(
         'La fecha final no puede ser anterior a la fecha inicial.',
       );
     }
+    return { vigenteDesde, vigenteHasta };
+  }
 
-    const created = await this.tenantPrisma.execute(
-      async (prisma, { tenantId }) => {
-        await this.requireEmployee(prisma, tenantId, employeeId);
+  private async createValidatedInTransaction(
+    prisma: TenantPrismaClient,
+    tenantId: string,
+    userId: string,
+    employeeId: string,
+    dto: CreateSocialSecurityAffiliationDto,
+    dates: ParsedAffiliationDates,
+  ) {
+    const { vigenteDesde, vigenteHasta } = dates;
+    await this.requireEmployee(prisma, tenantId, employeeId);
 
-        // Serializa registros concurrentes del mismo empleado antes de revisar
-        // intervalos; la transacción instala el tenant para respetar RLS.
-        const lockedEmployeeRows = await prisma.$queryRaw<
-          Array<{ tipoDocumento: string }>
-        >`
-          SELECT "tipoDocumento" FROM "empleados"
+    // Serializa registros concurrentes del mismo empleado antes de revisar
+    // intervalos; la transacción instala el tenant para respetar RLS.
+    const lockedEmployeeRows = await prisma.$queryRaw<
+      Array<{ tipoDocumento: string; tipoContrato: string }>
+    >`
+          SELECT "tipoDocumento", "tipoContrato" FROM "empleados"
           WHERE "id" = ${employeeId} AND "tenantId" = ${tenantId}
           FOR UPDATE
         `;
-        const lockedEmployee = lockedEmployeeRows[0];
-        if (!lockedEmployee) {
-          throw new NotFoundException('Empleado no encontrado.');
-        }
-        this.validatePilaDeclarations(lockedEmployee.tipoDocumento, dto);
+    const lockedEmployee = lockedEmployeeRows[0];
+    if (!lockedEmployee) {
+      throw new NotFoundException('Empleado no encontrado.');
+    }
+    if (!isSupportedPilaDependentContract(lockedEmployee.tipoContrato)) {
+      throw new BadRequestException(
+        'El registro PILA 01/00 solo aplica a empleados con contrato laboral estándar.',
+      );
+    }
+    this.validatePilaDeclarations(lockedEmployee.tipoDocumento, dto);
 
-        const existing = await prisma.afiliacionSeguridadSocial.findMany({
-          where: { tenantId, empleadoId: employeeId },
-          orderBy: { vigenteDesde: 'asc' },
-        });
-        const requestedEnd =
-          vigenteHasta ?? new Date('9999-12-31T00:00:00.000Z');
-        const overlaps = existing.filter(
-          (record) =>
-            record.vigenteDesde <= requestedEnd &&
-            (record.vigenteHasta === null ||
-              record.vigenteHasta >= vigenteDesde),
-        );
-
-        const superseded =
-          vigenteHasta === null
-            ? overlaps.find(
-                (record) =>
-                  record.vigenteHasta === null &&
-                  record.vigenteDesde < vigenteDesde,
-              )
-            : undefined;
-        const conflicts = overlaps.filter(
-          (record) => record.id !== superseded?.id,
-        );
-
-        if (conflicts.length > 0) {
-          throw new ConflictException(
-            'La vigencia se cruza con otra afiliación histórica. Revisa las fechas antes de guardarla.',
-          );
-        }
-
-        if (superseded) {
-          const endOfPreviousDay = new Date(vigenteDesde);
-          endOfPreviousDay.setUTCDate(endOfPreviousDay.getUTCDate() - 1);
-
-          if (endOfPreviousDay < superseded.vigenteDesde) {
-            throw new ConflictException(
-              'La nueva vigencia debe empezar después de la afiliación vigente.',
-            );
-          }
-
-          await prisma.afiliacionSeguridadSocial.updateMany({
-            where: {
-              id: superseded.id,
-              tenantId,
-              vigenteHasta: null,
-            },
-            data: { vigenteHasta: endOfPreviousDay },
-          });
-
-          await this.auditService.log(
-            {
-              tenantId,
-              userId,
-              action: 'EMPLOYEE_SOCIAL_SECURITY_AFFILIATION_CLOSED',
-              entityType: 'AfiliacionSeguridadSocial',
-              entityId: superseded.id,
-              metadata: {
-                empleadoId: employeeId,
-                vigenteHasta: endOfPreviousDay.toISOString().slice(0, 10),
-                reemplazadaDesde: vigenteDesde.toISOString().slice(0, 10),
-              },
-            },
-            prisma,
-          );
-        }
-
-        const affiliation = await prisma.afiliacionSeguridadSocial.create({
-          data: {
-            ...dto,
-            extranjeroNoObligadoPension:
-              dto.extranjeroNoObligadoPension ?? null,
-            colombianoEnElExterior: dto.colombianoEnElExterior ?? null,
-            vigenteDesde,
-            vigenteHasta,
-            subtipoCotizanteCodigo: dto.subtipoCotizanteCodigo || null,
-            versionCaptura: SOCIAL_SECURITY_AFFILIATION_CAPTURE_VERSION,
-            registradoPorId: userId,
-            tenantId,
-            empleadoId: employeeId,
-          },
-        });
-
-        await this.auditService.log(
-          {
-            tenantId,
-            userId,
-            action: 'EMPLOYEE_SOCIAL_SECURITY_AFFILIATION_RECORDED',
-            entityType: 'AfiliacionSeguridadSocial',
-            entityId: affiliation.id,
-            metadata: {
-              empleadoId: employeeId,
-              vigenteDesde: vigenteDesde.toISOString().slice(0, 10),
-              vigenteHasta: vigenteHasta?.toISOString().slice(0, 10) ?? null,
-              versionCaptura: SOCIAL_SECURITY_AFFILIATION_CAPTURE_VERSION,
-              campos: Object.keys(dto),
-            },
-          },
-          prisma,
-        );
-
-        return affiliation;
-      },
+    const existing = await prisma.afiliacionSeguridadSocial.findMany({
+      where: { tenantId, empleadoId: employeeId },
+      orderBy: { vigenteDesde: 'asc' },
+    });
+    const requestedEnd = vigenteHasta ?? new Date('9999-12-31T00:00:00.000Z');
+    const overlaps = existing.filter(
+      (record) =>
+        record.vigenteDesde <= requestedEnd &&
+        (record.vigenteHasta === null || record.vigenteHasta >= vigenteDesde),
     );
 
-    return created;
+    const superseded =
+      vigenteHasta === null
+        ? overlaps.find(
+            (record) =>
+              record.vigenteHasta === null &&
+              record.vigenteDesde < vigenteDesde,
+          )
+        : undefined;
+    const conflicts = overlaps.filter((record) => record.id !== superseded?.id);
+
+    if (conflicts.length > 0) {
+      throw new ConflictException(
+        'La vigencia se cruza con otra afiliación histórica. Revisa las fechas antes de guardarla.',
+      );
+    }
+
+    if (superseded) {
+      const endOfPreviousDay = new Date(vigenteDesde);
+      endOfPreviousDay.setUTCDate(endOfPreviousDay.getUTCDate() - 1);
+      if (endOfPreviousDay < superseded.vigenteDesde) {
+        throw new ConflictException(
+          'La nueva vigencia debe empezar después de la afiliación vigente.',
+        );
+      }
+
+      await prisma.afiliacionSeguridadSocial.updateMany({
+        where: {
+          id: superseded.id,
+          tenantId,
+          vigenteHasta: null,
+        },
+        data: { vigenteHasta: endOfPreviousDay },
+      });
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'EMPLOYEE_SOCIAL_SECURITY_AFFILIATION_CLOSED',
+          entityType: 'AfiliacionSeguridadSocial',
+          entityId: superseded.id,
+          metadata: {
+            empleadoId: employeeId,
+            vigenteHasta: endOfPreviousDay.toISOString().slice(0, 10),
+            reemplazadaDesde: vigenteDesde.toISOString().slice(0, 10),
+          },
+        },
+        prisma,
+      );
+    }
+
+    const affiliation = await prisma.afiliacionSeguridadSocial.create({
+      data: {
+        ...dto,
+        extranjeroNoObligadoPension: dto.extranjeroNoObligadoPension ?? null,
+        colombianoEnElExterior: dto.colombianoEnElExterior ?? null,
+        vigenteDesde,
+        vigenteHasta,
+        subtipoCotizanteCodigo: dto.subtipoCotizanteCodigo || null,
+        versionCaptura: SOCIAL_SECURITY_AFFILIATION_CAPTURE_VERSION,
+        registradoPorId: userId,
+        tenantId,
+        empleadoId: employeeId,
+      },
+    });
+    await this.auditService.log(
+      {
+        tenantId,
+        userId,
+        action: 'EMPLOYEE_SOCIAL_SECURITY_AFFILIATION_RECORDED',
+        entityType: 'AfiliacionSeguridadSocial',
+        entityId: affiliation.id,
+        metadata: {
+          empleadoId: employeeId,
+          vigenteDesde: vigenteDesde.toISOString().slice(0, 10),
+          vigenteHasta: vigenteHasta?.toISOString().slice(0, 10) ?? null,
+          versionCaptura: SOCIAL_SECURITY_AFFILIATION_CAPTURE_VERSION,
+          campos: Object.keys(dto),
+        },
+      },
+      prisma,
+    );
+    return affiliation;
   }
 
   async close(

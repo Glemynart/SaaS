@@ -9,6 +9,7 @@ import { isValidPepTutorDocumentNumber } from '../common/validators/pep-tutor-do
 import { isColombiaDaneDepartmentCode } from '@saas/types';
 import {
   SOCIAL_SECURITY_AFFILIATION_CAPTURE_VERSION,
+  isSupportedPilaDependentContract,
   validatePilaAffiliationDeclarations,
 } from '../employees/social-security-affiliation.policy';
 import * as XLSX from 'xlsx';
@@ -326,10 +327,20 @@ function parseInitialPilaAffiliation(
   row: RawRow,
   fila: number,
   tipoDocumento: string | undefined,
+  tipoContrato: string | undefined,
   errors: ImportError[],
 ): InitialPilaAffiliationData | undefined {
   if (!PILA_AFFILIATION_FIELDS.some((field) => hasImportValue(row[field]))) {
     return undefined;
+  }
+
+  if (!isSupportedPilaDependentContract(tipoContrato)) {
+    errors.push({
+      fila,
+      campo: 'tipoContrato',
+      mensaje:
+        'La afiliación PILA 01/00 solo aplica a empleados con contrato laboral estándar.',
+    });
   }
 
   const requiredText = (field: string, label: string, maxLength: number) => {
@@ -764,6 +775,7 @@ export class EmployeeImportService {
         row,
         fila,
         tipoDocumento,
+        str(row.tipoContrato)?.toUpperCase(),
         errors,
       );
 

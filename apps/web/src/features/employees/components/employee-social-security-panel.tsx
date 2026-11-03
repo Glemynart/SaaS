@@ -100,10 +100,12 @@ function LegacyReference({ values }: { values: LegacyValues }) {
 export function EmployeeSocialSecurityPanel({
   employeeId,
   employeeDocumentType,
+  employeeContractType,
   legacyValues,
 }: {
   employeeId: string;
   employeeDocumentType: string;
+  employeeContractType: string;
   legacyValues: LegacyValues;
 }) {
   const {
@@ -118,6 +120,9 @@ export function EmployeeSocialSecurityPanel({
   const [form, setForm] = useState<FormValues>(emptyForm);
   const [closingId, setClosingId] = useState<string | null>(null);
   const [closeDate, setCloseDate] = useState('');
+  const supportsPilaAffiliation = ['TERMINO_FIJO', 'TERMINO_INDEFINIDO', 'OBRA_LABOR'].includes(
+    employeeContractType,
+  );
 
   const setValue = (
     field: Exclude<keyof FormValues, 'extranjeroNoObligadoPension' | 'colombianoEnElExterior'>,
@@ -203,7 +208,7 @@ export function EmployeeSocialSecurityPanel({
             datos ingresados; todavía no valida los códigos contra el catálogo del operador.
           </p>
         </div>
-        {!isAdding && (
+        {!isAdding && supportsPilaAffiliation && (
           <Button size="sm" variant="outline" onClick={() => setIsAdding(true)}>
             <Plus className="size-4" aria-hidden="true" />
             Registrar afiliación
@@ -220,6 +225,12 @@ export function EmployeeSocialSecurityPanel({
         documento; una afiliación histórica no se completa automáticamente. Los campos heredados
         nunca se convierten automáticamente.
       </Alert>
+
+      {!supportsPilaAffiliation && (
+        <p className="text-sm text-muted-foreground">
+          La captura PILA disponible en esta etapa aplica a contratos laborales estándar.
+        </p>
+      )}
 
       <LegacyReference values={legacyValues} />
 

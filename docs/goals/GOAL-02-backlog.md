@@ -982,18 +982,24 @@ false`.
   y planilla N. La aceptación de los valores por un operador todavía requiere
   una carga real de prueba.
 
-### Captura inicial de afiliación PILA desde Excel — 2026-11-02
+### Captura inicial de afiliación PILA — Excel y alta individual — 2026-11-02
 
-- La rama `codex/goal02-pila-next-increment` permite declarar una afiliación
-  inicial explícita por empleado nuevo. La plantilla anterior sigue siendo
-  válida; dejar vacío el bloque PILA conserva el flujo actual. El empleado y
-  su afiliación V3 se crean en una transacción tenant-scoped y la afiliación
-  deja auditoría dentro de esa transacción.
-- El MVP limita el registro a cotizante 01/00; valida longitudes, clase ARL,
-  departamento CCF DIVIPOLA, vigencias y declaraciones 7/8. No modifica
-  empleados existentes, convierte texto heredado, valida catálogos oficiales
-  de administradoras ni habilita el archivo PILA.
-- Pruebas locales: importador 12/12, historial de afiliaciones 15/15; pasan
-  typecheck API/web, lint API/web y builds de tipos/API/web. Se añadió Browser
-  E2E, pendiente de ejecución en el workflow aislado: Docker Engine local no
-  está disponible. La rama todavía no tiene PR.
+- PR #223 se fusionó en `main` como `636aa85`. La importación Excel admite un
+  bloque opcional de afiliación inicial por empleado nuevo; omitirlo conserva
+  el formato anterior. La afiliación V3 se persiste con el empleado en una
+  transacción tenant-scoped y deja auditoría en esa misma transacción. CI,
+  Browser E2E y Vercel Preview pasaron antes del merge.
+- El siguiente incremento extiende la captura opcional al alta individual. El
+  formulario y la importación aceptan cotizante 01/00 únicamente para contratos
+  laborales estándar (`TERMINO_FIJO`, `TERMINO_INDEFINIDO`, `OBRA_LABOR`); API,
+  importador y servicio rechazan su asociación a prestación de servicios o
+  aprendizaje, y el detalle del empleado no ofrece la captura para esos
+  contratos. Empleado, afiliación V3 y auditoría se escriben en la misma
+  transacción tenant-scoped.
+- Ambos flujos validan longitudes, clase ARL, departamento CCF DIVIPOLA,
+  vigencias y declaraciones según tipo de documento. No modifican empleados
+  existentes, convierten texto heredado, validan catálogos oficiales de
+  administradoras ni habilitan la descarga del archivo PILA.
+- Validación local del siguiente incremento: 49 pruebas API focalizadas,
+  typecheck API/web y lint API/web pasan. El Browser E2E ampliado y los checks
+  remotos se ejecutan al abrir el PR; Docker Engine local no está disponible.

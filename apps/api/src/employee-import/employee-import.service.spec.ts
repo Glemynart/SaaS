@@ -477,6 +477,28 @@ describe('EmployeeImportService', () => {
     expect(mockEmpleadoCreate).not.toHaveBeenCalled();
   });
 
+  it('rejects a standard PILA affiliation for a non-standard employment contract', async () => {
+    const unsupportedContract = pilaImportRow({
+      tipoContrato: 'PRESTACION_SERVICIOS',
+    });
+    const error = await service
+      .importFromBuffer(
+        TENANT_ID,
+        USER_ID,
+        workbookBuffer([unsupportedContract], [...HEADERS, ...PILA_HEADERS]),
+      )
+      .then(
+        () => undefined,
+        (reason: unknown) => reason,
+      );
+
+    expect(
+      importErrors(error).some(({ campo }) => campo === 'tipoContrato'),
+    ).toBe(true);
+    expect(mockEmpleadoCreate).not.toHaveBeenCalled();
+    expect(mockAffiliationCreate).not.toHaveBeenCalled();
+  });
+
   it('rejects a PEP-TUTOR employee with a malformed document number', async () => {
     const invalidNumber = workbookBuffer([
       [

@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { TipoDocIdentidad } from './dto/create-employee.dto';
+import { SocialSecurityAffiliationsService } from './social-security-affiliations.service';
 import { EmployeesService } from './employees.service';
 
 const mockEmpleadoFindUnique = jest.fn();
@@ -13,11 +14,23 @@ const mockEmpleadoCreate = jest.fn();
 const mockEmpleadoUpdate = jest.fn();
 const mockSedeFindFirst = jest.fn();
 const mockAuditLog = jest.fn();
+const mockCreateAffiliationInTransaction = jest.fn();
 const mockTenantPrismaExecute = jest.fn();
 
 const TENANT_A = 'tenant-a';
 const USER_A = 'user-a';
 const TENANT_B_EMPLOYEE = 'employee-from-tenant-b';
+const mockTransactionClient = {
+  empleado: {
+    findUnique: mockEmpleadoFindUnique,
+    findFirst: mockEmpleadoFindFirst,
+    findMany: mockEmpleadoFindMany,
+    count: mockEmpleadoCount,
+    create: mockEmpleadoCreate,
+    update: mockEmpleadoUpdate,
+  },
+  sede: { findFirst: mockSedeFindFirst },
+};
 
 const expectedSearchConditions = (terms: string[]) =>
   terms.map((term) => ({
@@ -52,22 +65,12 @@ describe('EmployeesService tenant isolation contracts', () => {
     mockEmpleadoFindMany.mockResolvedValue([]);
     mockEmpleadoCount.mockResolvedValue(0);
     mockAuditLog.mockResolvedValue(undefined);
+    mockCreateAffiliationInTransaction.mockResolvedValue({
+      id: 'affiliation-a',
+    });
     mockTenantPrismaExecute.mockImplementation(
       (work: (client: unknown, context: { tenantId: string }) => unknown) =>
-        work(
-          {
-            empleado: {
-              findUnique: mockEmpleadoFindUnique,
-              findFirst: mockEmpleadoFindFirst,
-              findMany: mockEmpleadoFindMany,
-              count: mockEmpleadoCount,
-              create: mockEmpleadoCreate,
-              update: mockEmpleadoUpdate,
-            },
-            sede: { findFirst: mockSedeFindFirst },
-          },
-          { tenantId: TENANT_A },
-        ),
+        work(mockTransactionClient, { tenantId: TENANT_A }),
     );
 
     const moduleRef = await Test.createTestingModule({
@@ -80,6 +83,10 @@ describe('EmployeesService tenant isolation contracts', () => {
           },
         },
         { provide: AuditService, useValue: { log: mockAuditLog } },
+        {
+          provide: SocialSecurityAffiliationsService,
+          useValue: { createInTransaction: mockCreateAffiliationInTransaction },
+        },
       ],
     }).compile();
 
@@ -134,6 +141,75 @@ describe('EmployeesService tenant isolation contracts', () => {
     expect(createQuery?.[0].data).toEqual(
       expect.objectContaining({ tipoSalarioPila: 'V', salarioIntegral: false }),
     );
+  });
+
+  it('creates an initial PILA affiliation with the employee in the same tenant transaction', async () => {
+    mockEmpleadoFindUnique.mockResolvedValue(null);
+    mockSedeFindFirst.mockResolvedValue({ id: 'sede-a' });
+    mockEmpleadoCreate.mockImplementation(
+      (args: { data: Record<string, unknown> }) => ({
+        id: 'employee-a',
+        ...args.data,
+      }),
+    );
+    const affiliation = {
+      tipoCotizanteCodigo: '01',
+      subtipoCotizanteCodigo: '00',
+      epsCodigo: 'EPS001',
+      epsNombre: 'EPS de prueba',
+      fondoPensionCodigo: 'AFP001',
+      fondoPensionNombre: 'Fondo de prueba',
+      arlCodigo: 'ARL001',
+      arlNombre: 'ARL de prueba',
+      arlClaseRiesgo: '1',
+      cajaCompensacionCodigo: 'CCF001',
+      cajaCompensacionNombre: 'Caja de prueba',
+      cajaCompensacionDepartamentoCodigo: '08',
+      extranjeroNoObligadoPension: null,
+      colombianoEnElExterior: false,
+      vigenteDesde: '2026-01-01',
+      vigenteHasta: null,
+    };
+
+    await service.create(USER_A, {
+      cedula: '1002',
+      tipoDocumento: 'CC',
+      primerNombre: 'Ana',
+      primerApellido: 'Gómez',
+      cargo: 'Docente',
+      salario: 2_000_000,
+      tipoContrato: 'TERMINO_FIJO',
+      fechaIngreso: '2026-01-01',
+      sedeId: 'sede-a',
+      afiliacionPilaInicial: affiliation,
+    } as never);
+
+    const [employeeCreate] = mockEmpleadoCreate.mock.calls as [
+      [{ data: Record<string, unknown> }],
+    ];
+    expect(employeeCreate?.[0].data).not.toHaveProperty(
+      'afiliacionPilaInicial',
+    );
+    expect(mockCreateAffiliationInTransaction).toHaveBeenCalledWith(
+      mockTransactionClient,
+      TENANT_A,
+      USER_A,
+      'employee-a',
+      affiliation,
+    );
+  });
+
+  it('rejects standard PILA affiliation for contractors before writing an employee', async () => {
+    await expect(
+      service.create(USER_A, {
+        sedeId: 'sede-a',
+        tipoContrato: 'PRESTACION_SERVICIOS',
+        afiliacionPilaInicial: { tipoCotizanteCodigo: '01' },
+      } as never),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(mockTenantPrismaExecute).not.toHaveBeenCalled();
+    expect(mockEmpleadoCreate).not.toHaveBeenCalled();
   });
 
   it('rejects a contradictory PILA type and integral-salary flag', async () => {

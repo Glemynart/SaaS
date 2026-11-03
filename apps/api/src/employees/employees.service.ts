@@ -8,6 +8,8 @@ import { CreateEmployeeDto, TipoSalarioPila } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeeQueryDto } from './dto/employee-query.dto';
 import { isValidPepTutorDocumentNumber } from '../common/validators/pep-tutor-document-number';
+import { SocialSecurityAffiliationsService } from './social-security-affiliations.service';
+import { isSupportedPilaDependentContract } from './social-security-affiliation.policy';
 import { Prisma } from '@prisma/client';
 import {
   TenantPrismaClient,
@@ -19,11 +21,23 @@ export class EmployeesService {
   constructor(
     private readonly tenantPrisma: TenantPrismaService,
     private readonly auditService: AuditService,
+    private readonly socialSecurityAffiliations: SocialSecurityAffiliationsService,
   ) {}
 
   async create(userId: string, createDto: CreateEmployeeDto) {
+    const { afiliacionPilaInicial, ...employeeData } = createDto;
+
     if (!createDto.sedeId) {
       throw new BadRequestException('La sede del empleado es requerida.');
+    }
+
+    if (
+      afiliacionPilaInicial &&
+      !isSupportedPilaDependentContract(createDto.tipoContrato)
+    ) {
+      throw new BadRequestException(
+        'La afiliación PILA 01/00 inicial solo aplica a empleados con contrato laboral estándar.',
+      );
     }
 
     if (
@@ -77,13 +91,23 @@ export class EmployeesService {
 
         const employee = await prisma.empleado.create({
           data: {
-            ...createDto,
+            ...employeeData,
             salarioIntegral,
             tipoSalarioPila,
             fechaIngreso: new Date(createDto.fechaIngreso),
             tenantId,
           },
         });
+
+        if (afiliacionPilaInicial) {
+          await this.socialSecurityAffiliations.createInTransaction(
+            prisma,
+            tenantId,
+            userId,
+            employee.id,
+            afiliacionPilaInicial,
+          );
+        }
 
         return { employee, tenantId };
       },

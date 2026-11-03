@@ -290,6 +290,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       <EmployeeSocialSecurityPanel
         employeeId={id}
         employeeDocumentType={employee.tipoDocumento}
+        employeeContractType={employee.tipoContrato}
         legacyValues={{
           eps: employee.eps,
           fondoPension: employee.fondoPension,

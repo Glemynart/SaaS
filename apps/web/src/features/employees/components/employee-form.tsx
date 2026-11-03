@@ -11,6 +11,24 @@ import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { COLOMBIA_DANE_DEPARTMENTS } from '@saas/types';
+
+const emptyInitialPilaAffiliation = {
+  epsCodigo: '',
+  epsNombre: '',
+  fondoPensionCodigo: '',
+  fondoPensionNombre: '',
+  arlCodigo: '',
+  arlNombre: '',
+  arlClaseRiesgo: '',
+  cajaCompensacionCodigo: '',
+  cajaCompensacionNombre: '',
+  cajaCompensacionDepartamentoCodigo: '',
+  extranjeroNoObligadoPension: '',
+  colombianoEnElExterior: '',
+  vigenteDesde: '',
+  vigenteHasta: '',
+};
 
 interface EmployeeFormProps {
   initialData?: Employee;
@@ -34,6 +52,7 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors, dirtyFields },
   } = useForm<EmployeeFormData>({
     resolver: zodResolver(employeeSchema) as unknown as Resolver<EmployeeFormData>,
@@ -57,6 +76,8 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
       jornadaLaboral: undefined,
       fechaRetiro: '',
       motivoRetiro: undefined,
+      registrarAfiliacionPilaInicial: false,
+      afiliacionPilaInicial: emptyInitialPilaAffiliation,
     },
   });
 
@@ -84,6 +105,8 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
           ? new Date(initialData.fechaRetiro).toISOString().split('T')[0]
           : '',
         motivoRetiro: (initialData.motivoRetiro as EmployeeFormData['motivoRetiro']) ?? undefined,
+        registrarAfiliacionPilaInicial: false,
+        afiliacionPilaInicial: emptyInitialPilaAffiliation,
       });
     } else {
       reset({
@@ -101,6 +124,8 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
         fechaIngreso: new Date().toISOString().split('T')[0],
         estado: 'ACTIVO',
         tipoSalarioPila: null,
+        registrarAfiliacionPilaInicial: false,
+        afiliacionPilaInicial: emptyInitialPilaAffiliation,
       });
     }
   }, [initialData, reset]);
@@ -117,6 +142,9 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
 
     setValue('sedeId', assignedSedeId);
   }, [dirtyFields.sedeId, initialData?.sedeId, sedes, setValue]);
+
+  const registerInitialPila = watch('registrarAfiliacionPilaInicial');
+  const employeeDocumentType = watch('tipoDocumento');
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
@@ -225,6 +253,167 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
           </Select>
         </FormField>
       </FormSection>
+
+      {!initialData && (
+        <fieldset className="space-y-4 rounded-md border border-border-soft p-4">
+          <legend className="px-1 text-sm font-semibold text-foreground">
+            Afiliación PILA inicial (opcional)
+          </legend>
+          <label className="flex items-start gap-2 text-sm text-foreground">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4 accent-primary"
+              {...register('registrarAfiliacionPilaInicial')}
+            />
+            Registrar afiliación PILA inicial
+          </label>
+          {registerInitialPila && (
+            <div className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Solo para contratos laborales estándar, cotizante dependiente 01 y subtipo 00.
+                Confirma los datos con la constancia de afiliación; los códigos de las
+                administradoras no se validan contra catálogos oficiales.
+              </p>
+              <FormSection title="Administradoras y vigencia">
+                <FormField
+                  label="Código EPS"
+                  required
+                  error={errors.afiliacionPilaInicial?.epsCodigo?.message}
+                >
+                  <Input maxLength={6} {...register('afiliacionPilaInicial.epsCodigo')} />
+                </FormField>
+                <FormField
+                  label="Nombre EPS"
+                  required
+                  error={errors.afiliacionPilaInicial?.epsNombre?.message}
+                >
+                  <Input maxLength={120} {...register('afiliacionPilaInicial.epsNombre')} />
+                </FormField>
+                <FormField
+                  label="Código Fondo de pensión"
+                  required
+                  error={errors.afiliacionPilaInicial?.fondoPensionCodigo?.message}
+                >
+                  <Input maxLength={6} {...register('afiliacionPilaInicial.fondoPensionCodigo')} />
+                </FormField>
+                <FormField
+                  label="Nombre Fondo de pensión"
+                  required
+                  error={errors.afiliacionPilaInicial?.fondoPensionNombre?.message}
+                >
+                  <Input
+                    maxLength={120}
+                    {...register('afiliacionPilaInicial.fondoPensionNombre')}
+                  />
+                </FormField>
+                <FormField
+                  label="Código ARL"
+                  required
+                  error={errors.afiliacionPilaInicial?.arlCodigo?.message}
+                >
+                  <Input maxLength={6} {...register('afiliacionPilaInicial.arlCodigo')} />
+                </FormField>
+                <FormField
+                  label="Nombre ARL"
+                  required
+                  error={errors.afiliacionPilaInicial?.arlNombre?.message}
+                >
+                  <Input maxLength={120} {...register('afiliacionPilaInicial.arlNombre')} />
+                </FormField>
+                <FormField
+                  label="Clase de riesgo ARL"
+                  required
+                  error={errors.afiliacionPilaInicial?.arlClaseRiesgo?.message}
+                >
+                  <Select {...register('afiliacionPilaInicial.arlClaseRiesgo')}>
+                    <option value="">Selecciona una clase</option>
+                    {[1, 2, 3, 4, 5].map((riskClass) => (
+                      <option key={riskClass} value={riskClass}>
+                        {riskClass}
+                      </option>
+                    ))}
+                  </Select>
+                </FormField>
+                <FormField
+                  label="Código Caja de compensación"
+                  required
+                  error={errors.afiliacionPilaInicial?.cajaCompensacionCodigo?.message}
+                >
+                  <Input
+                    maxLength={6}
+                    {...register('afiliacionPilaInicial.cajaCompensacionCodigo')}
+                  />
+                </FormField>
+                <FormField
+                  label="Nombre Caja de compensación"
+                  required
+                  error={errors.afiliacionPilaInicial?.cajaCompensacionNombre?.message}
+                >
+                  <Input
+                    maxLength={120}
+                    {...register('afiliacionPilaInicial.cajaCompensacionNombre')}
+                  />
+                </FormField>
+                <FormField
+                  label="Departamento de la CCF"
+                  required
+                  error={errors.afiliacionPilaInicial?.cajaCompensacionDepartamentoCodigo?.message}
+                  hint="Se guarda con código DIVIPOLA de dos dígitos."
+                >
+                  <Select {...register('afiliacionPilaInicial.cajaCompensacionDepartamentoCodigo')}>
+                    <option value="">Selecciona un departamento</option>
+                    {COLOMBIA_DANE_DEPARTMENTS.map(({ codigo, nombre }) => (
+                      <option key={codigo} value={codigo}>
+                        {codigo} · {nombre}
+                      </option>
+                    ))}
+                  </Select>
+                </FormField>
+                <FormField
+                  label="Vigente desde"
+                  required
+                  error={errors.afiliacionPilaInicial?.vigenteDesde?.message}
+                >
+                  <Input type="date" {...register('afiliacionPilaInicial.vigenteDesde')} />
+                </FormField>
+                <FormField
+                  label="Vigente hasta"
+                  error={errors.afiliacionPilaInicial?.vigenteHasta?.message}
+                  hint="Déjalo vacío si la afiliación sigue vigente."
+                >
+                  <Input type="date" {...register('afiliacionPilaInicial.vigenteHasta')} />
+                </FormField>
+                {(employeeDocumentType === 'CC' || employeeDocumentType === 'TI') && (
+                  <FormField
+                    label="¿Es colombiano en el exterior?"
+                    required
+                    error={errors.afiliacionPilaInicial?.colombianoEnElExterior?.message}
+                  >
+                    <Select {...register('afiliacionPilaInicial.colombianoEnElExterior')}>
+                      <option value="">Confirma la declaración</option>
+                      <option value="SI">Sí</option>
+                      <option value="NO">No</option>
+                    </Select>
+                  </FormField>
+                )}
+                {(employeeDocumentType === 'CE' || employeeDocumentType === 'PA') && (
+                  <FormField
+                    label="¿Está exento de cotizar a pensión?"
+                    required
+                    error={errors.afiliacionPilaInicial?.extranjeroNoObligadoPension?.message}
+                  >
+                    <Select {...register('afiliacionPilaInicial.extranjeroNoObligadoPension')}>
+                      <option value="">Confirma la declaración</option>
+                      <option value="SI">Sí</option>
+                      <option value="NO">No</option>
+                    </Select>
+                  </FormField>
+                )}
+              </FormSection>
+            </div>
+          )}
+        </fieldset>
+      )}
 
       {initialData && (
         <FormSection title="Estado y retiro">

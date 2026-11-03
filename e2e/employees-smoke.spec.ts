@@ -45,6 +45,29 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await createDialog.locator('[name="cargo"]').fill('Docente E2E');
   await createDialog.locator('[name="salario"]').fill('2500000');
   await createDialog.locator('[name="sedeId"]').selectOption({ label: 'Sede Principal' });
+  await createDialog.getByLabel('Registrar afiliación PILA inicial').check();
+  await createDialog.locator('[name="afiliacionPilaInicial.epsCodigo"]').fill('EPS001');
+  await createDialog.locator('[name="afiliacionPilaInicial.epsNombre"]').fill('EPS Demo');
+  await createDialog.locator('[name="afiliacionPilaInicial.fondoPensionCodigo"]').fill('AFP001');
+  await createDialog
+    .locator('[name="afiliacionPilaInicial.fondoPensionNombre"]')
+    .fill('Fondo Demo');
+  await createDialog.locator('[name="afiliacionPilaInicial.arlCodigo"]').fill('ARL001');
+  await createDialog.locator('[name="afiliacionPilaInicial.arlNombre"]').fill('ARL Demo');
+  await createDialog.locator('[name="afiliacionPilaInicial.arlClaseRiesgo"]').selectOption('1');
+  await createDialog
+    .locator('[name="afiliacionPilaInicial.cajaCompensacionCodigo"]')
+    .fill('CCF001');
+  await createDialog
+    .locator('[name="afiliacionPilaInicial.cajaCompensacionNombre"]')
+    .fill('Caja Demo');
+  await createDialog
+    .locator('[name="afiliacionPilaInicial.cajaCompensacionDepartamentoCodigo"]')
+    .selectOption('08');
+  await createDialog
+    .locator('[name="afiliacionPilaInicial.colombianoEnElExterior"]')
+    .selectOption('NO');
+  await createDialog.locator('[name="afiliacionPilaInicial.vigenteDesde"]').fill('2026-01-01');
   await createDialog.getByRole('button', { name: 'Crear empleado', exact: true }).click();
 
   const search = page.locator('input[aria-label="Buscar empleados"]');
@@ -72,36 +95,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await expect(
     page.getByRole('heading', { name: 'Afiliaciones de seguridad social' }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Registrar afiliación' }).click();
-
-  const affiliationForm = page.locator('form').filter({
-    has: page.getByRole('heading', { name: 'Nueva afiliación' }),
-  });
-  await affiliationForm.getByRole('combobox', { name: /^Tipo de cotizante/ }).selectOption('01');
-  expect(
-    await affiliationForm
-      .getByLabel('Subtipo de cotizante')
-      .evaluate((element) => (element as HTMLInputElement).required),
-  ).toBe(true);
-  await affiliationForm.getByLabel('Subtipo de cotizante').fill('00');
-  await affiliationForm.getByLabel('Vigente desde').fill('2026-01-01');
-  await affiliationForm.getByLabel('Código EPS').fill('EPS001');
-  await affiliationForm.getByLabel('Nombre EPS').fill('EPS Demo');
-  await affiliationForm.getByLabel('Código Fondo de pensión').fill('AFP001');
-  await affiliationForm.getByLabel('Nombre Fondo de pensión').fill('Fondo Demo');
-  await affiliationForm.getByLabel('Código ARL').fill('ARL001');
-  await affiliationForm.getByLabel('Nombre ARL').fill('ARL Demo');
-  await affiliationForm.getByLabel('Clase de riesgo ARL').selectOption('1');
-  await affiliationForm.getByLabel('Código Caja de compensación').fill('CCF001');
-  await affiliationForm.getByLabel('Nombre Caja de compensación').fill('Caja Demo');
-  await affiliationForm.getByLabel('Departamento donde está ubicada la CCF').selectOption('08');
-  await affiliationForm
-    .getByRole('combobox', { name: '¿Es colombiano en el exterior?' })
-    .selectOption('false');
-  await affiliationForm.getByRole('button', { name: 'Guardar afiliación' }).click();
-
   await expect(page.getByText('EPS Demo')).toBeVisible();
-
   await page.getByRole('button', { name: 'Registrar afiliación' }).click();
   const replacementForm = page.locator('form').filter({
     has: page.getByRole('heading', { name: 'Nueva afiliación' }),
