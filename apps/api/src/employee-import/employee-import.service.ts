@@ -911,119 +911,126 @@ export class EmployeeImportService {
     const orderedRows = [...validatedRows].sort((left, right) =>
       left.employeeId.localeCompare(right.employeeId),
     );
-    const result = await this.tenantPrisma.execute(async (prisma) => {
-      let created = 0;
-      let unchanged = 0;
+    const result = await this.tenantPrisma.execute(
+      async (prisma) => {
+        let created = 0;
+        let unchanged = 0;
 
-      for (const row of orderedRows) {
-        try {
-          const locked = await prisma.$queryRaw<
-            Array<{
-              id: string;
-              cedula: string;
-              tipoDocumento: string;
-              tipoContrato: string;
-            }>
-          >`
+        for (const row of orderedRows) {
+          try {
+            const locked = await prisma.$queryRaw<
+              Array<{
+                id: string;
+                cedula: string;
+                tipoDocumento: string;
+                tipoContrato: string;
+              }>
+            >`
             SELECT "id", "cedula", "tipoDocumento", "tipoContrato" FROM "empleados"
             WHERE "id" = ${row.employeeId} AND "tenantId" = ${tenantId} AND "deletedAt" IS NULL
             FOR UPDATE
           `;
-          if (locked.length === 0) {
-            throw new ImportRowValidationError(
-              'cedula',
-              'El empleado dejó de estar disponible durante la importación.',
-            );
-          }
-          if (locked[0].cedula !== row.cedula) {
-            throw new ImportRowValidationError(
-              'cedula',
-              'El número de documento del empleado cambió durante la importación.',
-            );
-          }
-          if (locked[0].tipoDocumento !== row.tipoDocumento) {
-            throw new ImportRowValidationError(
-              'tipoDocumento',
-              'El tipo de documento del empleado cambió durante la importación.',
-            );
-          }
-          if (!isSupportedPilaDependentContract(locked[0].tipoContrato)) {
-            throw new ImportRowValidationError(
-              'tipoContrato',
-              'El empleado ya no tiene un contrato laboral estándar compatible con el MVP PILA.',
-            );
-          }
+            if (locked.length === 0) {
+              throw new ImportRowValidationError(
+                'cedula',
+                'El empleado dejó de estar disponible durante la importación.',
+              );
+            }
+            if (locked[0].cedula !== row.cedula) {
+              throw new ImportRowValidationError(
+                'cedula',
+                'El número de documento del empleado cambió durante la importación.',
+              );
+            }
+            if (locked[0].tipoDocumento !== row.tipoDocumento) {
+              throw new ImportRowValidationError(
+                'tipoDocumento',
+                'El tipo de documento del empleado cambió durante la importación.',
+              );
+            }
+            if (!isSupportedPilaDependentContract(locked[0].tipoContrato)) {
+              throw new ImportRowValidationError(
+                'tipoContrato',
+                'El empleado ya no tiene un contrato laboral estándar compatible con el MVP PILA.',
+              );
+            }
 
-          const existing = await prisma.afiliacionSeguridadSocial.findFirst({
-            where: {
+            const existing = await prisma.afiliacionSeguridadSocial.findFirst({
+              where: {
+                tenantId,
+                empleadoId: row.employeeId,
+                vigenteDesde: row.affiliation.vigenteDesde,
+                vigenteHasta: row.affiliation.vigenteHasta,
+              },
+            });
+            if (
+              existing &&
+              this.isSamePilaAffiliation(existing, row.affiliation)
+            ) {
+              unchanged += 1;
+              continue;
+            }
+
+            await this.socialSecurityAffiliations.createInTransaction(
+              prisma,
               tenantId,
-              empleadoId: row.employeeId,
-              vigenteDesde: row.affiliation.vigenteDesde,
-              vigenteHasta: row.affiliation.vigenteHasta,
-            },
-          });
-          if (
-            existing &&
-            this.isSamePilaAffiliation(existing, row.affiliation)
-          ) {
-            unchanged += 1;
-            continue;
-          }
-
-          await this.socialSecurityAffiliations.createInTransaction(
-            prisma,
-            tenantId,
-            userId,
-            row.employeeId,
-            {
-              ...row.affiliation,
-              vigenteDesde: row.affiliation.vigenteDesde
-                .toISOString()
-                .slice(0, 10),
-              vigenteHasta:
-                row.affiliation.vigenteHasta?.toISOString().slice(0, 10) ??
-                null,
-            } satisfies CreateSocialSecurityAffiliationDto,
-          );
-          created += 1;
-        } catch (error) {
-          if (error instanceof ImportRowValidationError) {
+              userId,
+              row.employeeId,
+              {
+                ...row.affiliation,
+                vigenteDesde: row.affiliation.vigenteDesde
+                  .toISOString()
+                  .slice(0, 10),
+                vigenteHasta:
+                  row.affiliation.vigenteHasta?.toISOString().slice(0, 10) ??
+                  null,
+              } satisfies CreateSocialSecurityAffiliationDto,
+            );
+            created += 1;
+          } catch (error) {
+            if (error instanceof ImportRowValidationError) {
+              throw new UnprocessableEntityException({
+                errors: [
+                  {
+                    fila: row.fila,
+                    campo: error.campo,
+                    mensaje: error.message,
+                  },
+                ],
+              });
+            }
+            if (!(error instanceof HttpException)) throw error;
             throw new UnprocessableEntityException({
               errors: [
-                { fila: row.fila, campo: error.campo, mensaje: error.message },
+                {
+                  fila: row.fila,
+                  campo: 'vigencia',
+                  mensaje: getHttpExceptionMessage(error),
+                },
               ],
             });
           }
-          if (!(error instanceof HttpException)) throw error;
-          throw new UnprocessableEntityException({
-            errors: [
-              {
-                fila: row.fila,
-                campo: 'vigencia',
-                mensaje: getHttpExceptionMessage(error),
-              },
-            ],
-          });
         }
-      }
 
-      await this.auditService.log(
-        {
-          tenantId,
-          userId,
-          action: 'EMPLOYEE_PILA_AFFILIATION_BULK_IMPORT',
-          entityType: 'AfiliacionSeguridadSocial',
-          metadata: {
-            filas: validatedRows.length,
-            creadas: created,
-            sinCambios: unchanged,
-            versionCaptura: SOCIAL_SECURITY_AFFILIATION_CAPTURE_VERSION,
+        await this.auditService.log(
+          {
+            tenantId,
+            userId,
+            action: 'EMPLOYEE_PILA_AFFILIATION_BULK_IMPORT',
+            entityType: 'AfiliacionSeguridadSocial',
+            metadata: {
+              filas: validatedRows.length,
+              creadas: created,
+              sinCambios: unchanged,
+              versionCaptura: SOCIAL_SECURITY_AFFILIATION_CAPTURE_VERSION,
+            },
           },
-        },
-        prisma,
-      );
-      return { created, unchanged };
-    });
+          prisma,
+        );
+        return { created, unchanged };
+      },
+      { maxWait: 10_000, timeout: 30_000 },
+    );
 
     return {
       ...result,

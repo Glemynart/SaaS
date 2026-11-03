@@ -249,6 +249,11 @@ describe('EmployeeImportService', () => {
       unchanged: 0,
       message: '1 afiliación nueva registrada; 0 filas sin cambios.',
     });
+    expect(mockTenantPrismaExecute).toHaveBeenNthCalledWith(
+      2,
+      expect.any(Function),
+      { maxWait: 10_000, timeout: 30_000 },
+    );
 
     expect(mockEmpleadoFindMany).toHaveBeenCalledWith({
       where: {

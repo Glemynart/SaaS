@@ -33,6 +33,7 @@ export class TenantPrismaService {
       client: TenantPrismaClient,
       context: TenantExecutionContext,
     ) => Promise<T>,
+    options?: { maxWait?: number; timeout?: number },
   ): Promise<T> {
     const active = this.transactions.getStore();
     if (active) {
@@ -49,6 +50,6 @@ export class TenantPrismaService {
       return this.transactions.run(Object.freeze({ client, context }), () =>
         work(client, context),
       );
-    });
+    }, options);
   }
 }

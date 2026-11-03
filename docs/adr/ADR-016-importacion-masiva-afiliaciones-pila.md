@@ -32,6 +32,8 @@ La primera versión:
    oficiales ni con un operador.
 3. Valida todas las filas antes de escribir. Una importación se confirma en una
    sola transacción tenant-scoped; un error de fila revierte toda la carga.
+   La transacción espera una conexión hasta 10 segundos y tiene un límite de 30
+   segundos; si expira, se revierte la carga completa.
 4. Reutiliza las reglas actuales del historial: no permite vigencias cruzadas;
    una nueva vigencia abierta cierra la abierta previa al día anterior. Una
    fila idéntica ya registrada queda sin cambios, de modo que reintentar una
