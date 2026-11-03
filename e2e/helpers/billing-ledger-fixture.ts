@@ -23,6 +23,11 @@ export async function seedBillingLedgerFixture(
       update: { activo: true },
       create: { codigo: 'FV', nombre: 'Factura de venta', prefijo: 'FV' },
     });
+    await tx.tipoComprobante.upsert({
+      where: { codigo: 'CI' },
+      update: { activo: true },
+      create: { codigo: 'CI', nombre: 'Comprobante de ingreso', prefijo: 'CI' },
+    });
 
     const now = new Date();
     const calendarParts = new Intl.DateTimeFormat('en-US', {
@@ -31,12 +36,8 @@ export async function seedBillingLedgerFixture(
       year: 'numeric',
       month: '2-digit',
     }).formatToParts(now);
-    const year = Number(
-      calendarParts.find((part) => part.type === 'year')?.value,
-    );
-    const month = Number(
-      calendarParts.find((part) => part.type === 'month')?.value,
-    );
+    const year = Number(calendarParts.find((part) => part.type === 'year')?.value);
+    const month = Number(calendarParts.find((part) => part.type === 'month')?.value);
     const period = await tx.periodoContable.findUnique({
       where: { tenantId_anio_mes: { tenantId, anio: year, mes: month } },
     });
@@ -56,6 +57,24 @@ export async function seedBillingLedgerFixture(
     }
 
     const accountRoles = [
+      {
+        rol: 'CAJA_GENERAL',
+        codigo: `E2E-${suffix}-CASH`,
+        nombre: 'Caja general E2E',
+        claseContable: 'ACTIVO',
+        naturaleza: 'DEBITO',
+        requiereTercero: false,
+        requiereBase: false,
+      },
+      {
+        rol: 'BANCO_PRINCIPAL',
+        codigo: `E2E-${suffix}-BANK`,
+        nombre: 'Banco principal E2E',
+        claseContable: 'ACTIVO',
+        naturaleza: 'DEBITO',
+        requiereTercero: false,
+        requiereBase: false,
+      },
       {
         rol: 'CLIENTES_NACIONALES',
         codigo: `E2E-${suffix}-AR`,

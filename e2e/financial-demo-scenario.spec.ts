@@ -1,7 +1,13 @@
-import { randomInt } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { seedPayrollAccrualFixture } from './helpers/payroll-accounting-fixture';
 import { seedBillingLedgerFixture } from './helpers/billing-ledger-fixture';
+
+function dateInDays(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
 
 async function registerAndSignIn(page: Page, suffix: string) {
   const nit = `5${suffix}`;
@@ -48,6 +54,7 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
   const customerNit = `9${suffix}`;
   const productName = `Servicio Demo Financiero ${suffix}`;
   const invoiceNumber = `DEMO-FIN-${suffix}`;
+  const fechaVencimiento = dateInDays(30);
   const { tenant, user } = await registerAndSignIn(page, suffix);
   const billingFixture = await seedBillingLedgerFixture(tenant.id, customerNit, customerName);
 
@@ -88,6 +95,7 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
   await page.getByRole('button', { name: 'Nueva' }).click();
   await page.locator('select').nth(0).selectOption({ label: customerName });
   await page.getByPlaceholder('FAC-001').fill(invoiceNumber);
+  await page.getByLabel('Fecha de vencimiento').fill(fechaVencimiento);
   await page.locator('select').nth(1).selectOption({ label: productName });
   await page.getByPlaceholder('Cant').fill('1');
   // Re-enter the selected price to exercise the editable line-value field.
@@ -104,6 +112,7 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
   expect(createInvoiceResponse.status(), invoiceBody).toBe(200);
   const invoice = JSON.parse(invoiceBody) as {
     id: string;
+    customerId: string;
     subtotal: number | string;
     impuestos: number | string;
     total: number | string;
@@ -123,6 +132,130 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
   await expect(invoiceRow.getByText('Emitida', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: invoiceNumber }).click();
   await expect(page.getByText(productName, { exact: true })).toBeVisible();
+
+  const receiptsPanel = page.getByRole('region', { name: 'Cartera y recaudos' });
+  await expect(receiptsPanel.getByText('142.800')).toBeVisible();
+  await page.getByLabel('Valor recibido (COP)').fill('40000');
+  await page.getByLabel('Referencia (opcional)').fill(`TRX-${suffix}`);
+  const receiptResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/billing/receipts' &&
+      response.request().method() === 'POST',
+  );
+  await receiptsPanel.getByRole('button', { name: 'Registrar recaudo' }).click();
+  const receiptResponse = await receiptResponsePromise;
+  const receiptBody = await receiptResponse.text();
+  expect(receiptResponse.status(), receiptBody).toBe(200);
+  const receipt = JSON.parse(receiptBody) as {
+    id: string;
+    monto: number | string;
+    comprobanteContable: {
+      tipoComprobante: { codigo: string };
+      totalDebito: number | string;
+      totalCredito: number | string;
+      movimientos: Array<{ debito: number | string; credito: number | string }>;
+    };
+  };
+  expect(Number(receipt.monto)).toBe(40_000);
+  expect(receipt.comprobanteContable.tipoComprobante.codigo).toBe('CI');
+  expect(Number(receipt.comprobanteContable.totalDebito)).toBe(40_000);
+  expect(Number(receipt.comprobanteContable.totalCredito)).toBe(40_000);
+  expect(
+    receipt.comprobanteContable.movimientos.reduce((sum, line) => sum + Number(line.debito), 0),
+  ).toBe(40_000);
+
+  const receiptRequestBody = receiptResponse.request().postDataJSON();
+  const replayResponse = await page.evaluate(async (body) => {
+    const response = await fetch('/api/billing/receipts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    return { status: response.status, body: await response.json() };
+  }, receiptRequestBody);
+  expect(replayResponse.status).toBe(200);
+  expect((replayResponse.body as { id: string }).id).toBe(receipt.id);
+  const applicationsResponse = await page.evaluate(async (invoiceId) => {
+    const response = await fetch(`/api/billing/invoices/${invoiceId}/receipts`);
+    return { status: response.status, body: await response.json() };
+  }, invoice.id);
+  expect(applicationsResponse.status).toBe(200);
+  expect(applicationsResponse.body).toHaveLength(1);
+  await expect(receiptsPanel.locator('strong').nth(0)).toContainText('40.000');
+  await expect(receiptsPanel.locator('strong').nth(1)).toContainText('102.800');
+
+  const cancelResponse = await page.evaluate(async (invoiceId) => {
+    const response = await fetch(`/api/billing/invoices/${invoiceId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: 'CANCELLED',
+        motivo: 'Prueba de protección de cartera',
+      }),
+    });
+    return { status: response.status, body: await response.json() };
+  }, invoice.id);
+  expect(cancelResponse.status).toBe(409);
+
+  page.once('dialog', (dialog) => dialog.accept('Reversión para verificar el flujo de demo'));
+  const reversalResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === `/api/billing/receipts/${receipt.id}/reversal` &&
+      response.request().method() === 'POST',
+  );
+  await receiptsPanel.getByRole('button', { name: 'Reversar' }).click();
+  const reversalResponse = await reversalResponsePromise;
+  const reversalBody = await reversalResponse.text();
+  expect(reversalResponse.status(), reversalBody).toBe(200);
+  const reversal = JSON.parse(reversalBody) as {
+    reason: string;
+    comprobanteContable: {
+      id: string;
+      totalDebito: number | string;
+      totalCredito: number | string;
+    };
+  };
+  expect(reversal.reason).toBe('Reversión para verificar el flujo de demo');
+  expect(Number(reversal.comprobanteContable.totalDebito)).toBe(40_000);
+  expect(Number(reversal.comprobanteContable.totalCredito)).toBe(40_000);
+  await expect(receiptsPanel.locator('strong').nth(0)).toContainText('0');
+  await expect(receiptsPanel.locator('strong').nth(1)).toContainText('142.800');
+  await expect(receiptsPanel.getByText('Reversado')).toBeVisible();
+
+  const concurrentReceipts = await page.evaluate(
+    async ({ customerId, invoiceId, fechaRecibo, keys }) => {
+      const submit = (idempotencyKey: string) =>
+        fetch('/api/billing/receipts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customerId,
+            fechaRecibo,
+            medio: 'TRANSFERENCIA',
+            monto: 100_000,
+            idempotencyKey,
+            aplicaciones: [{ invoiceId, amount: 100_000 }],
+          }),
+        });
+      const responses = await Promise.all(keys.map(submit));
+      return Promise.all(
+        responses.map(async (response) => ({
+          status: response.status,
+          body: await response.json(),
+        })),
+      );
+    },
+    {
+      customerId: invoice.customerId,
+      invoiceId: invoice.id,
+      fechaRecibo: dateInDays(0),
+      keys: [randomUUID(), randomUUID()],
+    },
+  );
+  expect(concurrentReceipts.map(({ status }) => status).sort()).toEqual([200, 409]);
+  await page.reload();
+  await expect(receiptsPanel.locator('strong').nth(0)).toContainText('100.000');
+  await expect(receiptsPanel.locator('strong').nth(1)).toContainText('42.800');
 
   await page.goto('/contabilidad/comprobantes');
   await expect(page.getByRole('heading', { name: 'Comprobantes contabilizados' })).toBeVisible();

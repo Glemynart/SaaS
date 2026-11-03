@@ -22,7 +22,7 @@ describe('AuthorizationActivationEligibilityEvaluator', () => {
 
     expect(eligibility).toEqual({
       eligible: true,
-      operationCount: 208,
+      operationCount: 211,
       checks: {
         noLegacyInferred: true,
         noOperationsWithoutPolicy: true,

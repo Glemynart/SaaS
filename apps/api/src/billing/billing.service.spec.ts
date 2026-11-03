@@ -16,7 +16,12 @@ describe('BillingService', () => {
     },
     tercero: { findFirst: jest.fn() },
     productService: { findMany: jest.fn() },
-    invoice: { create: jest.fn() },
+    invoice: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
+    },
+    comprobanteContable: { findFirst: jest.fn() },
   };
   const tenantPrismaMock = { execute: jest.fn() };
   const ledgerMock = { registrarComprobante: jest.fn(), anular: jest.fn() };
@@ -73,7 +78,11 @@ describe('BillingService', () => {
       createdInvoiceInputs.push(input);
       return Promise.resolve({ id: 'invoice-1' });
     });
+    prismaMock.invoice.findMany.mockResolvedValue([]);
+    prismaMock.invoice.findFirst.mockResolvedValue(null);
+    prismaMock.comprobanteContable.findFirst.mockResolvedValue(null);
     txMock.invoice.findFirst.mockResolvedValue(null);
+    txMock.$queryRaw.mockResolvedValue([]);
     txMock.invoice.update.mockResolvedValue({ id: 'invoice-1' });
     txMock.customer.findFirst.mockResolvedValue(null);
     txMock.tercero.findFirst.mockResolvedValue(null);
@@ -111,6 +120,7 @@ describe('BillingService', () => {
   const invoiceDto = {
     customerId: 'customer-1',
     numero: 'FV-001',
+    fechaVencimiento: '2099-12-31',
     items: [
       {
         productServiceId: 'product-1',
@@ -217,6 +227,17 @@ describe('BillingService', () => {
     expect(prismaMock.invoice.create).not.toHaveBeenCalled();
   });
 
+  it('rechaza una fecha de vencimiento imposible antes de consultar el cliente', async () => {
+    await expect(
+      service.createInvoice('tenant-1', {
+        ...invoiceDto,
+        fechaVencimiento: '2026-02-31',
+      }),
+    ).rejects.toThrow('La fecha de vencimiento no es válida.');
+    expect(prismaMock.customer.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.invoice.create).not.toHaveBeenCalled();
+  });
+
   it('congela el impuesto configurado del producto y redondea cada línea a dos decimales', async () => {
     prismaMock.productService.findMany.mockResolvedValue([
       { id: 'product-1', impuesto: new Prisma.Decimal(5) },
@@ -300,6 +321,7 @@ describe('BillingService', () => {
     subtotal: new Prisma.Decimal(100),
     impuestos: new Prisma.Decimal(19),
     total: new Prisma.Decimal(119),
+    fechaVencimiento: new Date('2099-12-31T00:00:00.000Z'),
     items: [
       {
         subtotal: new Prisma.Decimal(100),
@@ -442,6 +464,42 @@ describe('BillingService', () => {
     expect(invoiceUpdate.data.fechaEmision).toEqual(emittedAt);
   });
 
+  it('impide emitir una factura cuyo vencimiento antecede la fecha comercial de emisión', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-03T15:00:00.000Z'));
+    const invoice = preparedInvoice();
+    invoice.fechaVencimiento = new Date('2026-11-02T00:00:00.000Z');
+    txMock.invoice.findFirst.mockResolvedValue(invoice);
+    prepareIssueMocks();
+    txMock.invoice.findFirst.mockResolvedValue(invoice);
+
+    await expect(
+      service.updateInvoiceStatus('tenant-1', 'user-1', 'invoice-1', {
+        status: PrismaInvoiceStatus.ISSUED,
+      }),
+    ).rejects.toThrow(
+      'La fecha de vencimiento debe ser igual o posterior a la fecha de emisión.',
+    );
+    expect(ledgerMock.registrarComprobante).not.toHaveBeenCalled();
+    expect(txMock.invoice.update).not.toHaveBeenCalled();
+  });
+
+  it('permite emitir borradores históricos sin vencimiento', async () => {
+    const invoice = preparedInvoice();
+    invoice.fechaVencimiento = null as unknown as Date;
+    prepareIssueMocks();
+    txMock.invoice.findFirst.mockResolvedValue(invoice);
+
+    await expect(
+      service.updateInvoiceStatus('tenant-1', 'user-1', 'invoice-1', {
+        status: PrismaInvoiceStatus.ISSUED,
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({ status: PrismaInvoiceStatus.ISSUED }),
+    );
+    expect(ledgerMock.registrarComprobante).toHaveBeenCalledTimes(1);
+    expect(txMock.invoice.update).toHaveBeenCalledTimes(1);
+  });
+
   it('no contabiliza borradores históricos sin snapshots tributarios', async () => {
     const invoice = preparedInvoice();
     invoice.items[0].porcentajeImpuesto = null as unknown as Prisma.Decimal;
@@ -488,6 +546,51 @@ describe('BillingService', () => {
       expect.objectContaining({ action: 'BILLING_INVOICE_CANCELLED' }),
       txMock,
     );
+  });
+
+  it('impide cancelar una factura con un recaudo activo', async () => {
+    txMock.invoice.findFirst.mockResolvedValue(
+      preparedInvoice(PrismaInvoiceStatus.ISSUED),
+    );
+    txMock.$queryRaw.mockImplementation((strings: TemplateStringsArray) =>
+      Promise.resolve(
+        strings.join('').includes('invoice_receipt_allocations')
+          ? [{ invoiceId: 'invoice-1', applied: new Prisma.Decimal(10_000) }]
+          : [],
+      ),
+    );
+
+    await expect(
+      service.updateInvoiceStatus('tenant-1', 'user-1', 'invoice-1', {
+        status: PrismaInvoiceStatus.CANCELLED,
+        motivo: 'Cancelación de prueba',
+      }),
+    ).rejects.toThrow('Revierta primero los recaudos activos');
+
+    expect(txMock.invoice.update).not.toHaveBeenCalled();
+    expect(ledgerMock.anular).not.toHaveBeenCalled();
+  });
+
+  it('calcula los saldos de recaudos dentro del contexto tenant-aware', async () => {
+    const invoice = {
+      id: 'invoice-1',
+      status: PrismaInvoiceStatus.ISSUED,
+      total: new Prisma.Decimal(100_000),
+    };
+    prismaMock.invoice.findMany.mockResolvedValue([invoice]);
+    prismaMock.invoice.findFirst.mockResolvedValue(invoice);
+    txMock.$queryRaw.mockResolvedValue([
+      { invoiceId: 'invoice-1', applied: new Prisma.Decimal(25_000) },
+    ]);
+
+    const listed = await service.findAllInvoices('tenant-1');
+    const detail = await service.findOneInvoice('tenant-1', 'invoice-1');
+
+    expect(tenantPrismaMock.execute).toHaveBeenCalledTimes(2);
+    expect(listed[0].totalPagado).toEqual(new Prisma.Decimal(25_000));
+    expect(listed[0].saldoPendiente).toEqual(new Prisma.Decimal(75_000));
+    expect(detail.totalPagado).toEqual(new Prisma.Decimal(25_000));
+    expect(detail.saldoPendiente).toEqual(new Prisma.Decimal(75_000));
   });
 
   it('permite cancelar con auditoría una factura histórica emitida sin asiento', async () => {

@@ -7,6 +7,7 @@ export const billingKeys = {
   customers: () => [...billingKeys.all, 'customers'],
   products: () => [...billingKeys.all, 'products'],
   invoices: () => [...billingKeys.all, 'invoices'],
+  invoiceReceipts: (id: string) => [...billingKeys.invoices(), id, 'receipts'],
 };
 
 export function useBillingDashboard() {
@@ -89,6 +90,28 @@ export function useInvoice(id: string) {
     queryKey: [...billingKeys.invoices(), id],
     queryFn: () => billingApi.getInvoice(id),
     enabled: !!id,
+  });
+}
+export function useInvoiceReceiptApplications(id: string, enabled = true) {
+  return useQuery({
+    queryKey: billingKeys.invoiceReceipts(id),
+    queryFn: () => billingApi.getInvoiceReceiptApplications(id),
+    enabled: !!id && enabled,
+  });
+}
+export function useCreateCustomerReceipt() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: billingApi.createCustomerReceipt,
+    onSuccess: () => qc.invalidateQueries({ queryKey: billingKeys.all }),
+  });
+}
+export function useReverseCustomerReceipt() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      billingApi.reverseCustomerReceipt(id, reason),
+    onSuccess: () => qc.invalidateQueries({ queryKey: billingKeys.all }),
   });
 }
 export function useUpdateInvoiceStatus() {

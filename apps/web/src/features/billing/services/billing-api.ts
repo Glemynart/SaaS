@@ -49,8 +49,11 @@ export interface Invoice {
   subtotal: number;
   impuestos: number;
   total: number;
+  totalPagado?: number | null;
+  saldoPendiente?: number | null;
   status: string;
   fechaEmision: string;
+  fechaVencimiento: string | null;
   customer: { razonSocial: string; nit: string };
   customerRazonSocialSnapshot: string | null;
   customerNitSnapshot: string | null;
@@ -60,6 +63,21 @@ export interface Invoice {
   comprobanteContable?: LedgerVoucher | null;
   items?: InvoiceItem[];
   _count?: { items: number };
+}
+export type CustomerReceiptMethod = 'EFECTIVO' | 'TRANSFERENCIA';
+export interface InvoiceReceiptApplication {
+  id: string;
+  amount: number;
+  receipt: {
+    id: string;
+    fechaRecibo: string;
+    medio: CustomerReceiptMethod;
+    referencia: string | null;
+    monto: number;
+    reversal: { id: string; reason: string; createdAt: string } | null;
+    registradoPorId: string;
+  };
+  comprobanteContable: LedgerVoucher | null;
 }
 export interface BillingDashboard {
   clientesActivos: number;
@@ -104,6 +122,7 @@ export const billingApi = {
   createInvoice: (d: {
     customerId: string;
     numero: string;
+    fechaVencimiento: string;
     items: {
       descripcion: string;
       cantidad: number;
@@ -113,6 +132,22 @@ export const billingApi = {
     }[];
   }) => req<Invoice>('/api/billing/invoices', { method: 'POST', body: JSON.stringify(d) }),
   getInvoice: (id: string) => req<Invoice>(`/api/billing/invoices/${id}`),
+  getInvoiceReceiptApplications: (id: string) =>
+    req<InvoiceReceiptApplication[]>(`/api/billing/invoices/${id}/receipts`),
+  createCustomerReceipt: (d: {
+    customerId: string;
+    fechaRecibo: string;
+    medio: CustomerReceiptMethod;
+    referencia?: string;
+    monto: number;
+    idempotencyKey: string;
+    aplicaciones: { invoiceId: string; amount: number }[];
+  }) => req('/api/billing/receipts', { method: 'POST', body: JSON.stringify(d) }),
+  reverseCustomerReceipt: (id: string, reason: string) =>
+    req(`/api/billing/receipts/${id}/reversal`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
   updateInvoiceStatus: (id: string, status: string, motivo?: string) =>
     req<Invoice>(`/api/billing/invoices/${id}/status`, {
       method: 'PATCH',

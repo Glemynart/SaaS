@@ -19,6 +19,7 @@ import {
   CreateInvoiceDto,
   UpdateInvoiceStatusDto,
 } from './dto/billing.dto';
+import { getActiveReceiptAppliedAmounts } from './customer-receipt-balance';
 
 const BILLING_INVOICE_ORIGIN = {
   type: 'BILLING_INVOICE',
@@ -44,6 +45,20 @@ function businessCalendarDate(date: Date): Date {
   const part = (type: 'year' | 'month' | 'day') =>
     Number(parts.find((value) => value.type === type)?.value);
   return new Date(Date.UTC(part('year'), part('month') - 1, part('day')));
+}
+
+function parseDateOnly(value: string, label: string): Date {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new BadRequestException(`${label} debe usar AAAA-MM-DD.`);
+  }
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.toISOString().slice(0, 10) !== value
+  ) {
+    throw new BadRequestException(`${label} no es válida.`);
+  }
+  return parsed;
 }
 
 @Injectable()
@@ -178,6 +193,10 @@ export class BillingService {
 
   // --- INVOICES ---
   async createInvoice(tenantId: string, dto: CreateInvoiceDto) {
+    const fechaVencimiento = parseDateOnly(
+      dto.fechaVencimiento,
+      'La fecha de vencimiento',
+    );
     if (dto.items.length === 0) {
       throw new BadRequestException(
         'La factura debe tener al menos una línea.',
@@ -240,6 +259,7 @@ export class BillingService {
         tenantId,
         customerId: dto.customerId,
         numero: dto.numero,
+        fechaVencimiento,
         customerRazonSocialSnapshot: customer.razonSocial,
         customerNitSnapshot: customer.nit,
         subtotal: subtotal.toFixed(2),
@@ -255,7 +275,7 @@ export class BillingService {
   }
 
   async findAllInvoices(tenantId: string, status?: string) {
-    return this.prisma.invoice.findMany({
+    const invoices = await this.prisma.invoice.findMany({
       where: {
         tenantId,
         ...(status
@@ -267,6 +287,27 @@ export class BillingService {
         customer: { select: { razonSocial: true, nit: true } },
         _count: { select: { items: true } },
       },
+    });
+    const appliedAmounts = invoices.length
+      ? await this.tenantPrisma.execute((tx) =>
+          getActiveReceiptAppliedAmounts(
+            tx,
+            tenantId,
+            invoices.map(({ id }) => id),
+          ),
+        )
+      : new Map<string, Prisma.Decimal>();
+    return invoices.map((invoice) => {
+      if (invoice.status !== 'ISSUED') {
+        return { ...invoice, totalPagado: null, saldoPendiente: null };
+      }
+      const totalPagado =
+        appliedAmounts.get(invoice.id) ?? new Prisma.Decimal(0);
+      return {
+        ...invoice,
+        totalPagado,
+        saldoPendiente: new Prisma.Decimal(invoice.total).minus(totalPagado),
+      };
     });
   }
 
@@ -281,7 +322,18 @@ export class BillingService {
       tenantId,
       invoice.id,
     );
-    return { ...invoice, comprobanteContable };
+    const appliedAmounts = await this.tenantPrisma.execute((tx) =>
+      getActiveReceiptAppliedAmounts(tx, tenantId, [invoice.id]),
+    );
+    const totalPagado =
+      invoice.status === 'ISSUED'
+        ? (appliedAmounts.get(invoice.id) ?? new Prisma.Decimal(0))
+        : null;
+    const saldoPendiente =
+      invoice.status === 'ISSUED'
+        ? new Prisma.Decimal(invoice.total).minus(totalPagado!)
+        : null;
+    return { ...invoice, totalPagado, saldoPendiente, comprobanteContable };
   }
 
   async updateInvoiceStatus(
@@ -319,6 +371,19 @@ export class BillingService {
         throw new ConflictException(
           'Una factura cancelada no se puede modificar.',
         );
+      }
+
+      if (dto.status === 'CANCELLED' && invoice.status === 'ISSUED') {
+        const appliedAmounts = await getActiveReceiptAppliedAmounts(
+          tx,
+          tenantId,
+          [id],
+        );
+        if ((appliedAmounts.get(id) ?? new Prisma.Decimal(0)).gt(0)) {
+          throw new ConflictException(
+            'Revierta primero los recaudos activos de esta factura antes de cancelarla.',
+          );
+        }
       }
 
       if (dto.status === 'DRAFT') {
@@ -474,6 +539,15 @@ export class BillingService {
 
     const fechaEmision = new Date();
     const fechaContable = businessCalendarDate(fechaEmision);
+    const fechaVencimiento = invoice.fechaVencimiento
+      ?.toISOString()
+      .slice(0, 10);
+    const fechaComercialEmision = fechaContable.toISOString().slice(0, 10);
+    if (fechaVencimiento && fechaVencimiento < fechaComercialEmision) {
+      throw new BadRequestException(
+        'La fecha de vencimiento debe ser igual o posterior a la fecha de emisión.',
+      );
+    }
     const periodo = await tx.periodoContable.findFirst({
       where: {
         tenantId,
