@@ -1211,15 +1211,18 @@ false`.
   $1.105.000 para esa persona y $1.100.000 para las otras 99, con 180 días
   computables para cada una.
 - Tras aprobar, la prueba desconecta el navegador, confirma la finalización del
-  lote, verifica las 100 publicaciones inmutables con SHA-256 y descarga un PDF
-  válido. También comprueba que la línea conserva la identidad y evidencia de
-  la corrección aplicada.
+  lote, verifica las 100 publicaciones inmutables con SHA-256 y descarga el PDF
+  del empleado corregido. La prueba valida la firma PDF, Content-Type y compara
+  el SHA-256 de los bytes descargados con el hash inmutable de su línea.
+  También comprueba que la línea conserva la identidad y evidencia de la
+  corrección aplicada.
 - La prueba unitaria del worker verifica que el HTML enviado al renderizador
   contiene identidad, componentes de la base, días, importe aprobado y versión
-  de fórmula. Esto valida la entrada al renderizador; el E2E comprueba la
-  descarga del PDF, no extrae su contenido textual.
-- Evidencia local: Browser E2E (1/1, 39,6 s) sobre PostgreSQL 16 desechable con
-  81 migraciones; pruebas de cálculo, servicio y worker (52/52); typecheck API
-  y web; builds API y web. La base de desarrollo no se usó. La prima sigue
-  limitada a enero–junio para demo; revisión laboral independiente y regla del
-  segundo semestre siguen pendientes antes de uso operativo.
+  de fórmula. El E2E demuestra que se descargó el artefacto publicado sin
+  cambios; no extrae texto del PDF.
+- Evidencia local actual: Browser E2E (1/1, 39,0 s) sobre PostgreSQL 16
+  desechable con las 82 migraciones. Esta ejecución no usó la base de desarrollo.
+  Las pruebas de cálculo, servicio y worker (52/52), typecheck API/web y builds
+  API/web se verificaron en el corte anterior de esta misma rama funcional. La
+  prima sigue limitada a enero–junio para demo; revisión laboral independiente
+  y regla del segundo semestre siguen pendientes antes de uso operativo.

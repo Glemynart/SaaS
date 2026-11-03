@@ -374,15 +374,15 @@ test('aplica una corrección aprobada y genera los 100 PDFs aunque el navegador 
         (document: { categoria: string }) => document.categoria === 'PRIMA_SERVICIOS',
       ),
     ).toBe(true);
-    const firstDocumentLink = page.getByRole('link', { name: /Ver PDF/ }).first();
-    const firstDocumentHref = await firstDocumentLink.getAttribute('href');
-    const employeeId = fixture.employeeIds.find(
-      (id) => firstDocumentHref === `/empleados/${id}/expediente`,
-    );
-    expect(employeeId).toBeDefined();
+    const employeeId = fixture.correctedEmployeeId;
+    const firstDocumentLink = page.locator(`a[href="/empleados/${employeeId}/expediente"]`);
+    await expect(firstDocumentLink).toHaveCount(1);
     const firstLine = persisted.batch?.lines.find(
       (line: { employeeId: string }) => line.employeeId === employeeId,
     );
+    if (!firstLine?.documentSha256) {
+      throw new Error('La línea corregida no conserva el hash de su PDF.');
+    }
     const firstDocument = persisted.documents.find(
       (document: { servicePremiumLineId: string }) =>
         document.servicePremiumLineId === firstLine?.id,
@@ -398,13 +398,25 @@ test('aplica una corrección aprobada y genera los 100 PDFs aunque el navegador 
     const download = await page.evaluate(async (documentId) => {
       const response = await fetch(`/api/expediente-docs/${documentId}/download`);
       const content = new Uint8Array(await response.arrayBuffer());
+      const digest = await crypto.subtle.digest('SHA-256', content);
+      const sha256 = Array.from(new Uint8Array(digest), (byte) =>
+        byte.toString(16).padStart(2, '0'),
+      ).join('');
       return {
         status: response.status,
         contentType: response.headers.get('Content-Type'),
         signature: String.fromCharCode(...content.slice(0, 4)),
+        byteLength: content.byteLength,
+        sha256,
       };
     }, firstDocument.id);
-    expect(download).toEqual({ status: 200, contentType: 'application/pdf', signature: '%PDF' });
+    expect(download).toMatchObject({
+      status: 200,
+      contentType: 'application/pdf',
+      signature: '%PDF',
+      sha256: firstLine.documentSha256,
+    });
+    expect(download.byteLength).toBeGreaterThan(0);
   } finally {
     await fixture.disconnect();
   }
