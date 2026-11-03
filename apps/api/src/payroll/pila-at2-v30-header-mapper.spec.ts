@@ -125,6 +125,31 @@ describe('mapPilaAt2V30HeaderCandidate', () => {
     });
   });
 
+  it('maps the type 2 header from current PILA v3 snapshots', () => {
+    const input = snapshot();
+    input.payloadVersion = 3;
+    (input.payload as { schemaVersion: number }).schemaVersion = 3;
+
+    const candidate = mapCandidateForDemoScope([input]);
+
+    expect(candidate.supportedSnapshots).toBe(true);
+    expect(candidate.values[8]).toEqual({ value: 'E' });
+    expect(candidate.values[16]).toEqual({ value: '2026-10' });
+    expect(candidate.values[19]).toEqual({ value: 1 });
+    expect(candidate.values[20]).toEqual({ value: 2_000_000 });
+    expect(candidate.unresolvedFields).toEqual([]);
+  });
+
+  it('rejects a header snapshot whose payload and schema versions disagree', () => {
+    const input = snapshot();
+    input.payloadVersion = 3;
+
+    const candidate = mapCandidateForDemoScope([input]);
+
+    expect(candidate.supportedSnapshots).toBe(false);
+    expect(candidate.unresolvedFields).toHaveLength(22);
+  });
+
   it('aggregates distinct standard cotizantes and their frozen CCF IBCs', () => {
     const second = snapshot('employee-2');
     payloadOf(second).payroll.ibcPorSubsistema.cajaCompensacion.valor =

@@ -109,6 +109,32 @@ describe('mapPilaAt2V30EmployerCandidate', () => {
     );
   });
 
+  it('maps aportante fields from the current PILA v3 snapshot', () => {
+    const input = snapshot();
+    input.payloadVersion = 3;
+    input.payload.schemaVersion = 3;
+
+    const candidate = mapPilaAt2V30EmployerCandidate(input);
+
+    expect(candidate).toMatchObject({
+      supportedSnapshot: true,
+      tenantId: 'tenant-1',
+    });
+    expect(candidate.values[1]).toEqual({ value: 'Empresa Demo SAS' });
+    expect(candidate.values[30]).toEqual({ value: '1' });
+    expect(candidate.unresolvedFields).toEqual([]);
+  });
+
+  it('rejects a snapshot whose payload and schema versions disagree', () => {
+    const input = snapshot();
+    input.payloadVersion = 3;
+
+    const candidate = mapPilaAt2V30EmployerCandidate(input);
+
+    expect(candidate.supportedSnapshot).toBe(false);
+    expect(candidate.unresolvedFields).toHaveLength(34);
+  });
+
   it('uses the declared branch code as the name fallback for branch presentation', () => {
     const input = snapshot();
     input.payload.employer.pila.formaPresentacion = 'S';
@@ -221,6 +247,40 @@ describe('mapPilaAt2V30EmployerAggregateCandidate', () => {
         expect.objectContaining({ fieldNumber: 29 }),
       ]),
     );
+  });
+
+  it('aggregates aportante candidates from PILA v3 snapshots', () => {
+    const first = snapshot('employee-1');
+    const second = snapshot('employee-2');
+    first.payloadVersion = 3;
+    first.payload.schemaVersion = 3;
+    second.payloadVersion = 3;
+    second.payload.schemaVersion = 3;
+
+    const candidate = mapPilaAt2V30EmployerAggregateCandidate({
+      expectedTenantId: 'tenant-1',
+      period,
+      snapshots: [first, second],
+    });
+
+    expect(candidate.supportedSnapshots).toBe(true);
+    expect(candidate.values[1]).toEqual({ value: 'Empresa Demo SAS' });
+    expect(candidate.values[30]).toEqual({ value: '1' });
+    expect(candidate.unresolvedFields).toEqual([]);
+  });
+
+  it('rejects an aggregate containing inconsistent snapshot versions', () => {
+    const inconsistent = snapshot('employee-2');
+    inconsistent.payloadVersion = 3;
+
+    const candidate = mapPilaAt2V30EmployerAggregateCandidate({
+      expectedTenantId: 'tenant-1',
+      period,
+      snapshots: [snapshot(), inconsistent],
+    });
+
+    expect(candidate.supportedSnapshots).toBe(false);
+    expect(candidate.values).toEqual({});
   });
 
   it('leaves conflicting employer values unresolved without choosing a snapshot', () => {
