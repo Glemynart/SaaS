@@ -2,6 +2,7 @@ import {
   PILA_RISK_ACTIVITY_CATALOG_VERSION,
   PILA_RISK_ACTIVITY_CODES,
 } from './pila-risk-activity-catalog';
+import { PILA_AT2_V30_RECORD_LAYOUTS } from './pila-at2-v30-record-serializer';
 import type { PilaSnapshotPreparationInput } from './pila-preparation';
 import { mapPilaAt2V30DetailCandidate } from './pila-at2-v30-detail-mapper';
 
@@ -329,6 +330,47 @@ function mapCandidate(
 }
 
 describe('mapPilaAt2V30DetailCandidate', () => {
+  it('accounts for every AT2 detail field as a candidate or an explicit blocker', () => {
+    const candidate = mapCandidate(snapshot());
+    const layoutFields =
+      PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2.fields
+        .map(({ fieldNumber }) => fieldNumber)
+        .sort((left, right) => left - right);
+    const candidateFields = Object.keys(candidate.values)
+      .map(Number)
+      .sort((left, right) => left - right);
+    const unresolvedFields = candidate.unresolvedFields
+      .map(({ fieldNumber }) => fieldNumber)
+      .sort((left, right) => left - right);
+
+    expect(new Set(candidateFields).size).toBe(candidateFields.length);
+    expect(new Set(unresolvedFields).size).toBe(unresolvedFields.length);
+    expect(
+      candidateFields.filter((field) => unresolvedFields.includes(field)),
+    ).toEqual([]);
+    expect(
+      [...candidateFields, ...unresolvedFields].sort(
+        (left, right) => left - right,
+      ),
+    ).toEqual(layoutFields);
+  });
+
+  it('keeps every AT2 detail field blocked for an unsupported snapshot', () => {
+    const input = snapshot();
+    input.payloadVersion = 1;
+
+    const candidate = mapCandidate(input);
+    const layoutFields =
+      PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2.fields
+        .map(({ fieldNumber }) => fieldNumber)
+        .sort((left, right) => left - right);
+
+    expect(Object.keys(candidate.values)).toEqual([]);
+    expect(
+      candidate.unresolvedFields.map(({ fieldNumber }) => fieldNumber),
+    ).toEqual(layoutFields);
+  });
+
   it('maps fields 9 and 10 when the frozen work municipality matches the CCF department', () => {
     const input = snapshot();
     input.payloadVersion = 3;
