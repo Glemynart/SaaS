@@ -194,10 +194,11 @@ test('genera, aprueba y contabiliza una nómina desde el flujo de usuario', asyn
       payroll: {
         fspSubaccounts: {
           sourceScope: 'SINGLE_SOURCE_CONFIRMED',
-          status: 'READY',
-          solidaridad: 40_000,
-          subsistencia: 40_000,
-          payrollFspAmount: 80_000,
+          status: 'BLOCKED',
+          blocker: expect.stringContaining('AT2 v30 diferencia'),
+          solidaridad: null,
+          subsistencia: null,
+          payrollFspAmount: null,
           sourceScopeUpdatedById: expect.any(String),
           sourceScopeUpdatedAt: expect.any(String),
         },
