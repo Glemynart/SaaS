@@ -241,6 +241,38 @@ function setStandardHealthInputs(
   });
 }
 
+function setStandardFspSubaccounts(
+  snapshotInput: PilaSnapshotPreparationInput,
+  overrides: {
+    sourceScope?: string;
+    status?: string;
+    solidarity?: number;
+    subsistence?: number;
+    payrollFspAmount?: number;
+    ibcPensionalAgregado?: number;
+    blocker?: string | null;
+  } = {},
+) {
+  const payload = payloadOf(snapshotInput);
+  Object.assign(payload.payroll, {
+    fspSubaccounts: {
+      sourceScope: overrides.sourceScope ?? 'SINGLE_SOURCE_CONFIRMED',
+      sourceScopeUpdatedAt: '2026-11-03T12:00:00.000Z',
+      sourceScopeUpdatedById: 'payroll-user-1',
+      status: overrides.status ?? 'READY',
+      blocker: overrides.blocker ?? null,
+      ruleVersion: 'CO_FSP_SUBACCOUNTS_DEC1833_PRE_2027_04_01_V1',
+      roundingRuleVersion:
+        'CO_PILA_CONTRIBUTION_ROUND_UP_100_DEC1990_ART3_2_1_5_V1',
+      ibcPensionalAgregado: overrides.ibcPensionalAgregado ?? 4_000_000,
+      smmlv: 1_000_000,
+      solidaridad: overrides.solidarity ?? 20_000,
+      subsistencia: overrides.subsistence ?? 20_000,
+      payrollFspAmount: overrides.payrollFspAmount ?? 40_000,
+    },
+  });
+}
+
 function setStandardCcfEmployer(
   snapshotInput: PilaSnapshotPreparationInput,
   overrides: {
@@ -349,6 +381,70 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const candidate = mapCandidate(input);
 
     expect(candidate.supportedSnapshot).toBe(true);
+  });
+
+  it('maps FSP subaccounts from a v6 snapshot after source and amount reconciliation', () => {
+    const input = snapshot();
+    input.payloadVersion = 6;
+    (input.payload as { schemaVersion: number }).schemaVersion = 6;
+    setStandardPensionInputs(input, {
+      base: 4_000_000,
+      employeeAmount: 160_000,
+      employerAmount: 480_000,
+    });
+    const payload = payloadOf(input);
+    payload.payroll.concepts?.push({
+      codigo: 'FSP',
+      tipo: 'DEDUCTION',
+      base: 4_000_000,
+      factor: 0.01,
+      valor: 40_000,
+    });
+    setStandardFspSubaccounts(input);
+
+    const candidate = mapCandidate(input);
+
+    expect(candidate.values[51]).toEqual({ value: 20_000 });
+    expect(candidate.values[52]).toEqual({ value: 20_000 });
+    expect(candidate.normativeRuleVersions.fspSubaccounts).toBe(
+      'CO_FSP_SUBACCOUNTS_DEC1833_PRE_2027_04_01_V1',
+    );
+  });
+
+  it.each([
+    ['source scope is unconfirmed', { sourceScope: 'UNCONFIRMED' }],
+    [
+      'source scope has multiple income sources',
+      { sourceScope: 'MULTIPLE_SOURCES' },
+    ],
+    ['frozen IBC does not match', { ibcPensionalAgregado: 4_100_000 }],
+    ['subaccounts do not reconcile', { payrollFspAmount: 41_000 }],
+  ])('keeps FSP fields blocked when %s', (_case, overrides) => {
+    const input = snapshot();
+    input.payloadVersion = 6;
+    (input.payload as { schemaVersion: number }).schemaVersion = 6;
+    setStandardPensionInputs(input, {
+      base: 4_000_000,
+      employeeAmount: 160_000,
+      employerAmount: 480_000,
+    });
+    const payload = payloadOf(input);
+    payload.payroll.concepts?.push({
+      codigo: 'FSP',
+      tipo: 'DEDUCTION',
+      base: 4_000_000,
+      factor: 0.01,
+      valor: 40_000,
+    });
+    setStandardFspSubaccounts(input, overrides);
+
+    const candidate = mapCandidate(input);
+
+    expect(candidate.values[51]).toBeUndefined();
+    expect(candidate.values[52]).toBeUndefined();
+    expect(
+      candidate.unresolvedFields.map(({ fieldNumber }) => fieldNumber),
+    ).toEqual(expect.arrayContaining([51, 52]));
   });
 
   it('accounts for every AT2 detail field as a candidate or an explicit blocker', () => {

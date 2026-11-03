@@ -345,29 +345,35 @@ las vigencias previas al 1 de abril de 2027. Antes de aprobar, el servicio
 compara la tasa FSP guardada en cada ejecución con la vigente para su IBC y
 bloquea las discrepancias hasta reliquidar. No modifica snapshots aprobados.
 
-Los snapshots PILA v4 existentes en `main` y la versión v5 de esta rama aún
-no bastan para completar esos campos: conservan IBC por subsistema, el concepto
-Payroll `FSP` agregado y sus parámetros de cálculo,
-pero no congela el alcance de todas las fuentes de ingreso del cotizante ni
-montos separados y aprobados para las dos subcuentas. No se inferirá que el
-empleador actual es la única fuente por el mero hecho de que solo exista una
-relación laboral en el tenant. Tampoco se calcularán los campos 51/52 a partir
-del concepto agregado durante el preflight o la exportación.
+La evaluación del snapshot v6 hace explícito el alcance de fuentes por
+empleado y período mediante `UNCONFIRMED`, `SINGLE_SOURCE_CONFIRMED` o
+`MULTIPLE_SOURCES`. Solo ADMIN/OPERADOR puede registrarlo en un período
+`CALCULADA` o `EN_REVISION`; la API verifica tenant y nómina, serializa la
+actualización con la aprobación del período, conserva actor/fecha y registra
+auditoría en la misma transacción. La pantalla pide confirmar la fuente única
+solo después de verificarla; la existencia de una sola relación laboral en el
+tenant no se usa como prueba.
 
-Antes de habilitar ambos campos, un incremento debe definir y congelar en una
-nueva versión del snapshot PILA: (a) el alcance confirmado de fuentes de
-ingreso del cotizante para el período; (b) el IBC pensional agregado que
-sustenta los umbrales; (c) régimen y versión normativa aplicables según
-período y fecha prevista de pago; y (d) los importes aprobados, separados por
-subcuenta y con la regla de redondeo versionada. Los snapshots históricos no
-se completan retrospectivamente. Mientras falte alguno de esos datos, haya
-múltiples fuentes no representadas, no coincida el total con el concepto FSP
-aprobado según la regla aplicable, o el período/pago esté sujeto a una regla
-de transición no reconciliada, los campos 51/52 permanecen bloqueados. La
-generación de un archivo y la aceptación del operador continúan siendo estados
-distintos.
+Al aprobar, el snapshot v6 congela la declaración, el IBC pensional proveniente
+del concepto único `PENSION_EMP`, el SMMLV, las dos subcuentas calculadas y las
+versiones de regla y redondeo. La rama solo propone los campos 51/52 para
+dependientes 01/00 de mes calendario completo, con días aprobados, sin
+novedades ni eventos sin segmentar y con fecha prevista de pago anterior al 1
+de abril de 2027. Cada importe debe conciliar con el concepto `FSP` ya aprobado;
+si el redondeo separado a centenas cambia el total, se bloquean ambos campos y
+no se modifica Payroll. Las fuentes múltiples, la declaración ausente, los
+datos incompletos y el período o pago de transición permanecen bloqueados.
+Los snapshots v1–v5 mantienen sus razones históricas y no se completan ni
+reescriben. Estos candidatos locales no habilitan serialización o descarga ni
+afirman aceptación de un operador.
 
-Fixtures normativos mínimos antes del código que resuelva los campos:
+La migración agrega el enum y los tres campos con `UNCONFIRMED` como valor
+predeterminado para ejecuciones existentes; no infiere declaraciones pasadas
+ni actualiza snapshots aprobados. Si se revierte la aplicación, se conservan
+las columnas aditivas para no perder declaraciones auditadas; retirar el
+schema requiere una decisión y una preservación explícita de esos datos.
+
+Pruebas normativas y límites vigentes del candidato:
 
 | Caso anonimizado                                                                               | Expected values / resultado                                                                                                                                                                                                                                                                                                                                                                                                           |
 | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -749,8 +755,8 @@ reconciliación normativa.
 | 48    | Aporte voluntario del afiliado a pensión       | Planilla E desde 2025-07-01: candidato cero por corte normativo. Período anterior o cruzado: falta importe congelado desde Payroll y campo 28 confirmado.                                                                                                                                                                                                                                                                                                                                                                  |
 | 49    | Aporte voluntario del aportante a pensión      | Planilla E desde 2025-07-01: candidato cero por corte normativo. Período anterior o cruzado: falta importe congelado desde Payroll y campo 28 confirmado.                                                                                                                                                                                                                                                                                                                                                                  |
 | 50    | Total de cotización pensional                  | AT2 lo calcula como 47+48+49; no recalcular en el exportador ni asumir que el archivo plano del operador espera recibirlo.                                                                                                                                                                                                                                                                                                                                                                                                 |
-| 51    | Fondo de solidaridad — solidaridad             | El concepto FSP puede conservar un importe agregado, pero AT2 atribuye la liquidación al operador; no hay separación de subcuentas. Confirmar formato del operador.                                                                                                                                                                                                                                                                                                                                                        |
-| 52    | Fondo de solidaridad — subsistencia            | Mismo hallazgo del campo 51; no se conserva importe separado ni se debe repartir el concepto agregado.                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 51    | Fondo de solidaridad — solidaridad             | Snapshot v6 conserva solidaridad separada en el campo 51 solo para fuente única confirmada, escenario estándar de mes completo y regla pre-2027 versionada; los snapshots v1–v5 y las demás situaciones siguen sin candidato. El formato y la aceptación por operador permanecen pendientes.                                                                                                                                                                                                                               |
+| 52    | Fondo de solidaridad — subsistencia            | Snapshot v6 conserva subsistencia separada en el campo 52 bajo las mismas condiciones del campo 51. No se reparte un importe agregado cuando las subcuentas redondeadas no concilian exactamente con `FSP` congelado.                                                                                                                                                                                                                                                                                                      |
 | 53    | Valor no retenido por aportes voluntarios      | Planilla E desde 2025-07-01: candidato en blanco porque el campo 28 queda vacío y el campo 53 solo se usa cuando este está en X. Período anterior o cruzado: requiere cálculo y fuente de retención aprobados.                                                                                                                                                                                                                                                                                                             |
 | 54    | Tarifa de salud                                | Regla versionada `CO_HEALTH_STANDARD_RATE_L1122_ART10_V1`: 12,5 % para dependiente estándar privado sin exoneración confirmada.                                                                                                                                                                                                                                                                                                                                                                                            | Candidato `0.12500` solo para aportante privado tipo 1, cotizante 01/00 de mes completo, ubicación doméstica confirmada y snapshot completo sin novedad/evento. Exige `SALUD_EMP` 4 % y `SALUD_PAT` 8,5 % con base igual al IBC 43. La declaración de no exoneración debe coincidir entre política del tenant y perfil PILA. Exonerados, públicos y casos incompletos quedan bloqueados; el decimal requiere prueba por operador.                                         |
 | 55    | Cotización obligatoria a salud                 | Suma de los importes congelados `SALUD_EMP`/`SALUD_PAT`, después de verificar tipo, factor, base IBC 43 y redondeo individual.                                                                                                                                                                                                                                                                                                                                                                                             | La suma congelada debe coincidir además con IBC 43 × 12,5 % y su redondeo PILA. No se calcula ni reemplaza un importe. Toda ausencia o discrepancia mantiene ambos campos sin candidato; el mapeo no habilita archivo ni compatibilidad.                                                                                                                                                                                                                                  |
@@ -852,7 +858,7 @@ carga por operador sigue pendiente.
 El contrato de snapshot de nómina `PayrollSnapshot.payloadVersion` permanece en
 versión 1. Los datos regulatorios se capturan por separado en
 `PayrollSnapshot.pilaPayload` con `pilaPayloadVersion`; la implementación
-actual en `main` usa la versión 4; esta rama la incrementa a v5 por los límites FSP explícitos. Esa captura separada
+actual en `main` usa la versión 5; la rama `codex/goal02-pila-fsp-scope-snapshot` eleva a v6 para congelar alcance y subcuentas FSP. Esa captura separada
 incluye fuentes confirmadas del aportante, empleado, período, contrato/sede,
 afiliaciones, novedades PILA y asignaciones de riesgo, con datos no disponibles
 preservados como nulos y reportados por el preflight. La existencia de esos

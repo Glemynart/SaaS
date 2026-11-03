@@ -10,7 +10,11 @@ import {
   Min,
   Max,
 } from 'class-validator';
-import { PayrollPeriodStatus, PilaEventCode } from '@prisma/client';
+import {
+  PayrollPeriodStatus,
+  PayrollPilaFspSourceScope,
+  PilaEventCode,
+} from '@prisma/client';
 
 /**
  * Re-exportado desde @prisma/client: fuente única de verdad. No duplicar
@@ -43,6 +47,11 @@ export class UpdatePayrollPilaPaymentDateDto {
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
   @IsOptional()
   fechaPrevistaPagoPila: string | null;
+}
+
+export class UpdatePayrollPilaFspSourceScopeDto {
+  @IsEnum(PayrollPilaFspSourceScope)
+  sourceScope: PayrollPilaFspSourceScope;
 }
 
 /** Body opcional de POST payroll/periods/:id/rechazar (ADR-002 §6). */

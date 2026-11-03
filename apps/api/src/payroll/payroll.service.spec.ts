@@ -12,7 +12,11 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import { PayrollCorrectionStatus, PilaEventCode } from '@prisma/client';
+import {
+  PayrollCorrectionStatus,
+  PayrollPilaFspSourceScope,
+  PilaEventCode,
+} from '@prisma/client';
 import {
   PayrollCorrectionCalculationInput,
   PayrollCorrectionIntentKind,
@@ -34,6 +38,8 @@ const mockPayrollPeriodUpdateMany = jest.fn();
 const mockPayrollPeriodFindFirstOrThrow = jest.fn();
 const mockPayrollRunFindMany = jest.fn();
 const mockPayrollRunFindFirst = jest.fn();
+const mockPayrollRunFindFirstOrThrow = jest.fn();
+const mockPayrollRunUpdateMany = jest.fn();
 const mockPayrollRunCreate = jest.fn();
 const mockPayrollRunDeleteMany = jest.fn();
 const mockPayrollConceptDeleteMany = jest.fn();
@@ -80,6 +86,8 @@ const mockPrisma = {
   payrollRun: {
     findMany: mockPayrollRunFindMany,
     findFirst: mockPayrollRunFindFirst,
+    findFirstOrThrow: mockPayrollRunFindFirstOrThrow,
+    updateMany: mockPayrollRunUpdateMany,
     create: mockPayrollRunCreate,
     deleteMany: mockPayrollRunDeleteMany,
   },
@@ -483,6 +491,9 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       makePeriod('APROBADA'),
     );
     mockPayrollRunFindMany.mockResolvedValue([]);
+    mockPayrollRunFindFirst.mockResolvedValue(null);
+    mockPayrollRunFindFirstOrThrow.mockResolvedValue({});
+    mockPayrollRunUpdateMany.mockResolvedValue({ count: 1 });
     mockPayrollNoveltyFindMany.mockResolvedValue([]);
     mockPayrollPilaEventFindMany.mockResolvedValue([]);
     mockQueryRaw.mockResolvedValue([]);
@@ -538,6 +549,103 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
     }).compile();
 
     service = module.get(PayrollService);
+  });
+
+  describe('alcance de fuentes de ingreso FSP para PILA', () => {
+    const runReference = {
+      id: 'run-1',
+      payrollPeriodId: PERIOD_ID,
+      employeeId: 'emp-1',
+      pilaFspSourceScope: PayrollPilaFspSourceScope.UNCONFIRMED,
+    };
+
+    it('guarda y audita la confirmación tenant-scoped antes de aprobar', async () => {
+      mockPayrollRunFindFirst.mockResolvedValue(runReference);
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('EN_REVISION'));
+      mockPayrollRunFindFirstOrThrow.mockResolvedValue({
+        id: 'run-1',
+        employeeId: 'emp-1',
+        payrollPeriodId: PERIOD_ID,
+        pilaFspSourceScope: PayrollPilaFspSourceScope.SINGLE_SOURCE_CONFIRMED,
+        pilaFspSourceScopeUpdatedAt: new Date('2026-11-03T12:00:00.000Z'),
+        pilaFspSourceScopeUpdatedById: USER,
+      });
+
+      const result = await service.updatePilaFspSourceScope(
+        TENANT,
+        USER,
+        'run-1',
+        {
+          sourceScope: PayrollPilaFspSourceScope.SINGLE_SOURCE_CONFIRMED,
+        },
+      );
+
+      expect(result.pilaFspSourceScope).toBe(
+        PayrollPilaFspSourceScope.SINGLE_SOURCE_CONFIRMED,
+      );
+      expect(mockPayrollRunFindFirst).toHaveBeenCalledWith({
+        where: { id: 'run-1', tenantId: TENANT },
+        select: {
+          id: true,
+          payrollPeriodId: true,
+          employeeId: true,
+          pilaFspSourceScope: true,
+        },
+      });
+      expect(mockPayrollRunUpdateMany).toHaveBeenCalledWith({
+        where: {
+          id: 'run-1',
+          tenantId: TENANT,
+          payrollPeriodId: PERIOD_ID,
+          pilaFspSourceScope: PayrollPilaFspSourceScope.UNCONFIRMED,
+        },
+        data: {
+          pilaFspSourceScope: PayrollPilaFspSourceScope.SINGLE_SOURCE_CONFIRMED,
+          pilaFspSourceScopeUpdatedAt: expect.any(Date),
+          pilaFspSourceScopeUpdatedById: USER,
+        },
+      });
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PAYROLL_PILA_FSP_SOURCE_SCOPE_UPDATED',
+          entityType: 'PayrollRun',
+          entityId: 'run-1',
+          metadata: expect.objectContaining({
+            payrollPeriodId: PERIOD_ID,
+            employeeId: 'emp-1',
+            previousScope: PayrollPilaFspSourceScope.UNCONFIRMED,
+            newScope: PayrollPilaFspSourceScope.SINGLE_SOURCE_CONFIRMED,
+          }),
+        }),
+        mockPrisma,
+      );
+    });
+
+    it('bloquea cambios después de aprobar', async () => {
+      mockPayrollRunFindFirst.mockResolvedValue(runReference);
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('APROBADA'));
+
+      await expect(
+        service.updatePilaFspSourceScope(TENANT, USER, 'run-1', {
+          sourceScope: PayrollPilaFspSourceScope.SINGLE_SOURCE_CONFIRMED,
+        }),
+      ).rejects.toThrow(ConflictException);
+      expect(mockPayrollRunUpdateMany).not.toHaveBeenCalled();
+      expect(mockAudit.log).not.toHaveBeenCalled();
+    });
+
+    it('rechaza una carrera si el estado de la declaración cambió', async () => {
+      mockPayrollRunFindFirst.mockResolvedValue(runReference);
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CALCULADA'));
+      mockPayrollRunUpdateMany.mockResolvedValue({ count: 0 });
+
+      await expect(
+        service.updatePilaFspSourceScope(TENANT, USER, 'run-1', {
+          sourceScope: PayrollPilaFspSourceScope.SINGLE_SOURCE_CONFIRMED,
+        }),
+      ).rejects.toThrow(ConflictException);
+      expect(mockAudit.log).not.toHaveBeenCalled();
+    });
   });
 
   describe('eventos PILA', () => {
@@ -2271,7 +2379,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       ]);
       const pilaPayload = snapshotCreateData.pilaPayload;
       expect(pilaPayload).toMatchObject({
-        schemaVersion: 5,
+        schemaVersion: 6,
         pilaRiskAssignments: [
           {
             assignmentId: 'risk-assignment-at-approval',
@@ -2324,7 +2432,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         },
       });
       expect(snapshotCreateData).toMatchObject({
-        pilaPayloadVersion: 5,
+        pilaPayloadVersion: 6,
       });
     });
 

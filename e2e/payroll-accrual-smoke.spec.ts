@@ -2,6 +2,26 @@ import { randomInt } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { seedPayrollCalculationFixture } from './helpers/payroll-calculation-fixture';
 
+async function browserJsonRequest(
+  page: Page,
+  path: string,
+  method: 'POST' | 'PATCH',
+  data: Record<string, unknown>,
+) {
+  return page.evaluate(
+    async ({ requestPath, requestMethod, requestData }) => {
+      const response = await fetch(requestPath, {
+        method: requestMethod,
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestData),
+      });
+      return { status: response.status, body: await response.json() };
+    },
+    { requestPath: path, requestMethod: method, requestData: data },
+  );
+}
+
 async function registerAndSignIn(page: Page) {
   const suffix = randomInt(10_000_000, 100_000_000).toString();
   const nit = `6${suffix}`;
@@ -47,6 +67,29 @@ test('genera, aprueba y contabiliza una nómina desde el flujo de usuario', asyn
   let periodId = '';
 
   try {
+    const affiliationResponse = await browserJsonRequest(
+      page,
+      `/api/employees/${fixture.employeeId}/afiliaciones-seguridad-social`,
+      'POST',
+      {
+        tipoCotizanteCodigo: '01',
+        subtipoCotizanteCodigo: '00',
+        epsCodigo: 'EPS001',
+        epsNombre: 'EPS demo',
+        fondoPensionCodigo: 'PEN001',
+        fondoPensionNombre: 'Fondo pensional demo',
+        arlCodigo: 'ARL001',
+        arlNombre: 'ARL demo',
+        arlClaseRiesgo: '1',
+        cajaCompensacionCodigo: 'CCF001',
+        cajaCompensacionNombre: 'Caja demo',
+        cajaCompensacionDepartamentoCodigo: '11',
+        colombianoEnElExterior: false,
+        vigenteDesde: '2025-01-01',
+      },
+    );
+    expect(affiliationResponse.status).toBe(201);
+
     await page.goto('/nomina/periodos');
     await page.getByRole('button', { name: 'Nuevo periodo' }).click();
     await page.getByPlaceholder('Octubre 2026').fill(periodName);
@@ -64,6 +107,14 @@ test('genera, aprueba y contabiliza una nómina desde el flujo de usuario', asyn
     expect(createResponse.status()).toBe(200);
     periodId = ((await createResponse.json()) as { id: string }).id;
 
+    const paymentDateResponse = await browserJsonRequest(
+      page,
+      `/api/payroll/periods/${periodId}/fecha-prevista-pago-pila`,
+      'PATCH',
+      { fechaPrevistaPagoPila: '2026-11-05' },
+    );
+    expect(paymentDateResponse.status).toBe(200);
+
     const periodCard = () => page.getByText(periodName, { exact: true }).locator('xpath=../..');
     await expect(periodCard()).toBeVisible();
 
@@ -79,6 +130,24 @@ test('genera, aprueba y contabiliza una nómina desde el flujo de usuario', asyn
 
     await page.reload();
     await expect(periodCard()).toContainText('Calculada');
+    await periodCard().getByRole('link', { name: periodName }).click();
+    const fspSourcePanel = page.locator('section').filter({
+      has: page.getByRole('heading', {
+        name: 'Alcance de ingresos pensionales para PILA',
+      }),
+    });
+    await expect(fspSourcePanel.getByText('Pendiente de confirmación')).toBeVisible();
+    const declareSourceResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.endsWith('/pila-fsp-source-scope') &&
+        response.request().method() === 'PATCH',
+    );
+    await fspSourcePanel.getByRole('button', { name: 'Confirmar una fuente' }).click();
+    const declareSourceResponse = await declareSourceResponsePromise;
+    expect(declareSourceResponse.status()).toBe(200);
+    await expect(fspSourcePanel.getByText('Una fuente confirmada')).toBeVisible();
+
+    await page.goto('/nomina/periodos');
     const reviewResponsePromise = page.waitForResponse(
       (response) =>
         new URL(response.url()).pathname === `/api/payroll/periods/${periodId}/enviar-revision` &&
@@ -103,7 +172,7 @@ test('genera, aprueba y contabiliza una nómina desde el flujo de usuario', asyn
     await expect(page).toHaveURL(new RegExp(`/nomina/periodos/${periodId}$`));
     await expect(page.getByRole('heading', { name: periodName })).toBeVisible();
     await expect(page.getByText(fixture.employeeName)).toBeVisible();
-    await expect(page.getByText('2.000.000', { exact: false }).first()).toBeVisible();
+    await expect(page.getByText('8.000.000', { exact: false }).first()).toBeVisible();
 
     const approved = await fixture.inspect(periodId);
     expect(approved.periodStatus).toBe('APROBADA');
@@ -117,7 +186,22 @@ test('genera, aprueba y contabiliza una nómina desde el flujo de usuario', asyn
     expect(approved.snapshots).toHaveLength(1);
     expect(approved.snapshots[0].estadoPeriodo).toBe('APROBADA');
     expect(approved.snapshots[0].payload.employee).toMatchObject({
-      salarioBaseUsado: 2_000_000,
+      salarioBaseUsado: 8_000_000,
+    });
+    expect(approved.snapshots[0].pilaPayloadVersion).toBe(6);
+    expect(approved.snapshots[0].pilaPayload).toMatchObject({
+      schemaVersion: 6,
+      payroll: {
+        fspSubaccounts: {
+          sourceScope: 'SINGLE_SOURCE_CONFIRMED',
+          status: 'READY',
+          solidaridad: 40_000,
+          subsistencia: 40_000,
+          payrollFspAmount: 80_000,
+          sourceScopeUpdatedById: expect.any(String),
+          sourceScopeUpdatedAt: expect.any(String),
+        },
+      },
     });
 
     const postingResponsePromise = page.waitForResponse(

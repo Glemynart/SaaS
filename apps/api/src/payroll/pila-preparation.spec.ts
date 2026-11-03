@@ -274,6 +274,40 @@ describe('inspectPilaSnapshotPreparation', () => {
     );
   });
 
+  it('reconoce un snapshot PILA v6 con esquema coincidente', () => {
+    const source = payload();
+    source.schemaVersion = 6;
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 6,
+      payload: source,
+    });
+
+    expect(result.issues).not.toContainEqual(
+      expect.objectContaining({ code: 'PILA_SNAPSHOT_VERSION_NO_SOPORTADA' }),
+    );
+  });
+
+  it('aplica validación de conceptos a snapshots PILA v6', () => {
+    const source = payloadV2();
+    source.schemaVersion = 6;
+    source.payroll.concepts = [];
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 6,
+      payload: source,
+    });
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        fieldNumber: 47,
+        code: 'CAMPO_47_FUENTE_CONCEPTO_NO_DISPONIBLE',
+      }),
+    );
+  });
+
   it('acepta fuentes de conceptos PILA completas y coherentes en snapshots v2', () => {
     const result = inspectPilaSnapshotPreparation({
       employeeId: 'employee-1',

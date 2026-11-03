@@ -1,4 +1,4 @@
-import { PilaEventCode } from '@prisma/client';
+import { PayrollPilaFspSourceScope, PilaEventCode } from '@prisma/client';
 import {
   buildPilaSourceContext,
   buildPilaSourceSnapshot,
@@ -200,7 +200,7 @@ describe('PILA source snapshot builders', () => {
     });
 
     expect(context.schemaVersion).toBe(3);
-    expect(snapshot.schemaVersion).toBe(5);
+    expect(snapshot.schemaVersion).toBe(6);
     expect(snapshot.pilaWorkLocations).toEqual([
       {
         assignmentId: 'work-location-1',
@@ -216,6 +216,59 @@ describe('PILA source snapshot builders', () => {
         vigenteHasta: null,
       },
     ]);
+  });
+
+  it('freezes FSP source-scope declaration and reconciled subaccounts', () => {
+    const context = buildPilaSourceContext(contextInput);
+    const snapshot = buildPilaSourceSnapshot({
+      context,
+      payroll: {
+        runId: 'run-fsp-scope',
+        fechaPrevistaPagoPila: new Date('2026-11-05T00:00:00.000Z'),
+        salarioBasico: 4_000_000,
+        salarioIntegral: false,
+        ibc: 4_000_000,
+        fspSourceScope: PayrollPilaFspSourceScope.SINGLE_SOURCE_CONFIRMED,
+        fspSourceScopeUpdatedAt: new Date('2026-11-03T12:00:00.000Z'),
+        fspSourceScopeUpdatedById: 'payroll-user-1',
+        legalParameters: { smmlv: 1_000_000 },
+        concepts: [
+          {
+            id: 'pension-employee',
+            codigo: 'PENSION_EMP',
+            tipo: 'DEDUCTION',
+            base: 4_000_000,
+            factor: 0.04,
+            valor: 160_000,
+          },
+          {
+            id: 'fsp-employee',
+            codigo: 'FSP',
+            tipo: 'DEDUCTION',
+            base: 4_000_000,
+            factor: 0.01,
+            valor: 40_000,
+          },
+        ],
+        novelties: [],
+      },
+    });
+
+    expect(snapshot).toMatchObject({
+      schemaVersion: 6,
+      payroll: {
+        fspSubaccounts: {
+          sourceScope: 'SINGLE_SOURCE_CONFIRMED',
+          sourceScopeUpdatedById: 'payroll-user-1',
+          status: 'READY',
+          ruleVersion: 'CO_FSP_SUBACCOUNTS_DEC1833_PRE_2027_04_01_V1',
+          ibcPensionalAgregado: 4_000_000,
+          solidaridad: 20_000,
+          subsistencia: 20_000,
+          payrollFspAmount: 40_000,
+        },
+      },
+    });
   });
 
   it('freezes the current employer PILA profile into the source context', () => {
@@ -309,7 +362,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(snapshot.schemaVersion).toBe(5);
+    expect(snapshot.schemaVersion).toBe(6);
     expect(snapshot.payroll.payrollCalculationParameters).toEqual({
       sourceVersion: 'PAYROLL_LEGAL_PARAMETERS_V2',
       parametroLegalId: 'legal-2026',
@@ -424,7 +477,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(5);
+    expect(result.schemaVersion).toBe(6);
     expect(result.capturedAt).toBe('2026-11-02T15:00:00.000Z');
     expect(result.employee.fechaIngreso).toBe('2026-01-05');
     expect(result.employee.fechaNacimiento).toBeNull();

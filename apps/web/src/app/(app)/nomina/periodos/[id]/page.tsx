@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { formatNombreCompleto } from '@saas/types';
 import { PayrollCorrectionsPanel } from '@/features/payroll/components/payroll-corrections-panel';
 import { PayrollPilaEventsPanel } from '@/features/payroll/components/payroll-pila-events-panel';
+import { PayrollPilaFspSourceScopePanel } from '@/features/payroll/components/payroll-pila-fsp-source-scope-panel';
 import { PayrollPilaPreparationPanel } from '@/features/payroll/components/payroll-pila-preparation-panel';
 
 function cop(n: number) {
@@ -249,6 +250,8 @@ export default function PeriodDetailPage({ params }: { params: Promise<{ id: str
         periodStatus={period.status}
         fechaInicio={period.fechaInicio}
       />
+
+      <PayrollPilaFspSourceScopePanel periodId={id} periodStatus={period.status} runs={runs} />
 
       <PayrollPilaPreparationPanel periodId={id} periodStatus={period.status} />
 
