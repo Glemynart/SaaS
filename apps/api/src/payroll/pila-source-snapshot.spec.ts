@@ -218,7 +218,7 @@ describe('PILA source snapshot builders', () => {
     ]);
   });
 
-  it('freezes FSP source-scope declaration and reconciled subaccounts', () => {
+  it('blocks post-cutoff FSP candidates when pension routing status is absent', () => {
     const context = buildPilaSourceContext(contextInput);
     const snapshot = buildPilaSourceSnapshot({
       context,
@@ -260,15 +260,18 @@ describe('PILA source snapshot builders', () => {
         fspSubaccounts: {
           sourceScope: 'SINGLE_SOURCE_CONFIRMED',
           sourceScopeUpdatedById: 'payroll-user-1',
-          status: 'READY',
-          ruleVersion: 'CO_FSP_SUBACCOUNTS_DEC1833_PRE_2027_04_01_V1',
-          ibcPensionalAgregado: 4_000_000,
-          solidaridad: 20_000,
-          subsistencia: 20_000,
-          payrollFspAmount: 40_000,
+          status: 'BLOCKED',
+          ruleVersion: null,
+          ibcPensionalAgregado: null,
+          solidaridad: null,
+          subsistencia: null,
+          payrollFspAmount: null,
         },
       },
     });
+    expect(snapshot.payroll.fspSubaccounts.blocker).toContain(
+      'estado de afiliación pensional S/N',
+    );
   });
 
   it('freezes the current employer PILA profile into the source context', () => {

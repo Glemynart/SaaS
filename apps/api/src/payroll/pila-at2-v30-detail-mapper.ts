@@ -38,6 +38,7 @@ import {
 } from './pila-health-standard-rate-catalog';
 import {
   getFspSubaccountRates,
+  PILA_FSP_AFFILIATION_ROUTING_REVIEW_FROM,
   PILA_FSP_NEW_SYSTEM_EFFECTIVE_FROM,
   PILA_FSP_SUBACCOUNT_RULE_VERSION,
 } from './pila-fsp-subaccounts';
@@ -1202,6 +1203,9 @@ export function mapPilaAt2V30DetailCandidate(
         paymentDate >= PILA_FSP_NEW_SYSTEM_EFFECTIVE_FROM
       ) {
         return 'El período o la fecha prevista de pago alcanza el 2027-04-01; falta versionar las reglas del nuevo sistema pensional.';
+      }
+      if (periodEnd >= PILA_FSP_AFFILIATION_ROUTING_REVIEW_FROM) {
+        return 'AT2 v30 diferencia el destino FSP por estado de afiliación pensional S/N desde 2025-07-01; el snapshot no conserva ese estado y su aplicación frente al nuevo sistema pensional requiere reconciliación.';
       }
       const ibc = pensionBase.valor;
       const smmlv = fspSubaccounts.smmlv;

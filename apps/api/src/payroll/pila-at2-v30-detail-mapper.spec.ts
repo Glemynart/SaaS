@@ -273,6 +273,24 @@ function setStandardFspSubaccounts(
   });
 }
 
+function setHistoricalPilaPeriod(snapshotInput: PilaSnapshotPreparationInput) {
+  const payload = payloadOf(snapshotInput);
+  Object.assign(payload.period as Record<string, unknown>, {
+    fechaInicio: '2025-06-01',
+    fechaFin: '2025-06-30',
+  });
+  payload.employee.fechaIngreso = '2025-01-01';
+  Object.assign(payload.contract as Record<string, unknown>, {
+    fechaInicio: '2025-01-01',
+  });
+  for (const affiliation of payload.affiliations) {
+    affiliation.vigenteDesde = '2025-01-01';
+  }
+  for (const assignment of payload.pilaRiskAssignments) {
+    assignment.vigenteDesde = '2025-01-01';
+  }
+}
+
 function setStandardCcfEmployer(
   snapshotInput: PilaSnapshotPreparationInput,
   overrides: {
@@ -385,12 +403,14 @@ describe('mapPilaAt2V30DetailCandidate', () => {
 
   it('maps FSP subaccounts from a v6 snapshot after source and amount reconciliation', () => {
     const input = snapshot();
+    setHistoricalPilaPeriod(input);
     input.payloadVersion = 6;
     (input.payload as { schemaVersion: number }).schemaVersion = 6;
     setStandardPensionInputs(input, {
       base: 4_000_000,
       employeeAmount: 160_000,
       employerAmount: 480_000,
+      paymentDate: '2025-07-01',
     });
     const payload = payloadOf(input);
     payload.payroll.concepts?.push({
@@ -402,7 +422,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     });
     setStandardFspSubaccounts(input);
 
-    const candidate = mapCandidate(input);
+    const candidate = mapCandidate(input, 'E', '2025-06-01', '2025-06-30');
 
     expect(candidate.values[51]).toEqual({ value: 20_000 });
     expect(candidate.values[52]).toEqual({ value: 20_000 });
@@ -421,12 +441,14 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     ['subaccounts do not reconcile', { payrollFspAmount: 41_000 }],
   ])('keeps FSP fields blocked when %s', (_case, overrides) => {
     const input = snapshot();
+    setHistoricalPilaPeriod(input);
     input.payloadVersion = 6;
     (input.payload as { schemaVersion: number }).schemaVersion = 6;
     setStandardPensionInputs(input, {
       base: 4_000_000,
       employeeAmount: 160_000,
       employerAmount: 480_000,
+      paymentDate: '2025-07-01',
     });
     const payload = payloadOf(input);
     payload.payroll.concepts?.push({
@@ -438,13 +460,44 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     });
     setStandardFspSubaccounts(input, overrides);
 
-    const candidate = mapCandidate(input);
+    const candidate = mapCandidate(input, 'E', '2025-06-01', '2025-06-30');
 
     expect(candidate.values[51]).toBeUndefined();
     expect(candidate.values[52]).toBeUndefined();
     expect(
       candidate.unresolvedFields.map(({ fieldNumber }) => fieldNumber),
     ).toEqual(expect.arrayContaining([51, 52]));
+  });
+
+  it('blocks READY FSP snapshots after the July 2025 routing cutoff', () => {
+    const input = snapshot();
+    input.payloadVersion = 6;
+    (input.payload as { schemaVersion: number }).schemaVersion = 6;
+    setStandardPensionInputs(input, {
+      base: 4_000_000,
+      employeeAmount: 160_000,
+      employerAmount: 480_000,
+    });
+    payloadOf(input).payroll.concepts?.push({
+      codigo: 'FSP',
+      tipo: 'DEDUCTION',
+      base: 4_000_000,
+      factor: 0.01,
+      valor: 40_000,
+    });
+    setStandardFspSubaccounts(input);
+
+    const candidate = mapCandidate(input);
+    const fspBlockers = candidate.unresolvedFields.filter(({ fieldNumber }) =>
+      [51, 52].includes(fieldNumber),
+    );
+
+    expect(candidate.values[51]).toBeUndefined();
+    expect(candidate.values[52]).toBeUndefined();
+    expect(fspBlockers).toHaveLength(2);
+    expect(fspBlockers[0].reason).toContain(
+      'estado de afiliación pensional S/N',
+    );
   });
 
   it('accounts for every AT2 detail field as a candidate or an explicit blocker', () => {

@@ -7,6 +7,7 @@ import {
 export const PILA_FSP_SUBACCOUNT_RULE_VERSION =
   'CO_FSP_SUBACCOUNTS_DEC1833_PRE_2027_04_01_V1' as const;
 export const PILA_FSP_NEW_SYSTEM_EFFECTIVE_FROM = '2027-04-01' as const;
+export const PILA_FSP_AFFILIATION_ROUTING_REVIEW_FROM = '2025-07-01' as const;
 
 export interface PilaFspPayrollConceptSource {
   tipo: string;
@@ -86,6 +87,12 @@ export function assessPilaFspSubaccounts(
   ) {
     return blocked(
       'El período alcanza el 2027-04-01; falta versionar las reglas del nuevo sistema pensional.',
+    );
+  }
+
+  if (input.periodEnd >= PILA_FSP_AFFILIATION_ROUTING_REVIEW_FROM) {
+    return blocked(
+      'AT2 v30 diferencia el destino FSP por estado de afiliación pensional S/N desde 2025-07-01; el snapshot no conserva ese estado y su aplicación frente al nuevo sistema pensional requiere reconciliación.',
     );
   }
 

@@ -7,9 +7,9 @@ import {
 
 const period = {
   sourceScope: PayrollPilaFspSourceScope.SINGLE_SOURCE_CONFIRMED,
-  periodStart: '2026-06-01',
-  periodEnd: '2026-06-30',
-  paymentDate: '2026-07-01',
+  periodStart: '2025-06-01',
+  periodEnd: '2025-06-30',
+  paymentDate: '2025-07-01',
   smmlv: 1_000_000,
 };
 
@@ -22,7 +22,7 @@ function fspConcept(ibc: number, totalBps: number, amount: number) {
   };
 }
 
-describe('PILA FSP subaccounts for the supported pre-2027 regime', () => {
+describe('PILA FSP subaccounts for supported pre-July-2025 periods', () => {
   it.each([
     [3_999_999, 0],
     [4_000_000, 100],
@@ -120,6 +120,29 @@ describe('PILA FSP subaccounts for the supported pre-2027 regime', () => {
 
     expect(result.status).toBe('BLOCKED');
     expect(result.blocker).toBeTruthy();
+  });
+
+  it.each([
+    [
+      'starts on the routing cutoff',
+      { periodStart: '2025-07-01', periodEnd: '2025-07-31' },
+    ],
+    [
+      'crosses the routing cutoff',
+      { periodStart: '2025-06-15', periodEnd: '2025-07-15' },
+    ],
+  ])('blocks FSP subaccounts when the period %s', (_case, overrides) => {
+    const result = assessPilaFspSubaccounts({
+      ...period,
+      ...overrides,
+      ibcPensional: 4_000_000,
+      fspConcepts: [fspConcept(4_000_000, 100, 40_000)],
+    });
+
+    expect(result.status).toBe('BLOCKED');
+    expect(result.blocker).toContain('estado de afiliación pensional S/N');
+    expect(result.solidaridad).toBeNull();
+    expect(result.subsistencia).toBeNull();
   });
 
   it('does not publish values if separate rounded amounts differ from Payroll FSP', () => {
