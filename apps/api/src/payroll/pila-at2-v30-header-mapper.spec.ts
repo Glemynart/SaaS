@@ -62,7 +62,11 @@ function snapshot(employeeId = 'employee-1'): PilaSnapshotPreparationInput {
 
 function payloadOf(snapshotInput: PilaSnapshotPreparationInput) {
   return snapshotInput.payload as {
-    employer: { tenantId: string; [key: string]: unknown };
+    employer: {
+      tenantId: string;
+      pila: Record<string, unknown>;
+      [key: string]: unknown;
+    };
     period: { payrollPeriodId: string; [key: string]: unknown };
     employee: { employeeId: string };
     affiliations: Array<Record<string, unknown>>;
@@ -204,6 +208,24 @@ describe('mapPilaAt2V30HeaderCandidate', () => {
         expect.objectContaining({ fieldNumber }),
       );
     }
+  });
+
+  it('blocks a type 2 header ARL code that exceeds the field width', () => {
+    const input = snapshot();
+    payloadOf(input).employer.pila.codigoArlAportante = 'ARL0001';
+
+    const candidate = mapCandidateForDemoScope([input]);
+
+    expect(candidate.values[14]).toBeUndefined();
+    const unresolvedArlField = candidate.unresolvedFields.find(
+      (field) => field.fieldNumber === 14,
+    );
+    expect(unresolvedArlField?.code).toBe('AT2_HEADER_FIELD_LAYOUT_INVALID');
+    expect(unresolvedArlField?.reason).toContain(
+      'supera la longitud de 6 posiciones',
+    );
+    expect(candidate.values[4]).toEqual({ value: 'Empresa Demo SAS' });
+    expect(candidate.values[16]).toEqual({ value: '2026-10' });
   });
 
   it('refuses to map a mixed-tenant snapshot set', () => {

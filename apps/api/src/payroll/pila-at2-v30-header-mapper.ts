@@ -1,4 +1,7 @@
-import type { PilaAt2V30FieldInput } from './pila-at2-v30-record-serializer';
+import {
+  validatePilaAt2V30FieldCandidate,
+  type PilaAt2V30FieldInput,
+} from './pila-at2-v30-record-serializer';
 import { mapPilaAt2V30EmployerCandidate } from './pila-at2-v30-employer-mapper';
 import type { PilaSnapshotPreparationInput } from './pila-preparation';
 
@@ -84,6 +87,20 @@ export function mapPilaAt2V30HeaderCandidate(input: {
     }
   };
   const put = (fieldNumber: number, value: string | number) => {
+    const validationError = validatePilaAt2V30FieldCandidate(
+      'payrollHeaderType2',
+      fieldNumber,
+      { value },
+    );
+    if (validationError) {
+      delete values[fieldNumber];
+      unresolved(
+        fieldNumber,
+        validationError,
+        'AT2_HEADER_FIELD_LAYOUT_INVALID',
+      );
+      return;
+    }
     values[fieldNumber] = { value };
   };
   const putBlank = (fieldNumber: number) => {
@@ -230,7 +247,12 @@ export function mapPilaAt2V30HeaderCandidate(input: {
           candidate.emptyAs === first.emptyAs,
       )
     ) {
-      values[headerField] = { ...first };
+      if (first.value === null) {
+        // Shared employer mappers may supply intentional blank candidates.
+        values[headerField] = { ...first };
+      } else {
+        put(headerField, first.value);
+      }
     } else {
       unresolved(
         headerField,
