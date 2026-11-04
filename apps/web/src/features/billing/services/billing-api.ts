@@ -98,6 +98,8 @@ export interface BillingDashboard {
   facturasBorrador: number;
   ingresosEstimados: number;
   totalFacturado: number;
+  totalRecaudado: number;
+  carteraPendiente: number;
 }
 
 type ApiEnvelope = { message?: string };

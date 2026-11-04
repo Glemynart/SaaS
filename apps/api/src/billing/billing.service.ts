@@ -453,28 +453,54 @@ export class BillingService {
 
   // --- DASHBOARD ---
   async getDashboard(tenantId: string) {
-    const [activeCustomers, invoiceCounts] = await Promise.all([
-      this.prisma.customer.count({ where: { tenantId, status: 'ACTIVE' } }),
-      this.prisma.invoice.groupBy({
-        by: ['status'],
-        where: { tenantId },
-        _sum: { total: true },
-        _count: true,
-      }),
-    ]);
-
-    const issued = invoiceCounts.filter((i) => i.status === 'ISSUED');
-    const draft = invoiceCounts.filter((i) => i.status === 'DRAFT');
+    const [summary] = await this.tenantPrisma.execute(
+      (tx) =>
+        tx.$queryRaw<
+          Array<{
+            activeCustomers: bigint;
+            issuedInvoiceCount: bigint;
+            draftInvoiceCount: bigint;
+            totalInvoiced: Prisma.Decimal;
+            totalCollected: Prisma.Decimal;
+          }>
+        >`
+        WITH tenant_invoices AS (
+          SELECT "id", "total", "status"
+          FROM "invoices"
+          WHERE "tenantId" = ${tenantId}
+        ), active_applications AS (
+          SELECT a."invoiceId", SUM(a."amount") AS "amount"
+          FROM "invoice_receipt_allocations" a
+          JOIN "customer_receipts" r
+            ON r."id" = a."receiptId" AND r."tenantId" = a."tenantId"
+          JOIN tenant_invoices i
+            ON i."id" = a."invoiceId" AND i."status" = 'ISSUED'
+          LEFT JOIN "customer_receipt_reversals" x
+            ON x."receiptId" = r."id" AND x."tenantId" = r."tenantId"
+          WHERE a."tenantId" = ${tenantId}
+            AND x."id" IS NULL
+          GROUP BY a."invoiceId"
+        )
+        SELECT
+          (SELECT COUNT(*) FROM "customers"
+            WHERE "tenantId" = ${tenantId} AND "status" = 'ACTIVE') AS "activeCustomers",
+          (SELECT COUNT(*) FROM tenant_invoices WHERE "status" = 'ISSUED') AS "issuedInvoiceCount",
+          (SELECT COUNT(*) FROM tenant_invoices WHERE "status" = 'DRAFT') AS "draftInvoiceCount",
+          COALESCE((SELECT SUM("total") FROM tenant_invoices WHERE "status" = 'ISSUED'), 0)::numeric AS "totalInvoiced",
+          COALESCE((SELECT SUM("amount") FROM active_applications), 0)::numeric AS "totalCollected"
+      `,
+    );
+    const totalFacturado = new Prisma.Decimal(summary?.totalInvoiced ?? 0);
+    const totalRecaudado = new Prisma.Decimal(summary?.totalCollected ?? 0);
 
     return {
-      clientesActivos: activeCustomers,
-      facturasEmitidas: issued.reduce((s, i) => s + i._count, 0),
-      facturasBorrador: draft.reduce((s, i) => s + i._count, 0),
-      ingresosEstimados: issued.reduce(
-        (s, i) => s + Number(i._sum.total ?? 0),
-        0,
-      ),
-      totalFacturado: issued.reduce((s, i) => s + Number(i._sum.total ?? 0), 0),
+      clientesActivos: Number(summary?.activeCustomers ?? 0),
+      facturasEmitidas: Number(summary?.issuedInvoiceCount ?? 0),
+      facturasBorrador: Number(summary?.draftInvoiceCount ?? 0),
+      ingresosEstimados: Number(totalFacturado),
+      totalFacturado: Number(totalFacturado),
+      totalRecaudado: Number(totalRecaudado),
+      carteraPendiente: Number(totalFacturado.minus(totalRecaudado)),
     };
   }
 

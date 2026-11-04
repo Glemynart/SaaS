@@ -36,7 +36,10 @@ describe('BillingService', () => {
   const auditInputs: unknown[] = [];
   const periodQueryInputs: unknown[] = [];
   const txMock = {
-    $queryRaw: jest.fn(),
+    $queryRaw: jest.fn<
+      Promise<unknown>,
+      [TemplateStringsArray, ...unknown[]]
+    >(),
     invoice: { findFirst: jest.fn(), update: jest.fn() },
     customer: { findFirst: jest.fn() },
     tercero: { findFirst: jest.fn() },
@@ -591,6 +594,35 @@ describe('BillingService', () => {
     expect(listed[0].saldoPendiente).toEqual(new Prisma.Decimal(75_000));
     expect(detail.totalPagado).toEqual(new Prisma.Decimal(25_000));
     expect(detail.saldoPendiente).toEqual(new Prisma.Decimal(75_000));
+  });
+
+  it('calcula recaudo aplicado y cartera pendiente desde aplicaciones activas tenant-scoped', async () => {
+    txMock.$queryRaw.mockResolvedValue([
+      {
+        activeCustomers: 2n,
+        issuedInvoiceCount: 3n,
+        draftInvoiceCount: 1n,
+        totalInvoiced: new Prisma.Decimal(1_023_400),
+        totalCollected: new Prisma.Decimal(250_000),
+      },
+    ]);
+
+    await expect(service.getDashboard('tenant-1')).resolves.toEqual({
+      clientesActivos: 2,
+      facturasEmitidas: 3,
+      facturasBorrador: 1,
+      ingresosEstimados: 1_023_400,
+      totalFacturado: 1_023_400,
+      totalRecaudado: 250_000,
+      carteraPendiente: 773_400,
+    });
+
+    expect(tenantPrismaMock.execute).toHaveBeenCalledTimes(1);
+    expect(txMock.$queryRaw).toHaveBeenCalledTimes(1);
+    const [queryTemplate, ...queryValues] = txMock.$queryRaw.mock.calls[0];
+    expect(queryTemplate.join('')).toContain('customer_receipt_reversals');
+    expect(queryTemplate.join('')).toContain('i."status" = \'ISSUED\'');
+    expect(queryValues).toEqual(['tenant-1', 'tenant-1', 'tenant-1']);
   });
 
   it('permite cancelar con auditoría una factura histórica emitida sin asiento', async () => {

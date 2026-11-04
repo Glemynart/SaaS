@@ -206,12 +206,12 @@ se accedió a demo, staging o producción.
 - Validación local actual: 30 pruebas de Billing/autorización, 11 pruebas RLS,
   typechecks API/web, builds API/web y Browser E2E financiero (1/1) pasan.
 
-### Reparto de un recaudo entre facturas — candidato, 2026-11-03
+### Reparto de recaudos y cartera en demo — estado actualizado 2026-11-04
 
-- En la rama candidata, la captura desde una factura consulta las facturas
-  pendientes del mismo cliente y tenant. Solo incluye facturas emitidas con
-  comprobante activo de emisión en Ledger y saldo calculado desde aplicaciones
-  de recaudo vigentes.
+- PR #251 fusionó en `main` la captura multi-factura desde una factura: consulta
+  facturas pendientes del mismo cliente y tenant, limita la selección a facturas
+  emitidas con comprobante activo de Ledger, y deriva el saldo desde aplicaciones
+  de recaudos vigentes.
 - El operador distribuye el valor recibido entre una o más facturas; el total
   se deriva de los importes en centavos, se limita a 100 facturas y debe coincidir
   con la suma de aplicaciones que valida el servicio existente. La UI rechaza
@@ -219,11 +219,22 @@ se accedió a demo, staging o producción.
 - El historial identifica todas las facturas afectadas. Como el servicio solo
   soporta reversar el recaudo completo, la UI lo confirma explícitamente y
   presenta el total y las facturas antes de pedir el motivo.
-- Validación local en la rama candidata: API/web typecheck, builds API/web,
-  pruebas del servicio y Browser E2E en PostgreSQL 16 desechable; todos pasan.
-  No requiere migración nueva. Sigue pendiente la auditoría del PR y la
-  aceptación operativa de un cliente; no añade anticipos, pagos no aplicados,
-  reversos parciales ni conciliación bancaria.
+- PR #256 amplió el seed local y su Browser E2E para mostrar un recaudo aplicado
+  a dos facturas, saldos resultantes y comprobante CI balanceado. La extensión
+  no agregó migraciones y mantiene el seed restringido a bases locales de
+  desarrollo/test. Sus checks pre-merge y post-merge pasaron.
+- La aceptación operativa de un cliente sigue pendiente. Esta capacidad no añade
+  anticipos, pagos sin aplicar, reversos parciales ni conciliación bancaria.
+
+### Resumen de cartera en el dashboard de Facturación — 2026-11-04
+
+- El dashboard presenta total emitido, recaudo aplicado y cartera pendiente,
+  calculados en una consulta tenant-scoped desde facturas emitidas y aplicaciones
+  activas. Las aplicaciones reversadas quedan excluidas; la cartera se deriva
+  como emitido menos aplicado, sin persistir un saldo mutable.
+- El Browser E2E del seed financiero verifica los totales desde la UI con la
+  demo multi-factura. El recaudo refleja aplicaciones internas y no representa
+  conciliación bancaria.
 
 ## Evidencia inicial (corte 2026-10-29) y límites vigentes
 
