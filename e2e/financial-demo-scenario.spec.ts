@@ -487,6 +487,9 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
         exact: true,
       }),
     ).toBeVisible();
+    const partialContributionRegion = pilaPreparationPanel.getByRole('region', {
+      name: 'Candidatos parciales de aportes',
+    });
     for (const [fieldNumber, label] of [
       [28, 'Aporte voluntario a pensión (AVP)'],
       [48, 'Aporte voluntario del afiliado a pensión'],
@@ -494,7 +497,7 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
       [50, 'Total de aportes a pensión (campos 47–49)'],
       [53, 'Valor no retenido por aportes voluntarios'],
     ] as const) {
-      const fieldStatus = pilaPreparationPanel
+      const fieldStatus = partialContributionRegion
         .getByText('Campo ' + fieldNumber + ' · ' + label, { exact: true })
         .locator('xpath=..');
       await expect(fieldStatus).toContainText('Con candidato: 0; pendientes: 1.');
