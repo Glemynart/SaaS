@@ -43,6 +43,11 @@ export interface PilaPreparationIssue {
   message: string;
 }
 
+export interface PilaPreparationAffectedEmployee {
+  id: string;
+  name: string;
+}
+
 export interface PilaExportReadinessBlocker {
   code:
     | 'AT2_FILE_MAPPING_NOT_IMPLEMENTED'
@@ -68,7 +73,7 @@ export interface PilaDetailFieldCandidateStatus {
   pendingEmployees: number;
   pendingReasons: Array<{
     reason: string;
-    affectedEmployees: string[];
+    affectedEmployees: PilaPreparationAffectedEmployee[];
   }>;
 }
 
@@ -1623,10 +1628,10 @@ function summarizePilaDetailFieldCandidates(
       (snapshotsPerEmployee.get(snapshot.employeeId) ?? 0) + 1,
     );
   }
-  const employeeNames = new Map(
+  const affectedEmployeesById = new Map(
     assessments.map(({ employeeId, employeeName }) => [
       employeeId,
-      employeeName,
+      { id: employeeId, name: employeeName },
     ]),
   );
   const candidatesByEmployee = new Map<
@@ -1645,7 +1650,10 @@ function summarizePilaDetailFieldCandidates(
   return fields.map((fieldNumber) => {
     const candidateEmployees = new Set<string>();
     const pendingEmployees = new Set<string>();
-    const reasons = new Map<string, Map<string, string>>();
+    const reasons = new Map<
+      string,
+      Map<string, PilaPreparationAffectedEmployee>
+    >();
 
     for (const snapshot of snapshots) {
       const employeeId = snapshot.employeeId;
@@ -1669,10 +1677,14 @@ function summarizePilaDetailFieldCandidates(
           'No hay un valor candidato disponible en el snapshot aprobado.';
       }
       const affectedEmployees =
-        reasons.get(reason) ?? new Map<string, string>();
+        reasons.get(reason) ??
+        new Map<string, PilaPreparationAffectedEmployee>();
       affectedEmployees.set(
         employeeId,
-        employeeNames.get(employeeId) ?? employeeId,
+        affectedEmployeesById.get(employeeId) ?? {
+          id: employeeId,
+          name: employeeId,
+        },
       );
       reasons.set(reason, affectedEmployees);
     }
@@ -1937,7 +1949,7 @@ export function buildPilaPreparationReport(input: {
   const grouped = new Map<
     string,
     PilaPreparationIssue & {
-      affectedEmployees: string[];
+      affectedEmployees: PilaPreparationAffectedEmployee[];
       affectedIds: Set<string>;
     }
   >();
@@ -1949,12 +1961,17 @@ export function buildPilaPreparationReport(input: {
       if (current) {
         if (!current.affectedIds.has(assessment.employeeId)) {
           current.affectedIds.add(assessment.employeeId);
-          current.affectedEmployees.push(assessment.employeeName);
+          current.affectedEmployees.push({
+            id: assessment.employeeId,
+            name: assessment.employeeName,
+          });
         }
       } else {
         grouped.set(key, {
           ...issue,
-          affectedEmployees: [assessment.employeeName],
+          affectedEmployees: [
+            { id: assessment.employeeId, name: assessment.employeeName },
+          ],
           affectedIds: new Set([assessment.employeeId]),
         });
       }

@@ -107,8 +107,13 @@ export interface PilaPreparationIssue {
   fieldNumber: number | null;
   code: string;
   message: string;
-  affectedEmployees: string[];
+  affectedEmployees: PilaPreparationAffectedEmployee[];
   affectedCount: number;
+}
+
+export interface PilaPreparationAffectedEmployee {
+  id: string;
+  name: string;
 }
 
 export interface PilaExportReadinessBlocker {
@@ -134,7 +139,7 @@ export interface PilaDetailFieldCandidateStatus {
   pendingEmployees: number;
   pendingReasons: Array<{
     reason: string;
-    affectedEmployees: string[];
+    affectedEmployees: PilaPreparationAffectedEmployee[];
   }>;
 }
 

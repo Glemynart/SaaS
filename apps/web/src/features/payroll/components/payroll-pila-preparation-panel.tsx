@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import { ClipboardCheck, LoaderCircle } from 'lucide-react';
+import Link from 'next/link';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { usePayrollPilaPreparation } from '../hooks/use-payroll';
 import type {
   PilaDetailFieldCandidateStatus,
+  PilaPreparationAffectedEmployee,
   PilaPreparationIssue,
   PayrollPeriodStatus,
 } from '../services/payroll-api';
@@ -169,6 +171,42 @@ function candidateDisplay(
   return (
     candidate.unresolvedFields.find((field) => field.fieldNumber === fieldNumber)?.reason ??
     'Sin candidato disponible.'
+  );
+}
+
+function AffectedEmployeesList({
+  employees,
+  className,
+}: {
+  employees: PilaPreparationAffectedEmployee[];
+  className: string;
+}) {
+  const nameCounts = new Map<string, number>();
+  for (const employee of employees) {
+    nameCounts.set(employee.name, (nameCounts.get(employee.name) ?? 0) + 1);
+  }
+  const seenNames = new Map<string, number>();
+
+  return (
+    <ul className={className}>
+      {employees.map((employee) => {
+        const duplicateName = (nameCounts.get(employee.name) ?? 0) > 1;
+        const occurrence = (seenNames.get(employee.name) ?? 0) + 1;
+        seenNames.set(employee.name, occurrence);
+        const label = duplicateName ? `${employee.name} · registro ${occurrence}` : employee.name;
+
+        return (
+          <li key={employee.id}>
+            <Link
+              href={`/empleados/${encodeURIComponent(employee.id)}`}
+              className="text-primary underline underline-offset-2 hover:text-foreground"
+            >
+              {label}
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -468,13 +506,10 @@ export function PayrollPilaPreparationPanel({
                               <summary className="cursor-pointer text-primary">
                                 Ver {affectedEmployees.length} empleados afectados
                               </summary>
-                              <ul className="mt-2 list-inside list-disc">
-                                {affectedEmployees.map((name, employeeIndex) => (
-                                  <li key={`${status.fieldNumber}-${index}-${employeeIndex}`}>
-                                    {name}
-                                  </li>
-                                ))}
-                              </ul>
+                              <AffectedEmployeesList
+                                employees={affectedEmployees}
+                                className="mt-2 list-inside list-disc"
+                              />
                             </details>
                           )}
                         </li>
@@ -519,13 +554,10 @@ export function PayrollPilaPreparationPanel({
                               <summary className="cursor-pointer text-primary">
                                 Ver {affectedEmployees.length} empleados afectados
                               </summary>
-                              <ul className="mt-2 list-inside list-disc">
-                                {affectedEmployees.map((name, employeeIndex) => (
-                                  <li key={`${status.fieldNumber}-${index}-${employeeIndex}`}>
-                                    {name}
-                                  </li>
-                                ))}
-                              </ul>
+                              <AffectedEmployeesList
+                                employees={affectedEmployees}
+                                className="mt-2 list-inside list-disc"
+                              />
                             </details>
                           )}
                         </li>
@@ -569,13 +601,10 @@ export function PayrollPilaPreparationPanel({
                               <summary className="cursor-pointer text-primary">
                                 Ver {affectedEmployees.length} empleados afectados
                               </summary>
-                              <ul className="mt-2 list-inside list-disc">
-                                {affectedEmployees.map((name, employeeIndex) => (
-                                  <li key={`${status.fieldNumber}-${index}-${employeeIndex}`}>
-                                    {name}
-                                  </li>
-                                ))}
-                              </ul>
+                              <AffectedEmployeesList
+                                employees={affectedEmployees}
+                                className="mt-2 list-inside list-disc"
+                              />
                             </details>
                           )}
                         </li>
@@ -619,13 +648,10 @@ export function PayrollPilaPreparationPanel({
                               <summary className="cursor-pointer text-primary">
                                 Ver {affectedEmployees.length} empleados afectados
                               </summary>
-                              <ul className="mt-2 list-inside list-disc">
-                                {affectedEmployees.map((name, employeeIndex) => (
-                                  <li key={`${status.fieldNumber}-${index}-${employeeIndex}`}>
-                                    {name}
-                                  </li>
-                                ))}
-                              </ul>
+                              <AffectedEmployeesList
+                                employees={affectedEmployees}
+                                className="mt-2 list-inside list-disc"
+                              />
                             </details>
                           )}
                         </li>
@@ -681,13 +707,10 @@ export function PayrollPilaPreparationPanel({
                                 <summary className="cursor-pointer text-primary">
                                   Ver {affectedEmployees.length} empleados afectados
                                 </summary>
-                                <ul className="mt-2 list-inside list-disc">
-                                  {affectedEmployees.map((name, employeeIndex) => (
-                                    <li key={`${status.fieldNumber}-${index}-${employeeIndex}`}>
-                                      {name}
-                                    </li>
-                                  ))}
-                                </ul>
+                                <AffectedEmployeesList
+                                  employees={affectedEmployees}
+                                  className="mt-2 list-inside list-disc"
+                                />
                               </details>
                             )}
                           </li>
@@ -731,13 +754,10 @@ export function PayrollPilaPreparationPanel({
                               <summary className="cursor-pointer text-primary">
                                 Ver {affectedEmployees.length} empleados afectados
                               </summary>
-                              <ul className="mt-2 list-inside list-disc">
-                                {affectedEmployees.map((name, employeeIndex) => (
-                                  <li key={`${status.fieldNumber}-${index}-${employeeIndex}`}>
-                                    {name}
-                                  </li>
-                                ))}
-                              </ul>
+                              <AffectedEmployeesList
+                                employees={affectedEmployees}
+                                className="mt-2 list-inside list-disc"
+                              />
                             </details>
                           )}
                         </li>
@@ -785,11 +805,10 @@ export function PayrollPilaPreparationPanel({
                       <summary className="cursor-pointer text-primary">
                         Ver empleados afectados
                       </summary>
-                      <ul className="mt-2 list-inside list-disc text-muted-foreground">
-                        {issue.affectedEmployees.map((name, index) => (
-                          <li key={`${issue.code}-${index}`}>{name}</li>
-                        ))}
-                      </ul>
+                      <AffectedEmployeesList
+                        employees={issue.affectedEmployees}
+                        className="mt-2 list-inside list-disc text-muted-foreground"
+                      />
                     </details>
                   )}
                 </li>

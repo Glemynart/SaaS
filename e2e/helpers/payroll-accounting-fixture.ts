@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 type PayrollAccrualFixture = {
+  employeeId: string;
   periodId: string;
   snapshotId: string;
   snapshotPayload: Record<string, unknown>;
@@ -125,7 +126,11 @@ export async function seedPayrollAccrualFixture(
         sinAccionEspecial: true,
       },
     },
-    employee: { employeeId },
+    employee: {
+      employeeId,
+      primerNombre: 'Ana',
+      primerApellido: 'Pérez',
+    },
     affiliations: [
       {
         tipoCotizanteCodigo: '01',
@@ -272,6 +277,7 @@ export async function seedPayrollAccrualFixture(
     });
 
     return {
+      employeeId,
       periodId,
       snapshotId,
       snapshotPayload,
