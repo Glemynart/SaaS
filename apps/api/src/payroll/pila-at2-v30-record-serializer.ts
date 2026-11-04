@@ -219,6 +219,10 @@ export interface PilaAt2V30FieldInput {
   readonly emptyAs?: 'spaces' | 'zeros';
 }
 
+type PilaAt2V30PartialRecordValues = Readonly<
+  Partial<Record<number, PilaAt2V30FieldInput>>
+>;
+
 export type PilaAt2V30RecordValues = Readonly<
   Record<number, PilaAt2V30FieldInput>
 >;
@@ -271,7 +275,7 @@ export function serializePilaAt2V30Record(
         field.fieldNumber,
       );
     }
-    output.push(formatField(field, input));
+    output.push(formatField(field, input, { record, values }));
   }
 
   const result = output.join('');
@@ -286,11 +290,22 @@ export function serializePilaAt2V30Record(
 function formatField(
   field: PilaAt2V30FieldLayout,
   input: PilaAt2V30FieldInput,
+  context?: {
+    record: PilaAt2V30RecordKey;
+    values: PilaAt2V30PartialRecordValues;
+  },
 ): string {
   if (input.value === null) {
+    const isPlanillaEAssociatedNumber =
+      context?.record === 'payrollHeaderType2' &&
+      field.fieldNumber === 9 &&
+      context.values[8]?.value === 'E';
+    // AT2 defines this N10 field as blank for planilla E.
     if (
       input.emptyAs === 'spaces' &&
-      (field.kind === 'A' || field.assignedByOperator === true)
+      (field.kind === 'A' ||
+        field.assignedByOperator === true ||
+        isPlanillaEAssociatedNumber)
     ) {
       return ' '.repeat(field.length);
     }
@@ -370,6 +385,7 @@ export function validatePilaAt2V30FieldCandidate(
   record: PilaAt2V30RecordKey,
   fieldNumber: number,
   input: PilaAt2V30FieldInput,
+  recordContext: PilaAt2V30PartialRecordValues = {},
 ): string | null {
   const field = PILA_AT2_V30_RECORD_LAYOUTS[record].fields.find(
     (candidate) => candidate.fieldNumber === fieldNumber,
@@ -379,7 +395,10 @@ export function validatePilaAt2V30FieldCandidate(
   }
 
   try {
-    formatField(field, input);
+    formatField(field, input, {
+      record,
+      values: { ...recordContext, [fieldNumber]: input },
+    });
     return null;
   } catch (error) {
     return error instanceof Error

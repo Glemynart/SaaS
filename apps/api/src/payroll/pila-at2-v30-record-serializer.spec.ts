@@ -1,6 +1,7 @@
 import {
   PILA_AT2_V30_RECORD_LAYOUTS,
   serializePilaAt2V30Record,
+  validatePilaAt2V30FieldCandidate,
 } from './pila-at2-v30-record-serializer';
 import type {
   PilaAt2V30FieldInput,
@@ -395,6 +396,47 @@ describe('AT2 v30 fixed-width record formatting', () => {
         }),
       ),
     ).toThrow('campo 4');
+  });
+
+  it('allows the associated-planilla number blank for planilla E only', () => {
+    const layout = PILA_AT2_V30_RECORD_LAYOUTS.payrollHeaderType2;
+    const fieldStart = (fieldNumber: number) =>
+      layout.fields
+        .filter((field) => field.fieldNumber < fieldNumber)
+        .reduce((total, field) => total + field.length, 0);
+    const blankField9 = { value: null, emptyAs: 'spaces' } as const;
+    const planillaEValues = completeRecordValues('payrollHeaderType2', {
+      8: { value: 'E' },
+      9: blankField9,
+    });
+    const planillaE = serializePilaAt2V30Record(
+      'payrollHeaderType2',
+      planillaEValues,
+    );
+
+    expect(planillaE.slice(fieldStart(9), fieldStart(9) + 10)).toBe(
+      ' '.repeat(10),
+    );
+    expect(
+      validatePilaAt2V30FieldCandidate('payrollHeaderType2', 9, blankField9, {
+        8: { value: 'E' },
+      }),
+    ).toBeNull();
+
+    expect(() =>
+      serializePilaAt2V30Record(
+        'payrollHeaderType2',
+        completeRecordValues('payrollHeaderType2', {
+          8: { value: 'N' },
+          9: blankField9,
+        }),
+      ),
+    ).toThrow('campo 9');
+    expect(
+      validatePilaAt2V30FieldCandidate('payrollHeaderType2', 9, blankField9, {
+        8: { value: 'N' },
+      }),
+    ).toContain('campo 9');
   });
 
   it('allows blank positions only for fields assigned by the operator', () => {
