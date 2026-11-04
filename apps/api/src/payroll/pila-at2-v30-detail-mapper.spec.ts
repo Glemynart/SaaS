@@ -185,6 +185,35 @@ function setStandardPensionInputs(
   });
 }
 
+function setVoluntaryPensionDeclaration(
+  snapshotInput: PilaSnapshotPreparationInput,
+  options: {
+    status?: string;
+    declaredAt?: string | null;
+    declaredById?: string | null;
+    paymentDate?: string | null;
+  } = {},
+) {
+  const payload = payloadOf(snapshotInput);
+  snapshotInput.payloadVersion = 8;
+  payload.schemaVersion = 8;
+  Object.assign(payload.payroll, {
+    fechaPrevistaPagoPila:
+      options.paymentDate === undefined ? '2026-11-06' : options.paymentDate,
+    voluntaryPensionDeclaration: {
+      status: options.status ?? 'NONE_CONFIRMED',
+      declaredAt:
+        options.declaredAt === undefined
+          ? '2026-11-04T12:00:00.000Z'
+          : options.declaredAt,
+      declaredById:
+        options.declaredById === undefined
+          ? 'payroll-user-1'
+          : options.declaredById,
+    },
+  });
+}
+
 function setStandardHealthInputs(
   snapshotInput: PilaSnapshotPreparationInput,
   overrides: {
@@ -496,6 +525,9 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const payload = payloadOf(input);
     (payload.period as Record<string, unknown>).fechaInicio = '2025-07-01';
     (payload.period as Record<string, unknown>).fechaFin = '2025-07-31';
+    payload.employee.fechaIngreso = '2025-01-01';
+    (payload.contract as Record<string, unknown>).fechaInicio = '2025-01-01';
+    payload.affiliations[0].vigenteDesde = '2025-01-01';
     payload.payroll.concepts?.push({
       codigo: 'FSP',
       tipo: 'DEDUCTION',
@@ -777,7 +809,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
 
     expect(candidate.supportedSnapshot).toBe(true);
     expect(candidate.values[9]).toBeUndefined();
-    expect(reason).toContain('snapshot v3 a v7');
+    expect(reason).toContain('snapshot v3 a v8');
   });
 
   it('blocks a v3 work location that does not cover the whole period', () => {
@@ -1062,28 +1094,87 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.normativeRuleVersions.noEventNoveltyFields).toBeNull();
   });
 
-  it('keeps post-cutoff voluntary pension fields pending until the rule is reconciled', () => {
+  it('maps no-AVP declaration for July 2025 under the suspended cutoff rule', () => {
     const input = snapshot();
     const payload = payloadOf(input);
+    payload.employee.fechaIngreso = '2025-07-01';
+    (payload.contract as Record<string, unknown>).fechaInicio = '2025-07-01';
+    payload.affiliations[0].vigenteDesde = '2025-07-01';
     (payload.period as Record<string, unknown>).fechaInicio = '2025-07-01';
     (payload.period as Record<string, unknown>).fechaFin = '2025-07-31';
+    setVoluntaryPensionDeclaration(input, {
+      declaredAt: '2025-07-31T12:00:00.000Z',
+      paymentDate: '2025-08-06',
+    });
+    setStandardPensionInputs(input, { paymentDate: '2025-08-06' });
     const candidate = mapCandidate(input, 'E', '2025-07-01', '2025-07-31');
 
     expect(candidate.values[22]).toEqual({ value: null, emptyAs: 'spaces' });
-    for (const fieldNumber of [28, 48, 49, 53]) {
-      expect(candidate.values[fieldNumber]).toBeUndefined();
+    expect(candidate.values[28]).toEqual({ value: null, emptyAs: 'spaces' });
+    expect(candidate.values[48]).toEqual({ value: 0 });
+    expect(candidate.values[49]).toEqual({ value: 0 });
+    expect(candidate.values[50]).toEqual({ value: 320_000 });
+    expect(candidate.values[53]).toEqual({ value: null, emptyAs: 'spaces' });
+    expect(candidate.normativeRuleVersions.voluntaryPensionDeclaration).toBe(
+      'AT2_V30_AVP_NONE_DECLARED_PRE_2027_04_01_V1',
+    );
+  });
+
+  it('keeps voluntary fields unresolved when the declaration is missing or unaudited', () => {
+    for (const options of [
+      { status: 'UNCONFIRMED' },
+      { status: 'NONE_CONFIRMED', declaredAt: null },
+      { status: 'NONE_CONFIRMED', declaredById: null },
+    ]) {
+      const input = snapshot();
+      setVoluntaryPensionDeclaration(input, options);
+      const candidate = mapCandidate(input);
+
+      for (const fieldNumber of [28, 48, 49, 53]) {
+        expect(candidate.values[fieldNumber]).toBeUndefined();
+      }
+      expect(candidate.values[50]).toBeUndefined();
       expect(
-        candidate.unresolvedFields.some(
-          (field) => field.fieldNumber === fieldNumber,
-        ),
-      ).toBe(true);
+        candidate.normativeRuleVersions.voluntaryPensionDeclaration,
+      ).toBeNull();
+      expect(
+        candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 28)
+          ?.reason,
+      ).toContain('no se infiere su ausencia');
     }
-    expect(candidate.values[50]).toBeUndefined();
-    expect(candidate.normativeRuleVersions.voluntaryPensionCutoff).toBeNull();
+  });
+
+  it('keeps voluntary fields blocked when AVP exists or the new pension system is effective', () => {
+    const withContributions = snapshot();
+    setVoluntaryPensionDeclaration(withContributions, { status: 'PRESENT' });
+    const withContributionsCandidate = mapCandidate(withContributions);
+    for (const fieldNumber of [28, 48, 49, 53]) {
+      expect(withContributionsCandidate.values[fieldNumber]).toBeUndefined();
+    }
+
+    const atNewSystemCutoff = snapshot();
+    const cutoffPayload = payloadOf(atNewSystemCutoff);
+    Object.assign(cutoffPayload.period as Record<string, unknown>, {
+      fechaInicio: '2027-04-01',
+      fechaFin: '2027-04-30',
+    });
+    setVoluntaryPensionDeclaration(atNewSystemCutoff, {
+      paymentDate: '2027-05-06',
+    });
+    const cutoffCandidate = mapCandidate(
+      atNewSystemCutoff,
+      'E',
+      '2027-04-01',
+      '2027-04-30',
+    );
+    for (const fieldNumber of [28, 48, 49, 53]) {
+      expect(cutoffCandidate.values[fieldNumber]).toBeUndefined();
+    }
     expect(
-      candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 28)
-        ?.reason,
-    ).toContain('suspensión de ajustes PILA');
+      cutoffCandidate.unresolvedFields.find(
+        ({ fieldNumber }) => fieldNumber === 28,
+      )?.reason,
+    ).toContain('alcanza el 2027-04-01');
   });
 
   it('keeps historical voluntary pension fields blocked without frozen Payroll sources', () => {
@@ -1122,7 +1213,9 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       ).toBeTruthy();
     }
     expect(candidate.values[50]).toBeUndefined();
-    expect(candidate.normativeRuleVersions.voluntaryPensionCutoff).toBeNull();
+    expect(
+      candidate.normativeRuleVersions.voluntaryPensionDeclaration,
+    ).toBeNull();
   });
 
   it('blocks voluntary pension fields for an inverted payroll period', () => {
@@ -1154,7 +1247,9 @@ describe('mapPilaAt2V30DetailCandidate', () => {
         )?.reason,
       ).toContain('otros tipos de planilla no están soportados');
     }
-    expect(candidate.normativeRuleVersions.voluntaryPensionCutoff).toBeNull();
+    expect(
+      candidate.normativeRuleVersions.voluntaryPensionDeclaration,
+    ).toBeNull();
   });
 
   it('does not propose a correction field for unsupported planilla types', () => {
@@ -1171,6 +1266,15 @@ describe('mapPilaAt2V30DetailCandidate', () => {
   it('keeps historical voluntary and FSP amounts pending with source reasons', () => {
     const input = snapshot();
     const payload = payloadOf(input);
+    setStandardPensionInputs(input, { paymentDate: '2025-07-10' });
+    payload.payroll.voluntaryPensionDeclaration = {
+      status: 'NONE_CONFIRMED',
+      declaredAt: '2025-06-30T12:00:00.000Z',
+      declaredById: 'payroll-user-1',
+    };
+    payload.employee.fechaIngreso = '2025-06-01';
+    (payload.contract as Record<string, unknown>).fechaInicio = '2025-06-01';
+    payload.affiliations[0].vigenteDesde = '2025-06-01';
     (payload.period as Record<string, unknown>).fechaInicio = '2025-06-01';
     (payload.period as Record<string, unknown>).fechaFin = '2025-06-30';
     const candidate = mapCandidate(input, 'E', '2025-06-01', '2025-06-30');
@@ -1182,11 +1286,11 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     for (const fieldNumber of [48, 49, 51, 52, 53]) {
       expect(candidate.values[fieldNumber]).toBeUndefined();
     }
-    expect(reasonFor(48)).toContain('importe del afiliado congelado');
-    expect(reasonFor(49)).toContain('importe del aportante congelado');
+    expect(reasonFor(48)).toContain('histórico anterior a v8');
+    expect(reasonFor(49)).toContain('histórico anterior a v8');
     expect(reasonFor(51)).toContain('agregar el IBC pensional por cotizante');
     expect(reasonFor(52)).toContain('regla vigente por régimen');
-    expect(reasonFor(53)).toContain('valor no retenido');
+    expect(reasonFor(53)).toContain('histórico anterior a v8');
   });
 
   it('keeps fixed incapacity and maternity fields unresolved when a PILA event exists', () => {
@@ -2355,6 +2459,6 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.supportedSnapshot).toBe(false);
     expect(candidate.values).toEqual({});
     expect(candidate.unresolvedFields).toHaveLength(98);
-    expect(candidate.unresolvedFields[0]?.reason).toContain('PILA v2 a v7');
+    expect(candidate.unresolvedFields[0]?.reason).toContain('PILA v2 a v8');
   });
 });

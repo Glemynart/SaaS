@@ -1,4 +1,8 @@
-import { PayrollPilaFspSourceScope, PilaEventCode } from '@prisma/client';
+import {
+  PayrollPilaFspSourceScope,
+  PayrollPilaVoluntaryPensionStatus,
+  PilaEventCode,
+} from '@prisma/client';
 import { roundPeso } from './calculator/payroll-calculator';
 import { assessPilaFspSubaccounts } from './pila-fsp-subaccounts';
 
@@ -328,6 +332,9 @@ export function buildPilaSourceSnapshot(input: {
     fspSourceScope?: PayrollPilaFspSourceScope;
     fspSourceScopeUpdatedAt?: Date | null;
     fspSourceScopeUpdatedById?: string | null;
+    voluntaryPensionStatus?: PayrollPilaVoluntaryPensionStatus;
+    voluntaryPensionUpdatedAt?: Date | null;
+    voluntaryPensionUpdatedById?: string | null;
     concepts: Array<{
       id?: string;
       codigo: string | null;
@@ -403,7 +410,7 @@ export function buildPilaSourceSnapshot(input: {
 
   return {
     ...input.context,
-    schemaVersion: 7,
+    schemaVersion: 8,
     pilaRiskAssignments: input.context.pilaRiskAssignments ?? [],
     payroll: {
       payrollRunId: input.payroll.runId,
@@ -420,6 +427,14 @@ export function buildPilaSourceSnapshot(input: {
       tipoSalarioBloqueos: salaryType.bloqueos,
       ibc: input.payroll.ibc,
       fspSubaccounts,
+      voluntaryPensionDeclaration: {
+        status:
+          input.payroll.voluntaryPensionStatus ??
+          PayrollPilaVoluntaryPensionStatus.UNCONFIRMED,
+        declaredAt:
+          input.payroll.voluntaryPensionUpdatedAt?.toISOString() ?? null,
+        declaredById: input.payroll.voluntaryPensionUpdatedById ?? null,
+      },
       diasCotizadosPorSubsistema,
       pilaEvents: input.context.pilaEvents.map((event) => ({ ...event })),
       ibcPorSubsistema: {

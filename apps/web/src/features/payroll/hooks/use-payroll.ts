@@ -204,6 +204,19 @@ export function useUpdatePilaFspSourceScope(periodId: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.period(periodId) }),
   });
 }
+export function useUpdatePilaVoluntaryPensionStatus(periodId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      runId,
+      status,
+    }: {
+      runId: string;
+      status: 'UNCONFIRMED' | 'NONE_CONFIRMED' | 'PRESENT';
+    }) => payrollApi.updatePilaVoluntaryPensionStatus(runId, status),
+    onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.period(periodId) }),
+  });
+}
 export function useRecalculatePayroll() {
   const qc = useQueryClient();
   return useMutation({

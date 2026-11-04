@@ -26,6 +26,9 @@ export interface PayrollRun {
   pilaFspSourceScope: 'UNCONFIRMED' | 'SINGLE_SOURCE_CONFIRMED' | 'MULTIPLE_SOURCES';
   pilaFspSourceScopeUpdatedAt: string | null;
   pilaFspSourceScopeUpdatedById: string | null;
+  pilaVoluntaryPensionStatus: 'UNCONFIRMED' | 'NONE_CONFIRMED' | 'PRESENT';
+  pilaVoluntaryPensionUpdatedAt: string | null;
+  pilaVoluntaryPensionUpdatedById: string | null;
   centroCostoId: string | null;
   totalDevengos: number;
   totalDeducciones: number;
@@ -463,6 +466,23 @@ export const payrollApi = {
     >(`/api/payroll/runs/${runId}/pila-fsp-source-scope`, {
       method: 'PATCH',
       body: JSON.stringify({ sourceScope }),
+    }),
+  updatePilaVoluntaryPensionStatus: (
+    runId: string,
+    status: PayrollRun['pilaVoluntaryPensionStatus'],
+  ) =>
+    req<
+      Pick<
+        PayrollRun,
+        | 'id'
+        | 'employeeId'
+        | 'pilaVoluntaryPensionStatus'
+        | 'pilaVoluntaryPensionUpdatedAt'
+        | 'pilaVoluntaryPensionUpdatedById'
+      >
+    >(`/api/payroll/runs/${runId}/pila-voluntary-pension-status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
     }),
   getPeriod: (id: string) => req<PeriodDetail>(`/api/payroll/periods/${id}`),
   getCorrections: (periodId: string) =>

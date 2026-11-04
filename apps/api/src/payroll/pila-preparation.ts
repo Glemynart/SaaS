@@ -234,7 +234,10 @@ function summarizePensionTransitionStatus(
       continue;
     }
 
-    if (snapshot.payloadVersion === 7 && root?.schemaVersion === 7) {
+    if (
+      (snapshot.payloadVersion === 7 || snapshot.payloadVersion === 8) &&
+      root?.schemaVersion === snapshot.payloadVersion
+    ) {
       const employer = nested(root, 'employer');
       const period = nested(root, 'period');
       const periodStart = expectedScope.period.fechaInicio
@@ -329,7 +332,8 @@ export function inspectPilaSnapshotPreparation(
       input.payloadVersion === 4 ||
       input.payloadVersion === 5 ||
       input.payloadVersion === 6 ||
-      input.payloadVersion === 7) &&
+      input.payloadVersion === 7 ||
+      input.payloadVersion === 8) &&
       root?.schemaVersion === input.payloadVersion);
   if (!supportedPayloadVersion) {
     add(
@@ -1416,7 +1420,7 @@ export function inspectPilaSnapshotPreparation(
       );
     }
   }
-  if ([2, 3, 4, 5, 6, 7].includes(Number(root?.schemaVersion))) {
+  if ([2, 3, 4, 5, 6, 7, 8].includes(Number(root?.schemaVersion))) {
     const rawConceptRows = payroll?.concepts;
     const conceptRows = Array.isArray(rawConceptRows)
       ? rawConceptRows
@@ -1808,7 +1812,7 @@ export function buildPilaPreparationReport(input: {
             },
           ],
           evidence:
-            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots v2/v3/v4/v5/v6/v7 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
+            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots PILA v2–v8 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
         }
       : null;
   const readinessBlockers = [

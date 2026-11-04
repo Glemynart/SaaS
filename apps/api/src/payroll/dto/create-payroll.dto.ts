@@ -13,6 +13,7 @@ import {
 import {
   PayrollPeriodStatus,
   PayrollPilaFspSourceScope,
+  PayrollPilaVoluntaryPensionStatus,
   PilaEventCode,
 } from '@prisma/client';
 
@@ -52,6 +53,11 @@ export class UpdatePayrollPilaPaymentDateDto {
 export class UpdatePayrollPilaFspSourceScopeDto {
   @IsEnum(PayrollPilaFspSourceScope)
   sourceScope: PayrollPilaFspSourceScope;
+}
+
+export class UpdatePayrollPilaVoluntaryPensionStatusDto {
+  @IsEnum(PayrollPilaVoluntaryPensionStatus)
+  status: PayrollPilaVoluntaryPensionStatus;
 }
 
 /** Body opcional de POST payroll/periods/:id/rechazar (ADR-002 §6). */

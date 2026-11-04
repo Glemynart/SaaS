@@ -147,6 +147,22 @@ test('genera, aprueba y contabiliza una nómina desde el flujo de usuario', asyn
     expect(declareSourceResponse.status()).toBe(200);
     await expect(fspSourcePanel.getByText('Una fuente confirmada')).toBeVisible();
 
+    const voluntaryPensionPanel = page.locator('section').filter({
+      has: page.getByRole('heading', {
+        name: 'Aportes voluntarios a pensión para PILA',
+      }),
+    });
+    await expect(voluntaryPensionPanel.getByText('Pendiente de confirmación')).toBeVisible();
+    const declareNoVoluntaryPensionResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.endsWith('/pila-voluntary-pension-status') &&
+        response.request().method() === 'PATCH',
+    );
+    await voluntaryPensionPanel.getByRole('button', { name: 'Confirmar sin aportes' }).click();
+    const declareNoVoluntaryPensionResponse = await declareNoVoluntaryPensionResponsePromise;
+    expect(declareNoVoluntaryPensionResponse.status()).toBe(200);
+    await expect(voluntaryPensionPanel.getByText('Sin aportes confirmados')).toBeVisible();
+
     await page.goto('/nomina/periodos');
     const reviewResponsePromise = page.waitForResponse(
       (response) =>
@@ -188,9 +204,9 @@ test('genera, aprueba y contabiliza una nómina desde el flujo de usuario', asyn
     expect(approved.snapshots[0].payload.employee).toMatchObject({
       salarioBaseUsado: 8_000_000,
     });
-    expect(approved.snapshots[0].pilaPayloadVersion).toBe(7);
+    expect(approved.snapshots[0].pilaPayloadVersion).toBe(8);
     expect(approved.snapshots[0].pilaPayload).toMatchObject({
-      schemaVersion: 7,
+      schemaVersion: 8,
       payroll: {
         fspSubaccounts: {
           sourceScope: 'SINGLE_SOURCE_CONFIRMED',
@@ -203,8 +219,14 @@ test('genera, aprueba y contabiliza una nómina desde el flujo de usuario', asyn
           sourceScopeUpdatedById: expect.any(String),
           sourceScopeUpdatedAt: expect.any(String),
         },
+        voluntaryPensionDeclaration: {
+          status: 'NONE_CONFIRMED',
+          declaredById: expect.any(String),
+          declaredAt: expect.any(String),
+        },
       },
     });
+    await expect(page.getByRole('button', { name: 'Confirmar sin aportes' })).toHaveCount(0);
 
     const postingResponsePromise = page.waitForResponse(
       (response) =>

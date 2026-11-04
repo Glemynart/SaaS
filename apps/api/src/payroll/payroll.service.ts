@@ -9,6 +9,7 @@ import {
   PayrollBlockStatus,
   PayrollCorrectionStatus,
   PayrollPeriodStatus,
+  PayrollPilaVoluntaryPensionStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
@@ -29,6 +30,7 @@ import {
   CreatePayrollPilaEventDto,
   UpdatePayrollPilaPaymentDateDto,
   UpdatePayrollPilaFspSourceScopeDto,
+  UpdatePayrollPilaVoluntaryPensionStatusDto,
 } from './dto/create-payroll.dto';
 import { CreatePayrollCorrectionDto } from './dto/payroll-correction.dto';
 import { calculate, resolveFspPct } from './calculator/payroll-calculator';
@@ -95,7 +97,7 @@ const RECALCULATE_ALLOWED_STATUSES: PayrollPeriodStatus[] =
 
 const SNAPSHOT_PAYLOAD_VERSION = 1;
 const CALCULATION_TRACE_VERSION = 1;
-const PILA_PAYLOAD_VERSION = 7;
+const PILA_PAYLOAD_VERSION = 8;
 
 type PilaSourceData = {
   tenant: PilaSourceContextInput['tenant'];
@@ -742,6 +744,109 @@ export class PayrollService {
           pilaFspSourceScope: true,
           pilaFspSourceScopeUpdatedAt: true,
           pilaFspSourceScopeUpdatedById: true,
+        },
+      });
+    });
+  }
+
+  async updatePilaVoluntaryPensionStatus(
+    tenantId: string,
+    userId: string,
+    runId: string,
+    dto: UpdatePayrollPilaVoluntaryPensionStatusDto,
+  ) {
+    const editableStatuses: PayrollPeriodStatus[] = [
+      PayrollPeriodStatus.CALCULADA,
+      PayrollPeriodStatus.EN_REVISION,
+    ];
+
+    return this.tenantPrisma.execute(async (tx) => {
+      const runReference = await tx.payrollRun.findFirst({
+        where: { id: runId, tenantId },
+        select: {
+          id: true,
+          payrollPeriodId: true,
+          employeeId: true,
+          pilaVoluntaryPensionStatus: true,
+          pilaVoluntaryPensionUpdatedAt: true,
+          pilaVoluntaryPensionUpdatedById: true,
+        },
+      });
+      if (!runReference)
+        throw new NotFoundException('Liquidación no encontrada');
+
+      await this.lockPayrollPeriodForPilaEvents(
+        tx,
+        tenantId,
+        runReference.payrollPeriodId,
+      );
+      const period = await tx.payrollPeriod.findFirst({
+        where: { id: runReference.payrollPeriodId, tenantId },
+        select: { status: true },
+      });
+      if (!period) throw new NotFoundException('Período no encontrado');
+      if (!editableStatuses.includes(period.status)) {
+        throw new ConflictException(
+          'La declaración de aportes voluntarios solo se puede cambiar antes de aprobar la nómina.',
+        );
+      }
+
+      const now = new Date();
+      const updated = await tx.payrollRun.updateMany({
+        where: {
+          id: runReference.id,
+          tenantId,
+          payrollPeriodId: runReference.payrollPeriodId,
+          pilaVoluntaryPensionStatus: runReference.pilaVoluntaryPensionStatus,
+          pilaVoluntaryPensionUpdatedAt:
+            runReference.pilaVoluntaryPensionUpdatedAt,
+          pilaVoluntaryPensionUpdatedById:
+            runReference.pilaVoluntaryPensionUpdatedById,
+        },
+        data: {
+          pilaVoluntaryPensionStatus: dto.status,
+          pilaVoluntaryPensionUpdatedAt:
+            dto.status === PayrollPilaVoluntaryPensionStatus.UNCONFIRMED
+              ? null
+              : now,
+          pilaVoluntaryPensionUpdatedById:
+            dto.status === PayrollPilaVoluntaryPensionStatus.UNCONFIRMED
+              ? null
+              : userId,
+        },
+      });
+      if (updated.count === 0) {
+        throw new ConflictException(
+          'La liquidación cambió durante la declaración; actualice la página e intente de nuevo.',
+        );
+      }
+
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'PAYROLL_PILA_VOLUNTARY_PENSION_STATUS_UPDATED',
+          entityType: 'PayrollRun',
+          entityId: runReference.id,
+          metadata: {
+            payrollPeriodId: runReference.payrollPeriodId,
+            employeeId: runReference.employeeId,
+            previousStatus: runReference.pilaVoluntaryPensionStatus,
+            newStatus: dto.status,
+          },
+        },
+        tx,
+      );
+
+      return tx.payrollRun.findFirstOrThrow({
+        where: { id: runReference.id, tenantId },
+        select: {
+          id: true,
+          employeeId: true,
+          payrollPeriodId: true,
+          pilaVoluntaryPensionStatus: true,
+          pilaVoluntaryPensionUpdatedAt: true,
+          pilaVoluntaryPensionUpdatedById: true,
         },
       });
     });
@@ -3653,6 +3758,9 @@ export class PayrollService {
               fspSourceScope: run.pilaFspSourceScope,
               fspSourceScopeUpdatedAt: run.pilaFspSourceScopeUpdatedAt,
               fspSourceScopeUpdatedById: run.pilaFspSourceScopeUpdatedById,
+              voluntaryPensionStatus: run.pilaVoluntaryPensionStatus,
+              voluntaryPensionUpdatedAt: run.pilaVoluntaryPensionUpdatedAt,
+              voluntaryPensionUpdatedById: run.pilaVoluntaryPensionUpdatedById,
               concepts: run.concepts.map((concept) => ({
                 id: concept.id,
                 codigo: concept.codigo,

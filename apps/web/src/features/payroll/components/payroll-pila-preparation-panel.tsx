@@ -414,7 +414,7 @@ export function PayrollPilaPreparationPanel({
             <p className="mt-1 text-sm text-muted-foreground">
               {query.data.employerCandidate.supportedSnapshots
                 ? 'Tenant y período coinciden; se muestran valores candidatos solo cuando todos los snapshots concuerdan.'
-                : 'Se requieren snapshots PILA v2–v7 únicos y consistentes con el tenant y período aprobado.'}{' '}
+                : 'Se requieren snapshots PILA v2–v8 únicos y consistentes con el tenant y período aprobado.'}{' '}
               Los datos faltantes o diferentes quedan pendientes. Esta revisión no genera el archivo
               ni confirma la aceptación de un operador.
             </p>
@@ -449,8 +449,8 @@ export function PayrollPilaPreparationPanel({
             </h3>
             <p className="mt-1 text-sm text-muted-foreground">
               {query.data.headerCandidate.supportedSnapshots
-                ? 'Valores candidatos calculados desde snapshots PILA v2–v7 del mismo tenant y período.'
-                : 'Se requieren snapshots PILA v2–v7 del mismo tenant y período para proponer valores.'}{' '}
+                ? 'Valores candidatos calculados desde snapshots PILA v2–v8 del mismo tenant y período.'
+                : 'Se requieren snapshots PILA v2–v8 del mismo tenant y período para proponer valores.'}{' '}
               Los campos asignados al operador muestran la posición vacía candidata; los datos
               faltantes muestran su motivo. Esta revisión no genera el archivo ni confirma su
               aceptación.
@@ -675,12 +675,12 @@ export function PayrollPilaPreparationPanel({
             <p className="mt-1 text-sm text-muted-foreground">
               Para snapshots completos sin eventos PILA ni novedades Payroll se proponen los blancos
               y el cero definidos por AT2 v30. Como el MVP usa planilla E, el campo 22 se propone
-              vacío; las correcciones de planilla N quedan fuera de alcance. El corte AT2 de
-              2025-07-01 no está reconciliado con la suspensión de ajustes PILA. Por eso, los campos
-              28, 48, 49 y 53 quedan pendientes para cualquier período hasta confirmar la regla y
-              congelar sus fuentes; no se infieren blancos ni ceros. El campo 50 también queda
-              pendiente si 48 o 49 no se resuelven. Este informe no habilita la descarga del
-              archivo.
+              vacío; las correcciones de planilla N quedan fuera de alcance. Para dependientes 01/00
+              de mes completo, los campos 28, 48, 49 y 53 solo se proponen con declaración auditada
+              de ausencia de aportes en el snapshot PILA v8 y período y pago anteriores al
+              2027-04-01. Aportes presentes, falta de declaración, snapshots históricos y fechas de
+              transición quedan pendientes. El campo 50 también queda pendiente mientras 47–49 no
+              estén resueltos. Este informe no habilita la descarga del archivo.
             </p>
             <details className="mt-3 rounded-md bg-muted/40 px-3 py-2">
               <summary className="cursor-pointer text-sm font-medium">

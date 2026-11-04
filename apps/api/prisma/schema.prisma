@@ -1027,6 +1027,12 @@ enum PayrollPilaFspSourceScope {
   MULTIPLE_SOURCES
 }
 
+enum PayrollPilaVoluntaryPensionStatus {
+  UNCONFIRMED
+  NONE_CONFIRMED
+  PRESENT
+}
+
 // =============================================================================
 // PAYROLL NOVELTY TYPE — Tipo de novedad de nómina
 // =============================================================================
@@ -1198,6 +1204,11 @@ model PayrollRun {
   pilaFspSourceScope            PayrollPilaFspSourceScope @default(UNCONFIRMED)
   pilaFspSourceScopeUpdatedAt   DateTime?
   pilaFspSourceScopeUpdatedById String?
+
+  // Explicit period declaration for AT2 voluntary pension fields 28, 48, 49 and 53.
+  pilaVoluntaryPensionStatus      PayrollPilaVoluntaryPensionStatus @default(UNCONFIRMED)
+  pilaVoluntaryPensionUpdatedAt   DateTime?
+  pilaVoluntaryPensionUpdatedById String?
 
   parametroLegal ParametroLegalNomina? @relation(fields: [parametroLegalId], references: [id], onDelete: Restrict)
 
