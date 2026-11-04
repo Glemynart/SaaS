@@ -536,6 +536,31 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     ).toEqual(layoutFields);
   });
 
+  it('withholds detail candidates that cannot fit the AT2 field layout', () => {
+    const input = snapshot();
+    const payload = payloadOf(input);
+    payload.employee.primerApellido = 'A'.repeat(21);
+    payload.affiliations[0].fondoPensionCodigo = 'AFP0001';
+
+    const candidate = mapCandidate(input);
+    const unresolvedReasonByField = new Map(
+      candidate.unresolvedFields.map(({ fieldNumber, reason }) => [
+        fieldNumber,
+        reason,
+      ]),
+    );
+
+    expect(candidate.values[11]).toBeUndefined();
+    expect(candidate.values[31]).toBeUndefined();
+    expect(unresolvedReasonByField.get(11)).toContain(
+      'supera la longitud de 20 posiciones',
+    );
+    expect(unresolvedReasonByField.get(31)).toContain(
+      'supera la longitud de 6 posiciones',
+    );
+    expect(candidate.values[13]).toEqual({ value: 'Ana' });
+  });
+
   it('keeps every AT2 detail field blocked for an unsupported snapshot', () => {
     const input = snapshot();
     input.payloadVersion = 1;

@@ -1,6 +1,7 @@
 import {
   PILA_AT2_V30_FORMAT_VERSION,
   PILA_AT2_V30_RECORD_LAYOUTS,
+  validatePilaAt2V30FieldCandidate,
   type PilaAt2V30FieldInput,
 } from './pila-at2-v30-record-serializer';
 import {
@@ -220,7 +221,8 @@ function fullCalendarMonth(start: string, end: string): boolean {
  * Maps candidate AT2 v30 type 2 detail sources from one frozen PILA snapshot.
  * It is deliberately partial: the initial ARL rate is only a versioned
  * candidate, remaining contribution rules and novelty segments are unresolved,
- * and this function never validates or serializes a record.
+ * and it does not validate record completeness or serialize a record. Concrete
+ * values are checked against their field layout before they become candidates.
  */
 export function mapPilaAt2V30DetailCandidate(
   snapshot: PilaSnapshotPreparationInput,
@@ -228,16 +230,30 @@ export function mapPilaAt2V30DetailCandidate(
 ): PilaAt2V30DetailCandidate {
   const values: Partial<Record<number, PilaAt2V30FieldInput>> = {};
   const reasons = new Map<number, string>();
+  const unresolved = (fieldNumber: number, reason: string) => {
+    reasons.set(fieldNumber, reason);
+  };
   const put = (fieldNumber: number, value: string | number) => {
+    const input = { value } satisfies PilaAt2V30FieldInput;
+    const validationError = validatePilaAt2V30FieldCandidate(
+      'contributorDetailType2',
+      fieldNumber,
+      input,
+    );
+    if (validationError) {
+      delete values[fieldNumber];
+      unresolved(fieldNumber, validationError);
+      return;
+    }
     values[fieldNumber] = { value };
     reasons.delete(fieldNumber);
   };
   const blank = (fieldNumber: number) => {
-    values[fieldNumber] = { value: null, emptyAs: 'spaces' };
+    // Field-specific rules own blank semantics, including numeric fields whose
+    // AT2 applicability requires a blank instead of a numeric zero.
+    const input = { value: null, emptyAs: 'spaces' } as const;
+    values[fieldNumber] = input;
     reasons.delete(fieldNumber);
-  };
-  const unresolved = (fieldNumber: number, reason: string) => {
-    reasons.set(fieldNumber, reason);
   };
   const putText = (fieldNumber: number, value: unknown, label: string) => {
     const normalized = sourceText(value);
