@@ -219,13 +219,22 @@ export interface PilaAt2V30FieldInput {
   readonly emptyAs?: 'spaces' | 'zeros';
 }
 
-type PilaAt2V30PartialRecordValues = Readonly<
+export type PilaAt2V30PartialRecordValues = Readonly<
   Partial<Record<number, PilaAt2V30FieldInput>>
 >;
 
 export type PilaAt2V30RecordValues = Readonly<
   Record<number, PilaAt2V30FieldInput>
 >;
+
+export interface PilaAt2V30RecordCandidate {
+  readonly supported: boolean;
+  readonly values: PilaAt2V30PartialRecordValues;
+  readonly unresolvedFields: readonly {
+    readonly fieldNumber: number;
+    readonly reason: string;
+  }[];
+}
 
 export class PilaAt2V30SerializationError extends Error {
   constructor(
@@ -285,6 +294,43 @@ export function serializePilaAt2V30Record(
     );
   }
   return result;
+}
+
+/**
+ * Serializes a complete candidate and fails closed for unsupported sources,
+ * unresolved fields, or missing field decisions.
+ */
+export function serializePilaAt2V30RecordCandidate(
+  record: PilaAt2V30RecordKey,
+  candidate: PilaAt2V30RecordCandidate,
+): string {
+  if (!candidate.supported) {
+    throw new PilaAt2V30SerializationError(
+      `AT2 v30: no se puede serializar ${record} desde fuentes no soportadas.`,
+    );
+  }
+
+  const unresolvedField = candidate.unresolvedFields[0];
+  if (unresolvedField) {
+    throw new PilaAt2V30SerializationError(
+      `AT2 v30: no se puede serializar ${record}; el campo ${unresolvedField.fieldNumber} sigue pendiente: ${unresolvedField.reason}`,
+      unresolvedField.fieldNumber,
+    );
+  }
+
+  for (const { fieldNumber } of PILA_AT2_V30_RECORD_LAYOUTS[record].fields) {
+    if (!Object.prototype.hasOwnProperty.call(candidate.values, fieldNumber)) {
+      throw new PilaAt2V30SerializationError(
+        `AT2 v30: falta una decisión explícita para el campo ${fieldNumber}.`,
+        fieldNumber,
+      );
+    }
+  }
+
+  return serializePilaAt2V30Record(
+    record,
+    candidate.values as PilaAt2V30RecordValues,
+  );
 }
 
 function formatField(
