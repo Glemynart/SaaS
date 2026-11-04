@@ -181,6 +181,34 @@ function safeInteger(value: unknown, maxDigits: number): value is number {
   );
 }
 
+const PILA_AT2_V30_SUPPORTED_COTIZANTE_DOCUMENT_TYPES = new Set([
+  'CC',
+  'CE',
+  'TI',
+  'PA',
+  'PC',
+]);
+
+function isSupportedPilaCotizanteDocumentNumber(
+  documentType: string,
+  documentNumber: string,
+): boolean {
+  switch (documentType) {
+    case 'CC':
+      return /^\d{1,10}$/.test(documentNumber);
+    case 'CE':
+      return /^\d{1,7}$/.test(documentNumber);
+    case 'TI':
+      return /^\d{1,11}$/.test(documentNumber);
+    case 'PA':
+      return /^[A-Z0-9]{1,16}$/.test(documentNumber);
+    case 'PC':
+      return /^\d{7,8}$/.test(documentNumber);
+    default:
+      return false;
+  }
+}
+
 function hasNoBlockers(value: JsonRecord | null): boolean {
   return Array.isArray(value?.bloqueos) && value.bloqueos.length === 0;
 }
@@ -413,8 +441,31 @@ export function mapPilaAt2V30DetailCandidate(
     );
   }
 
-  putText(3, employee?.tipoDocumento, 'el tipo de documento del cotizante');
-  putText(4, employee?.cedula, 'la identificación del cotizante');
+  const documentType = sourceText(employee?.tipoDocumento);
+  const documentNumber = sourceText(employee?.cedula);
+  if (
+    !documentType ||
+    !PILA_AT2_V30_SUPPORTED_COTIZANTE_DOCUMENT_TYPES.has(documentType)
+  ) {
+    const reason =
+      'El tipo de documento no tiene un mapeo aprobado para el MVP PILA; solo se admiten CC, CE, TI, PA y PC.';
+    unresolved(3, reason);
+    unresolved(4, reason);
+  } else {
+    put(3, documentType);
+    if (!documentNumber) {
+      unresolved(4, 'Falta el número de documento congelado en el snapshot.');
+    } else if (
+      !isSupportedPilaCotizanteDocumentNumber(documentType, documentNumber)
+    ) {
+      unresolved(
+        4,
+        `El número de documento no cumple el formato admitido para ${documentType}; no se corrige ni se trunca.`,
+      );
+    } else {
+      put(4, documentNumber);
+    }
+  }
   const workLocations = objectRows(root?.pilaWorkLocations);
   const workLocation = workLocations?.length === 1 ? workLocations[0] : null;
   if ((snapshot.payloadVersion ?? 0) < 3) {

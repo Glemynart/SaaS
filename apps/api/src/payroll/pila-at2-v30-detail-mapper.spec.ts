@@ -1440,6 +1440,78 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     },
   );
 
+  it.each([
+    ['CC', '0012345678'],
+    ['CE', '0123456'],
+    ['TI', '00123456789'],
+    ['PA', 'A123456789012345'],
+    ['PC', '12345678'],
+  ])(
+    'maps approved identity %s without changing its number',
+    (type, number) => {
+      const input = snapshot();
+      payloadOf(input).employee.tipoDocumento = type;
+      payloadOf(input).employee.cedula = number;
+
+      const candidate = mapCandidate(input);
+
+      expect(candidate.values[3]).toEqual({ value: type });
+      expect(candidate.values[4]).toEqual({ value: number });
+      expect(candidate.unresolvedFields).not.toContainEqual(
+        expect.objectContaining({ fieldNumber: 3 }),
+      );
+      expect(candidate.unresolvedFields).not.toContainEqual(
+        expect.objectContaining({ fieldNumber: 4 }),
+      );
+    },
+  );
+
+  it.each([
+    ['CC', '12345678901'],
+    ['CE', '12345678'],
+    ['TI', '123456789012'],
+    ['PA', 'a123'],
+    ['PA', 'A1234567890123456'],
+    ['PC', '123456'],
+    ['PC', '123456789'],
+    ['CC', ' 1234'],
+  ])(
+    'blocks an invalid %s document number without changing it',
+    (type, number) => {
+      const input = snapshot();
+      payloadOf(input).employee.tipoDocumento = type;
+      payloadOf(input).employee.cedula = number;
+
+      const candidate = mapCandidate(input);
+
+      expect(candidate.values[3]).toEqual({ value: type });
+      expect(candidate.values[4]).toBeUndefined();
+      expect(
+        candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 4)
+          ?.reason,
+      ).toContain('no se corrige ni se trunca');
+    },
+  );
+
+  it.each(['PEP', 'PPT', 'RC', 'CD', 'SC', 'PE', 'PT', 'ZZ'])(
+    'keeps unsupported document type %s out of identity candidates',
+    (type) => {
+      const input = snapshot();
+      payloadOf(input).employee.tipoDocumento = type;
+
+      const candidate = mapCandidate(input);
+
+      expect(candidate.values[3]).toBeUndefined();
+      expect(candidate.values[4]).toBeUndefined();
+      expect(candidate.unresolvedFields).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ fieldNumber: 3 }),
+          expect.objectContaining({ fieldNumber: 4 }),
+        ]),
+      );
+    },
+  );
+
   it('maps PEP-TUTOR identity while leaving its pension classification unresolved', () => {
     const input = snapshot();
     payloadOf(input).employee.tipoDocumento = 'PC';
