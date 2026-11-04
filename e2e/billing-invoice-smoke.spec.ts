@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Dialog, type Page } from '@playwright/test';
 import { seedBillingLedgerFixture } from './helpers/billing-ledger-fixture';
 
 function dateInDays(days: number) {
@@ -53,6 +53,7 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
   const customerNit = `9${suffix}`;
   const productName = `Servicio Educativo ${suffix}`;
   const invoiceNumber = `DEMO-${suffix}`;
+  const secondInvoiceNumber = `DEMO-2-${suffix}`;
   const fechaVencimiento = dateInDays(30);
   const registration = await registerAndSignIn(page, suffix);
   const accountingFixture = await seedBillingLedgerFixture(
@@ -142,6 +143,45 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
     const invoiceRow = page.getByRole('link', { name: invoiceNumber }).locator('xpath=..');
     await expect(invoiceRow.getByText('Emitida', { exact: true })).toBeVisible();
 
+    await page.getByRole('button', { name: 'Nueva' }).click();
+    await page.locator('select').nth(0).selectOption({ label: customerName });
+    await page.getByPlaceholder('FAC-001').fill(secondInvoiceNumber);
+    await page.getByLabel('Fecha de vencimiento').fill(fechaVencimiento);
+    await page.locator('select').nth(1).selectOption({ label: productName });
+    await expect(page.getByPlaceholder('V. Unit')).toHaveValue('120000');
+    await page.getByPlaceholder('Cant').fill('1');
+
+    const createSecondInvoiceResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/billing/invoices' &&
+        response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Crear factura' }).click();
+    const createSecondInvoiceResponse = await createSecondInvoiceResponsePromise;
+    expect(createSecondInvoiceResponse.status()).toBe(200);
+    const secondInvoice = (await createSecondInvoiceResponse.json()) as {
+      id: string;
+      numero: string;
+      total: number | string;
+    };
+    expect(secondInvoice.numero).toBe(secondInvoiceNumber);
+    expect(Number(secondInvoice.total)).toBe(142_800);
+
+    const issueSecondInvoiceResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/billing/invoices/${secondInvoice.id}/status` &&
+        response.request().method() === 'PATCH',
+    );
+    await page.getByRole('button', { name: 'Emitir' }).click();
+    const issueSecondInvoiceResponse = await issueSecondInvoiceResponsePromise;
+    expect(issueSecondInvoiceResponse.status()).toBe(200);
+    await expect(
+      page
+        .getByRole('link', { name: secondInvoiceNumber })
+        .locator('xpath=..')
+        .getByText('Emitida', { exact: true }),
+    ).toBeVisible();
+
     await page.getByRole('link', { name: invoiceNumber }).click();
     const invoiceHeading = page.getByRole('heading', { name: `Factura ${invoiceNumber}` });
     await expect(invoiceHeading).toBeVisible();
@@ -154,6 +194,70 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
     await expect(page.getByText(/Débitos.*Créditos/)).toBeVisible();
     await expect(page.getByText('Impuestos según tasas congeladas en las líneas')).toBeVisible();
 
+    await page.getByLabel(`Aplicar a ${invoiceNumber} (COP)`).fill('20000');
+    await page.getByLabel(`Aplicar a ${secondInvoiceNumber} (COP)`).fill('30000');
+    await expect(page.getByText(/Total recibido:.*50\.000.*2 factura/)).toBeVisible();
+    const createReceiptResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/billing/receipts' &&
+        response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Registrar recaudo' }).click();
+    const createReceiptResponse = await createReceiptResponsePromise;
+    expect(createReceiptResponse.status()).toBe(200);
+    const receipt = (await createReceiptResponse.json()) as {
+      id: string;
+      monto: number | string;
+      aplicaciones: Array<{ invoiceId: string; amount: number | string }>;
+    };
+    expect(Number(receipt.monto)).toBe(50_000);
+    expect(receipt.aplicaciones).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ invoiceId: invoice.id }),
+        expect.objectContaining({ invoiceId: secondInvoice.id }),
+      ]),
+    );
+    expect(
+      Object.fromEntries(
+        receipt.aplicaciones.map(({ invoiceId, amount }) => [invoiceId, Number(amount)]),
+      ),
+    ).toEqual({ [invoice.id]: 20_000, [secondInvoice.id]: 30_000 });
+    await expect(
+      page.getByText('Pendiente', { exact: true }).locator('xpath=following-sibling::strong[1]'),
+    ).toContainText('122.800');
+    await expect(
+      page.getByText(new RegExp(`Recaudo total.*2 facturas.*${secondInvoiceNumber}`)),
+    ).toBeVisible();
+
+    const receiptDialogTypes: string[] = [];
+    const acceptReceiptReversalDialogs = async (dialog: Dialog) => {
+      receiptDialogTypes.push(dialog.type());
+      if (dialog.type() === 'confirm') await dialog.accept();
+      else await dialog.accept('Reversión E2E de recaudo distribuido');
+    };
+    page.on('dialog', acceptReceiptReversalDialogs);
+    const reverseReceiptResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/billing/receipts/${receipt.id}/reversal` &&
+        response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Reversar recaudo completo' }).click();
+    const reverseReceiptResponse = await reverseReceiptResponsePromise;
+    expect(reverseReceiptResponse.status()).toBe(200);
+    page.off('dialog', acceptReceiptReversalDialogs);
+    expect(receiptDialogTypes).toEqual(['confirm', 'prompt']);
+    await expect(page.getByText(/Recaudo total.*2 facturas.*Reversado/)).toBeVisible();
+
+    await page.goto(`/facturacion/facturas/${secondInvoice.id}`);
+    await expect(
+      page.getByRole('heading', { name: `Factura ${secondInvoiceNumber}` }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Pendiente', { exact: true }).locator('xpath=following-sibling::strong[1]'),
+    ).toContainText('142.800');
+
+    await page.goto(`/facturacion/facturas/${invoice.id}`);
+    await expect(invoiceHeading).toBeVisible();
     await page.reload();
     await expect(invoiceHeading).toBeVisible();
     await expect(
@@ -168,7 +272,11 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
         response.request().method() === 'PATCH',
     );
     page.once('dialog', (dialog) => dialog.accept('Cancelación de prueba E2E'));
-    await page.getByRole('button', { name: 'Revertir' }).click();
+    await page
+      .getByRole('link', { name: invoiceNumber })
+      .locator('xpath=../../..')
+      .getByRole('button', { name: 'Revertir' })
+      .click();
     const cancelResponse = await cancelResponsePromise;
     expect(cancelResponse.status()).toBe(200);
     const cancelledInvoice = (await cancelResponse.json()) as { status: string };

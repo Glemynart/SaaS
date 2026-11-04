@@ -126,6 +126,22 @@ describe('ManualJournalService', () => {
     );
   });
 
+  it('bloquea anular directamente el comprobante de un recaudo', async () => {
+    tx.comprobanteContable.findFirst.mockResolvedValue(
+      adjustmentVoucher({
+        origenTipo: 'BILLING_RECEIPT',
+        origenId: 'receipt-001',
+        origenEvento: 'POSTED',
+      }),
+    );
+
+    await expect(
+      service.anular('tenant-a', 'user-a', 'comp-001', 'Error de digitación'),
+    ).rejects.toThrow('Use la opción de reversión del módulo de cartera');
+
+    expect(ledger.anular).not.toHaveBeenCalled();
+  });
+
   it('permite anular un ajuste de nómina sin correcciones dependientes', async () => {
     ledger.anular.mockResolvedValue({ id: 'comp-001', estado: 'ANULADO' });
 

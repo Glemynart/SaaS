@@ -8,6 +8,11 @@ export const billingKeys = {
   products: () => [...billingKeys.all, 'products'],
   invoices: () => [...billingKeys.all, 'invoices'],
   invoiceReceipts: (id: string) => [...billingKeys.invoices(), id, 'receipts'],
+  customerReceivableInvoices: (customerId: string) => [
+    ...billingKeys.customers(),
+    customerId,
+    'receivable-invoices',
+  ],
 };
 
 export function useBillingDashboard() {
@@ -90,6 +95,13 @@ export function useInvoice(id: string) {
     queryKey: [...billingKeys.invoices(), id],
     queryFn: () => billingApi.getInvoice(id),
     enabled: !!id,
+  });
+}
+export function useCustomerReceivableInvoices(customerId: string, enabled = true) {
+  return useQuery({
+    queryKey: billingKeys.customerReceivableInvoices(customerId),
+    queryFn: () => billingApi.getCustomerReceivableInvoices(customerId),
+    enabled: !!customerId && enabled,
   });
 }
 export function useInvoiceReceiptApplications(id: string, enabled = true) {
