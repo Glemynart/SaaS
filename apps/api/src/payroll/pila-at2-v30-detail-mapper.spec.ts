@@ -2298,5 +2298,6 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.supportedSnapshot).toBe(false);
     expect(candidate.values).toEqual({});
     expect(candidate.unresolvedFields).toHaveLength(98);
+    expect(candidate.unresolvedFields[0]?.reason).toContain('PILA v2 a v7');
   });
 });

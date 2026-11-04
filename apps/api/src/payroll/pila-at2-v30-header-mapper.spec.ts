@@ -198,6 +198,7 @@ describe('mapPilaAt2V30HeaderCandidate', () => {
 
     expect(candidate.supportedSnapshots).toBe(false);
     expect(candidate.unresolvedFields).toHaveLength(22);
+    expect(candidate.unresolvedFields[0]?.reason).toContain('PILA v2 a v7');
   });
 
   it('aggregates distinct standard cotizantes and their frozen CCF IBCs', () => {
