@@ -177,6 +177,15 @@ export interface PilaPreparationReport {
     fechaPrevistaPagoPila: string | null;
   };
   snapshotsRevisados: number;
+  pensionTransitionSummary: {
+    totalSnapshots: number;
+    statusS: number;
+    statusN: number;
+    sinValorUtilizable: number;
+    historicosSinCampo5: number;
+    alcanceNoVerificado: number;
+    versionIncompatible: number;
+  };
   empleadosConDatosPendientes: number;
   empleadosSinBrechasDetectadas: number;
   detailRecordSequence: {

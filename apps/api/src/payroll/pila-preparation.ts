@@ -121,6 +121,16 @@ export interface PilaSnapshotPreparationInput {
   totalCotizantes?: number;
 }
 
+export interface PilaPensionTransitionSummary {
+  totalSnapshots: number;
+  statusS: number;
+  statusN: number;
+  sinValorUtilizable: number;
+  historicosSinCampo5: number;
+  alcanceNoVerificado: number;
+  versionIncompatible: number;
+}
+
 export interface PilaSnapshotPreparation {
   employeeId: string;
   employeeName: string;
@@ -193,6 +203,71 @@ function snapshotPaymentDate(
   const payroll = nested(object(snapshot.payload), 'payroll');
   const value = text(payroll?.fechaPrevistaPagoPila);
   return validCalendarDate(value) ? value : null;
+}
+
+function summarizePensionTransitionStatus(
+  snapshots: readonly PilaSnapshotPreparationInput[],
+  expectedScope: {
+    tenantId?: string;
+    period: { id: string; fechaInicio: Date; fechaFin: Date };
+  },
+): PilaPensionTransitionSummary {
+  const summary: PilaPensionTransitionSummary = {
+    totalSnapshots: snapshots.length,
+    statusS: 0,
+    statusN: 0,
+    sinValorUtilizable: 0,
+    historicosSinCampo5: 0,
+    alcanceNoVerificado: 0,
+    versionIncompatible: 0,
+  };
+
+  for (const snapshot of snapshots) {
+    const root = object(snapshot.payload);
+    const matchesVersion = root?.schemaVersion === snapshot.payloadVersion;
+    if (
+      matchesVersion &&
+      snapshot.payloadVersion !== null &&
+      snapshot.payloadVersion >= 1 &&
+      snapshot.payloadVersion <= 6
+    ) {
+      summary.historicosSinCampo5 += 1;
+      continue;
+    }
+
+    if (snapshot.payloadVersion === 7 && root?.schemaVersion === 7) {
+      const employer = nested(root, 'employer');
+      const period = nested(root, 'period');
+      const periodStart = expectedScope.period.fechaInicio
+        .toISOString()
+        .slice(0, 10);
+      const periodEnd = expectedScope.period.fechaFin
+        .toISOString()
+        .slice(0, 10);
+      if (
+        !expectedScope.tenantId ||
+        employer?.tenantId !== expectedScope.tenantId ||
+        period?.payrollPeriodId !== expectedScope.period.id ||
+        text(period?.fechaInicio) !== periodStart ||
+        text(period?.fechaFin) !== periodEnd
+      ) {
+        summary.alcanceNoVerificado += 1;
+        continue;
+      }
+
+      const payroll = nested(root, 'payroll');
+      const fspSubaccounts = nested(payroll, 'fspSubaccounts');
+      const status = fspSubaccounts?.estadoAfiliacionPensional;
+      if (status === 'S') summary.statusS += 1;
+      else if (status === 'N') summary.statusN += 1;
+      else summary.sinValorUtilizable += 1;
+      continue;
+    }
+
+    summary.versionIncompatible += 1;
+  }
+
+  return summary;
 }
 
 function validPilaIdentification(type: string, value: string): boolean {
@@ -1814,6 +1889,10 @@ export function buildPilaPreparationReport(input: {
   const totalCotizantes = new Set(
     input.snapshots.map(({ employeeId }) => employeeId),
   ).size;
+  const pensionTransitionSummary = summarizePensionTransitionStatus(
+    input.snapshots,
+    { tenantId: input.tenantId, period: input.period },
+  );
   const detailScope = {
     expectedTenantId: input.tenantId ?? null,
     planillaType:
@@ -1990,6 +2069,7 @@ export function buildPilaPreparationReport(input: {
       fechaPrevistaPagoPila: snapshotPaymentDateValue,
     },
     snapshotsRevisados: assessments.length,
+    pensionTransitionSummary,
     empleadosConDatosPendientes: employeesWithIssues,
     empleadosSinBrechasDetectadas: assessments.length - employeesWithIssues,
     detailRecordSequence: {

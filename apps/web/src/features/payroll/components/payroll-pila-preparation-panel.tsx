@@ -227,6 +227,53 @@ export function PayrollPilaPreparationPanel({
 
       {query.data && (
         <div className="mt-4 space-y-4" aria-live="polite">
+          <section
+            className="rounded-lg border border-border p-4"
+            aria-labelledby="pila-pension-transition-title"
+          >
+            <h3 id="pila-pension-transition-title" className="font-medium">
+              Afiliación pensional histórica · campo 5
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Estado S/N leído únicamente de los snapshots aprobados. Los snapshots anteriores a v7
+              no incluyen este campo; no se completa desde la ficha actual del empleado.
+            </p>
+            <dl className="mt-3 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+              <div>
+                <dt className="text-muted-foreground">Estado S</dt>
+                <dd>{query.data.pensionTransitionSummary.statusS}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Estado N</dt>
+                <dd>{query.data.pensionTransitionSummary.statusN}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Sin valor S/N utilizable</dt>
+                <dd>{query.data.pensionTransitionSummary.sinValorUtilizable}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Snapshot histórico sin campo 5</dt>
+                <dd>{query.data.pensionTransitionSummary.historicosSinCampo5}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Snapshot sin alcance verificable</dt>
+                <dd>{query.data.pensionTransitionSummary.alcanceNoVerificado}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Versión incompatible</dt>
+                <dd>{query.data.pensionTransitionSummary.versionIncompatible}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Snapshots incluidos</dt>
+                <dd>{query.data.pensionTransitionSummary.totalSnapshots}</dd>
+              </div>
+            </dl>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Resumen informativo: no modifica los bloqueos de los campos 51/52 ni habilita la
+              generación o descarga del archivo PILA.
+            </p>
+          </section>
+
           {exportReadiness && (
             <section
               className="rounded-lg border border-border p-4"

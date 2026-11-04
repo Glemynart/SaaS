@@ -227,6 +227,19 @@ function detailCandidateSnapshot(
   };
 }
 
+function pensionTransitionSnapshot(
+  employeeId: string,
+  status: 'S' | 'N' | null,
+): PilaSnapshotPreparationInput {
+  const result = detailCandidateSnapshot(employeeId, employeeId);
+  result.payloadVersion = 7;
+  const source = result.payload as Record<string, unknown>;
+  source.schemaVersion = 7;
+  const payroll = source.payroll as Record<string, unknown>;
+  payroll.fspSubaccounts = { estadoAfiliacionPensional: status };
+  return result;
+}
+
 function snapshot(
   employeeId: string,
   employeeName: string,
@@ -2505,6 +2518,62 @@ describe('inspectPilaSnapshotPreparation', () => {
         code: 'PILA_PAYMENT_DATE_SNAPSHOT_INCONSISTENT',
         scope: 'FILE_GENERATION',
       }),
+    );
+  });
+});
+
+describe('buildPilaPreparationReport pension transition summary', () => {
+  it('summarizes S/N only from matching v7 snapshots and preserves historical gaps', () => {
+    const incompatible = snapshot('employee-incompatible', 'Incompatible', {
+      payloadVersion: 7,
+    });
+    const wrongTenant = pensionTransitionSnapshot('employee-wrong-tenant', 'S');
+    const wrongTenantPayload = wrongTenant.payload as {
+      employer: { tenantId: string };
+    };
+    wrongTenantPayload.employer.tenantId = 'another-tenant';
+    const wrongPeriod = pensionTransitionSnapshot('employee-wrong-period', 'N');
+    const wrongPeriodPayload = wrongPeriod.payload as {
+      period: { payrollPeriodId: string };
+    };
+    wrongPeriodPayload.period.payrollPeriodId = 'another-period';
+    const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [
+        pensionTransitionSnapshot('employee-s', 'S'),
+        pensionTransitionSnapshot('employee-n', 'N'),
+        pensionTransitionSnapshot('employee-null', null),
+        snapshot('employee-historic', 'Historic'),
+        incompatible,
+        wrongTenant,
+        wrongPeriod,
+      ],
+    });
+
+    expect(report.pensionTransitionSummary).toEqual({
+      totalSnapshots: 7,
+      statusS: 1,
+      statusN: 1,
+      sinValorUtilizable: 1,
+      historicosSinCampo5: 1,
+      alcanceNoVerificado: 2,
+      versionIncompatible: 1,
+    });
+    expect(report.archivoGenerable).toBe(false);
+    expect(
+      report.detailContributionCandidates.filter(({ fieldNumber }) =>
+        [51, 52].includes(fieldNumber),
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ fieldNumber: 51, candidateEmployees: 0 }),
+        expect.objectContaining({ fieldNumber: 52, candidateEmployees: 0 }),
+      ]),
     );
   });
 });
