@@ -219,7 +219,7 @@ describe('PILA source snapshot builders', () => {
   });
 
   it.each([null, 'S', 'N'] as const)(
-    'freezes pension transition %s in v7 while keeping post-cutoff FSP blocked',
+    'freezes pension transition %s as historical evidence for FSP',
     (estadoAfiliacionPensional) => {
       const context = buildPilaSourceContext({
         ...contextInput,
@@ -270,18 +270,16 @@ describe('PILA source snapshot builders', () => {
             sourceScope: 'SINGLE_SOURCE_CONFIRMED',
             sourceScopeUpdatedById: 'payroll-user-1',
             estadoAfiliacionPensional,
-            status: 'BLOCKED',
-            ruleVersion: null,
-            ibcPensionalAgregado: null,
-            solidaridad: null,
-            subsistencia: null,
-            payrollFspAmount: null,
+            status: 'READY',
+            blocker: null,
+            ruleVersion: 'CO_FSP_SUBACCOUNTS_DEC1833_PRE_2027_04_01_V1',
+            ibcPensionalAgregado: 4_000_000,
+            solidaridad: 20_000,
+            subsistencia: 20_000,
+            payrollFspAmount: 40_000,
           },
         },
       });
-      expect(snapshot.payroll.fspSubaccounts.blocker).toContain(
-        'vigencia y ruta',
-      );
     },
   );
 

@@ -148,6 +148,26 @@ regla aplicable. Para reabrir el semestre se requieren una regla laboral
 revisada y casos esperados aprobados que cubran el pago dentro del plazo legal,
 el período completo y cualquier ajuste posterior.
 
+### Revisión de fuentes oficiales — 2026-11-04
+
+La compilación vigente del artículo 306 CST conserva el pago máximo el 30 de
+junio y durante los primeros veinte días de diciembre, con reconocimiento por
+semestre trabajado o proporcional al tiempo. La Sentencia C-871/2014 recoge la
+referencia histórica a semestres calendario; MinJusticia señala que incapacidad
+y licencia de maternidad no reducen días porque el contrato no se suspende.
+Esta revisión no encontró una regla oficial general para proyectar antes del
+20 de diciembre los días restantes hasta el 31 ni la remuneración variable de
+esos días, ni para ajustar una proyección luego del pago. No se usa el corte
+del 30 de noviembre de una convención colectiva como regla general.
+
+**Decisión vigente:** no habilitar todavía el cálculo operativo de
+julio–diciembre. Mantener cálculo, aprobación y PDF bloqueados en ese semestre
+hasta que una regla general de corte y ajuste esté documentada y haya casos
+representativos revisados. El prototipo de enero–junio permanece disponible;
+esto no registra pagos ni asientos. Fuentes: [artículo 306 CST compilado](https://normativa.colpensiones.gov.co/colpens/compilacion/docs/codigo_sustantivo_trabajo.htm),
+[Sentencia C-871/2014](https://www.corteconstitucional.gov.co/relatoria/2014/C-871-14.htm)
+y [LegalApp de MinJusticia](https://www.minjusticia.gov.co/programas-co/LegalApp/Paginas/Que-es-la-prima-de-servicios-y-que-hacer-si-no-se-reconoce-o-paga.aspx).
+
 ## Matriz del MVP de conceptos y novedades
 
 Esta matriz es la política implementada por `PRIMA_SEMESTRAL_V1`. Cubre todos

@@ -3,6 +3,8 @@ import {
   inspectPilaSnapshotPreparation,
   type PilaSnapshotPreparationInput,
 } from './pila-preparation';
+import { PILA_CONTRIBUTION_ROUNDING_RULE_VERSION } from './pila-contribution-rounding';
+import { PILA_FSP_SUBACCOUNT_RULE_VERSION } from './pila-fsp-subaccounts';
 
 function payload() {
   return {
@@ -237,6 +239,54 @@ function pensionTransitionSnapshot(
   source.schemaVersion = 7;
   const payroll = source.payroll as Record<string, unknown>;
   payroll.fspSubaccounts = { estadoAfiliacionPensional: status };
+  return result;
+}
+
+function readyFspSnapshot(
+  employeeId: string,
+  status: 'S' | 'N' | null,
+): PilaSnapshotPreparationInput {
+  const result = detailCandidateSnapshot(employeeId, employeeId);
+  result.payloadVersion = 7;
+  const source = result.payload as Record<string, unknown>;
+  source.schemaVersion = 7;
+  const payroll = source.payroll as Record<string, unknown>;
+  const pensionIbc = (payroll.ibcPorSubsistema as Record<string, unknown>)
+    .pension as Record<string, unknown>;
+  pensionIbc.valor = 8_000_000;
+  const concepts = payroll.concepts as Array<Record<string, unknown>>;
+  for (const concept of concepts) {
+    if (concept.codigo === 'PENSION_EMP') {
+      concept.base = 8_000_000;
+      concept.valor = 320_000;
+    } else if (concept.codigo === 'PENSION_PAT') {
+      concept.base = 8_000_000;
+      concept.valor = 960_000;
+    }
+  }
+  concepts.push({
+    conceptId: 'fsp-employee',
+    codigo: 'FSP',
+    tipo: 'DEDUCTION',
+    base: 8_000_000,
+    factor: 0.01,
+    valor: 80_000,
+  });
+  payroll.fspSubaccounts = {
+    sourceScope: 'SINGLE_SOURCE_CONFIRMED',
+    sourceScopeUpdatedAt: '2026-10-01T12:00:00.000Z',
+    sourceScopeUpdatedById: 'payroll-user-1',
+    estadoAfiliacionPensional: status,
+    status: 'READY',
+    blocker: null,
+    ruleVersion: PILA_FSP_SUBACCOUNT_RULE_VERSION,
+    roundingRuleVersion: PILA_CONTRIBUTION_ROUNDING_RULE_VERSION,
+    ibcPensionalAgregado: 8_000_000,
+    smmlv: 1_750_905,
+    solidaridad: 40_000,
+    subsistencia: 40_000,
+    payrollFspAmount: 80_000,
+  };
   return result;
 }
 
@@ -2623,4 +2673,37 @@ describe('buildPilaPreparationReport pension transition summary', () => {
       ]),
     );
   });
+
+  it.each([null, 'S', 'N'] as const)(
+    'presents legacy FSP 51/52 candidates with historical affiliation %s when the frozen evidence reconciles',
+    (status) => {
+      const report = buildPilaPreparationReport({
+        tenantId: 'tenant-1',
+        period: {
+          id: 'period-1',
+          fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+          fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+        },
+        snapshots: [readyFspSnapshot(`employee-${status ?? 'null'}`, status)],
+      });
+
+      expect(
+        report.detailContributionCandidates.filter(({ fieldNumber }) =>
+          [51, 52].includes(fieldNumber),
+        ),
+      ).toEqual([
+        expect.objectContaining({
+          fieldNumber: 51,
+          candidateEmployees: 1,
+          pendingEmployees: 0,
+        }),
+        expect.objectContaining({
+          fieldNumber: 52,
+          candidateEmployees: 1,
+          pendingEmployees: 0,
+        }),
+      ]);
+      expect(report.archivoGenerable).toBe(false);
+    },
+  );
 });
