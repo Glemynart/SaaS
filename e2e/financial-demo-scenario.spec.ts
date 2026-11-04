@@ -398,6 +398,13 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
       value: null,
       emptyAs: 'zeros',
     });
+    expect(preparation.employerCandidate.values).toMatchObject({
+      2: { value: 'NI' },
+      3: { value: '900123456' },
+      4: { value: '7' },
+      18: { value: '123456789' },
+      20: { value: 'CC' },
+    });
     expect(preparation.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -488,6 +495,18 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
     await expect(
       employerCandidateRegion.getByText('Demo Financiera E2E S.A.S.', { exact: true }),
     ).toBeVisible();
+    for (const [fieldNumber, label, value] of [
+      [2, 'Tipo de documento del aportante', 'NI'],
+      [3, 'Número de identificación del aportante', '900123456'],
+      [4, 'Dígito de verificación', '7'],
+      [18, 'Número de documento del representante', '123456789'],
+      [20, 'Tipo de documento del representante', 'CC'],
+    ] as const) {
+      const field = employerCandidateRegion
+        .getByText(`Campo ${fieldNumber} · ${label}`, { exact: true })
+        .locator('xpath=..');
+      await expect(field).toContainText(value);
+    }
     const employerFaxField = employerCandidateRegion
       .getByText('Campo 16 · Fax', { exact: true })
       .locator('xpath=..');

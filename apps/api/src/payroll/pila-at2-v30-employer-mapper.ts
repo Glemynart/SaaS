@@ -1,4 +1,10 @@
 import type { PilaAt2V30FieldInput } from './pila-at2-v30-record-serializer';
+import {
+  isValidPilaEmployerIdentification,
+  isValidPilaRepresentativeIdentification,
+  PILA_SUPPORTED_EMPLOYER_DOCUMENT_TYPES,
+  PILA_SUPPORTED_REPRESENTATIVE_DOCUMENT_TYPES,
+} from './pila-document-identity';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -154,15 +160,65 @@ export function mapPilaAt2V30EmployerCandidate(
   }
 
   putRequiredText(1, employer.razonSocial);
-  putRequiredText(2, employerPila.tipoDocumentoAportante);
-  putRequiredText(3, employer.nit);
-
   const personType = valueText(employerPila.tipoPersona);
-  if (personType === 'N') {
-    // AT2 v30 specifies zero for a natural person's verification digit.
-    put(4, '0');
+  const employerDocumentType = valueText(employerPila.tipoDocumentoAportante);
+  const employerIdentification = valueText(employer.nit);
+  const employerDocumentTypeSupported = Boolean(
+    employerDocumentType &&
+    PILA_SUPPORTED_EMPLOYER_DOCUMENT_TYPES.has(employerDocumentType),
+  );
+  const employerDocumentCompatible = !(
+    personType === 'N' && employerDocumentType === 'NI'
+  );
+  if (employerDocumentTypeSupported && employerDocumentCompatible) {
+    put(2, employerDocumentType!);
   } else {
-    putRequiredText(4, employer.digitoVerif);
+    unresolved(
+      2,
+      employerDocumentCompatible
+        ? 'Falta un tipo de documento del aportante soportado por AT2 v30.'
+        : 'El tipo de documento NI no corresponde a un aportante persona natural.',
+    );
+  }
+  if (
+    employerDocumentTypeSupported &&
+    employerDocumentCompatible &&
+    employerIdentification &&
+    isValidPilaEmployerIdentification(
+      employerDocumentType!,
+      employerIdentification,
+    )
+  ) {
+    put(3, employerIdentification);
+  } else {
+    unresolved(
+      3,
+      'La identificación del aportante no cumple el formato del tipo declarado; no se corrige ni se trunca.',
+    );
+  }
+
+  if (personType === 'N') {
+    if (valueText(employer.digitoVerif) === '0') {
+      // AT2 v30 specifies zero for a natural person's verification digit.
+      put(4, '0');
+    } else {
+      unresolved(
+        4,
+        'AT2 v30 requiere que el dígito de verificación de una persona natural sea 0.',
+      );
+    }
+  } else if (personType === 'J') {
+    const verificationDigit = valueText(employer.digitoVerif);
+    if (verificationDigit && /^\d$/.test(verificationDigit)) {
+      put(4, verificationDigit);
+    } else {
+      unresolved(
+        4,
+        'La persona jurídica requiere un dígito de verificación de una posición; el operador valida el cálculo DIAN.',
+      );
+    }
+  } else {
+    unresolved(4, 'Falta confirmar el tipo de persona del aportante.');
   }
 
   const presentation = valueText(employerPila.formaPresentacion);
@@ -226,9 +282,44 @@ export function mapPilaAt2V30EmployerCandidate(
     putBlank(23);
     putBlank(24);
   } else if (personType === 'J') {
-    putRequiredText(18, employerPila.representanteNumeroDocumento);
+    const representativeDocumentType = valueText(
+      employerPila.representanteTipoDocumento,
+    );
+    const representativeIdentification = valueText(
+      employerPila.representanteNumeroDocumento,
+    );
+    if (
+      representativeDocumentType &&
+      PILA_SUPPORTED_REPRESENTATIVE_DOCUMENT_TYPES.has(
+        representativeDocumentType,
+      )
+    ) {
+      put(20, representativeDocumentType);
+      if (
+        representativeIdentification &&
+        isValidPilaRepresentativeIdentification(
+          representativeDocumentType,
+          representativeIdentification,
+        )
+      ) {
+        put(18, representativeIdentification);
+      } else {
+        unresolved(
+          18,
+          'La identificación del representante no cumple el formato del tipo declarado; no se corrige ni se trunca.',
+        );
+      }
+    } else {
+      unresolved(
+        18,
+        'Falta un tipo de documento soportado para la identificación del representante.',
+      );
+      unresolved(
+        20,
+        'Falta un tipo de documento soportado para la identificación del representante.',
+      );
+    }
     put(19, '0');
-    putRequiredText(20, employerPila.representanteTipoDocumento);
     putRequiredText(21, employerPila.representantePrimerApellido);
     if (valueText(employerPila.representanteSegundoApellido) === null) {
       putBlank(22);
