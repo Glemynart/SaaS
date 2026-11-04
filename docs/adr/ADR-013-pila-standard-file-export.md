@@ -79,12 +79,16 @@ que este incorpora y cualquier norma posterior antes de implementar la exportaci
 la regla depende del período cotizado y de la fecha prevista de pago de aportes
 PILA; no se infiere de la fecha de pago del salario ni de generación del archivo.
 La Resolución 611 de 2026 establece condiciones para que ciertas personas
-vinculadas laboralmente permanezcan hasta seis meses en el régimen subsidiado;
-la Resolución 1529 adoptó el cotizante 75 y nuevas validaciones para ese caso,
-con aplicación operativa desde el 1 de noviembre de 2026 para el período de
-salud de noviembre. Un proyecto ministerial posterior propone modificar los
-plazos 5.87 y 5.91, pero al 2026-10-31 no reemplaza los plazos de la Resolución 1529. El MVP excluye este caso y debe bloquearlo; no lo presenta como una
-categoría inexistente o meramente proyectada.
+vinculadas laboralmente permanezcan hasta seis meses en el régimen subsidiado.
+La Resolución 1529 incorporó el cotizante 75 y originalmente fijó su
+implementación para pagos desde el 1 de noviembre de 2026. Ese hito fue
+modificado antes de entrar en operación: la Resolución 2483 de 2026, publicada
+en el Diario Oficial 53.676 del 31 de octubre, modificó el artículo 13 y derogó
+el artículo 14 de la Resolución 611; la Resolución 002492 de 2026 modificó los
+numerales 5.87 y 5.91 del AT2. Ambas fijan el inicio operativo y las
+validaciones del tipo 75 para pagos desde el 1 de marzo de 2027, período de
+cotización de marzo de 2027. El MVP sigue excluyendo este caso especial; no
+debe tratarse como obligación operativa para pagos anteriores a esa fecha.
 
 ## Decisión propuesta
 
@@ -1151,23 +1155,25 @@ la exportación y a cualquier afirmación de compatibilidad.
   base a cada subcuenta desde 4 SMMLV. Se cotejó el texto oficial el
   2026-11-03.
 - [Resolución 611 de 2026](https://www.minsalud.gov.co/Normatividad_Nuevo/Resolucion%20No%20611%20de%202026.pdf),
-  permanencia temporal en régimen subsidiado de ciertas personas vinculadas
-  laboralmente; establece un plazo de seis meses para ajustes operativos PILA.
-  Sus artículos 13 y 14 también condicionan la aplicación del mecanismo a que
-  los operadores y ADRES implementen los ajustes, MinSalud los verifique y
-  comunique su entrada en aplicación. Por tanto, el plazo de implementación
-  técnica previsto en los numerales 5.87–5.91 de la Resolución 1529 no basta,
-  por sí solo, para concluir que el cotizante 75 ya está habilitado para usar.
+  modificada por la Resolución 2483 de 2026. La Resolución 2483 modificó el
+  artículo 13 para fijar el 28 de febrero de 2027 como fecha máxima de ajustes
+  de operadores y ADRES e iniciar la operación el 1 de marzo de 2027, y derogó
+  el artículo 14. La publicación oficial en el Diario Oficial 53.676 del
+  2026-10-31 puede consultarse en el [portal de la Imprenta Nacional](https://svrpubindc.imprenta.gov.co/diario/).
+- Resolución 002492 de 2026, expedida el 2026-10-29 y publicada en el Diario
+  Oficial 53.677 el 2026-11-01: modifica los numerales 5.87 y 5.91 del AT2 y
+  mueve las validaciones del cotizante 75 a pagos desde el 2027-03-01 para el
+  período de cotización de marzo de 2027. Puede consultarse la edición en el
+  [portal oficial de la Imprenta Nacional](https://svrpubindc.imprenta.gov.co/diario/)
+  buscando el número 53.677.
 - [Publicaciones regulatorias de MinSalud](https://www.minsalud.gov.co/Normativa/Paginas/Resoluciones.aspx)
-  — revisadas el 2026-11-04, siguen publicando como proyectos el ajuste de los numerales
-  5.87 y 5.91 del Anexo Técnico 2 para el cotizante con permanencia en régimen
-  subsidiado y el cambio a los artículos 13–14 de la Resolución 611. En los
-  canales oficiales consultados no se encontró comunicación de MinSalud que
-  confirme verificación y activación conforme al artículo 14. Esto es una
-  ausencia de evidencia pública encontrada, no prueba de que ningún operador
-  haya hecho ajustes. Mantener el tipo 75 fuera del MVP 01/00 y bloquearlo si
-  se declara explícitamente; volver a verificar el anuncio oficial antes de
-  habilitarlo. Esta restricción no bloquea el alcance estándar ya soportado.
+  — revisadas el 2026-11-04, aún conservan las publicaciones de consulta de los
+  proyectos que precedieron a las Resoluciones 2483 y 002492. Los proyectos no
+  sustituyen los actos ya publicados. Para este MVP, mantener el tipo 75 fuera
+  del alcance y rechazarlo explícitamente; la exclusión es una limitación de
+  alcance, no un bloqueo normativo del flujo estándar 01/00. Si se decide
+  incorporarlo en una fase posterior, aplicar la regla desde el 2027-03-01 y
+  verificar los criterios del mecanismo y la versión de AT2 vigente entonces.
 - [SOI](https://www.soi.com.co/empresa-servicios-de-soi),
   [Enlace Operativo/SuAporte](https://www.enlace.com.co/hubfs/Manuales/C%C3%B3mo%20cargar%20un%20archivo%20plano%20en%20SuAporte.pdf?hsLang=es-co)
   y [Aportes en Línea](https://www.aportesenlinea.com/Documents/Instructivo%20Corrector%20por%20Pantalla%20v.1.3.pdf)

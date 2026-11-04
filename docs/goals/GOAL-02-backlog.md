@@ -1603,26 +1603,31 @@ false`.
   snapshots aprobados; generación y descarga del archivo y compatibilidad con
   operadores permanecen fuera de alcance.
 
-### Activación del cotizante PILA 75 — cotejo oficial — 2026-11-04
+### Cotizante PILA 75 — plazo de implementación actualizado — 2026-11-04
 
-- **Hecho normativo:** la Resolución 1529 de 2026 incorpora el cotizante 75 y
-  fija hitos de implementación para operadores. La Resolución 611 de 2026,
-  artículos 13–14, condiciona la aplicación del mecanismo de permanencia en el
-  régimen subsidiado a ajustes de los operadores y ADRES, verificación de
-  MinSalud y comunicación de la fecha de aplicación.
-- **Hecho documental:** al revisar el 2026-11-04 la página oficial de
-  publicaciones regulatorias, los cambios de los numerales 5.87/5.91 y de los
-  artículos 13–14 seguían listados como proyectos. No se encontró en los
-  canales consultados una comunicación oficial de verificación/activación.
-  Esto no demuestra que ningún operador haya terminado sus ajustes.
-- **Conclusión de alcance:** no interpretar el hito técnico de la Resolución
-  1529 como activación automática del tipo 75. Mantener 75 fuera del MVP 01/00
-  y rechazarlo si se declara explícitamente; no bloquear por ello los casos
-  estándar que sí estén declarados y respaldados por sus snapshots aprobados.
-  Antes de ampliar el alcance, volver a consultar la comunicación oficial de
-  MinSalud y confirmar el comportamiento del operador seleccionado.
-- **GOAL ACTIVO:** GOAL-02. **IMPLEMENTACIÓN BLOQUEADA:** soporte/serialización
-  de tipo 75 hasta aclarar su activación y obtener su fuente normativa y
-  operativa vigente. **ARQUITECTURA DISPONIBLE:** el preflight de snapshots y
-  el MVP restringido a 01/00 pueden seguir avanzando; el archivo completo aún
-  tiene sus propios bloqueos de mapeo y validación por operador.
+- **Hecho normativo:** la Resolución 1529 de 2026 había fijado pagos desde el
+  2026-11-01 para la salud del período noviembre. La Resolución 2483 de 2026,
+  publicada en el Diario Oficial 53.676 del 2026-10-31, modificó el artículo
+  13 y derogó el artículo 14 de la Resolución 611: los operadores y ADRES
+  tienen plazo hasta el 2027-02-28 para ajustes y el mecanismo inicia el
+  2027-03-01. La Resolución 002492 de 2026, publicada en el Diario Oficial
+  53.677 del 2026-11-01, modificó los numerales 5.87 y 5.91 del AT2 y lleva
+  también a pagos desde el 2027-03-01, para el período de cotización de marzo
+  de 2027, las validaciones del tipo 75 y sus reglas relacionadas.
+- **Corrección de estado:** los proyectos todavía visibles en la página de
+  consulta de MinSalud son antecedentes del proceso normativo, no el estado
+  vigente. Ya no se debe esperar una comunicación de activación conforme al
+  derogado artículo 14 para conocer la fecha: los actos publicados fijan
+  2027-03-01.
+- **Conclusión de alcance:** el MVP aprobado sigue limitado a trabajadores
+  dependientes estándar 01/00 y rechaza el tipo 75 porque es una exclusión de
+  alcance. Este caso no bloquea el avance ni la validación de 01/00. Si se
+  prioriza una fase de soporte al tipo 75, deberá versionar las reglas y validar
+  elegibilidad, fuentes, campos y reglas del mecanismo antes de habilitarlo para
+  períodos/pagos desde 2027-03-01.
+- **GOAL ACTIVO:** GOAL-02. **IMPLEMENTACIÓN BLOQUEADA:** no hay bloqueo
+  regulatorio pendiente sobre la fecha del tipo 75; su implementación sigue
+  fuera del MVP y requiere una fase específica. **ARQUITECTURA DISPONIBLE:** el
+  MVP 01/00 continúa sin depender de la fase 75; el exportador completo aún
+  tiene bloqueos propios de campos, composición, pruebas y aceptación por
+  operador.
