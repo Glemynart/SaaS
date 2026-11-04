@@ -365,6 +365,29 @@ function formatField(
   return `${input.value}${' '.repeat(field.length - characterLength)}`;
 }
 
+/** Validates one candidate using the same width and character rules as a record. */
+export function validatePilaAt2V30FieldCandidate(
+  record: PilaAt2V30RecordKey,
+  fieldNumber: number,
+  input: PilaAt2V30FieldInput,
+): string | null {
+  const field = PILA_AT2_V30_RECORD_LAYOUTS[record].fields.find(
+    (candidate) => candidate.fieldNumber === fieldNumber,
+  );
+  if (!field) {
+    return `AT2 v30: el campo ${fieldNumber} no pertenece al registro ${record}.`;
+  }
+
+  try {
+    formatField(field, input);
+    return null;
+  } catch (error) {
+    return error instanceof Error
+      ? error.message
+      : `AT2 v30: el campo ${fieldNumber} no tiene un valor válido.`;
+  }
+}
+
 function fieldError(
   field: PilaAt2V30FieldLayout,
   reason: string,

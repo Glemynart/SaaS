@@ -11,6 +11,7 @@ import {
   PILA_SUPPORTED_EMPLOYER_DOCUMENT_TYPES,
   PILA_SUPPORTED_REPRESENTATIVE_DOCUMENT_TYPES,
 } from './pila-document-identity';
+import { isValidPilaEmail } from './pila-email-validation';
 import {
   mapPilaAt2V30DetailCandidate,
   PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_FIELD_NUMBERS,
@@ -261,17 +262,6 @@ function summarizePensionTransitionStatus(
   }
 
   return summary;
-}
-
-function validPilaEmail(value: string): boolean {
-  const separator = value.indexOf('@');
-  if (separator <= 0 || separator !== value.lastIndexOf('@')) return false;
-  const username = value.slice(0, separator);
-  const domain = value.slice(separator + 1);
-  return (
-    /^[a-z0-9._'-]+$/.test(username) &&
-    /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(domain)
-  );
 }
 
 function date(value: unknown): string | null {
@@ -608,8 +598,11 @@ export function inspectPilaSnapshotPreparation(
       'El fax debe contener solo dígitos y hasta 10 posiciones según AT2 v30.',
     );
   }
-  const employerEmail = text(employer?.email);
-  if (employerEmail && !validPilaEmail(employerEmail)) {
+  const employerEmail =
+    typeof employer?.email === 'string' && employer.email.trim().length > 0
+      ? employer.email
+      : null;
+  if (employerEmail && !isValidPilaEmail(employerEmail)) {
     add(
       employerRecord,
       17,

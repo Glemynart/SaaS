@@ -811,6 +811,23 @@ describe('inspectPilaSnapshotPreparation', () => {
     ]);
   });
 
+  it('bloquea correo con espacios exteriores sin normalizar el snapshot', () => {
+    const source = payload();
+    source.employer.email = ' demo@example.test ';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        record: 'APORTANTE_TIPO_1',
+        fieldNumber: 17,
+        code: 'CAMPO_17_CORREO_NO_VALIDO',
+      }),
+    );
+  });
+
   it('valida el documento del representante según el tipo declarado', () => {
     const source = payload();
     source.employer.pila.representanteNumeroDocumento = 'ABC123';
