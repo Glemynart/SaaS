@@ -339,7 +339,7 @@ export function mapPilaAt2V30DetailCandidate(
   if (!supportedSnapshot || !periodStart || !periodEnd) {
     const reason = scopeMismatch
       ? 'El tenant, empleado o período congelado en el snapshot no coincide con el contexto autenticado solicitado.'
-      : 'Se requiere un snapshot PILA v2, v3 o v4 válido y atribuible a un tenant y período.';
+      : 'Se requiere un snapshot PILA v2 a v7 válido y atribuible a un tenant y período.';
     for (const field of PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2
       .fields) {
       unresolved(field.fieldNumber, reason);

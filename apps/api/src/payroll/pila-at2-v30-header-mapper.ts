@@ -188,7 +188,7 @@ export function mapPilaAt2V30HeaderCandidate(input: {
 
   if (!supportedSnapshots) {
     const reason = expectedTenantId
-      ? 'Se requiere un conjunto de snapshots PILA v2 que coincida con el tenant autenticado y el período aprobado.'
+      ? 'Se requiere un conjunto de snapshots PILA v2 a v7 que coincida con el tenant autenticado y el período aprobado.'
       : 'Falta el contexto del tenant autenticado para revisar la cabecera PILA.';
     for (let fieldNumber = 1; fieldNumber <= 22; fieldNumber += 1) {
       unresolved(fieldNumber, reason);
