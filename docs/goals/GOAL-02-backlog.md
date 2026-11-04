@@ -1379,6 +1379,22 @@ false`.
   DISPONIBLE:** ADR-013 y la matriz AT2 v30 describen snapshots aprobados,
   alcance 01/00 y los requisitos previos para habilitar la descarga.
 
+### Validación de identidad en detalle PILA — 2026-11-04
+
+- **Bug confirmado en código:** el mapper aceptaba como candidatos los campos
+  3–4 sin validar el tipo documental admitido por el MVP ni el formato de su
+  número, aunque la matriz PILA-AT2-53 limita los candidatos a CC, CE, TI, PA
+  y PC.
+- **Corrección:** los tipos fuera de alcance y los números que exceden o no
+  cumplen el formato por tipo quedan pendientes con motivo; no se normalizan ni
+  se truncan. Se conserva el número aprobado literalmente, incluidos ceros
+  iniciales. PC conserva el alcance explícito de PEP-TUTOR (7–8 dígitos).
+- La validación solo mejora candidatos del preflight; no persiste datos ni
+  habilita serialización, descarga o compatibilidad con operadores. Se basa en
+  la matriz AT2 v30 y en la [Resolución 1319 de 2026 sobre PEP-TUTOR](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-1319-de-2026.pdf).
+- Verificación local: pruebas del mapper 153/153, ESLint, typecheck API y
+  Prettier pasan.
+
 ### Corrección de límites FSP y protección de ejecuciones pendientes — 2026-11-03
 
 - La tabla vigente del Decreto 1833 de 2016 asigna exactamente 17, 18, 19 y 20 SMMLV al tramo anterior. El cálculo y los parámetros de esta rama representan ambos extremos explícitamente; la migración corrige solo las vigencias anteriores al 1 de abril de 2027 y no toca snapshots.
