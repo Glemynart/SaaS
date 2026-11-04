@@ -6,10 +6,10 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 
 ## Estado al 2026-11-04
 
-- PR #251–#257 se fusionaron secuencialmente en `main`. CI, Browser E2E y
-  publicación de imagen API pasaron después del merge de #255, #256 y #257;
-  Vercel Preview de #257 también terminó correctamente. No hay PR abiertos al
-  corte de esta actualización.
+- PR #251–#260 se fusionaron secuencialmente en `main`. En #258–#260 pasaron
+  CI, Browser E2E y Vercel Preview; la publicación de imagen API post-merge de
+  #259 y #260 también pasó. El merge más reciente es #260, commit `d47a89b`.
+  No hay otras PR abiertas al corte de esta actualización.
 - `main` conserva en snapshots PILA v7 el estado histórico S/N del campo 5 y el
   preflight muestra un resumen del estado histórico usando solo snapshots
   aprobados. El resumen no cambia los bloqueos de 51/52 ni habilita el archivo.
@@ -1402,9 +1402,15 @@ false`.
 - PR #249 se fusionó en `main` como `8685c36`. La verificación anterior registró 480 pruebas en 7 suites y typecheck API; los checks post-merge se consultan en GitHub. La rama de trabajo actual `codex/goal02-pila-fsp-scope-snapshot` agrega fuente PILA confirmada, snapshot v6 y subcuentas 51/52; aún requiere completar la auditoría, pruebas de navegador y PR.
 - PR #249 aporta los tramos inclusivos FSP a snapshots v5. La rama actual implementa en snapshot v6 una declaración auditada de fuente única antes de aprobar y conserva los importes separados solo cuando concilian con `FSP` congelado. Fuentes múltiples/desconocidas, snapshots v1–v5, fechas de transición, novedades sin segmentar y discrepancias siguen bloqueados. Esta capacidad solo genera candidatos de preflight; no serializa ni descarga archivos.
 
-### Consistencia de identidades candidatas del aportante PILA — 2026-11-04
+### Validación de identidad en candidatos del aportante PILA — PR #260
 
 - **Bug confirmado en código:** el preflight bloqueaba identificaciones de aportante o representante con tipos incompatibles o formatos no admitidos, mientras el mapa candidato del archivo tipo 1 aún podía mostrar varios de esos valores.
-- **Corrección candidata:** las reglas de identidad usadas por el preflight y los mappers de detalle y aportante ahora se comparten. El mapa de tipo 1 deja pendiente el número del aportante si no cumple el formato del tipo declarado; bloquea el tipo NI para persona natural, exige el dígito explícito `0` en persona natural y un único dígito declarado en persona jurídica, y valida el tipo/número del representante. No normaliza ni trunca identificaciones.
+- **Corrección integrada:** PR #260 comparte las reglas de identidad entre el preflight y los mappers de detalle y aportante. El mapa de tipo 1 deja pendiente el número del aportante si no cumple el formato del tipo declarado; bloquea el tipo NI para persona natural, exige el dígito explícito `0` en persona natural y un único dígito declarado en persona jurídica, y valida el tipo/número del representante. No normaliza ni trunca identificaciones.
 - La validación del dígito de la persona jurídica solo comprueba que tenga una posición numérica; no verifica su cálculo DIAN. Este cambio solo alinea los candidatos del preflight con las reglas de preparación y el MVP aceptado: no modifica snapshots, no serializa ni descarga archivos y no declara compatibilidad con operadores.
-- Verificación local de la rama candidata: pruebas de preparación y mappers, ESLint, typecheck API y formato. La aceptación de archivos por un operador sigue pendiente.
+- Verificación: 348 pruebas de preparación y mappers, ESLint y typecheck API locales; checks CI y Browser E2E pre-merge y post-merge, Vercel Preview y publicación de imagen API post-merge pasaron. La aceptación de archivos por un operador sigue pendiente.
+
+### Formato de candidatos del aportante tipo 1 — 2026-11-04
+
+- **Brecha confirmada en código:** algunos valores podían aparecer como candidatos aun cuando excedían el ancho AT2, no cumplían el tipo de campo numérico/alfanumérico, una declaración estaba fuera del MVP, o el correo no pasaba la validación que ya aplica el preflight.
+- **Corrección candidata:** el mapper comprueba los valores contra el layout AT2 v30, limita declaraciones a las opciones aprobadas, exige CIIU de cuatro dígitos y teléfono numérico, valida el fax y el correo opcionales y conserva pendientes los datos inválidos; no trunca ni modifica el snapshot.
+- Este cambio alinea el mapa parcial con ADR-013 y la matriz `PILA-AT2-70`. Sigue sin generar/descargar archivos ni declarar compatibilidad con operadores.

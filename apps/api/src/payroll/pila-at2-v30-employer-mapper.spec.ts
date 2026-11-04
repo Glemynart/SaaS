@@ -182,6 +182,180 @@ describe('mapPilaAt2V30EmployerCandidate', () => {
     expect(invalidNumberCandidate.values[20]).toEqual({ value: 'CC' });
   });
 
+  it.each([
+    [
+      'reason social over 200 characters',
+      (input: TestSnapshot) => {
+        input.payload.employer.razonSocial = 'A'.repeat(201);
+      },
+      1,
+    ],
+    [
+      'branch code over 10 characters',
+      (input: TestSnapshot) => {
+        input.payload.employer.pila.formaPresentacion = 'S';
+        input.payload.employer.pila.codigoSucursal = 'A'.repeat(11);
+      },
+      5,
+    ],
+    [
+      'branch name over 40 characters',
+      (input: TestSnapshot) => {
+        input.payload.employer.pila.formaPresentacion = 'S';
+        input.payload.employer.pila.codigoSucursal = 'SUC01';
+        input.payload.employer.pila.nombreSucursal = 'A'.repeat(41);
+      },
+      6,
+    ],
+    [
+      'address over 40 characters',
+      (input: TestSnapshot) => {
+        input.payload.employer.direccion = 'A'.repeat(41);
+      },
+      11,
+    ],
+    [
+      'fax with a non-numeric or overlong value',
+      (input: TestSnapshot) => {
+        input.payload.employer.pila.fax = '601ABC12345';
+      },
+      16,
+    ],
+    [
+      'email outside the accepted syntax',
+      (input: TestSnapshot) => {
+        input.payload.employer.email = 'demo@bad_domain.com';
+      },
+      17,
+    ],
+    [
+      'representative surname over 20 characters',
+      (input: TestSnapshot) => {
+        input.payload.employer.pila.representantePrimerApellido = 'A'.repeat(
+          21,
+        );
+      },
+      21,
+    ],
+    [
+      'representative second surname over 30 characters',
+      (input: TestSnapshot) => {
+        input.payload.employer.pila.representanteSegundoApellido = 'A'.repeat(
+          31,
+        );
+      },
+      22,
+    ],
+    [
+      'representative first name over 20 characters',
+      (input: TestSnapshot) => {
+        input.payload.employer.pila.representantePrimerNombre = 'A'.repeat(21);
+      },
+      23,
+    ],
+    [
+      'representative second name over 30 characters',
+      (input: TestSnapshot) => {
+        input.payload.employer.pila.representanteSegundoNombre = 'A'.repeat(31);
+      },
+      24,
+    ],
+  ] as Array<[string, (input: TestSnapshot) => void, number]>)(
+    'leaves %s pending instead of returning an invalid candidate',
+    (_description, mutate, fieldNumber) => {
+      const input = snapshot();
+      mutate(input);
+
+      const candidate = mapPilaAt2V30EmployerCandidate(input);
+
+      expect(candidate.values[fieldNumber]).toBeUndefined();
+      expect(
+        candidate.unresolvedFields.some(
+          (field) => field.fieldNumber === fieldNumber,
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it('does not normalize whitespace around an employer email candidate', () => {
+    const input = snapshot();
+    input.payload.employer.email = ' demo@example.test ';
+
+    const candidate = mapPilaAt2V30EmployerCandidate(input);
+
+    expect(candidate.values[17]).toBeUndefined();
+    expect(candidate.unresolvedFields).toContainEqual(
+      expect.objectContaining({ fieldNumber: 17 }),
+    );
+  });
+
+  it.each([
+    [
+      'unsupported employer class',
+      (input: TestSnapshot) => {
+        input.payload.employer.pila.claseAportante = 'C';
+      },
+      7,
+    ],
+    [
+      'unknown legal nature',
+      (input: TestSnapshot) => {
+        input.payload.employer.pila.naturalezaJuridica = '9';
+      },
+      8,
+    ],
+    [
+      'unknown person type',
+      (input: TestSnapshot) => {
+        input.payload.employer.pila.tipoPersona = 'X';
+      },
+      9,
+    ],
+    [
+      'unknown presentation type',
+      (input: TestSnapshot) => {
+        input.payload.employer.pila.formaPresentacion = 'X';
+      },
+      10,
+    ],
+    [
+      'CIIU that is not four digits',
+      (input: TestSnapshot) => {
+        input.payload.employer.pila.codigoActividadEconomica = '12A4';
+      },
+      14,
+    ],
+    [
+      'non-numeric phone',
+      (input: TestSnapshot) => {
+        input.payload.employer.telefono = '601ABC1234';
+      },
+      15,
+    ],
+    [
+      'non-employer contributor type',
+      (input: TestSnapshot) => {
+        input.payload.employer.pila.tipoAportante = '2';
+      },
+      30,
+    ],
+  ] as Array<[string, (input: TestSnapshot) => void, number]>)(
+    'leaves %s pending outside the MVP',
+    (_description, mutate, fieldNumber) => {
+      const input = snapshot();
+      mutate(input);
+
+      const candidate = mapPilaAt2V30EmployerCandidate(input);
+
+      expect(candidate.values[fieldNumber]).toBeUndefined();
+      expect(
+        candidate.unresolvedFields.some(
+          (field) => field.fieldNumber === fieldNumber,
+        ),
+      ).toBe(true);
+    },
+  );
+
   it('maps aportante fields from the current PILA v3 snapshot', () => {
     const input = snapshot();
     input.payloadVersion = 3;

@@ -1,4 +1,8 @@
-import type { PilaAt2V30FieldInput } from './pila-at2-v30-record-serializer';
+import {
+  validatePilaAt2V30FieldCandidate,
+  type PilaAt2V30FieldInput,
+} from './pila-at2-v30-record-serializer';
+import { isValidPilaEmail } from './pila-email-validation';
 import {
   isValidPilaEmployerIdentification,
   isValidPilaRepresentativeIdentification,
@@ -139,15 +143,47 @@ export function mapPilaAt2V30EmployerCandidate(
     if (normalized === null) {
       unresolved(fieldNumber, 'No hay un valor explícito en el snapshot.');
     } else {
-      put(fieldNumber, normalized);
+      const validationError = validatePilaAt2V30FieldCandidate(
+        'employerType1',
+        fieldNumber,
+        { value: normalized },
+      );
+      if (validationError) unresolved(fieldNumber, validationError);
+      else put(fieldNumber, normalized);
     }
+  };
+  const putRequiredChoice = (
+    fieldNumber: number,
+    value: unknown,
+    choices: readonly string[],
+    reason: string,
+  ) => {
+    const normalized = valueText(value);
+    if (!normalized || !choices.includes(normalized)) {
+      unresolved(fieldNumber, reason);
+      return;
+    }
+    putRequiredText(fieldNumber, normalized);
+  };
+  const putRequiredPattern = (
+    fieldNumber: number,
+    value: unknown,
+    pattern: RegExp,
+    reason: string,
+  ) => {
+    const normalized = valueText(value);
+    if (!normalized || !pattern.test(normalized)) {
+      unresolved(fieldNumber, reason);
+      return;
+    }
+    putRequiredText(fieldNumber, normalized);
   };
 
   if (!supportedSnapshot || !employer || !employerPila) {
     for (let fieldNumber = 1; fieldNumber <= 34; fieldNumber += 1) {
       unresolved(
         fieldNumber,
-        'Se requiere un snapshot PILA v2, v3 o v4 con datos congelados del aportante.',
+        'Se requiere un snapshot PILA v2 a v7 con datos congelados del aportante.',
       );
     }
     return {
@@ -234,10 +270,30 @@ export function mapPilaAt2V30EmployerCandidate(
     unresolved(6, 'Falta confirmar la forma de presentación del aportante.');
   }
 
-  putRequiredText(7, employerPila.claseAportante);
-  putRequiredText(8, employerPila.naturalezaJuridica);
-  putRequiredText(9, employerPila.tipoPersona);
-  putRequiredText(10, employerPila.formaPresentacion);
+  putRequiredChoice(
+    7,
+    employerPila.claseAportante,
+    ['A', 'B'],
+    'El MVP solo permite proponer clase A/B; C/D requieren elegibilidad aún no validada.',
+  );
+  putRequiredChoice(
+    8,
+    employerPila.naturalezaJuridica,
+    ['1', '2', '3', '4', '5'],
+    'Falta una naturaleza jurídica declarada dentro de los códigos soportados por AT2 v30.',
+  );
+  putRequiredChoice(
+    9,
+    employerPila.tipoPersona,
+    ['N', 'J'],
+    'Falta declarar si el aportante es persona natural o jurídica.',
+  );
+  putRequiredChoice(
+    10,
+    employerPila.formaPresentacion,
+    ['U', 'S'],
+    'Falta una forma de presentación soportada por el MVP.',
+  );
   putRequiredText(11, employer.direccion);
 
   const municipality = object(employer.municipio);
@@ -257,8 +313,18 @@ export function mapPilaAt2V30EmployerCandidate(
     );
   }
 
-  putRequiredText(14, employerPila.codigoActividadEconomica);
-  putRequiredText(15, employer.telefono);
+  putRequiredPattern(
+    14,
+    employerPila.codigoActividadEconomica,
+    /^\d{4}$/,
+    'Falta un código CIIU de cuatro dígitos confirmado por el aportante.',
+  );
+  putRequiredPattern(
+    15,
+    employer.telefono,
+    /^\d{1,10}$/,
+    'Falta un teléfono del aportante que cumpla el formato numérico AT2.',
+  );
   if (valueText(employerPila.fax) === null) {
     // AT2 v30 makes fax non-mandatory and specifies zero-fill for numeric
     // fields. Keep this as a candidate; operator acceptance is still pending.
@@ -266,11 +332,17 @@ export function mapPilaAt2V30EmployerCandidate(
   } else {
     putRequiredText(16, employerPila.fax);
   }
-  if (valueText(employer.email) === null) {
+  const employerEmail = valueText(employer.email);
+  if (employerEmail === null) {
     // Email is optional and alphanumeric AT2 fields are blank-filled.
     putBlank(17);
+  } else if (isValidPilaEmail(employerEmail)) {
+    putRequiredText(17, employerEmail);
   } else {
-    putRequiredText(17, employer.email);
+    unresolved(
+      17,
+      'El correo no cumple los caracteres y la estructura de dominio definidos por AT2 v30.',
+    );
   }
 
   if (personType === 'N') {
@@ -358,7 +430,12 @@ export function mapPilaAt2V30EmployerCandidate(
   // positions explicit and blank; do not source them from the tenant snapshot.
   putBlank(28);
   putBlank(29);
-  putRequiredText(30, employerPila.tipoAportante);
+  putRequiredChoice(
+    30,
+    employerPila.tipoAportante,
+    ['1'],
+    'El MVP requiere declarar al aportante como empleador (tipo 1).',
+  );
 
   if (employerPila.beneficioLey1429 === false) {
     putBlank(31);
@@ -462,7 +539,7 @@ export function mapPilaAt2V30EmployerAggregateCandidate(
     )
   ) {
     scopeReasons.push(
-      'Se requiere un snapshot PILA v2, v3 o v4 con empleado y datos congelados del aportante consistentes.',
+      'Se requiere un snapshot PILA v2 a v7 con empleado y datos congelados del aportante consistentes.',
     );
   }
   if (tenantIds.size !== 1 || parsed.some(({ scope }) => !scope.tenantId)) {
