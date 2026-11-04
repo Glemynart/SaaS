@@ -188,14 +188,14 @@ test('genera, aprueba y contabiliza una nómina desde el flujo de usuario', asyn
     expect(approved.snapshots[0].payload.employee).toMatchObject({
       salarioBaseUsado: 8_000_000,
     });
-    expect(approved.snapshots[0].pilaPayloadVersion).toBe(6);
+    expect(approved.snapshots[0].pilaPayloadVersion).toBe(7);
     expect(approved.snapshots[0].pilaPayload).toMatchObject({
-      schemaVersion: 6,
+      schemaVersion: 7,
       payroll: {
         fspSubaccounts: {
           sourceScope: 'SINGLE_SOURCE_CONFIRMED',
           status: 'BLOCKED',
-          blocker: expect.stringContaining('AT2 v30 diferencia'),
+          blocker: expect.stringContaining('mantener 51/52 pendientes'),
           solidaridad: null,
           subsistencia: null,
           payrollFspAmount: null,
