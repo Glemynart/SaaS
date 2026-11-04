@@ -43,6 +43,10 @@ import {
   PILA_FSP_SUBACCOUNT_RULE_VERSION,
 } from './pila-fsp-subaccounts';
 import { isColombiaDaneDepartmentCode } from '@saas/types';
+import {
+  isValidPilaCotizanteIdentification,
+  PILA_SUPPORTED_COTIZANTE_DOCUMENT_TYPES,
+} from './pila-document-identity';
 import type { PilaSnapshotPreparationInput } from './pila-preparation';
 import type { PILA_AT2_V30_DETAIL_RECORD_SEQUENCE_RULE_VERSION } from './pila-at2-v30-detail-sequencer';
 
@@ -179,34 +183,6 @@ function safeInteger(value: unknown, maxDigits: number): value is number {
     value >= 0 &&
     String(value).length <= maxDigits
   );
-}
-
-const PILA_AT2_V30_SUPPORTED_COTIZANTE_DOCUMENT_TYPES = new Set([
-  'CC',
-  'CE',
-  'TI',
-  'PA',
-  'PC',
-]);
-
-function isSupportedPilaCotizanteDocumentNumber(
-  documentType: string,
-  documentNumber: string,
-): boolean {
-  switch (documentType) {
-    case 'CC':
-      return /^\d{1,10}$/.test(documentNumber);
-    case 'CE':
-      return /^\d{1,7}$/.test(documentNumber);
-    case 'TI':
-      return /^\d{1,11}$/.test(documentNumber);
-    case 'PA':
-      return /^[A-Z0-9]{1,16}$/.test(documentNumber);
-    case 'PC':
-      return /^\d{7,8}$/.test(documentNumber);
-    default:
-      return false;
-  }
 }
 
 function hasNoBlockers(value: JsonRecord | null): boolean {
@@ -445,7 +421,7 @@ export function mapPilaAt2V30DetailCandidate(
   const documentNumber = sourceText(employee?.cedula);
   if (
     !documentType ||
-    !PILA_AT2_V30_SUPPORTED_COTIZANTE_DOCUMENT_TYPES.has(documentType)
+    !PILA_SUPPORTED_COTIZANTE_DOCUMENT_TYPES.has(documentType)
   ) {
     const reason =
       'El tipo de documento no tiene un mapeo aprobado para el MVP PILA; solo se admiten CC, CE, TI, PA y PC.';
@@ -456,7 +432,7 @@ export function mapPilaAt2V30DetailCandidate(
     if (!documentNumber) {
       unresolved(4, 'Falta el número de documento congelado en el snapshot.');
     } else if (
-      !isSupportedPilaCotizanteDocumentNumber(documentType, documentNumber)
+      !isValidPilaCotizanteIdentification(documentType, documentNumber)
     ) {
       unresolved(
         4,

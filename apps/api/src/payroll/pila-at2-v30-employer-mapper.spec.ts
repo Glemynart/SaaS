@@ -109,6 +109,79 @@ describe('mapPilaAt2V30EmployerCandidate', () => {
     );
   });
 
+  it.each([
+    ['CC', '12345678901'],
+    ['CE', '12345678'],
+    ['TI', '123456789012'],
+    ['NI', '900ABC'],
+    ['SC', '123456789'],
+    ['PE', '12345678901234'],
+    ['PT', 'A1234567'],
+    ['PC', '1234-567'],
+    ['CD', 'A123456789012'],
+  ])(
+    'keeps invalid employer identity %s out of type 1 candidates',
+    (type, identification) => {
+      const input = snapshot();
+      input.payload.employer.pila.tipoDocumentoAportante = type;
+      input.payload.employer.nit = identification;
+
+      const candidate = mapPilaAt2V30EmployerCandidate(input);
+
+      expect(candidate.values[2]).toEqual({ value: type });
+      expect(candidate.values[3]).toBeUndefined();
+      expect(
+        candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 3)
+          ?.reason,
+      ).toContain('no se corrige ni se trunca');
+    },
+  );
+
+  it('blocks unsupported employer identity types from both candidates', () => {
+    const input = snapshot();
+    input.payload.employer.pila.tipoDocumentoAportante = 'ZZ';
+
+    const candidate = mapPilaAt2V30EmployerCandidate(input);
+
+    expect(candidate.values[2]).toBeUndefined();
+    expect(candidate.values[3]).toBeUndefined();
+    expect(candidate.unresolvedFields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ fieldNumber: 2 }),
+        expect.objectContaining({ fieldNumber: 3 }),
+      ]),
+    );
+  });
+
+  it('blocks an NIT declared for a natural person and invalid verification digits', () => {
+    const input = snapshot();
+    input.payload.employer.pila.tipoPersona = 'N';
+    input.payload.employer.pila.tipoDocumentoAportante = 'NI';
+    input.payload.employer.digitoVerif = '7';
+
+    const candidate = mapPilaAt2V30EmployerCandidate(input);
+
+    expect(candidate.values[2]).toBeUndefined();
+    expect(candidate.values[3]).toBeUndefined();
+    expect(candidate.values[4]).toBeUndefined();
+  });
+
+  it('blocks an unsupported representative document and invalid representative number', () => {
+    const input = snapshot();
+    input.payload.employer.pila.representanteTipoDocumento = 'TI';
+
+    const unsupportedTypeCandidate = mapPilaAt2V30EmployerCandidate(input);
+    expect(unsupportedTypeCandidate.values[18]).toBeUndefined();
+    expect(unsupportedTypeCandidate.values[20]).toBeUndefined();
+
+    input.payload.employer.pila.representanteTipoDocumento = 'CC';
+    input.payload.employer.pila.representanteNumeroDocumento = '12345678901';
+    const invalidNumberCandidate = mapPilaAt2V30EmployerCandidate(input);
+
+    expect(invalidNumberCandidate.values[18]).toBeUndefined();
+    expect(invalidNumberCandidate.values[20]).toEqual({ value: 'CC' });
+  });
+
   it('maps aportante fields from the current PILA v3 snapshot', () => {
     const input = snapshot();
     input.payloadVersion = 3;

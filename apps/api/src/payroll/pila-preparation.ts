@@ -3,7 +3,14 @@ import {
   PILA_RISK_ACTIVITY_CODES,
 } from './pila-risk-activity-catalog';
 import { PILA_AT2_V30_RECORD_LAYOUTS } from './pila-at2-v30-record-serializer';
-import { isValidPepTutorDocumentNumber } from '../common/validators/pep-tutor-document-number';
+import {
+  isValidPilaCotizanteIdentification,
+  isValidPilaEmployerIdentification,
+  isValidPilaRepresentativeIdentification,
+  PILA_SUPPORTED_COTIZANTE_DOCUMENT_TYPES,
+  PILA_SUPPORTED_EMPLOYER_DOCUMENT_TYPES,
+  PILA_SUPPORTED_REPRESENTATIVE_DOCUMENT_TYPES,
+} from './pila-document-identity';
 import {
   mapPilaAt2V30DetailCandidate,
   PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_FIELD_NUMBERS,
@@ -137,21 +144,7 @@ export interface PilaSnapshotPreparation {
   issues: PilaPreparationIssue[];
 }
 
-const supportedDocumentTypes = new Set(['CC', 'CE', 'TI', 'PA', 'PC']);
 const pensionSystemEffectiveDate = '2027-04-01';
-const supportedEmployerDocumentTypes = new Set([
-  'NI',
-  'CC',
-  'CE',
-  'TI',
-  'PA',
-  'CD',
-  'SC',
-  'PE',
-  'PT',
-  'PC',
-]);
-const representativeDocumentTypes = new Set(['CC', 'CE', 'PA', 'CD']);
 const pilaEventFieldNumbers = new Map<string, number>([
   ['ING', 15],
   ['RET', 16],
@@ -268,71 +261,6 @@ function summarizePensionTransitionStatus(
   }
 
   return summary;
-}
-
-function validPilaIdentification(type: string, value: string): boolean {
-  if (type === 'PC') return isValidPepTutorDocumentNumber(value);
-  const numericMaxLength: Record<string, number> = {
-    CC: 10,
-    CE: 7,
-    TI: 11,
-    NI: 11,
-    SC: 8,
-    PE: 15,
-    PT: 8,
-    PC: 8,
-  };
-  const maxLength = numericMaxLength[type];
-  if (maxLength !== undefined) {
-    return /^\d+$/.test(value) && value.length <= maxLength;
-  }
-  const alphanumericMaxLength: Record<string, number> = { PA: 16, CD: 11 };
-  const alphanumericLength = alphanumericMaxLength[type];
-  return (
-    alphanumericLength !== undefined &&
-    /^[A-Z0-9]+$/.test(value) &&
-    value.length <= alphanumericLength
-  );
-}
-
-function validEmployerIdentification(type: string, value: string): boolean {
-  if (type === 'PE') return /^\d{15}$/.test(value);
-  const numericMaxLength: Record<string, number> = {
-    CC: 10,
-    CE: 7,
-    TI: 11,
-    NI: 11,
-    SC: 8,
-    PT: 8,
-    PC: 8,
-  };
-  const numericLimit = numericMaxLength[type];
-  if (numericLimit !== undefined) {
-    return new RegExp(`^\\d{1,${numericLimit}}$`).test(value);
-  }
-  const alphanumericMaxLength: Record<string, number> = { PA: 16, CD: 11 };
-  const alphanumericLimit = alphanumericMaxLength[type];
-  return (
-    alphanumericLimit !== undefined &&
-    new RegExp(`^[A-Z0-9]{1,${alphanumericLimit}}$`).test(value)
-  );
-}
-
-function validRepresentativeIdentification(
-  type: string,
-  value: string,
-): boolean {
-  const numericMaxLength: Record<string, number> = { CC: 10, CE: 7 };
-  const numericLimit = numericMaxLength[type];
-  if (numericLimit !== undefined) {
-    return new RegExp(`^\\d{1,${numericLimit}}$`).test(value);
-  }
-  const alphanumericMaxLength: Record<string, number> = { PA: 16, CD: 11 };
-  const alphanumericLimit = alphanumericMaxLength[type];
-  return (
-    alphanumericLimit !== undefined &&
-    new RegExp(`^[A-Z0-9]{1,${alphanumericLimit}}$`).test(value)
-  );
 }
 
 function validPilaEmail(value: string): boolean {
@@ -494,7 +422,7 @@ export function inspectPilaSnapshotPreparation(
     employerRecord,
     2,
     employerPila?.tipoDocumentoAportante,
-    supportedEmployerDocumentTypes,
+    PILA_SUPPORTED_EMPLOYER_DOCUMENT_TYPES,
     'Falta confirmar el tipo de documento del aportante.',
   );
   const employerDocumentType = text(employerPila?.tipoDocumentoAportante);
@@ -502,7 +430,7 @@ export function inspectPilaSnapshotPreparation(
   if (
     !employerId ||
     !employerDocumentType ||
-    !validEmployerIdentification(employerDocumentType, employerId)
+    !isValidPilaEmployerIdentification(employerDocumentType, employerId)
   ) {
     add(
       employerRecord,
@@ -795,7 +723,9 @@ export function inspectPilaSnapshotPreparation(
   if (legalEntity || representativeDocumentType || representativeDocument) {
     if (
       representativeDocumentType === null ||
-      !representativeDocumentTypes.has(representativeDocumentType)
+      !PILA_SUPPORTED_REPRESENTATIVE_DOCUMENT_TYPES.has(
+        representativeDocumentType,
+      )
     ) {
       add(
         employerRecord,
@@ -805,7 +735,7 @@ export function inspectPilaSnapshotPreparation(
       );
     } else if (
       representativeDocument &&
-      !validRepresentativeIdentification(
+      !isValidPilaRepresentativeIdentification(
         representativeDocumentType,
         representativeDocument,
       )
@@ -1008,7 +938,10 @@ export function inspectPilaSnapshotPreparation(
     }
   }
   const documentType = text(employee?.tipoDocumento);
-  if (!documentType || !supportedDocumentTypes.has(documentType)) {
+  if (
+    !documentType ||
+    !PILA_SUPPORTED_COTIZANTE_DOCUMENT_TYPES.has(documentType)
+  ) {
     add(
       detailRecord,
       3,
@@ -1026,8 +959,8 @@ export function inspectPilaSnapshotPreparation(
     );
   } else if (
     documentType &&
-    supportedDocumentTypes.has(documentType) &&
-    !validPilaIdentification(documentType, identification)
+    PILA_SUPPORTED_COTIZANTE_DOCUMENT_TYPES.has(documentType) &&
+    !isValidPilaCotizanteIdentification(documentType, identification)
   ) {
     add(
       detailRecord,
