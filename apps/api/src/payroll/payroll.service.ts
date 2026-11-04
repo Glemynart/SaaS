@@ -95,7 +95,7 @@ const RECALCULATE_ALLOWED_STATUSES: PayrollPeriodStatus[] =
 
 const SNAPSHOT_PAYLOAD_VERSION = 1;
 const CALCULATION_TRACE_VERSION = 1;
-const PILA_PAYLOAD_VERSION = 6;
+const PILA_PAYLOAD_VERSION = 7;
 
 type PilaSourceData = {
   tenant: PilaSourceContextInput['tenant'];
@@ -3715,7 +3715,7 @@ export class PayrollService {
     }
     const source = value;
     if (
-      ![1, 2, 3].includes(Number(source.schemaVersion)) ||
+      ![1, 2, 3, 4].includes(Number(source.schemaVersion)) ||
       typeof source.capturedAt !== 'string'
     ) {
       throw new BadRequestException(
