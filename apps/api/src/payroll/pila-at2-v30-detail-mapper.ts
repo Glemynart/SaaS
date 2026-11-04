@@ -53,9 +53,6 @@ const PILA_AT2_V30_NO_EVENT_NOVELTY_FIELDS_RULE_VERSION =
   'AT2_V30_NO_EVENT_NOVELTY_FIELDS_V1' as const;
 const PILA_AT2_V30_PLANILLA_E_FIELD_22_RULE_VERSION =
   'AT2_V30_PLANILLA_E_FIELD_22_BLANK_V1' as const;
-const PILA_AT2_V30_VOLUNTARY_PENSION_CUTOFF_RULE_VERSION =
-  'AT2_V30_VOLUNTARY_PENSION_PRE_JUL_2025_CUTOFF_V1' as const;
-const PILA_AT2_V30_VOLUNTARY_PENSION_CUTOFF = '2025-07-01';
 const PILA_AT2_V30_PENSION_TOTAL_FIELD_50_RULE_VERSION =
   'AT2_V30_PENSION_TOTAL_FIELD_50_SUM_47_49_V1' as const;
 const PILA_AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_RULE_VERSION =
@@ -103,9 +100,7 @@ export interface PilaAt2V30DetailCandidate {
     pensionTotalField50:
       | typeof PILA_AT2_V30_PENSION_TOTAL_FIELD_50_RULE_VERSION
       | null;
-    voluntaryPensionCutoff:
-      | typeof PILA_AT2_V30_VOLUNTARY_PENSION_CUTOFF_RULE_VERSION
-      | null;
+    voluntaryPensionCutoff: null;
     arlInitialRate: typeof PILA_ARL_INITIAL_RATE_RULE_VERSION | null;
     contributionRounding: typeof PILA_CONTRIBUTION_ROUNDING_RULE_VERSION | null;
     ccfRate: typeof PILA_CCF_STANDARD_RATE_RULE_VERSION | null;
@@ -1142,11 +1137,11 @@ export function mapPilaAt2V30DetailCandidate(
 
   unresolved(
     48,
-    'El período permite aportes voluntarios, pero falta el importe del afiliado congelado desde Payroll y la confirmación del campo 28.',
+    'Falta un importe del afiliado congelado desde Payroll y no se puede confirmar la aplicabilidad temporal sin una regla de vigencia reconciliada.',
   );
   unresolved(
     49,
-    'El período permite aportes voluntarios, pero falta el importe del aportante congelado desde Payroll y la confirmación del campo 28.',
+    'Falta un importe del aportante congelado desde Payroll y no se puede confirmar la aplicabilidad temporal sin una regla de vigencia reconciliada.',
   );
   const fspSubaccounts = object(payroll?.fspSubaccounts);
   if (snapshot.payloadVersion === null || snapshot.payloadVersion < 6) {
@@ -1272,7 +1267,7 @@ export function mapPilaAt2V30DetailCandidate(
   }
   unresolved(
     53,
-    'El período permite aportes voluntarios, pero falta una fuente aprobada para calcular el valor no retenido y validar la diferencia de retención.',
+    'Falta una fuente aprobada para calcular el valor no retenido y validar la diferencia de retención; el campo 28 sigue sin resolverse.',
   );
 
   if (scope.planillaType !== 'E') {
@@ -1283,31 +1278,15 @@ export function mapPilaAt2V30DetailCandidate(
     }
   } else if (periodEnd < periodStart) {
     const reason =
-      'El período PILA tiene un intervalo invertido; no se puede aplicar el corte normativo de aportes voluntarios.';
+      'El período PILA tiene un intervalo invertido; no se pueden validar los campos de aportes voluntarios.';
     for (const fieldNumber of [28, 48, 49, 53]) {
       unresolved(fieldNumber, reason);
     }
-  } else if (periodStart >= PILA_AT2_V30_VOLUNTARY_PENSION_CUTOFF) {
-    // AT2 v30 only permits these voluntary contributions for periods before
-    // July 2025. The cutoff, rather than missing payroll data, makes them
-    // inapplicable for later planilla E periods.
-    blank(28);
-    put(48, 0);
-    put(49, 0);
-    // AT2 only permits field 53 when field 28 is X; leave the numeric field
-    // unused when no voluntary contribution is declared.
-    blank(53);
-  } else if (periodEnd < PILA_AT2_V30_VOLUNTARY_PENSION_CUTOFF) {
+  } else {
     unresolved(
       28,
-      'El período permite aportes voluntarios, pero falta la afiliación pensional versionada y la declaración congelada del campo 28.',
+      'La aplicación del corte de aportes voluntarios de 2025-07-01 no está reconciliada con la suspensión de ajustes PILA; falta una declaración AVP congelada. No se infiere que el campo 28 esté vacío.',
     );
-  } else {
-    const reason =
-      'El período cruza el corte normativo del 2025-07-01; no se puede determinar la aplicabilidad de aportes voluntarios con un único período.';
-    for (const fieldNumber of [28, 48, 49, 53]) {
-      unresolved(fieldNumber, reason);
-    }
   }
 
   const pensionContributionAmounts: number[] = [];
@@ -1648,10 +1627,7 @@ export function mapPilaAt2V30DetailCandidate(
           ? PILA_AT2_V30_PLANILLA_E_FIELD_22_RULE_VERSION
           : null,
       pensionTotalField50: PILA_AT2_V30_PENSION_TOTAL_FIELD_50_RULE_VERSION,
-      voluntaryPensionCutoff:
-        scope.planillaType === 'E'
-          ? PILA_AT2_V30_VOLUNTARY_PENSION_CUTOFF_RULE_VERSION
-          : null,
+      voluntaryPensionCutoff: null,
       arlInitialRate: arlRateByClass
         ? PILA_ARL_INITIAL_RATE_RULE_VERSION
         : null,

@@ -783,7 +783,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     );
   });
 
-  it('maps only AT2 no-event novelty fields backed by a complete empty snapshot', () => {
+  it('maps no-event novelty fields but leaves AVP unresolved without its source', () => {
     const candidate = mapCandidate(snapshot());
     const blankFields = [
       15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 26, 27, 29, 80, 81, 82, 83, 84,
@@ -798,8 +798,8 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     }
     expect(candidate.values[30]).toEqual({ value: 0 });
     expect(candidate.values[22]).toEqual({ value: null, emptyAs: 'spaces' });
-    expect(candidate.values[28]).toEqual({ value: null, emptyAs: 'spaces' });
-    expect(candidate.unresolvedFields).not.toEqual(
+    expect(candidate.values[28]).toBeUndefined();
+    expect(candidate.unresolvedFields).toEqual(
       expect.arrayContaining([expect.objectContaining({ fieldNumber: 28 })]),
     );
     expect(candidate.unresolvedFields).not.toEqual(
@@ -969,7 +969,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.normativeRuleVersions.noEventNoveltyFields).toBeNull();
   });
 
-  it('maps post-cutoff voluntary pension fields as inapplicable for planilla E', () => {
+  it('keeps post-cutoff voluntary pension fields pending until the rule is reconciled', () => {
     const input = snapshot();
     const payload = payloadOf(input);
     (payload.period as Record<string, unknown>).fechaInicio = '2025-07-01';
@@ -977,21 +977,20 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const candidate = mapCandidate(input, 'E', '2025-07-01', '2025-07-31');
 
     expect(candidate.values[22]).toEqual({ value: null, emptyAs: 'spaces' });
-    expect(candidate.values[28]).toEqual({ value: null, emptyAs: 'spaces' });
-    expect(candidate.values[48]).toEqual({ value: 0 });
-    expect(candidate.values[49]).toEqual({ value: 0 });
-    expect(candidate.values[53]).toEqual({ value: null, emptyAs: 'spaces' });
+    for (const fieldNumber of [28, 48, 49, 53]) {
+      expect(candidate.values[fieldNumber]).toBeUndefined();
+      expect(
+        candidate.unresolvedFields.some(
+          (field) => field.fieldNumber === fieldNumber,
+        ),
+      ).toBe(true);
+    }
+    expect(candidate.values[50]).toBeUndefined();
+    expect(candidate.normativeRuleVersions.voluntaryPensionCutoff).toBeNull();
     expect(
-      candidate.unresolvedFields.some(({ fieldNumber }) => fieldNumber === 22),
-    ).toBe(false);
-    expect(
-      candidate.unresolvedFields.some(({ fieldNumber }) =>
-        [28, 48, 49, 53].includes(fieldNumber),
-      ),
-    ).toBe(false);
-    expect(candidate.normativeRuleVersions.voluntaryPensionCutoff).toBe(
-      'AT2_V30_VOLUNTARY_PENSION_PRE_JUL_2025_CUTOFF_V1',
-    );
+      candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 28)
+        ?.reason,
+    ).toContain('suspensión de ajustes PILA');
   });
 
   it('keeps historical voluntary pension fields blocked without frozen Payroll sources', () => {
@@ -1008,11 +1007,12 @@ describe('mapPilaAt2V30DetailCandidate', () => {
         candidate.unresolvedFields.find(
           (field) => field.fieldNumber === fieldNumber,
         )?.reason,
-      ).toContain('período permite aportes voluntarios');
+      ).toBeTruthy();
     }
+    expect(candidate.values[50]).toBeUndefined();
   });
 
-  it('blocks a period that crosses the voluntary pension cutoff', () => {
+  it('keeps voluntary fields pending for a period that crosses the published cutoff', () => {
     const input = snapshot();
     const payload = payloadOf(input);
     (payload.period as Record<string, unknown>).fechaInicio = '2025-06-15';
@@ -1026,8 +1026,10 @@ describe('mapPilaAt2V30DetailCandidate', () => {
         candidate.unresolvedFields.find(
           (field) => field.fieldNumber === fieldNumber,
         )?.reason,
-      ).toContain('cruza el corte normativo');
+      ).toBeTruthy();
     }
+    expect(candidate.values[50]).toBeUndefined();
+    expect(candidate.normativeRuleVersions.voluntaryPensionCutoff).toBeNull();
   });
 
   it('blocks voluntary pension fields for an inverted payroll period', () => {
@@ -1048,7 +1050,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     }
   });
 
-  it('does not apply the cutoff rule to unsupported planilla types', () => {
+  it('keeps voluntary fields blocked for unsupported planilla types', () => {
     const candidate = mapCandidate(snapshot(), 'N');
 
     for (const fieldNumber of [28, 48, 49, 53]) {
@@ -1188,7 +1190,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     ).toEqual(expect.arrayContaining([8, 46, 47, 61, 63, 76, 96, 97]));
   });
 
-  it('maps the standard pension rate and sums only the two rounded snapshot amounts', () => {
+  it('maps the standard pension rate and blocks the total while voluntary amounts are unresolved', () => {
     const input = snapshot();
     setStandardPensionInputs(input);
 
@@ -1197,10 +1199,10 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.values).toMatchObject({
       46: { value: '0.16000' },
       47: { value: 320_000 },
-      48: { value: 0 },
-      49: { value: 0 },
-      50: { value: 320_000 },
     });
+    expect(candidate.values[48]).toBeUndefined();
+    expect(candidate.values[49]).toBeUndefined();
+    expect(candidate.values[50]).toBeUndefined();
     expect(candidate.normativeRuleVersions.pensionRate).toBe(
       'CO_PENSION_STANDARD_RATE_L797_ART7_DEC1833_2_2_3_1_13_V1',
     );
@@ -1211,9 +1213,11 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       expect.arrayContaining([
         expect.objectContaining({ fieldNumber: 46 }),
         expect.objectContaining({ fieldNumber: 47 }),
-        expect.objectContaining({ fieldNumber: 50 }),
       ]),
     );
+    expect(
+      candidate.unresolvedFields.map(({ fieldNumber }) => fieldNumber),
+    ).toEqual(expect.arrayContaining([48, 49, 50]));
   });
 
   it('keeps AT2 field 50 unresolved when a source contribution is unresolved', () => {
@@ -1223,8 +1227,8 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     const candidate = mapCandidate(input);
 
     expect(candidate.values[47]).toBeUndefined();
-    expect(candidate.values[48]).toEqual({ value: 0 });
-    expect(candidate.values[49]).toEqual({ value: 0 });
+    expect(candidate.values[48]).toBeUndefined();
+    expect(candidate.values[49]).toBeUndefined();
     expect(candidate.values[50]).toBeUndefined();
     expect(
       candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 50)

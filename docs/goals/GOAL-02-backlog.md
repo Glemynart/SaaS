@@ -1069,21 +1069,25 @@ false`.
   `NO_IMPLEMENTADO`. No se habilita descarga ni se afirma compatibilidad con
   operadores.
 
-### Corte normativo de aportes voluntarios PILA — 2026-11-02
+### Reconciliación pendiente de aportes voluntarios PILA — 2026-11-03
 
-- El cotejo del AT2 v30 oficial (24-07-2026, SHA-256
-  `BBB3C2D0486FD7D3934BD640D8E68C60D33686B1604E8EFAA980139FB5686D33`)
-  confirmó, junto con la Resolución 467 de 2025, que los campos 48–49 solo
-  admiten aportes voluntarios para períodos anteriores a julio de 2025; el
-  campo 53 solo se usa cuando el 28 está en X.
-- El mapper aplica `AT2_V30_VOLUNTARY_PENSION_PRE_JUL_2025_CUTOFF_V1` en
-  planilla E: desde 2025-07-01 propone 28 y 53 en blanco y 48/49 en cero; los
-  períodos históricos y los que cruzan el corte permanecen bloqueados. La
-  regla no crea una deducción Payroll. FSP 51–52 continúa pendiente, y esta
-  preparación local no habilita descarga ni declara compatibilidad.
-- Se agregaron criterios y pruebas para período postcorte, histórico, cruzado
-  y planilla N. La aceptación de los valores por un operador todavía requiere
-  una carga real de prueba.
+- AT2 v30 y la Resolución 467 de 2025 incluyen para 48–49 el corte de julio de 2025. La Circular 028 de 2025 suspende ajustes PILA de la Resolución 467 salvo
+  una lista explícita que no menciona estos campos. C-264/2026 restablece
+  parcialmente la Ley 2381, fija el 1 de abril de 2027 para disposiciones
+  declaradas exequibles y deja otras sujetas a subsanación; no aclara
+  específicamente 48–49. No se encontró una instrucción oficial posterior que
+  resuelva esta interacción.
+- El mapper anterior marcaba 28/53 en blanco y 48/49 en cero para planilla E
+  desde 2025-07-01. Esa salida asumía aplicable el corte sin resolver la
+  Circular, la decisión constitucional posterior ni la falta de fuentes Payroll.
+- En esta rama, el mapper mantiene 28, 48, 49 y 53 pendientes para cualquier
+  período de planilla E hasta reconciliar la regla y congelar afiliación,
+  declaración AVP, importes y retención; el campo 50 sigue pendiente mientras
+  48/49 no se resuelven. Es una protección del producto, no una conclusión de que los
+  aportes estén prohibidos.
+- Las pruebas cubren períodos posterior, histórico y cruzado, intervalo
+  invertido, tipo de planilla no soportado y dependencia del campo 50. La carga
+  en un operador continúa pendiente.
 
 ### Captura inicial de afiliación PILA — Excel y alta individual — 2026-11-02
 
@@ -1149,22 +1153,17 @@ false`.
   (#225), ubicaciones laborales (#226) y centro ARL/actividad (#227). Ninguna
   rellena snapshots aprobados ni habilita o genera archivos PILA.
 
-### Total de cotización pensional en detalle PILA — 2026-11-02
+### Total de cotización pensional en detalle PILA — 2026-11-03
 
 - AT2 v30 define el campo 50 del detalle tipo 2 como la suma de los campos
-  47–49. La regla es de composición del formato; no modifica importes ni vuelve
-  a calcular contribuciones Payroll.
-- La rama `codex/goal02-pila-file-export-v1` propone el campo 50 solo si los
-  tres campos ya tienen valores numéricos resueltos y la suma cabe en N9 bajo
-  `AT2_V30_PENSION_TOTAL_FIELD_50_SUM_47_49_V1`. En planilla E desde
-  2025-07-01, los campos voluntarios 48–49 son cero por la regla versionada;
-  en períodos históricos/cruzados siguen sin resolverse y el campo 50 también
-  se bloquea.
-- La matriz añade `PILA-AT2-60`. Esto completa un candidato parcial; no
-  habilita serialización, descarga, aceptación de operador, liquidación ni
-  pago. **GOAL ACTIVO:** GOAL-02. **ARQUITECTURA DISPONIBLE:** composición
-  determinista desde candidatos congelados. Continúan los bloqueos normativos
-  y de fuentes registrados en la matriz AT2 v30.
+  47–49. La regla de formato no modifica los importes ni vuelve a calcular
+  contribuciones Payroll.
+- En esta rama, el mapper solo propone el campo 50 cuando 47, 48 y 49 tienen
+  valores candidatos explícitos y la suma cabe en N9. Como 48–49 carecen de
+  fuente Payroll y la vigencia del corte no está reconciliada, el total también
+  permanece pendiente. No se infieren ceros.
+- La matriz mantiene PILA-AT2-60 como criterio de aceptación. No se habilitan
+  serialización, descarga, aceptación de operador, liquidación ni pago.
 
 ### Cobertura completa de campos del detalle AT2 — 2026-11-03
 
