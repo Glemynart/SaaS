@@ -6,11 +6,10 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 
 ## Estado de main al iniciar esta iniciativa — 2026-11-04
 
-- PR #251–#261 se fusionaron secuencialmente en `main`. En #258–#261 pasaron
-  CI, Browser E2E y Vercel Preview; la publicación de imagen API post-merge de
-  #259, #260 y #261 también pasó. El merge más reciente es #261, commit
-  `d2646b7`. Sus checks post-merge de CI, Browser E2E y publicación de imagen
-  API también pasaron.
+- PR #251–#262 se fusionaron secuencialmente en `main`. El merge más reciente
+  es #262, commit `1909447`; sus checks post-merge de CI, Browser E2E y
+  publicación de imagen API pasaron. Los PR #258–#262 también pasaron CI,
+  Browser E2E y Vercel Preview antes del merge.
 - `main` conserva en snapshots PILA v7 el estado histórico S/N del campo 5 y el
   preflight muestra un resumen del estado histórico usando solo snapshots
   aprobados. El resumen no cambia los bloqueos de 51/52 ni habilita el archivo.
@@ -1426,4 +1425,16 @@ false`.
   queda pendiente con el error del campo, sin truncar ni modificar el snapshot;
   los demás candidatos válidos se conservan.
 - La matriz añade `PILA-AT2-71`. No amplía validaciones normativas de dominio,
+  no compone ni descarga archivos y no declara compatibilidad con operadores.
+
+### Validación del layout en candidatos de la cabecera tipo 2 — 2026-11-04
+
+- **Bug confirmado en código:** la cabecera tipo 2 copiaba directamente los
+  valores compartidos del aportante y proponía el código ARL congelado en el
+  campo 14 sin comprobar el ancho A6 del layout.
+- **Corrección propuesta en esta PR:** validar valores concretos de cabecera
+  con el layout AT2 v30. Un valor inválido queda pendiente con el motivo de
+  serialización, sin truncar ni modificar el snapshot; los demás candidatos y
+  blancos explícitos se conservan.
+- La matriz añade `PILA-AT2-72`. No amplía validaciones normativas de dominio,
   no compone ni descarga archivos y no declara compatibilidad con operadores.
