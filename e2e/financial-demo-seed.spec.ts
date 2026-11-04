@@ -493,6 +493,18 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
     });
     expect(Object.values(foreignTenantCounts).every((count) => count === 0)).toBe(true);
 
+    await page.goto('/facturacion');
+    const billingSummary = page.getByRole('region', { name: 'Resumen de facturación' });
+    await expect(billingSummary.getByRole('article', { name: 'Total emitido' })).toContainText(
+      '1.023.400',
+    );
+    await expect(billingSummary.getByRole('article', { name: 'Recaudo aplicado' })).toContainText(
+      '250.000',
+    );
+    await expect(billingSummary.getByRole('article', { name: 'Cartera pendiente' })).toContainText(
+      '773.400',
+    );
+
     await page.goto('/facturacion/clientes');
     await expect(page.getByText('DEMO Colegio Horizonte', { exact: true })).toBeVisible();
     await page.goto('/facturacion/productos');
