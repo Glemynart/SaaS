@@ -1153,11 +1153,21 @@ la exportación y a cualquier afirmación de compatibilidad.
 - [Resolución 611 de 2026](https://www.minsalud.gov.co/Normatividad_Nuevo/Resolucion%20No%20611%20de%202026.pdf),
   permanencia temporal en régimen subsidiado de ciertas personas vinculadas
   laboralmente; establece un plazo de seis meses para ajustes operativos PILA.
+  Sus artículos 13 y 14 también condicionan la aplicación del mecanismo a que
+  los operadores y ADRES implementen los ajustes, MinSalud los verifique y
+  comunique su entrada en aplicación. Por tanto, el plazo de implementación
+  técnica previsto en los numerales 5.87–5.91 de la Resolución 1529 no basta,
+  por sí solo, para concluir que el cotizante 75 ya está habilitado para usar.
 - [Publicaciones regulatorias de MinSalud](https://www.minsalud.gov.co/Normativa/Paginas/Resoluciones.aspx)
-  — revisado el 2026-10-31, publica el proyecto de ajuste de los numerales
+  — revisadas el 2026-11-04, siguen publicando como proyectos el ajuste de los numerales
   5.87 y 5.91 del Anexo Técnico 2 para el cotizante con permanencia en régimen
-  subsidiado. Sigue identificado como proyecto/consulta pública; no sustituye
-  la Resolución 1529 mientras no se expida una norma definitiva.
+  subsidiado y el cambio a los artículos 13–14 de la Resolución 611. En los
+  canales oficiales consultados no se encontró comunicación de MinSalud que
+  confirme verificación y activación conforme al artículo 14. Esto es una
+  ausencia de evidencia pública encontrada, no prueba de que ningún operador
+  haya hecho ajustes. Mantener el tipo 75 fuera del MVP 01/00 y bloquearlo si
+  se declara explícitamente; volver a verificar el anuncio oficial antes de
+  habilitarlo. Esta restricción no bloquea el alcance estándar ya soportado.
 - [SOI](https://www.soi.com.co/empresa-servicios-de-soi),
   [Enlace Operativo/SuAporte](https://www.enlace.com.co/hubfs/Manuales/C%C3%B3mo%20cargar%20un%20archivo%20plano%20en%20SuAporte.pdf?hsLang=es-co)
   y [Aportes en Línea](https://www.aportesenlinea.com/Documents/Instructivo%20Corrector%20por%20Pantalla%20v.1.3.pdf)

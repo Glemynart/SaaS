@@ -1602,3 +1602,27 @@ false`.
 - La matriz y el contrato PILA no cambian. El reporte sigue consumiendo
   snapshots aprobados; generación y descarga del archivo y compatibilidad con
   operadores permanecen fuera de alcance.
+
+### Activación del cotizante PILA 75 — cotejo oficial — 2026-11-04
+
+- **Hecho normativo:** la Resolución 1529 de 2026 incorpora el cotizante 75 y
+  fija hitos de implementación para operadores. La Resolución 611 de 2026,
+  artículos 13–14, condiciona la aplicación del mecanismo de permanencia en el
+  régimen subsidiado a ajustes de los operadores y ADRES, verificación de
+  MinSalud y comunicación de la fecha de aplicación.
+- **Hecho documental:** al revisar el 2026-11-04 la página oficial de
+  publicaciones regulatorias, los cambios de los numerales 5.87/5.91 y de los
+  artículos 13–14 seguían listados como proyectos. No se encontró en los
+  canales consultados una comunicación oficial de verificación/activación.
+  Esto no demuestra que ningún operador haya terminado sus ajustes.
+- **Conclusión de alcance:** no interpretar el hito técnico de la Resolución
+  1529 como activación automática del tipo 75. Mantener 75 fuera del MVP 01/00
+  y rechazarlo si se declara explícitamente; no bloquear por ello los casos
+  estándar que sí estén declarados y respaldados por sus snapshots aprobados.
+  Antes de ampliar el alcance, volver a consultar la comunicación oficial de
+  MinSalud y confirmar el comportamiento del operador seleccionado.
+- **GOAL ACTIVO:** GOAL-02. **IMPLEMENTACIÓN BLOQUEADA:** soporte/serialización
+  de tipo 75 hasta aclarar su activación y obtener su fuente normativa y
+  operativa vigente. **ARQUITECTURA DISPONIBLE:** el preflight de snapshots y
+  el MVP restringido a 01/00 pueden seguir avanzando; el archivo completo aún
+  tiene sus propios bloqueos de mapeo y validación por operador.
