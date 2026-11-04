@@ -1,5 +1,5 @@
 import { randomInt, randomUUID } from 'node:crypto';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Dialog, type Page } from '@playwright/test';
 import { seedPayrollAccrualFixture } from './helpers/payroll-accounting-fixture';
 import { seedBillingLedgerFixture } from './helpers/billing-ledger-fixture';
 
@@ -134,8 +134,9 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
   await expect(page.getByText(productName, { exact: true })).toBeVisible();
 
   const receiptsPanel = page.getByRole('region', { name: 'Cartera y recaudos' });
-  await expect(receiptsPanel.getByText('142.800')).toBeVisible();
-  await page.getByLabel('Valor recibido (COP)').fill('40000');
+  const invoiceReceiptApplication = receiptsPanel.getByLabel(`Aplicar a ${invoiceNumber} (COP)`);
+  await expect(invoiceReceiptApplication).toBeVisible();
+  await invoiceReceiptApplication.fill('40000');
   await page.getByLabel('Referencia (opcional)').fill(`TRX-${suffix}`);
   const receiptResponsePromise = page.waitForResponse(
     (response) =>
@@ -197,7 +198,13 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
   }, invoice.id);
   expect(cancelResponse.status).toBe(409);
 
-  page.once('dialog', (dialog) => dialog.accept('Reversión para verificar el flujo de demo'));
+  const receiptReversalDialogTypes: string[] = [];
+  const acceptReceiptReversalDialogs = async (dialog: Dialog) => {
+    receiptReversalDialogTypes.push(dialog.type());
+    if (dialog.type() === 'confirm') await dialog.accept();
+    else await dialog.accept('Reversión para verificar el flujo de demo');
+  };
+  page.on('dialog', acceptReceiptReversalDialogs);
   const reversalResponsePromise = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === `/api/billing/receipts/${receipt.id}/reversal` &&
@@ -207,6 +214,8 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
   const reversalResponse = await reversalResponsePromise;
   const reversalBody = await reversalResponse.text();
   expect(reversalResponse.status(), reversalBody).toBe(200);
+  page.off('dialog', acceptReceiptReversalDialogs);
+  expect(receiptReversalDialogTypes).toEqual(['confirm', 'prompt']);
   const reversal = JSON.parse(reversalBody) as {
     reason: string;
     comprobanteContable: {

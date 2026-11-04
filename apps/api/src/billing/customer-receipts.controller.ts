@@ -17,6 +17,14 @@ import { CustomerReceiptsService } from './customer-receipts.service';
 export class CustomerReceiptsController {
   constructor(private readonly service: CustomerReceiptsService) {}
 
+  @Get('billing/customers/:id/receivable-invoices')
+  findReceivableInvoices(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') customerId: string,
+  ) {
+    return this.service.findReceivableInvoices(user.tenantId, customerId);
+  }
+
   @Get('billing/invoices/:id/receipts')
   findInvoiceApplications(
     @CurrentUser() user: CurrentUserPayload,

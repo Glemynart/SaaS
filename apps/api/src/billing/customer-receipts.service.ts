@@ -127,6 +127,27 @@ export class CustomerReceiptsService {
         }
 
         await this.lockInvoices(tx, tenantId, ids);
+        const concurrentReceipt = await tx.customerReceipt.findUnique({
+          where: {
+            tenantId_idempotencyKey: {
+              tenantId,
+              idempotencyKey: dto.idempotencyKey,
+            },
+          },
+        });
+        if (concurrentReceipt) {
+          if (concurrentReceipt.requestHash !== normalized.requestHash) {
+            throw new ConflictException(
+              'La clave de idempotencia ya se usó con otros datos.',
+            );
+          }
+          return this.findReceiptWithVoucher(
+            tx,
+            tenantId,
+            concurrentReceipt.id,
+          );
+        }
+
         const invoices = await tx.invoice.findMany({
           where: { id: { in: ids }, tenantId },
           select: {
@@ -378,7 +399,17 @@ export class CustomerReceiptsService {
       if (!invoice) throw new NotFoundException('Factura no encontrada.');
       const applications = await tx.invoiceReceiptAllocation.findMany({
         where: { tenantId, invoiceId },
-        include: { receipt: { include: { reversal: true } } },
+        include: {
+          receipt: {
+            include: {
+              reversal: true,
+              aplicaciones: {
+                include: { invoice: { select: { numero: true } } },
+                orderBy: { invoiceId: 'asc' },
+              },
+            },
+          },
+        },
         orderBy: { createdAt: 'asc' },
       });
       const receiptIds = [
@@ -411,10 +442,78 @@ export class CustomerReceiptsService {
       return applications.map((application) => ({
         id: application.id,
         amount: application.amount,
-        receipt: application.receipt,
+        receipt: {
+          ...application.receipt,
+          aplicaciones: application.receipt.aplicaciones.map((allocation) => ({
+            invoiceId: allocation.invoiceId,
+            numero: allocation.invoice.numero,
+            amount: allocation.amount,
+          })),
+        },
         comprobanteContable:
           voucherByReceiptId.get(application.receiptId) ?? null,
       }));
+    });
+  }
+
+  async findReceivableInvoices(tenantId: string, customerId: string) {
+    return this.tenantPrisma.execute(async (tx) => {
+      const customer = await tx.customer.findFirst({
+        where: { id: customerId, tenantId },
+        select: { id: true },
+      });
+      if (!customer) throw new NotFoundException('Cliente no encontrado.');
+
+      const invoices = await tx.invoice.findMany({
+        where: {
+          tenantId,
+          customerId,
+          status: 'ISSUED',
+          terceroId: { not: null },
+        },
+        select: {
+          id: true,
+          numero: true,
+          fechaVencimiento: true,
+          total: true,
+        },
+        orderBy: [{ fechaEmision: 'asc' }, { id: 'asc' }],
+      });
+      if (invoices.length === 0) return [];
+
+      const invoiceIds = invoices.map(({ id }) => id);
+      const activeVouchers = await tx.comprobanteContable.findMany({
+        where: {
+          tenantId,
+          origenTipo: 'BILLING_INVOICE',
+          origenEvento: 'ISSUED',
+          origenId: { in: invoiceIds },
+          estado: 'CONTABILIZADO',
+        },
+        select: { origenId: true },
+      });
+      const receivableInvoiceIds = new Set(
+        activeVouchers.map(({ origenId }) => origenId).filter(Boolean),
+      );
+      const eligibleInvoices = invoices.filter(({ id }) =>
+        receivableInvoiceIds.has(id),
+      );
+      if (eligibleInvoices.length === 0) return [];
+
+      const appliedAmounts = await getActiveReceiptAppliedAmounts(
+        tx,
+        tenantId,
+        eligibleInvoices.map(({ id }) => id),
+      );
+      return eligibleInvoices.flatMap((invoice) => {
+        const totalPagado =
+          appliedAmounts.get(invoice.id) ?? new Prisma.Decimal(0);
+        const saldoPendiente = new Prisma.Decimal(invoice.total).minus(
+          totalPagado,
+        );
+        if (saldoPendiente.lte(0)) return [];
+        return [{ ...invoice, totalPagado, saldoPendiente }];
+      });
     });
   }
 

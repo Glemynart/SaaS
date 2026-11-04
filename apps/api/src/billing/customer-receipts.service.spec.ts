@@ -29,7 +29,9 @@ describe('CustomerReceiptsService', () => {
       findFirst: jest.fn(),
       create: jest.fn(),
     },
+    customer: { findFirst: jest.fn() },
     invoice: { findMany: jest.fn(), findFirst: jest.fn() },
+    invoiceReceiptAllocation: { findMany: jest.fn() },
     comprobanteContable: { findMany: jest.fn(), findFirst: jest.fn() },
     periodoContable: { findMany: jest.fn() },
     cuentaSistemaMap: { findMany: jest.fn() },
@@ -60,6 +62,7 @@ describe('CustomerReceiptsService', () => {
       ),
     );
     tx.customerReceipt.findUnique.mockResolvedValue(null);
+    tx.customer.findFirst.mockResolvedValue({ id: 'customer-1' });
     tx.customerReceipt.findFirst.mockResolvedValue({
       id: 'receipt-1',
       tenantId: 'tenant-1',
@@ -94,6 +97,7 @@ describe('CustomerReceiptsService', () => {
         status: 'ISSUED',
       },
     ]);
+    tx.invoiceReceiptAllocation.findMany.mockResolvedValue([]);
     tx.comprobanteContable.findMany.mockResolvedValue([
       { origenId: 'invoice-1' },
     ]);
@@ -119,6 +123,140 @@ describe('CustomerReceiptsService', () => {
       ledger as unknown as LedgerService,
       audit as unknown as AuditService,
     );
+  });
+
+  it('lista solo facturas contabilizadas del cliente con saldo pendiente', async () => {
+    tx.invoice.findMany.mockResolvedValue([
+      {
+        id: 'invoice-1',
+        numero: 'FV-001',
+        fechaVencimiento: new Date('2026-12-03T00:00:00.000Z'),
+        total: new Prisma.Decimal(100_000),
+      },
+      {
+        id: 'invoice-2',
+        numero: 'FV-002',
+        fechaVencimiento: null,
+        total: new Prisma.Decimal(50_000),
+      },
+      {
+        id: 'invoice-3',
+        numero: 'FV-003',
+        fechaVencimiento: null,
+        total: new Prisma.Decimal(30_000),
+      },
+    ]);
+    tx.comprobanteContable.findMany.mockResolvedValue([
+      { origenId: 'invoice-1' },
+      { origenId: 'invoice-2' },
+    ]);
+    tx.$queryRaw.mockImplementation((strings: TemplateStringsArray) =>
+      Promise.resolve(
+        strings.join('').includes('invoice_receipt_allocations')
+          ? [{ invoiceId: 'invoice-1', applied: new Prisma.Decimal(25_000) }]
+          : [],
+      ),
+    );
+
+    const result = await service.findReceivableInvoices(
+      'tenant-1',
+      'customer-1',
+    );
+
+    expect(tx.customer.findFirst).toHaveBeenCalledWith({
+      where: { id: 'customer-1', tenantId: 'tenant-1' },
+      select: { id: true },
+    });
+    expect(tx.invoice.findMany).toHaveBeenCalledWith({
+      where: {
+        tenantId: 'tenant-1',
+        customerId: 'customer-1',
+        status: 'ISSUED',
+        terceroId: { not: null },
+      },
+      select: {
+        id: true,
+        numero: true,
+        fechaVencimiento: true,
+        total: true,
+      },
+      orderBy: [{ fechaEmision: 'asc' }, { id: 'asc' }],
+    });
+    const voucherCalls = tx.comprobanteContable.findMany.mock
+      .calls as unknown as Array<[{ where: Record<string, unknown> }]>;
+    const voucherQuery = voucherCalls[0]?.[0];
+    expect(voucherQuery?.where).toMatchObject({
+      tenantId: 'tenant-1',
+      origenId: { in: ['invoice-1', 'invoice-2', 'invoice-3'] },
+      estado: 'CONTABILIZADO',
+    });
+    expect(result).toEqual([
+      {
+        id: 'invoice-1',
+        numero: 'FV-001',
+        fechaVencimiento: new Date('2026-12-03T00:00:00.000Z'),
+        total: new Prisma.Decimal(100_000),
+        totalPagado: new Prisma.Decimal(25_000),
+        saldoPendiente: new Prisma.Decimal(75_000),
+      },
+      {
+        id: 'invoice-2',
+        numero: 'FV-002',
+        fechaVencimiento: null,
+        total: new Prisma.Decimal(50_000),
+        totalPagado: new Prisma.Decimal(0),
+        saldoPendiente: new Prisma.Decimal(50_000),
+      },
+    ]);
+  });
+
+  it('incluye todas las facturas del recaudo para advertir su reversión total', async () => {
+    tx.invoice.findFirst.mockResolvedValue({ id: 'invoice-1' });
+    tx.invoiceReceiptAllocation.findMany.mockResolvedValue([
+      {
+        id: 'allocation-1',
+        receiptId: 'receipt-1',
+        amount: new Prisma.Decimal(20_000),
+        receipt: {
+          id: 'receipt-1',
+          monto: new Prisma.Decimal(50_000),
+          reversal: null,
+          aplicaciones: [
+            {
+              invoiceId: 'invoice-1',
+              amount: new Prisma.Decimal(20_000),
+              invoice: { numero: 'FV-001' },
+            },
+            {
+              invoiceId: 'invoice-2',
+              amount: new Prisma.Decimal(30_000),
+              invoice: { numero: 'FV-002' },
+            },
+          ],
+        },
+      },
+    ]);
+    tx.comprobanteContable.findMany.mockResolvedValue([
+      { origenId: 'receipt-1', id: 'receipt-voucher-1' },
+    ]);
+
+    const result = await service.findInvoiceApplications(
+      'tenant-1',
+      'invoice-1',
+    );
+
+    expect(result[0]?.receipt.aplicaciones).toEqual([
+      {
+        invoiceId: 'invoice-1',
+        numero: 'FV-001',
+        amount: new Prisma.Decimal(20_000),
+      },
+      {
+        invoiceId: 'invoice-2',
+        numero: 'FV-002',
+        amount: new Prisma.Decimal(30_000),
+      },
+    ]);
   });
 
   it('registra un recaudo parcial, aplica cartera y contabiliza CI en la misma transacción', async () => {
@@ -222,6 +360,24 @@ describe('CustomerReceiptsService', () => {
     expect(replay).toEqual(expect.objectContaining({ id: 'receipt-1' }));
     expect(tx.customerReceipt.create).toHaveBeenCalledTimes(1);
     expect(ledger.registrarComprobante).toHaveBeenCalledTimes(1);
+  });
+
+  it('rechecks idempotency after a concurrent request releases the invoice lock', async () => {
+    await service.create('tenant-1', 'user-1', dto);
+    const requestHash = createdReceiptInputs[0]?.data.requestHash;
+    tx.customerReceipt.findUnique.mockReset();
+    tx.customerReceipt.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'receipt-1', requestHash });
+    const invoiceReadCount = tx.invoice.findMany.mock.calls.length;
+
+    const replay = await service.create('tenant-1', 'user-1', dto);
+
+    expect(tx.customerReceipt.findUnique).toHaveBeenCalledTimes(2);
+    expect(tx.invoice.findMany).toHaveBeenCalledTimes(invoiceReadCount);
+    expect(createdReceiptInputs).toHaveLength(1);
+    expect(ledger.registrarComprobante).toHaveBeenCalledTimes(1);
+    expect(replay).toEqual(expect.objectContaining({ id: 'receipt-1' }));
   });
 
   it('rechaza reutilizar la clave de idempotencia con otro contenido', async () => {
