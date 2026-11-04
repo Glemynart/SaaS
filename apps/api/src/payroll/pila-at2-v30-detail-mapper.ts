@@ -39,7 +39,6 @@ import {
 } from './pila-health-standard-rate-catalog';
 import {
   getFspSubaccountRates,
-  PILA_FSP_AFFILIATION_ROUTING_REVIEW_FROM,
   PILA_FSP_NEW_SYSTEM_EFFECTIVE_FROM,
   PILA_FSP_SUBACCOUNT_RULE_VERSION,
 } from './pila-fsp-subaccounts';
@@ -1248,9 +1247,6 @@ export function mapPilaAt2V30DetailCandidate(
         paymentDate >= PILA_FSP_NEW_SYSTEM_EFFECTIVE_FROM
       ) {
         return 'El período o la fecha prevista de pago alcanza el 2027-04-01; falta versionar las reglas del nuevo sistema pensional.';
-      }
-      if (periodEnd >= PILA_FSP_AFFILIATION_ROUTING_REVIEW_FROM) {
-        return 'La vigencia y ruta de los ajustes PILA de la Resolución 467 para FSP desde 2025-07-01 no está reconciliada tras la Circular 028 de 2025 y la Sentencia C-264 de 2026; mantener 51/52 pendientes aunque exista estado S/N.';
       }
       const ibc = pensionBase.valor;
       const smmlv = fspSubaccounts.smmlv;

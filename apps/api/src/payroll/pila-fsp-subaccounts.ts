@@ -7,7 +7,6 @@ import {
 export const PILA_FSP_SUBACCOUNT_RULE_VERSION =
   'CO_FSP_SUBACCOUNTS_DEC1833_PRE_2027_04_01_V1' as const;
 export const PILA_FSP_NEW_SYSTEM_EFFECTIVE_FROM = '2027-04-01' as const;
-export const PILA_FSP_AFFILIATION_ROUTING_REVIEW_FROM = '2025-07-01' as const;
 
 export interface PilaFspPayrollConceptSource {
   tipo: string;
@@ -90,12 +89,6 @@ export function assessPilaFspSubaccounts(
   ) {
     return blocked(
       'El período alcanza el 2027-04-01; falta versionar las reglas del nuevo sistema pensional.',
-    );
-  }
-
-  if (input.periodEnd >= PILA_FSP_AFFILIATION_ROUTING_REVIEW_FROM) {
-    return blocked(
-      'La vigencia y ruta de los ajustes PILA de la Resolución 467 para FSP desde 2025-07-01 no está reconciliada tras la Circular 028 de 2025 y la Sentencia C-264 de 2026; mantener 51/52 pendientes aunque exista estado S/N.',
     );
   }
 

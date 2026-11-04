@@ -23,7 +23,7 @@ function fspConcept(ibc: number, totalBps: number, amount: number) {
   };
 }
 
-describe('PILA FSP subaccounts for supported pre-July-2025 periods', () => {
+describe('PILA FSP subaccounts under the pre-2027-04-01 rule', () => {
   it.each([
     [3_999_999, 0],
     [4_000_000, 100],
@@ -109,6 +109,14 @@ describe('PILA FSP subaccounts for supported pre-July-2025 periods', () => {
 
   it.each([
     ['period reaches new regime', { periodEnd: '2027-04-01' }],
+    [
+      'period starts in new regime',
+      { periodStart: '2027-04-01', periodEnd: '2027-04-30' },
+    ],
+    [
+      'period crosses into new regime',
+      { periodStart: '2027-03-01', periodEnd: '2027-04-01' },
+    ],
     ['planned payment reaches new regime', { paymentDate: '2027-04-01' }],
     ['payment date is missing', { paymentDate: null }],
   ])('blocks when %s', (_case, overrides) => {
@@ -123,36 +131,14 @@ describe('PILA FSP subaccounts for supported pre-July-2025 periods', () => {
     expect(result.blocker).toBeTruthy();
   });
 
-  it.each([
-    [
-      'starts on the unresolved regulatory cutoff',
-      { periodStart: '2025-07-01', periodEnd: '2025-07-31' },
-    ],
-    [
-      'crosses the unresolved regulatory cutoff',
-      { periodStart: '2025-06-15', periodEnd: '2025-07-15' },
-    ],
-  ])('blocks FSP subaccounts when the period %s', (_case, overrides) => {
-    const result = assessPilaFspSubaccounts({
-      ...period,
-      ...overrides,
-      ibcPensional: 4_000_000,
-      fspConcepts: [fspConcept(4_000_000, 100, 40_000)],
-    });
-
-    expect(result.status).toBe('BLOCKED');
-    expect(result.blocker).toContain('vigencia y ruta');
-    expect(result.solidaridad).toBeNull();
-    expect(result.subsistencia).toBeNull();
-  });
-
-  it.each(['S', 'N'] as const)(
-    'keeps post-cutoff state %s blocked until current FSP routing is confirmed',
+  it.each([null, 'S', 'N'] as const)(
+    'uses the legacy FSP subaccounts for July 2025 regardless of affiliation state %s',
     (estadoAfiliacionPensional) => {
       const result = assessPilaFspSubaccounts({
         ...period,
         periodStart: '2025-07-01',
         periodEnd: '2025-07-31',
+        paymentDate: '2025-08-01',
         estadoAfiliacionPensional,
         ibcPensional: 4_000_000,
         fspConcepts: [fspConcept(4_000_000, 100, 40_000)],
@@ -160,13 +146,30 @@ describe('PILA FSP subaccounts for supported pre-July-2025 periods', () => {
 
       expect(result).toMatchObject({
         estadoAfiliacionPensional,
-        status: 'BLOCKED',
-        solidaridad: null,
-        subsistencia: null,
+        status: 'READY',
+        blocker: null,
+        ruleVersion: PILA_FSP_SUBACCOUNT_RULE_VERSION,
+        solidaridad: 20_000,
+        subsistencia: 20_000,
+        payrollFspAmount: 40_000,
       });
-      expect(result.blocker).toContain('vigencia y ruta');
     },
   );
+
+  it('accepts March 2027 only when the planned payment also precedes the new system', () => {
+    const result = assessPilaFspSubaccounts({
+      ...period,
+      periodStart: '2027-03-01',
+      periodEnd: '2027-03-31',
+      paymentDate: '2027-03-31',
+      ibcPensional: 4_000_000,
+      fspConcepts: [fspConcept(4_000_000, 100, 40_000)],
+    });
+
+    expect(result.status).toBe('READY');
+    expect(result.solidaridad).toBe(20_000);
+    expect(result.subsistencia).toBe(20_000);
+  });
 
   it('does not publish values if separate rounded amounts differ from Payroll FSP', () => {
     const result = assessPilaFspSubaccounts({

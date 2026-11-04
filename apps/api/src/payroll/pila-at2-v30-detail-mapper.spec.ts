@@ -482,16 +482,21 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     ).toEqual(expect.arrayContaining([51, 52]));
   });
 
-  it('blocks READY FSP snapshots after the July 2025 routing cutoff', () => {
+  it('maps READY FSP snapshots in July 2025 under the suspended Resolution 467 amendments', () => {
     const input = snapshot();
+    setHistoricalPilaPeriod(input);
     input.payloadVersion = 6;
     (input.payload as { schemaVersion: number }).schemaVersion = 6;
     setStandardPensionInputs(input, {
       base: 4_000_000,
       employeeAmount: 160_000,
       employerAmount: 480_000,
+      paymentDate: '2025-08-01',
     });
-    payloadOf(input).payroll.concepts?.push({
+    const payload = payloadOf(input);
+    (payload.period as Record<string, unknown>).fechaInicio = '2025-07-01';
+    (payload.period as Record<string, unknown>).fechaFin = '2025-07-31';
+    payload.payroll.concepts?.push({
       codigo: 'FSP',
       tipo: 'DEDUCTION',
       base: 4_000_000,
@@ -500,7 +505,39 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     });
     setStandardFspSubaccounts(input);
 
-    const candidate = mapCandidate(input);
+    const candidate = mapCandidate(input, 'E', '2025-07-01', '2025-07-31');
+    const fspBlockers = candidate.unresolvedFields.filter(({ fieldNumber }) =>
+      [51, 52].includes(fieldNumber),
+    );
+
+    expect(candidate.values[51]).toEqual({ value: 20_000 });
+    expect(candidate.values[52]).toEqual({ value: 20_000 });
+    expect(fspBlockers).toHaveLength(0);
+  });
+
+  it('keeps READY FSP snapshots blocked when the period reaches the new regime', () => {
+    const input = snapshot();
+    input.payloadVersion = 6;
+    (input.payload as { schemaVersion: number }).schemaVersion = 6;
+    setStandardPensionInputs(input, {
+      base: 4_000_000,
+      employeeAmount: 160_000,
+      employerAmount: 480_000,
+      paymentDate: '2027-04-01',
+    });
+    const payload = payloadOf(input);
+    (payload.period as Record<string, unknown>).fechaInicio = '2027-03-01';
+    (payload.period as Record<string, unknown>).fechaFin = '2027-03-31';
+    payload.payroll.concepts?.push({
+      codigo: 'FSP',
+      tipo: 'DEDUCTION',
+      base: 4_000_000,
+      factor: 0.01,
+      valor: 40_000,
+    });
+    setStandardFspSubaccounts(input);
+
+    const candidate = mapCandidate(input, 'E', '2027-03-01', '2027-03-31');
     const fspBlockers = candidate.unresolvedFields.filter(({ fieldNumber }) =>
       [51, 52].includes(fieldNumber),
     );
@@ -508,7 +545,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.values[51]).toBeUndefined();
     expect(candidate.values[52]).toBeUndefined();
     expect(fspBlockers).toHaveLength(2);
-    expect(fspBlockers[0].reason).toContain('vigencia y ruta');
+    expect(fspBlockers[0].reason).toContain('2027-04-01');
   });
 
   it('accounts for every AT2 detail field as a candidate or an explicit blocker', () => {

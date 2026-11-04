@@ -438,7 +438,10 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
     ).toBeVisible();
     await expect(pilaPreparationPanel.getByText('Snapshot histórico sin campo 5')).toBeVisible();
     await expect(
-      pilaPreparationPanel.getByText(/no modifica los bloqueos de los campos 51\/52/i),
+      pilaPreparationPanel.getByText(/el estado de transición queda como evidencia histórica/i),
+    ).toBeVisible();
+    await expect(
+      pilaPreparationPanel.getByText(/regla anterior al 1 de abril de 2027/i),
     ).toBeVisible();
     await expect(
       pilaPreparationPanel.getByText(

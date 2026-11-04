@@ -307,8 +307,10 @@ export function PayrollPilaPreparationPanel({
               </div>
             </dl>
             <p className="mt-3 text-xs text-muted-foreground">
-              Resumen informativo: no modifica los bloqueos de los campos 51/52 ni habilita la
-              generación o descarga del archivo PILA.
+              El estado de transición queda como evidencia histórica. Los campos 51/52 usan la regla
+              anterior al 1 de abril de 2027 y solo se proponen si su fuente, período, fecha
+              prevista de pago e importes concilian. Este resumen no habilita generación ni descarga
+              del archivo PILA.
             </p>
           </section>
 
