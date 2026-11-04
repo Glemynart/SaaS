@@ -1493,3 +1493,18 @@ false`.
   la cabecera de la fixture de nómina y conserva el blanco N10 de planilla E.
 - La matriz añade `PILA-AT2-74`. Aún no hay ensamblado de registros tipo 1/2,
   endpoint de descarga ni declaración de compatibilidad con operadores.
+
+### Trazabilidad de empleados en el preflight PILA — 2026-11-04
+
+- **Brecha confirmada en código:** los hallazgos del preflight agrupaban
+  empleados por ID, pero la respuesta API descartaba ese ID y la interfaz solo
+  mostraba el nombre. Nombres iguales eran indistinguibles y no permitían abrir
+  directamente el perfil para corregir los datos fuente.
+- **Corrección en esta PR:** las listas de afectados conservan `{id, name}`;
+  cada nombre enlaza al perfil del empleado y los nombres repetidos reciben un
+  ordinal visible. La consulta que alimenta el reporte ya filtra ejecuciones y
+  snapshots por tenant; el enlace usa el ID de esa fila tenant-scoped y la ruta
+  de perfil aplica sus propios controles de autorización.
+- La matriz y el contrato PILA no cambian. El reporte sigue consumiendo
+  snapshots aprobados; generación y descarga del archivo y compatibilidad con
+  operadores permanecen fuera de alcance.

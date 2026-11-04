@@ -1881,10 +1881,36 @@ describe('inspectPilaSnapshotPreparation', () => {
         expect.objectContaining({
           fieldNumber: 62,
           affectedCount: 2,
-          affectedEmployees: ['Ana Demo', 'Luis Demo'],
+          affectedEmployees: [
+            { id: 'employee-1', name: 'Ana Demo' },
+            { id: 'employee-2', name: 'Luis Demo' },
+          ],
         }),
         expect.objectContaining({ fieldNumber: 98, affectedCount: 2 }),
       ]),
+    );
+  });
+
+  it('keeps employees with identical names distinct in PILA findings', () => {
+    const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [snapshot('employee-1', 'Ana'), snapshot('employee-2', 'Ana')],
+    });
+
+    expect(report.issues).toContainEqual(
+      expect.objectContaining({
+        fieldNumber: 62,
+        affectedCount: 2,
+        affectedEmployees: [
+          { id: 'employee-1', name: 'Ana Demo' },
+          { id: 'employee-2', name: 'Ana Demo' },
+        ],
+      }),
     );
   });
 
@@ -2120,7 +2146,7 @@ describe('inspectPilaSnapshotPreparation', () => {
       'múltiplo de 100 superior',
     );
     expect(field63?.pendingReasons[0]?.affectedEmployees).toEqual([
-      'Luis Demo',
+      { id: 'employee-2', name: 'Luis Demo' },
     ]);
     expect(statusFor(65)).toMatchObject({
       candidateEmployees: 2,
@@ -2267,7 +2293,9 @@ describe('inspectPilaSnapshotPreparation', () => {
     expect(status?.pendingReasons[0]?.reason).toContain(
       'sin novedades ni eventos PILA',
     );
-    expect(status?.pendingReasons[0]?.affectedEmployees).toEqual(['Ana Demo']);
+    expect(status?.pendingReasons[0]?.affectedEmployees).toEqual([
+      { id: 'employee-1', name: 'Ana Demo' },
+    ]);
     for (const fieldNumber of [15, 30, 80, 94]) {
       expect(
         report.detailAbsentEventCandidates.find(
@@ -2301,7 +2329,9 @@ describe('inspectPilaSnapshotPreparation', () => {
       pendingEmployees: 1,
     });
     expect(field61.pendingReasons[0]?.reason).toContain('más de un snapshot');
-    expect(field61.pendingReasons[0]?.affectedEmployees).toEqual(['Ana Demo']);
+    expect(field61.pendingReasons[0]?.affectedEmployees).toEqual([
+      { id: 'employee-1', name: 'Ana Demo' },
+    ]);
   });
 
   it.each(['tenant', 'employee id', 'period id', 'period dates'] as const)(
@@ -2350,12 +2380,12 @@ describe('inspectPilaSnapshotPreparation', () => {
         'tenant, empleado o período congelado en el snapshot no coincide',
       );
       expect(field61.pendingReasons[0]?.affectedEmployees).toEqual([
-        'Empleado con alcance no validado',
+        { id: 'employee-1', name: 'Empleado con alcance no validado' },
       ]);
       expect(
         report.issues
           .flatMap((issue) => issue.affectedEmployees)
-          .some((name) => name.includes('Nombre ajeno')),
+          .some(({ name }) => name.includes('Nombre ajeno')),
       ).toBe(false);
     },
   );

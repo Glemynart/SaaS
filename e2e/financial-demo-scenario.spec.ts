@@ -366,7 +366,11 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
           Record<number, { value: string | number | null; emptyAs?: 'spaces' | 'zeros' }>
         >;
       };
-      issues: Array<{ code: string; affectedCount: number }>;
+      issues: Array<{
+        code: string;
+        affectedCount: number;
+        affectedEmployees: Array<{ id: string; name: string }>;
+      }>;
     };
     expect(preparation.formatVersion).toBeNull();
     expect(preparation.normativeSourceStatus).toBe('RECONCILIATION_PENDING');
@@ -413,6 +417,19 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
         }),
       ]),
     );
+    expect(
+      preparation.issues
+        .flatMap(({ affectedEmployees }) => affectedEmployees)
+        .some(({ id, name }) => id === payroll.employeeId && name === 'Ana Pérez'),
+    ).toBe(true);
+    const employeeLinkSummary = pilaPreparationPanel
+      .locator('summary')
+      .filter({ hasText: 'empleados afectados' })
+      .first();
+    await employeeLinkSummary.click();
+    await expect(
+      pilaPreparationPanel.getByRole('link', { name: 'Ana Pérez' }).first(),
+    ).toHaveAttribute('href', `/empleados/${payroll.employeeId}`);
     await expect(pilaPreparationPanel.getByText('Snapshots revisados: 1')).toBeVisible();
     await expect(
       pilaPreparationPanel.getByRole('heading', {
