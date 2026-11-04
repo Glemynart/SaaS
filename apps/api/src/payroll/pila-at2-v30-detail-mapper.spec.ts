@@ -723,6 +723,26 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     ).toContain('no se completa desde la sede');
   });
 
+  it('lists supported snapshot versions when the frozen work location is malformed', () => {
+    const input = snapshot();
+    input.payloadVersion = 7;
+    const payload = payloadOf(input) as {
+      schemaVersion?: number;
+      pilaWorkLocations?: unknown[];
+    };
+    payload.schemaVersion = 7;
+    delete payload.pilaWorkLocations;
+
+    const candidate = mapCandidate(input);
+    const reason = candidate.unresolvedFields.find(
+      ({ fieldNumber }) => fieldNumber === 9,
+    )?.reason;
+
+    expect(candidate.supportedSnapshot).toBe(true);
+    expect(candidate.values[9]).toBeUndefined();
+    expect(reason).toContain('snapshot v3 a v7');
+  });
+
   it('blocks a v3 work location that does not cover the whole period', () => {
     const input = snapshot();
     input.payloadVersion = 3;

@@ -472,7 +472,7 @@ export function mapPilaAt2V30DetailCandidate(
   } else if (!workLocation) {
     const reason =
       workLocations === null
-        ? 'El snapshot v3/v4/v5/v6 no conserva una lista válida de ubicaciones laborales PILA.'
+        ? 'El snapshot v3 a v7 no conserva una lista válida de ubicaciones laborales PILA.'
         : workLocations.length === 0
           ? 'Falta una ubicación laboral PILA confirmada que cubra el período.'
           : 'Hay varias ubicaciones laborales PILA durante el período; la segmentación no está habilitada.';
