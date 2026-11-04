@@ -358,10 +358,12 @@ se accedió a demo, staging o producción.
   tipo 2 (4 y 75) aplican a
   pagos desde 2026-10-01 para pensiones del período 2026-09. Las aclaraciones
   de planilla E tienen otro hito: pago desde 2026-11-01 para salud del período
-  2026-11; el cotizante 75 también tiene un hito en esa fecha, pero queda fuera
-  del MVP. La matriz completa aún debe reconciliar cada regla de AT2 v30, sus
-  hitos de vigencia y normas posteriores. La propuesta de modificar 5.87/5.91
-  continúa en consulta pública, no como norma expedida. La selección de reglas
+  2026-11; el AT2 v30 también conserva inicialmente esa fecha técnica para el
+  cotizante 75, que queda fuera del MVP. La Resolución 2483 posterior movió el
+  inicio de operación del mecanismo al 2027-03-01, pero la propuesta para
+  modificar 5.87/5.91 seguía en consulta pública al 2026-11-04 y no se trata
+  como norma expedida. La matriz completa aún debe reconciliar cada regla de
+  AT2 v30, sus hitos de vigencia y normas posteriores. La selección de reglas
   por período/fecha prevista de pago de aportes PILA se aplicará solo a hitos
   cuya vigencia dependa de ambos datos; esa previsión es distinta de la fecha
   de pago del salario y no confirma que se pagaron los aportes.
@@ -1605,29 +1607,37 @@ false`.
 
 ### Cotizante PILA 75 — plazo de implementación actualizado — 2026-11-04
 
-- **Hecho normativo:** la Resolución 1529 de 2026 había fijado pagos desde el
-  2026-11-01 para la salud del período noviembre. La Resolución 2483 de 2026,
-  publicada en el Diario Oficial 53.676 del 2026-10-31, modificó el artículo
-  13 y derogó el artículo 14 de la Resolución 611: los operadores y ADRES
-  tienen plazo hasta el 2027-02-28 para ajustes y el mecanismo inicia el
-  2027-03-01. La Resolución 002492 de 2026, publicada en el Diario Oficial
-  53.677 del 2026-11-01, modificó los numerales 5.87 y 5.91 del AT2 y lleva
-  también a pagos desde el 2027-03-01, para el período de cotización de marzo
-  de 2027, las validaciones del tipo 75 y sus reglas relacionadas.
-- **Corrección de estado:** los proyectos todavía visibles en la página de
-  consulta de MinSalud son antecedentes del proceso normativo, no el estado
-  vigente. Ya no se debe esperar una comunicación de activación conforme al
-  derogado artículo 14 para conocer la fecha: los actos publicados fijan
-  2027-03-01.
+- **Hecho normativo:** la Resolución 1529 de 2026 y AT2 v30 fijaron las
+  validaciones del tipo 75 para pagos desde el 2026-11-01, período de salud de
+  noviembre. La Resolución 2483 de 2026 sí fue publicada en el Diario Oficial
+  53.676 el 2026-10-31: modificó el artículo 13 de la Resolución 611 para dar
+  hasta el 2027-02-28 a los ajustes de operadores y ADRES e iniciar el mecanismo
+  el 2027-03-01; también derogó el artículo 14, que condicionaba el inicio a
+  una verificación posterior.
+- **Corrección de fuente:** el borrador anterior afirmaba que la Resolución
+  002492 de 2026 se publicó en la edición 53.677. Esa edición oficial tiene
+  una página institucional y no contiene la resolución; las ediciones oficiales
+  listadas hasta la 53.679 (2026-11-03) tampoco acreditan su publicación. El
+  [PDF de MinSalud](https://www.minsalud.gov.co/Normativa/Resoluciones/PR%20Modificacion%20Res%202388%20PILA%20Implementacion%20permanencia%20en%20el%20RS%20V2.pdf)
+  conserva en blanco el número y la fecha, y la página de [consulta normativa
+  de MinSalud](https://www.minsalud.gov.co/Normativa/Paginas/Resoluciones.aspx)
+  sigue identificándolo como proyecto. El proyecto propone mover 5.87/5.91 a
+  pagos desde el 2027-03-01, pero no se trata como norma vigente hasta hallar
+  el acto definitivo publicado.
+- **Fechas que no deben confundirse:** la operación del mecanismo está fijada
+  para 2027-03-01 por la Resolución 2483; la fecha técnica de los numerales
+  5.87/5.91 requiere verificar una modificación definitiva del AT2. Antes de
+  habilitar el tipo 75, reconciliar ambos hitos con fuentes oficiales vigentes.
 - **Conclusión de alcance:** el MVP aprobado sigue limitado a trabajadores
   dependientes estándar 01/00 y rechaza el tipo 75 porque es una exclusión de
   alcance. Este caso no bloquea el avance ni la validación de 01/00. Si se
   prioriza una fase de soporte al tipo 75, deberá versionar las reglas y validar
-  elegibilidad, fuentes, campos y reglas del mecanismo antes de habilitarlo para
-  períodos/pagos desde 2027-03-01.
-- **GOAL ACTIVO:** GOAL-02. **IMPLEMENTACIÓN BLOQUEADA:** no hay bloqueo
-  regulatorio pendiente sobre la fecha del tipo 75; su implementación sigue
-  fuera del MVP y requiere una fase específica. **ARQUITECTURA DISPONIBLE:** el
-  MVP 01/00 continúa sin depender de la fase 75; el exportador completo aún
-  tiene bloqueos propios de campos, composición, pruebas y aceptación por
-  operador.
+  elegibilidad, fuentes, campos, calendario definitivo del AT2 y reglas del
+  mecanismo.
+- **GOAL ACTIVO:** GOAL-02. **IMPLEMENTACIÓN BLOQUEADA:** el soporte futuro del
+  tipo 75 necesita la publicación oficial de la modificación propuesta a 5.87/
+  5.91 o una aclaración normativa que reconcilie esos numerales con la fecha de
+  operación de la Resolución 2483. **ARQUITECTURA DISPONIBLE:** no hay
+  dependencia del tipo 75 para avanzar con el MVP 01/00; el exportador PILA
+  completo aún tiene bloqueos propios de campos, composición, fixtures y
+  aceptación por operador.
