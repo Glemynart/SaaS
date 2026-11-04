@@ -866,19 +866,27 @@ export class PayrollService {
       );
     }
 
-    const snapshots = await this.prisma.payrollSnapshot.findMany({
-      where: { tenantId, payrollPeriodId: periodId },
-      select: {
-        employeeId: true,
-        pilaPayloadVersion: true,
-        pilaPayload: true,
-      },
-      orderBy: [{ createdAt: 'asc' }, { employeeId: 'asc' }],
-    });
+    const [runs, snapshots] = await Promise.all([
+      this.prisma.payrollRun.findMany({
+        where: { tenantId, payrollPeriodId: periodId },
+        select: { employeeId: true },
+        orderBy: { employeeId: 'asc' },
+      }),
+      this.prisma.payrollSnapshot.findMany({
+        where: { tenantId, payrollPeriodId: periodId },
+        select: {
+          employeeId: true,
+          pilaPayloadVersion: true,
+          pilaPayload: true,
+        },
+        orderBy: [{ createdAt: 'asc' }, { employeeId: 'asc' }],
+      }),
+    ]);
 
     return buildPilaPreparationReport({
       tenantId,
       period,
+      expectedEmployeeIds: runs.map(({ employeeId }) => employeeId),
       snapshots: snapshots.map((snapshot) => ({
         employeeId: snapshot.employeeId,
         payloadVersion: snapshot.pilaPayloadVersion,

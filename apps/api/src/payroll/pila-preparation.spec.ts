@@ -1858,6 +1858,68 @@ describe('inspectPilaSnapshotPreparation', () => {
     );
   });
 
+  it('sequences detail field 2 across the complete approved employee set', () => {
+    const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
+      expectedEmployeeIds: ['employee-a', 'employee-b'],
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [
+        detailCandidateSnapshot('employee-b', 'Luis'),
+        detailCandidateSnapshot('employee-a', 'Ana'),
+      ],
+    });
+
+    expect(report.detailRecordSequence).toEqual({
+      status: 'CANDIDATE',
+      candidateRecords: 2,
+      ruleVersion: 'AT2_V30_DETAIL_RECORD_SEQUENCE_BY_EMPLOYEE_ID_V1',
+      pendingReason: null,
+    });
+    expect(report.detailSequenceCandidates).toEqual([
+      {
+        fieldNumber: 2,
+        candidateEmployees: 2,
+        pendingEmployees: 0,
+        pendingReasons: [],
+      },
+    ]);
+    expect(report.archivoGenerable).toBe(false);
+  });
+
+  it('keeps all detail field 2 candidates pending when one snapshot cannot produce a detail line', () => {
+    const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [
+        detailCandidateSnapshot('employee-1', 'Ana'),
+        snapshot('employee-2', 'Luis'),
+      ],
+      expectedEmployeeIds: ['employee-1', 'employee-2'],
+    });
+
+    expect(report.detailRecordSequence).toMatchObject({
+      status: 'PENDING',
+      candidateRecords: 0,
+      ruleVersion: null,
+      pendingReason:
+        'Todos los snapshots deben ser válidos y pertenecer al mismo tenant y período antes de asignar la secuencia.',
+    });
+    expect(report.detailSequenceCandidates[0]).toMatchObject({
+      fieldNumber: 2,
+      candidateEmployees: 0,
+      pendingEmployees: 2,
+    });
+    expect(report.archivoGenerable).toBe(false);
+  });
+
   it('incluye candidatos de cabecera tipo 2 y sus motivos por campo', () => {
     const report = buildPilaPreparationReport({
       tenantId: 'tenant-1',

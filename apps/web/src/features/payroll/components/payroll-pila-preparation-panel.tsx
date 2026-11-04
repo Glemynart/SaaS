@@ -296,6 +296,29 @@ export function PayrollPilaPreparationPanel({
 
           <section
             className="rounded-lg border border-border p-4"
+            aria-labelledby="pila-detail-sequence-title"
+          >
+            <h3 id="pila-detail-sequence-title" className="font-medium">
+              Secuencia del detalle tipo 2
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              El campo 2 N5 requiere un consecutivo que inicia en 00001. Se propone únicamente
+              cuando todos los empleados de las ejecuciones aprobadas tienen exactamente un snapshot
+              compatible para este tenant y período.
+            </p>
+            <p className="mt-2 text-sm">
+              {query.data.detailRecordSequence.status === 'CANDIDATE'
+                ? `Secuencia candidata para ${query.data.detailRecordSequence.candidateRecords} registros, en orden estable por ID de empleado.`
+                : `Pendiente: ${query.data.detailRecordSequence.pendingReason ?? 'No se pudo confirmar el conjunto completo de registros.'}`}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              La secuencia es preliminar. La generación del archivo y la validación completa siguen
+              deshabilitadas.
+            </p>
+          </section>
+
+          <section
+            className="rounded-lg border border-border p-4"
             aria-labelledby="pila-employer-candidate-title"
           >
             <h3 id="pila-employer-candidate-title" className="font-medium">

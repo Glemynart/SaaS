@@ -9,10 +9,12 @@ import { PayrollAccountingPreflightService } from './accounting-preflight/payrol
 import { PayrollService } from './payroll.service';
 
 const findPeriod = jest.fn();
+const findRuns = jest.fn();
 const findSnapshots = jest.fn();
 
 const prisma = {
   payrollPeriod: { findFirst: findPeriod },
+  payrollRun: { findMany: findRuns },
   payrollSnapshot: { findMany: findSnapshots },
 };
 
@@ -41,6 +43,7 @@ describe('PayrollService.getPilaPreparation', () => {
       fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
       fechaFin: new Date('2026-10-31T00:00:00.000Z'),
     });
+    findRuns.mockResolvedValue([{ employeeId: 'employee-1' }]);
     findSnapshots.mockResolvedValue([
       {
         employeeId: 'employee-1',
@@ -59,6 +62,11 @@ describe('PayrollService.getPilaPreparation', () => {
         fechaInicio: true,
         fechaFin: true,
       },
+    });
+    expect(findRuns).toHaveBeenCalledWith({
+      where: { tenantId: 'tenant-1', payrollPeriodId: 'period-1' },
+      select: { employeeId: true },
+      orderBy: { employeeId: 'asc' },
     });
     expect(findSnapshots).toHaveBeenCalledWith({
       where: { tenantId: 'tenant-1', payrollPeriodId: 'period-1' },
@@ -107,6 +115,11 @@ describe('PayrollService.getPilaPreparation', () => {
       empleadosConDatosPendientes: 1,
       archivoGenerable: false,
       estadoArchivo: 'NO_IMPLEMENTADO',
+      detailRecordSequence: {
+        status: 'PENDING',
+        candidateRecords: 0,
+        ruleVersion: null,
+      },
     });
   });
 
@@ -122,6 +135,7 @@ describe('PayrollService.getPilaPreparation', () => {
       service.getPilaPreparation('tenant-1', 'period-1'),
     ).rejects.toThrow(ConflictException);
     expect(findSnapshots).not.toHaveBeenCalled();
+    expect(findRuns).not.toHaveBeenCalled();
   });
 
   it('oculta períodos que no pertenecen al tenant', async () => {
@@ -136,5 +150,6 @@ describe('PayrollService.getPilaPreparation', () => {
       }),
     );
     expect(findSnapshots).not.toHaveBeenCalled();
+    expect(findRuns).not.toHaveBeenCalled();
   });
 });

@@ -1292,6 +1292,31 @@ false`.
   el test ejecuta el seed con `ts-node` y el `tsconfig` de API para no importar
   directamente servicios Nest decorados desde el transformador Playwright.
 
+### Secuencia global de detalle PILA AT2 v30 — 2026-11-04
+
+- **Bug confirmado en código:** `mapPilaAt2V30DetailCandidate` ponía el valor
+  `1` en el campo 2 de cada trabajador. La norma exige un consecutivo por línea
+  de detalle; repetir `00001` hace inválido el archivo plano.
+- **Fuente normativa:** la compilación vigente de la Resolución 2388, modificada
+  por la Resolución 1529 de 2026, define el campo 2 como N5; inicia en `00001`,
+  avanza secuencialmente y el aportante informa el campo para archivos planos.
+  Ordenar por ID de empleado es una elección determinística local, no un
+  requisito atribuido al Ministerio.
+- **Corrección local:** el mapper individual deja el campo pendiente. El
+  preflight consulta los `PayrollRun` aprobados del tenant/período y solo
+  propone la secuencia cuando sus IDs coinciden exactamente con los snapshots,
+  cada uno produce una línea mensual estándar, no hay empleados duplicados y
+  caben hasta 99.999 registros. La secuencia se asigna en orden estable por ID
+  y es todo-o-nada; no expone ni persiste una secuencia parcial. La generación
+  y descarga del archivo siguen deshabilitadas.
+- **GOAL ACTIVO:** GOAL-02. **IMPLEMENTACIÓN DISPONIBLE:** secuencia candidata
+  del campo 2 en el preflight. No queda un bloqueo de cuota de Vercel o GitHub
+  Actions: los PR #251 y #252 se fusionaron con sus checks en verde. La
+  composición y descarga completas siguen pendientes hasta resolver los campos
+  sin fuentes aprobadas y demostrar aceptación por operador. **ARQUITECTURA
+  DISPONIBLE:** ADR-013 y la matriz AT2 v30 describen snapshots aprobados,
+  alcance 01/00 y los requisitos previos para habilitar la descarga.
+
 ### Corrección de límites FSP y protección de ejecuciones pendientes — 2026-11-03
 
 - La tabla vigente del Decreto 1833 de 2016 asigna exactamente 17, 18, 19 y 20 SMMLV al tramo anterior. El cálculo y los parámetros de esta rama representan ambos extremos explícitamente; la migración corrige solo las vigencias anteriores al 1 de abril de 2027 y no toca snapshots.

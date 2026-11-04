@@ -344,6 +344,12 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
       };
       snapshotsRevisados: number;
       empleadosConDatosPendientes: number;
+      detailRecordSequence: {
+        status: 'CANDIDATE' | 'PENDING';
+        candidateRecords: number;
+        ruleVersion: string | null;
+        pendingReason: string | null;
+      };
       archivoGenerable: boolean;
       estadoArchivo: string;
       employerCandidate: {
@@ -370,6 +376,9 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
     );
     expect(preparation.snapshotsRevisados).toBe(1);
     expect(preparation.empleadosConDatosPendientes).toBe(1);
+    expect(preparation.detailRecordSequence.status).toBe('PENDING');
+    expect(preparation.detailRecordSequence.candidateRecords).toBe(0);
+    expect(preparation.detailRecordSequence.pendingReason).toBeTruthy();
     expect(preparation.archivoGenerable).toBe(false);
     expect(preparation.estadoArchivo).toBe('NO_IMPLEMENTADO');
     expect(preparation.employerCandidate.values[16]).toEqual({
@@ -399,6 +408,15 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
       }),
     ).toBeVisible();
     await expect(pilaPreparationPanel.getByText('No implementadas')).toBeVisible();
+    await expect(
+      pilaPreparationPanel.getByRole('heading', { name: 'Secuencia del detalle tipo 2' }),
+    ).toBeVisible();
+    await expect(
+      pilaPreparationPanel.getByText(
+        `Pendiente: ${preparation.detailRecordSequence.pendingReason}`,
+        { exact: true },
+      ),
+    ).toBeVisible();
     await expect(
       pilaPreparationPanel.getByText('Preliminar; no cubre el archivo completo'),
     ).toBeVisible();
