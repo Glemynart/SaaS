@@ -343,6 +343,14 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
         blockers: Array<{ code: string }>;
       };
       snapshotsRevisados: number;
+      pensionTransitionSummary: {
+        totalSnapshots: number;
+        statusS: number;
+        statusN: number;
+        sinValorUtilizable: number;
+        historicosSinCampo5: number;
+        versionIncompatible: number;
+      };
       empleadosConDatosPendientes: number;
       detailRecordSequence: {
         status: 'CANDIDATE' | 'PENDING';
@@ -375,6 +383,10 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
       ]),
     );
     expect(preparation.snapshotsRevisados).toBe(1);
+    expect(preparation.pensionTransitionSummary).toMatchObject({
+      totalSnapshots: 1,
+      historicosSinCampo5: 1,
+    });
     expect(preparation.empleadosConDatosPendientes).toBe(1);
     expect(preparation.detailRecordSequence.status).toBe('PENDING');
     expect(preparation.detailRecordSequence.candidateRecords).toBe(0);
@@ -394,6 +406,15 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
       ]),
     );
     await expect(pilaPreparationPanel.getByText('Snapshots revisados: 1')).toBeVisible();
+    await expect(
+      pilaPreparationPanel.getByRole('heading', {
+        name: 'Afiliación pensional histórica · campo 5',
+      }),
+    ).toBeVisible();
+    await expect(pilaPreparationPanel.getByText('Snapshot histórico sin campo 5')).toBeVisible();
+    await expect(
+      pilaPreparationPanel.getByText(/no modifica los bloqueos de los campos 51\/52/i),
+    ).toBeVisible();
     await expect(
       pilaPreparationPanel.getByText(
         /Falta confirmar si aplica la exoneración de salud, SENA e ICBF/,
