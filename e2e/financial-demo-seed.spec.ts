@@ -167,8 +167,8 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
     expect(first.created).toMatchObject({
       customers: 2,
       products: 3,
-      invoices: 3,
-      invoiceItems: 4,
+      invoices: 4,
+      invoiceItems: 5,
       employees: 1,
       thirdParties: 3,
       costCenters: 1,
@@ -176,7 +176,7 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
       payrollRuns: 1,
       payrollSnapshots: 1,
       accountMaps: 24,
-      receipts: 1,
+      receipts: 2,
     });
 
     const second = await seedAsExplicitTarget(tenant.id, user.id);
@@ -217,6 +217,7 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
         tx.customerReceipt.findMany({
           where: { tenantId: tenant.id },
           include: { aplicaciones: true, reversal: true },
+          orderBy: { referencia: 'asc' },
         }),
         tx.comprobanteContable.findMany({
           where: {
@@ -282,46 +283,81 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
 
     expect(targetData.customers).toHaveLength(2);
     expect(targetData.products).toHaveLength(3);
-    expect(targetData.invoices).toHaveLength(3);
+    expect(targetData.invoices).toHaveLength(4);
     expect(targetData.invoices.map((invoice: any) => invoice.status)).toEqual([
       'ISSUED',
       'ISSUED',
       'DRAFT',
+      'ISSUED',
     ]);
     expect(Number(targetData.invoices[0].subtotal)).toBe(240_000);
     expect(Number(targetData.invoices[0].impuestos)).toBe(45_600);
     expect(Number(targetData.invoices[0].total)).toBe(285_600);
     expect(Number(targetData.invoices[0].items[0].porcentajeImpuesto)).toBe(19);
     expect(Number(targetData.invoices[0].items[0].valorImpuesto)).toBe(45_600);
-    expect(targetData.receipts).toHaveLength(1);
-    expect(Number(targetData.receipts[0].monto)).toBe(100_000);
-    expect(targetData.receipts[0].medio).toBe('TRANSFERENCIA');
-    expect(targetData.receipts[0].referencia).toBe('DEMO-TRX-001');
-    expect(targetData.receipts[0].reversal).toBeNull();
-    expect(targetData.receipts[0].aplicaciones).toHaveLength(1);
-    expect(Number(targetData.receipts[0].aplicaciones[0].amount)).toBe(100_000);
-    expect(targetData.receipts[0].aplicaciones[0].invoiceId).toBe(targetData.invoices[0].id);
-    expect(targetData.receiptVouchers).toHaveLength(1);
-    expect(Number(targetData.receiptVouchers[0].totalDebito)).toBe(100_000);
-    expect(Number(targetData.receiptVouchers[0].totalCredito)).toBe(100_000);
-    expect(targetData.receiptVouchers[0].origenId).toBe(targetData.receipts[0].id);
+    expect(targetData.receipts).toHaveLength(2);
+    const singleInvoiceReceipt = targetData.receipts.find(
+      (receipt: any) => receipt.referencia === 'DEMO-TRX-001',
+    );
+    const multiInvoiceReceipt = targetData.receipts.find(
+      (receipt: any) => receipt.referencia === 'DEMO-TRX-002',
+    );
+    expect(singleInvoiceReceipt).toBeDefined();
+    expect(Number(singleInvoiceReceipt.monto)).toBe(100_000);
+    expect(singleInvoiceReceipt.medio).toBe('TRANSFERENCIA');
+    expect(singleInvoiceReceipt.reversal).toBeNull();
+    expect(singleInvoiceReceipt.aplicaciones).toHaveLength(1);
+    expect(Number(singleInvoiceReceipt.aplicaciones[0].amount)).toBe(100_000);
+    expect(singleInvoiceReceipt.aplicaciones[0].invoiceId).toBe(targetData.invoices[0].id);
+    expect(multiInvoiceReceipt).toBeDefined();
+    expect(Number(multiInvoiceReceipt.monto)).toBe(150_000);
+    expect(multiInvoiceReceipt.reversal).toBeNull();
+    expect(multiInvoiceReceipt.aplicaciones).toHaveLength(2);
+    const invoice001 = targetData.invoices.find((invoice: any) => invoice.numero.endsWith('-001'));
+    const invoice004 = targetData.invoices.find((invoice: any) => invoice.numero.endsWith('-004'));
+    expect(invoice001.customerId).toBe(invoice004.customerId);
     expect(
-      targetData.receiptVouchers[0].movimientos.some(
+      multiInvoiceReceipt.aplicaciones.map((application: any) => ({
+        invoiceId: application.invoiceId,
+        amount: Number(application.amount),
+      })),
+    ).toEqual(
+      expect.arrayContaining([
+        { invoiceId: invoice001.id, amount: 80_000 },
+        { invoiceId: invoice004.id, amount: 70_000 },
+      ]),
+    );
+    expect(targetData.receiptVouchers).toHaveLength(2);
+    const multiInvoiceReceiptVoucher = targetData.receiptVouchers.find(
+      (voucher: any) => voucher.origenId === multiInvoiceReceipt.id,
+    );
+    expect(multiInvoiceReceiptVoucher).toBeDefined();
+    expect(Number(multiInvoiceReceiptVoucher.totalDebito)).toBe(150_000);
+    expect(Number(multiInvoiceReceiptVoucher.totalCredito)).toBe(150_000);
+    expect(
+      multiInvoiceReceiptVoucher.movimientos.some(
         (movement: any) =>
-          movement.cuenta.codigo === '111005' && Number(movement.debito) === 100_000,
+          movement.cuenta.codigo === '111005' && Number(movement.debito) === 150_000,
       ),
     ).toBe(true);
     expect(
-      targetData.receiptVouchers[0].movimientos.some(
-        (movement: any) =>
-          movement.cuenta.codigo === '130505' && Number(movement.credito) === 100_000,
-      ),
-    ).toBe(true);
+      multiInvoiceReceiptVoucher.movimientos
+        .filter((movement: any) => movement.cuenta.codigo === '130505')
+        .reduce((sum: number, movement: any) => sum + Number(movement.credito), 0),
+    ).toBe(150_000);
+    const customerHorizonte = targetData.customers.find(
+      (customer: any) => customer.id === invoice001.customerId,
+    );
     expect(
-      targetData.receiptVouchers[0].movimientos.find(
-        (movement: any) => movement.cuenta.codigo === '130505',
-      )?.terceroId,
-    ).toBe(targetData.customers[0].terceroId);
+      multiInvoiceReceiptVoucher.movimientos
+        .filter((movement: any) => movement.cuenta.codigo === '130505')
+        .every((movement: any) => movement.terceroId === customerHorizonte.terceroId),
+    ).toBe(true);
+    const singleInvoiceReceiptVoucher = targetData.receiptVouchers.find(
+      (voucher: any) => voucher.origenId === singleInvoiceReceipt.id,
+    );
+    expect(Number(singleInvoiceReceiptVoucher.totalDebito)).toBe(100_000);
+    expect(Number(singleInvoiceReceiptVoucher.totalCredito)).toBe(100_000);
     expect(targetData.employees).toHaveLength(1);
     expect(
       targetData.customers.every(
@@ -373,7 +409,7 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
       )?.centroCostoId,
     ).toBe(targetData.costCenters[0].id);
 
-    expect(targetData.invoiceVouchers).toHaveLength(2);
+    expect(targetData.invoiceVouchers).toHaveLength(3);
     const issuedInvoiceIds = targetData.invoices
       .filter((invoice: any) => invoice.status === 'ISSUED')
       .map((invoice: any) => invoice.id)
@@ -464,16 +500,27 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
     await page.goto('/facturacion/facturas');
     await expect(page.getByRole('link', { name: /^DEMO-\d{4}-001$/ })).toBeVisible();
     await expect(page.getByRole('link', { name: /^DEMO-\d{4}-003$/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /^DEMO-\d{4}-004$/ })).toBeVisible();
     await page.getByRole('link', { name: /^DEMO-\d{4}-001$/ }).click();
     const invoiceAccounting = page.locator('section').filter({
       hasText: 'Contabilización interna',
     });
     await expect(invoiceAccounting.getByText(/· CONTABILIZADO/)).toBeVisible();
     const receivables = page.getByRole('region', { name: 'Cartera y recaudos' });
-    await expect(receivables.locator('strong').nth(0)).toContainText('100.000');
-    await expect(receivables.locator('strong').nth(1)).toContainText('185.600');
+    await expect(receivables.locator('strong').nth(0)).toContainText('180.000');
+    await expect(receivables.locator('strong').nth(1)).toContainText('105.600');
     await expect(
       receivables.getByText('Ref. DEMO-TRX-001 · Comprobante', { exact: false }),
+    ).toBeVisible();
+    await expect(receivables.getByText(/Ref\. DEMO-TRX-002.*2 facturas/)).toBeVisible();
+
+    await page.goto('/facturacion/facturas');
+    await page.getByRole('link', { name: /^DEMO-\d{4}-004$/ }).click();
+    const secondInvoiceReceivables = page.getByRole('region', { name: 'Cartera y recaudos' });
+    await expect(secondInvoiceReceivables.locator('strong').nth(0)).toContainText('70.000');
+    await expect(secondInvoiceReceivables.locator('strong').nth(1)).toContainText('227.500');
+    await expect(
+      secondInvoiceReceivables.getByText(/Ref\. DEMO-TRX-002.*2 facturas/),
     ).toBeVisible();
 
     await page.goto(`/nomina/periodos/${first.payrollPeriodId}`);

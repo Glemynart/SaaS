@@ -1364,6 +1364,27 @@ export async function seedFinancialDemoScenario(
           tx,
           tenantId,
           {
+            key: 'invoice-issued-004',
+            numero: `DEMO-${invoiceYear}-004`,
+            customerId: horizonCustomerId,
+            status: 'DRAFT',
+            fechaEmision: invoiceDate,
+            items: [
+              {
+                key: 'invoice-issued-004-item-001',
+                productServiceId: supportId,
+                descripcion: 'DEMO Soporte administrativo',
+                cantidad: 1,
+                valorUnitario: 250_000,
+              },
+            ],
+          },
+          created,
+        );
+        await ensureInvoice(
+          tx,
+          tenantId,
+          {
             key: 'invoice-draft-003',
             numero: `DEMO-${invoiceYear}-003`,
             customerId: horizonCustomerId,
@@ -1398,6 +1419,7 @@ export async function seedFinancialDemoScenario(
       for (const invoiceId of [
         demoId(tenantId, 'invoice-issued-001'),
         demoId(tenantId, 'invoice-issued-002'),
+        demoId(tenantId, 'invoice-issued-004'),
       ]) {
         await billing.updateInvoiceStatus(tenantId, actorId, invoiceId, {
           status: 'ISSUED',
@@ -1454,6 +1476,44 @@ export async function seedFinancialDemoScenario(
       if (demoReceipt.reversal) {
         throw new Error(
           'El recaudo sintético de la demo está reversado; no se modificó.',
+        );
+      }
+
+      const multiInvoiceDemoReceiptInput = {
+        customerId: demoInvoice.customerId,
+        fechaRecibo: demoInvoice.fechaEmision.toISOString().slice(0, 10),
+        medio: ReceiptMethod.TRANSFERENCIA,
+        referencia: 'DEMO-TRX-002',
+        monto: 150_000,
+        idempotencyKey: demoId(tenantId, 'receipt-issued-002'),
+        aplicaciones: [
+          { invoiceId: demoInvoiceId, amount: 80_000 },
+          {
+            invoiceId: demoId(tenantId, 'invoice-issued-004'),
+            amount: 70_000,
+          },
+        ],
+      };
+      const existingMultiInvoiceDemoReceipt = await tenantPrisma.execute((tx) =>
+        tx.customerReceipt.findUnique({
+          where: {
+            tenantId_idempotencyKey: {
+              tenantId,
+              idempotencyKey: multiInvoiceDemoReceiptInput.idempotencyKey,
+            },
+          },
+          select: { id: true },
+        }),
+      );
+      if (!existingMultiInvoiceDemoReceipt) created.receipts += 1;
+      const multiInvoiceDemoReceipt = await customerReceipts.create(
+        tenantId,
+        actorId,
+        multiInvoiceDemoReceiptInput,
+      );
+      if (multiInvoiceDemoReceipt.reversal) {
+        throw new Error(
+          'El recaudo multi-factura sintético de la demo está reversado; no se modificó.',
         );
       }
 
