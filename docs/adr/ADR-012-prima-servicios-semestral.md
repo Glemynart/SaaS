@@ -129,10 +129,13 @@ la primera a más tardar el 30 de junio y la segunda dentro de los primeros
 veinte días de diciembre; el reconocimiento cubre el semestre trabajado o el
 tiempo proporcional laborado. La jurisprudencia de la Corte Suprema consultada
 también describe los pagos como correspondientes a los semestres de calendario.
-Estas fuentes no fijan una regla general para determinar, antes del 20 de
-diciembre, los días y la base salarial definitivos hasta el 31 de diciembre.
-No es válido resolver esa diferencia proyectando días o conceptos futuros, ni
-usar como regla general un corte presente en un convenio colectivo particular.
+MinJusticia documenta para la prima proporcional la fórmula «días trabajados
+en el semestre × medio salario / 180». Esa guía aclara la fórmula general, pero
+no fija el corte operativo para empleados activos cuando el pago vence antes
+del final del semestre ni cómo tratar la remuneración variable de los últimos
+días o corregir una proyección después del pago. No es válido resolver esa
+diferencia proyectando días o conceptos futuros, ni usar como regla general un
+corte presente en un convenio colectivo particular.
 
 **Decisión para el MVP:** habilitar únicamente enero–junio; excluir
 julio–diciembre del cálculo y de la generación del comprobante mientras una
@@ -153,18 +156,22 @@ el período completo y cualquier ajuste posterior.
 La compilación vigente del artículo 306 CST conserva el pago máximo el 30 de
 junio y durante los primeros veinte días de diciembre, con reconocimiento por
 semestre trabajado o proporcional al tiempo. La Sentencia C-871/2014 recoge la
-referencia histórica a semestres calendario; MinJusticia señala que incapacidad
-y licencia de maternidad no reducen días porque el contrato no se suspende.
-Esta revisión no encontró una regla oficial general para proyectar antes del
-20 de diciembre los días restantes hasta el 31 ni la remuneración variable de
-esos días, ni para ajustar una proyección luego del pago. No se usa el corte
-del 30 de noviembre de una convención colectiva como regla general.
+referencia histórica a semestres calendario. La LegalApp de MinJusticia, cuyo
+artículo está fechado en 2018 y fue consultado nuevamente el 2026-11-04,
+describe la fórmula proporcional por días del semestre sobre 180 y aclara que
+incapacidad y licencia de maternidad no reducen días porque el contrato no se
+suspende. La fórmula, sin embargo, no define cómo fijar antes del 20 de
+diciembre los días del 21 al 31 ni la base variable de esos días para un
+empleado activo, ni cómo ajustar una proyección luego del pago. No se usa el
+corte del 30 de noviembre de una convención colectiva como regla general.
 
 **Decisión vigente:** no habilitar todavía el cálculo operativo de
 julio–diciembre. Mantener cálculo, aprobación y PDF bloqueados en ese semestre
 hasta que una regla general de corte y ajuste esté documentada y haya casos
 representativos revisados. El prototipo de enero–junio permanece disponible;
-esto no registra pagos ni asientos. Fuentes: [artículo 306 CST compilado](https://normativa.colpensiones.gov.co/colpens/compilacion/docs/codigo_sustantivo_trabajo.htm),
+esto no registra pagos ni asientos. Esta limitación se refiere al corte y al
+ajuste, no a la existencia de una fórmula proporcional general. Fuentes:
+[artículo 306 CST compilado](https://normativa.colpensiones.gov.co/colpens/compilacion/docs/codigo_sustantivo_trabajo.htm),
 [Sentencia C-871/2014](https://www.corteconstitucional.gov.co/relatoria/2014/C-871-14.htm)
 y [LegalApp de MinJusticia](https://www.minjusticia.gov.co/programas-co/LegalApp/Paginas/Que-es-la-prima-de-servicios-y-que-hacer-si-no-se-reconoce-o-paga.aspx).
 
