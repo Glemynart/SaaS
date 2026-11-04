@@ -1,6 +1,7 @@
 import {
   PILA_AT2_V30_RECORD_LAYOUTS,
   serializePilaAt2V30Record,
+  serializePilaAt2V30RecordCandidate,
   validatePilaAt2V30FieldCandidate,
 } from './pila-at2-v30-record-serializer';
 import type {
@@ -437,6 +438,35 @@ describe('AT2 v30 fixed-width record formatting', () => {
         8: { value: 'N' },
       }),
     ).toContain('campo 9');
+  });
+
+  it('rejects unsupported, unresolved, and incomplete record candidates', () => {
+    const values = completeRecordValues('employerType1');
+
+    expect(() =>
+      serializePilaAt2V30RecordCandidate('employerType1', {
+        supported: false,
+        values,
+        unresolvedFields: [],
+      }),
+    ).toThrow('fuentes no soportadas');
+    expect(() =>
+      serializePilaAt2V30RecordCandidate('employerType1', {
+        supported: true,
+        values,
+        unresolvedFields: [{ fieldNumber: 7, reason: 'pendiente de fuente' }],
+      }),
+    ).toThrow('campo 7 sigue pendiente');
+
+    const incompleteValues = completeRecordValues('employerType1');
+    delete incompleteValues[18];
+    expect(() =>
+      serializePilaAt2V30RecordCandidate('employerType1', {
+        supported: true,
+        values: incompleteValues,
+        unresolvedFields: [],
+      }),
+    ).toThrow('falta una decisión explícita para el campo 18');
   });
 
   it('allows blank positions only for fields assigned by the operator', () => {

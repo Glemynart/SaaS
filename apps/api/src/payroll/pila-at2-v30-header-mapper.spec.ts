@@ -1,5 +1,6 @@
 import type { PilaSnapshotPreparationInput } from './pila-preparation';
 import { mapPilaAt2V30HeaderCandidate } from './pila-at2-v30-header-mapper';
+import { serializePilaAt2V30RecordCandidate } from './pila-at2-v30-record-serializer';
 
 function snapshot(employeeId = 'employee-1'): PilaSnapshotPreparationInput {
   return {
@@ -127,6 +128,20 @@ describe('mapPilaAt2V30HeaderCandidate', () => {
       21: { value: '1' },
       22: { value: null, emptyAs: 'spaces' },
     });
+  });
+
+  it('serializes a complete mapped header candidate without unresolved fields', () => {
+    const candidate = mapCandidateForDemoScope([snapshot()]);
+
+    expect(candidate.unresolvedFields).toEqual([]);
+    const record = serializePilaAt2V30RecordCandidate('payrollHeaderType2', {
+      supported: candidate.supportedSnapshots,
+      values: candidate.values,
+      unresolvedFields: candidate.unresolvedFields,
+    });
+
+    expect(record).toHaveLength(359);
+    expect(record.slice(227, 237)).toBe(' '.repeat(10));
   });
 
   it('maps the type 2 header from current PILA v3 snapshots', () => {
