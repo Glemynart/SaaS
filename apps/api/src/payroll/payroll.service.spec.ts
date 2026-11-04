@@ -15,6 +15,7 @@ import {
 import {
   PayrollCorrectionStatus,
   PayrollPilaFspSourceScope,
+  PayrollPilaVoluntaryPensionStatus,
   PilaEventCode,
 } from '@prisma/client';
 import {
@@ -642,6 +643,142 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       await expect(
         service.updatePilaFspSourceScope(TENANT, USER, 'run-1', {
           sourceScope: PayrollPilaFspSourceScope.SINGLE_SOURCE_CONFIRMED,
+        }),
+      ).rejects.toThrow(ConflictException);
+      expect(mockAudit.log).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('declaración de aportes voluntarios PILA', () => {
+    const runReference = {
+      id: 'run-avp',
+      payrollPeriodId: PERIOD_ID,
+      employeeId: 'emp-1',
+      pilaVoluntaryPensionStatus: PayrollPilaVoluntaryPensionStatus.UNCONFIRMED,
+      pilaVoluntaryPensionUpdatedAt: null,
+      pilaVoluntaryPensionUpdatedById: null,
+    };
+
+    it('guarda y audita una confirmación de ausencia antes de aprobar', async () => {
+      mockPayrollRunFindFirst.mockResolvedValue(runReference);
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('EN_REVISION'));
+      mockPayrollRunFindFirstOrThrow.mockResolvedValue({
+        ...runReference,
+        pilaVoluntaryPensionStatus:
+          PayrollPilaVoluntaryPensionStatus.NONE_CONFIRMED,
+        pilaVoluntaryPensionUpdatedAt: new Date('2026-11-04T12:00:00.000Z'),
+        pilaVoluntaryPensionUpdatedById: USER,
+      });
+
+      const result = await service.updatePilaVoluntaryPensionStatus(
+        TENANT,
+        USER,
+        'run-avp',
+        { status: PayrollPilaVoluntaryPensionStatus.NONE_CONFIRMED },
+      );
+
+      expect(result.pilaVoluntaryPensionStatus).toBe(
+        PayrollPilaVoluntaryPensionStatus.NONE_CONFIRMED,
+      );
+      expect(mockPayrollRunFindFirst).toHaveBeenCalledWith({
+        where: { id: 'run-avp', tenantId: TENANT },
+        select: {
+          id: true,
+          payrollPeriodId: true,
+          employeeId: true,
+          pilaVoluntaryPensionStatus: true,
+          pilaVoluntaryPensionUpdatedAt: true,
+          pilaVoluntaryPensionUpdatedById: true,
+        },
+      });
+      const updateCalls = mockPayrollRunUpdateMany.mock
+        .calls as unknown as Array<
+        [
+          {
+            where: {
+              id: string;
+              tenantId: string;
+              payrollPeriodId: string;
+              pilaVoluntaryPensionStatus: PayrollPilaVoluntaryPensionStatus;
+              pilaVoluntaryPensionUpdatedAt: Date | null;
+              pilaVoluntaryPensionUpdatedById: string | null;
+            };
+            data: {
+              pilaVoluntaryPensionStatus: PayrollPilaVoluntaryPensionStatus;
+              pilaVoluntaryPensionUpdatedAt: Date | null;
+              pilaVoluntaryPensionUpdatedById: string | null;
+            };
+          },
+        ]
+      >;
+      expect(updateCalls).toHaveLength(1);
+      expect(updateCalls[0]?.[0]).toMatchObject({
+        where: {
+          id: 'run-avp',
+          tenantId: TENANT,
+          payrollPeriodId: PERIOD_ID,
+          pilaVoluntaryPensionStatus:
+            PayrollPilaVoluntaryPensionStatus.UNCONFIRMED,
+          pilaVoluntaryPensionUpdatedAt: null,
+          pilaVoluntaryPensionUpdatedById: null,
+        },
+        data: {
+          pilaVoluntaryPensionStatus:
+            PayrollPilaVoluntaryPensionStatus.NONE_CONFIRMED,
+          pilaVoluntaryPensionUpdatedById: USER,
+        },
+      });
+      expect(
+        updateCalls[0]?.[0].data.pilaVoluntaryPensionUpdatedAt,
+      ).toBeInstanceOf(Date);
+
+      const auditCalls = mockAudit.log.mock.calls as unknown as Array<
+        [
+          {
+            action: string;
+            entityType: string;
+            entityId: string;
+            metadata: Record<string, unknown>;
+          },
+          unknown,
+        ]
+      >;
+      expect(auditCalls).toHaveLength(1);
+      expect(auditCalls[0]?.[0]).toMatchObject({
+        action: 'PAYROLL_PILA_VOLUNTARY_PENSION_STATUS_UPDATED',
+        entityType: 'PayrollRun',
+        entityId: 'run-avp',
+        metadata: {
+          payrollPeriodId: PERIOD_ID,
+          employeeId: 'emp-1',
+          previousStatus: PayrollPilaVoluntaryPensionStatus.UNCONFIRMED,
+          newStatus: PayrollPilaVoluntaryPensionStatus.NONE_CONFIRMED,
+        },
+      });
+      expect(auditCalls[0]?.[1]).toBe(mockPrisma);
+    });
+
+    it('bloquea cambios después de aprobar', async () => {
+      mockPayrollRunFindFirst.mockResolvedValue(runReference);
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('APROBADA'));
+
+      await expect(
+        service.updatePilaVoluntaryPensionStatus(TENANT, USER, 'run-avp', {
+          status: PayrollPilaVoluntaryPensionStatus.NONE_CONFIRMED,
+        }),
+      ).rejects.toThrow(ConflictException);
+      expect(mockPayrollRunUpdateMany).not.toHaveBeenCalled();
+      expect(mockAudit.log).not.toHaveBeenCalled();
+    });
+
+    it('rechaza una carrera si cambió la declaración antes de guardar', async () => {
+      mockPayrollRunFindFirst.mockResolvedValue(runReference);
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CALCULADA'));
+      mockPayrollRunUpdateMany.mockResolvedValue({ count: 0 });
+
+      await expect(
+        service.updatePilaVoluntaryPensionStatus(TENANT, USER, 'run-avp', {
+          status: PayrollPilaVoluntaryPensionStatus.NONE_CONFIRMED,
         }),
       ).rejects.toThrow(ConflictException);
       expect(mockAudit.log).not.toHaveBeenCalled();
@@ -2379,7 +2516,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       ]);
       const pilaPayload = snapshotCreateData.pilaPayload;
       expect(pilaPayload).toMatchObject({
-        schemaVersion: 7,
+        schemaVersion: 8,
         pilaRiskAssignments: [
           {
             assignmentId: 'risk-assignment-at-approval',
@@ -2420,6 +2557,11 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
             fspTramos: [],
           },
           fechaPrevistaPagoPila: '2026-03-05',
+          voluntaryPensionDeclaration: {
+            status: 'UNCONFIRMED',
+            declaredAt: null,
+            declaredById: null,
+          },
           salarioBasico: 2_000_000,
           tipoSalario: null,
           ibc: 2_100_000,
@@ -2432,7 +2574,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         },
       });
       expect(snapshotCreateData).toMatchObject({
-        pilaPayloadVersion: 7,
+        pilaPayloadVersion: 8,
       });
     });
 

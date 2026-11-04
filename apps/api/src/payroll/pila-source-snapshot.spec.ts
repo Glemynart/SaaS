@@ -1,4 +1,8 @@
-import { PayrollPilaFspSourceScope, PilaEventCode } from '@prisma/client';
+import {
+  PayrollPilaFspSourceScope,
+  PayrollPilaVoluntaryPensionStatus,
+  PilaEventCode,
+} from '@prisma/client';
 import {
   buildPilaSourceContext,
   buildPilaSourceSnapshot,
@@ -200,7 +204,7 @@ describe('PILA source snapshot builders', () => {
     });
 
     expect(context.schemaVersion).toBe(4);
-    expect(snapshot.schemaVersion).toBe(7);
+    expect(snapshot.schemaVersion).toBe(8);
     expect(snapshot.pilaWorkLocations).toEqual([
       {
         assignmentId: 'work-location-1',
@@ -263,7 +267,7 @@ describe('PILA source snapshot builders', () => {
       });
 
       expect(snapshot).toMatchObject({
-        schemaVersion: 7,
+        schemaVersion: 8,
         affiliations: [{ estadoAfiliacionPensional }],
         payroll: {
           fspSubaccounts: {
@@ -399,12 +403,16 @@ describe('PILA source snapshot builders', () => {
         salarioBasico: 2_000_000,
         salarioIntegral: false,
         ibc: 2_000_000,
+        voluntaryPensionStatus:
+          PayrollPilaVoluntaryPensionStatus.NONE_CONFIRMED,
+        voluntaryPensionUpdatedAt: new Date('2026-11-04T12:00:00.000Z'),
+        voluntaryPensionUpdatedById: 'payroll-user-1',
         concepts: [],
         novelties: [],
       },
     });
 
-    expect(snapshot.schemaVersion).toBe(7);
+    expect(snapshot.schemaVersion).toBe(8);
     expect(snapshot.payroll.payrollCalculationParameters).toEqual({
       sourceVersion: 'PAYROLL_LEGAL_PARAMETERS_V2',
       parametroLegalId: 'legal-2026',
@@ -426,6 +434,11 @@ describe('PILA source snapshot builders', () => {
           pct: 0.014,
         },
       ],
+    });
+    expect(snapshot.payroll.voluntaryPensionDeclaration).toEqual({
+      status: 'NONE_CONFIRMED',
+      declaredAt: '2026-11-04T12:00:00.000Z',
+      declaredById: 'payroll-user-1',
     });
   });
 
@@ -519,7 +532,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(7);
+    expect(result.schemaVersion).toBe(8);
     expect(result.capturedAt).toBe('2026-11-02T15:00:00.000Z');
     expect(result.employee.fechaIngreso).toBe('2026-01-05');
     expect(result.employee.fechaNacimiento).toBeNull();

@@ -176,8 +176,10 @@ Los eventos reportables se capturan en un modelo propio asociado al tenant,
 período y empleado, separado de `PayrollNovelty`: la novedad genérica sigue
 siendo insumo del cálculo de nómina y no se convierte por similitud de nombre
 en un código AT2. El MVP captura explícitamente ING, RET, VSP, VST, SLN, IGE,
-LMA, VAC-LR, IRL y VCT; no ofrece TDE/TAE/TDP/TAP, AVP ni cotizantes/casos
-especiales fuera del alcance. Los eventos con intervalo conservan inicio y fin
+LMA, VAC-LR, IRL y VCT; no ofrece TDE/TAE/TDP/TAP, importes AVP ni cotizantes/casos
+especiales fuera del alcance. Para el caso ordinario sin AVP, una declaración
+separada por nómina confirma expresamente la ausencia de aportes del afiliado y
+del aportante; el caso con importes AVP queda bloqueado. Los eventos con intervalo conservan inicio y fin
 reales cuando existen; VCT requiere fecha de inicio y admite fecha final
 opcional, conforme a los campos 91–92 del AT2 vigente. IRL conserva además
 los días informados por el aportante; no se deducen días ni IBC de la duración
@@ -392,7 +394,7 @@ el 1 de abril de 2027 y condiciona otras al trámite de subsanación.
 anteriores al 1 de abril de 2027. Esa fecha de transición se deriva de la
 vigencia diferida decidida por la Corte; no es una fecha de aplicación
 específica que la sentencia haya fijado para los campos PILA. El estado S/N se
-mantiene en el snapshot v7 por trazabilidad, pero no se usa para repartir la
+mantiene en los snapshots v7/v8 por trazabilidad, pero no se usa para repartir la
 regla anterior: esa regla no enruta esos importes por estado ACCAI. Desde el
 corte ambos campos se conservan pendientes hasta versionar reglas del sistema
 nuevo. La Resolución 1529 de 2026 fue revisada: sus cambios de tipo de cotizante
@@ -511,27 +513,42 @@ por la sentencia y revalidarse ante normas posteriores antes del corte de 2027.
 El cambio permite únicamente un candidato estándar anterior al corte; no
 habilita la exportación ni las reglas del nuevo sistema pensional.
 
-### Reconciliación pendiente de aportes voluntarios — campos 28, 48–49 y 53
+### Regla y alcance parcial para aportes voluntarios — campos 28, 48–50 y 53
 
-La Resolución 467 de 2025 y AT2 v30 incluyen para los campos 48–49 la
-restricción a períodos de cotización anteriores a julio de 2025. Sin embargo,
-la Circular Externa 028 de 2025 suspendió los ajustes de la Resolución 467
-relacionados con la implementación de la Ley 2381, salvo una lista explícita de
-excepciones; esa lista no menciona los campos 48–49. La Sentencia C-264 de 2026
-restableció parcialmente la vigencia de la Ley 2381 desde el 25 de agosto de
-2026, fijó el 1 de abril de 2027 para las disposiciones declaradas exequibles y
-dejó otras sujetas a subsanación. No se encontró una instrucción oficial
-posterior que reconcilie específicamente estos campos y el corte de julio de 2025. Por ello, no se afirma que el corte esté definitivamente vigente ni que
-la Circular lo mantenga suspendido para todo supuesto: es una incertidumbre
-normativa que debe resolverse antes de usarla para producir un valor.
+**Hechos oficiales verificados el 2026-11-04:** la [Circular Externa 028 de
+2025 de MinSalud](https://www.minsalud.gov.co/Normatividad_Nuevo/Circular%20Externa%20No%20028%20de%202025.pdf)
+suspendió los ajustes de la Resolución 467/2025 ligados a la implementación
+de la Ley 2381, salvo excepciones enumeradas que no incluyen los campos 48/49.
+La [compilación vigente de la Resolución 2388/2016 en Colpensiones](https://normativa.colpensiones.gov.co/compilacion/docs/resolucion_minsaludps_2388_2016.htm)
+marca suspendidas las modificaciones de la Resolución 467 a los campos 48/49 y
+remite al texto anterior. Ese texto usa los campos 48/49 cuando existen aportes
+voluntarios; en prima media sus valores son cero. El campo 28 admite blanco o
+X, y el campo 53 solo se usa cuando el campo 28 está en X. La [Sentencia
+C-264/2026](https://www.corteconstitucional.gov.co/relatoria/2026/C-264-26.htm)
+fijó el 1 de abril de 2027 para la entrada en vigor de las disposiciones
+aprobadas del nuevo sistema y dejó otras sujetas a subsanación.
 
-El código actual tampoco contiene un concepto Payroll, una afiliación
-pensional versionada ni importes voluntarios congelados para los campos 28,
-48–49 y 53. Hasta contar con la aclaración normativa y esas fuentes, el
-preflight deja los cuatro campos pendientes en planilla E para cualquier
-período; el campo 50 también queda pendiente mientras 48 o 49 no se resuelvan.
-Es una protección del producto frente a datos insuficientes, no una conclusión
-de que los aportes voluntarios estén prohibidos.
+**Interpretación normativa delimitada:** hasta antes del 2027-04-01, el
+producto selecciona la regla anterior para el caso estándar sin AVP. Es una
+interpretación conjunta de la suspensión, la compilación y la fecha de
+transición, no una decisión judicial específica sobre estos campos. Debe
+revisarse ante una norma posterior y antes de generar archivos de períodos o
+pagos que alcancen esa fecha.
+
+**Implementación:** durante CALCULADA o EN_REVISION, un ADMIN/OPERADOR declara
+por cada empleado y nómina que ni trabajador ni empleador realizaron aportes
+voluntarios. La API conserva estado, actor, fecha y auditoría tenant-scoped; la
+aprobación congela esos datos en snapshot PILA v8. Solo para planilla E,
+dependiente 01/00 de mes completo, afiliación vigente, sin eventos/novedades y
+período/fecha prevista de pago anteriores al corte, el mapper propone campo 28
+en blanco, 48/49 en cero y 53 en blanco. El campo 50 se deriva de 47–49 solo
+cuando los tres valores estén resueltos. La ausencia sin declaración, los
+snapshots v1–v7, los aportes reales y cualquier período/pago desde el corte
+permanecen bloqueados. Capturar que existen aportes no captura sus importes ni
+habilita el campo 53.
+
+Esta mejora solo resuelve candidatos de preflight; no genera ni descarga el
+archivo y no prueba aceptación de operador.
 
 La comprobación directa confirma que el AT2 enlazado es versión 30 y que la
 copia candidata registrada históricamente tiene exactamente el mismo hash. La
@@ -793,7 +810,7 @@ reconciliación normativa.
 | 25    | IGE                                            | PayrollPilaEvent conserva el intervalo IGE informado; aún no hay evidencia clínica vinculada ni segmentación de días/IBC aprobada para exportar.                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | 26    | LMA                                            | PayrollPilaEvent conserva el intervalo LMA informado; aún no hay segmentación de días/IBC aprobada para exportar.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | 27    | VAC-LR                                         | PayrollPilaEvent conserva el intervalo VAC-LR informado, pero no distingue vacaciones de licencia remunerada ni calcula segmentos aprobados.                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| 28    | AVP                                            | Planilla E: permanece sin candidato mientras no exista declaración AVP congelada y una regla de vigencia reconciliada; no inferir que está en blanco por el corte de 2025-07-01.                                                                                                                                                                                                                                                                                                                                                                                             | No crea una deducción Payroll. La falta de fuente deja pendientes 28, 48–49 y 53.                                                                                                                                                                                                                                                                                                                                                                                         |
+| 28    | AVP                                            | Blanco únicamente con declaración auditada de ausencia de aportes del afiliado y del aportante, bajo la regla anterior al 2027-04-01. Si hay aportes, falta declaración, snapshot v1–v7 o el período/pago alcanza el corte, queda pendiente.                                                                                                                                                                                                                                                                                                                                 | La declaración no crea una deducción Payroll; no inferir ausencia desde conceptos faltantes. Los aportes existentes siguen fuera del MVP.                                                                                                                                                                                                                                                                                                                                 |
 | 29    | VCT                                            | PayrollPilaEvent conserva código, inicio y fin opcional; no registra centro de trabajo destino ni su vigencia contractual/laboral para segmentar la tarifa ARL.                                                                                                                                                                                                                                                                                                                                                                                                              |
 | 30    | Días IRL                                       | PayrollPilaEvent conserva intervalo y días declarados por el aportante; todavía no los reconcilia con días ARL ni con segmentos aprobados.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | 31    | Administradora pensional / ACCAI               | `affiliations.fondoPensionCodigo`, congelado con la afiliación histórica.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Campo A6: el preflight exige valor y bloquea más de seis posiciones; catálogo y distinción tipada AFP/ACCAI siguen pendientes.                                                                                                                                                                                                                                                                                                                                            |
@@ -813,12 +830,12 @@ reconciliación normativa.
 | 45    | IBC CCF                                        | Preparación local conserva como candidato la base de un único concepto CAJA de tipo EMPLOYER_CONTRIBUTION; si falta o se repite, queda null. No reemplaza el IBC general del encabezado; falta validar semántica y obligación CCF.                                                                                                                                                                                                                                                                                                                                           |
 | 46    | Tarifa de pensiones                            | Regla versionada `CO_PENSION_STANDARD_RATE_L797_ART7_DEC1833_2_2_3_1_13_V1`: tarifa candidata `0.16000` para el escenario estándar privado anterior al corte del nuevo sistema.                                                                                                                                                                                                                                                                                                                                                                                              | Solo se expone si el snapshot contiene PENSION_EMP 4 % y PENSION_PAT 12 % con base de campo 42, aportes redondeados y obligación explícita. El valor decimal sigue pendiente de prueba de carga por operador. Período o pago desde 2027-04-01 queda bloqueado.                                                                                                                                                                                                            |
 | 47    | Cotización obligatoria a pensiones             | Suma de los importes congelados PENSION_EMP/PENSION_PAT, solo después de verificar factores 4 %/12 %, bases coincidentes con IBC 42 y que su suma cumple IBC × 16 % con redondeo legal.                                                                                                                                                                                                                                                                                                                                                                                      | No se recalcula ni sustituye un importe del snapshot. Empleador público, obligación/exención no confirmada, período incompleto, novedad o fecha de pago ausente/de corte quedan sin candidato.                                                                                                                                                                                                                                                                            |
-| 48    | Aporte voluntario del afiliado a pensión       | Mantener pendiente para cualquier período hasta que Payroll congele el importe del afiliado y la declaración AVP, y exista una regla normativa reconciliada. No fijar cero solo por fecha.                                                                                                                                                                                                                                                                                                                                                                                   |
-| 49    | Aporte voluntario del aportante a pensión      | Mantener pendiente para cualquier período hasta que Payroll congele el importe del aportante y la declaración AVP, y exista una regla normativa reconciliada. No fijar cero solo por fecha.                                                                                                                                                                                                                                                                                                                                                                                  |
+| 48    | Aporte voluntario del afiliado a pensión       | Cero solo con declaración auditada de ausencia de aportes de ambas partes antes del 2027-04-01; si existen aportes, se requiere importe fuente y queda bloqueado en este MVP.                                                                                                                                                                                                                                                                                                                                                                                                |
+| 49    | Aporte voluntario del aportante a pensión      | Cero solo con declaración auditada de ausencia de aportes de ambas partes antes del 2027-04-01; si existen aportes, se requiere importe fuente y queda bloqueado en este MVP.                                                                                                                                                                                                                                                                                                                                                                                                |
 | 50    | Total de cotización pensional                  | AT2 lo calcula como 47+48+49; no recalcular en el exportador ni asumir que el archivo plano del operador espera recibirlo.                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | 51    | Fondo de solidaridad — solidaridad             | Snapshot v6 congela declaración y evaluación; v7 también conserva S/N solo desde una afiliación única que cubre todo el período. La regla anterior puede producir candidato para períodos y pagos previos a 2027-04-01, con fuente única confirmada, mes completo, días aprobados, sin eventos sin segmentar y conciliación con `FSP`. S/N queda como evidencia histórica y no modifica ese cálculo. El corte del sistema nuevo mantiene el campo pendiente. Los snapshots v1–v6 y las demás situaciones siguen sin candidato; formato y aceptación por operador pendientes. |
 | 52    | Fondo de solidaridad — subsistencia            | Snapshot v6 congela la subcuenta bajo las condiciones del campo 51; v7 añade la fuente S/N sin backfill. No se reparte un importe agregado cuando las subcuentas redondeadas no concilian exactamente con `FSP` congelado. La regla anterior puede producir candidato antes del 2027-04-01 con las mismas guardas; el sistema nuevo mantiene el campo pendiente hasta su versionamiento.                                                                                                                                                                                     |
-| 53    | Valor no retenido por aportes voluntarios      | Mantener pendiente hasta resolver el campo 28 y contar con fuente aprobada para validar la retención. No dejar en blanco solo porque se haya aplicado el corte de 2025-07-01.                                                                                                                                                                                                                                                                                                                                                                                                |
+| 53    | Valor no retenido por aportes voluntarios      | Blanco cuando el campo 28 está en blanco por declaración auditada de ausencia de AVP. Con campo 28 en X requiere la fuente de retención, aún fuera del MVP.                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | 54    | Tarifa de salud                                | Regla versionada `CO_HEALTH_STANDARD_RATE_L1122_ART10_V1`: 12,5 % para dependiente estándar privado sin exoneración confirmada.                                                                                                                                                                                                                                                                                                                                                                                                                                              | Candidato `0.12500` solo para aportante privado tipo 1, cotizante 01/00 de mes completo, ubicación doméstica confirmada y snapshot completo sin novedad/evento. Exige `SALUD_EMP` 4 % y `SALUD_PAT` 8,5 % con base igual al IBC 43. La declaración de no exoneración debe coincidir entre política del tenant y perfil PILA. Exonerados, públicos y casos incompletos quedan bloqueados; el decimal requiere prueba por operador.                                         |
 | 55    | Cotización obligatoria a salud                 | Suma de los importes congelados `SALUD_EMP`/`SALUD_PAT`, después de verificar tipo, factor, base IBC 43 y redondeo individual.                                                                                                                                                                                                                                                                                                                                                                                                                                               | La suma congelada debe coincidir además con IBC 43 × 12,5 % y su redondeo PILA. No se calcula ni reemplaza un importe. Toda ausencia o discrepancia mantiene ambos campos sin candidato; el mapeo no habilita archivo ni compatibilidad.                                                                                                                                                                                                                                  |
 | 56    | Valor de UPC adicional                         | AT2 v30 §2.1.2.3.23 limita el diligenciamiento de este campo al cotizante tipo 40 y requiere el valor reportado en la fuente BDUA del operador.                                                                                                                                                                                                                                                                                                                                                                                                                              | Para dependientes 01/00, dejarlo en blanco porque el campo no les aplica. Cotizantes 40 y 69 siguen fuera del MVP y permanecen bloqueados; no inferir cero ni capturar una UPC sin la fuente BDUA. La regla no habilita archivo ni compatibilidad. Fuente oficial: [MinSalud, Anexo Técnico 2 - Cotizantes](https://www.minsalud.gov.co/Proteccion-Social/Paginas/pila.aspx), texto vigente de la Resolución 2388/2016 actualizado por la Resolución 1529/2026.           |
@@ -1111,14 +1128,17 @@ la exportación y a cualquier afirmación de compatibilidad.
   restablece parcialmente la Ley 2381 desde el 25-08-2026, dispone vigencia
   desde el 01-04-2027 para las disposiciones declaradas exequibles y condiciona
   otras a subsanación. No aporta una instrucción específica para estos campos.
-  El mapper conserva 28, 48–49 y 53 pendientes hasta reconciliar la regla y
-  capturar sus fuentes; no infiere blanco ni cero y no habilita la descarga.
+  En conjunto con la Circular y la compilación vigente, esta rama propone
+  candidatos 28/48/49/53 únicamente ante una declaración auditada de ausencia
+  de aportes, en snapshot v8 y antes del corte; casos restantes siguen
+  pendientes y no se habilita la descarga.
 - [Resolución 1529 de 2026](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-1529-de-2026.pdf),
   expedida el 24 de julio de 2026 (PDF oficial de 58 páginas), modifica los
   Anexos Técnicos 2 y 3 y fija fechas escalonadas. Su artículo 1 incorpora
   cambios específicos al AT2; los numerales 5.84–5.93 indican vigencias, entre
   ellas pagos desde octubre para identificación y pagos desde noviembre para
-  aclaraciones de planilla E y cotizante 75. La Resolución 1641 de 2026 adopta
+  aclaraciones de planilla E y cotizante 75. El cotejo de su texto no encuentra
+  una modificación a los campos de aportes voluntarios 28, 48, 49 o 53. La Resolución 1641 de 2026 adopta
   el formulario de afiliación y novedades de riesgos laborales; su referencia
   a la Resolución 1529 en los considerandos no se trata como una modificación
   adicional del AT2. El cotejo debe verificar los campos y plazos de AT2 v30,

@@ -20,6 +20,7 @@ import {
   ExcludePayrollBlockDto,
   UpdatePayrollPilaPaymentDateDto,
   UpdatePayrollPilaFspSourceScopeDto,
+  UpdatePayrollPilaVoluntaryPensionStatusDto,
 } from './dto/create-payroll.dto';
 import {
   CreatePayrollCorrectionDto,
@@ -84,6 +85,21 @@ export class PayrollController {
     @Body() dto: UpdatePayrollPilaFspSourceScopeDto,
   ) {
     return this.service.updatePilaFspSourceScope(
+      user.tenantId,
+      user.userId,
+      runId,
+      dto,
+    );
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Patch('payroll/runs/:runId/pila-voluntary-pension-status')
+  updatePilaVoluntaryPensionStatus(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('runId') runId: string,
+    @Body() dto: UpdatePayrollPilaVoluntaryPensionStatusDto,
+  ) {
+    return this.service.updatePilaVoluntaryPensionStatus(
       user.tenantId,
       user.userId,
       runId,

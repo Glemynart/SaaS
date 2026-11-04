@@ -20,6 +20,7 @@ import { formatNombreCompleto } from '@saas/types';
 import { PayrollCorrectionsPanel } from '@/features/payroll/components/payroll-corrections-panel';
 import { PayrollPilaEventsPanel } from '@/features/payroll/components/payroll-pila-events-panel';
 import { PayrollPilaFspSourceScopePanel } from '@/features/payroll/components/payroll-pila-fsp-source-scope-panel';
+import { PayrollPilaVoluntaryPensionStatusPanel } from '@/features/payroll/components/payroll-pila-voluntary-pension-status-panel';
 import { PayrollPilaPreparationPanel } from '@/features/payroll/components/payroll-pila-preparation-panel';
 
 function cop(n: number) {
@@ -252,6 +253,11 @@ export default function PeriodDetailPage({ params }: { params: Promise<{ id: str
       />
 
       <PayrollPilaFspSourceScopePanel periodId={id} periodStatus={period.status} runs={runs} />
+      <PayrollPilaVoluntaryPensionStatusPanel
+        periodId={id}
+        periodStatus={period.status}
+        runs={runs}
+      />
 
       <PayrollPilaPreparationPanel periodId={id} periodStatus={period.status} />
 
