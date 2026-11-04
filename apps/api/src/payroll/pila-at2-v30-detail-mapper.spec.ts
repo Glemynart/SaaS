@@ -391,6 +391,19 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.values[1]).toBeDefined();
   });
 
+  it('leaves detail sequence pending until the complete file scope is known', () => {
+    const candidate = mapCandidate(snapshot());
+
+    expect(candidate.values[1]).toEqual({ value: '02' });
+    expect(candidate.values[2]).toBeUndefined();
+    expect(candidate.normativeRuleVersions.detailRecordSequence).toBeNull();
+    expect(candidate.unresolvedFields).toContainEqual({
+      fieldNumber: 2,
+      reason:
+        'La secuencia se asigna al conjunto completo de registros tipo 2, no a cada empleado por separado.',
+    });
+  });
+
   it('accepts a PILA v5 snapshot with versioned FSP boundary semantics', () => {
     const input = snapshot();
     input.payloadVersion = 5;
@@ -1154,7 +1167,6 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     });
     expect(candidate.values).toMatchObject({
       1: { value: '02' },
-      2: { value: '1' },
       3: { value: 'CC' },
       4: { value: '0012345678' },
       5: { value: '01' },
@@ -1183,6 +1195,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       95: { value: 2_000_000 },
       98: { value: riskActivityCode },
     });
+    expect(candidate.values[2]).toBeUndefined();
     expect(candidate.values[46]).toBeUndefined();
     expect(candidate.values[8]).toBeUndefined();
     expect(

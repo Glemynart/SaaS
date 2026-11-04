@@ -44,6 +44,7 @@ import {
 } from './pila-fsp-subaccounts';
 import { isColombiaDaneDepartmentCode } from '@saas/types';
 import type { PilaSnapshotPreparationInput } from './pila-preparation';
+import type { PILA_AT2_V30_DETAIL_RECORD_SEQUENCE_RULE_VERSION } from './pila-at2-v30-detail-sequencer';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -63,7 +64,6 @@ const PILA_AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_RULE_VERSION =
   'AT2_V30_CONFIRMED_NON_EXEMPT_COTIZANTE_V1' as const;
 const PILA_AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_RULE_VERSION =
   'AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_V1' as const;
-
 export const PILA_AT2_V30_STANDARD_DEPENDENT_EMPTY_FIELD_NUMBERS = [
   32, 34, 56, 74, 75,
 ] as const;
@@ -126,6 +126,9 @@ export interface PilaAt2V30DetailCandidate {
       | null;
     privateEmployerEsapMen:
       | typeof PILA_AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_RULE_VERSION
+      | null;
+    detailRecordSequence:
+      | typeof PILA_AT2_V30_DETAIL_RECORD_SEQUENCE_RULE_VERSION
       | null;
   };
   values: Partial<Record<number, PilaAt2V30FieldInput>>;
@@ -345,6 +348,7 @@ export function mapPilaAt2V30DetailCandidate(
         nonCotizante40PrincipalFields: null,
         confirmedNonExemptCotizante: null,
         privateEmployerEsapMen: null,
+        detailRecordSequence: null,
       },
       values,
       unresolvedFields: [...reasons].map(([fieldNumber, reason]) => ({
@@ -393,8 +397,10 @@ export function mapPilaAt2V30DetailCandidate(
 
   if (standardFullMonthEmployee) {
     put(1, '02');
-    // One detail line per standard employee is the current MVP scope.
-    put(2, '1');
+    unresolved(
+      2,
+      'La secuencia se asigna al conjunto completo de registros tipo 2, no a cada empleado por separado.',
+    );
   } else {
     unresolved(
       1,
@@ -1660,6 +1666,7 @@ export function mapPilaAt2V30DetailCandidate(
       privateEmployerEsapMen: standardPrivateEmployer
         ? PILA_AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_RULE_VERSION
         : null,
+      detailRecordSequence: null,
     },
     values,
     unresolvedFields,

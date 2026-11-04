@@ -12,6 +12,10 @@ import {
   PILA_AT2_V30_STANDARD_DEPENDENT_EMPTY_FIELD_NUMBERS,
   PILA_AT2_V30_PENSION_CONTRIBUTION_FIELD_NUMBERS,
 } from './pila-at2-v30-detail-mapper';
+import {
+  PILA_AT2_V30_DETAIL_RECORD_SEQUENCE_RULE_VERSION,
+  sequencePilaAt2V30DetailCandidates,
+} from './pila-at2-v30-detail-sequencer';
 import { mapPilaAt2V30HeaderCandidate } from './pila-at2-v30-header-mapper';
 import { mapPilaAt2V30EmployerAggregateCandidate } from './pila-at2-v30-employer-mapper';
 import { isColombiaDaneDepartmentCode } from '@saas/types';
@@ -1685,6 +1689,7 @@ function summarizePilaDetailFieldCandidates(
 
 export function buildPilaPreparationReport(input: {
   tenantId?: string;
+  expectedEmployeeIds?: readonly string[];
   period: {
     id: string;
     fechaInicio: Date;
@@ -1822,6 +1827,40 @@ export function buildPilaPreparationReport(input: {
       mapPilaAt2V30DetailCandidate(snapshot, detailScope),
     ]),
   );
+  const detailSequence = sequencePilaAt2V30DetailCandidates(
+    input.snapshots.map(
+      (snapshot) => detailCandidatesBySnapshot.get(snapshot)!,
+    ),
+    input.expectedEmployeeIds ?? null,
+  );
+  const detailSequenceByEmployeeId = new Map(
+    detailSequence.assignments.map(({ employeeId, sequence }) => [
+      employeeId,
+      sequence,
+    ]),
+  );
+  for (const snapshot of input.snapshots) {
+    const candidate = detailCandidatesBySnapshot.get(snapshot);
+    if (!candidate) continue;
+    const sequence = detailSequenceByEmployeeId.get(snapshot.employeeId);
+    if (detailSequence.status === 'CANDIDATE' && sequence !== undefined) {
+      candidate.values[2] = { value: sequence };
+      candidate.normativeRuleVersions.detailRecordSequence =
+        PILA_AT2_V30_DETAIL_RECORD_SEQUENCE_RULE_VERSION;
+      candidate.unresolvedFields = candidate.unresolvedFields.filter(
+        ({ fieldNumber }) => fieldNumber !== 2,
+      );
+    } else {
+      candidate.normativeRuleVersions.detailRecordSequence = null;
+      const pendingReason =
+        detailSequence.status === 'PENDING'
+          ? detailSequence.pendingReason
+          : 'La secuencia del empleado no se pudo resolver dentro del conjunto completo.';
+      candidate.unresolvedFields = candidate.unresolvedFields.map((field) =>
+        field.fieldNumber === 2 ? { ...field, reason: pendingReason } : field,
+      );
+    }
+  }
   const assessments = input.snapshots.map((snapshot) => {
     const assessment = inspectPilaSnapshotPreparation({
       ...snapshot,
@@ -1849,6 +1888,12 @@ export function buildPilaPreparationReport(input: {
       68,
       69,
     ],
+    detailCandidatesBySnapshot,
+  );
+  const detailSequenceCandidates = summarizePilaDetailFieldCandidates(
+    input.snapshots,
+    assessments,
+    [2],
     detailCandidatesBySnapshot,
   );
   const detailNoEventFieldCandidates = summarizePilaDetailFieldCandidates(
@@ -1946,6 +1991,13 @@ export function buildPilaPreparationReport(input: {
     snapshotsRevisados: assessments.length,
     empleadosConDatosPendientes: employeesWithIssues,
     empleadosSinBrechasDetectadas: assessments.length - employeesWithIssues,
+    detailRecordSequence: {
+      status: detailSequence.status,
+      candidateRecords: detailSequence.assignments.length,
+      ruleVersion: detailSequence.ruleVersion,
+      pendingReason: detailSequence.pendingReason,
+    },
+    detailSequenceCandidates,
     detailContributionCandidates,
     detailNoEventFieldCandidates,
     detailAbsentEventCandidates,

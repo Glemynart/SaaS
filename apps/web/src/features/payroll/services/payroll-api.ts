@@ -179,6 +179,13 @@ export interface PilaPreparationReport {
   snapshotsRevisados: number;
   empleadosConDatosPendientes: number;
   empleadosSinBrechasDetectadas: number;
+  detailRecordSequence: {
+    status: 'CANDIDATE' | 'PENDING';
+    candidateRecords: number;
+    ruleVersion: string | null;
+    pendingReason: string | null;
+  };
+  detailSequenceCandidates: PilaDetailFieldCandidateStatus[];
   detailContributionCandidates: PilaDetailFieldCandidateStatus[];
   detailNoEventFieldCandidates: PilaDetailFieldCandidateStatus[];
   detailAbsentEventCandidates: PilaDetailFieldCandidateStatus[];

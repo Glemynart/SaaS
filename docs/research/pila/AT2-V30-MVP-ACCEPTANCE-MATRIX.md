@@ -473,3 +473,22 @@ La persistencia conserva historial, auditoría, reintentos idempotentes y
 snapshots históricos inmutables. La prueba E2E debe descargar la plantilla,
 confirmar e importar una fila válida, verificar el detalle tras recargar y
 repetir la carga sin duplicados.
+
+### PILA-AT2-68 — Secuencia global del detalle tipo 2
+
+Para snapshots aprobados de un mismo tenant y período, los IDs deben coincidir
+con todos los `PayrollRun` del período. Cada detalle candidato debe corresponder
+a una línea mensual estándar 01/00 y cada empleado debe tener un solo snapshot.
+El campo 2 N5 se propone desde `00001` en orden estable por ID de empleado solo
+cuando el conjunto completo cumple esas condiciones y contiene como máximo
+99.999 líneas. Si falta cobertura, hay duplicados, un snapshot no produce una
+línea, cambia el tenant/período o se supera el ancho, todos los campos 2
+permanecen pendientes; no se devuelve una secuencia parcial. El candidato sigue
+sin serializar ni habilitar descarga.
+
+La [Resolución 2388 de 2016 en su compilación vigente](https://normativa.colpensiones.gov.co/colpens/compilacion/docs/resolucion_minsaludps_2388_2016.htm),
+que incorpora el Anexo Técnico 2 modificado por la Resolución 1529 de 2026,
+define el campo 2 con longitud 5, secuencia desde `00001` y reporte del
+aportante para archivos planos. El orden por ID es una decisión determinística
+del producto; no se atribuye como orden obligatorio de la norma. La prueba de
+carga por operador sigue pendiente.
