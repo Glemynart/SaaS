@@ -70,6 +70,33 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   `archivoGenerable=false` y `estadoArchivo=NO_IMPLEMENTADO`.
 - Fuentes normativas: [Resolución 0467 de 2025](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-0467-de-2025.pdf), [Circular Externa 028 de 2025](https://www.minsalud.gov.co/Normatividad_Nuevo/Circular%20Externa%20No%20028%20de%202025.pdf) y [Sentencia C-264 de 2026](https://www.corteconstitucional.gov.co/relatoria/2026/C-264-26.htm). La interpretación del estado operativo post-suspensión sigue pendiente; no se infiere a partir del estado S/N.
 
+### Continuación PILA: serialización segura y revisión normativa — 2026-11-04
+
+- Los PR #264–#267 están integrados en `main` (`511f4e8`). #264 permite el
+  blanco de diez posiciones del campo 9 únicamente para encabezados de planilla
+  E; #265 rechaza serializar candidatos con campos no resueltos o incompletos;
+  #266 y #267 corrigen la guía de snapshots aceptados y el rango de versiones
+  mostrado en errores de ubicación laboral. CI, Browser E2E y publicación de
+  imagen API post-merge pasaron. No se compone ni descarga un archivo.
+- Revisión normativa hecha el 2026-11-04: la Circular Externa 028/2025 enumera
+  los ajustes de la Resolución 467 que continúan implementándose; los campos
+  FSP 51/52 no aparecen en esa lista. La Sentencia C-264/2026 fija el
+  2027-04-01 para las disposiciones de la Ley 2381 declaradas exequibles y
+  condiciona otras al trámite de subsanación, pero no dicta una regla PILA
+  específica para esos campos. La Resolución 1529/2026 modifica los anexos
+  PILA por otros cambios; su referencia al “cotizante 51” es un código de tipo
+  de cotizante y no resuelve los campos 51/52 de subcuentas FSP. A la fecha de
+  revisión no se encontró una instrucción oficial posterior que reconcilie el
+  tratamiento ni la fecha de aplicación de esos campos.
+- Se mantiene el bloqueo conservador desde 2025-07-01, incluso con estado S/N
+  capturado: esa captura ya no es la brecha pendiente; sigue faltando una regla
+  operativa oficialmente reconciliada y versionada para el período. La
+  conclusión es una protección del producto ante evidencia incompleta, no una
+  determinación de que los aportes estén prohibidos. Para levantarla se requiere
+  evidencia oficial específica para las fechas/campos afectados; cualquier
+  declaración de compatibilidad seguirá requiriendo pruebas del operador.
+- Fuentes revisadas: [Circular Externa 028/2025](https://www.minsalud.gov.co/Normatividad_Nuevo/Circular%20Externa%20No%20028%20de%202025.pdf), [Sentencia C-264/2026](https://www.corteconstitucional.gov.co/relatoria/2026/C-264-26.htm), [Resolución 1529/2026](https://normativa.colpensiones.gov.co/colpensiones/compilacion/docs/resolucion_minsaludps_1529_2026.htm) y [página oficial PILA de MinSalud](https://www.minsalud.gov.co/Proteccion-Social/Paginas/pila.aspx).
+
 ### Bloqueo de integración — PR #251
 
 - Verificado el 2026-11-03: CI (`verify`) y Browser E2E están verdes; el check
