@@ -279,12 +279,12 @@ export function EmployeeSocialSecurityPanel({
                   code={affiliation.fondoPensionCodigo}
                 />
                 <AffiliationItem
-                  label="Estado en afiliación a pensiones (campo 5)"
+                  label="Transición pensional (campo 5)"
                   name={
                     affiliation.estadoAfiliacionPensional === 'S'
-                      ? 'Sí'
+                      ? 'En transición'
                       : affiliation.estadoAfiliacionPensional === 'N'
-                        ? 'No'
+                        ? 'Sin transición'
                         : 'Sin confirmar'
                   }
                   code={affiliation.estadoAfiliacionPensional ?? '—'}
@@ -444,16 +444,16 @@ export function EmployeeSocialSecurityPanel({
               onNameChange={(value) => setValue('fondoPensionNombre', value)}
             />
             <FormField
-              label="Estado de afiliación a pensiones (campo 5)"
-              hint="Registra S/N tal como aparece en el soporte vigente. Si no lo tienes, déjalo sin confirmar. El dato se conserva para validaciones futuras; por sí solo no habilita los campos FSP de PILA."
+              label="Transición pensional (campo 5)"
+              hint="Registra S o N tal como aparece en el soporte vigente: S indica transición y N indica que no está en transición. Si no tienes el soporte, déjalo sin confirmar. Este dato por sí solo no habilita los campos FSP de PILA."
             >
               <Select
                 value={form.estadoAfiliacionPensional}
                 onChange={(event) => setValue('estadoAfiliacionPensional', event.target.value)}
               >
                 <option value="">Sin confirmar</option>
-                <option value="S">S</option>
-                <option value="N">N</option>
+                <option value="S">S — En transición</option>
+                <option value="N">N — Sin transición</option>
               </Select>
             </FormField>
             <AffiliationFields

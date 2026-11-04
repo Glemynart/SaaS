@@ -3,6 +3,16 @@ import { validate } from 'class-validator';
 import { CreateSocialSecurityAffiliationDto } from './create-social-security-affiliation.dto';
 
 describe('CreateSocialSecurityAffiliationDto PILA subtype', () => {
+  async function pensionTransitionErrors(value: unknown) {
+    const input = plainToInstance(CreateSocialSecurityAffiliationDto, {
+      estadoAfiliacionPensional: value,
+    });
+    const errors = await validate(input);
+    return errors.find(
+      ({ property }) => property === 'estadoAfiliacionPensional',
+    );
+  }
+
   async function subtypeErrors(value: unknown) {
     const input = plainToInstance(CreateSocialSecurityAffiliationDto, {
       subtipoCotizanteCodigo: value,
@@ -18,5 +28,15 @@ describe('CreateSocialSecurityAffiliationDto PILA subtype', () => {
     );
     expect((await subtypeErrors(''))?.constraints).toHaveProperty('matches');
     expect((await subtypeErrors('0'))?.constraints).toHaveProperty('matches');
+  });
+
+  it('accepts only a confirmed pension transition value and allows unknown history', async () => {
+    expect(await pensionTransitionErrors('S')).toBeUndefined();
+    expect(await pensionTransitionErrors('N')).toBeUndefined();
+    expect(await pensionTransitionErrors(' s ')).toBeUndefined();
+    expect(await pensionTransitionErrors(undefined)).toBeUndefined();
+    expect((await pensionTransitionErrors('X'))?.constraints).toHaveProperty(
+      'isIn',
+    );
   });
 });

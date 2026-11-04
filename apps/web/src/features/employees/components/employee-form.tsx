@@ -308,13 +308,13 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
                   />
                 </FormField>
                 <FormField
-                  label="Estado de afiliación a pensiones (campo 5)"
-                  hint="Registra S/N tal como aparece en el soporte vigente. Si no lo tienes, déjalo sin confirmar. El dato se conserva para validaciones futuras; por sí solo no habilita los campos FSP de PILA."
+                  label="Transición pensional (campo 5)"
+                  hint="Registra S o N tal como aparece en el soporte vigente: S indica transición y N indica que no está en transición. Si no tienes el soporte, déjalo sin confirmar. Este dato por sí solo no habilita los campos FSP de PILA."
                 >
                   <Select {...register('afiliacionPilaInicial.estadoAfiliacionPensional')}>
                     <option value="">Sin confirmar</option>
-                    <option value="S">S</option>
-                    <option value="N">N</option>
+                    <option value="S">S — En transición</option>
+                    <option value="N">N — Sin transición</option>
                   </Select>
                 </FormField>
                 <FormField

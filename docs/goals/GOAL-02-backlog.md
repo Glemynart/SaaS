@@ -1,8 +1,16 @@
 # Backlog de GOAL-02 — Evolución Financiera y Cumplimiento Electrónico
 
-Actualizado: 2026-11-03. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
+Actualizado: 2026-11-04. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
 no cerrado. Este backlog conserva el resultado completo de GOAL-02 y prioriza
 primero flujos financieros internos que puedan mostrarse a futuros clientes.
+
+## Estado al 2026-11-04
+
+- PR #251, #252 y #253 se fusionaron en ese orden. CI, Browser E2E y Vercel
+  Preview pasaron en cada PR. No quedan PR abiertos.
+- La rama actual añade captura histórica del campo 5 de transición pensional
+  (S/N) y snapshot PILA v7. Mantiene bloqueados los campos 51/52 desde
+  2025-07-01; no compone ni descarga el archivo.
 
 ## M0 — Flujos financieros internos demostrables
 
@@ -19,10 +27,13 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 
 - La auditoría detectó que AT2 v30 diferencia el destino de los campos 51/52
   según estado de afiliación pensional S/N para períodos desde 2025-07-01,
-  pero el snapshot v6 no conserva ese dato. El preflight y el mapper bloquean
-  esos importes, también cuando un snapshot previo los marca `READY`; no se
+  pero el snapshot v6 de `main` no conserva ese dato. Esta rama lo congela en
+  v7 cuando una afiliación única cubre todo el período. El preflight y el
+  mapper bloquean esos importes desde 2025-07-01, incluso con S/N capturado o
+  cuando un snapshot previo los marca `READY`; no se
   infiere el estado desde el fondo ni desde la declaración de fuente única.
-- CI y Browser E2E de #250 pasaron; Vercel Preview estuvo limitado por cuota.
+- CI y Browser E2E de #250 pasaron; Vercel Preview terminó en verde después de
+  liberarse el límite de cuota.
   #250 ya está integrado en `main`; ese no es el bloqueo vigente.
 
 ### Captura histórica del estado pensional para FSP — 2026-11-03

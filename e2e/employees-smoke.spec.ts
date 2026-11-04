@@ -100,9 +100,9 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
     page.getByRole('heading', { name: 'Afiliaciones de seguridad social' }),
   ).toBeVisible();
   await expect(page.getByText('EPS Demo')).toBeVisible();
-  await expect(page.getByText('Estado en afiliación a pensiones (campo 5)')).toBeVisible();
+  await expect(page.getByText('Transición pensional (campo 5)')).toBeVisible();
   const initialAffiliationCard = page.getByRole('listitem').filter({ hasText: 'EPS Demo' });
-  await expect(initialAffiliationCard).toContainText('Sí (S)');
+  await expect(initialAffiliationCard).toContainText('En transición (S)');
   await page.getByRole('button', { name: 'Registrar afiliación' }).click();
   const replacementForm = page.locator('form').filter({
     has: page.getByRole('heading', { name: 'Nueva afiliación' }),
@@ -114,7 +114,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await replacementForm.getByLabel('Nombre EPS').fill('EPS Nueva');
   await replacementForm.getByLabel('Código Fondo de pensión').fill('AFP001');
   await replacementForm.getByLabel('Nombre Fondo de pensión').fill('Fondo Demo');
-  await replacementForm.getByLabel('Estado de afiliación a pensiones (campo 5)').selectOption('N');
+  await replacementForm.getByLabel('Transición pensional (campo 5)').selectOption('N');
   await replacementForm.getByLabel('Código ARL').fill('ARL001');
   await replacementForm.getByLabel('Nombre ARL').fill('ARL Demo');
   await replacementForm.getByRole('combobox', { name: 'Clase de riesgo ARL' }).selectOption('1');
@@ -128,11 +128,11 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
 
   await expect(page.getByText('EPS Nueva')).toBeVisible();
   const previousAffiliation = page.getByRole('listitem').filter({ hasText: 'EPS Demo' });
-  await expect(previousAffiliation).toContainText('Sí (S)');
+  await expect(previousAffiliation).toContainText('En transición (S)');
   await expect(previousAffiliation).toHaveCount(1);
   await expect(previousAffiliation).not.toContainText('Sin fecha final');
   const currentAffiliation = page.getByRole('listitem').filter({ hasText: 'EPS Nueva' });
-  await expect(currentAffiliation).toContainText('No (N)');
+  await expect(currentAffiliation).toContainText('Sin transición (N)');
   await expect(currentAffiliation).toContainText('Sin fecha final');
   await page.getByRole('button', { name: 'Finalizar vigencia' }).click();
   await page.getByLabel('Válida hasta').fill('2026-06-30');
