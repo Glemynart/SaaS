@@ -183,6 +183,7 @@ export interface PilaPreparationReport {
     statusN: number;
     sinValorUtilizable: number;
     historicosSinCampo5: number;
+    alcanceNoVerificado: number;
     versionIncompatible: number;
   };
   empleadosConDatosPendientes: number;

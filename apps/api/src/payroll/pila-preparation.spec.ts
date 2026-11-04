@@ -2527,7 +2527,18 @@ describe('buildPilaPreparationReport pension transition summary', () => {
     const incompatible = snapshot('employee-incompatible', 'Incompatible', {
       payloadVersion: 7,
     });
+    const wrongTenant = pensionTransitionSnapshot('employee-wrong-tenant', 'S');
+    const wrongTenantPayload = wrongTenant.payload as {
+      employer: { tenantId: string };
+    };
+    wrongTenantPayload.employer.tenantId = 'another-tenant';
+    const wrongPeriod = pensionTransitionSnapshot('employee-wrong-period', 'N');
+    const wrongPeriodPayload = wrongPeriod.payload as {
+      period: { payrollPeriodId: string };
+    };
+    wrongPeriodPayload.period.payrollPeriodId = 'another-period';
     const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
       period: {
         id: 'period-1',
         fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
@@ -2539,15 +2550,18 @@ describe('buildPilaPreparationReport pension transition summary', () => {
         pensionTransitionSnapshot('employee-null', null),
         snapshot('employee-historic', 'Historic'),
         incompatible,
+        wrongTenant,
+        wrongPeriod,
       ],
     });
 
     expect(report.pensionTransitionSummary).toEqual({
-      totalSnapshots: 5,
+      totalSnapshots: 7,
       statusS: 1,
       statusN: 1,
       sinValorUtilizable: 1,
       historicosSinCampo5: 1,
+      alcanceNoVerificado: 2,
       versionIncompatible: 1,
     });
     expect(report.archivoGenerable).toBe(false);

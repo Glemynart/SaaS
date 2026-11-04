@@ -256,6 +256,10 @@ export function PayrollPilaPreparationPanel({
                 <dd>{query.data.pensionTransitionSummary.historicosSinCampo5}</dd>
               </div>
               <div>
+                <dt className="text-muted-foreground">Snapshot sin alcance verificable</dt>
+                <dd>{query.data.pensionTransitionSummary.alcanceNoVerificado}</dd>
+              </div>
+              <div>
                 <dt className="text-muted-foreground">Versión incompatible</dt>
                 <dd>{query.data.pensionTransitionSummary.versionIncompatible}</dd>
               </div>

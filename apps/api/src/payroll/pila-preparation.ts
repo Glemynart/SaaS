@@ -127,6 +127,7 @@ export interface PilaPensionTransitionSummary {
   statusN: number;
   sinValorUtilizable: number;
   historicosSinCampo5: number;
+  alcanceNoVerificado: number;
   versionIncompatible: number;
 }
 
@@ -206,6 +207,10 @@ function snapshotPaymentDate(
 
 function summarizePensionTransitionStatus(
   snapshots: readonly PilaSnapshotPreparationInput[],
+  expectedScope: {
+    tenantId?: string;
+    period: { id: string; fechaInicio: Date; fechaFin: Date };
+  },
 ): PilaPensionTransitionSummary {
   const summary: PilaPensionTransitionSummary = {
     totalSnapshots: snapshots.length,
@@ -213,6 +218,7 @@ function summarizePensionTransitionStatus(
     statusN: 0,
     sinValorUtilizable: 0,
     historicosSinCampo5: 0,
+    alcanceNoVerificado: 0,
     versionIncompatible: 0,
   };
 
@@ -230,6 +236,25 @@ function summarizePensionTransitionStatus(
     }
 
     if (snapshot.payloadVersion === 7 && root?.schemaVersion === 7) {
+      const employer = nested(root, 'employer');
+      const period = nested(root, 'period');
+      const periodStart = expectedScope.period.fechaInicio
+        .toISOString()
+        .slice(0, 10);
+      const periodEnd = expectedScope.period.fechaFin
+        .toISOString()
+        .slice(0, 10);
+      if (
+        !expectedScope.tenantId ||
+        employer?.tenantId !== expectedScope.tenantId ||
+        period?.payrollPeriodId !== expectedScope.period.id ||
+        text(period?.fechaInicio) !== periodStart ||
+        text(period?.fechaFin) !== periodEnd
+      ) {
+        summary.alcanceNoVerificado += 1;
+        continue;
+      }
+
       const payroll = nested(root, 'payroll');
       const fspSubaccounts = nested(payroll, 'fspSubaccounts');
       const status = fspSubaccounts?.estadoAfiliacionPensional;
@@ -1866,6 +1891,7 @@ export function buildPilaPreparationReport(input: {
   ).size;
   const pensionTransitionSummary = summarizePensionTransitionStatus(
     input.snapshots,
+    { tenantId: input.tenantId, period: input.period },
   );
   const detailScope = {
     expectedTenantId: input.tenantId ?? null,

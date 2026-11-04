@@ -14,7 +14,8 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   bloqueados desde 2025-07-01; no se compone ni descarga el archivo.
 - Próximo incremento en preparación: resumir S/N y los snapshots históricos sin
   campo 5 en el panel de preflight, usando exclusivamente los snapshots
-  aprobados. El resumen será informativo y no cambiará bloqueos ni reglas.
+  aprobados. El resumen verifica el tenant y período congelados antes de contar
+  S/N; será informativo y no cambiará bloqueos ni reglas.
 
 ## M0 — Flujos financieros internos demostrables
 

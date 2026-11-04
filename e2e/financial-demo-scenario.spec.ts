@@ -349,6 +349,7 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
         statusN: number;
         sinValorUtilizable: number;
         historicosSinCampo5: number;
+        alcanceNoVerificado: number;
         versionIncompatible: number;
       };
       empleadosConDatosPendientes: number;
