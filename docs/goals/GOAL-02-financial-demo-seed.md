@@ -38,12 +38,17 @@ no se identifiquen como demostración.
 ## Datos creados
 
 - Dos clientes y tres productos ficticios.
-- Dos facturas internas `ISSUED` y una `DRAFT`, con impuesto interno del 19%.
+- Tres facturas internas `ISSUED` y una `DRAFT`, con impuesto interno del 19%.
   Cada factura `ISSUED` se emite mediante `BillingService` y crea, en la misma
   transacción tenant-scoped, un comprobante balanceado en Ledger con cuentas
   por cobrar, ingreso y el impuesto aplicable. La factura `DRAFT` no crea
   comprobante. `ISSUED` es un estado interno: no significa transmisión ni
   validación fiscal DIAN.
+- Dos recaudos sintéticos por transferencia: uno parcial aplicado a una factura
+  y otro distribuido entre dos facturas emitidas del mismo cliente. Cada recaudo
+  crea un comprobante CI balanceado y la cartera deriva abonos y saldos por
+  factura desde sus aplicaciones. Las referencias `DEMO-TRX-*` identifican datos
+  ficticios; no confirman transferencias bancarias reales.
 - Un empleado sintético, su tercero canónico marcado como empleado y un centro
   de costo para satisfacer las dimensiones requeridas por el PUC.
 - Un período de nómina aprobado con un snapshot marcado como sintético y no
