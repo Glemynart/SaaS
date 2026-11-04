@@ -199,8 +199,8 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(context.schemaVersion).toBe(3);
-    expect(snapshot.schemaVersion).toBe(6);
+    expect(context.schemaVersion).toBe(4);
+    expect(snapshot.schemaVersion).toBe(7);
     expect(snapshot.pilaWorkLocations).toEqual([
       {
         assignmentId: 'work-location-1',
@@ -218,60 +218,101 @@ describe('PILA source snapshot builders', () => {
     ]);
   });
 
-  it('blocks post-cutoff FSP candidates when pension routing status is absent', () => {
-    const context = buildPilaSourceContext(contextInput);
+  it.each([null, 'S', 'N'] as const)(
+    'freezes pension transition %s in v7 while keeping post-cutoff FSP blocked',
+    (estadoAfiliacionPensional) => {
+      const context = buildPilaSourceContext({
+        ...contextInput,
+        affiliations: contextInput.affiliations.map((affiliation) => ({
+          ...affiliation,
+          estadoAfiliacionPensional,
+        })),
+      });
+      const snapshot = buildPilaSourceSnapshot({
+        context,
+        payroll: {
+          runId: 'run-fsp-scope',
+          fechaPrevistaPagoPila: new Date('2026-11-05T00:00:00.000Z'),
+          salarioBasico: 4_000_000,
+          salarioIntegral: false,
+          ibc: 4_000_000,
+          fspSourceScope: PayrollPilaFspSourceScope.SINGLE_SOURCE_CONFIRMED,
+          fspSourceScopeUpdatedAt: new Date('2026-11-03T12:00:00.000Z'),
+          fspSourceScopeUpdatedById: 'payroll-user-1',
+          legalParameters: { smmlv: 1_000_000 },
+          concepts: [
+            {
+              id: 'pension-employee',
+              codigo: 'PENSION_EMP',
+              tipo: 'DEDUCTION',
+              base: 4_000_000,
+              factor: 0.04,
+              valor: 160_000,
+            },
+            {
+              id: 'fsp-employee',
+              codigo: 'FSP',
+              tipo: 'DEDUCTION',
+              base: 4_000_000,
+              factor: 0.01,
+              valor: 40_000,
+            },
+          ],
+          novelties: [],
+        },
+      });
+
+      expect(snapshot).toMatchObject({
+        schemaVersion: 7,
+        affiliations: [{ estadoAfiliacionPensional }],
+        payroll: {
+          fspSubaccounts: {
+            sourceScope: 'SINGLE_SOURCE_CONFIRMED',
+            sourceScopeUpdatedById: 'payroll-user-1',
+            estadoAfiliacionPensional,
+            status: 'BLOCKED',
+            ruleVersion: null,
+            ibcPensionalAgregado: null,
+            solidaridad: null,
+            subsistencia: null,
+            payrollFspAmount: null,
+          },
+        },
+      });
+      expect(snapshot.payroll.fspSubaccounts.blocker).toContain(
+        'vigencia y ruta',
+      );
+    },
+  );
+
+  it('does not freeze transition from an affiliation that does not cover the full payroll period', () => {
+    const context = buildPilaSourceContext({
+      ...contextInput,
+      affiliations: [
+        {
+          ...contextInput.affiliations[0],
+          estadoAfiliacionPensional: 'S',
+          vigenteDesde: new Date('2026-10-15T00:00:00.000Z'),
+        },
+      ],
+    });
     const snapshot = buildPilaSourceSnapshot({
       context,
       payroll: {
-        runId: 'run-fsp-scope',
-        fechaPrevistaPagoPila: new Date('2026-11-05T00:00:00.000Z'),
-        salarioBasico: 4_000_000,
+        runId: 'run-partial-pension-affiliation',
+        fechaPrevistaPagoPila: null,
+        salarioBasico: 2_000_000,
         salarioIntegral: false,
-        ibc: 4_000_000,
-        fspSourceScope: PayrollPilaFspSourceScope.SINGLE_SOURCE_CONFIRMED,
-        fspSourceScopeUpdatedAt: new Date('2026-11-03T12:00:00.000Z'),
-        fspSourceScopeUpdatedById: 'payroll-user-1',
-        legalParameters: { smmlv: 1_000_000 },
-        concepts: [
-          {
-            id: 'pension-employee',
-            codigo: 'PENSION_EMP',
-            tipo: 'DEDUCTION',
-            base: 4_000_000,
-            factor: 0.04,
-            valor: 160_000,
-          },
-          {
-            id: 'fsp-employee',
-            codigo: 'FSP',
-            tipo: 'DEDUCTION',
-            base: 4_000_000,
-            factor: 0.01,
-            valor: 40_000,
-          },
-        ],
+        ibc: 2_000_000,
+        concepts: [],
         novelties: [],
       },
     });
 
-    expect(snapshot).toMatchObject({
-      schemaVersion: 6,
-      payroll: {
-        fspSubaccounts: {
-          sourceScope: 'SINGLE_SOURCE_CONFIRMED',
-          sourceScopeUpdatedById: 'payroll-user-1',
-          status: 'BLOCKED',
-          ruleVersion: null,
-          ibcPensionalAgregado: null,
-          solidaridad: null,
-          subsistencia: null,
-          payrollFspAmount: null,
-        },
-      },
-    });
-    expect(snapshot.payroll.fspSubaccounts.blocker).toContain(
-      'estado de afiliación pensional S/N',
-    );
+    expect(snapshot.affiliations[0].estadoAfiliacionPensional).toBe('S');
+    expect(
+      snapshot.payroll.fspSubaccounts.estadoAfiliacionPensional,
+    ).toBeNull();
   });
 
   it('freezes the current employer PILA profile into the source context', () => {
@@ -365,7 +406,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(snapshot.schemaVersion).toBe(6);
+    expect(snapshot.schemaVersion).toBe(7);
     expect(snapshot.payroll.payrollCalculationParameters).toEqual({
       sourceVersion: 'PAYROLL_LEGAL_PARAMETERS_V2',
       parametroLegalId: 'legal-2026',
@@ -480,7 +521,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(6);
+    expect(result.schemaVersion).toBe(7);
     expect(result.capturedAt).toBe('2026-11-02T15:00:00.000Z');
     expect(result.employee.fechaIngreso).toBe('2026-01-05');
     expect(result.employee.fechaNacimiento).toBeNull();

@@ -21,6 +21,7 @@ export interface PilaFspSubaccountAssessmentInput {
   periodStart: string;
   periodEnd: string;
   paymentDate: string | null;
+  estadoAfiliacionPensional: 'S' | 'N' | null;
   ibcPensional: number | null;
   smmlv: number | null;
   fspConcepts: PilaFspPayrollConceptSource[];
@@ -30,6 +31,7 @@ export interface PilaFspSubaccountAssessment {
   sourceScope: PayrollPilaFspSourceScope;
   sourceScopeUpdatedAt: string | null;
   sourceScopeUpdatedById: string | null;
+  estadoAfiliacionPensional: 'S' | 'N' | null;
   status: 'READY' | 'BLOCKED';
   blocker: string | null;
   ruleVersion: typeof PILA_FSP_SUBACCOUNT_RULE_VERSION | null;
@@ -54,6 +56,7 @@ export function assessPilaFspSubaccounts(
     sourceScope: input.sourceScope,
     sourceScopeUpdatedAt,
     sourceScopeUpdatedById,
+    estadoAfiliacionPensional: input.estadoAfiliacionPensional,
     status: 'BLOCKED',
     blocker,
     ruleVersion: null,
@@ -92,7 +95,7 @@ export function assessPilaFspSubaccounts(
 
   if (input.periodEnd >= PILA_FSP_AFFILIATION_ROUTING_REVIEW_FROM) {
     return blocked(
-      'AT2 v30 diferencia el destino FSP por estado de afiliación pensional S/N desde 2025-07-01; el snapshot no conserva ese estado y su aplicación frente al nuevo sistema pensional requiere reconciliación.',
+      'La vigencia y ruta de los ajustes PILA de la Resolución 467 para FSP desde 2025-07-01 no está reconciliada tras la Circular 028 de 2025 y la Sentencia C-264 de 2026; mantener 51/52 pendientes aunque exista estado S/N.',
     );
   }
 
@@ -155,6 +158,7 @@ export function assessPilaFspSubaccounts(
     sourceScope: input.sourceScope,
     sourceScopeUpdatedAt,
     sourceScopeUpdatedById,
+    estadoAfiliacionPensional: input.estadoAfiliacionPensional,
     status: 'READY',
     blocker: null,
     ruleVersion: PILA_FSP_SUBACCOUNT_RULE_VERSION,

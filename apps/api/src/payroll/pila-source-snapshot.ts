@@ -95,6 +95,7 @@ export type PilaSourceContextInput = {
     epsNombre: string;
     fondoPensionCodigo: string;
     fondoPensionNombre: string;
+    estadoAfiliacionPensional?: string | null;
     arlCodigo: string;
     arlNombre: string;
     arlClaseRiesgo: string;
@@ -189,7 +190,7 @@ export type PilaSnapshotEvent = {
 
 export function buildPilaSourceContext(input: PilaSourceContextInput) {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     capturedAt: input.capturedAt.toISOString(),
     period: {
       payrollPeriodId: input.period.id,
@@ -286,6 +287,7 @@ export function buildPilaSourceContext(input: PilaSourceContextInput) {
       epsNombre: affiliation.epsNombre,
       fondoPensionCodigo: affiliation.fondoPensionCodigo,
       fondoPensionNombre: affiliation.fondoPensionNombre,
+      estadoAfiliacionPensional: affiliation.estadoAfiliacionPensional ?? null,
       arlCodigo: affiliation.arlCodigo,
       arlNombre: affiliation.arlNombre,
       arlClaseRiesgo: affiliation.arlClaseRiesgo,
@@ -361,6 +363,25 @@ export function buildPilaSourceSnapshot(input: {
   const payrollFspConcepts = input.payroll.concepts
     .filter((concept) => concept.codigo === 'FSP')
     .map(({ tipo, base, factor, valor }) => ({ tipo, base, factor, valor }));
+  const onlyAffiliation = input.context.affiliations[0];
+  const periodStart = input.context.period.fechaInicio;
+  const periodEnd = input.context.period.fechaFin;
+  const coveringPensionAffiliation =
+    input.context.affiliations.length === 1 &&
+    onlyAffiliation !== undefined &&
+    periodStart !== null &&
+    periodEnd !== null &&
+    onlyAffiliation.vigenteDesde !== null &&
+    onlyAffiliation.vigenteDesde <= periodStart &&
+    (onlyAffiliation.vigenteHasta === null ||
+      onlyAffiliation.vigenteHasta >= periodEnd)
+      ? onlyAffiliation
+      : null;
+  const pensionAffiliationStatus =
+    coveringPensionAffiliation?.estadoAfiliacionPensional === 'S' ||
+    coveringPensionAffiliation?.estadoAfiliacionPensional === 'N'
+      ? coveringPensionAffiliation.estadoAfiliacionPensional
+      : null;
   const legalSmmlv = input.payroll.legalParameters?.smmlv;
   const fspSubaccounts = assessPilaFspSubaccounts({
     sourceScope:
@@ -370,6 +391,7 @@ export function buildPilaSourceSnapshot(input: {
     periodStart: input.context.period.fechaInicio ?? '',
     periodEnd: input.context.period.fechaFin ?? '',
     paymentDate: calendarDate(input.payroll.fechaPrevistaPagoPila),
+    estadoAfiliacionPensional: pensionAffiliationStatus,
     ibcPensional:
       pensionIbcSource.sourceCount === 1 ? pensionIbcSource.valor : null,
     smmlv:
@@ -381,7 +403,7 @@ export function buildPilaSourceSnapshot(input: {
 
   return {
     ...input.context,
-    schemaVersion: 6,
+    schemaVersion: 7,
     pilaRiskAssignments: input.context.pilaRiskAssignments ?? [],
     payroll: {
       payrollRunId: input.payroll.runId,

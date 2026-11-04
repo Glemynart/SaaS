@@ -54,6 +54,10 @@ function toInitialPilaAffiliation(
     epsNombre: values.epsNombre?.trim() ?? '',
     fondoPensionCodigo: values.fondoPensionCodigo?.trim() ?? '',
     fondoPensionNombre: values.fondoPensionNombre?.trim() ?? '',
+    estadoAfiliacionPensional:
+      values.estadoAfiliacionPensional === 'S' || values.estadoAfiliacionPensional === 'N'
+        ? values.estadoAfiliacionPensional
+        : null,
     arlCodigo: values.arlCodigo?.trim() ?? '',
     arlNombre: values.arlNombre?.trim() ?? '',
     arlClaseRiesgo: values.arlClaseRiesgo ?? '',

@@ -508,9 +508,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.values[51]).toBeUndefined();
     expect(candidate.values[52]).toBeUndefined();
     expect(fspBlockers).toHaveLength(2);
-    expect(fspBlockers[0].reason).toContain(
-      'estado de afiliación pensional S/N',
-    );
+    expect(fspBlockers[0].reason).toContain('vigencia y ruta');
   });
 
   it('accounts for every AT2 detail field as a candidate or an explicit blocker', () => {

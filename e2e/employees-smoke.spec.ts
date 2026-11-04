@@ -53,6 +53,9 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await createDialog
     .locator('[name="afiliacionPilaInicial.fondoPensionNombre"]')
     .fill('Fondo Demo');
+  await createDialog
+    .locator('[name="afiliacionPilaInicial.estadoAfiliacionPensional"]')
+    .selectOption('S');
   await createDialog.locator('[name="afiliacionPilaInicial.arlCodigo"]').fill('ARL001');
   await createDialog.locator('[name="afiliacionPilaInicial.arlNombre"]').fill('ARL Demo');
   await createDialog.locator('[name="afiliacionPilaInicial.arlClaseRiesgo"]').selectOption('1');
@@ -97,6 +100,9 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
     page.getByRole('heading', { name: 'Afiliaciones de seguridad social' }),
   ).toBeVisible();
   await expect(page.getByText('EPS Demo')).toBeVisible();
+  await expect(page.getByText('Transición pensional (campo 5)')).toBeVisible();
+  const initialAffiliationCard = page.getByRole('listitem').filter({ hasText: 'EPS Demo' });
+  await expect(initialAffiliationCard).toContainText('En transición (S)');
   await page.getByRole('button', { name: 'Registrar afiliación' }).click();
   const replacementForm = page.locator('form').filter({
     has: page.getByRole('heading', { name: 'Nueva afiliación' }),
@@ -108,6 +114,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
   await replacementForm.getByLabel('Nombre EPS').fill('EPS Nueva');
   await replacementForm.getByLabel('Código Fondo de pensión').fill('AFP001');
   await replacementForm.getByLabel('Nombre Fondo de pensión').fill('Fondo Demo');
+  await replacementForm.getByLabel('Transición pensional (campo 5)').selectOption('N');
   await replacementForm.getByLabel('Código ARL').fill('ARL001');
   await replacementForm.getByLabel('Nombre ARL').fill('ARL Demo');
   await replacementForm.getByRole('combobox', { name: 'Clase de riesgo ARL' }).selectOption('1');
@@ -121,9 +128,11 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
 
   await expect(page.getByText('EPS Nueva')).toBeVisible();
   const previousAffiliation = page.getByRole('listitem').filter({ hasText: 'EPS Demo' });
+  await expect(previousAffiliation).toContainText('En transición (S)');
   await expect(previousAffiliation).toHaveCount(1);
   await expect(previousAffiliation).not.toContainText('Sin fecha final');
   const currentAffiliation = page.getByRole('listitem').filter({ hasText: 'EPS Nueva' });
+  await expect(currentAffiliation).toContainText('Sin transición (N)');
   await expect(currentAffiliation).toContainText('Sin fecha final');
   await page.getByRole('button', { name: 'Finalizar vigencia' }).click();
   await page.getByLabel('Válida hasta').fill('2026-06-30');
@@ -311,6 +320,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
     epsNombre: 'EPS Demo E2E',
     fondoPensionCodigo: 'AFP001',
     fondoPensionNombre: 'Fondo Demo E2E',
+    estadoAfiliacionPensional: 'S',
     arlCodigo: 'ARL001',
     arlNombre: 'ARL Demo E2E',
     arlClaseRiesgo: '1',
@@ -389,6 +399,7 @@ test('registra, busca, edita, desactiva e importa empleados desde la UI', async 
     epsNombre: 'EPS Nueva E2E',
     fondoPensionCodigo: 'AFP001',
     fondoPensionNombre: 'Fondo Demo E2E',
+    estadoAfiliacionPensional: 'N',
     arlCodigo: 'ARL001',
     arlNombre: 'ARL Demo E2E',
     arlClaseRiesgo: '1',

@@ -583,6 +583,9 @@ model AfiliacionSeguridadSocial {
   epsNombre              String  @db.VarChar(120)
   fondoPensionCodigo     String  @db.VarChar(6)
   fondoPensionNombre     String  @db.VarChar(120)
+  // Campo 5 de la afiliación a pensiones, capturado según soporte vigente.
+  // Los registros históricos sin evidencia permanecen null.
+  estadoAfiliacionPensional String? @db.VarChar(1)
   arlCodigo              String  @db.VarChar(6)
   arlNombre              String  @db.VarChar(120)
   arlClaseRiesgo         String  @db.VarChar(1)
@@ -597,7 +600,7 @@ model AfiliacionSeguridadSocial {
   vigenteDesde DateTime  @db.Date
   vigenteHasta DateTime? @db.Date
 
-  versionCaptura          String @default("PILA_AFFILIATION_CAPTURE_V1") @map("formatoNormativoVersion") @db.VarChar(32)
+  versionCaptura          String @default("PILA_AFFILIATION_CAPTURE_V4") @map("formatoNormativoVersion") @db.VarChar(32)
   registradoPorId         String
 
   @@unique([id, tenantId], map: "af_seg_id_tenant_key")

@@ -30,6 +30,7 @@ type FormValues = {
   epsNombre: string;
   fondoPensionCodigo: string;
   fondoPensionNombre: string;
+  estadoAfiliacionPensional: string;
   arlCodigo: string;
   arlNombre: string;
   arlClaseRiesgo: string;
@@ -49,6 +50,7 @@ const emptyForm: FormValues = {
   epsNombre: '',
   fondoPensionCodigo: '',
   fondoPensionNombre: '',
+  estadoAfiliacionPensional: '',
   arlCodigo: '',
   arlNombre: '',
   arlClaseRiesgo: '',
@@ -153,6 +155,10 @@ export function EmployeeSocialSecurityPanel({
           epsNombre: form.epsNombre,
           fondoPensionCodigo: form.fondoPensionCodigo,
           fondoPensionNombre: form.fondoPensionNombre,
+          estadoAfiliacionPensional:
+            form.estadoAfiliacionPensional === 'S' || form.estadoAfiliacionPensional === 'N'
+              ? form.estadoAfiliacionPensional
+              : null,
           arlCodigo: form.arlCodigo,
           arlNombre: form.arlNombre,
           arlClaseRiesgo: form.arlClaseRiesgo,
@@ -271,6 +277,17 @@ export function EmployeeSocialSecurityPanel({
                   label="Pensión"
                   name={affiliation.fondoPensionNombre}
                   code={affiliation.fondoPensionCodigo}
+                />
+                <AffiliationItem
+                  label="Transición pensional (campo 5)"
+                  name={
+                    affiliation.estadoAfiliacionPensional === 'S'
+                      ? 'En transición'
+                      : affiliation.estadoAfiliacionPensional === 'N'
+                        ? 'Sin transición'
+                        : 'Sin confirmar'
+                  }
+                  code={affiliation.estadoAfiliacionPensional ?? '—'}
                 />
                 <AffiliationItem
                   label="ARL"
@@ -426,6 +443,19 @@ export function EmployeeSocialSecurityPanel({
               onCodeChange={(value) => setValue('fondoPensionCodigo', value)}
               onNameChange={(value) => setValue('fondoPensionNombre', value)}
             />
+            <FormField
+              label="Transición pensional (campo 5)"
+              hint="Registra S o N tal como aparece en el soporte vigente: S indica transición y N indica que no está en transición. Si no tienes el soporte, déjalo sin confirmar. Este dato por sí solo no habilita los campos FSP de PILA."
+            >
+              <Select
+                value={form.estadoAfiliacionPensional}
+                onChange={(event) => setValue('estadoAfiliacionPensional', event.target.value)}
+              >
+                <option value="">Sin confirmar</option>
+                <option value="S">S — En transición</option>
+                <option value="N">N — Sin transición</option>
+              </Select>
+            </FormField>
             <AffiliationFields
               label="ARL"
               code={form.arlCodigo}

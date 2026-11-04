@@ -45,6 +45,7 @@ export interface SocialSecurityAffiliation {
   epsNombre: string;
   fondoPensionCodigo: string;
   fondoPensionNombre: string;
+  estadoAfiliacionPensional: 'S' | 'N' | null;
   arlCodigo: string;
   arlNombre: string;
   arlClaseRiesgo: string;

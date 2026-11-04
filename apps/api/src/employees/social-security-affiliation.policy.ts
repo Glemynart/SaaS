@@ -1,5 +1,5 @@
 export const SOCIAL_SECURITY_AFFILIATION_CAPTURE_VERSION =
-  'PILA_AFFILIATION_CAPTURE_V3';
+  'PILA_AFFILIATION_CAPTURE_V4';
 
 export function isSupportedPilaDependentContract(
   tipoContrato: string | null | undefined,

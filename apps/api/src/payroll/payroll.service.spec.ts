@@ -2379,7 +2379,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       ]);
       const pilaPayload = snapshotCreateData.pilaPayload;
       expect(pilaPayload).toMatchObject({
-        schemaVersion: 6,
+        schemaVersion: 7,
         pilaRiskAssignments: [
           {
             assignmentId: 'risk-assignment-at-approval',
@@ -2432,7 +2432,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         },
       });
       expect(snapshotCreateData).toMatchObject({
-        pilaPayloadVersion: 6,
+        pilaPayloadVersion: 7,
       });
     });
 
