@@ -6,9 +6,9 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 
 ## Estado de main al iniciar esta iniciativa — 2026-11-04
 
-- PR #251–#262 se fusionaron secuencialmente en `main`. El merge más reciente
-  es #262, commit `1909447`; sus checks post-merge de CI, Browser E2E y
-  publicación de imagen API pasaron. Los PR #258–#262 también pasaron CI,
+- PR #251–#263 se fusionaron secuencialmente en `main`. El merge más reciente
+  es #263, commit `0cbcf1e`; sus checks post-merge de CI, Browser E2E y
+  publicación de imagen API pasaron. Los PR #258–#263 también pasaron CI,
   Browser E2E y Vercel Preview antes del merge.
 - `main` conserva en snapshots PILA v7 el estado histórico S/N del campo 5 y el
   preflight muestra un resumen del estado histórico usando solo snapshots
@@ -1420,21 +1420,36 @@ false`.
 - **Bug confirmado en código:** el preflight comprobaba longitudes como la de
   apellidos y códigos de administradoras, pero el mapa de detalle podía seguir
   devolviendo el dato fuera de ancho como candidato junto al bloqueo.
-- **Corrección propuesta en esta PR:** cada candidato del detalle
+- **Corrección integrada en PR #262 (`1909447`):** cada candidato del detalle
   pasa por el validador de tipo y ancho del layout AT2 v30. Un valor inválido
   queda pendiente con el error del campo, sin truncar ni modificar el snapshot;
   los demás candidatos válidos se conservan.
-- La matriz añade `PILA-AT2-71`. No amplía validaciones normativas de dominio,
-  no compone ni descarga archivos y no declara compatibilidad con operadores.
+- La matriz añade `PILA-AT2-71`. Los checks post-merge de CI, Browser E2E y
+  publicación de imagen API pasaron. No compone ni descarga archivos ni declara
+  compatibilidad con operadores.
 
 ### Validación del layout en candidatos de la cabecera tipo 2 — 2026-11-04
 
 - **Bug confirmado en código:** la cabecera tipo 2 copiaba directamente los
   valores compartidos del aportante y proponía el código ARL congelado en el
   campo 14 sin comprobar el ancho A6 del layout.
-- **Corrección propuesta en esta PR:** validar valores concretos de cabecera
+- **Corrección integrada en PR #263 (`0cbcf1e`):** validar valores concretos de cabecera
   con el layout AT2 v30. Un valor inválido queda pendiente con el motivo de
   serialización, sin truncar ni modificar el snapshot; los demás candidatos y
   blancos explícitos se conservan.
-- La matriz añade `PILA-AT2-72`. No amplía validaciones normativas de dominio,
-  no compone ni descarga archivos y no declara compatibilidad con operadores.
+- La matriz añade `PILA-AT2-72`. Los checks post-merge de CI, Browser E2E y
+  publicación de imagen API pasaron. No compone ni descarga archivos ni declara
+  compatibilidad con operadores.
+
+### Blanco contextual del campo 9 del encabezado PILA — 2026-11-04
+
+- **Bug confirmado en código:** para el alcance de planilla E, el mapper
+  propone correctamente en blanco el campo 9 numérico N10, pero el serializador
+  genérico rechazaba espacios en todos los campos numéricos.
+- **Corrección en esta rama:** permitir diez espacios para el campo 9 solo
+  cuando el registro sea encabezado tipo 2 y el campo 8 declare planilla E;
+  el candidato contextual aplica la misma regla y tipos distintos siguen
+  rechazados. La matriz añade `PILA-AT2-73` según la Resolución 2388/2016,
+  Anexo Técnico 2, capítulo 1, campo 9 ([texto compilado](https://normativa.colpensiones.gov.co/compilacion/docs/resolucion_minsaludps_2388_2016.htm)).
+- El alcance sigue limitado a planilla E del MVP. Este serializador no genera ni
+  descarga archivos y no acredita compatibilidad con operadores.
