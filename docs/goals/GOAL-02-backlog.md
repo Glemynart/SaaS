@@ -4,12 +4,13 @@ Actualizado: 2026-11-04. GOAL-02 es el único Goal activo; GOAL-01 está pausado
 no cerrado. Este backlog conserva el resultado completo de GOAL-02 y prioriza
 primero flujos financieros internos que puedan mostrarse a futuros clientes.
 
-## Estado al 2026-11-04
+## Estado de main al iniciar esta iniciativa — 2026-11-04
 
-- PR #251–#260 se fusionaron secuencialmente en `main`. En #258–#260 pasaron
+- PR #251–#261 se fusionaron secuencialmente en `main`. En #258–#261 pasaron
   CI, Browser E2E y Vercel Preview; la publicación de imagen API post-merge de
-  #259 y #260 también pasó. El merge más reciente es #260, commit `d47a89b`.
-  No hay otras PR abiertas al corte de esta actualización.
+  #259, #260 y #261 también pasó. El merge más reciente es #261, commit
+  `d2646b7`. Sus checks post-merge de CI, Browser E2E y publicación de imagen
+  API también pasaron.
 - `main` conserva en snapshots PILA v7 el estado histórico S/N del campo 5 y el
   preflight muestra un resumen del estado histórico usando solo snapshots
   aprobados. El resumen no cambia los bloqueos de 51/52 ni habilita el archivo.
@@ -1412,5 +1413,17 @@ false`.
 ### Formato de candidatos del aportante tipo 1 — 2026-11-04
 
 - **Brecha confirmada en código:** algunos valores podían aparecer como candidatos aun cuando excedían el ancho AT2, no cumplían el tipo de campo numérico/alfanumérico, una declaración estaba fuera del MVP, o el correo no pasaba la validación que ya aplica el preflight.
-- **Corrección candidata:** el mapper comprueba los valores contra el layout AT2 v30, limita declaraciones a las opciones aprobadas, exige CIIU de cuatro dígitos y teléfono numérico, valida el fax y el correo opcionales y conserva pendientes los datos inválidos; no trunca ni modifica el snapshot.
-- Este cambio alinea el mapa parcial con ADR-013 y la matriz `PILA-AT2-70`. Sigue sin generar/descargar archivos ni declarar compatibilidad con operadores.
+- **Corrección integrada en PR #261 (`d2646b7`):** el mapper comprueba los valores contra el layout AT2 v30, limita declaraciones a las opciones aprobadas, exige CIIU de cuatro dígitos y teléfono numérico, valida el fax y el correo opcionales y conserva pendientes los datos inválidos; no trunca ni modifica el snapshot.
+- Este cambio alinea el mapa parcial con ADR-013 y la matriz `PILA-AT2-70`. CI, Browser E2E y publicación de imagen API post-merge pasaron. Sigue sin generar/descargar archivos ni declarar compatibilidad con operadores.
+
+### Validación del layout en candidatos del detalle tipo 2 — 2026-11-04
+
+- **Bug confirmado en código:** el preflight comprobaba longitudes como la de
+  apellidos y códigos de administradoras, pero el mapa de detalle podía seguir
+  devolviendo el dato fuera de ancho como candidato junto al bloqueo.
+- **Corrección propuesta en esta PR:** cada candidato del detalle
+  pasa por el validador de tipo y ancho del layout AT2 v30. Un valor inválido
+  queda pendiente con el error del campo, sin truncar ni modificar el snapshot;
+  los demás candidatos válidos se conservan.
+- La matriz añade `PILA-AT2-71`. No amplía validaciones normativas de dominio,
+  no compone ni descarga archivos y no declara compatibilidad con operadores.
