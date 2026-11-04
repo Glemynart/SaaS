@@ -23,7 +23,7 @@ describe('AuthorizationSurfaceClassifier', () => {
   it('classifies the complete current HTTP surface without ambiguity', () => {
     const operations = classifier.classifyModuleGraph(AppModule);
 
-    expect(operations).toHaveLength(213);
+    expect(operations).toHaveLength(214);
     expect(new Set(operations.map(({ operationId }) => operationId)).size).toBe(
       operations.length,
     );
@@ -61,15 +61,29 @@ describe('AuthorizationSurfaceClassifier', () => {
       requiresActiveTenant: true,
       status: AuthorizationClassificationStatus.CLASSIFIED,
     });
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'PayrollController.updatePilaVoluntaryPensionStatus',
+      ),
+    ).toMatchObject({
+      requestMethod: 'PATCH',
+      operationPath: 'payroll/runs/:runId/pila-voluntary-pension-status',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN, UserRole.OPERADOR],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
 
     expect(countBy(operations, 'policy')).toEqual({
       [AuthorizationPolicyKind.UNAUTHENTICATED]: 12,
       [AuthorizationPolicyKind.AUTHENTICATED]: 67,
-      [AuthorizationPolicyKind.RBAC]: 134,
+      [AuthorizationPolicyKind.RBAC]: 135,
     });
     expect(countBy(operations, 'source')).toEqual({
       [AuthorizationClassificationSource.EXPLICIT]: 79,
-      [AuthorizationClassificationSource.EXISTING_RBAC]: 134,
+      [AuthorizationClassificationSource.EXISTING_RBAC]: 135,
     });
     expect(
       operations.filter(
