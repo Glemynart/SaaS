@@ -1658,3 +1658,17 @@ false`.
   antes de cambiar los flujos de importación.
 - Los avisos altos de desarrollo y severidad moderada/baja no quedan declarados
   resueltos por esta actualización; volver a auditar al integrar.
+
+### Sustitución de SheetJS vulnerable — 2026-11-04
+
+- PR #276 redujo los avisos altos de producción a cuatro, incluyendo dos de
+  `xlsx@0.18.5`, usada para leer los archivos XLSX de empleados y afiliaciones.
+  SheetJS publica la versión corregida 0.20.3 en su CDN oficial; npm conserva
+  0.18.5. Esta rama incorpora el tarball oficial en `vendor/` y fija su SHA-256
+  para que CI y las instalaciones reproducibles no dependan de la CDN.
+- Las pruebas de los tres importadores Excel pasan (37 pruebas); también pasan
+  `pnpm install --frozen-lockfile`, typecheck y build de API. Se construyó la
+  imagen Docker `linux/amd64` y se confirmó que resuelve `xlsx` 0.20.3 en
+  runtime. `pnpm audit --prod` deja dos avisos altos: `deepmerge-ts` transitivo
+  de Prisma y `zod` en Puppeteer/Chromium BiDi y el workspace web. Los checks de
+  GitHub y el E2E pre-merge se verificarán antes del merge.
