@@ -119,6 +119,7 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
   const prisma = new PrismaClient();
   const otherTenantId = randomUUID();
   const otherTenantActorId = randomUUID();
+  const existingEmployeeCollisionId = randomUUID();
   const isolationSuffix = randomInt(100_000_000, 999_999_999).toString();
 
   try {
@@ -137,6 +138,23 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
         expect(existingVoucherType.activo).toBe(true);
       }
     }
+    await prisma.empleado.create({
+      data: {
+        id: existingEmployeeCollisionId,
+        tenantId: tenant.id,
+        cedula: 'DEMO-EMP-001',
+        tipoDocumento: 'CC',
+        primerNombre: 'Empleado',
+        segundoNombre: 'Previo',
+        primerApellido: 'Demo',
+        email: 'financial-demo-existing-employee-' + isolationSuffix + '@example.test',
+        cargo: 'Empleado sintético preexistente',
+        salario: 900_000,
+        tipoContrato: 'TERMINO_FIJO',
+        fechaIngreso: new Date('2025-01-01T00:00:00.000Z'),
+        estado: 'ACTIVO',
+      },
+    });
     await prisma.tenant.create({
       data: {
         id: otherTenantId,
@@ -358,7 +376,22 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
     );
     expect(Number(singleInvoiceReceiptVoucher.totalDebito)).toBe(100_000);
     expect(Number(singleInvoiceReceiptVoucher.totalCredito)).toBe(100_000);
-    expect(targetData.employees).toHaveLength(1);
+    expect(targetData.employees).toHaveLength(2);
+    const payrollDemoEmployee = targetData.employees.find(
+      (employee: any) => employee.cedula === 'DEMO-FIN-EMP-001',
+    );
+    expect(payrollDemoEmployee).toMatchObject({
+      primerNombre: 'Ana',
+      segundoNombre: 'Finanzas',
+      primerApellido: 'Demo',
+    });
+    expect(
+      targetData.employees.find((employee: any) => employee.id === existingEmployeeCollisionId),
+    ).toMatchObject({
+      cedula: 'DEMO-EMP-001',
+      primerNombre: 'Empleado',
+      segundoNombre: 'Previo',
+    });
     expect(
       targetData.customers.every(
         (customer: any) =>
@@ -375,7 +408,7 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
       (thirdParty: any) => thirdParty.esEmpleado,
     );
     expect(payrollThirdParty).toMatchObject({
-      numeroDocumento: 'DEMO-EMP-001',
+      numeroDocumento: 'DEMO-FIN-EMP-001',
       esEmpleado: true,
     });
     expect(targetData.thirdParties.filter((thirdParty: any) => thirdParty.esCliente)).toHaveLength(
@@ -437,6 +470,22 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
         invoiceVoucher.movimientos.some((movement: any) => movement.cuenta.codigo === '240805'),
       ).toBe(true);
     }
+
+    await prisma.empleado.delete({
+      where: { id: existingEmployeeCollisionId },
+    });
+    await prisma.empleado.update({
+      where: { id: payrollDemoEmployee.id },
+      data: { cedula: 'DEMO-EMP-001' },
+    });
+    await prisma.tercero.update({
+      where: { id: payrollThirdParty.id },
+      data: { numeroDocumento: 'DEMO-EMP-001' },
+    });
+    const legacySeedRetry = await seedAsExplicitTarget(tenant.id, user.id);
+    expect(legacySeedRetry.status).toBe('YA_CAUSADA');
+    expect(legacySeedRetry.comprobanteId).toBe(first.comprobanteId);
+    expect(Object.values(legacySeedRetry.created).every((count) => count === 0)).toBe(true);
 
     const foreignTenantCounts = await prisma.$transaction(async (tx: any) => {
       await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${otherTenantId}, true)`;
@@ -537,7 +586,7 @@ test('carga datos financieros de demo de forma tenant-scoped e idempotente', asy
 
     await page.goto(`/nomina/periodos/${first.payrollPeriodId}`);
     await expect(page.getByRole('heading', { name: /^DEMO Nómina / })).toBeVisible();
-    await expect(page.getByText('Ana Demo Pérez', { exact: true }).last()).toBeVisible();
+    await expect(page.getByText('Ana Finanzas Demo', { exact: true }).last()).toBeVisible();
     await expect(page.getByText('Contabilizado', { exact: true })).toBeVisible();
     await expect(page.getByText(`ID de comprobante: ${first.comprobanteId}`)).toBeVisible();
     await expect(page.getByText(/510506 · Sueldos/)).toBeVisible();

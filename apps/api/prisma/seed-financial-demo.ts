@@ -40,6 +40,11 @@ const INVOICE_ACCOUNT_ROLES = new Set([
   'IVA_GENERADO',
 ]);
 
+/** Keep the finance demo identity outside the DEMO-EMP-NNN import range. */
+const DEMO_PAYROLL_EMPLOYEE_DOCUMENT = 'DEMO-FIN-EMP-001';
+const LEGACY_DEMO_PAYROLL_EMPLOYEE_DOCUMENT = 'DEMO-EMP-001';
+const DEMO_PAYROLL_EMPLOYEE_EMAIL = 'ana.finanzas.demo@example.test';
+
 const DEMO_CUSTOMERS = [
   {
     key: 'customer-horizonte',
@@ -705,13 +710,14 @@ async function ensurePayrollThirdParty(
   tx: Prisma.TransactionClient,
   tenantId: string,
   created: CreatedCounts,
+  employeeDocument: string,
 ): Promise<void> {
   const existing = await tx.tercero.findUnique({
     where: {
       tenantId_tipoDocumento_numeroDocumento: {
         tenantId,
         tipoDocumento: 'CC',
-        numeroDocumento: 'DEMO-EMP-001',
+        numeroDocumento: employeeDocument,
       },
     },
   });
@@ -739,13 +745,13 @@ async function ensurePayrollThirdParty(
       id,
       tenantId,
       tipoDocumento: 'CC',
-      numeroDocumento: 'DEMO-EMP-001',
+      numeroDocumento: employeeDocument,
       tipoPersona: 'NATURAL',
       primerNombre: 'Ana',
-      segundoNombre: 'Demo',
-      primerApellido: 'Pérez',
+      segundoNombre: 'Finanzas',
+      primerApellido: 'Demo',
       esEmpleado: true,
-      email: 'ana.demo@example.test',
+      email: DEMO_PAYROLL_EMPLOYEE_EMAIL,
     },
   });
   created.thirdParties += 1;
@@ -811,9 +817,14 @@ async function ensurePayrollData(
     where: { id: employeeId },
   });
   assertTenant(existingEmployee, tenantId, 'payroll employee');
+  const employeeDocument =
+    existingEmployee?.cedula ?? DEMO_PAYROLL_EMPLOYEE_DOCUMENT;
   if (
     existingEmployee &&
-    (existingEmployee.cedula !== 'DEMO-EMP-001' ||
+    (![
+      DEMO_PAYROLL_EMPLOYEE_DOCUMENT,
+      LEGACY_DEMO_PAYROLL_EMPLOYEE_DOCUMENT,
+    ].includes(employeeDocument) ||
       existingEmployee.tipoDocumento !== 'CC')
   ) {
     throw new Error(
@@ -827,24 +838,31 @@ async function ensurePayrollData(
       );
     }
     const sameDocument = await tx.empleado.findUnique({
-      where: { tenantId_cedula: { tenantId, cedula: 'DEMO-EMP-001' } },
+      where: {
+        tenantId_cedula: {
+          tenantId,
+          cedula: DEMO_PAYROLL_EMPLOYEE_DOCUMENT,
+        },
+      },
       select: { id: true },
     });
     if (sameDocument) {
       throw new Error(
-        'La cédula sintética DEMO-EMP-001 ya está ocupada; no se modificó.',
+        'La cédula sintética ' +
+          DEMO_PAYROLL_EMPLOYEE_DOCUMENT +
+          ' ya está ocupada; no se modificó.',
       );
     }
     await tx.empleado.create({
       data: {
         id: employeeId,
         tenantId,
-        cedula: 'DEMO-EMP-001',
+        cedula: DEMO_PAYROLL_EMPLOYEE_DOCUMENT,
         tipoDocumento: 'CC',
         primerNombre: 'Ana',
-        segundoNombre: 'Demo',
-        primerApellido: 'Pérez',
-        email: 'ana.demo@example.test',
+        segundoNombre: 'Finanzas',
+        primerApellido: 'Demo',
+        email: DEMO_PAYROLL_EMPLOYEE_EMAIL,
         cargo: 'Cargo sintético de demostración',
         salario: new Prisma.Decimal(1_000_000),
         tipoContrato: 'TERMINO_FIJO',
@@ -855,7 +873,7 @@ async function ensurePayrollData(
     created.employees += 1;
   }
 
-  await ensurePayrollThirdParty(tx, tenantId, created);
+  await ensurePayrollThirdParty(tx, tenantId, created, employeeDocument);
   const costCenterId = existingPeriod
     ? demoId(tenantId, 'payroll-cost-center')
     : await ensurePayrollCostCenter(tx, tenantId, created);
