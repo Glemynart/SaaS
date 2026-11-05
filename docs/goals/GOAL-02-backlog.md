@@ -14,6 +14,7 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 - PR #290 se fusionó en `main` como `7021af8902fb0a10fa2454bb7d1ffb35c6975aae`; CI y Browser E2E posteriores pasaron. Añade descarga CSV de los reportes contables según filtros: página visible en informes paginados y resultado completo en balances/estados financieros.
 - PR #291 se fusionó en `main` como `6496dccc86cd2cd10c17d5c3dfcc20866b64606a`; los checks post-merge de CI, Browser E2E y publicación de imagen API pasaron.
 - PR #291 añade persistencia tenant-scoped de eventos, intentos, resultados, transiciones y evidencia privada de factura electrónica, con historial append-only, checksum y RLS. El servicio aún no se conecta a endpoint, worker, interfaz ni adaptador real; no transmite ni declara aceptación DIAN.
+- PR #293 se fusionó en `main` como `0193594ee45229652b987bebafbe277ca51dbc63`. `PRIMA_SEMESTRAL_V2` usa los importes de auxilio congelados en snapshots mensuales aprobados, bloquea valores sobre el máximo proporcional o que cruzan meses sin poder atribuirse, y persiste la versión de fórmula; V1 y sus PDFs históricos no se recalculan. Los checks del PR fueron verdes; CI y publicación de imagen post-merge pasaron, y Browser E2E seguía en ejecución al actualizar este registro.
 - El resultado LOCAL_VALIDATED acredita layout, longitud y codificación comprobados localmente. No acredita revisión normativa completa, aceptación del operador, liquidación ni pago.
 - Los escenarios dependientes estándar 01/00 se habilitan solo si el preflight no detecta brechas. Novedades que requieran segmentación, casos especiales y correcciones aprobadas continúan bloqueando la generación.
 
@@ -1912,12 +1913,12 @@ false`.
   congelado de auxilio solo como indicador de sí/no y reemplazaba el monto por
   el parámetro mensual legal. Así, un snapshot con un auxilio causado
   prorrateado podía producir un promedio mayor al valor que Payroll registró.
-- **Cambio en preparación:** `PRIMA_SEMESTRAL_V2` promedia los importes reales
-  de `totals.auxilioTransporte` en snapshots aprobados por mes. Bloquea si el
-  importe supera el parámetro legal proporcional a los días de servicio o si
-  un snapshot con auxilio cruza meses civiles y no puede asignarse con certeza.
-  Los lotes V1 aprobados y sus PDFs no se recalculan; el nuevo PDF presenta la
-  versión almacenada.
+- **Implementado y fusionado en PR #293:** `PRIMA_SEMESTRAL_V2` promedia los
+  importes reales de `totals.auxilioTransporte` en snapshots aprobados por mes.
+  Bloquea si el importe supera el parámetro legal proporcional a los días de
+  servicio o si un snapshot con auxilio cruza meses civiles y no puede
+  asignarse con certeza. Los lotes V1 aprobados y sus PDFs no se recalculan;
+  el nuevo PDF presenta la versión almacenada.
 - La prueba incorpora un mes con $140.000 causados frente a $200.000 en los
   otros cinco meses. La base promedio esperada de auxilio es $190.000 y la prima
   $1.095.000. Se mantienen también los resultados de snapshots mensuales
