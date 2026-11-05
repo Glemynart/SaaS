@@ -14,8 +14,10 @@ import {
 import { AuditService } from '../audit/audit.service';
 import { StorageService } from '../storage/storage.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
-import {
+import type {
+  ElectronicInvoiceProviderPort,
   ElectronicInvoiceProviderOutcome,
+  ElectronicInvoiceReconciliation,
   ElectronicInvoiceSubmission,
 } from './provider/electronic-invoice-provider.port';
 import { transitionElectronicInvoice } from './domain/electronic-invoice';
@@ -42,20 +44,26 @@ export type RegisterTransmissionInput = Readonly<{
 export type StartTransmissionAttemptInput = Readonly<{
   transmissionId: string;
   type: TipoIntentoFacturaElectronica;
+  providerIdentity?: Readonly<{
+    providerId: string;
+    contractVersion: string;
+  }>;
 }>;
 
 export type StartedTransmissionAttempt = Readonly<{
   attemptId: string;
   attemptNumber: number;
   type: TipoIntentoFacturaElectronica;
+  providerId: string;
+  contractVersion: string;
   submission?: ElectronicInvoiceSubmission;
-  reconciliation?: {
-    tenantId: string;
-    invoiceId: string;
-    eventId: string;
-    idempotencyKey: string;
-    providerReference?: string;
-  };
+  reconciliation?: ElectronicInvoiceReconciliation;
+}>;
+
+export type ExecuteProviderAttemptInput = Readonly<{
+  transmissionId: string;
+  type: TipoIntentoFacturaElectronica;
+  provider: ElectronicInvoiceProviderPort;
 }>;
 
 @Injectable()
@@ -270,6 +278,16 @@ export class ElectronicInvoiceTransmissionService {
           'Transmisión de factura electrónica no encontrada.',
         );
       }
+      if (
+        input.providerIdentity &&
+        (transmission.providerId !== input.providerIdentity.providerId ||
+          transmission.contractVersion !==
+            input.providerIdentity.contractVersion)
+      ) {
+        throw new ConflictException(
+          'El adaptador no coincide con el proveedor y contrato registrados.',
+        );
+      }
 
       const latestAttempt = transmission.intentos[0];
       if (
@@ -409,6 +427,8 @@ export class ElectronicInvoiceTransmissionService {
           attemptId: attempt.id,
           attemptNumber: nextAttemptNumber,
           type: input.type,
+          providerId: transmission.providerId,
+          contractVersion: transmission.contractVersion,
           submission: {
             tenantId: context.tenantId,
             invoiceId: transmission.facturaElectronicaId,
@@ -425,6 +445,8 @@ export class ElectronicInvoiceTransmissionService {
         attemptId: attempt.id,
         attemptNumber: nextAttemptNumber,
         type: input.type,
+        providerId: transmission.providerId,
+        contractVersion: transmission.contractVersion,
         reconciliation: {
           tenantId: context.tenantId,
           invoiceId: transmission.facturaElectronicaId,
@@ -435,6 +457,69 @@ export class ElectronicInvoiceTransmissionService {
         },
       };
     });
+  }
+
+  /**
+   * Executes one explicitly requested provider attempt after its durable start
+   * is committed. It never retries automatically; a thrown provider call is
+   * treated as ambiguous and must be reconciled before another send.
+   */
+  async executeProviderAttempt(input: ExecuteProviderAttemptInput) {
+    const providerId = input.provider.providerId.trim();
+    const contractVersion = input.provider.contractVersion.trim();
+    if (
+      !providerId ||
+      providerId.length > 80 ||
+      !contractVersion ||
+      contractVersion.length > 80
+    ) {
+      throw new BadRequestException(
+        'El adaptador no tiene una identidad válida.',
+      );
+    }
+
+    const attempt = await this.startAttempt({
+      transmissionId: input.transmissionId,
+      type: input.type,
+      providerIdentity: { providerId, contractVersion },
+    });
+
+    let outcome: ElectronicInvoiceProviderOutcome;
+    if (
+      input.type === TipoIntentoFacturaElectronica.ENVIO &&
+      !attempt.submission
+    ) {
+      return this.recordFailure(input.transmissionId, attempt.attemptId, {
+        code: 'CANONICAL_SUBMISSION_MISSING',
+        receiptConfirmedAbsent: true,
+      });
+    }
+    if (
+      input.type === TipoIntentoFacturaElectronica.CONCILIACION &&
+      !attempt.reconciliation
+    ) {
+      return this.recordFailure(input.transmissionId, attempt.attemptId, {
+        code: 'RECONCILIATION_QUERY_MISSING',
+        receiptConfirmedAbsent: false,
+      });
+    }
+
+    try {
+      if (input.type === TipoIntentoFacturaElectronica.ENVIO) {
+        outcome = await input.provider.submit(attempt.submission!);
+      } else {
+        outcome = await input.provider.reconcile(attempt.reconciliation!);
+      }
+    } catch {
+      // Provider/network exceptions may occur after the provider received the
+      // request. Never copy the raw exception because it can contain secrets.
+      return this.recordFailure(input.transmissionId, attempt.attemptId, {
+        code: 'PROVIDER_RESPONSE_UNCERTAIN',
+        receiptConfirmedAbsent: false,
+      });
+    }
+
+    return this.recordOutcome(input.transmissionId, attempt.attemptId, outcome);
   }
 
   /** Persists normalized provider output before advancing the fiscal state. */

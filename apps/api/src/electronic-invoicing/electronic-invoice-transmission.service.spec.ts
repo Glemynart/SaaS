@@ -8,7 +8,11 @@ import {
 import { AuditService } from '../audit/audit.service';
 import { StorageService } from '../storage/storage.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
-import { ElectronicInvoiceTransmissionService } from './electronic-invoice-transmission.service';
+import {
+  ElectronicInvoiceTransmissionService,
+  type StartedTransmissionAttempt,
+} from './electronic-invoice-transmission.service';
+import type { ElectronicInvoiceProviderPort } from './provider/electronic-invoice-provider.port';
 
 const canonicalPayload = '{"version":1,"total":"119.00"}';
 
@@ -169,6 +173,217 @@ describe('ElectronicInvoiceTransmissionService', () => {
       }),
     ).rejects.toThrow('El intento anterior no tiene resultado');
     expect(prisma.intentoFacturaElectronica.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a provider adapter mismatch before creating a durable attempt', async () => {
+    prisma.facturaElectronicaTransmision.findFirst.mockResolvedValue(
+      makeTransmission(),
+    );
+
+    await expect(
+      service.startAttempt({
+        transmissionId: 'transmission-a',
+        type: TipoIntentoFacturaElectronica.ENVIO,
+        providerIdentity: {
+          providerId: 'other-provider',
+          contractVersion: '1',
+        },
+      }),
+    ).rejects.toThrow('El adaptador no coincide');
+
+    expect(
+      prisma.facturaElectronicaTransmision.updateMany,
+    ).not.toHaveBeenCalled();
+    expect(prisma.intentoFacturaElectronica.create).not.toHaveBeenCalled();
+  });
+
+  it('runs exactly one durable send and records the normalized provider outcome', async () => {
+    const started: StartedTransmissionAttempt = {
+      attemptId: 'attempt-1',
+      attemptNumber: 1,
+      type: TipoIntentoFacturaElectronica.ENVIO,
+      providerId: 'matias',
+      contractVersion: 'v1',
+      submission: {
+        tenantId: 'tenant-a',
+        invoiceId: 'invoice-a',
+        eventId: 'issue-event-1',
+        idempotencyKey: 'stable-key',
+        payloadVersion: '1',
+        payloadHash: 'payload-hash',
+        canonicalPayload,
+      },
+    };
+    const startAttempt = jest
+      .spyOn(service, 'startAttempt')
+      .mockResolvedValue(started);
+    const recordOutcome = jest
+      .spyOn(service, 'recordOutcome')
+      .mockResolvedValue({ id: 'result-1' } as never);
+    const outcome = {
+      status: 'REJECTED' as const,
+      providerReference: 'provider-ref-1',
+      issues: [{ code: 'INVALID_TEST_DOCUMENT' }],
+    };
+    const submit = jest.fn().mockResolvedValue(outcome);
+    const reconcile = jest.fn();
+    const provider: ElectronicInvoiceProviderPort = {
+      providerId: 'matias',
+      contractVersion: 'v1',
+      submit,
+      reconcile,
+    };
+
+    await service.executeProviderAttempt({
+      transmissionId: 'transmission-a',
+      type: TipoIntentoFacturaElectronica.ENVIO,
+      provider,
+    });
+
+    expect(startAttempt).toHaveBeenCalledWith({
+      transmissionId: 'transmission-a',
+      type: TipoIntentoFacturaElectronica.ENVIO,
+      providerIdentity: { providerId: 'matias', contractVersion: 'v1' },
+    });
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(submit).toHaveBeenCalledWith(started.submission);
+    expect(reconcile).not.toHaveBeenCalled();
+    expect(recordOutcome).toHaveBeenCalledWith(
+      'transmission-a',
+      'attempt-1',
+      outcome,
+    );
+  });
+
+  it('records a thrown provider send as ambiguous without exposing its error text', async () => {
+    jest.spyOn(service, 'startAttempt').mockResolvedValue({
+      attemptId: 'attempt-1',
+      attemptNumber: 1,
+      type: TipoIntentoFacturaElectronica.ENVIO,
+      providerId: 'matias',
+      contractVersion: 'v1',
+      submission: {
+        tenantId: 'tenant-a',
+        invoiceId: 'invoice-a',
+        eventId: 'issue-event-1',
+        idempotencyKey: 'stable-key',
+        payloadVersion: '1',
+        payloadHash: 'payload-hash',
+        canonicalPayload,
+      },
+    });
+    const attempt = makeAttempt({
+      transmision: {
+        id: 'transmission-a',
+        facturaElectronicaId: 'invoice-a',
+        facturaElectronica: {
+          id: 'invoice-a',
+          estado: EstadoFacturaElectronica.EN_TRANSMISION,
+        },
+      },
+    });
+    prisma.intentoFacturaElectronica.findFirst.mockResolvedValue({
+      ...attempt,
+      resultado: null,
+    });
+    const persistedFailure = {
+      id: 'failure-1',
+      estado: EstadoResultadoIntentoFacturaElectronica.ERROR_TECNICO,
+      codigoError: 'PROVIDER_RESPONSE_UNCERTAIN',
+      receiptConfirmedAbsent: false,
+    };
+    prisma.resultadoIntentoFacturaElectronica.create.mockResolvedValue(
+      persistedFailure,
+    );
+    const recordOutcome = jest.spyOn(service, 'recordOutcome');
+    const submit = jest.fn().mockRejectedValue(new Error('PAT=secret-value'));
+    const provider: ElectronicInvoiceProviderPort = {
+      providerId: 'matias',
+      contractVersion: 'v1',
+      submit,
+      reconcile: jest.fn(),
+    };
+
+    const result = await service.executeProviderAttempt({
+      transmissionId: 'transmission-a',
+      type: TipoIntentoFacturaElectronica.ENVIO,
+      provider,
+    });
+
+    expect(result).toBe(persistedFailure);
+    expect(
+      prisma.resultadoIntentoFacturaElectronica.create,
+    ).toHaveBeenCalledWith(
+      objectContaining({
+        data: objectContaining({
+          codigoError: 'PROVIDER_RESPONSE_UNCERTAIN',
+          receiptConfirmedAbsent: false,
+        }),
+      }),
+    );
+    expect(prisma.facturaElectronica.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          estado: EstadoFacturaElectronica.PENDIENTE_CONCILIACION,
+        },
+      }),
+    );
+    expect(JSON.stringify(audit.log.mock.calls)).not.toContain(
+      'PAT=secret-value',
+    );
+    expect(recordOutcome).not.toHaveBeenCalled();
+  });
+
+  it('runs an explicit reconciliation without issuing another send', async () => {
+    const started: StartedTransmissionAttempt = {
+      attemptId: 'attempt-2',
+      attemptNumber: 2,
+      type: TipoIntentoFacturaElectronica.CONCILIACION,
+      providerId: 'matias',
+      contractVersion: 'v1',
+      reconciliation: {
+        tenantId: 'tenant-a',
+        invoiceId: 'invoice-a',
+        eventId: 'issue-event-1',
+        idempotencyKey: 'stable-key',
+        providerReference: 'provider-ref-1',
+      },
+    };
+    const startAttempt = jest
+      .spyOn(service, 'startAttempt')
+      .mockResolvedValue(started);
+    const outcome = { status: 'UNKNOWN' as const };
+    const reconcile = jest.fn().mockResolvedValue(outcome);
+    const submit = jest.fn();
+    const recordOutcome = jest
+      .spyOn(service, 'recordOutcome')
+      .mockResolvedValue({ id: 'result-2' } as never);
+    const provider: ElectronicInvoiceProviderPort = {
+      providerId: 'matias',
+      contractVersion: 'v1',
+      submit,
+      reconcile,
+    };
+
+    await service.executeProviderAttempt({
+      transmissionId: 'transmission-a',
+      type: TipoIntentoFacturaElectronica.CONCILIACION,
+      provider,
+    });
+
+    expect(startAttempt).toHaveBeenCalledWith({
+      transmissionId: 'transmission-a',
+      type: TipoIntentoFacturaElectronica.CONCILIACION,
+      providerIdentity: { providerId: 'matias', contractVersion: 'v1' },
+    });
+    expect(reconcile).toHaveBeenCalledTimes(1);
+    expect(reconcile).toHaveBeenCalledWith(started.reconciliation);
+    expect(submit).not.toHaveBeenCalled();
+    expect(recordOutcome).toHaveBeenCalledWith(
+      'transmission-a',
+      'attempt-2',
+      outcome,
+    );
   });
 
   it('recovers a crashed send by starting reconciliation before any retry', async () => {
