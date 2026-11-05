@@ -220,6 +220,7 @@ describe('empleados PostgreSQL RLS', () => {
       { tableName: 'customer_receipts' },
       { tableName: 'empleados' },
       { tableName: 'facturas_electronicas' },
+      { tableName: 'intentos_facturas_electronicas' },
       { tableName: 'invoice_receipt_allocations' },
       { tableName: 'lineas_facturas_electronicas' },
       { tableName: 'perfiles_emisor_electronicos' },
@@ -228,8 +229,11 @@ describe('empleados PostgreSQL RLS', () => {
       { tableName: 'pila_exports' },
       { tableName: 'pila_ubicaciones_laborales' },
       { tableName: 'rangos_numeracion_electronica' },
+      { tableName: 'resultados_intentos_facturas_electronicas' },
       { tableName: 'service_premium_batches' },
       { tableName: 'service_premium_lines' },
+      { tableName: 'transiciones_facturas_electronicas' },
+      { tableName: 'transmisiones_facturas_electronicas' },
     ];
     expect(protectedTables).toEqual(expectedTenantTables);
     expect(forcedTables).toEqual(expectedTenantTables);
