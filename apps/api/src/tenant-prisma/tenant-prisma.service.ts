@@ -52,4 +52,24 @@ export class TenantPrismaService {
       );
     }, options);
   }
+
+  /**
+   * Reuse an already-open tenant transaction without creating a new one.
+   * Intended for operations such as consuming a fiscal number that must be
+   * committed together with its owning business document.
+   */
+  async executeWithinTransaction<T>(
+    work: (
+      client: TenantPrismaClient,
+      context: TenantExecutionContext,
+    ) => Promise<T>,
+  ): Promise<T> {
+    const active = this.transactions.getStore();
+    if (!active) {
+      throw new Error(
+        'Esta operación requiere una transacción tenant activa para conservar su atomicidad.',
+      );
+    }
+    return work(active.client, active.context);
+  }
 }

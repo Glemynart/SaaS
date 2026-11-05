@@ -37,6 +37,7 @@ import { BatchDocumentGenerationModule } from './batch-document-generation/batch
 import { HealthModule } from './health/health.module';
 import { HttpObservabilityMiddleware } from './observability/http-observability.middleware';
 import { PlatformAdminModule } from './platform-admin/platform-admin.module';
+import { ElectronicInvoicingModule } from './electronic-invoicing/electronic-invoicing.module';
 
 // The browser smoke suite creates four tenants from one local IP. The guard
 // evaluates every global bucket on each auth route, so test-only headroom for
@@ -64,6 +65,7 @@ const VALIDATE_RESET_TOKEN_RATE_LIMIT =
     AlertsModule,
     PayrollModule,
     BillingModule,
+    ElectronicInvoicingModule,
     AuditModule,
     DaneModule,
     SedesModule,

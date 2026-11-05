@@ -132,6 +132,20 @@ enum EstadoFacturaElectronica {
   ERROR_TECNICO
 }
 
+enum AmbienteEmisorElectronico {
+  HABILITACION
+  PRODUCCION
+}
+
+enum TipoDocumentoElectronico {
+  FACTURA_VENTA
+}
+
+enum EstadoRangoNumeracionElectronica {
+  ACTIVO
+  INACTIVO
+}
+
 enum ImpuestoTipo {
   IVA_0
   IVA_5
@@ -329,6 +343,8 @@ model Tenant {
   customerReceipts   CustomerReceipt[]
   invoiceReceiptApplications InvoiceReceiptAllocation[]
   customerReceiptReversals CustomerReceiptReversal[]
+  perfilesEmisorElectronico PerfilEmisorElectronico[]
+  rangosNumeracionElectronica RangoNumeracionElectronica[]
   productServices    ProductService[]
   invoices           Invoice[]
   facturasElectronicas FacturaElectronica[]
@@ -1797,6 +1813,8 @@ model FacturaElectronica {
   fechaEmision       DateTime?                @db.Date
   prefijo            String?                  @db.VarChar(10)
   numero             Int?
+  rangoNumeracionId  String?
+  rangoNumeracion    RangoNumeracionElectronica? @relation(fields: [rangoNumeracionId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "facturas_fe_range_tenant_fkey")
   cufe               String?                  @db.VarChar(120)
   subtotal           Decimal                  @default(0) @db.Decimal(14, 2)
   impuestos          Decimal                  @default(0) @db.Decimal(14, 2)
@@ -1834,6 +1852,59 @@ model LineaFacturaElectronica {
 
   @@index([tenantId, facturaElectronicaId], map: "lineas_fe_tenant_invoice_idx")
   @@map("lineas_facturas_electronicas")
+}
+
+// La identidad fiscal base se deriva de Tenant para evitar dos fuentes de
+// verdad. Este agregado solo guarda opciones propias del ambiente DIAN.
+model PerfilEmisorElectronico {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ambiente AmbienteEmisorElectronico
+
+  // Códigos declarados por el ADMIN tal como aparecen en su RUT. No se
+  // normalizan automáticamente ni se presentan como validados por DIAN.
+  responsabilidadesTributarias String[] @default([])
+
+  rangos RangoNumeracionElectronica[]
+
+  @@unique([id, tenantId], map: "perfiles_emisor_fe_id_tenant_key")
+  @@unique([tenantId, ambiente], map: "perfiles_emisor_fe_tenant_ambiente_key")
+  @@map("perfiles_emisor_electronicos")
+}
+
+model RangoNumeracionElectronica {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  perfilEmisorId String
+  perfilEmisor   PerfilEmisorElectronico @relation(fields: [perfilEmisorId, tenantId], references: [id, tenantId], onDelete: Cascade, map: "rangos_fe_profile_tenant_fkey")
+
+  tipoDocumento         TipoDocumentoElectronico         @default(FACTURA_VENTA)
+  numeroAutorizacion    String                           @db.VarChar(50)
+  fechaAutorizacion     DateTime                         @db.Date
+  vigenciaDesde         DateTime                         @db.Date
+  vigenciaHasta         DateTime                         @db.Date
+  prefijo               String                           @default("") @db.VarChar(4)
+  numeroDesde           Int
+  numeroHasta           Int
+  ultimoNumeroAsignado  Int
+  estado                EstadoRangoNumeracionElectronica @default(ACTIVO)
+  inactivadoAt          DateTime?
+  motivoInactivacion    String?                          @db.VarChar(500)
+
+  facturas FacturaElectronica[]
+
+  @@unique([id, tenantId], map: "rangos_fe_id_tenant_key")
+  @@index([tenantId, perfilEmisorId, estado, vigenciaHasta], map: "rangos_fe_tenant_profile_state_validity_idx")
+  @@index([tenantId, prefijo, numeroDesde, numeroHasta], map: "rangos_fe_tenant_prefix_numbers_idx")
+  @@map("rangos_numeracion_electronica")
 }
 
 // =============================================================================
