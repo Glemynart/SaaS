@@ -222,6 +222,7 @@ describe('empleados PostgreSQL RLS', () => {
       { tableName: 'invoice_receipt_allocations' },
       { tableName: 'pila_asignaciones_centro_trabajo' },
       { tableName: 'pila_centros_trabajo' },
+      { tableName: 'pila_exports' },
       { tableName: 'pila_ubicaciones_laborales' },
       { tableName: 'service_premium_batches' },
       { tableName: 'service_premium_lines' },
