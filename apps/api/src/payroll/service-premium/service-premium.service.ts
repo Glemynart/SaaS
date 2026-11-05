@@ -22,7 +22,10 @@ import { StorageService } from '../../storage/storage.service';
 import { TenantContextService } from '../../tenant-context/tenant-context.service';
 import { TenantExecutionContext } from '../../tenant-context/tenant-context.types';
 import { TenantPrismaService } from '../../tenant-prisma/tenant-prisma.service';
-import { calculateServicePremium } from './service-premium-calculator';
+import {
+  calculateServicePremium,
+  SERVICE_PREMIUM_FORMULA_VERSION,
+} from './service-premium-calculator';
 import { CreateServicePremiumBatchDto } from './service-premium.dto';
 
 const LEASE_MS = 5 * 60_000;
@@ -373,7 +376,7 @@ export class ServicePremiumService {
           anio: dto.year,
           semestre: dto.semester,
           version: options.version,
-          formulaVersion: 1,
+          formulaVersion: SERVICE_PREMIUM_FORMULA_VERSION,
           createdById: userId,
           correctionReason: options.correctionReason,
           supersedesBatchId: options.supersedesBatchId,
@@ -768,14 +771,15 @@ export class ServicePremiumService {
             (id): id is string => typeof id === 'string',
           )
         : [];
+      const formulaCode = `PRIMA_SEMESTRAL_V${batch.formulaVersion}`;
       const formula = `(${formatCop(line.salaryBase)} + ${formatCop(line.variableSalary)} + ${formatCop(line.transportAllowance)}) × ${line.serviceDays360} / 360`;
       const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><style>
         body{font-family:Arial,sans-serif;color:#172033;font-size:12px;line-height:1.55}h1{font-size:22px;margin:0 0 4px}h2{font-size:14px;margin:22px 0 8px;color:#334155}.muted{color:#64748b}.brand{border-bottom:2px solid #1d4ed8;padding-bottom:14px;margin-bottom:22px}.card{border:1px solid #cbd5e1;padding:14px;border-radius:6px}.amount{font-size:24px;font-weight:bold;color:#1d4ed8}.notice{margin-top:24px;padding:10px;background:#eff6ff;color:#1e3a8a}table{width:100%;border-collapse:collapse}td{padding:7px;border-bottom:1px solid #e2e8f0}td:first-child{color:#64748b;width:38%}
         </style></head><body><div class="brand"><h1>Prima de servicios</h1><div class="muted">Liquidación semestral • ${batch.anio} • ${batch.semestre === 1 ? 'Enero a junio' : 'Julio a diciembre'} • Versión ${batch.version}</div></div>
         <h2>Empleado</h2><div class="card"><table><tr><td>Nombre</td><td>${escapeHtml(fullName || 'No disponible')}</td></tr><tr><td>Identificación</td><td>${escapeHtml(identification)}</td></tr></table></div>
         <h2>Detalle del cálculo</h2><div class="card"><table><tr><td>Salario fijo mensual</td><td>${formatCop(line.salaryBase)}</td></tr><tr><td>Promedio variable salarial</td><td>${formatCop(line.variableSalary)}</td></tr><tr><td>Auxilio de transporte promedio causado</td><td>${formatCop(line.transportAllowance)}</td></tr><tr><td>Días de servicio (convención 30/360)</td><td>${line.serviceDays360}</td></tr><tr><td>Fórmula versionada</td><td>${formula}</td></tr></table><p class="amount">${formatCop(line.amount)}</p></div>
-        <h2>Origen y trazabilidad</h2><p>Este cálculo usa ${sourceIds.length} snapshot(s) de nómina aprobada. Huella de origen: ${escapeHtml(line.sourceFingerprint ?? 'No disponible')}.</p><p class="muted">Código de fórmula: PRIMA_SEMESTRAL_V1. Este documento conserva el resultado aprobado del lote; no incluye pagos ni asientos contables.</p>
-        <div class="notice">Resultado calculado con la regla PRIMA_SEMESTRAL_V1 y datos aprobados congelados. Verifica el cálculo con el responsable de nómina antes de usarlo para pagar una obligación. Este documento no acredita el pago de la prima.</div></body></html>`;
+        <h2>Origen y trazabilidad</h2><p>Este cálculo usa ${sourceIds.length} snapshot(s) de nómina aprobada. Huella de origen: ${escapeHtml(line.sourceFingerprint ?? 'No disponible')}.</p><p class="muted">Código de fórmula: ${formulaCode}. Este documento conserva el resultado aprobado del lote; no incluye pagos ni asientos contables.</p>
+        <div class="notice">Resultado calculado con la regla ${formulaCode} y datos aprobados congelados. Verifica el cálculo con el responsable de nómina antes de usarlo para pagar una obligación. Este documento no acredita el pago de la prima.</div></body></html>`;
       pdf = await this.pdfRender.renderPdf(html);
       await this.storage.putObject({
         key,
