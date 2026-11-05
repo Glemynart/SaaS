@@ -121,7 +121,6 @@ export interface PilaPreparationAffectedEmployee {
 
 export interface PilaExportReadinessBlocker {
   code:
-    | 'AT2_FILE_MAPPING_NOT_IMPLEMENTED'
     | 'SOI_OPERATOR_FIELDS_UNCONFIRMED'
     | 'PILA_PAYMENT_DATE_REQUIRED'
     | 'PILA_PAYMENT_DATE_SNAPSHOT_INCONSISTENT'
@@ -173,8 +172,8 @@ export interface PilaPreparationReport {
   normativeSourceStatus: 'RECONCILIATION_PENDING';
   exportReadiness: {
     recordLayoutVersion: 'AT2_V30';
-    fileGenerationStatus: 'NOT_IMPLEMENTED';
-    localValidationStatus: 'PRELIMINARY';
+    fileGenerationStatus: 'IMPLEMENTED';
+    localValidationStatus: 'PER_EXPORT';
     operatorAcceptanceStatus: 'NOT_VERIFIED';
     blockers: PilaExportReadinessBlocker[];
   };
@@ -212,9 +211,32 @@ export interface PilaPreparationReport {
   employerCandidate: PilaAt2V30EmployerCandidate;
   headerCandidate: PilaAt2V30HeaderCandidate;
   issues: PilaPreparationIssue[];
-  archivoGenerable: false;
-  estadoArchivo: 'NO_IMPLEMENTADO';
+  archivoGenerable: boolean;
+  estadoArchivo: 'LISTO_PARA_GENERAR' | 'BLOQUEADO';
   mensaje: string;
+}
+
+export interface PilaExportSummary {
+  id: string;
+  createdAt: string;
+  status: 'LOCAL_VALIDATED';
+  period: {
+    fechaInicio: string;
+    fechaFin: string;
+    fechaPrevistaPagoPila: string | null;
+  };
+  normativeVersion: string;
+  fileFormatVersion: string;
+  normativeRuleVersions: string[];
+  sourceSnapshotCount: number;
+  type1: { sha256: string; sizeBytes: number; recordCount: number };
+  type2: {
+    sha256: string;
+    sizeBytes: number;
+    recordCount: number;
+    detailRecordCount: number;
+  };
+  operatorCompatibilityStatus: 'NOT_VERIFIED';
 }
 
 export interface PayrollDashboard {
@@ -541,6 +563,13 @@ export const payrollApi = {
     req<PayrollPilaEvent[]>(`/api/payroll/periods/${periodId}/pila-events`),
   getPilaPreparation: (periodId: string) =>
     req<PilaPreparationReport>(`/api/payroll/periods/${periodId}/pila-preparation`),
+  getPilaExports: (periodId: string) =>
+    req<PilaExportSummary[]>(`/api/payroll/periods/${periodId}/pila-exports`),
+  createPilaExport: (periodId: string) =>
+    req<PilaExportSummary>(`/api/payroll/periods/${periodId}/pila-exports`, {
+      method: 'POST',
+      body: '{}',
+    }),
   createPilaEvent: (
     periodId: string,
     payload: {

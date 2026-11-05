@@ -82,14 +82,10 @@ describe('PayrollService.getPilaPreparation', () => {
       normativeSourceStatus: 'RECONCILIATION_PENDING',
       exportReadiness: {
         recordLayoutVersion: 'AT2_V30',
-        fileGenerationStatus: 'NOT_IMPLEMENTED',
-        localValidationStatus: 'PRELIMINARY',
+        fileGenerationStatus: 'IMPLEMENTED',
+        localValidationStatus: 'PER_EXPORT',
         operatorAcceptanceStatus: 'NOT_VERIFIED',
         blockers: [
-          {
-            code: 'AT2_FILE_MAPPING_NOT_IMPLEMENTED',
-            scope: 'FILE_GENERATION',
-          },
           {
             code: 'SOI_OPERATOR_FIELDS_UNCONFIRMED',
             fields: [
@@ -114,7 +110,7 @@ describe('PayrollService.getPilaPreparation', () => {
       snapshotsRevisados: 1,
       empleadosConDatosPendientes: 1,
       archivoGenerable: false,
-      estadoArchivo: 'NO_IMPLEMENTADO',
+      estadoArchivo: 'BLOQUEADO',
       detailRecordSequence: {
         status: 'PENDING',
         candidateRecords: 0,

@@ -495,6 +495,25 @@ snapshots históricos inmutables. La prueba E2E debe descargar la plantilla,
 confirmar e importar una fila válida, verificar el detalle tras recargar y
 repetir la carga sin duplicados.
 
+## Estado de implementación de exportación — 2026-11-05
+
+PR #278 fusionó composición local de archivos tipo 1 y tipo 2 AT2 v30 a partir
+de candidatos construidos desde snapshots aprobados; los checks post-merge de
+CI, Browser E2E y publicación de imagen API pasaron. La salida local usa
+Windows-1252 y CRLF con versión `AT2_V30_CP1252_CRLF_LOCAL_V1`; esa convención
+no acredita aceptación de un operador.
+
+La entrega en curso añade persistencia append-only por tenant y período,
+versiones de reglas/layout, IDs de snapshots fuente, hashes SHA-256,
+almacenamiento privado, auditoría de generación y descarga, verificación del
+hash antes de entregar, bloqueo de UPDATE/DELETE/TRUNCATE sobre el historial,
+y reintentos idempotentes para la misma fuente. Solo
+permite exportar un conjunto completo sin brechas locales. Una corrección
+Payroll aprobada bloquea el exportador mientras no exista una ruta de corrección
+PILA soportada. La UI separa archivo generado y validado localmente de la
+aceptación del operador, liquidación y pago, que no se registran como hechos
+confirmados por el producto.
+
 ### PILA-AT2-68 — Secuencia global del detalle tipo 2
 
 Para snapshots aprobados de un mismo tenant y período, los IDs deben coincidir

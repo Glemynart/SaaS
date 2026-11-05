@@ -311,6 +311,7 @@ model Tenant {
   payrollCorrections   PayrollCorrection[]
   payrollNovelties   PayrollNovelty[]
   payrollPilaEvents   PayrollPilaEvent[]
+  pilaExports         PilaExport[]
   payrollBlocks      PayrollBlock[]
   customers          Customer[]
   customerReceipts   CustomerReceipt[]
@@ -1154,7 +1155,9 @@ model PayrollPeriod {
   novelties PayrollNovelty[]
   pilaEvents PayrollPilaEvent[]
   blocks    PayrollBlock[]
+  pilaExports PilaExport[]
 
+  @@unique([id, tenantId])
   @@index([tenantId])
   @@index([tenantId, status])
   @@map("payroll_periods")
@@ -1298,6 +1301,53 @@ model PayrollSnapshot {
   @@index([parametroLegalId])
   @@index([centroCostoId])
   @@map("payroll_snapshots")
+}
+
+// =============================================================================
+// PILA EXPORT — Archivo local generado desde snapshots aprobados
+// =============================================================================
+
+enum PilaExportStatus {
+  LOCAL_VALIDATED
+}
+
+model PilaExport {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  payrollPeriodId String
+  payrollPeriod   PayrollPeriod @relation(fields: [payrollPeriodId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  createdByUserId String
+  status          PilaExportStatus @default(LOCAL_VALIDATED)
+
+  fechaInicioPeriodo      DateTime  @db.Date
+  fechaFinPeriodo          DateTime  @db.Date
+  fechaPrevistaPagoPila   DateTime? @db.Date
+
+  normativeVersion       String   @db.VarChar(32)
+  fileFormatVersion      String   @db.VarChar(64)
+  normativeRuleVersions  String[]
+  sourceSnapshotIds      String[]
+  sourceFingerprint      String   @db.Char(64)
+
+  type1StorageKey        String   @db.VarChar(512)
+  type1Sha256            String   @db.Char(64)
+  type1SizeBytes         Int
+  type1RecordCount       Int      @default(1)
+  type2StorageKey        String   @db.VarChar(512)
+  type2Sha256            String   @db.Char(64)
+  type2SizeBytes         Int
+  type2RecordCount       Int
+  detailRecordCount      Int
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, payrollPeriodId, sourceFingerprint])
+  @@index([tenantId, payrollPeriodId, createdAt])
+  @@map("pila_exports")
 }
 
 // =============================================================================

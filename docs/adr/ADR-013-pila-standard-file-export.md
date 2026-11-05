@@ -17,18 +17,25 @@
 > 24-07-2026, y enumera la Resolución 1529 de 2026; esa página es la referencia
 > usada para identificar la versión normativa.
 >
-> El informe preliminar conserva `formatVersion: null` porque no genera ni fija
-> una versión de archivo. `normativeSourceStatus` sigue
-> `RECONCILIATION_PENDING` porque faltan cotejar campos, reglas aplicables,
-> catálogos y fixtures laborales contra AT2 v30; no significa que la versión
-> oficial vigente sea desconocida. La composición y descarga de un archivo
-> estándar solo podrá habilitarse para escenarios que pasen la matriz normativa
-> local y sus fixtures de salida. La aceptación y compatibilidad de cada operador
-> se mantienen como estados separados y solo se declaran después de una prueba
-> de carga exitosa en ese operador. Generar o validar localmente un archivo no
-> significa que esté liquidado ni pagado.
+> PR #278 agregó a `main` composición local de los archivos tipo 1 y 2 desde
+> candidatos de snapshots aprobados. El endpoint de preparación conserva
+> `formatVersion: null` porque describe el preflight, no un archivo emitido;
+> `normativeSourceStatus` sigue `RECONCILIATION_PENDING` porque aún hay reglas,
+> fuentes y casos fuera del MVP por reconciliar. La rama de implementación
+> vigente agrega una operación autenticada, historial append-only y descargas
+> privadas para los conjuntos sin brechas. `LOCAL_VALIDATED` significa que el
+> serializador confirmó layout, longitud y codificación locales; no acredita
+> revisión laboral completa ni aceptación de SOI u otro operador. Aceptación,
+> liquidación y pago permanecen en estados separados y fuera de esta entrega.
 
-- **Estado:** Aprobado con cambios; PR #160 incorpora la primera etapa de historial de afiliaciones. No existe todavía exportador PILA.
+La migración del historial es aditiva. Si se revierte el despliegue de la
+aplicación, la tabla y los archivos ya registrados se conservan; no se ejecuta
+un rollback que los elimine. Cualquier corrección de esquema se entrega mediante
+una migración hacia adelante. El historial bloquea UPDATE, DELETE directo y
+TRUNCATE; una eliminación en cascada del tenant propietario sigue permitida por
+la relación de base de datos.
+
+- **Estado:** Aprobado con cambios. PR #160 incorporó la primera etapa del historial de afiliaciones; PR #278 fusionó composición local de candidatos AT2 v30. La operación persistida, el historial y la descarga protegida están en implementación en esta rama.
 - **Fecha:** 2026-10-30.
 - **Goal:** GOAL-02 — Evolución Financiera y Cumplimiento Electrónico.
 - **Responsable:** Producto / Payroll.
@@ -64,7 +71,9 @@ no produce ese archivo ni conserva todos sus insumos de forma estructurada:
   asignaciones ARL fechadas y las congelan en el payload PILA; PR #170
   identifica sus brechas sin segmentación normativa ni validación completa del
   archivo.
-- No existe un exportador PILA funcional en la API ni en la web.
+- PR #278 añadió composición local AT2 v30 en la API, sin persistencia de
+  historial ni descarga protegida. Esta rama conecta esa composición con una
+  operación de exportación tenant-scoped y la UI del período de nómina.
 
 El Ministerio publica anexos técnicos para PILA y los operadores documentan
 cargue de archivos planos. La [página oficial PILA de
