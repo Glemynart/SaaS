@@ -115,21 +115,6 @@ export class ElectronicInvoiceTransmissionService {
 
     return this.tenantPrisma
       .execute(async (prisma, context) => {
-        const invoice = await prisma.facturaElectronica.findFirst({
-          where: { id: input.invoiceId, tenantId: context.tenantId },
-          select: { id: true, estado: true, numero: true },
-        });
-        if (!invoice)
-          throw new NotFoundException('Factura electrónica no encontrada.');
-        if (
-          invoice.estado !== EstadoFacturaElectronica.EN_COLA ||
-          invoice.numero === null
-        ) {
-          throw new ConflictException(
-            'Solo se puede registrar una transmisión para una factura numerada en cola.',
-          );
-        }
-
         const idempotencyKey = sha256(
           [context.tenantId, input.invoiceId, eventId, payloadHash].join(
             '\u0000',
@@ -152,6 +137,21 @@ export class ElectronicInvoiceTransmissionService {
             contractVersion,
           });
           return existing;
+        }
+
+        const invoice = await prisma.facturaElectronica.findFirst({
+          where: { id: input.invoiceId, tenantId: context.tenantId },
+          select: { id: true, estado: true, numero: true },
+        });
+        if (!invoice)
+          throw new NotFoundException('Factura electrónica no encontrada.');
+        if (
+          invoice.estado !== EstadoFacturaElectronica.EN_COLA ||
+          invoice.numero === null
+        ) {
+          throw new ConflictException(
+            'Solo se puede registrar una transmisión para una factura numerada en cola.',
+          );
         }
 
         const transmission = await prisma.facturaElectronicaTransmision.create({

@@ -104,6 +104,24 @@ describe('ElectronicInvoiceTransmissionService', () => {
     expect(prisma.facturaElectronicaTransmision.create).not.toHaveBeenCalled();
   });
 
+  it('returns the existing event idempotently after the invoice advances', async () => {
+    const transmission = makeTransmission();
+    prisma.facturaElectronicaTransmision.findFirst.mockResolvedValue(
+      transmission,
+    );
+    prisma.facturaElectronica.findFirst.mockResolvedValue({
+      id: 'invoice-a',
+      estado: EstadoFacturaElectronica.EN_TRANSMISION,
+      numero: 1,
+    });
+
+    await expect(service.registerTransmission(registerInput())).resolves.toBe(
+      transmission,
+    );
+
+    expect(prisma.facturaElectronica.findFirst).not.toHaveBeenCalled();
+  });
+
   it('starts one durable send from the stored payload and blocks unresolved attempts', async () => {
     prisma.facturaElectronicaTransmision.findFirst
       .mockResolvedValueOnce(
