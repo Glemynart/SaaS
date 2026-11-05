@@ -43,11 +43,21 @@ test('administra el perfil y el historial del rango por ambiente desde la interf
   const end = start + 9;
 
   await registerAndSignIn(page, suffix);
+  const transmissionsResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/electronic-invoicing/transmissions' &&
+      response.request().method() === 'GET',
+  );
   await page.goto('/facturacion/electronica');
+  const transmissionsResponse = await transmissionsResponsePromise;
+  expect(transmissionsResponse.status()).toBe(200);
+  expect(await transmissionsResponse.json()).toEqual({ items: [] });
   await expect(
     page.getByRole('heading', { name: 'Configuración de facturación electrónica' }),
   ).toBeVisible();
   await expect(page.getByText(/Todavía no emite ni transmite facturas a la DIAN/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Seguimiento de transmisiones' })).toBeVisible();
+  await expect(page.getByText('No hay transmisiones registradas para esta empresa.')).toBeVisible();
 
   await page.getByLabel('Responsabilidades tributarias').fill('05, 48');
   await page.getByLabel('Motivo del cambio').fill('Configurar perfil de prueba');

@@ -19,18 +19,26 @@ import { CreateNumberingRangeDto } from './dto/create-numbering-range.dto';
 import { DeactivateNumberingRangeDto } from './dto/deactivate-numbering-range.dto';
 import { UpsertIssuerProfileDto } from './dto/upsert-issuer-profile.dto';
 import { ElectronicInvoiceConfigurationService } from './electronic-invoice-configuration.service';
+import { ElectronicInvoiceTransmissionService } from './electronic-invoice-transmission.service';
 
 @UseGuards(JwtAuthGuard, ActiveTenantGuard, RolesGuard)
 @Controller('electronic-invoicing')
 export class ElectronicInvoiceConfigurationController {
   constructor(
     private readonly configuration: ElectronicInvoiceConfigurationService,
+    private readonly transmissions: ElectronicInvoiceTransmissionService,
   ) {}
 
   @Roles(UserRole.ADMIN)
   @Get('configuration')
   getConfiguration() {
     return this.configuration.getConfiguration();
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Get('transmissions')
+  listRecentTransmissions() {
+    return this.transmissions.listRecentTransmissions();
   }
 
   @Roles(UserRole.ADMIN)

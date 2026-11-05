@@ -2,11 +2,20 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { electronicInvoicingApi } from '../services/electronic-invoicing-api';
 
 const configurationKey = ['electronic-invoicing', 'configuration'] as const;
+const transmissionsKey = ['electronic-invoicing', 'transmissions'] as const;
 
 export function useElectronicInvoiceConfiguration() {
   return useQuery({
     queryKey: configurationKey,
     queryFn: electronicInvoicingApi.getConfiguration,
+  });
+}
+
+export function useRecentElectronicInvoiceTransmissions() {
+  return useQuery({
+    queryKey: transmissionsKey,
+    queryFn: electronicInvoicingApi.getRecentTransmissions,
+    staleTime: 30_000,
   });
 }
 

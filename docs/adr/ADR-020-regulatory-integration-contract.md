@@ -78,11 +78,19 @@ conectado a un controlador, worker, UI ni adaptador MATIAS; no realiza
 solicitudes externas y no constituye un flujo utilizable por clientes. La
 decisión no aprueba esos componentes ni su operación.
 
-Siguen pendientes la resolución segura de credenciales por tenant, observación
-operativa del worker y validación del contrato/sandbox del proveedor. PR13 de
-PR10 debe validar sandbox antes de escribir un adaptador real. Ninguno de los
-incrementos actuales acredita un documento válido ante DIAN, aceptación de
-operador, liquidación ni pago.
+PR #303 añade la orquestación interna de un intento, todavía sin adaptador
+registrado ni endpoint de ejecución. La interfaz actual ofrece una vista
+tenant-scoped de solo lectura para las últimas transmisiones y resultados
+normalizados. La respuesta omite el payload canónico, la clave idempotente, las
+rutas de evidencia y su contenido. La pantalla permite observar registros
+existentes, pero no enviar, conciliar ni afirmar aceptación DIAN.
+
+Siguen pendientes la resolución segura de credenciales por tenant, el endpoint
+de ejecución y worker conectados, observabilidad operativa del worker y
+validación del contrato/sandbox del proveedor. PR13 de PR10 debe validar sandbox
+antes de escribir un adaptador real. Ninguno de los incrementos actuales
+acredita un documento válido ante DIAN, aceptación de operador, liquidación ni
+pago.
 
 La aceptación del fake solo demuestra el contrato del código local. No acredita
 un documento válido ante DIAN, aceptación de operador, liquidación ni pago.
@@ -92,7 +100,9 @@ un documento válido ante DIAN, aceptación de operador, liquidación ni pago.
 - El caso de uso y las pruebas pueden avanzar sin credenciales ni entorno
   externo.
 - El límite de proveedor queda explícito antes de crear persistencia fiscal.
-- H1 continúa en progreso: PR #291 dejó intentos y evidencia durables; faltan
-  credenciales por tenant, endpoint/worker conectados, observabilidad operativa
-  y aceptación del sandbox del proveedor. La ruta de
-  transmisión real sigue bloqueada hasta resolver esas dependencias.
+- H1 continúa en progreso: PR #291 dejó intentos y evidencia durables; PR #303
+  orquesta un intento interno y esta continuación permite consultar un resumen
+  tenant-scoped. Faltan credenciales por tenant, endpoint de ejecución/worker
+  conectados, observabilidad operativa del worker y aceptación del sandbox del
+  proveedor. La ruta de transmisión real sigue bloqueada hasta resolver esas
+  dependencias.

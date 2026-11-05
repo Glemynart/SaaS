@@ -1,7 +1,15 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { AlertTriangle, Building2, Loader2, Plus, ShieldCheck } from 'lucide-react';
+import {
+  AlertTriangle,
+  Building2,
+  History,
+  Loader2,
+  Plus,
+  RefreshCw,
+  ShieldCheck,
+} from 'lucide-react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,12 +19,16 @@ import {
   useCreateElectronicInvoiceRange,
   useDeactivateElectronicInvoiceRange,
   useElectronicInvoiceConfiguration,
+  useRecentElectronicInvoiceTransmissions,
   useUpsertElectronicInvoiceProfile,
 } from '@/features/electronic-invoicing/hooks/use-electronic-invoicing';
 import type {
+  ElectronicInvoiceAttemptResultStatus,
+  ElectronicInvoiceStatus,
   ElectronicInvoiceNumberingRange,
   IssuerEnvironment,
   NumberingRangeStatus,
+  RecentElectronicInvoiceTransmission,
 } from '@/features/electronic-invoicing/services/electronic-invoicing-api';
 
 const ENVIRONMENTS: { value: IssuerEnvironment; label: string }[] = [
@@ -31,6 +43,63 @@ const STATUS_LABEL: Record<NumberingRangeStatus, string> = {
   VENCIDO: 'Vencido',
   VIGENTE: 'Vigente',
 };
+
+const INVOICE_STATUS_LABEL: Record<ElectronicInvoiceStatus, string> = {
+  BORRADOR: 'Borrador',
+  LISTA_PARA_EMITIR: 'Lista para emitir',
+  EN_COLA: 'En cola',
+  EN_TRANSMISION: 'En transmisión',
+  PENDIENTE_CONCILIACION: 'Pendiente de conciliación',
+  ACEPTADA: 'Aceptada por el proveedor',
+  RECHAZADA: 'Rechazada por el proveedor',
+  ERROR_TECNICO: 'Error técnico',
+};
+
+const ATTEMPT_RESULT_LABEL: Record<ElectronicInvoiceAttemptResultStatus, string> = {
+  ACEPTADO: 'Aceptado por el proveedor',
+  RECHAZADO: 'Rechazado por el proveedor',
+  PENDIENTE: 'Pendiente',
+  DESCONOCIDO: 'Resultado desconocido',
+  ERROR_TECNICO: 'Error técnico',
+};
+
+function TransmissionRow({ transmission }: { transmission: RecentElectronicInvoiceTransmission }) {
+  const invoiceNumber = transmission.invoice.number
+    ? `${transmission.invoice.prefix ?? ''}${transmission.invoice.number}`
+    : 'Sin número';
+  const attempt = transmission.latestAttempt;
+
+  return (
+    <article className="rounded-lg border border-border p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold">Factura {invoiceNumber}</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Registrada {formatDate(transmission.createdAt)} · Proveedor {transmission.providerId} ·
+            contrato {transmission.contractVersion}
+          </p>
+        </div>
+        <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
+          {INVOICE_STATUS_LABEL[transmission.invoice.status]}
+        </span>
+      </div>
+      <p className="mt-3 text-sm">
+        {!attempt
+          ? 'Sin intento de proveedor registrado.'
+          : `${attempt.type === 'ENVIO' ? 'Envío' : 'Conciliación'} #${attempt.number}: ${
+              attempt.result
+                ? ATTEMPT_RESULT_LABEL[attempt.result.status]
+                : 'resultado pendiente de registrar'
+            }`}
+      </p>
+      {attempt?.result?.errorCode && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Código técnico: {attempt.result.errorCode}
+        </p>
+      )}
+    </article>
+  );
+}
 
 type RangeForm = {
   numeroAutorizacion: string;
@@ -178,6 +247,7 @@ function RangeRow({
 
 export default function ElectronicInvoiceConfigurationPage() {
   const configuration = useElectronicInvoiceConfiguration();
+  const transmissions = useRecentElectronicInvoiceTransmissions();
   const upsertProfile = useUpsertElectronicInvoiceProfile();
   const createRange = useCreateElectronicInvoiceRange();
   const deactivateRange = useDeactivateElectronicInvoiceRange();
@@ -268,6 +338,49 @@ export default function ElectronicInvoiceConfigurationPage() {
         Esta pantalla registra configuración interna. Todavía no emite ni transmite facturas a la
         DIAN y no valida la aceptación de un operador.
       </Alert>
+
+      <section className="rounded-xl border border-border bg-surface p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <History className="size-4 text-muted-foreground" />
+              Seguimiento de transmisiones
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Muestra las últimas 50 transmisiones y su intento más reciente. Un estado registrado
+              por el proveedor no sustituye la validación de aceptación DIAN.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void transmissions.refetch()}
+            disabled={transmissions.isFetching}
+          >
+            {transmissions.isFetching ? (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 size-4" />
+            )}
+            Actualizar
+          </Button>
+        </div>
+        <ErrorMessage message={asErrorMessage(transmissions.error)} />
+        {transmissions.isLoading ? (
+          <Skeleton className="mt-4 h-24 w-full rounded-lg" />
+        ) : transmissions.data?.items.length ? (
+          <div className="mt-4 space-y-3">
+            {transmissions.data.items.map((transmission) => (
+              <TransmissionRow key={transmission.id} transmission={transmission} />
+            ))}
+          </div>
+        ) : !transmissions.error ? (
+          <p className="mt-4 rounded-lg bg-muted/40 p-4 text-sm text-muted-foreground">
+            No hay transmisiones registradas para esta empresa.
+          </p>
+        ) : null}
+      </section>
       <ErrorMessage message={asErrorMessage(configuration.error)} />
       <ErrorMessage message={profileError} />
       <ErrorMessage message={rangeError} />
