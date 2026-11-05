@@ -79,7 +79,7 @@ jobs:
         run: pnpm test:e2e
 
       - name: Upload browser evidence
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: browser-e2e-evidence
@@ -87,3 +87,4 @@ jobs:
             playwright-report
             test-results
           if-no-files-found: ignore
+          retention-days: 7
