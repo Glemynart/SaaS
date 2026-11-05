@@ -298,4 +298,7 @@ Las decisiones FE-01 a FE-09 quedan consolidadas en un único ADR aceptado: [ADR
 
 ---
 
-_Fin de PR10. Las decisiones quedan aceptadas y consolidadas en ADR-005. PR11 se completó en PR #285; PR12 continúa con emisor y numeración sin transmisión._
+_Fin de PR10. Las decisiones quedan aceptadas y consolidadas en ADR-005. PR11
+se completó en PR #285 y PR12 en PR #286. PR13 —validación del contrato real
+de MATIAS en sandbox— continúa pendiente; PR14 no debe iniciar el adaptador
+hasta completar esa validación._

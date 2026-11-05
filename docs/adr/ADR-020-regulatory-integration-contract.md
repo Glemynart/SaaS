@@ -61,8 +61,8 @@
 
 Este ADR permite implementar y verificar el contrato interno con un proveedor
 falso. PR #285 completa la base persistente del dominio fiscal: agregado,
-líneas y snapshots tenant-scoped. La continuación PR12 configura el emisor y
-los rangos autorizados, con numeración atómica preparada para consumirse dentro
+líneas y snapshots tenant-scoped. PR #286 completa la configuración de emisor
+y rangos autorizados, con numeración atómica preparada para consumirse dentro
 de la transacción de emisión; no transmite ni expone un endpoint que consuma un
 consecutivo aislado. Aún no persiste intentos de transmisión ni evidencia de
 proveedor. Tampoco implementa resolución real de secretos, adaptador MATIAS,
