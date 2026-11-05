@@ -1,6 +1,27 @@
 import { createHash, randomInt } from 'node:crypto';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { seedPilaExportFixture } from './helpers/pila-export-fixture';
+
+async function downloadFromLink(page: Page, link: Locator) {
+  const href = await link.getAttribute('href');
+  if (!href) throw new Error('Falta el enlace de descarga PILA.');
+  const expectedPath = new URL(href, page.url()).pathname;
+  const responsePromise = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === expectedPath,
+  );
+  const downloadPromise = page.waitForEvent('download');
+  await link.click();
+  const [response, download] = await Promise.all([responsePromise, downloadPromise]);
+  const stream = await download.createReadStream();
+  if (!stream) throw new Error('No se pudo leer el archivo PILA descargado.');
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  return {
+    response,
+    filename: download.suggestedFilename(),
+    bytes: Buffer.concat(chunks),
+  };
+}
 
 async function registerAndSignIn(page: Page) {
   const suffix = randomInt(10_000_000, 100_000_000).toString();
@@ -135,28 +156,23 @@ test('genera, conserva y descarga archivos PILA del período desde la interfaz',
     await expect(type1Link).toBeVisible();
     await expect(type2Link).toBeVisible();
 
-    const type1Path = await type1Link.getAttribute('href');
-    const type2Path = await type2Link.getAttribute('href');
-    if (!type1Path || !type2Path) throw new Error('Faltan los enlaces de descarga PILA.');
-    const type1Response = await page
-      .context()
-      .request.get(new URL(type1Path, page.url()).toString());
-    const type2Response = await page
-      .context()
-      .request.get(new URL(type2Path, page.url()).toString());
-    expect(type1Response.status()).toBe(200);
-    expect(type2Response.status()).toBe(200);
-    expect(type1Response.headers()['content-type']).toContain('windows-1252');
-    expect(type2Response.headers()['content-type']).toContain('windows-1252');
-    expect(type1Response.headers()['content-disposition']).toContain(
+    const type1Download = await downloadFromLink(page, type1Link);
+    const type2Download = await downloadFromLink(page, type2Link);
+    expect(type1Download.response.status()).toBe(200);
+    expect(type2Download.response.status()).toBe(200);
+    expect(type1Download.filename).toBe('pila-2026-10-01-2026-10-31-type-1.txt');
+    expect(type2Download.filename).toBe('pila-2026-10-01-2026-10-31-type-2.txt');
+    expect(type1Download.response.headers()['content-type']).toContain('windows-1252');
+    expect(type2Download.response.headers()['content-type']).toContain('windows-1252');
+    expect(type1Download.response.headers()['content-disposition']).toContain(
       'pila-2026-10-01-2026-10-31-type-1.txt',
     );
-    expect(type2Response.headers()['content-disposition']).toContain(
+    expect(type2Download.response.headers()['content-disposition']).toContain(
       'pila-2026-10-01-2026-10-31-type-2.txt',
     );
 
-    const type1Bytes = Buffer.from(await type1Response.body());
-    const type2Bytes = Buffer.from(await type2Response.body());
+    const type1Bytes = type1Download.bytes;
+    const type2Bytes = type2Download.bytes;
     expect(type1Bytes.byteLength).toBe(created.type1.sizeBytes);
     expect(type2Bytes.byteLength).toBe(created.type2.sizeBytes);
     expect(createHash('sha256').update(type1Bytes).digest('hex')).toBe(created.type1.sha256);
