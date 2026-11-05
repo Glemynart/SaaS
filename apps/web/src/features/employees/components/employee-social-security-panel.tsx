@@ -31,6 +31,7 @@ type FormValues = {
   fondoPensionCodigo: string;
   fondoPensionNombre: string;
   estadoAfiliacionPensional: string;
+  indicadorTarifaEspecialPensiones: string;
   arlCodigo: string;
   arlNombre: string;
   arlClaseRiesgo: string;
@@ -51,6 +52,7 @@ const emptyForm: FormValues = {
   fondoPensionCodigo: '',
   fondoPensionNombre: '',
   estadoAfiliacionPensional: '',
+  indicadorTarifaEspecialPensiones: '',
   arlCodigo: '',
   arlNombre: '',
   arlClaseRiesgo: '',
@@ -70,6 +72,15 @@ function formatDate(value: string | null) {
     dateStyle: 'medium',
     timeZone: 'UTC',
   });
+}
+
+function pensionTariffName(value: string | null) {
+  if (value === '') return 'Normal confirmada';
+  if (value === '1') return 'Actividades de alto riesgo';
+  if (value === '2') return 'Senadores';
+  if (value === '3') return 'CTI';
+  if (value === '4') return 'Aviadores';
+  return 'Sin confirmar';
 }
 
 function LegacyReference({ values }: { values: LegacyValues }) {
@@ -159,6 +170,12 @@ export function EmployeeSocialSecurityPanel({
             form.estadoAfiliacionPensional === 'S' || form.estadoAfiliacionPensional === 'N'
               ? form.estadoAfiliacionPensional
               : null,
+          indicadorTarifaEspecialPensiones:
+            form.indicadorTarifaEspecialPensiones === 'NORMAL'
+              ? ''
+              : ['1', '2', '3', '4'].includes(form.indicadorTarifaEspecialPensiones)
+                ? (form.indicadorTarifaEspecialPensiones as '1' | '2' | '3' | '4')
+                : null,
           arlCodigo: form.arlCodigo,
           arlNombre: form.arlNombre,
           arlClaseRiesgo: form.arlClaseRiesgo,
@@ -288,6 +305,15 @@ export function EmployeeSocialSecurityPanel({
                         : 'Sin confirmar'
                   }
                   code={affiliation.estadoAfiliacionPensional ?? '—'}
+                />
+                <AffiliationItem
+                  label="Tarifa de pensiones (campo 79)"
+                  name={pensionTariffName(affiliation.indicadorTarifaEspecialPensiones)}
+                  code={
+                    affiliation.indicadorTarifaEspecialPensiones === ''
+                      ? 'Blanco confirmado'
+                      : (affiliation.indicadorTarifaEspecialPensiones ?? '—')
+                  }
                 />
                 <AffiliationItem
                   label="ARL"
@@ -454,6 +480,24 @@ export function EmployeeSocialSecurityPanel({
                 <option value="">Sin confirmar</option>
                 <option value="S">S — En transición</option>
                 <option value="N">N — Sin transición</option>
+              </Select>
+            </FormField>
+            <FormField
+              label="Tarifa de pensiones (campo 79)"
+              hint="Confirma la tarifa en el soporte vigente. Solo la tarifa normal está dentro del MVP; las categorías especiales bloquean la exportación."
+            >
+              <Select
+                value={form.indicadorTarifaEspecialPensiones}
+                onChange={(event) =>
+                  setValue('indicadorTarifaEspecialPensiones', event.target.value)
+                }
+              >
+                <option value="">Sin confirmar</option>
+                <option value="NORMAL">Normal (blanco en el archivo)</option>
+                <option value="1">1 · Actividades de alto riesgo</option>
+                <option value="2">2 · Senadores</option>
+                <option value="3">3 · CTI</option>
+                <option value="4">4 · Aviadores</option>
               </Select>
             </FormField>
             <AffiliationFields

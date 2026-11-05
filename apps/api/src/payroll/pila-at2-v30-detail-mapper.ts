@@ -60,6 +60,12 @@ const PILA_AT2_V30_PLANILLA_E_FIELD_22_RULE_VERSION =
   'AT2_V30_PLANILLA_E_FIELD_22_BLANK_V1' as const;
 const PILA_AT2_V30_PENSION_TOTAL_FIELD_50_RULE_VERSION =
   'AT2_V30_PENSION_TOTAL_FIELD_50_SUM_47_49_V1' as const;
+const PILA_AT2_V30_NORMAL_PENSION_TARIFF_FIELD_79_RULE_VERSION =
+  'AT2_V30_CONFIRMED_NORMAL_PENSION_TARIFF_FIELD_79_V1' as const;
+const PILA_AT2_V30_OPTIONAL_HOURS_FIELD_96_RULE_VERSION =
+  'AT2_V30_FIELD_96_OPTIONAL_BLANK_FOR_DEPENDENT_V1' as const;
+const PILA_AT2_V30_NO_FOREIGN_RESIDENCE_FIELD_97_RULE_VERSION =
+  'AT2_V30_FIELD_97_BLANK_WHEN_NOT_ABROAD_V1' as const;
 const PILA_AT2_V30_VOLUNTARY_PENSION_DECLARATION_RULE_VERSION =
   'AT2_V30_AVP_NONE_DECLARED_PRE_2027_04_01_V1' as const;
 const PILA_AT2_V30_NEW_PENSION_SYSTEM_EFFECTIVE_FROM = '2027-04-01';
@@ -107,6 +113,9 @@ export interface PilaAt2V30DetailCandidate {
     pensionTotalField50:
       | typeof PILA_AT2_V30_PENSION_TOTAL_FIELD_50_RULE_VERSION
       | null;
+    normalPensionTariffField79:
+      | typeof PILA_AT2_V30_NORMAL_PENSION_TARIFF_FIELD_79_RULE_VERSION
+      | null;
     voluntaryPensionDeclaration:
       | typeof PILA_AT2_V30_VOLUNTARY_PENSION_DECLARATION_RULE_VERSION
       | null;
@@ -135,6 +144,12 @@ export interface PilaAt2V30DetailCandidate {
       | null;
     privateEmployerEsapMen:
       | typeof PILA_AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_RULE_VERSION
+      | null;
+    optionalHoursField96:
+      | typeof PILA_AT2_V30_OPTIONAL_HOURS_FIELD_96_RULE_VERSION
+      | null;
+    noForeignResidenceDateField97:
+      | typeof PILA_AT2_V30_NO_FOREIGN_RESIDENCE_FIELD_97_RULE_VERSION
       | null;
     detailRecordSequence:
       | typeof PILA_AT2_V30_DETAIL_RECORD_SEQUENCE_RULE_VERSION
@@ -328,7 +343,8 @@ export function mapPilaAt2V30DetailCandidate(
       snapshot.payloadVersion === 5 ||
       snapshot.payloadVersion === 6 ||
       snapshot.payloadVersion === 7 ||
-      snapshot.payloadVersion === 8) &&
+      snapshot.payloadVersion === 8 ||
+      snapshot.payloadVersion === 9) &&
     root?.schemaVersion === snapshot.payloadVersion &&
     employee !== null &&
     employer !== null &&
@@ -344,7 +360,7 @@ export function mapPilaAt2V30DetailCandidate(
   if (!supportedSnapshot || !periodStart || !periodEnd) {
     const reason = scopeMismatch
       ? 'El tenant, empleado o período congelado en el snapshot no coincide con el contexto autenticado solicitado.'
-      : 'Se requiere un snapshot PILA v2 a v8 válido y atribuible a un tenant y período.';
+      : 'Se requiere un snapshot PILA v2 a v9 válido y atribuible a un tenant y período.';
     for (const field of PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2
       .fields) {
       unresolved(field.fieldNumber, reason);
@@ -359,6 +375,7 @@ export function mapPilaAt2V30DetailCandidate(
       normativeRuleVersions: {
         planillaEField22: null,
         pensionTotalField50: null,
+        normalPensionTariffField79: null,
         voluntaryPensionDeclaration: null,
         arlInitialRate: null,
         contributionRounding: null,
@@ -374,6 +391,8 @@ export function mapPilaAt2V30DetailCandidate(
         nonCotizante40PrincipalFields: null,
         confirmedNonExemptCotizante: null,
         privateEmployerEsapMen: null,
+        optionalHoursField96: null,
+        noForeignResidenceDateField97: null,
         detailRecordSequence: null,
       },
       values,
@@ -593,6 +612,23 @@ export function mapPilaAt2V30DetailCandidate(
     putText(35, affiliation?.cajaCompensacionCodigo, 'la caja de compensación');
     putText(77, affiliation?.arlCodigo, 'la ARL del cotizante');
     putText(78, affiliation?.arlClaseRiesgo, 'la clase de riesgo afiliada');
+    if (affiliation?.indicadorTarifaEspecialPensiones === '') {
+      blank(79);
+    } else if (
+      ['1', '2', '3', '4'].includes(
+        sourceText(affiliation?.indicadorTarifaEspecialPensiones) ?? '',
+      )
+    ) {
+      unresolved(
+        79,
+        'La tarifa especial de pensiones está registrada, pero las categorías especiales quedan fuera del MVP PILA dependiente 01/00.',
+      );
+    } else {
+      unresolved(
+        79,
+        'Falta confirmar con soporte vigente que el cotizante usa la tarifa normal de pensiones.',
+      );
+    }
     blank(74);
     blank(75);
     if (
@@ -615,7 +651,9 @@ export function mapPilaAt2V30DetailCandidate(
       );
     }
   } else {
-    for (const fieldNumber of [5, 6, 31, 32, 33, 34, 35, 74, 75, 76, 77, 78]) {
+    for (const fieldNumber of [
+      5, 6, 31, 32, 33, 34, 35, 74, 75, 76, 77, 78, 79,
+    ]) {
       unresolved(
         fieldNumber,
         'Falta una única afiliación dependiente 01/00 que cubra el período.',
@@ -830,6 +868,41 @@ export function mapPilaAt2V30DetailCandidate(
     unresolved(
       95,
       'Falta una base parafiscal congelada con regla CO_PARAFISCAL_BASE_V1 y sin bloqueos.',
+    );
+  }
+  let optionalHoursField96RuleVersion:
+    | typeof PILA_AT2_V30_OPTIONAL_HOURS_FIELD_96_RULE_VERSION
+    | null = null;
+  if (standardAffiliation) {
+    // AT2 v30 makes hours optional for cotizante 01; no hours are invented.
+    values[96] = { value: null, emptyAs: 'spaces' };
+    optionalHoursField96RuleVersion =
+      PILA_AT2_V30_OPTIONAL_HOURS_FIELD_96_RULE_VERSION;
+  } else {
+    unresolved(
+      96,
+      'El campo de horas solo se omite en el MVP para una afiliación dependiente estándar 01/00.',
+    );
+  }
+
+  let noForeignResidenceDateField97RuleVersion:
+    | typeof PILA_AT2_V30_NO_FOREIGN_RESIDENCE_FIELD_97_RULE_VERSION
+    | null = null;
+  const employeeDocumentType = sourceText(employee?.tipoDocumento);
+  if (
+    standardAffiliation &&
+    (employeeDocumentType === 'CC' || employeeDocumentType === 'TI') &&
+    affiliation?.colombianoEnElExterior === false
+  ) {
+    blank(97);
+    noForeignResidenceDateField97RuleVersion =
+      PILA_AT2_V30_NO_FOREIGN_RESIDENCE_FIELD_97_RULE_VERSION;
+  } else {
+    unresolved(
+      97,
+      affiliation?.colombianoEnElExterior === true
+        ? 'El campo 97 es obligatorio cuando el campo 8 indica colombiano en el exterior; falta la fecha de radicación congelada.'
+        : 'Se requiere confirmar explícitamente que el trabajador CC/TI no reporta residencia en el exterior para dejar el campo 97 vacío.',
     );
   }
   if (standardPrivateEmployer) {
@@ -1080,6 +1153,12 @@ export function mapPilaAt2V30DetailCandidate(
   ) {
     pensionCandidateBlockReason =
       'El candidato pensional requiere tipo documental CC, TI, CE o PA con declaración aplicable.';
+  } else if (affiliation?.indicadorTarifaEspecialPensiones !== '') {
+    pensionCandidateBlockReason = ['1', '2', '3', '4'].includes(
+      sourceText(affiliation?.indicadorTarifaEspecialPensiones) ?? '',
+    )
+      ? 'La tarifa especial de pensiones registrada está fuera del MVP; no se aplican tarifas estándar de 16 %.'
+      : 'Falta confirmar con soporte vigente la tarifa normal de pensiones; no se presume el 16 %.';
   } else if (!pensionStandardRate) {
     const paymentDate = calendarDate(payroll?.fechaPrevistaPagoPila);
     if (!paymentDate) {
@@ -1360,7 +1439,7 @@ export function mapPilaAt2V30DetailCandidate(
       for (const fieldNumber of voluntaryPensionFields) {
         unresolved(fieldNumber, reason);
       }
-    } else if (snapshot.payloadVersion !== 8) {
+    } else if (snapshot.payloadVersion !== 8 && snapshot.payloadVersion !== 9) {
       const reason =
         'El snapshot PILA histórico anterior a v8 no conserva una declaración AVP compatible y no se completa con datos actuales.';
       for (const fieldNumber of voluntaryPensionFields) {
@@ -1730,6 +1809,11 @@ export function mapPilaAt2V30DetailCandidate(
           ? PILA_AT2_V30_PLANILLA_E_FIELD_22_RULE_VERSION
           : null,
       pensionTotalField50: PILA_AT2_V30_PENSION_TOTAL_FIELD_50_RULE_VERSION,
+      normalPensionTariffField79:
+        standardAffiliation &&
+        affiliation?.indicadorTarifaEspecialPensiones === ''
+          ? PILA_AT2_V30_NORMAL_PENSION_TARIFF_FIELD_79_RULE_VERSION
+          : null,
       voluntaryPensionDeclaration: voluntaryPensionDeclarationRuleVersion,
       arlInitialRate: arlRateByClass
         ? PILA_ARL_INITIAL_RATE_RULE_VERSION
@@ -1763,6 +1847,8 @@ export function mapPilaAt2V30DetailCandidate(
       privateEmployerEsapMen: standardPrivateEmployer
         ? PILA_AT2_V30_PRIVATE_EMPLOYER_NO_ESAP_MEN_RULE_VERSION
         : null,
+      optionalHoursField96: optionalHoursField96RuleVersion,
+      noForeignResidenceDateField97: noForeignResidenceDateField97RuleVersion,
       detailRecordSequence: null,
     },
     values,

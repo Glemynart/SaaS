@@ -58,6 +58,12 @@ function toInitialPilaAffiliation(
       values.estadoAfiliacionPensional === 'S' || values.estadoAfiliacionPensional === 'N'
         ? values.estadoAfiliacionPensional
         : null,
+    indicadorTarifaEspecialPensiones:
+      values.indicadorTarifaEspecialPensiones === 'NORMAL'
+        ? ''
+        : ['1', '2', '3', '4'].includes(values.indicadorTarifaEspecialPensiones ?? '')
+          ? (values.indicadorTarifaEspecialPensiones as '1' | '2' | '3' | '4')
+          : null,
     arlCodigo: values.arlCodigo?.trim() ?? '',
     arlNombre: values.arlNombre?.trim() ?? '',
     arlClaseRiesgo: values.arlClaseRiesgo ?? '',

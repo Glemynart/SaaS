@@ -100,6 +100,7 @@ export type PilaSourceContextInput = {
     fondoPensionCodigo: string;
     fondoPensionNombre: string;
     estadoAfiliacionPensional?: string | null;
+    indicadorTarifaEspecialPensiones?: string | null;
     arlCodigo: string;
     arlNombre: string;
     arlClaseRiesgo: string;
@@ -292,6 +293,8 @@ export function buildPilaSourceContext(input: PilaSourceContextInput) {
       fondoPensionCodigo: affiliation.fondoPensionCodigo,
       fondoPensionNombre: affiliation.fondoPensionNombre,
       estadoAfiliacionPensional: affiliation.estadoAfiliacionPensional ?? null,
+      indicadorTarifaEspecialPensiones:
+        affiliation.indicadorTarifaEspecialPensiones ?? null,
       arlCodigo: affiliation.arlCodigo,
       arlNombre: affiliation.arlNombre,
       arlClaseRiesgo: affiliation.arlClaseRiesgo,
@@ -410,7 +413,7 @@ export function buildPilaSourceSnapshot(input: {
 
   return {
     ...input.context,
-    schemaVersion: 8,
+    schemaVersion: 9,
     pilaRiskAssignments: input.context.pilaRiskAssignments ?? [],
     payroll: {
       payrollRunId: input.payroll.runId,

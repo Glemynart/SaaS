@@ -61,6 +61,7 @@ export const employeeSchema = z
         fondoPensionCodigo: z.string().optional(),
         fondoPensionNombre: z.string().optional(),
         estadoAfiliacionPensional: z.string().optional(),
+        indicadorTarifaEspecialPensiones: z.string().optional(),
         arlCodigo: z.string().optional(),
         arlNombre: z.string().optional(),
         arlClaseRiesgo: z.string().optional(),
@@ -143,6 +144,16 @@ export const employeeSchema = z
           code: z.ZodIssueCode.custom,
           path: ['afiliacionPilaInicial', 'estadoAfiliacionPensional'],
           message: 'Usa S o N según el soporte de afiliación a pensiones.',
+        });
+      }
+      if (
+        affiliation.indicadorTarifaEspecialPensiones &&
+        !['NORMAL', '1', '2', '3', '4'].includes(affiliation.indicadorTarifaEspecialPensiones)
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['afiliacionPilaInicial', 'indicadorTarifaEspecialPensiones'],
+          message: 'Selecciona una tarifa pensional según el soporte vigente.',
         });
       }
       requiredText('arlCodigo', 'El código ARL', 6);

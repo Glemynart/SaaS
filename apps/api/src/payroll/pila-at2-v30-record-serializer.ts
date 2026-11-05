@@ -23,6 +23,8 @@ export interface PilaAt2V30FieldLayout {
   readonly numericFormat?: 'DECIMAL_FRACTION';
   /** AT2 says the operator's system assigns this field after upload. */
   readonly assignedByOperator?: true;
+  /** Product explicitly omits an optional field using blank positions. */
+  readonly blankWhenOptional?: true;
 }
 
 export interface PilaAt2V30RecordLayout {
@@ -205,6 +207,8 @@ export const PILA_AT2_V30_RECORD_LAYOUTS = {
     ],
     693,
     [46, 54, 61, 64, 66, 68, 70, 72],
+    [],
+    [53, 56, 96],
   ),
 } as const satisfies Record<string, PilaAt2V30RecordLayout>;
 
@@ -351,6 +355,7 @@ function formatField(
       input.emptyAs === 'spaces' &&
       (field.kind === 'A' ||
         field.assignedByOperator === true ||
+        field.blankWhenOptional === true ||
         isPlanillaEAssociatedNumber)
     ) {
       return ' '.repeat(field.length);
@@ -468,6 +473,7 @@ function defineLayout(
   recordLength: number,
   decimalFieldNumbers: readonly number[] = [],
   operatorAssignedFieldNumbers: readonly number[] = [],
+  blankWhenOptionalFieldNumbers: readonly number[] = [],
 ): PilaAt2V30RecordLayout {
   const fields = compactFields.map(([length, kind], index) => {
     const fieldNumber = index + 1;
@@ -480,6 +486,9 @@ function defineLayout(
         : {}),
       ...(operatorAssignedFieldNumbers.includes(fieldNumber)
         ? { assignedByOperator: true as const }
+        : {}),
+      ...(blankWhenOptionalFieldNumbers.includes(fieldNumber)
+        ? { blankWhenOptional: true as const }
         : {}),
     };
   });
