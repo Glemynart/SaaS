@@ -2,7 +2,8 @@
 
 El comando carga datos ficticios para recorrer Facturación y Nómina en una
 instalación local. No es una migración ni una rutina de inicialización de
-producción.
+producción. Para preparar el recorrido de interfaz, consulta el
+[guion de demo financiera](./GOAL-02-financial-demo-runbook.md).
 
 ## Requisitos
 
