@@ -43,6 +43,19 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 | P1        | FUNCIONAL PARA DEMO; REVISIÓN LABORAL OPERATIVA PENDIENTE              | Liquidar prima semestral de empleados activos por lote y generar un comprobante PDF por empleado. | Preview muestra fuentes, bases, días y fórmula; aprobación congela snapshots y correcciones; PDFs inmutables quedan vinculados al Expediente e idempotentes ante reintentos.                                                                                                                                                       | PR #159 y las pruebas Browser E2E actuales cubren el lote de 100 empleados, corrección aprobada, 100 PDFs publicados, hashes y descarga pese a perder conexión del navegador. El MVP sigue limitado a enero–junio; el segundo semestre está deshabilitado hasta resolver el corte de diciembre. La revisión laboral independiente sigue pendiente para uso operativo; pagos, Tesorería y Ledger están fuera.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | P1        | IMPLEMENTADA PARA ESCENARIOS SOPORTADOS; PRUEBA POR OPERADOR PENDIENTE | Estructurar afiliaciones/novedades y exportar aportes de nómina a PILA.                           | Generar y descargar archivos tipo 1/2 desde snapshots aprobados; conservar tenant, período, actor, snapshots fuente, reglas/versiones y hashes; exigir permisos, auditoría, idempotencia, verificación de integridad y bloqueo ante brechas. Distinguir generación, validación local, aceptación del operador, liquidación y pago. | ADR-013 aprobada con cambios. PR #278 implementa composición local y PR #279 persiste el historial append-only con archivos privados, hashes, versionamiento y descargas protegidas. Esta PR verifica el recorrido exitoso por interfaz, persistencia, idempotencia y bytes descargados. Solo casos dependientes 01/00 completos; correcciones aprobadas y brechas bloquean. Ningún operador ha sido probado; sin transmisión, planilla N, cotizante 75 ni pago.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
+### Exportación CSV de reportes contables — incremento actual
+
+- Los reportes se consultan desde el Ledger con filtros tenant-scoped y son de
+  solo lectura. Esta mejora descarga el resultado presentado en la interfaz:
+  para informes paginados, únicamente la página actualmente cargada; para
+  balances y estados financieros, el resultado completo de la consulta.
+- El archivo usa punto y coma como separador y coma decimal para Excel en
+  configuración regional colombiana. Los campos de texto se entrecomillan,
+  se escapan comillas y se antepone un apóstrofo a valores que podrían
+  interpretarse como fórmulas.
+- No consulta movimientos adicionales ni modifica el Ledger. La descarga
+  local queda pendiente de validación en navegador antes de marcarla terminada.
+
 ### Antecedente FSP y checks del PR #250 — 2026-11-03
 
 - La auditoría detectó que AT2 v30 diferencia el destino de los campos 51/52
