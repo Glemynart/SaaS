@@ -23,7 +23,7 @@ describe('AuthorizationSurfaceClassifier', () => {
   it('classifies the complete current HTTP surface without ambiguity', () => {
     const operations = classifier.classifyModuleGraph(AppModule);
 
-    expect(operations).toHaveLength(217);
+    expect(operations).toHaveLength(221);
     expect(new Set(operations.map(({ operationId }) => operationId)).size).toBe(
       operations.length,
     );
@@ -110,14 +110,58 @@ describe('AuthorizationSurfaceClassifier', () => {
       });
     }
 
+    for (const expected of [
+      {
+        operationId:
+          'ElectronicInvoiceConfigurationController.getConfiguration',
+        requestMethod: 'GET',
+        controllerPath: 'electronic-invoicing',
+        operationPath: 'configuration',
+      },
+      {
+        operationId:
+          'ElectronicInvoiceConfigurationController.upsertIssuerProfile',
+        requestMethod: 'PUT',
+        controllerPath: 'electronic-invoicing',
+        operationPath: 'profiles',
+      },
+      {
+        operationId:
+          'ElectronicInvoiceConfigurationController.createNumberingRange',
+        requestMethod: 'POST',
+        controllerPath: 'electronic-invoicing',
+        operationPath: 'ranges',
+      },
+      {
+        operationId:
+          'ElectronicInvoiceConfigurationController.deactivateNumberingRange',
+        requestMethod: 'PATCH',
+        controllerPath: 'electronic-invoicing',
+        operationPath: 'ranges/:id/deactivate',
+      },
+    ]) {
+      expect(
+        operations.find(
+          ({ operationId }) => operationId === expected.operationId,
+        ),
+      ).toMatchObject({
+        ...expected,
+        policy: AuthorizationPolicyKind.RBAC,
+        roles: [UserRole.ADMIN],
+        requiresAuthentication: true,
+        requiresActiveTenant: true,
+        status: AuthorizationClassificationStatus.CLASSIFIED,
+      });
+    }
+
     expect(countBy(operations, 'policy')).toEqual({
       [AuthorizationPolicyKind.UNAUTHENTICATED]: 12,
       [AuthorizationPolicyKind.AUTHENTICATED]: 67,
-      [AuthorizationPolicyKind.RBAC]: 138,
+      [AuthorizationPolicyKind.RBAC]: 142,
     });
     expect(countBy(operations, 'source')).toEqual({
       [AuthorizationClassificationSource.EXPLICIT]: 79,
-      [AuthorizationClassificationSource.EXISTING_RBAC]: 138,
+      [AuthorizationClassificationSource.EXISTING_RBAC]: 142,
     });
     expect(
       operations.filter(

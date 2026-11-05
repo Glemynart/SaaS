@@ -10,6 +10,7 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 - PR #278 compone localmente archivos AT2 v30 tipo 1 y tipo 2 desde snapshots aprobados; PR #279 añade generación autenticada tenant-scoped, historial append-only, almacenamiento privado, SHA-256, versionamiento, auditoría y descarga protegida. La nueva prueba de navegador de esta continuación cubre generación, persistencia, reintento idempotente y descarga de ambos archivos desde la interfaz.
 - PR #283 se fusionó en `main` como `541e7306ffa573ff99bf26c953382d3bf60f1d7d`; CI, Browser E2E, Vercel Production y publicación de imagen API terminaron en verde. En el momento de la verificación, Secret Scanning y Dependabot no mostraban alertas abiertas ni alertas altas, respectivamente.
 - PR #284 se fusionó en `main` como `65a85dc5d02e0bb7e05b91412ce3ed79cded114e`; CI, Browser E2E, Vercel Production y publicación de imagen API terminaron en verde. Añade el puerto interno de facturación electrónica y su fake de contrato; no transmite ni persiste documentos fiscales.
+- PR #285 se fusionó en `main` como `adec87e993e27d56da117a5fb250082ff1e163bf`; CI, Browser E2E y publicación de imagen API posteriores quedaron en verde. Completa el dominio fiscal persistente y sus líneas snapshot con RLS; no agrega endpoints, emisión ni transmisión.
 - El resultado LOCAL_VALIDATED acredita layout, longitud y codificación comprobados localmente. No acredita revisión normativa completa, aceptación del operador, liquidación ni pago.
 - Los escenarios dependientes estándar 01/00 se habilitan solo si el preflight no detecta brechas. Novedades que requieran segmentación, casos especiales y correcciones aprobadas continúan bloqueando la generación.
 
@@ -273,7 +274,7 @@ se accedió a demo, staging o producción.
   credencial de emisor ni se realiza una llamada externa. PR13 de PR10 requiere
   validar sandbox antes de un adaptador MATIAS real.
 
-### Dominio fiscal base — trabajo en curso sobre `main` de PR #284
+### Dominio fiscal base — PR #285 fusionado en `main`
 
 - El siguiente incremento implementa el primer modelo fiscal persistente,
   separado de `Billing.Invoice`, con líneas snapshot, moneda COP, índices por
@@ -293,12 +294,36 @@ se accedió a demo, staging o producción.
   acepta/rechaza si el caso de uso declara que la evidencia ya se persistió;
   los resultados ambiguos siguen en conciliación. El caso de uso todavía no
   está conectado a endpoints, UI, transmisiones ni proveedor externo.
-- Las 89 migraciones, incluida esta, se aplicaron en una base PostgreSQL
-  temporal vacía; las 13 pruebas focalizadas, el typecheck, ESLint y build API
-  pasaron. La base temporal se eliminó al terminar.
-- Esta preparación no completa PR11 ni H1; la ejecución de cliente depende de
-  los siguientes incrementos de dominio, numeración, persistencia de intentos,
-  evidencia y operación.
+- Las 89 migraciones se aplicaron en una base PostgreSQL temporal vacía; las
+  13 pruebas focalizadas, el typecheck, ESLint y build API pasaron. La base
+  temporal se eliminó al terminar.
+- PR11 ya completó su agregado persistente. H1 sigue abierto: faltan numeración,
+  persistencia de intentos, evidencia, credenciales tenant-scoped y operación.
+
+### Emisor y numeración — PR12 en curso
+
+- El perfil deriva razón social, NIT, dirección, municipio y contacto de
+  `Tenant`, evitando duplicar la identidad fiscal. Solo conserva por separado
+  las responsabilidades tributarias declaradas por el ADMIN y el ambiente.
+- El rango registra la autorización, fecha, vigencia, prefijo de hasta cuatro
+  caracteres alfanuméricos y límites numéricos. La validación local no declara
+  habilitación DIAN ni aceptación de operador.
+- El consecutivo se avanza de forma atómica, tenant-scoped y dentro de una
+  transacción ya abierta; la futura emisión debe guardar en esa misma
+  transacción la factura snapshot y la transmisión. No hay endpoint para
+  consumir números de forma aislada.
+- Los rangos conservan historial: sus términos no se editan ni se borran; solo
+  pueden inactivarse con motivo auditado. La configuración está disponible
+  únicamente para ADMIN y no transmite documentos.
+- La migración es aditiva y no reinterpreta facturas internas. Una vez que un
+  tenant registre autorizaciones o consuma consecutivos, no se deben borrar las
+  tablas ni retroceder numeradores en una reversión; los ajustes posteriores
+  deben ser migraciones correctivas hacia adelante.
+- La rama candidata validó las 90 migraciones en PostgreSQL temporal; pasan las
+  143 suites API (1.833 pruebas), typecheck y build de API/web, ESLint de los
+  archivos del cambio, `prisma validate` y el E2E de navegador de configuración
+  (1/1). Las bases temporales se eliminaron después de cada ejecución. Esta
+  validación local no equivale a los checks de GitHub ni a aceptación DIAN.
 
 ## H2/H3 — Cumplimiento electrónico
 

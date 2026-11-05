@@ -97,4 +97,19 @@ describe('TenantPrismaService', () => {
     expect(executeRaw).toHaveBeenCalledTimes(2);
     expect(requireTenantContext).toHaveBeenCalledTimes(2);
   });
+
+  it('requires and reuses an already-open transaction for atomic sub-operations', async () => {
+    const nestedWork = jest.fn().mockResolvedValue('atomic result');
+
+    await expect(service.executeWithinTransaction(nestedWork)).rejects.toThrow(
+      'requiere una transacción tenant activa',
+    );
+    expect(nestedWork).not.toHaveBeenCalled();
+
+    await expect(
+      service.execute(() => service.executeWithinTransaction(nestedWork)),
+    ).resolves.toBe('atomic result');
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(nestedWork).toHaveBeenCalledWith(client, tenantContext);
+  });
 });

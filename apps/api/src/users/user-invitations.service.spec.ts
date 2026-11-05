@@ -531,6 +531,7 @@ describe('UserInvitationsService', () => {
     const expired = invitationForSecret(secret);
     expired.expiresAt = new Date(now.getTime() - 1000);
     const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
       userInvitation: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       user: { create: jest.fn() },
     };
@@ -558,7 +559,7 @@ describe('UserInvitationsService', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    expired.expiresAt = new Date(now.getTime() + 60_000);
+    expired.expiresAt = new Date(Date.now() + 60_000);
     await expect(
       service.accept({
         token: Buffer.from(expired.id + ':' + secret).toString('base64url'),
@@ -581,7 +582,7 @@ function invitationForSecret(secret: string) {
     apellido: 'Operadora',
     rol: UserRole.OPERADOR,
     tokenHash: createHash('sha256').update(secret).digest('hex'),
-    expiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     lastSentAt: now,
     acceptedAt: null,
     revokedAt: null,

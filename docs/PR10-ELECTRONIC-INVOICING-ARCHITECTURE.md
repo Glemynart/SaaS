@@ -191,6 +191,23 @@ La numeración pertenece al tenant y a un `RangoNumeracionElectronica`: tipo doc
 - El número queda consumido e inmutable desde `EN_COLA`, aun si la transmisión termina rechazada o debe conciliarse. Las excepciones, saltos o anulaciones se explican por auditoría; jamás se “rellena” reutilizando un número.
 - La configuración inicial de rangos y su cambio requieren rol administrativo, validación de no solapamiento y motivo auditado. No hay edición destructiva de un rango con números ya asignados.
 
+### Campos y límites verificados con DIAN — 2026-11-05
+
+- El artículo 43 de la Resolución DIAN 165 de 2023, compilada como artículo
+  1.5.1.6.2.1 de la Resolución 227 de 2025, define consecutivo, prefijo de
+  hasta cuatro caracteres alfanuméricos y autorización con número, fecha y
+  vigencia; prohíbe anteponer ceros que no hagan parte del rango autorizado.
+- El artículo 44 describe la autorización de numeración y el artículo 48 fija
+  una vigencia máxima de dos años desde la asignación DIAN. El [Normograma
+  DIAN](https://normograma.dian.gov.co/dian/compilacion/docs/resolucion_dian_0165_2023.htm)
+  y la guía DIAN del [Formato 1876 y autorización de
+  numeración](https://micrositios.dian.gov.co/sistema-de-facturacion-electronica/numeracion-autorizacion/)
+  son las referencias operativas consultadas para PR12.
+- PR12 conserva los datos declarados y aplica controles locales de forma y
+  vigencia. Eso no acredita asociación de prefijo, habilitación DIAN, aceptación
+  del operador ni conformidad de una factura; esas validaciones siguen en PR13
+  y las etapas posteriores.
+
 ## 9. Idempotencia y concurrencia
 
 La arquitectura asume entrega _at-least-once_ de trabajos y fallos de red; no promete una llamada HTTP exactamente una vez.
@@ -281,4 +298,4 @@ Las decisiones FE-01 a FE-09 quedan consolidadas en un único ADR aceptado: [ADR
 
 ---
 
-_Fin de PR10. Las decisiones quedan aceptadas y consolidadas en ADR-005; puede comenzar PR11._
+_Fin de PR10. Las decisiones quedan aceptadas y consolidadas en ADR-005. PR11 se completó en PR #285; PR12 continúa con emisor y numeración sin transmisión._

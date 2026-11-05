@@ -88,6 +88,11 @@ export const NAV_TREE: NavItem[] = [
       { label: 'Clientes', href: '/facturacion/clientes' },
       { label: 'Productos', href: '/facturacion/productos' },
       { label: 'Facturas', href: '/facturacion/facturas' },
+      {
+        label: 'Facturación electrónica',
+        href: '/facturacion/electronica',
+        requiredRole: ['ADMIN'],
+      },
     ],
   },
   {
