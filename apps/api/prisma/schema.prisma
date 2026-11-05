@@ -120,6 +120,18 @@ enum FacturaTipo {
   NOTA_DEBITO
 }
 
+// Estado del agregado fiscal electrónico; no se mezcla con Billing.Invoice.
+enum EstadoFacturaElectronica {
+  BORRADOR
+  LISTA_PARA_EMITIR
+  EN_COLA
+  EN_TRANSMISION
+  PENDIENTE_CONCILIACION
+  ACEPTADA
+  RECHAZADA
+  ERROR_TECNICO
+}
+
 enum ImpuestoTipo {
   IVA_0
   IVA_5
@@ -319,6 +331,7 @@ model Tenant {
   customerReceiptReversals CustomerReceiptReversal[]
   productServices    ProductService[]
   invoices           Invoice[]
+  facturasElectronicas FacturaElectronica[]
   contratos          Contrato[]
   perfilesContractuales PerfilContractual[]
   configuracionesDocumentalesPerfil ConfiguracionDocumentalPerfil[]
@@ -1763,6 +1776,64 @@ model InvoiceItem {
 
   @@index([invoiceId])
   @@map("invoice_items")
+}
+
+// =============================================================================
+// ELECTRONIC INVOICE — Agregado fiscal separado de Billing.Invoice
+// =============================================================================
+
+model FacturaElectronica {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  estado             EstadoFacturaElectronica @default(BORRADOR)
+  moneda             String                   @default("COP") @db.Char(3)
+  emisorSnapshot     Json?
+  adquirenteSnapshot Json?
+  fechaEmision       DateTime?                @db.Date
+  prefijo            String?                  @db.VarChar(10)
+  numero             Int?
+  cufe               String?                  @db.VarChar(120)
+  subtotal           Decimal                  @default(0) @db.Decimal(14, 2)
+  impuestos          Decimal                  @default(0) @db.Decimal(14, 2)
+  total              Decimal                  @default(0) @db.Decimal(14, 2)
+  versionAgregado    Int                      @default(1)
+
+  lineas LineaFacturaElectronica[]
+
+  // Arithmetic, numbering, tenant and post-numbering immutability checks live
+  // in the SQL migration because Prisma does not model CHECK/trigger clauses.
+  @@unique([id, tenantId], map: "facturas_electronicas_id_tenant_key")
+  @@unique([tenantId, prefijo, numero], map: "facturas_electronicas_tenant_number_key")
+  @@index([tenantId, estado, createdAt], map: "facturas_electronicas_tenant_status_created_idx")
+  @@map("facturas_electronicas")
+}
+
+model LineaFacturaElectronica {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId             String
+  facturaElectronicaId String
+  facturaElectronica   FacturaElectronica @relation(fields: [facturaElectronicaId, tenantId], references: [id, tenantId], onDelete: Cascade, map: "lineas_fe_invoice_tenant_fkey")
+
+  productoSnapshot  Json?
+  descripcion       String   @db.VarChar(500)
+  unidad            String   @db.VarChar(10)
+  cantidad          Decimal  @db.Decimal(12, 3)
+  valorUnitario     Decimal  @db.Decimal(14, 2)
+  descuento         Decimal  @default(0) @db.Decimal(14, 2)
+  porcentajeImpuesto Decimal? @db.Decimal(5, 2)
+  subtotal          Decimal  @db.Decimal(14, 2)
+  impuestos         Decimal  @db.Decimal(14, 2)
+  total             Decimal  @db.Decimal(14, 2)
+
+  @@index([tenantId, facturaElectronicaId], map: "lineas_fe_tenant_invoice_idx")
+  @@map("lineas_facturas_electronicas")
 }
 
 // =============================================================================
