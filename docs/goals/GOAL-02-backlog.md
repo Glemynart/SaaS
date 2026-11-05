@@ -1710,3 +1710,27 @@ false`.
 - **Siguiente incremento:** validar con evidencia de carga real el archivo en
   cada operador que se pretenda anunciar como compatible. Mantener separadas la
   generación local, aceptación del operador, liquidación y pago.
+
+### Alertas altas de dependencias antes de seguir ampliando GOAL-02 — 2026-11-05
+
+- La auditoría inicial de este checkout encontró dos avisos altos de producción:
+  `deepmerge-ts@7.1.5` a través de Prisma y Zod 3 en la web y Puppeteer/Chromium
+  BiDi. La rama actualiza Zod a 4.6.7 y el resolver compatible a 5.9.2,
+  Puppeteer a 25.16.0 y fija `deepmerge-ts` en 8.0.2. Se ajusta el mensaje de
+  validación del formulario demo al API de Zod 4.
+- El resolver añade dependencias opcionales de Ajv. Para no introducir alertas
+  altas por ese camino ni conservar versiones vulnerables del tooling, el
+  lockfile fija versiones parcheadas de `fast-uri`, `browserslist`,
+  `baseline-browser-mapping`, `brace-expansion`, `js-yaml` y `source-map-js`,
+  conservando las ramas mayores de sus consumidores.
+- Verificación local de esta rama: `pnpm audit --prod` no encuentra
+  vulnerabilidades; la auditoría completa no informa altas ni críticas y deja
+  dos moderadas (`glob`, `minimatch`) y una baja (`deepmerge`), todas en
+  dependencias de desarrollo. No se fuerzan sus actualizaciones mayores en este
+  cambio.
+- Pasan typecheck y build de API y web, validación del schema Prisma, 14 pruebas
+  de `PdfRenderService` y 43 pruebas web. El descubrimiento web en Windows
+  requirió pasar a Jest una ruta raíz con separadores normalizados porque este
+  worktree vive dentro del directorio oculto `.codex`.
+- Antes de declarar la seguridad de publicación completa, revisar también los
+  checks remotos y volver a consultar Dependabot después de integrar el lockfile.
