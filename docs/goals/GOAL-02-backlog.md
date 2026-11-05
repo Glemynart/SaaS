@@ -1899,6 +1899,25 @@ false`.
 - Antes de declarar la seguridad de publicación completa, revisar también los
   checks remotos y volver a consultar Dependabot después de integrar el lockfile.
 
+### Dependencias de desarrollo del repositorio público — 2026-11-05
+
+- La revisión posterior a hacer público el repositorio encontró dos alertas
+  moderadas en dependencias transitivas de herramientas de desarrollo:
+  `glob` 10/13 y `minimatch` 9/10. Este cambio fuerza sus versiones mínimas
+  corregidas (`glob` 14.0.2 y `minimatch` 11.0.1); ambas publican soporte para
+  Node 18, que sigue siendo el mínimo declarado por el workspace. La auditoría
+  local ya no reporta esas dos alertas.
+- `deepmerge` conserva una alerta baja en `4.3.1`, utilizada únicamente por
+  Jest y Nest CLI. El paquete upstream no ofrece una versión corregida
+  publicada; no se reemplaza por un fork sin evidencia de compatibilidad. La
+  auditoría de dependencias de producción no encuentra vulnerabilidades.
+- Verificación local: pasan `pnpm typecheck`, `pnpm build`, 1.821 pruebas de
+  API que no requieren PostgreSQL y `pnpm audit --prod`. La suite de integración
+  completa requiere `DATABASE_URL`, que este worktree no tiene; se verificará
+  en CI. Falta confirmar los checks remotos y que Dependabot cierre las alertas
+  moderadas tras actualizarse el lockfile. La alerta baja queda registrada como
+  riesgo conocido pendiente de parche upstream.
+
 ### Protocolo de aceptación de archivos PILA en SOI — 2026-11-05
 
 - **Preparación realizada:** las páginas oficiales de SOI describen la carga
