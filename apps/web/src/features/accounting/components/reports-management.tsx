@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, FileBarChart2 } from 'lucide-react';
+import { AlertTriangle, Download, FileBarChart2 } from 'lucide-react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
@@ -17,15 +17,9 @@ import {
   useTiposComprobante,
 } from '../hooks/use-accounting-configuration';
 import { accountingApi, type ReportQuery } from '../services/accounting-api';
+import { buildAccountingReportCsv, type AccountingReportId } from '../lib/report-csv';
 
-type ReportId =
-  | 'libro-diario'
-  | 'libro-mayor'
-  | 'balance-prueba'
-  | 'auxiliar-tercero'
-  | 'auxiliar-centro-costo'
-  | 'balance-general'
-  | 'estado-resultados';
+type ReportId = AccountingReportId;
 
 interface ReportOption {
   id: ReportId;
@@ -225,6 +219,7 @@ export function ReportsManagement() {
   const [incluirBorradores, setIncluirBorradores] = useState(false);
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<unknown>();
+  const [resultScope, setResultScope] = useState('');
   const [error, setError] = useState<string>();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -266,12 +261,16 @@ export function ReportsManagement() {
     setIsLoading(true);
     setError(undefined);
     try {
-      setResult(
-        await accountingApi.reportes.get<unknown>(selectedReport.path, buildFilters(nextPage)),
+      const report = await accountingApi.reportes.get<unknown>(
+        selectedReport.path,
+        buildFilters(nextPage),
       );
+      setResult(report);
+      setResultScope(JSON.stringify({ reportId, filters: buildFilters(nextPage) }));
       setPage(nextPage);
     } catch (requestError) {
       setResult(undefined);
+      setResultScope('');
       setError(
         requestError instanceof Error ? requestError.message : 'No se pudo consultar el reporte.',
       );
@@ -284,6 +283,7 @@ export function ReportsManagement() {
     setReportId(next);
     setPage(1);
     setResult(undefined);
+    setResultScope('');
     setError(undefined);
   };
 
@@ -323,6 +323,33 @@ export function ReportsManagement() {
       ? result.items
       : [];
   const total = isPaginatedReport(result) ? result.total : 0;
+  const currentScope = JSON.stringify({ reportId, filters: buildFilters(page) });
+  const canExport =
+    result !== undefined &&
+    result !== null &&
+    resultScope === currentScope &&
+    !isLoading &&
+    (isFinancial || rows.length > 0);
+
+  const downloadReportCsv = () => {
+    if (!canExport) return;
+
+    const csv = buildAccountingReportCsv(reportId, result);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    const dateRange =
+      reportId === 'balance-general'
+        ? 'corte_' + (fechaCorte || 'sin_filtro')
+        : 'desde_' + (fechaInicio || 'sin_filtro') + '_hasta_' + (fechaFin || 'sin_filtro');
+
+    anchor.href = objectUrl;
+    anchor.download = reportId + '_' + dateRange + (isPaginated ? '_pagina_' + page : '') + '.csv';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  };
 
   return (
     <div className="space-y-6">
@@ -477,7 +504,23 @@ export function ReportsManagement() {
           </Button>
         </div>
       </div>
-      <p className="text-sm text-muted-foreground">{selectedReport.description}</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">{selectedReport.description}</p>
+        <Button variant="outline" onClick={downloadReportCsv} disabled={!canExport}>
+          <Download aria-hidden="true" className="mr-2 h-4 w-4" />
+          {isPaginated ? 'Descargar página CSV' : 'Descargar reporte CSV'}
+        </Button>
+      </div>
+      {isPaginated && canExport && (
+        <p className="text-xs text-muted-foreground">
+          La descarga incluye únicamente los {rows.length} registros de la página {page}.
+        </p>
+      )}
+      {result !== undefined && resultScope !== currentScope && (
+        <p className="text-xs text-muted-foreground">
+          Cambiaste los filtros; consulta el reporte otra vez antes de descargarlo.
+        </p>
+      )}
       {error && <Alert variant="destructive">{error}</Alert>}
       {isFinancial && result && !isLoading ? (
         <FinancialReportView report={result as FinancialReport} type={reportId} />

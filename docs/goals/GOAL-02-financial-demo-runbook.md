@@ -85,6 +85,12 @@ Registra un recaudo ficticio y muestra cómo las aplicaciones reducen el saldo d
 las facturas. Las referencias de demo no representan transferencias reales; la
 cartera refleja aplicaciones internas, no conciliación bancaria.
 
+En Contabilidad → Reportes (/contabilidad/reportes) consulta el Balance de
+Prueba, el Balance General o el Estado de Resultados y descarga el resultado en
+CSV para abrirlo en Excel. Los libros paginados descargan únicamente la página
+visible; cambia de página y descarga cada una cuando necesites exportar más
+registros.
+
 ## Qué comunicar con precisión
 
 - **Sí se puede mostrar:** nómina interna, causación al Ledger, prima masiva de

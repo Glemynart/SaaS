@@ -1,4 +1,5 @@
 import { randomInt, randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { expect, test, type Dialog, type Page } from '@playwright/test';
 import { seedPayrollAccrualFixture } from './helpers/payroll-accounting-fixture';
 import { seedBillingLedgerFixture } from './helpers/billing-ledger-fixture';
@@ -286,6 +287,35 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
   await expect(invoiceVoucherDetails.getByText(/Total crédito:/).locator('..')).toContainText(
     '142.800',
   );
+
+  await page.goto('/contabilidad/reportes');
+  await page.getByLabel('Reporte').selectOption('balance-prueba');
+  const trialBalanceResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/accounting/reportes/balance-prueba' &&
+      response.request().method() === 'GET',
+  );
+  await page.getByRole('button', { name: 'Consultar', exact: true }).click();
+  const trialBalanceResponse = await trialBalanceResponsePromise;
+  expect(trialBalanceResponse.status()).toBe(200);
+  await expect(page.getByText('Clientes nacionales E2E')).toBeVisible();
+
+  const reportDownloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Descargar reporte CSV' }).click();
+  const reportDownload = await reportDownloadPromise;
+  expect(reportDownload.suggestedFilename()).toMatch(/^balance-prueba_.*\.csv$/);
+  const reportDownloadPath = await reportDownload.path();
+  expect(reportDownloadPath).toBeTruthy();
+  if (reportDownloadPath) {
+    const reportCsv = await readFile(reportDownloadPath, 'utf8');
+    expect(reportCsv).toContain('"Código";"Cuenta";"Débito";"Crédito";"Saldo"');
+    expect(reportCsv).toContain('Clientes nacionales E2E');
+  }
+  await page.getByLabel('Fecha inicial').fill('2026-01-01');
+  await expect(page.getByRole('button', { name: 'Descargar reporte CSV' })).toBeDisabled();
+  await expect(
+    page.getByText('Cambiaste los filtros; consulta el reporte otra vez antes de descargarlo.'),
+  ).toBeVisible();
 
   const payroll = await seedPayrollAccrualFixture(tenant.id, user.id);
   try {
