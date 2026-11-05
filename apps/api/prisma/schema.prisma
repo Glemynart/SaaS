@@ -586,6 +586,9 @@ model AfiliacionSeguridadSocial {
   // Campo 5 de la afiliación a pensiones, capturado según soporte vigente.
   // Los registros históricos sin evidencia permanecen null.
   estadoAfiliacionPensional String? @db.VarChar(1)
+  // Campo 79 AT2 v30: vacío confirma tarifa normal; 1–4 indican tarifas
+  // especiales. null conserva el estado desconocido de registros históricos.
+  indicadorTarifaEspecialPensiones String? @db.VarChar(1)
   arlCodigo              String  @db.VarChar(6)
   arlNombre              String  @db.VarChar(120)
   arlClaseRiesgo         String  @db.VarChar(1)

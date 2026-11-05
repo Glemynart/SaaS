@@ -19,6 +19,7 @@ const emptyInitialPilaAffiliation = {
   fondoPensionCodigo: '',
   fondoPensionNombre: '',
   estadoAfiliacionPensional: '',
+  indicadorTarifaEspecialPensiones: '',
   arlCodigo: '',
   arlNombre: '',
   arlClaseRiesgo: '',
@@ -315,6 +316,19 @@ export function EmployeeForm({ initialData, onSubmit, isLoading }: EmployeeFormP
                     <option value="">Sin confirmar</option>
                     <option value="S">S — En transición</option>
                     <option value="N">N — Sin transición</option>
+                  </Select>
+                </FormField>
+                <FormField
+                  label="Tarifa de pensiones (campo 79)"
+                  hint="Confirma la tarifa en el soporte vigente. Las tarifas especiales están fuera de esta etapa y bloquean la exportación PILA."
+                >
+                  <Select {...register('afiliacionPilaInicial.indicadorTarifaEspecialPensiones')}>
+                    <option value="">Sin confirmar</option>
+                    <option value="NORMAL">Normal (blanco en el archivo)</option>
+                    <option value="1">1 · Actividades de alto riesgo</option>
+                    <option value="2">2 · Senadores</option>
+                    <option value="3">3 · CTI</option>
+                    <option value="4">4 · Aviadores</option>
                   </Select>
                 </FormField>
                 <FormField

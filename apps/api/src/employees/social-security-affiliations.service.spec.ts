@@ -27,6 +27,7 @@ const dto: CreateSocialSecurityAffiliationDto = {
   fondoPensionCodigo: 'AFP001',
   fondoPensionNombre: 'Fondo de prueba',
   estadoAfiliacionPensional: 'S',
+  indicadorTarifaEspecialPensiones: '',
   arlCodigo: 'ARL001',
   arlNombre: 'ARL de prueba',
   arlClaseRiesgo: '1',
@@ -147,7 +148,7 @@ describe('SocialSecurityAffiliationsService', () => {
       tenantId,
       empleadoId: employeeId,
       registradoPorId: userId,
-      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V4',
+      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V5',
       cajaCompensacionDepartamentoCodigo: '08',
       tipoCotizanteCodigo: '01',
       subtipoCotizanteCodigo: '00',
@@ -156,6 +157,7 @@ describe('SocialSecurityAffiliationsService', () => {
       epsCodigo: 'EPS001',
       epsNombre: 'EPS de prueba',
       estadoAfiliacionPensional: 'S',
+      indicadorTarifaEspecialPensiones: '',
       vigenteDesde: new Date('2026-04-01T00:00:00.000Z'),
       vigenteHasta: null,
     });
@@ -221,7 +223,7 @@ describe('SocialSecurityAffiliationsService', () => {
     expect(createCall?.[0].data).toMatchObject({
       extranjeroNoObligadoPension: true,
       colombianoEnElExterior: null,
-      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V4',
+      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V5',
     });
   });
 

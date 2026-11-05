@@ -194,6 +194,8 @@ describe('AT2 v30 fixed-width record formatting', () => {
     const values = completeRecordValues('contributorDetailType2', {
       32: { value: null, emptyAs: 'spaces' },
       34: { value: null, emptyAs: 'spaces' },
+      53: { value: null, emptyAs: 'spaces' },
+      56: { value: null, emptyAs: 'spaces' },
       74: { value: null, emptyAs: 'spaces' },
       75: { value: null, emptyAs: 'spaces' },
       76: { value: 'N' },
@@ -207,6 +209,8 @@ describe('AT2 v30 fixed-width record formatting', () => {
     for (const [fieldNumber, length] of [
       [32, 6],
       [34, 6],
+      [53, 9],
+      [56, 9],
       [74, 2],
       [75, 16],
     ]) {

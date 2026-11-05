@@ -97,7 +97,7 @@ const RECALCULATE_ALLOWED_STATUSES: PayrollPeriodStatus[] =
 
 const SNAPSHOT_PAYLOAD_VERSION = 1;
 const CALCULATION_TRACE_VERSION = 1;
-const PILA_PAYLOAD_VERSION = 8;
+const PILA_PAYLOAD_VERSION = 9;
 
 type PilaSourceData = {
   tenant: PilaSourceContextInput['tenant'];
@@ -4148,6 +4148,7 @@ export class PayrollService {
           fondoPensionCodigo: true,
           fondoPensionNombre: true,
           estadoAfiliacionPensional: true,
+          indicadorTarifaEspecialPensiones: true,
           arlCodigo: true,
           arlNombre: true,
           arlClaseRiesgo: true,

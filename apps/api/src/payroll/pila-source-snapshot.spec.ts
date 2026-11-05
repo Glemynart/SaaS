@@ -98,6 +98,7 @@ const contextInput: PilaSourceContextInput = {
       epsNombre: 'EPS de prueba',
       fondoPensionCodigo: 'AFP001',
       fondoPensionNombre: 'Fondo de prueba',
+      indicadorTarifaEspecialPensiones: '',
       arlCodigo: 'ARL001',
       arlNombre: 'ARL de prueba',
       arlClaseRiesgo: '2',
@@ -204,7 +205,7 @@ describe('PILA source snapshot builders', () => {
     });
 
     expect(context.schemaVersion).toBe(4);
-    expect(snapshot.schemaVersion).toBe(8);
+    expect(snapshot.schemaVersion).toBe(9);
     expect(snapshot.pilaWorkLocations).toEqual([
       {
         assignmentId: 'work-location-1',
@@ -267,7 +268,7 @@ describe('PILA source snapshot builders', () => {
       });
 
       expect(snapshot).toMatchObject({
-        schemaVersion: 8,
+        schemaVersion: 9,
         affiliations: [{ estadoAfiliacionPensional }],
         payroll: {
           fspSubaccounts: {
@@ -412,7 +413,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(snapshot.schemaVersion).toBe(8);
+    expect(snapshot.schemaVersion).toBe(9);
     expect(snapshot.payroll.payrollCalculationParameters).toEqual({
       sourceVersion: 'PAYROLL_LEGAL_PARAMETERS_V2',
       parametroLegalId: 'legal-2026',
@@ -532,7 +533,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(8);
+    expect(result.schemaVersion).toBe(9);
     expect(result.capturedAt).toBe('2026-11-02T15:00:00.000Z');
     expect(result.employee.fechaIngreso).toBe('2026-01-05');
     expect(result.employee.fechaNacimiento).toBeNull();

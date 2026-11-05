@@ -3,6 +3,16 @@ import { validate } from 'class-validator';
 import { CreateSocialSecurityAffiliationDto } from './create-social-security-affiliation.dto';
 
 describe('CreateSocialSecurityAffiliationDto PILA subtype', () => {
+  async function pensionTariffErrors(value: unknown) {
+    const input = plainToInstance(CreateSocialSecurityAffiliationDto, {
+      indicadorTarifaEspecialPensiones: value,
+    });
+    const errors = await validate(input);
+    return errors.find(
+      ({ property }) => property === 'indicadorTarifaEspecialPensiones',
+    );
+  }
+
   async function pensionTransitionErrors(value: unknown) {
     const input = plainToInstance(CreateSocialSecurityAffiliationDto, {
       estadoAfiliacionPensional: value,
@@ -36,6 +46,18 @@ describe('CreateSocialSecurityAffiliationDto PILA subtype', () => {
     expect(await pensionTransitionErrors(' s ')).toBeUndefined();
     expect(await pensionTransitionErrors(undefined)).toBeUndefined();
     expect((await pensionTransitionErrors('X'))?.constraints).toHaveProperty(
+      'isIn',
+    );
+  });
+
+  it('accepts a blank normal tariff, explicit special codes, or unknown history', async () => {
+    expect(await pensionTariffErrors('')).toBeUndefined();
+    expect(await pensionTariffErrors('1')).toBeUndefined();
+    expect(await pensionTariffErrors('2')).toBeUndefined();
+    expect(await pensionTariffErrors('3')).toBeUndefined();
+    expect(await pensionTariffErrors('4')).toBeUndefined();
+    expect(await pensionTariffErrors(undefined)).toBeUndefined();
+    expect((await pensionTariffErrors('5'))?.constraints).toHaveProperty(
       'isIn',
     );
   });

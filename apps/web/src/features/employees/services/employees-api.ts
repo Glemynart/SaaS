@@ -46,6 +46,7 @@ export interface SocialSecurityAffiliation {
   fondoPensionCodigo: string;
   fondoPensionNombre: string;
   estadoAfiliacionPensional: 'S' | 'N' | null;
+  indicadorTarifaEspecialPensiones: '' | '1' | '2' | '3' | '4' | null;
   arlCodigo: string;
   arlNombre: string;
   arlClaseRiesgo: string;
@@ -69,6 +70,7 @@ export type CreateSocialSecurityAffiliation = Omit<
   | 'empleadoId'
   | 'subtipoCotizanteCodigo'
   | 'cajaCompensacionDepartamentoCodigo'
+  | 'indicadorTarifaEspecialPensiones'
   | 'versionCaptura'
   | 'registradoPorId'
   | 'createdAt'
@@ -76,6 +78,7 @@ export type CreateSocialSecurityAffiliation = Omit<
 > & {
   subtipoCotizanteCodigo: string;
   cajaCompensacionDepartamentoCodigo: string;
+  indicadorTarifaEspecialPensiones?: '' | '1' | '2' | '3' | '4' | null;
 };
 
 export type CreateEmployeeInput = Partial<Employee> & {

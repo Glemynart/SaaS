@@ -2150,13 +2150,16 @@ describe('inspectPilaSnapshotPreparation', () => {
       pendingEmployees: 0,
     });
     expect(statusFor(46)).toMatchObject({
-      candidateEmployees: 2,
-      pendingEmployees: 0,
+      candidateEmployees: 0,
+      pendingEmployees: 2,
     });
     expect(statusFor(47)).toMatchObject({
-      candidateEmployees: 2,
-      pendingEmployees: 0,
+      candidateEmployees: 0,
+      pendingEmployees: 2,
     });
+    expect(statusFor(46)?.pendingReasons[0]?.reason).toContain(
+      'Falta confirmar con soporte vigente la tarifa normal de pensiones',
+    );
     for (const fieldNumber of [48, 49, 50, 53]) {
       expect(statusFor(fieldNumber)).toMatchObject({
         candidateEmployees: 0,

@@ -64,6 +64,14 @@ export class CreateSocialSecurityAffiliationDto {
   })
   estadoAfiliacionPensional?: 'S' | 'N' | null;
 
+  @Transform(trimValue)
+  @IsOptional()
+  @IsIn(['', '1', '2', '3', '4'], {
+    message:
+      'El indicador de tarifa pensional especial debe ser vacío, 1, 2, 3 o 4 según el soporte vigente.',
+  })
+  indicadorTarifaEspecialPensiones?: '' | '1' | '2' | '3' | '4' | null;
+
   @Transform(trimUppercase)
   @IsString()
   @Length(1, 6)

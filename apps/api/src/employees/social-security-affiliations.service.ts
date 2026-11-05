@@ -194,6 +194,8 @@ export class SocialSecurityAffiliationsService {
         ...dto,
         extranjeroNoObligadoPension: dto.extranjeroNoObligadoPension ?? null,
         colombianoEnElExterior: dto.colombianoEnElExterior ?? null,
+        indicadorTarifaEspecialPensiones:
+          dto.indicadorTarifaEspecialPensiones ?? null,
         vigenteDesde,
         vigenteHasta,
         subtipoCotizanteCodigo: dto.subtipoCotizanteCodigo || null,

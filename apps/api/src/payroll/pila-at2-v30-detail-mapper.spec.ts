@@ -43,6 +43,7 @@ function snapshot(): PilaSnapshotPreparationInput {
           tipoCotizanteCodigo: '01',
           subtipoCotizanteCodigo: '00',
           fondoPensionCodigo: 'AFP001',
+          indicadorTarifaEspecialPensiones: '',
           epsCodigo: 'EPS001',
           cajaCompensacionCodigo: 'CCF001',
           cajaCompensacionDepartamentoCodigo: '11',
@@ -1377,6 +1378,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       77: { value: 'ARL001' },
       78: { value: '2' },
       95: { value: 2_000_000 },
+      96: { value: null, emptyAs: 'spaces' },
       98: { value: riskActivityCode },
     });
     expect(candidate.values[2]).toBeUndefined();
@@ -1384,9 +1386,39 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.values[8]).toBeUndefined();
     expect(
       candidate.unresolvedFields.map(({ fieldNumber }) => fieldNumber),
-    ).toEqual(expect.arrayContaining([8, 46, 47, 61, 63, 76, 96, 97]));
+    ).toEqual(expect.arrayContaining([8, 46, 47, 61, 63, 76, 97]));
   });
 
+  it('omits optional hours and only omits the foreign residence date after explicit confirmation', () => {
+    const domestic = snapshot();
+    const domesticPayload = payloadOf(domestic);
+    domesticPayload.affiliations[0].colombianoEnElExterior = false;
+
+    const domesticCandidate = mapCandidate(domestic);
+
+    expect(domesticCandidate.values[96]).toEqual({
+      value: null,
+      emptyAs: 'spaces',
+    });
+    expect(domesticCandidate.normativeRuleVersions.optionalHoursField96).toBe(
+      'AT2_V30_FIELD_96_OPTIONAL_BLANK_FOR_DEPENDENT_V1',
+    );
+    expect(domesticCandidate.values[97]).toEqual({
+      value: null,
+      emptyAs: 'spaces',
+    });
+
+    const abroad = snapshot();
+    payloadOf(abroad).affiliations[0].colombianoEnElExterior = true;
+    const abroadCandidate = mapCandidate(abroad);
+
+    expect(abroadCandidate.values[97]).toBeUndefined();
+    expect(
+      abroadCandidate.unresolvedFields.find(
+        ({ fieldNumber }) => fieldNumber === 97,
+      )?.reason,
+    ).toContain('fecha de radicación congelada');
+  });
   it('maps the standard pension rate and blocks the total while voluntary amounts are unresolved', () => {
     const input = snapshot();
     setStandardPensionInputs(input);
@@ -1406,6 +1438,10 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.normativeRuleVersions.pensionTotalField50).toBe(
       'AT2_V30_PENSION_TOTAL_FIELD_50_SUM_47_49_V1',
     );
+    expect(candidate.values[79]).toEqual({ value: null, emptyAs: 'spaces' });
+    expect(candidate.normativeRuleVersions.normalPensionTariffField79).toBe(
+      'AT2_V30_CONFIRMED_NORMAL_PENSION_TARIFF_FIELD_79_V1',
+    );
     expect(candidate.unresolvedFields).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ fieldNumber: 46 }),
@@ -1416,6 +1452,52 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       candidate.unresolvedFields.map(({ fieldNumber }) => fieldNumber),
     ).toEqual(expect.arrayContaining([48, 49, 50]));
   });
+
+  it('does not infer the normal pension tariff when field 79 is absent from the approved snapshot', () => {
+    const input = snapshot();
+    setStandardPensionInputs(input);
+    delete payloadOf(input).affiliations[0].indicadorTarifaEspecialPensiones;
+
+    const candidate = mapCandidate(input);
+
+    expect(candidate.values[79]).toBeUndefined();
+    expect(candidate.values[46]).toBeUndefined();
+    expect(candidate.values[47]).toBeUndefined();
+    expect(candidate.unresolvedFields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ fieldNumber: 79 }),
+        expect.objectContaining({ fieldNumber: 46 }),
+        expect.objectContaining({ fieldNumber: 47 }),
+      ]),
+    );
+    expect(
+      candidate.normativeRuleVersions.normalPensionTariffField79,
+    ).toBeNull();
+  });
+
+  it.each(['1', '2', '3', '4'] as const)(
+    'keeps special pension tariff %s outside the standard 01/00 MVP',
+    (indicator) => {
+      const input = snapshot();
+      setStandardPensionInputs(input);
+      payloadOf(input).affiliations[0].indicadorTarifaEspecialPensiones =
+        indicator;
+
+      const candidate = mapCandidate(input);
+
+      expect(candidate.values[79]).toBeUndefined();
+      expect(candidate.values[46]).toBeUndefined();
+      expect(candidate.values[47]).toBeUndefined();
+      expect(
+        candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 79)
+          ?.reason,
+      ).toContain('fuera del MVP');
+      expect(
+        candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 46)
+          ?.reason,
+      ).toContain('fuera del MVP');
+    },
+  );
 
   it('keeps AT2 field 50 unresolved when a source contribution is unresolved', () => {
     const input = snapshot();
@@ -2459,6 +2541,6 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.supportedSnapshot).toBe(false);
     expect(candidate.values).toEqual({});
     expect(candidate.unresolvedFields).toHaveLength(98);
-    expect(candidate.unresolvedFields[0]?.reason).toContain('PILA v2 a v8');
+    expect(candidate.unresolvedFields[0]?.reason).toContain('PILA v2 a v9');
   });
 });
