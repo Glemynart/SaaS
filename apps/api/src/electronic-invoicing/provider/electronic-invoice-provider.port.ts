@@ -10,25 +10,35 @@ export type ElectronicInvoiceProviderIssue = Readonly<{
   field?: string;
 }>;
 
+/** Provider response file to retain as private, checksummed evidence. */
+export type ElectronicInvoiceProviderEvidence = Readonly<{
+  contentType: string;
+  bytes: Buffer;
+}>;
+
 export type ElectronicInvoiceProviderOutcome =
   | Readonly<{
       status: 'ACCEPTED';
       providerReference: string;
       acceptedAt: string;
+      evidence?: ElectronicInvoiceProviderEvidence;
     }>
   | Readonly<{
       status: 'REJECTED';
       providerReference?: string;
       issues: readonly ElectronicInvoiceProviderIssue[];
+      evidence?: ElectronicInvoiceProviderEvidence;
     }>
   | Readonly<{
       status: 'PENDING';
       providerReference?: string;
+      evidence?: ElectronicInvoiceProviderEvidence;
     }>
   | Readonly<{
       /** The provider may have received the request; reconcile before retrying. */
       status: 'UNKNOWN';
       providerReference?: string;
+      evidence?: ElectronicInvoiceProviderEvidence;
     }>;
 
 export type ElectronicInvoiceSubmission = Readonly<{

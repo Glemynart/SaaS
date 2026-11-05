@@ -11,6 +11,8 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 - PR #283 se fusionó en `main` como `541e7306ffa573ff99bf26c953382d3bf60f1d7d`; CI, Browser E2E, Vercel Production y publicación de imagen API terminaron en verde. En el momento de la verificación, Secret Scanning y Dependabot no mostraban alertas abiertas ni alertas altas, respectivamente.
 - PR #284 se fusionó en `main` como `65a85dc5d02e0bb7e05b91412ce3ed79cded114e`; CI, Browser E2E, Vercel Production y publicación de imagen API terminaron en verde. Añade el puerto interno de facturación electrónica y su fake de contrato; no transmite ni persiste documentos fiscales.
 - PR #285 se fusionó en `main` como `adec87e993e27d56da117a5fb250082ff1e163bf`; CI, Browser E2E y publicación de imagen API posteriores quedaron en verde. Completa el dominio fiscal persistente y sus líneas snapshot con RLS; no agrega endpoints, emisión ni transmisión.
+- PR #290 se fusionó en `main` como `7021af8902fb0a10fa2454bb7d1ffb35c6975aae`; CI y Browser E2E posteriores pasaron. Añade descarga CSV de los reportes contables según filtros: página visible en informes paginados y resultado completo en balances/estados financieros.
+- La siguiente rama de H1 prepara persistencia tenant-scoped de eventos, intentos, resultados, transiciones y evidencia privada de factura electrónica, con historial inmutable y RLS. El servicio aún no se conecta a endpoint, worker, interfaz ni adaptador real; no transmite ni declara aceptación DIAN.
 - El resultado LOCAL_VALIDATED acredita layout, longitud y codificación comprobados localmente. No acredita revisión normativa completa, aceptación del operador, liquidación ni pago.
 - Los escenarios dependientes estándar 01/00 se habilitan solo si el preflight no detecta brechas. Novedades que requieran segmentación, casos especiales y correcciones aprobadas continúan bloqueando la generación.
 
@@ -43,7 +45,7 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 | P1        | FUNCIONAL PARA DEMO; REVISIÓN LABORAL OPERATIVA PENDIENTE              | Liquidar prima semestral de empleados activos por lote y generar un comprobante PDF por empleado. | Preview muestra fuentes, bases, días y fórmula; aprobación congela snapshots y correcciones; PDFs inmutables quedan vinculados al Expediente e idempotentes ante reintentos.                                                                                                                                                       | PR #159 y las pruebas Browser E2E actuales cubren el lote de 100 empleados, corrección aprobada, 100 PDFs publicados, hashes y descarga pese a perder conexión del navegador. El MVP sigue limitado a enero–junio; el segundo semestre está deshabilitado hasta resolver el corte de diciembre. La revisión laboral independiente sigue pendiente para uso operativo; pagos, Tesorería y Ledger están fuera.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | P1        | IMPLEMENTADA PARA ESCENARIOS SOPORTADOS; PRUEBA POR OPERADOR PENDIENTE | Estructurar afiliaciones/novedades y exportar aportes de nómina a PILA.                           | Generar y descargar archivos tipo 1/2 desde snapshots aprobados; conservar tenant, período, actor, snapshots fuente, reglas/versiones y hashes; exigir permisos, auditoría, idempotencia, verificación de integridad y bloqueo ante brechas. Distinguir generación, validación local, aceptación del operador, liquidación y pago. | ADR-013 aprobada con cambios. PR #278 implementa composición local y PR #279 persiste el historial append-only con archivos privados, hashes, versionamiento y descargas protegidas. Esta PR verifica el recorrido exitoso por interfaz, persistencia, idempotencia y bytes descargados. Solo casos dependientes 01/00 completos; correcciones aprobadas y brechas bloquean. Ningún operador ha sido probado; sin transmisión, planilla N, cotizante 75 ni pago.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
-### Exportación CSV de reportes contables — incremento actual
+### Exportación CSV de reportes contables — PR #290 integrado
 
 - Los reportes se consultan desde el Ledger con filtros tenant-scoped y son de
   solo lectura. Esta mejora descarga el resultado presentado en la interfaz:
@@ -53,8 +55,27 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   configuración regional colombiana. Los campos de texto se entrecomillan,
   se escapan comillas y se antepone un apóstrofo a valores que podrían
   interpretarse como fórmulas.
-- No consulta movimientos adicionales ni modifica el Ledger. La descarga
-  local queda pendiente de validación en navegador antes de marcarla terminada.
+- No consulta movimientos adicionales ni modifica el Ledger. El Browser E2E
+  verifica la descarga y sus datos; CI y Browser E2E post-merge pasaron.
+
+### Persistencia de intentos de factura electrónica — preparación de H1
+
+- El incremento en la rama `codex/goal02-electronic-invoice-attempts` registra
+  identidad de evento y payload antes de cualquier llamada externa, crea
+  intentos numerados y conserva resultados y transiciones append-only.
+- Las tablas tienen RLS y claves foráneas compuestas tenant-scoped. La evidencia
+  normalizada se almacena mediante `StorageService` con key tenant-scoped,
+  límite de tamaño, MIME permitido y SHA-256; aceptación o rechazo solo cambia
+  el estado fiscal terminal cuando existe la evidencia requerida.
+- El servicio permite reintentar un fallo técnico únicamente si el proveedor
+  confirmó que no recibió el envío; un intento interrumpido o ambiguo exige
+  conciliación. No hay endpoint, worker, interfaz ni adaptador MATIAS, y el
+  servicio todavía no hace llamadas externas. Esta base no es una capacidad de
+  facturación electrónica utilizable por clientes ni demuestra conformidad o
+  aceptación de DIAN.
+- El siguiente bloqueo de integración sigue siendo confirmar el sandbox y
+  contrato del proveedor. Antes de transmisión real faltan también resolución
+  segura de credenciales por tenant, operación observable y pruebas de sandbox.
 
 ### Antecedente FSP y checks del PR #250 — 2026-11-03
 
