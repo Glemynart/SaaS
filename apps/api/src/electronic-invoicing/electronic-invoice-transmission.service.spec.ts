@@ -97,6 +97,76 @@ describe('ElectronicInvoiceTransmissionService', () => {
     expect(audit.log).toHaveBeenCalledTimes(1);
   });
 
+  it('lists only a limited, tenant-scoped, redacted transmission summary', async () => {
+    const createdAt = new Date('2026-11-05T10:00:00.000Z');
+    const startedAt = new Date('2026-11-05T10:01:00.000Z');
+    const finishedAt = new Date('2026-11-05T10:02:00.000Z');
+    prisma.facturaElectronicaTransmision.findMany.mockResolvedValue([
+      {
+        id: 'transmission-a',
+        createdAt,
+        providerId: 'matias',
+        contractVersion: '1',
+        facturaElectronica: {
+          estado: EstadoFacturaElectronica.PENDIENTE_CONCILIACION,
+          prefijo: 'FE',
+          numero: 42,
+          fechaEmision: createdAt,
+        },
+        intentos: [
+          {
+            numeroIntento: 1,
+            tipo: TipoIntentoFacturaElectronica.ENVIO,
+            iniciadoEn: startedAt,
+            resultado: {
+              estado: EstadoResultadoIntentoFacturaElectronica.DESCONOCIDO,
+              codigoError: null,
+              finalizadoEn: finishedAt,
+            },
+          },
+        ],
+      },
+    ]);
+
+    await expect(service.listRecentTransmissions()).resolves.toEqual({
+      items: [
+        {
+          id: 'transmission-a',
+          createdAt: createdAt.toISOString(),
+          providerId: 'matias',
+          contractVersion: '1',
+          invoice: {
+            status: EstadoFacturaElectronica.PENDIENTE_CONCILIACION,
+            prefix: 'FE',
+            number: 42,
+            issuedAt: createdAt.toISOString(),
+          },
+          latestAttempt: {
+            number: 1,
+            type: TipoIntentoFacturaElectronica.ENVIO,
+            startedAt: startedAt.toISOString(),
+            result: {
+              status: EstadoResultadoIntentoFacturaElectronica.DESCONOCIDO,
+              errorCode: null,
+              finishedAt: finishedAt.toISOString(),
+            },
+          },
+        },
+      ],
+    });
+    expect(prisma.facturaElectronicaTransmision.findMany).toHaveBeenCalledWith(
+      objectContaining({
+        where: { tenantId: 'tenant-a' },
+        take: 50,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: objectContaining({
+          id: true,
+          providerId: true,
+        }),
+      }),
+    );
+  });
+
   it('rejects reuse of an event identity with a different canonical payload', async () => {
     prisma.facturaElectronicaTransmision.findFirst.mockResolvedValue(
       makeTransmission({ payloadCanonico: '{"version":1,"total":"120.00"}' }),
@@ -741,6 +811,7 @@ function createPrismaMock() {
     },
     facturaElectronicaTransmision: {
       findFirst: jest.fn(),
+      findMany: jest.fn(),
       create: jest.fn(),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },

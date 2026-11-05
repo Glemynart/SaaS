@@ -23,7 +23,7 @@ describe('AuthorizationSurfaceClassifier', () => {
   it('classifies the complete current HTTP surface without ambiguity', () => {
     const operations = classifier.classifyModuleGraph(AppModule);
 
-    expect(operations).toHaveLength(221);
+    expect(operations).toHaveLength(222);
     expect(new Set(operations.map(({ operationId }) => operationId)).size).toBe(
       operations.length,
     );
@@ -120,6 +120,13 @@ describe('AuthorizationSurfaceClassifier', () => {
       },
       {
         operationId:
+          'ElectronicInvoiceConfigurationController.listRecentTransmissions',
+        requestMethod: 'GET',
+        controllerPath: 'electronic-invoicing',
+        operationPath: 'transmissions',
+      },
+      {
+        operationId:
           'ElectronicInvoiceConfigurationController.upsertIssuerProfile',
         requestMethod: 'PUT',
         controllerPath: 'electronic-invoicing',
@@ -157,11 +164,11 @@ describe('AuthorizationSurfaceClassifier', () => {
     expect(countBy(operations, 'policy')).toEqual({
       [AuthorizationPolicyKind.UNAUTHENTICATED]: 12,
       [AuthorizationPolicyKind.AUTHENTICATED]: 67,
-      [AuthorizationPolicyKind.RBAC]: 142,
+      [AuthorizationPolicyKind.RBAC]: 143,
     });
     expect(countBy(operations, 'source')).toEqual({
       [AuthorizationClassificationSource.EXPLICIT]: 79,
-      [AuthorizationClassificationSource.EXISTING_RBAC]: 142,
+      [AuthorizationClassificationSource.EXISTING_RBAC]: 143,
     });
     expect(
       operations.filter(

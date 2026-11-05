@@ -13,7 +13,9 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 - PR #285 se fusionó en `main` como `adec87e993e27d56da117a5fb250082ff1e163bf`; CI, Browser E2E y publicación de imagen API posteriores quedaron en verde. Completa el dominio fiscal persistente y sus líneas snapshot con RLS; no agrega endpoints, emisión ni transmisión.
 - PR #290 se fusionó en `main` como `7021af8902fb0a10fa2454bb7d1ffb35c6975aae`; CI y Browser E2E posteriores pasaron. Añade descarga CSV de los reportes contables según filtros: página visible en informes paginados y resultado completo en balances/estados financieros.
 - PR #291 se fusionó en `main` como `6496dccc86cd2cd10c17d5c3dfcc20866b64606a`; los checks post-merge de CI, Browser E2E y publicación de imagen API pasaron.
-- PR #291 añade persistencia tenant-scoped de eventos, intentos, resultados, transiciones y evidencia privada de factura electrónica, con historial append-only, checksum y RLS. El servicio aún no se conecta a endpoint, worker, interfaz ni adaptador real; no transmite ni declara aceptación DIAN.
+- PR #291 añade persistencia tenant-scoped de eventos, intentos, resultados, transiciones y evidencia privada de factura electrónica, con historial append-only, checksum y RLS. PR #303 añade un ejecutor interno para un puerto explícito, pero no registra un adaptador real ni un endpoint de ejecución; ninguno transmite ni declara aceptación DIAN.
+- PR #303 se fusionó en `main` como `f6b8b29fae09d5de9cd53ca3929cfb2b4e33e421`; CI, Browser E2E y publicación de imagen API posteriores quedaron en verde. Añade ejecución interna de un intento contra un puerto explícito, sin reintento automático ni adaptador registrado; no transmite a MATIAS/DIAN.
+- La nueva vista autenticada de solo lectura permite a `ADMIN` consultar las últimas 50 transmisiones y el resultado normalizado del intento reciente. Omite payload canónico, clave idempotente, ruta de evidencia y contenido privado; no habilita envíos ni conciliaciones. H1 sigue bloqueada para transmisión real por sandbox/proveedor, credenciales tenant-scoped y worker conectado.
 - PR #293 se fusionó en `main` como `0193594ee45229652b987bebafbe277ca51dbc63`. `PRIMA_SEMESTRAL_V2` usa los importes de auxilio congelados en snapshots mensuales aprobados, bloquea valores sobre el máximo proporcional o que cruzan meses sin poder atribuirse, y persiste la versión de fórmula; V1 y sus PDFs históricos no se recalculan. Los checks del PR fueron verdes; CI y publicación de imagen post-merge pasaron, y Browser E2E seguía en ejecución al actualizar este registro.
 - El resultado LOCAL_VALIDATED acredita layout, longitud y codificación comprobados localmente. No acredita revisión normativa completa, aceptación del operador, liquidación ni pago.
 - Los escenarios dependientes estándar 01/00 se habilitan solo si el preflight no detecta brechas. Novedades que requieran segmentación, casos especiales y correcciones aprobadas continúan bloqueando la generación.
@@ -322,9 +324,12 @@ se accedió a demo, staging o producción.
   ni secretos; el estado queda sujeto a conciliación. La identidad del evento,
   payload y tenant permanece en el contrato aprobado de ADR-020.
 - La aplicación aún no registra un adaptador real ni conecta este método a un
-  endpoint, worker o interfaz. No se transmite a MATIAS/DIAN y esto no constituye
-  un flujo que clientes puedan ejecutar. El adaptador real sigue condicionado
-  a la matriz sandbox y a resolver credenciales por tenant.
+  endpoint de ejecución o worker. La consulta de seguimiento tenant-scoped es
+  de solo lectura, limitada a las últimas 50 transmisiones y excluye payloads,
+  claves idempotentes, rutas de almacenamiento y evidencia. No se transmite a
+  MATIAS/DIAN y el seguimiento no constituye un flujo de facturación electrónica
+  que los clientes puedan ejecutar. El adaptador real sigue condicionado a la
+  matriz sandbox y a resolver credenciales por tenant.
 
 ### Dominio fiscal base — PR #285 fusionado en `main`
 

@@ -41,6 +41,46 @@ export interface ElectronicInvoiceConfiguration {
   perfiles: ElectronicInvoiceIssuerProfile[];
 }
 
+export type ElectronicInvoiceStatus =
+  | 'BORRADOR'
+  | 'LISTA_PARA_EMITIR'
+  | 'EN_COLA'
+  | 'EN_TRANSMISION'
+  | 'PENDIENTE_CONCILIACION'
+  | 'ACEPTADA'
+  | 'RECHAZADA'
+  | 'ERROR_TECNICO';
+
+export type ElectronicInvoiceAttemptResultStatus =
+  | 'ACEPTADO'
+  | 'RECHAZADO'
+  | 'PENDIENTE'
+  | 'DESCONOCIDO'
+  | 'ERROR_TECNICO';
+
+export interface RecentElectronicInvoiceTransmission {
+  id: string;
+  createdAt: string;
+  providerId: string;
+  contractVersion: string;
+  invoice: {
+    status: ElectronicInvoiceStatus;
+    prefix: string | null;
+    number: number | null;
+    issuedAt: string | null;
+  };
+  latestAttempt: {
+    number: number;
+    type: 'ENVIO' | 'CONCILIACION';
+    startedAt: string;
+    result: {
+      status: ElectronicInvoiceAttemptResultStatus;
+      errorCode: string | null;
+      finishedAt: string;
+    } | null;
+  } | null;
+}
+
 type ApiEnvelope = { message?: string };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -56,6 +96,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const electronicInvoicingApi = {
   getConfiguration: () =>
     request<ElectronicInvoiceConfiguration>('/api/electronic-invoicing/configuration'),
+  getRecentTransmissions: () =>
+    request<{ items: RecentElectronicInvoiceTransmission[] }>(
+      '/api/electronic-invoicing/transmissions',
+    ),
   upsertProfile: (input: {
     ambiente: IssuerEnvironment;
     responsabilidadesTributarias: string[];

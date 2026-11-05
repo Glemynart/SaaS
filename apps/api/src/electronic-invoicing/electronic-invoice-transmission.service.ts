@@ -66,6 +66,8 @@ export type ExecuteProviderAttemptInput = Readonly<{
   provider: ElectronicInvoiceProviderPort;
 }>;
 
+const RECENT_TRANSMISSIONS_LIMIT = 50;
+
 @Injectable()
 export class ElectronicInvoiceTransmissionService {
   constructor(
@@ -73,6 +75,87 @@ export class ElectronicInvoiceTransmissionService {
     private readonly audit: AuditService,
     private readonly storage: StorageService,
   ) {}
+
+  /**
+   * Returns a minimal, tenant-scoped operational view. Provider payloads,
+   * idempotency keys, storage paths, and raw evidence are never exposed.
+   */
+  async listRecentTransmissions() {
+    return this.tenantPrisma.execute(async (prisma, context) => {
+      const transmissions = await prisma.facturaElectronicaTransmision.findMany(
+        {
+          where: { tenantId: context.tenantId },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: RECENT_TRANSMISSIONS_LIMIT,
+          select: {
+            id: true,
+            createdAt: true,
+            providerId: true,
+            contractVersion: true,
+            facturaElectronica: {
+              select: {
+                estado: true,
+                prefijo: true,
+                numero: true,
+                fechaEmision: true,
+              },
+            },
+            intentos: {
+              orderBy: [{ numeroIntento: 'desc' }, { iniciadoEn: 'desc' }],
+              take: 1,
+              select: {
+                numeroIntento: true,
+                tipo: true,
+                iniciadoEn: true,
+                resultado: {
+                  select: {
+                    estado: true,
+                    codigoError: true,
+                    finalizadoEn: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      );
+
+      return {
+        items: transmissions.map((transmission) => {
+          const latestAttempt = transmission.intentos[0];
+          return {
+            id: transmission.id,
+            createdAt: transmission.createdAt.toISOString(),
+            providerId: transmission.providerId,
+            contractVersion: transmission.contractVersion,
+            invoice: {
+              status: transmission.facturaElectronica.estado,
+              prefix: transmission.facturaElectronica.prefijo,
+              number: transmission.facturaElectronica.numero,
+              issuedAt:
+                transmission.facturaElectronica.fechaEmision?.toISOString() ??
+                null,
+            },
+            latestAttempt: latestAttempt
+              ? {
+                  number: latestAttempt.numeroIntento,
+                  type: latestAttempt.tipo,
+                  startedAt: latestAttempt.iniciadoEn.toISOString(),
+                  result: latestAttempt.resultado
+                    ? {
+                        status: latestAttempt.resultado.estado,
+                        errorCode: latestAttempt.resultado.codigoError,
+                        finishedAt:
+                          latestAttempt.resultado.finalizadoEn.toISOString(),
+                      }
+                    : null,
+                }
+              : null,
+          };
+        }),
+      };
+    });
+  }
 
   /**
    * Persists the stable event identity before any provider request. The caller
