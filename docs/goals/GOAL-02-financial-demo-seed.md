@@ -15,6 +15,10 @@ producción. Para preparar el recorrido de interfaz, consulta el
   `prueba`, `test` o `E2E` en su nombre comercial o razón social.
 - El usuario indicado debe ser ADMIN activo de ese mismo tenant.
 
+## Preparar catálogos globales
+
+Si el tipo `NOM` no existe o está inactivo, ejecuta primero el comando `pnpm --filter @saas/api prisma:seed` únicamente en la base local de demostración. Ese seed base crea o actualiza parámetros legales globales de 2026, tipos de comprobante y plantilla PUC; el seed financiero tenant-scoped no modifica esos catálogos. No ejecutes el seed base contra producción.
+
 ## Ejecutar en PowerShell
 
 Configura `DATABASE_URL` para la base local de desarrollo, luego reemplaza los
