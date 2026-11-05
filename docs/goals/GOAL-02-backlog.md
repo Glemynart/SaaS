@@ -1641,3 +1641,20 @@ false`.
   dependencia del tipo 75 para avanzar con el MVP 01/00; el exportador PILA
   completo aún tiene bloqueos propios de campos, composición, fixtures y
   aceptación por operador.
+
+### Dependencias de producción después de PR #275 — 2026-11-04
+
+- Tras retirar las alertas críticas en #275, la auditoría `pnpm audit --prod`
+  encontró 12 avisos de severidad alta. Esta rama actualiza Tiptap a 3.32.2,
+  Playwright a 1.55.1 y Nodemailer a 10.3.1; fija PostCSS 8.5.23,
+  ProseMirror View 1.42.3, body-parser 2.4.0 y qs 6.16.1. La auditoría de
+  producción posterior deja 4 avisos altos: `xlsx` (dos avisos),
+  `deepmerge-ts` y `zod`.
+- El cambio no altera reglas de nómina, facturación ni Ledger. Se mantiene como
+  trabajo de seguridad prioritario del Goal. Las dependencias restantes no se
+  fuerzan a una versión mayor sin revisar su compatibilidad: `deepmerge-ts` es
+  transitiva de Prisma y el aviso de `zod` llega por Puppeteer/Chromium BiDi;
+  `xlsx` sigue en 0.18.5 y requiere revisar una sustitución segura de su lector
+  antes de cambiar los flujos de importación.
+- Los avisos altos de desarrollo y severidad moderada/baja no quedan declarados
+  resueltos por esta actualización; volver a auditar al integrar.
