@@ -286,9 +286,9 @@ se accedió a demo, staging o producción.
 
 ## H1 — Fundación de integraciones regulatorias
 
-| Prioridad | Estado      | Iniciativa                                                                 | Criterios de aceptación                                                                                                                        | Dependencias y riesgo                                                                                                                                                           |
-| --------- | ----------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P1        | EN PROGRESO | Aprobar modelo de eventos, evidencia, secretos y adaptadores regulatorios. | ADRs cubren idempotencia, estados, correcciones, retención, permisos, auditoría y cambio de proveedor; proveedor fake con pruebas de contrato. | PR #291 completa la persistencia de intentos/evidencia; faltan cliente/proveedor sandbox confirmado, secretos por tenant, endpoint/worker conectado y observabilidad operativa. |
+| Prioridad | Estado      | Iniciativa                                                                 | Criterios de aceptación                                                                                                                        | Dependencias y riesgo                                                                                                                                                                                                                                     |
+| --------- | ----------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1        | EN PROGRESO | Aprobar modelo de eventos, evidencia, secretos y adaptadores regulatorios. | ADRs cubren idempotencia, estados, correcciones, retención, permisos, auditoría y cambio de proveedor; proveedor fake con pruebas de contrato. | PR #291 completa la persistencia de intentos/evidencia; esta entrega agrega la orquestación interna de un intento y conciliación. Faltan cliente/proveedor sandbox confirmado, secretos por tenant, endpoint/worker conectado y observabilidad operativa. |
 
 ### Contrato inicial de adaptadores regulatorios — 2026-11-05
 
@@ -310,6 +310,21 @@ se accedió a demo, staging o producción.
   La variable `MATIAS_API_KEY` permanece sin consumidor; no se usa como
   credencial de emisor ni se realiza una llamada externa. PR13 de PR10 requiere
   validar sandbox antes de un adaptador MATIAS real.
+
+### Orquestación interna de intentos — continuación H1
+
+- `ElectronicInvoiceTransmissionService.executeProviderAttempt` inicia el
+  intento durable, exige que el identificador/versión del adaptador coincidan
+  con el proveedor registrado, llama una vez a `submit` o `reconcile` y persiste
+  el resultado normalizado mediante el servicio existente.
+- No hay reintento automático. Si la llamada del proveedor lanza una excepción,
+  se registra un fallo de resultado incierto sin copiar el texto de la excepción
+  ni secretos; el estado queda sujeto a conciliación. La identidad del evento,
+  payload y tenant permanece en el contrato aprobado de ADR-020.
+- La aplicación aún no registra un adaptador real ni conecta este método a un
+  endpoint, worker o interfaz. No se transmite a MATIAS/DIAN y esto no constituye
+  un flujo que clientes puedan ejecutar. El adaptador real sigue condicionado
+  a la matriz sandbox y a resolver credenciales por tenant.
 
 ### Dominio fiscal base — PR #285 fusionado en `main`
 
@@ -1911,12 +1926,16 @@ false`.
   Jest y Nest CLI. El paquete upstream no ofrece una versión corregida
   publicada; no se reemplaza por un fork sin evidencia de compatibilidad. La
   auditoría de dependencias de producción no encuentra vulnerabilidades.
-- Verificación local: pasan `pnpm typecheck`, `pnpm build`, 1.821 pruebas de
-  API que no requieren PostgreSQL y `pnpm audit --prod`. La suite de integración
-  completa requiere `DATABASE_URL`, que este worktree no tiene; se verificará
-  en CI. Falta confirmar los checks remotos y que Dependabot cierre las alertas
-  moderadas tras actualizarse el lockfile. La alerta baja queda registrada como
-  riesgo conocido pendiente de parche upstream.
+- PR #302 se fusionó en `main` como `95466c1` tras pasar CI, Browser E2E, Vercel
+  Preview y publicación de imagen API. Dependabot cerró las alertas moderadas
+  `glob` y `minimatch`; Secret Scanning no muestra alertas abiertas.
+- La auditoría completa conserva una alerta baja de `deepmerge@4.3.1` en
+  dependencias de desarrollo, sin versión upstream corregida. La auditoría de
+  producción es limpia; no se sustituye por un fork sin evidencia de
+  compatibilidad.
+- Verificación local de PR #302: pasan `pnpm typecheck`, `pnpm build`, 1.821
+  pruebas de API que no requieren PostgreSQL y `pnpm audit --prod`. La suite
+  completa y sus checks remotos pasaron en CI después del merge.
 
 ### Protocolo de aceptación de archivos PILA en SOI — 2026-11-05
 
