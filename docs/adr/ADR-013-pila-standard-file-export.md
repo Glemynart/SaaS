@@ -79,12 +79,27 @@ que este incorpora y cualquier norma posterior antes de implementar la exportaci
 la regla depende del período cotizado y de la fecha prevista de pago de aportes
 PILA; no se infiere de la fecha de pago del salario ni de generación del archivo.
 La Resolución 611 de 2026 establece condiciones para que ciertas personas
-vinculadas laboralmente permanezcan hasta seis meses en el régimen subsidiado;
-la Resolución 1529 adoptó el cotizante 75 y nuevas validaciones para ese caso,
-con aplicación operativa desde el 1 de noviembre de 2026 para el período de
-salud de noviembre. Un proyecto ministerial posterior propone modificar los
-plazos 5.87 y 5.91, pero al 2026-10-31 no reemplaza los plazos de la Resolución 1529. El MVP excluye este caso y debe bloquearlo; no lo presenta como una
-categoría inexistente o meramente proyectada.
+vinculadas laboralmente permanezcan hasta seis meses en el régimen subsidiado.
+La Resolución 1529 incorporó el cotizante 75 y el AT2 v30 fijó originalmente
+sus validaciones para pagos desde el 1 de noviembre de 2026, período de salud
+de noviembre. La Resolución 2483 de 2026, publicada en el Diario Oficial
+53.676 del 31 de octubre, modificó el artículo 13 de la Resolución 611 para
+que los ajustes de PILA y ADRES estén listos a más tardar el 28 de febrero de
+2027 y el mecanismo opere desde el 1 de marzo de 2027; también derogó el
+artículo 14, que condicionaba el inicio a una verificación posterior.
+
+Esto actualiza la fecha de operación del mecanismo, pero no modifica por sí
+misma los numerales 5.87 y 5.91 del AT2. MinSalud publicó para consulta un
+proyecto que propone mover esas validaciones a pagos desde el 1 de marzo de 2027. Al revisar el 4 de noviembre de 2026, el proyecto aún aparece en la
+[página oficial de consulta normativa](https://www.minsalud.gov.co/Normativa/Paginas/Resoluciones.aspx)
+y en su [PDF sin número ni fecha de expedición](https://www.minsalud.gov.co/Normativa/Resoluciones/PR%20Modificacion%20Res%202388%20PILA%20Implementacion%20permanencia%20en%20el%20RS%20V2.pdf);
+no encontramos una Resolución 002492 de 2026 publicada en las ediciones del
+Diario Oficial listadas hasta la 53.679 del 3 de noviembre. Por tanto, no se
+trata ese proyecto como una modificación vigente del AT2. Para una futura
+implementación del tipo 75 deben reconciliarse la fecha del mecanismo y la
+fecha técnica del anexo con la norma definitiva publicada. El MVP sigue
+excluyendo el caso especial; esta incertidumbre no bloquea a los dependientes
+estándar 01/00.
 
 ## Decisión propuesta
 
@@ -1150,14 +1165,26 @@ la exportación y a cualquier afirmación de compatibilidad.
   18–19, más de 19–20 y más de 20 SMMLV), además de la asignación del 50 %
   base a cada subcuenta desde 4 SMMLV. Se cotejó el texto oficial el
   2026-11-03.
-- [Resolución 611 de 2026](https://www.minsalud.gov.co/Normatividad_Nuevo/Resolucion%20No%20611%20de%202026.pdf),
-  permanencia temporal en régimen subsidiado de ciertas personas vinculadas
-  laboralmente; establece un plazo de seis meses para ajustes operativos PILA.
+- [Resolución 2483 de 2026](https://svrpubindc.imprenta.gov.co/diario/), publicada
+  en la edición 53.676 del Diario Oficial el 2026-10-31. Modifica el artículo
+  13 y deroga el artículo 14 de la Resolución 611: los ajustes de operadores y
+  ADRES vencen el 2027-02-28 y el mecanismo inicia el 2027-03-01. La edición se
+  verifica en el portal oficial de la Imprenta Nacional por número de diario.
+- [Proyecto de resolución para modificar los numerales 5.87 y 5.91 del AT2](https://www.minsalud.gov.co/Normativa/Resoluciones/PR%20Modificacion%20Res%202388%20PILA%20Implementacion%20permanencia%20en%20el%20RS%20V2.pdf),
+  publicado por MinSalud para consulta. El documento conserva en blanco el
+  número y la fecha de expedición. Al 2026-11-04, las ediciones del Diario
+  Oficial publicadas hasta la 53.679 (2026-11-03) no acreditan la publicación
+  de una Resolución 002492 de 2026; se mantiene como proyecto hasta verificar
+  un acto definitivo en el [portal oficial de la Imprenta Nacional](https://svrpubindc.imprenta.gov.co/diario/).
 - [Publicaciones regulatorias de MinSalud](https://www.minsalud.gov.co/Normativa/Paginas/Resoluciones.aspx)
-  — revisado el 2026-10-31, publica el proyecto de ajuste de los numerales
-  5.87 y 5.91 del Anexo Técnico 2 para el cotizante con permanencia en régimen
-  subsidiado. Sigue identificado como proyecto/consulta pública; no sustituye
-  la Resolución 1529 mientras no se expida una norma definitiva.
+  — revisadas el 2026-11-04. La página sigue mostrando para consulta el
+  proyecto que propone mover 5.87/5.91; no se usa como prueba de que la
+  Resolución 002492 ya fue expedida. La Resolución 2483 sí consta en la edición
+  53.676 del Diario Oficial. Para este MVP, mantener el tipo 75 fuera del
+  alcance y rechazarlo explícitamente: la exclusión es de alcance, no un
+  bloqueo normativo del flujo estándar 01/00. Antes de incorporar el tipo 75,
+  volver a verificar la publicación final y las fechas que rijan el mecanismo
+  y el AT2.
 - [SOI](https://www.soi.com.co/empresa-servicios-de-soi),
   [Enlace Operativo/SuAporte](https://www.enlace.com.co/hubfs/Manuales/C%C3%B3mo%20cargar%20un%20archivo%20plano%20en%20SuAporte.pdf?hsLang=es-co)
   y [Aportes en Línea](https://www.aportesenlinea.com/Documents/Instructivo%20Corrector%20por%20Pantalla%20v.1.3.pdf)
