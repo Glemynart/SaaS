@@ -67,7 +67,10 @@ test('genera, conserva y descarga archivos PILA del período desde la interfaz',
 }) => {
   test.setTimeout(120_000);
   const { tenant, user } = await registerAndSignIn(page);
+  const ownerTenantId = tenant.id;
   const fixture = await seedPilaExportFixture(tenant.id, user.id);
+  let foreignDownloadPath = '';
+  let foreignType1Sha256 = '';
 
   try {
     await page.goto('/nomina/periodos/' + fixture.periodId);
@@ -155,6 +158,10 @@ test('genera, conserva y descarga archivos PILA del período desde la interfaz',
     const type2Link = panel.getByRole('link', { name: /Descargar tipo 2/ });
     await expect(type1Link).toBeVisible();
     await expect(type2Link).toBeVisible();
+    const type1Href = await type1Link.getAttribute('href');
+    if (!type1Href) throw new Error('Falta el enlace de descarga tipo 1.');
+    foreignDownloadPath = type1Href;
+    foreignType1Sha256 = created.type1.sha256;
 
     const type1Download = await downloadFromLink(page, type1Link);
     const type2Download = await downloadFromLink(page, type2Link);
@@ -197,4 +204,14 @@ test('genera, conserva y descarga archivos PILA del período desde la interfaz',
   } finally {
     await fixture.disconnect();
   }
+
+  await page.context().clearCookies();
+  const secondTenant = await registerAndSignIn(page);
+  expect(secondTenant.tenant.id).not.toBe(ownerTenantId);
+
+  const foreignDownloadResponse = await page.goto(foreignDownloadPath);
+  expect(foreignDownloadResponse?.status()).toBe(404);
+  const deniedDownload = await foreignDownloadResponse?.json();
+  expect(deniedDownload).toMatchObject({ message: 'Exportación PILA no encontrada.' });
+  expect(JSON.stringify(deniedDownload)).not.toContain(foreignType1Sha256);
 });
