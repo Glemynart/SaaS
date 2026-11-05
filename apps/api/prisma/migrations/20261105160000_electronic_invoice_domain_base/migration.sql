@@ -74,8 +74,6 @@ CREATE TABLE "lineas_facturas_electronicas" (
     ),
   CONSTRAINT "lineas_fe_tax_rate_check"
     CHECK ("porcentajeImpuesto" IS NULL OR "porcentajeImpuesto" BETWEEN 0 AND 100),
-  CONSTRAINT "lineas_facturas_electronicas_tenantId_fkey"
-    FOREIGN KEY ("tenantId") REFERENCES "tenants"("id") ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT "lineas_fe_invoice_tenant_fkey"
     FOREIGN KEY ("facturaElectronicaId", "tenantId")
     REFERENCES "facturas_electronicas"("id", "tenantId") ON DELETE CASCADE ON UPDATE CASCADE
