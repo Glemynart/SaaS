@@ -23,7 +23,7 @@ describe('AuthorizationSurfaceClassifier', () => {
   it('classifies the complete current HTTP surface without ambiguity', () => {
     const operations = classifier.classifyModuleGraph(AppModule);
 
-    expect(operations).toHaveLength(214);
+    expect(operations).toHaveLength(217);
     expect(new Set(operations.map(({ operationId }) => operationId)).size).toBe(
       operations.length,
     );
@@ -76,14 +76,48 @@ describe('AuthorizationSurfaceClassifier', () => {
       status: AuthorizationClassificationStatus.CLASSIFIED,
     });
 
+    for (const expected of [
+      {
+        operationId: 'PilaExportController.list',
+        requestMethod: 'GET',
+        controllerPath: 'payroll/periods/:periodId/pila-exports',
+        operationPath: '/',
+      },
+      {
+        operationId: 'PilaExportController.create',
+        requestMethod: 'POST',
+        controllerPath: 'payroll/periods/:periodId/pila-exports',
+        operationPath: '/',
+      },
+      {
+        operationId: 'PilaExportController.download',
+        requestMethod: 'GET',
+        controllerPath: 'payroll/periods/:periodId/pila-exports',
+        operationPath: ':exportId/:fileType',
+      },
+    ]) {
+      expect(
+        operations.find(
+          ({ operationId }) => operationId === expected.operationId,
+        ),
+      ).toMatchObject({
+        ...expected,
+        policy: AuthorizationPolicyKind.RBAC,
+        roles: [UserRole.ADMIN, UserRole.OPERADOR],
+        requiresAuthentication: true,
+        requiresActiveTenant: true,
+        status: AuthorizationClassificationStatus.CLASSIFIED,
+      });
+    }
+
     expect(countBy(operations, 'policy')).toEqual({
       [AuthorizationPolicyKind.UNAUTHENTICATED]: 12,
       [AuthorizationPolicyKind.AUTHENTICATED]: 67,
-      [AuthorizationPolicyKind.RBAC]: 135,
+      [AuthorizationPolicyKind.RBAC]: 138,
     });
     expect(countBy(operations, 'source')).toEqual({
       [AuthorizationClassificationSource.EXPLICIT]: 79,
-      [AuthorizationClassificationSource.EXISTING_RBAC]: 135,
+      [AuthorizationClassificationSource.EXISTING_RBAC]: 138,
     });
     expect(
       operations.filter(

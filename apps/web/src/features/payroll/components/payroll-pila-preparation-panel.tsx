@@ -1,11 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { ClipboardCheck, LoaderCircle } from 'lucide-react';
+import { ClipboardCheck, FileDown, LoaderCircle } from 'lucide-react';
 import Link from 'next/link';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { usePayrollPilaPreparation } from '../hooks/use-payroll';
+import {
+  useCreatePayrollPilaExport,
+  usePayrollPilaExports,
+  usePayrollPilaPreparation,
+} from '../hooks/use-payroll';
 import type {
   PilaDetailFieldCandidateStatus,
   PilaPreparationAffectedEmployee,
@@ -19,6 +23,15 @@ const recordLabels: Record<PilaPreparationIssue['record'], string> = {
   DETALLE_TIPO_2: 'Archivo tipo 2, cotizante',
   SNAPSHOT: 'Snapshot de nómina',
 };
+
+function formatPilaBytes(bytes: number): string {
+  return new Intl.NumberFormat('es-CO', {
+    style: 'unit',
+    unit: 'byte',
+    unitDisplay: 'narrow',
+    maximumFractionDigits: 0,
+  }).format(bytes);
+}
 
 const detailFieldLabels: Record<PilaDetailFieldCandidateStatus['fieldNumber'], string> = {
   15: 'Ingreso (ING)',
@@ -219,6 +232,8 @@ export function PayrollPilaPreparationPanel({
 }) {
   const [requested, setRequested] = useState(false);
   const query = usePayrollPilaPreparation(periodId, requested);
+  const exportsQuery = usePayrollPilaExports(periodId, requested);
+  const createExport = useCreatePayrollPilaExport(periodId);
 
   if (periodStatus !== 'APROBADA' && periodStatus !== 'CAUSADA') return null;
 
@@ -236,9 +251,9 @@ export function PayrollPilaPreparationPanel({
             Preparación de datos PILA
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Revisa los datos congelados en los snapshots aprobados frente a campos de AT2 v30 con
-            fuente identificada. El mapeo y las reglas aplicables siguen en reconciliación; este
-            informe no valida un archivo completo.
+            Revisa la preparación de los snapshots aprobados y genera archivos tipo 1 y 2 solo
+            cuando las reglas locales no detectan brechas. La aceptación de un operador se verifica
+            por separado.
           </p>
         </div>
         <Button
@@ -309,8 +324,8 @@ export function PayrollPilaPreparationPanel({
             <p className="mt-3 text-xs text-muted-foreground">
               El estado de transición queda como evidencia histórica. Los campos 51/52 usan la regla
               anterior al 1 de abril de 2027 y solo se proponen si su fuente, período, fecha
-              prevista de pago e importes concilian. Este resumen no habilita generación ni descarga
-              del archivo PILA.
+              prevista de pago e importes concilian. Los archivos generados conservan los snapshots
+              de origen y no modifican la nómina aprobada.
             </p>
           </section>
 
@@ -330,17 +345,17 @@ export function PayrollPilaPreparationPanel({
                 <div>
                   <dt className="text-muted-foreground">Generación y descarga</dt>
                   <dd>
-                    {exportReadiness.fileGenerationStatus === 'NOT_IMPLEMENTED'
-                      ? 'No implementadas'
-                      : 'Disponibles'}
+                    {exportReadiness.fileGenerationStatus === 'IMPLEMENTED'
+                      ? 'Disponibles para casos sin brechas'
+                      : 'No disponibles'}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Validación local</dt>
                   <dd>
-                    {exportReadiness.localValidationStatus === 'PRELIMINARY'
-                      ? 'Preliminar; no cubre el archivo completo'
-                      : 'Completa'}
+                    {exportReadiness.localValidationStatus === 'PER_EXPORT'
+                      ? 'Estructura y codificación al generar'
+                      : 'No ejecutada'}
                   </dd>
                 </div>
                 <div>
@@ -383,6 +398,116 @@ export function PayrollPilaPreparationPanel({
 
           <section
             className="rounded-lg border border-border p-4"
+            aria-labelledby="pila-export-history-title"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 id="pila-export-history-title" className="font-medium">
+                  Archivos PILA del período
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Cada generación guarda una versión inmutable de los archivos y los hashes de
+                  verificación. La descarga no afirma aceptación, liquidación ni pago del operador.
+                </p>
+              </div>
+              <Button
+                type="button"
+                disabled={!query.data.archivoGenerable || createExport.isPending}
+                onClick={() => createExport.mutate()}
+              >
+                {createExport.isPending ? (
+                  <LoaderCircle className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <FileDown className="mr-2 h-4 w-4" aria-hidden="true" />
+                )}
+                {createExport.isPending ? 'Generando…' : 'Generar y guardar archivos'}
+              </Button>
+            </div>
+
+            {!query.data.archivoGenerable && (
+              <p className="mt-3 text-sm text-muted-foreground" role="status">
+                Corrige las brechas del preflight para habilitar la generación.
+              </p>
+            )}
+            {createExport.isError && (
+              <Alert variant="destructive" className="mt-3">
+                {createExport.error instanceof Error
+                  ? createExport.error.message
+                  : 'No se pudieron generar los archivos PILA.'}
+              </Alert>
+            )}
+            {exportsQuery.isError && (
+              <Alert variant="destructive" className="mt-3">
+                {exportsQuery.error instanceof Error
+                  ? exportsQuery.error.message
+                  : 'No se pudo consultar el historial de archivos PILA.'}
+              </Alert>
+            )}
+            {exportsQuery.isLoading && <p className="mt-3 text-sm">Consultando historial…</p>}
+            {exportsQuery.data?.length === 0 && (
+              <p className="mt-3 text-sm text-muted-foreground">
+                Aún no se han generado archivos para este período.
+              </p>
+            )}
+            {exportsQuery.data && exportsQuery.data.length > 0 && (
+              <ul className="mt-4 space-y-3">
+                {exportsQuery.data.map((pilaExport) => (
+                  <li key={pilaExport.id} className="rounded-md border border-border p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-medium">
+                        {new Intl.DateTimeFormat('es-CO', {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                          timeZone: 'America/Bogota',
+                        }).format(new Date(pilaExport.createdAt))}{' '}
+                        · Generado y validado localmente
+                      </p>
+                      <span className="text-xs text-muted-foreground">
+                        {pilaExport.sourceSnapshotCount} snapshots · AT2{' '}
+                        {pilaExport.normativeVersion}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Período {pilaExport.period.fechaInicio}–{pilaExport.period.fechaFin} · Pago
+                      PILA previsto {pilaExport.period.fechaPrevistaPagoPila ?? 'sin fecha'} ·
+                      Formato {pilaExport.fileFormatVersion} · Compatibilidad con operadores no
+                      verificada
+                    </p>
+                    <details className="mt-2 text-xs text-muted-foreground">
+                      <summary className="cursor-pointer">Versiones de reglas aplicadas</summary>
+                      <ul className="mt-1 list-inside list-disc">
+                        {pilaExport.normativeRuleVersions.map((version) => (
+                          <li key={version} className="font-mono">
+                            {version}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                    <div className="mt-3 flex flex-wrap gap-4 text-sm">
+                      <a
+                        className="underline underline-offset-4"
+                        href={`/api/payroll/periods/${encodeURIComponent(periodId)}/pila-exports/${encodeURIComponent(pilaExport.id)}/type-1`}
+                      >
+                        Descargar tipo 1 ({formatPilaBytes(pilaExport.type1.sizeBytes)})
+                      </a>
+                      <a
+                        className="underline underline-offset-4"
+                        href={`/api/payroll/periods/${encodeURIComponent(periodId)}/pila-exports/${encodeURIComponent(pilaExport.id)}/type-2`}
+                      >
+                        Descargar tipo 2 ({formatPilaBytes(pilaExport.type2.sizeBytes)})
+                      </a>
+                    </div>
+                    <p className="mt-2 break-all font-mono text-2xs text-muted-foreground">
+                      SHA-256 tipo 1: {pilaExport.type1.sha256} · tipo 2: {pilaExport.type2.sha256}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section
+            className="rounded-lg border border-border p-4"
             aria-labelledby="pila-detail-sequence-title"
           >
             <h3 id="pila-detail-sequence-title" className="font-medium">
@@ -399,8 +524,8 @@ export function PayrollPilaPreparationPanel({
                 : `Pendiente: ${query.data.detailRecordSequence.pendingReason ?? 'No se pudo confirmar el conjunto completo de registros.'}`}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              La secuencia es preliminar. La generación del archivo y la validación completa siguen
-              deshabilitadas.
+              El consecutivo se incluye en el candidato local del archivo. La aceptación del formato
+              por un operador todavía debe verificarse con una carga real.
             </p>
           </section>
 

@@ -50,7 +50,6 @@ export interface PilaPreparationAffectedEmployee {
 
 export interface PilaExportReadinessBlocker {
   code:
-    | 'AT2_FILE_MAPPING_NOT_IMPLEMENTED'
     | 'SOI_OPERATOR_FIELDS_UNCONFIRMED'
     | 'PILA_PAYMENT_DATE_REQUIRED'
     | 'PILA_PAYMENT_DATE_SNAPSHOT_INCONSISTENT'
@@ -79,28 +78,18 @@ export interface PilaDetailFieldCandidateStatus {
 
 export interface PilaExportReadiness {
   recordLayoutVersion: 'AT2_V30';
-  fileGenerationStatus: 'NOT_IMPLEMENTED';
-  localValidationStatus: 'PRELIMINARY';
+  fileGenerationStatus: 'IMPLEMENTED';
+  localValidationStatus: 'PER_EXPORT';
   operatorAcceptanceStatus: 'NOT_VERIFIED';
   blockers: PilaExportReadinessBlocker[];
 }
 
 const pilaExportReadiness: PilaExportReadiness = {
   recordLayoutVersion: 'AT2_V30',
-  fileGenerationStatus: 'NOT_IMPLEMENTED',
-  localValidationStatus: 'PRELIMINARY',
+  fileGenerationStatus: 'IMPLEMENTED',
+  localValidationStatus: 'PER_EXPORT',
   operatorAcceptanceStatus: 'NOT_VERIFIED',
   blockers: [
-    {
-      code: 'AT2_FILE_MAPPING_NOT_IMPLEMENTED',
-      scope: 'FILE_GENERATION',
-      title: 'Falta el mapeo completo y la composición de los archivos',
-      message:
-        'El código formatea registros AT2 v30 individuales y tiene mapas candidatos parciales para el aportante tipo 1, el encabezado y el detalle tipo 2; todavía no resuelve todos los campos desde snapshots aprobados ni compone y descarga los archivos tipo 1 y tipo 2.',
-      fields: [],
-      evidence:
-        'Los módulos pila-at2-v30-record-serializer.ts, pila-at2-v30-employer-mapper.ts, pila-at2-v30-header-mapper.ts y pila-at2-v30-detail-mapper.ts dejan pendientes la validación integral y la composición de los archivos.',
-    },
     {
       code: 'SOI_OPERATOR_FIELDS_UNCONFIRMED',
       scope: 'OPERATOR_COMPATIBILITY',
@@ -2007,6 +1996,26 @@ export function buildPilaPreparationReport(input: {
   const employeesWithIssues = assessments.filter(
     (assessment) => assessment.issues.length > 0,
   ).length;
+  const expectedIds = input.expectedEmployeeIds
+    ? new Set(input.expectedEmployeeIds)
+    : null;
+  const snapshotIds = new Set(
+    input.snapshots.map(({ employeeId }) => employeeId),
+  );
+  const completeSnapshotSet =
+    expectedIds === null ||
+    (expectedIds.size === input.expectedEmployeeIds?.length &&
+      expectedIds.size === input.snapshots.length &&
+      snapshotIds.size === input.snapshots.length &&
+      [...expectedIds].every((employeeId) => snapshotIds.has(employeeId)));
+  const hasFileGenerationBlocker = readinessBlockers.some(
+    ({ scope }) => scope === 'FILE_GENERATION',
+  );
+  const archivoGenerable =
+    issues.length === 0 &&
+    !hasFileGenerationBlocker &&
+    detailSequence.status === 'CANDIDATE' &&
+    completeSnapshotSet;
 
   return {
     formatVersion: null,
@@ -2038,9 +2047,10 @@ export function buildPilaPreparationReport(input: {
     employerCandidate,
     headerCandidate,
     issues,
-    archivoGenerable: false as const,
-    estadoArchivo: 'NO_IMPLEMENTADO' as const,
-    mensaje:
-      'Este informe revisa insumos conocidos de snapshots aprobados. La fuente oficial AT2 v30 está identificada; el mapeo de campos y las reglas aplicables siguen en reconciliación. No es una validación normativa completa, no genera archivos ni confirma aceptación de un operador.',
+    archivoGenerable,
+    estadoArchivo: archivoGenerable ? 'LISTO_PARA_GENERAR' : 'BLOQUEADO',
+    mensaje: archivoGenerable
+      ? 'Los snapshots no tienen brechas detectadas por las reglas locales. Se puede generar una copia de archivos tipo 1 y tipo 2 para este período; la validación local de estructura no confirma aceptación, liquidación ni pago por un operador.'
+      : 'La generación está bloqueada hasta resolver las brechas de snapshots, las reglas de período o la composición local. No se generó ningún archivo.',
   };
 }

@@ -376,16 +376,12 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
     expect(preparation.normativeSourceStatus).toBe('RECONCILIATION_PENDING');
     expect(preparation.exportReadiness).toMatchObject({
       recordLayoutVersion: 'AT2_V30',
-      fileGenerationStatus: 'NOT_IMPLEMENTED',
-      localValidationStatus: 'PRELIMINARY',
+      fileGenerationStatus: 'IMPLEMENTED',
+      localValidationStatus: 'PER_EXPORT',
       operatorAcceptanceStatus: 'NOT_VERIFIED',
     });
     expect(preparation.exportReadiness.blockers.map(({ code }) => code)).toEqual(
-      expect.arrayContaining([
-        'AT2_FILE_MAPPING_NOT_IMPLEMENTED',
-        'PILA_PAYMENT_DATE_REQUIRED',
-        'OPERATOR_UPLOAD_NOT_VERIFIED',
-      ]),
+      expect.arrayContaining(['PILA_PAYMENT_DATE_REQUIRED', 'OPERATOR_UPLOAD_NOT_VERIFIED']),
     );
     expect(preparation.snapshotsRevisados).toBe(1);
     expect(preparation.pensionTransitionSummary).toMatchObject({
@@ -397,7 +393,7 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
     expect(preparation.detailRecordSequence.candidateRecords).toBe(0);
     expect(preparation.detailRecordSequence.pendingReason).toBeTruthy();
     expect(preparation.archivoGenerable).toBe(false);
-    expect(preparation.estadoArchivo).toBe('NO_IMPLEMENTADO');
+    expect(preparation.estadoArchivo).toBe('BLOQUEADO');
     expect(preparation.employerCandidate.values[16]).toEqual({
       value: null,
       emptyAs: 'zeros',
@@ -449,14 +445,25 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
       ),
     ).toBeVisible();
     await expect(
-      pilaPreparationPanel.getByText(/no genera archivos ni confirma aceptación de un operador/i),
+      pilaPreparationPanel.getByText(/La generación está bloqueada.*no se generó ningún archivo/i),
     ).toBeVisible();
     await expect(
       pilaPreparationPanel.getByRole('heading', {
         name: 'Estado de exportación PILA',
       }),
     ).toBeVisible();
-    await expect(pilaPreparationPanel.getByText('No implementadas')).toBeVisible();
+    await expect(
+      pilaPreparationPanel.getByText('Disponibles para casos sin brechas'),
+    ).toBeVisible();
+    await expect(
+      pilaPreparationPanel.getByText('Estructura y codificación al generar'),
+    ).toBeVisible();
+    await expect(
+      pilaPreparationPanel.getByRole('button', { name: 'Generar y guardar archivos' }),
+    ).toBeDisabled();
+    await expect(
+      pilaPreparationPanel.getByText('Aún no se han generado archivos para este período.'),
+    ).toBeVisible();
     await expect(
       pilaPreparationPanel.getByRole('heading', { name: 'Secuencia del detalle tipo 2' }),
     ).toBeVisible();
@@ -467,7 +474,9 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
       ),
     ).toBeVisible();
     await expect(
-      pilaPreparationPanel.getByText('Preliminar; no cubre el archivo completo'),
+      pilaPreparationPanel.getByText(
+        /El consecutivo se incluye en el candidato local del archivo/i,
+      ),
     ).toBeVisible();
     await expect(pilaPreparationPanel.getByText('No verificada')).toBeVisible();
     await expect(
@@ -548,7 +557,9 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
     await expect(headerOperatorModeField).toContainText('En blanco según regla candidata');
     await expect(page.getByText('Campo 20 · Total IBC de caja de compensación')).toBeVisible();
     await expect(page.getByText('1.000.000', { exact: true })).toBeVisible();
-    await expect(page.getByText('No implementadas', { exact: true })).toBeVisible();
+    await expect(
+      page.getByText('Disponibles para casos sin brechas', { exact: true }),
+    ).toBeVisible();
 
     await page.goto('/contabilidad/comprobantes');
     await expect(page.getByRole('heading', { name: 'Comprobantes contabilizados' })).toBeVisible();

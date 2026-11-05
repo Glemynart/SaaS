@@ -8,6 +8,7 @@ import type {
   PilaAt2V30RecordCandidate,
   PilaAt2V30RecordKey,
 } from './pila-at2-v30-record-serializer';
+import type { PilaAt2V30DetailCandidate } from './pila-at2-v30-detail-mapper';
 
 export const PILA_AT2_V30_LOCAL_FILE_FORMAT_VERSION =
   'AT2_V30_CP1252_CRLF_LOCAL_V1' as const;
@@ -45,6 +46,7 @@ interface DetailCandidate {
   payrollPeriodId: string | null;
   values: Partial<Record<number, PilaAt2V30FieldInput>>;
   unresolvedFields: readonly { fieldNumber: number; reason: string }[];
+  normativeRuleVersions?: PilaAt2V30DetailCandidate['normativeRuleVersions'];
 }
 
 export interface PilaAt2V30FileCandidates {

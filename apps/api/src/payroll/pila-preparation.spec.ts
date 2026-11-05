@@ -1895,7 +1895,7 @@ describe('inspectPilaSnapshotPreparation', () => {
     );
   });
 
-  it('agrupa faltantes por campo y declara expresamente que el archivo aún no se genera', () => {
+  it('agrupa faltantes por campo y bloquea la generación si quedan brechas', () => {
     const report = buildPilaPreparationReport({
       period: {
         id: 'period-1',
@@ -1915,7 +1915,7 @@ describe('inspectPilaSnapshotPreparation', () => {
       empleadosConDatosPendientes: 2,
       empleadosSinBrechasDetectadas: 0,
       archivoGenerable: false,
-      estadoArchivo: 'NO_IMPLEMENTADO',
+      estadoArchivo: 'BLOQUEADO',
     });
     expect(report.exportReadiness.blockers).not.toContainEqual(
       expect.objectContaining({ code: 'PILA_PAYMENT_DATE_REQUIRED' }),
