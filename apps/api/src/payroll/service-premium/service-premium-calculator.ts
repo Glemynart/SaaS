@@ -58,8 +58,8 @@ type ParsedSnapshot = {
   employee: JsonRecord;
   concepts: JsonRecord[];
   novelties: JsonRecord[];
+  transportTotal: number;
   monthlyAid: number;
-  aidWasPaid: boolean;
   salaryBase: number;
 };
 type ServicePremiumCorrectionEvidence = {
@@ -73,7 +73,7 @@ type ServicePremiumCorrectionEvidence = {
   }>;
 };
 
-const FORMULA_VERSION = 1;
+export const SERVICE_PREMIUM_FORMULA_VERSION = 2;
 const SUPPORTED_CONTRACT_TYPES = new Set([
   'TERMINO_FIJO',
   'TERMINO_INDEFINIDO',
@@ -291,8 +291,8 @@ function parseSnapshot(row: ServicePremiumSnapshot): ParsedSnapshot | null {
     employee,
     concepts,
     novelties,
+    transportTotal,
     monthlyAid,
-    aidWasPaid: transportTotal > 0,
     salaryBase,
   };
 }
@@ -608,7 +608,7 @@ export function calculateServicePremium(input: {
       amount: null,
       sourceFingerprint: stableHash(snapshots.map(({ row }) => row.id).sort()),
       snapshot: {
-        formulaVersion: FORMULA_VERSION,
+        formulaVersion: SERVICE_PREMIUM_FORMULA_VERSION,
         reason: 'SALARIO_INTEGRAL',
         sourceSnapshotIds: snapshots.map(({ row }) => row.id).sort(),
       },
@@ -753,15 +753,21 @@ export function calculateServicePremium(input: {
         );
       }
     }
-    const clippedPeriod = overlap(snapshot.period, base);
-    if (clippedPeriod) {
-      let month = monthStart(clippedPeriod.start);
-      while (month < clippedPeriod.end) {
-        const monthRows = monthlySnapshots.get(month) ?? [];
-        monthRows.push(snapshot);
-        monthlySnapshots.set(month, monthRows);
-        month = nextMonth(month);
-      }
+    const firstMonth = monthStart(snapshot.period.start);
+    const lastCoveredMonth = monthStart(addDays(snapshot.period.end, -1));
+    if (snapshot.transportTotal > 0 && firstMonth !== lastCoveredMonth) {
+      return getBlock(
+        employee,
+        'AUXILIO_PERIODO_CRUZA_MES',
+        'El snapshot causa auxilio en varios meses y no permite separar su valor mensual.',
+      );
+    }
+    let month = firstMonth;
+    while (month < snapshot.period.end) {
+      const monthRows = monthlySnapshots.get(month) ?? [];
+      monthRows.push(snapshot);
+      monthlySnapshots.set(month, monthRows);
+      month = nextMonth(month);
     }
   }
   if (salaryBases.size !== 1)
@@ -770,50 +776,6 @@ export function calculateServicePremium(input: {
       'CAMBIO_SALARIO_BASE',
       'El salario nominal cambia durante el semestre; se requiere regla salarial con vigencia.',
     );
-
-  for (const interval of intervals) {
-    const firstMonth = monthStart(interval.start);
-    let month = firstMonth;
-    while (month < interval.end) {
-      const monthEnd = nextMonth(month);
-      const segment = overlap(interval, { start: month, end: monthEnd });
-      if (segment) {
-        const rows = monthlySnapshots.get(month) ?? [];
-        if (rows.length === 0)
-          return getBlock(
-            employee,
-            'COBERTURA_INCOMPLETA',
-            `No hay snapshot del mes ${month}.`,
-          );
-        const evidence = rows.map(
-          (row) => `${row.aidWasPaid ? '1' : '0'}:${row.monthlyAid}`,
-        );
-        const distinctEvidence = new Set(evidence);
-        if (distinctEvidence.size > 1) {
-          const aidValues = new Set(
-            rows.filter((row) => row.aidWasPaid).map((row) => row.monthlyAid),
-          );
-          if (aidValues.size > 1)
-            return getBlock(
-              employee,
-              'AUXILIO_CAMBIA_EN_MES',
-              `El auxilio de transporte cambia dentro del mes ${month}.`,
-            );
-          if (
-            rows.some((row) => row.aidWasPaid) &&
-            rows.some((row) => !row.aidWasPaid)
-          ) {
-            return getBlock(
-              employee,
-              'AUXILIO_INCONSISTENTE',
-              `Los snapshots del mes ${month} no permiten confirmar consistentemente el auxilio causado.`,
-            );
-          }
-        }
-      }
-      month = monthEnd;
-    }
-  }
 
   const serviceDays360 = intervals.reduce(
     (total, item) => total + days360(item.start, item.end),
@@ -826,6 +788,7 @@ export function calculateServicePremium(input: {
       'La duración de servicio excede el semestre o no es positiva.',
     );
   let aidWeighted = 0;
+  const serviceDaysByMonth = new Map<string, number>();
   for (const interval of intervals) {
     let month = monthStart(interval.start);
     while (month < interval.end) {
@@ -834,16 +797,49 @@ export function calculateServicePremium(input: {
         end: nextMonth(month),
       });
       if (segment) {
-        const rows = monthlySnapshots.get(month) ?? [];
-        const caused = rows.some(({ aidWasPaid }) => aidWasPaid);
-        if (caused) {
-          const aid =
-            rows.find(({ aidWasPaid }) => aidWasPaid)?.monthlyAid ?? 0;
-          aidWeighted += (aid * days360(segment.start, segment.end)) / 30;
-        }
+        serviceDaysByMonth.set(
+          month,
+          (serviceDaysByMonth.get(month) ?? 0) +
+            days360(segment.start, segment.end),
+        );
       }
       month = nextMonth(month);
     }
+  }
+  for (const [month, serviceDaysInMonth] of serviceDaysByMonth) {
+    const rows = monthlySnapshots.get(month) ?? [];
+    if (rows.length === 0) {
+      return getBlock(
+        employee,
+        'COBERTURA_INCOMPLETA',
+        `No hay snapshot del mes ${month}.`,
+      );
+    }
+    const paidRows = rows.filter(({ transportTotal }) => transportTotal > 0);
+    const monthlyAidValues = new Set(
+      paidRows.map(({ monthlyAid }) => monthlyAid),
+    );
+    if (monthlyAidValues.size > 1) {
+      return getBlock(
+        employee,
+        'AUXILIO_CAMBIA_EN_MES',
+        `El valor legal del auxilio cambia dentro del mes ${month}.`,
+      );
+    }
+    const causedAmount = paidRows.reduce(
+      (total, row) => total + row.transportTotal,
+      0,
+    );
+    const legalMonthlyAid = paidRows[0]?.monthlyAid ?? 0;
+    const maximumForServiceDays = (legalMonthlyAid * serviceDaysInMonth) / 30;
+    if (causedAmount > maximumForServiceDays + 1) {
+      return getBlock(
+        employee,
+        'AUXILIO_SUPERA_MAXIMO_MENSUAL',
+        `El auxilio causado en ${month} supera el valor legal proporcional a los días de servicio.`,
+      );
+    }
+    aidWeighted += causedAmount;
   }
 
   const salaryBase = [...salaryBases][0];
@@ -856,7 +852,7 @@ export function calculateServicePremium(input: {
   );
   const sourceSnapshotIds = snapshots.map(({ row }) => row.id).sort();
   const sourceData = {
-    formulaVersion: FORMULA_VERSION,
+    formulaVersion: SERVICE_PREMIUM_FORMULA_VERSION,
     year,
     semester,
     convention: '30/360_START_INCLUSIVE_END_EXCLUSIVE',

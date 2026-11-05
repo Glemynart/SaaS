@@ -43,6 +43,7 @@ describe('ServicePremiumService background worker', () => {
       anio: 2026,
       semestre: 1,
       version: 1,
+      formulaVersion: 2,
       status: 'PROCESANDO',
       approvedById: 'approver-1',
       createdById: 'creator-1',
@@ -102,7 +103,7 @@ describe('ServicePremiumService background worker', () => {
     expect(renderedHtml).toContain('200.000');
     expect(renderedHtml).toContain('180');
     expect(renderedHtml).toContain('1.105.000');
-    expect(renderedHtml).toContain('PRIMA_SEMESTRAL_V1');
+    expect(renderedHtml).toContain('PRIMA_SEMESTRAL_V2');
     expect(putObject).toHaveBeenCalledWith(
       expect.objectContaining({
         key: 'tenant-1/nomina/prima/2026/S1/v1/line-1.pdf',

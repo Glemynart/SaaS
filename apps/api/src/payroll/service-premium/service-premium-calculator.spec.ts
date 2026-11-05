@@ -145,6 +145,28 @@ describe('calculateServicePremium', () => {
     });
   });
 
+  it('promedia el auxilio causado congelado en snapshots, incluso si un mes fue prorrateado', () => {
+    const snapshots = halfYearSnapshots();
+    const payload = snapshots[2].payload as Record<string, unknown>;
+    const totals = payload.totals as Record<string, unknown>;
+    totals.auxilioTransporte = 140_000;
+
+    const result = calculateServicePremium({
+      employee,
+      year: 2026,
+      semester: 1,
+      snapshots,
+    });
+
+    expect(result).toMatchObject({
+      status: 'LISTA',
+      transportAllowance: 190_000,
+      serviceDays360: 180,
+      amount: 1_095_000,
+      snapshot: { formulaVersion: 2, transportWeightedTotal: 1_140_000 },
+    });
+  });
+
   it('promedia trabajo suplementario desde snapshots aprobados', () => {
     const overtime = [0, 200_000, 100_000, 300_000, 0, 200_000];
     const result = calculateServicePremium({
@@ -191,6 +213,29 @@ describe('calculateServicePremium', () => {
   });
 
   it('cuenta una fracción desde el 15 de enero con inicio incluido y fin excluido', () => {
+    const snapshots = halfYearSnapshots({
+      salary: 2_200_000,
+      contractStart: '2026-01-15',
+    });
+    const januaryPayload = snapshots[0].payload as Record<string, unknown>;
+    const januaryTotals = januaryPayload.totals as Record<string, unknown>;
+    januaryTotals.auxilioTransporte = 106_667;
+
+    const result = calculateServicePremium({
+      employee,
+      year: 2026,
+      semester: 1,
+      snapshots,
+    });
+
+    expect(result).toMatchObject({
+      status: 'LISTA',
+      serviceDays360: 166,
+      amount: 1_106_667,
+    });
+  });
+
+  it('bloquea auxilio mensual completo cuando el snapshot cubre solo una fracción del contrato', () => {
     const result = calculateServicePremium({
       employee,
       year: 2026,
@@ -202,9 +247,32 @@ describe('calculateServicePremium', () => {
     });
 
     expect(result).toMatchObject({
-      status: 'LISTA',
-      serviceDays360: 166,
-      amount: 1_106_667,
+      status: 'BLOQUEADA',
+      blockCode: 'AUXILIO_SUPERA_MAXIMO_MENSUAL',
+      amount: null,
+    });
+  });
+
+  it('bloquea snapshots con auxilio que cruzan meses porque no pueden atribuirse con certeza', () => {
+    const snapshots = halfYearSnapshots();
+    const januaryPayload = snapshots[0].payload as Record<string, unknown>;
+    const januaryPeriod = januaryPayload.period as Record<string, unknown>;
+    januaryPeriod.fechaFin = '2026-02-15T00:00:00.000Z';
+    const februaryPayload = snapshots[1].payload as Record<string, unknown>;
+    const februaryPeriod = februaryPayload.period as Record<string, unknown>;
+    februaryPeriod.fechaInicio = '2026-02-16T00:00:00.000Z';
+
+    const result = calculateServicePremium({
+      employee,
+      year: 2026,
+      semester: 1,
+      snapshots,
+    });
+
+    expect(result).toMatchObject({
+      status: 'BLOQUEADA',
+      blockCode: 'AUXILIO_PERIODO_CRUZA_MES',
+      amount: null,
     });
   });
 

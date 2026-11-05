@@ -177,7 +177,7 @@ y [LegalApp de MinJusticia](https://www.minjusticia.gov.co/programas-co/LegalApp
 
 ## Matriz del MVP de conceptos y novedades
 
-Esta matriz es la política implementada por `PRIMA_SEMESTRAL_V1`. Cubre todos
+Esta matriz de conceptos y novedades aplica a las versiones `PRIMA_SEMESTRAL_V1` y `PRIMA_SEMESTRAL_V2`. Cubre todos
 los códigos estables de `ConceptCodigo` y valida que cada uno conserve su tipo
 de nómina esperado. Todo código fuera de la matriz, aunque figure como
 deducción o aporte, bloquea la línea. La naturaleza de `BONUS` no está en el
@@ -287,6 +287,35 @@ continúa bloqueado hasta que esa revisión apruebe el corte y cualquier ajuste.
   salariales, fracciones de período y corte de diciembre. La existencia de una
   provisión mensual no prueba por sí sola que una liquidación semestral esté
   correcta.
+
+## Fórmula versionada para auxilio causado — V2
+
+La `PRIMA_SEMESTRAL_V2` reemplaza únicamente la reconstrucción del auxilio de
+transporte de la V1. Por cada mes suma el monto causado congelado en
+`totals.auxilioTransporte` de sus snapshots aprobados y lo promedia sobre los
+días de servicio de ese mes. El total mensual no puede superar el parámetro
+legal prorrateado por los días de servicio; si lo supera, la línea se bloquea.
+La V2 no sustituye el importe del snapshot por el parámetro legal ni infiere el
+auxilio causado desde un indicador booleano. Si un snapshot con auxilio cruza
+meses civiles, la línea se bloquea porque su importe no puede asignarse a cada
+mes con la evidencia disponible.
+
+La V1 permanece como versión histórica: sus lotes y documentos aprobados no se
+recalculan. Los lotes nuevos guardan fórmula 2; el PDF muestra la versión
+persistida en cada lote. En los snapshots mensuales completos donde el auxilio
+causado coincide con el parámetro legal, el resultado se conserva. Cuando el
+monto congelado difiere —por ejemplo, un valor prorrateado—, V2 refleja el
+valor fuente.
+
+El `PayrollCalculator` actual genera el auxilio completo o cero según sus
+parámetros; todavía no captura días de asistencia ni prorratea por ausencias.
+V2 consume los snapshots disponibles y bloquea un auxilio mayor al proporcional
+de los días de servicio, pero no agrega el soporte end-to-end de ausencias a
+nómina. La guía oficial de MinJusticia incluye el auxilio en la base de la prima
+y señala que puede reconocerse proporcionalmente a los días efectivamente
+trabajados cuando hay ausencias. La revisión laboral independiente y los casos
+operativos representativos siguen siendo obligatorios antes de usar el cálculo
+para liquidar pagos.
 
 ## Consecuencias
 

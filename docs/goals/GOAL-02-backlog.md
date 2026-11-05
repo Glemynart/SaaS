@@ -1905,3 +1905,26 @@ false`.
   controlado sin pago. **ARQUITECTURA DISPONIBLE:** los archivos locales,
   hashes e historial están disponibles para ejecutar esa validación; mientras
   tanto, se puede avanzar en otros escenarios internos de nómina y finanzas.
+
+### Prima semestral: promedio del auxilio desde snapshots — 2026-11-05
+
+- **Brecha confirmada en `main`:** `PRIMA_SEMESTRAL_V1` usaba el total
+  congelado de auxilio solo como indicador de sí/no y reemplazaba el monto por
+  el parámetro mensual legal. Así, un snapshot con un auxilio causado
+  prorrateado podía producir un promedio mayor al valor que Payroll registró.
+- **Cambio en preparación:** `PRIMA_SEMESTRAL_V2` promedia los importes reales
+  de `totals.auxilioTransporte` en snapshots aprobados por mes. Bloquea si el
+  importe supera el parámetro legal proporcional a los días de servicio o si
+  un snapshot con auxilio cruza meses civiles y no puede asignarse con certeza.
+  Los lotes V1 aprobados y sus PDFs no se recalculan; el nuevo PDF presenta la
+  versión almacenada.
+- La prueba incorpora un mes con $140.000 causados frente a $200.000 en los
+  otros cinco meses. La base promedio esperada de auxilio es $190.000 y la prima
+  $1.095.000. Se mantienen también los resultados de snapshots mensuales
+  completos.
+- **Limitación confirmada:** Payroll actualmente genera el auxilio completo o
+  cero; no registra días de asistencia ni lo prorratea por ausencias. V2
+  conserva el monto de origen y bloquea excesos proporcionales, pero el soporte
+  end-to-end de ausencias requiere primero modelar y validar su impacto en
+  Payroll. La revisión laboral independiente continúa pendiente para el uso
+  operativo de primas.
