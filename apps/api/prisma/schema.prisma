@@ -146,6 +146,19 @@ enum EstadoRangoNumeracionElectronica {
   INACTIVO
 }
 
+enum TipoIntentoFacturaElectronica {
+  ENVIO
+  CONCILIACION
+}
+
+enum EstadoResultadoIntentoFacturaElectronica {
+  ACEPTADO
+  RECHAZADO
+  PENDIENTE
+  DESCONOCIDO
+  ERROR_TECNICO
+}
+
 enum ImpuestoTipo {
   IVA_0
   IVA_5
@@ -1821,7 +1834,9 @@ model FacturaElectronica {
   total              Decimal                  @default(0) @db.Decimal(14, 2)
   versionAgregado    Int                      @default(1)
 
-  lineas LineaFacturaElectronica[]
+  lineas        LineaFacturaElectronica[]
+  transmisiones FacturaElectronicaTransmision[]
+  transiciones  TransicionFacturaElectronica[]
 
   // Arithmetic, numbering, tenant and post-numbering immutability checks live
   // in the SQL migration because Prisma does not model CHECK/trigger clauses.
@@ -1852,6 +1867,108 @@ model LineaFacturaElectronica {
 
   @@index([tenantId, facturaElectronicaId], map: "lineas_fe_tenant_invoice_idx")
   @@map("lineas_facturas_electronicas")
+}
+
+// Persisted event identity is immutable. Individual provider calls and
+// outcomes are append-only so ambiguous submissions can be reconciled safely.
+model FacturaElectronicaTransmision {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId             String
+  facturaElectronicaId String
+  facturaElectronica   FacturaElectronica @relation(fields: [facturaElectronicaId, tenantId], references: [id, tenantId], onDelete: Cascade, map: "transmisiones_fe_invoice_tenant_fkey")
+
+  eventoId          String @db.VarChar(120)
+  claveIdempotencia String @db.Char(64)
+  versionPayload    String @db.VarChar(40)
+  hashPayload       String @db.Char(64)
+  payloadCanonico   String @db.Text
+  providerId        String @db.VarChar(80)
+  contractVersion   String @db.VarChar(80)
+  ultimoIntento     Int    @default(0)
+
+  intentos     IntentoFacturaElectronica[]
+  transiciones TransicionFacturaElectronica[]
+
+  @@unique([id, tenantId], map: "transmisiones_fe_id_tenant_key")
+  @@unique([id, tenantId, facturaElectronicaId], map: "transmisiones_fe_id_tenant_invoice_key")
+  @@unique([tenantId, claveIdempotencia], map: "transmisiones_fe_tenant_idempotency_key")
+  @@unique([tenantId, facturaElectronicaId, eventoId], map: "transmisiones_fe_tenant_invoice_event_key")
+  @@index([tenantId, createdAt], map: "transmisiones_fe_tenant_created_idx")
+  @@map("transmisiones_facturas_electronicas")
+}
+
+model IntentoFacturaElectronica {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId      String
+  transmisionId String
+  transmision   FacturaElectronicaTransmision @relation(fields: [transmisionId, tenantId], references: [id, tenantId], onDelete: Cascade, map: "intentos_fe_transmission_tenant_fkey")
+
+  numeroIntento   Int
+  tipo            TipoIntentoFacturaElectronica
+  providerId      String                        @db.VarChar(80)
+  contractVersion String                        @db.VarChar(80)
+  iniciadoEn      DateTime                      @default(now())
+
+  resultado    ResultadoIntentoFacturaElectronica?
+  transiciones TransicionFacturaElectronica[]
+
+  @@unique([id, tenantId], map: "intentos_fe_id_tenant_key")
+  @@unique([id, tenantId, transmisionId], map: "intentos_fe_id_tenant_transmission_key")
+  @@unique([tenantId, transmisionId, numeroIntento], map: "intentos_fe_tenant_transmission_sequence_key")
+  @@index([tenantId, transmisionId, iniciadoEn], map: "intentos_fe_tenant_transmission_started_idx")
+  @@map("intentos_facturas_electronicas")
+}
+
+model ResultadoIntentoFacturaElectronica {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId  String
+  intentoId String                    @unique(map: "resultados_intento_fe_attempt_key")
+  intento   IntentoFacturaElectronica @relation(fields: [intentoId, tenantId], references: [id, tenantId], onDelete: Cascade, map: "resultados_intento_fe_attempt_tenant_fkey")
+
+  estado                 EstadoResultadoIntentoFacturaElectronica
+  providerReference      String?                                  @db.VarChar(200)
+  providerAcceptedAt     DateTime?
+  codigoError            String?                                  @db.VarChar(100)
+  receiptConfirmedAbsent Boolean                                  @default(false)
+  contenidoTypeEvidencia String?                                  @db.VarChar(120)
+  storageKeyEvidencia    String?                                  @db.VarChar(500)
+  sha256Evidencia        String?                                  @db.Char(64)
+  issues                 Json?
+  finalizadoEn           DateTime                                 @default(now())
+
+  @@unique([id, tenantId], map: "resultados_intento_fe_id_tenant_key")
+  @@unique([intentoId, tenantId], map: "resultados_intento_fe_attempt_tenant_key")
+  @@index([tenantId, estado, finalizadoEn], map: "resultados_intento_fe_tenant_status_idx")
+  @@map("resultados_intentos_facturas_electronicas")
+}
+
+model TransicionFacturaElectronica {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId             String
+  facturaElectronicaId String
+  transmisionId        String
+  intentoId            String?
+  facturaElectronica   FacturaElectronica            @relation(fields: [facturaElectronicaId, tenantId], references: [id, tenantId], onDelete: Cascade, map: "transiciones_fe_invoice_tenant_fkey")
+  transmision          FacturaElectronicaTransmision @relation(fields: [transmisionId, tenantId, facturaElectronicaId], references: [id, tenantId, facturaElectronicaId], onDelete: Cascade, map: "transiciones_fe_transmission_invoice_tenant_fkey")
+  intento              IntentoFacturaElectronica?    @relation(fields: [intentoId, tenantId, transmisionId], references: [id, tenantId, transmisionId], onDelete: Cascade, map: "transiciones_fe_attempt_transmission_tenant_fkey")
+
+  desde       EstadoFacturaElectronica?
+  hasta       EstadoFacturaElectronica
+  evento      String                    @db.VarChar(40)
+  actorUserId String?
+
+  @@unique([id, tenantId], map: "transiciones_fe_id_tenant_key")
+  @@index([tenantId, facturaElectronicaId, createdAt], map: "transiciones_fe_tenant_invoice_created_idx")
+  @@index([tenantId, transmisionId, createdAt], map: "transiciones_fe_tenant_transmission_created_idx")
+  @@map("transiciones_facturas_electronicas")
 }
 
 // La identidad fiscal base se deriva de Tenant para evitar dos fuentes de

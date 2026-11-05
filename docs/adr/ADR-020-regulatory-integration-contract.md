@@ -23,6 +23,8 @@
   con tenant isolation y RLS. No existen almacenamiento durable de intentos
   ni adaptador DIAN. `MATIAS_API_URL` y `MATIAS_API_KEY` solo aparecen en la
   configuración; no se usan para transmitir documentos.
+- PR #290 añadió a `main` la exportación CSV de reportes contables; no cambia
+  el estado de la integración fiscal.
 - ADR-SEC-001 está marcado como propuesto. Se revisaron para H1 sus apartados
   de aislamiento, auditoría, secretos y observabilidad. Sus principios no se
   toman como prueba de que los controles ya estén implementados. El marco
@@ -64,10 +66,21 @@ falso. PR #285 completa la base persistente del dominio fiscal: agregado,
 líneas y snapshots tenant-scoped. PR #286 completa la configuración de emisor
 y rangos autorizados, con numeración atómica preparada para consumirse dentro
 de la transacción de emisión; no transmite ni expone un endpoint que consuma un
-consecutivo aislado. Aún no persiste intentos de transmisión ni evidencia de
-proveedor. Tampoco implementa resolución real de secretos, adaptador MATIAS,
-worker ni comunicación con DIAN. Esos incrementos requieren sus propias
-pruebas; PR13 de PR10 debe validar sandbox antes de escribir un adaptador real.
+consecutivo aislado.
+
+La rama `codex/goal02-electronic-invoice-attempts` implementa la siguiente
+fundación: evento y payload idempotentes, secuencia durable de intentos,
+resultados normalizados, transiciones append-only, RLS y almacenamiento privado
+de evidencia con checksum. Su servicio interno no está conectado a un
+controlador, worker, UI ni adaptador MATIAS; no realiza solicitudes externas y
+no constituye un flujo utilizable por clientes. La decisión no aprueba esos
+componentes ni su operación.
+
+Siguen pendientes la resolución segura de credenciales por tenant, observación
+operativa del worker y validación del contrato/sandbox del proveedor. PR13 de
+PR10 debe validar sandbox antes de escribir un adaptador real. Ninguno de los
+incrementos actuales acredita un documento válido ante DIAN, aceptación de
+operador, liquidación ni pago.
 
 La aceptación del fake solo demuestra el contrato del código local. No acredita
 un documento válido ante DIAN, aceptación de operador, liquidación ni pago.
@@ -77,6 +90,7 @@ un documento válido ante DIAN, aceptación de operador, liquidación ni pago.
 - El caso de uso y las pruebas pueden avanzar sin credenciales ni entorno
   externo.
 - El límite de proveedor queda explícito antes de crear persistencia fiscal.
-- H1 continúa en progreso: faltan intentos/evidencia durables, el mecanismo
-  real de credenciales y la observabilidad de trabajos. La integración
-  permanece bloqueada hasta que esas dependencias y el sandbox estén resueltos.
+- H1 continúa en progreso: la rama actual prepara intentos y evidencia
+  durables; faltan credenciales por tenant, endpoint/worker conectados,
+  observabilidad operativa y aceptación del sandbox del proveedor. La ruta de
+  transmisión real sigue bloqueada hasta resolver esas dependencias.
