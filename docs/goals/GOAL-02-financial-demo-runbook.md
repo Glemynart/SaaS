@@ -26,7 +26,7 @@ Ese seed está restringido a una base local y crea una nómina sintética de un
 empleado; sirve para mostrar comprobantes de demo, no para demostrar un cálculo
 operativo de nómina, la prima masiva o la exportación PILA de un grupo.
 
-## Recorrido sugerido (10–15 minutos)
+## Recorrido sugerido (10–16 minutos; el paso 5 es opcional)
 
 ### 1. Nómina y resultado contable (3 minutos)
 
@@ -91,12 +91,24 @@ CSV para abrirlo en Excel. Los libros paginados descargan únicamente la página
 visible; cambia de página y descarga cada una cuando necesites exportar más
 registros.
 
+### 5. Seguimiento de facturación electrónica (opcional, 1 minuto)
+
+Con un usuario `ADMIN`, abre **Facturación → Facturación electrónica**
+(`/facturacion/electronica`) y muestra **Seguimiento de transmisiones**. La vista
+consulta hasta las últimas 50 transmisiones guardadas para el tenant y resume el
+último intento registrado. Si no hay registros previos, muestra el estado vacío;
+no fabriques resultados ni ejecutes un envío durante la demostración. Solo
+presenta intentos originados en una prueba autorizada de sandbox, si existen, y
+aclara que el estado normalizado del proveedor no equivale a aceptación DIAN.
+La pantalla no transmite ni concilia documentos.
+
 ## Qué comunicar con precisión
 
 - **Sí se puede mostrar:** nómina interna, causación al Ledger, prima masiva de
   enero–junio con PDF por empleado, preparación y descarga local de PILA cuando
   no haya brechas, facturación interna, cartera derivada de recaudos y
-  comprobantes contables.
+  comprobantes contables, además del seguimiento de intentos electrónicos ya
+  persistidos cuando existan.
 - **Aún no se debe ofrecer como terminado:** transmisión de factura electrónica
   a DIAN, transmisión de nómina electrónica, aceptación o liquidación de una
   planilla por un operador, pagos PILA, conciliación bancaria y liquidación
@@ -114,3 +126,5 @@ registros.
 - [Exportación PILA E2E](../../e2e/payroll-pila-export-smoke.spec.ts).
 - [Backlog de GOAL-02](./GOAL-02-backlog.md), incluida la matriz de alcance y
   sus límites normativos.
+- [PR #304: seguimiento de transmisiones](https://github.com/Glemynart/SaaS/pull/304),
+  que añade la vista de solo lectura descrita en el paso 5.
