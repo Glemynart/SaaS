@@ -9,3 +9,8 @@ allowBuilds:
   puppeteer: true
   sharp: true
   unrs-resolver: true
+overrides:
+  dompurify: 3.4.17
+  handlebars: 4.7.10
+  multer: 2.5.0
+  proxy-addr: 2.0.8
