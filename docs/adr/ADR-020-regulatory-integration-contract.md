@@ -18,13 +18,15 @@
 - El segmento cliente y el flujo comercial están definidos a nivel de producto;
   aún no se confirmó un cliente operativo ni un sandbox/contrato real de
   proveedor para este caso.
-- En `main` `adec87e` ya existe el agregado persistente `FacturaElectronica`
+- En `main` `adec87e` existe el agregado persistente `FacturaElectronica`
   y su fake de contrato (PR #284); PR #285 añade snapshots fiscales y líneas
-  con tenant isolation y RLS. No existen almacenamiento durable de intentos
-  ni adaptador DIAN. `MATIAS_API_URL` y `MATIAS_API_KEY` solo aparecen en la
-  configuración; no se usan para transmitir documentos.
-- PR #290 añadió a `main` la exportación CSV de reportes contables; no cambia
-  el estado de la integración fiscal.
+  con tenant isolation y RLS. PR #291 añade almacenamiento durable de intentos,
+  transiciones y referencias de evidencia privada con checksum y RLS; no hay
+  adaptador DIAN ni transmisión. `MATIAS_API_URL` y `MATIAS_API_KEY` solo
+  aparecen en la configuración; no se usan para transmitir documentos.
+- PR #290 añadió a `main` la exportación CSV de reportes contables; PR #291
+  completa una parte de persistencia de integración, sin cambiar el estado de
+  transmisión fiscal.
 - ADR-SEC-001 está marcado como propuesto. Se revisaron para H1 sus apartados
   de aislamiento, auditoría, secretos y observabilidad. Sus principios no se
   toman como prueba de que los controles ya estén implementados. El marco
@@ -68,13 +70,13 @@ y rangos autorizados, con numeración atómica preparada para consumirse dentro
 de la transacción de emisión; no transmite ni expone un endpoint que consuma un
 consecutivo aislado.
 
-La rama `codex/goal02-electronic-invoice-attempts` implementa la siguiente
-fundación: evento y payload idempotentes, secuencia durable de intentos,
-resultados normalizados, transiciones append-only, RLS y almacenamiento privado
-de evidencia con checksum. Su servicio interno no está conectado a un
-controlador, worker, UI ni adaptador MATIAS; no realiza solicitudes externas y
-no constituye un flujo utilizable por clientes. La decisión no aprueba esos
-componentes ni su operación.
+PR #291, fusionado en `main` como `6496dccc86cd2cd10c17d5c3dfcc20866b64606a`,
+implementa la siguiente fundación: evento y payload idempotentes, secuencia
+durable de intentos, resultados normalizados, transiciones append-only, RLS y
+almacenamiento privado de evidencia con checksum. Su servicio interno no está
+conectado a un controlador, worker, UI ni adaptador MATIAS; no realiza
+solicitudes externas y no constituye un flujo utilizable por clientes. La
+decisión no aprueba esos componentes ni su operación.
 
 Siguen pendientes la resolución segura de credenciales por tenant, observación
 operativa del worker y validación del contrato/sandbox del proveedor. PR13 de
@@ -90,7 +92,7 @@ un documento válido ante DIAN, aceptación de operador, liquidación ni pago.
 - El caso de uso y las pruebas pueden avanzar sin credenciales ni entorno
   externo.
 - El límite de proveedor queda explícito antes de crear persistencia fiscal.
-- H1 continúa en progreso: la rama actual prepara intentos y evidencia
-  durables; faltan credenciales por tenant, endpoint/worker conectados,
-  observabilidad operativa y aceptación del sandbox del proveedor. La ruta de
+- H1 continúa en progreso: PR #291 dejó intentos y evidencia durables; faltan
+  credenciales por tenant, endpoint/worker conectados, observabilidad operativa
+  y aceptación del sandbox del proveedor. La ruta de
   transmisión real sigue bloqueada hasta resolver esas dependencias.

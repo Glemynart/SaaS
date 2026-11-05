@@ -12,7 +12,8 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 - PR #284 se fusionó en `main` como `65a85dc5d02e0bb7e05b91412ce3ed79cded114e`; CI, Browser E2E, Vercel Production y publicación de imagen API terminaron en verde. Añade el puerto interno de facturación electrónica y su fake de contrato; no transmite ni persiste documentos fiscales.
 - PR #285 se fusionó en `main` como `adec87e993e27d56da117a5fb250082ff1e163bf`; CI, Browser E2E y publicación de imagen API posteriores quedaron en verde. Completa el dominio fiscal persistente y sus líneas snapshot con RLS; no agrega endpoints, emisión ni transmisión.
 - PR #290 se fusionó en `main` como `7021af8902fb0a10fa2454bb7d1ffb35c6975aae`; CI y Browser E2E posteriores pasaron. Añade descarga CSV de los reportes contables según filtros: página visible en informes paginados y resultado completo en balances/estados financieros.
-- La siguiente rama de H1 prepara persistencia tenant-scoped de eventos, intentos, resultados, transiciones y evidencia privada de factura electrónica, con historial inmutable y RLS. El servicio aún no se conecta a endpoint, worker, interfaz ni adaptador real; no transmite ni declara aceptación DIAN.
+- PR #291 se fusionó en `main` como `6496dccc86cd2cd10c17d5c3dfcc20866b64606a`; los checks post-merge de CI, Browser E2E y publicación de imagen API pasaron.
+- PR #291 añade persistencia tenant-scoped de eventos, intentos, resultados, transiciones y evidencia privada de factura electrónica, con historial append-only, checksum y RLS. El servicio aún no se conecta a endpoint, worker, interfaz ni adaptador real; no transmite ni declara aceptación DIAN.
 - El resultado LOCAL_VALIDATED acredita layout, longitud y codificación comprobados localmente. No acredita revisión normativa completa, aceptación del operador, liquidación ni pago.
 - Los escenarios dependientes estándar 01/00 se habilitan solo si el preflight no detecta brechas. Novedades que requieran segmentación, casos especiales y correcciones aprobadas continúan bloqueando la generación.
 
@@ -58,10 +59,10 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 - No consulta movimientos adicionales ni modifica el Ledger. El Browser E2E
   verifica la descarga y sus datos; CI y Browser E2E post-merge pasaron.
 
-### Persistencia de intentos de factura electrónica — preparación de H1
+### Persistencia de intentos de factura electrónica — PR #291 fusionado
 
-- El incremento en la rama `codex/goal02-electronic-invoice-attempts` registra
-  identidad de evento y payload antes de cualquier llamada externa, crea
+- El servicio en `main` registra identidad de evento y payload antes de
+  cualquier llamada externa, crea
   intentos numerados y conserva resultados y transiciones append-only.
 - Las tablas tienen RLS y claves foráneas compuestas tenant-scoped. La evidencia
   normalizada se almacena mediante `StorageService` con key tenant-scoped,
@@ -73,9 +74,10 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   servicio todavía no hace llamadas externas. Esta base no es una capacidad de
   facturación electrónica utilizable por clientes ni demuestra conformidad o
   aceptación de DIAN.
-- El siguiente bloqueo de integración sigue siendo confirmar el sandbox y
-  contrato del proveedor. Antes de transmisión real faltan también resolución
-  segura de credenciales por tenant, operación observable y pruebas de sandbox.
+- La siguiente integración sigue pendiente de validar el contrato del proveedor
+  en sandbox. Antes de transmisión real faltan resolución segura de credenciales
+  por tenant, endpoint/worker conectados, operación observable y pruebas de
+  sandbox.
 
 ### Antecedente FSP y checks del PR #250 — 2026-11-03
 
@@ -283,9 +285,9 @@ se accedió a demo, staging o producción.
 
 ## H1 — Fundación de integraciones regulatorias
 
-| Prioridad | Estado      | Iniciativa                                                                 | Criterios de aceptación                                                                                                                        | Dependencias y riesgo                                                                                                                                                       |
-| --------- | ----------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P1        | EN PROGRESO | Aprobar modelo de eventos, evidencia, secretos y adaptadores regulatorios. | ADRs cubren idempotencia, estados, correcciones, retención, permisos, auditoría y cambio de proveedor; proveedor fake con pruebas de contrato. | Caso base de factura definido en ADR-005; faltan cliente/proveedor sandbox confirmado, persistencia de intentos/evidencia, secretos por tenant y observabilidad del worker. |
+| Prioridad | Estado      | Iniciativa                                                                 | Criterios de aceptación                                                                                                                        | Dependencias y riesgo                                                                                                                                                           |
+| --------- | ----------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1        | EN PROGRESO | Aprobar modelo de eventos, evidencia, secretos y adaptadores regulatorios. | ADRs cubren idempotencia, estados, correcciones, retención, permisos, auditoría y cambio de proveedor; proveedor fake con pruebas de contrato. | PR #291 completa la persistencia de intentos/evidencia; faltan cliente/proveedor sandbox confirmado, secretos por tenant, endpoint/worker conectado y observabilidad operativa. |
 
 ### Contrato inicial de adaptadores regulatorios — 2026-11-05
 
@@ -331,9 +333,10 @@ se accedió a demo, staging o producción.
 - Las 89 migraciones se aplicaron en una base PostgreSQL temporal vacía; las
   13 pruebas focalizadas, el typecheck, ESLint y build API pasaron. La base
   temporal se eliminó al terminar.
-- PR11 completó el agregado persistente y PR12 quedó integrado en PR #286. H1
-  sigue abierto: faltan validar el contrato del proveedor en sandbox,
-  persistencia de intentos/evidencia, credenciales tenant-scoped y operación.
+- PR11 completó el agregado persistente, PR12 quedó integrado en PR #286 y
+  PR #291 añadió intentos/evidencia durables. H1 sigue abierto: faltan validar
+  el contrato del proveedor en sandbox, credenciales tenant-scoped,
+  endpoint/worker conectado y operación observable.
 
 ### Emisor y numeración — PR12 completado en PR #286
 
