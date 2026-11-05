@@ -8,6 +8,7 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 
 - PR #278 se fusionó en main como 0aae82938fe430e258f35861eec944e59a5bde32 y PR #279 como 1b31782257313cc08f150e2f1024df88fe405562. Los checks post-merge de CI, Browser E2E y publicación de la imagen API pasaron en ambos.
 - PR #278 compone localmente archivos AT2 v30 tipo 1 y tipo 2 desde snapshots aprobados; PR #279 añade generación autenticada tenant-scoped, historial append-only, almacenamiento privado, SHA-256, versionamiento, auditoría y descarga protegida. La nueva prueba de navegador de esta continuación cubre generación, persistencia, reintento idempotente y descarga de ambos archivos desde la interfaz.
+- PR #283 se fusionó en `main` como `541e7306ffa573ff99bf26c953382d3bf60f1d7d`; CI, Browser E2E, Vercel Production y publicación de imagen API terminaron en verde. En el momento de la verificación, Secret Scanning y Dependabot no mostraban alertas abiertas ni alertas altas, respectivamente.
 - El resultado LOCAL_VALIDATED acredita layout, longitud y codificación comprobados localmente. No acredita revisión normativa completa, aceptación del operador, liquidación ni pago.
 - Los escenarios dependientes estándar 01/00 se habilitan solo si el preflight no detecta brechas. Novedades que requieran segmentación, casos especiales y correcciones aprobadas continúan bloqueando la generación.
 
@@ -246,9 +247,30 @@ se accedió a demo, staging o producción.
 
 ## H1 — Fundación de integraciones regulatorias
 
-| Prioridad | Estado    | Iniciativa                                                                 | Criterios de aceptación                                                                                                                        | Dependencias y riesgo                                                                   |
-| --------- | --------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| P1        | PENDIENTE | Aprobar modelo de eventos, evidencia, secretos y adaptadores regulatorios. | ADRs cubren idempotencia, estados, correcciones, retención, permisos, auditoría y cambio de proveedor; proveedor fake con pruebas de contrato. | Caso de uso real y revisión de ADR-SEC-001; no requiere desplegar una integración real. |
+| Prioridad | Estado      | Iniciativa                                                                 | Criterios de aceptación                                                                                                                        | Dependencias y riesgo                                                                                                                                                       |
+| --------- | ----------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1        | EN PROGRESO | Aprobar modelo de eventos, evidencia, secretos y adaptadores regulatorios. | ADRs cubren idempotencia, estados, correcciones, retención, permisos, auditoría y cambio de proveedor; proveedor fake con pruebas de contrato. | Caso base de factura definido en ADR-005; faltan cliente/proveedor sandbox confirmado, persistencia de intentos/evidencia, secretos por tenant y observabilidad del worker. |
+
+### Contrato inicial de adaptadores regulatorios — 2026-11-05
+
+- ADR-020 acepta un contrato interno específico para facturación electrónica,
+  derivado de ADR-005. El puerto usa tenant, factura, evento estable, clave
+  idempotente, hash y versión de payload; normaliza resultados a `ACCEPTED`,
+  `REJECTED`, `PENDING` o `UNKNOWN`. Una corrección usa evento nuevo y un
+  resultado ambiguo requiere conciliación antes de retransmitir.
+- El test fake verifica reintento idempotente, conflicto por reutilizar una
+  clave con otro contenido/evento, aislamiento entre tenants, identidad distinta
+  para correcciones, conciliación y fallo cerrado. La prueba no acredita
+  aceptación DIAN ni compatibilidad de proveedor.
+- Revisión de ADR-SEC-001 acotada a H1: sus reglas de aislamiento, auditoría,
+  secretos y observabilidad son requisitos de diseño, pero el documento sigue
+  propuesto y no demuestra que esos controles estén implementados. No se
+  acepta la arquitectura general ni se atribuye una garantía de producción.
+- H1 sigue incompleto. El código de `main` aún no persiste el agregado ni los
+  intentos fiscales y no resuelve credenciales reales por tenant. La variable
+  `MATIAS_API_KEY` permanece sin consumidor; no se usa como credencial de
+  emisor ni se realiza una llamada externa. PR13 de PR10 sigue requiriendo
+  validar sandbox antes de un adaptador MATIAS real.
 
 ## H2/H3 — Cumplimiento electrónico
 
