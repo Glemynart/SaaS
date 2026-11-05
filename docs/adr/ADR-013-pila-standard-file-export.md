@@ -17,16 +17,19 @@
 > 24-07-2026, y enumera la Resolución 1529 de 2026; esa página es la referencia
 > usada para identificar la versión normativa.
 >
-> PR #278 agregó a `main` composición local de los archivos tipo 1 y 2 desde
-> candidatos de snapshots aprobados. El endpoint de preparación conserva
+> **Estado verificado en `main` el 2026-11-05:** PR #278 agregó composición
+> local de archivos tipo 1 y 2 desde snapshots aprobados; PR #279 agregó
+> generación autenticada tenant-scoped, historial append-only, almacenamiento
+> privado, hashes, auditoría y descargas protegidas. Esta continuación añade
+> una prueba Browser E2E del flujo exitoso, desde el preflight hasta descargar
+> y verificar los dos archivos. El endpoint de preparación conserva
 > `formatVersion: null` porque describe el preflight, no un archivo emitido;
-> `normativeSourceStatus` sigue `RECONCILIATION_PENDING` porque aún hay reglas,
-> fuentes y casos fuera del MVP por reconciliar. La rama de implementación
-> vigente agrega una operación autenticada, historial append-only y descargas
-> privadas para los conjuntos sin brechas. `LOCAL_VALIDATED` significa que el
-> serializador confirmó layout, longitud y codificación locales; no acredita
-> revisión laboral completa ni aceptación de SOI u otro operador. Aceptación,
-> liquidación y pago permanecen en estados separados y fuera de esta entrega.
+> `normativeSourceStatus` sigue `RECONCILIATION_PENDING` porque hay reglas,
+> fuentes y casos fuera del MVP por reconciliar. `LOCAL_VALIDATED` significa
+> que el serializador confirmó layout, longitud y codificación locales; no
+> acredita revisión normativa completa ni aceptación de SOI u otro operador.
+> Aceptación, liquidación y pago permanecen en estados separados y fuera de
+> esta entrega.
 
 La migración del historial es aditiva. Si se revierte el despliegue de la
 aplicación, la tabla y los archivos ya registrados se conservan; no se ejecuta
@@ -35,7 +38,7 @@ una migración hacia adelante. El historial bloquea UPDATE, DELETE directo y
 TRUNCATE; una eliminación en cascada del tenant propietario sigue permitida por
 la relación de base de datos.
 
-- **Estado:** Aprobado con cambios. PR #160 incorporó la primera etapa del historial de afiliaciones; PR #278 fusionó composición local de candidatos AT2 v30. La operación persistida, el historial y la descarga protegida están en implementación en esta rama.
+- **Estado:** Aprobado con cambios. PR #160 incorporó la primera etapa del historial de afiliaciones; PR #278 fusionó composición local de candidatos AT2 v30 y PR #279 la generación persistida, historial y descarga protegida. Se limita a escenarios cubiertos por preflight; ningún operador ha sido declarado compatible. Esta rama agrega cobertura Browser E2E del recorrido exitoso.
 - **Fecha:** 2026-10-30.
 - **Goal:** GOAL-02 — Evolución Financiera y Cumplimiento Electrónico.
 - **Responsable:** Producto / Payroll.
@@ -43,8 +46,11 @@ la relación de base de datos.
 ## Contexto
 
 El usuario necesita organizar los datos de seguridad social de sus trabajadores
-y descargar un archivo que pueda cargar en un operador PILA. El código actual
-no produce ese archivo ni conserva todos sus insumos de forma estructurada:
+y descargar un archivo que pueda cargar en un operador PILA. Al redactar esta
+ADR no existían el exportador ni la persistencia de afiliaciones estructuradas.
+En el estado actual, los campos heredados de texto libre siguen existiendo,
+mientras que los módulos de afiliación, snapshot y exportación cubren un
+subconjunto acotado de escenarios; no constituyen compatibilidad universal:
 
 - `Empleado.eps`, `arl`, `fondoPension` y `cajaCompensacion` son campos de texto
   libre sin identificador ni historia de vigencias.
@@ -71,9 +77,13 @@ no produce ese archivo ni conserva todos sus insumos de forma estructurada:
   asignaciones ARL fechadas y las congelan en el payload PILA; PR #170
   identifica sus brechas sin segmentación normativa ni validación completa del
   archivo.
-- PR #278 añadió composición local AT2 v30 en la API, sin persistencia de
-  historial ni descarga protegida. Esta rama conecta esa composición con una
-  operación de exportación tenant-scoped y la UI del período de nómina.
+- PR #278 añadió composición local AT2 v30 en la API. PR #279 conecta esa
+  composición con una operación de exportación tenant-scoped, persistencia
+  inmutable, almacenamiento privado, auditoría y descarga desde la UI del
+  período de nómina. La nueva prueba Browser E2E en esta rama verifica el
+  preflight, la generación, el registro persistido, la idempotencia del
+  reintento, las descargas y la coincidencia de hashes. La compatibilidad por
+  operador sigue pendiente de pruebas de carga reales.
 
 El Ministerio publica anexos técnicos para PILA y los operadores documentan
 cargue de archivos planos. La [página oficial PILA de
@@ -571,8 +581,11 @@ snapshots v1–v7, los aportes reales y cualquier período/pago desde el corte
 permanecen bloqueados. Capturar que existen aportes no captura sus importes ni
 habilita el campo 53.
 
-Esta mejora solo resuelve candidatos de preflight; no genera ni descarga el
-archivo y no prueba aceptación de operador.
+En la etapa en que se agregó esta declaración, la mejora solo resolvía
+candidatos de preflight; aún no generaba ni descargaba archivos y no probaba
+aceptación de operador. La generación local y la descarga protegida se
+incorporaron después en PR #278 y #279; la prueba de aceptación por operador
+sigue pendiente.
 
 La comprobación directa confirma que el AT2 enlazado es versión 30 y que la
 copia candidata registrada históricamente tiene exactamente el mismo hash. La
@@ -762,7 +775,8 @@ normativos y tampoco autoriza serializar.
 ### Auditoría provisional campo por campo: archivos tipo 2
 
 La auditoría usa AT2 v30 y coteja su estructura con el schema Prisma, los
-servicios de afiliación y el payload de nómina aprobado de esta rama. El
+servicios de afiliación y el payload de nómina aprobado que existía al
+redactar esta matriz. El
 registro 01 tiene 22 campos y 359 caracteres; cada registro 02 tiene 98 campos
 y 693 caracteres. Las etiquetas resumidas identifican la variable del anexo,
 no fijan padding o codificación.
@@ -1055,10 +1069,11 @@ conjunto vigente completo como una nueva versión; una vigencia abierta anterior
 se cierra el día previo. Las versiones históricas se conservan y no se
 convierten los campos de texto heredados.
 
-Esta etapa solo conserva lo declarado por el aportante. Aún no comprueba que el
-código exista en un catálogo oficial, no genera archivos tipo 1/2 y no demuestra
-aceptación de un operador. Esa validación sigue siendo una dependencia previa a
-la exportación y a cualquier afirmación de compatibilidad.
+La captura de afiliaciones conserva lo declarado por el aportante. Por sí sola
+no comprueba que el código exista en un catálogo oficial ni demuestra
+aceptación de un operador. El exportador local incorporado en PR #278 y #279
+aplica las validaciones implementadas; la validación de carga y aceptación
+siguen siendo dependencias previas a cualquier afirmación de compatibilidad.
 
 ## Alternativas descartadas
 
