@@ -33,7 +33,7 @@ async function registerAndSignIn(page: Page, suffix: string) {
   await expect(page).toHaveURL(/\/dashboard$/);
 }
 
-test('administra el perfil y el historial del rango por ambiente desde la interfaz', async ({
+test('administra perfil, rango y seguimiento de transmisiones desde la interfaz', async ({
   page,
 }) => {
   test.setTimeout(90_000);
@@ -58,6 +58,50 @@ test('administra el perfil y el historial del rango por ambiente desde la interf
   await expect(page.getByText(/Todavía no emite ni transmite facturas a la DIAN/)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Seguimiento de transmisiones' })).toBeVisible();
   await expect(page.getByText('No hay transmisiones registradas para esta empresa.')).toBeVisible();
+
+  const transmission = {
+    id: 'transmission-e2e',
+    createdAt: '2026-11-05T10:00:00.000Z',
+    providerId: 'matias',
+    contractVersion: '3.9.2',
+    invoice: {
+      status: 'PENDIENTE_CONCILIACION',
+      prefix: 'FE',
+      number: 42,
+      issuedAt: '2026-11-05T00:00:00.000Z',
+    },
+    latestAttempt: {
+      number: 1,
+      type: 'ENVIO',
+      startedAt: '2026-11-05T10:01:00.000Z',
+      result: {
+        status: 'DESCONOCIDO',
+        errorCode: 'TIMEOUT',
+        finishedAt: '2026-11-05T10:02:00.000Z',
+      },
+    },
+  };
+  await page.route('**/api/electronic-invoicing/transmissions', async (route) => {
+    expect(route.request().method()).toBe('GET');
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items: [transmission] }),
+    });
+  });
+  const populatedResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/electronic-invoicing/transmissions' &&
+      response.request().method() === 'GET',
+  );
+  await page.reload();
+  const populatedResponse = await populatedResponsePromise;
+  expect(populatedResponse.status()).toBe(200);
+  expect(await populatedResponse.json()).toEqual({ items: [transmission] });
+  const transmissionCard = page.locator('article').filter({ hasText: 'Factura FE42' });
+  await expect(transmissionCard).toContainText('Pendiente de conciliación');
+  await expect(transmissionCard).toContainText('Envío #1: Resultado desconocido');
+  await expect(transmissionCard).toContainText('Código técnico: TIMEOUT');
 
   await page.getByLabel('Responsabilidades tributarias').fill('05, 48');
   await page.getByLabel('Motivo del cambio').fill('Configurar perfil de prueba');
