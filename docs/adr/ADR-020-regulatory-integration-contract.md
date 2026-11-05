@@ -18,9 +18,10 @@
 - El segmento cliente y el flujo comercial están definidos a nivel de producto;
   aún no se confirmó un cliente operativo ni un sandbox/contrato real de
   proveedor para este caso.
-- En `main` no existe todavía el agregado `FacturaElectronica`, almacenamiento
-  durable de intentos ni adaptador DIAN. `MATIAS_API_URL` y `MATIAS_API_KEY`
-  solo aparecen en la configuración; no se usan para transmitir documentos.
+- En el `main` base `65a85dc` no existía todavía el agregado
+  `FacturaElectronica`, almacenamiento durable de intentos ni adaptador DIAN.
+  `MATIAS_API_URL` y `MATIAS_API_KEY` solo aparecen en la configuración; no se
+  usan para transmitir documentos.
 - ADR-SEC-001 está marcado como propuesto. Se revisaron para H1 sus apartados
   de aislamiento, auditoría, secretos y observabilidad. Sus principios no se
   toman como prueba de que los controles ya estén implementados. El marco
@@ -58,10 +59,12 @@
 ## Límites de esta decisión
 
 Este ADR permite implementar y verificar el contrato interno con un proveedor
-falso. No implementa el agregado fiscal, el modelo durable de transmisiones,
-la resolución real de secretos, el adaptador MATIAS, un worker ni comunicación
-con DIAN. Esos incrementos requieren sus propias pruebas; PR13 de PR10 debe
-validar sandbox antes de escribir un adaptador real.
+falso. La continuación de PR11 prepara el primer agregado fiscal, su snapshot canónico v1,
+guardas de estado y persistencia tenant-scoped; aún no persiste intentos de
+transmisión ni evidencia de proveedor. Tampoco implementa resolución real de
+secretos, adaptador MATIAS, worker ni comunicación con DIAN. Esos incrementos
+requieren sus propias pruebas; PR13 de PR10 debe validar sandbox antes de
+escribir un adaptador real.
 
 La aceptación del fake solo demuestra el contrato del código local. No acredita
 un documento válido ante DIAN, aceptación de operador, liquidación ni pago.
@@ -71,6 +74,6 @@ un documento válido ante DIAN, aceptación de operador, liquidación ni pago.
 - El caso de uso y las pruebas pueden avanzar sin credenciales ni entorno
   externo.
 - El límite de proveedor queda explícito antes de crear persistencia fiscal.
-- H1 continúa en progreso: faltan persistencia/evidencia, el mecanismo real de
-  credenciales y la observabilidad de trabajos. La integración permanece
-  bloqueada hasta que esas dependencias y el sandbox estén resueltos.
+- H1 continúa en progreso: faltan intentos/evidencia durables, el mecanismo
+  real de credenciales y la observabilidad de trabajos. La integración
+  permanece bloqueada hasta que esas dependencias y el sandbox estén resueltos.

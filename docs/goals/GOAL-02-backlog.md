@@ -9,6 +9,7 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 - PR #278 se fusionó en main como 0aae82938fe430e258f35861eec944e59a5bde32 y PR #279 como 1b31782257313cc08f150e2f1024df88fe405562. Los checks post-merge de CI, Browser E2E y publicación de la imagen API pasaron en ambos.
 - PR #278 compone localmente archivos AT2 v30 tipo 1 y tipo 2 desde snapshots aprobados; PR #279 añade generación autenticada tenant-scoped, historial append-only, almacenamiento privado, SHA-256, versionamiento, auditoría y descarga protegida. La nueva prueba de navegador de esta continuación cubre generación, persistencia, reintento idempotente y descarga de ambos archivos desde la interfaz.
 - PR #283 se fusionó en `main` como `541e7306ffa573ff99bf26c953382d3bf60f1d7d`; CI, Browser E2E, Vercel Production y publicación de imagen API terminaron en verde. En el momento de la verificación, Secret Scanning y Dependabot no mostraban alertas abiertas ni alertas altas, respectivamente.
+- PR #284 se fusionó en `main` como `65a85dc5d02e0bb7e05b91412ce3ed79cded114e`; CI, Browser E2E, Vercel Production y publicación de imagen API terminaron en verde. Añade el puerto interno de facturación electrónica y su fake de contrato; no transmite ni persiste documentos fiscales.
 - El resultado LOCAL_VALIDATED acredita layout, longitud y codificación comprobados localmente. No acredita revisión normativa completa, aceptación del operador, liquidación ni pago.
 - Los escenarios dependientes estándar 01/00 se habilitan solo si el preflight no detecta brechas. Novedades que requieran segmentación, casos especiales y correcciones aprobadas continúan bloqueando la generación.
 
@@ -266,11 +267,38 @@ se accedió a demo, staging o producción.
   secretos y observabilidad son requisitos de diseño, pero el documento sigue
   propuesto y no demuestra que esos controles estén implementados. No se
   acepta la arquitectura general ni se atribuye una garantía de producción.
-- H1 sigue incompleto. El código de `main` aún no persiste el agregado ni los
-  intentos fiscales y no resuelve credenciales reales por tenant. La variable
-  `MATIAS_API_KEY` permanece sin consumidor; no se usa como credencial de
-  emisor ni se realiza una llamada externa. PR13 de PR10 sigue requiriendo
+- En el `main` base `65a85dc`, H1 seguía incompleto: el agregado fiscal y los
+  intentos aún no se persistían, y las credenciales no se resolvían por tenant.
+  La variable `MATIAS_API_KEY` permanece sin consumidor; no se usa como
+  credencial de emisor ni se realiza una llamada externa. PR13 de PR10 requiere
   validar sandbox antes de un adaptador MATIAS real.
+
+### Dominio fiscal base — trabajo en curso sobre `main` de PR #284
+
+- El siguiente incremento implementa el primer modelo fiscal persistente,
+  separado de `Billing.Invoice`, con líneas snapshot, moneda COP, índices por
+  tenant y políticas PostgreSQL RLS. No migra ni reinterpreta facturas internas.
+- El snapshot canónico v1 valida identidad básica, fecha, cantidades, importes
+  exactos y conciliación aritmética. No calcula ni declara reglas tributarias
+  DIAN: esas reglas requieren su propia revisión normativa.
+- La migración exige moneda COP, consistencia de totales y numeración antes de
+  entrar en procesamiento; triggers congelan cambios y borrado directo del
+  documento/líneas después de numerar. La FK compuesta evita adjuntar una línea
+  de otro tenant; las pruebas RLS cubren lecturas anidadas, inserciones
+  cruzadas y operaciones sin contexto.
+- El borrado administrativo de un tenant aún usa la cascada existente; su
+  retención y borrado fiscal requieren decisión legal antes de producción, como
+  ya establece ADR-005.
+- La máquina de estados expresa las transiciones admitidas por ADR-005 y solo
+  acepta/rechaza si el caso de uso declara que la evidencia ya se persistió;
+  los resultados ambiguos siguen en conciliación. El caso de uso todavía no
+  está conectado a endpoints, UI, transmisiones ni proveedor externo.
+- Las 89 migraciones, incluida esta, se aplicaron en una base PostgreSQL
+  temporal vacía; las 13 pruebas focalizadas, el typecheck, ESLint y build API
+  pasaron. La base temporal se eliminó al terminar.
+- Esta preparación no completa PR11 ni H1; la ejecución de cliente depende de
+  los siguientes incrementos de dominio, numeración, persistencia de intentos,
+  evidencia y operación.
 
 ## H2/H3 — Cumplimiento electrónico
 
