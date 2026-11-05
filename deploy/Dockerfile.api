@@ -17,6 +17,7 @@ WORKDIR /workspace
 # Copy manifests first so dependency installation remains cacheable.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.json ./
 COPY apps/api/package.json apps/api/package.json
+COPY vendor/xlsx-0.20.3.tgz vendor/xlsx-0.20.3.tgz
 COPY apps/web/package.json apps/web/package.json
 COPY packages/types/package.json packages/types/package.json
 
