@@ -101,6 +101,7 @@ interface RawRow {
   fondoPensionCodigo?: unknown;
   fondoPensionNombre?: unknown;
   estadoAfiliacionPensional?: unknown;
+  indicadorTarifaEspecialPensiones?: unknown;
   arlCodigo?: unknown;
   arlNombre?: unknown;
   arlClaseRiesgo?: unknown;
@@ -121,6 +122,14 @@ interface InitialPilaAffiliationData {
   fondoPensionCodigo: string;
   fondoPensionNombre: string;
   estadoAfiliacionPensional: 'S' | 'N' | null;
+  indicadorTarifaEspecialPensiones:
+    | ''
+    | '1'
+    | '2'
+    | '3'
+    | '4'
+    | null
+    | undefined;
   arlCodigo: string;
   arlNombre: string;
   arlClaseRiesgo: string;
@@ -200,6 +209,7 @@ const TEMPLATE_HEADERS = [
   'fondoPensionCodigo',
   'fondoPensionNombre',
   'estadoAfiliacionPensional',
+  'indicadorTarifaEspecialPensiones',
   'arlCodigo',
   'arlNombre',
   'arlClaseRiesgo',
@@ -239,6 +249,7 @@ const TEMPLATE_HINTS = [
   'Código de fondo de pensión (texto, 1–6 caracteres); no se valida contra catálogo.',
   'Nombre de fondo de pensión (1–120 caracteres).',
   'Opcional. S o N según el campo 5 del soporte de afiliación a pensiones; no lo infieras.',
+  'Opcional. NORMAL confirma tarifa ordinaria; usa 1–4 según soporte. Vacío conserva desconocido.',
   'Código ARL (texto, 1–6 caracteres); no se valida contra catálogo.',
   'Nombre ARL (1–120 caracteres).',
   'Clase de riesgo: 1 | 2 | 3 | 4 | 5.',
@@ -259,6 +270,7 @@ const PILA_AFFILIATION_FIELDS = [
   'fondoPensionCodigo',
   'fondoPensionNombre',
   'estadoAfiliacionPensional',
+  'indicadorTarifaEspecialPensiones',
   'arlCodigo',
   'arlNombre',
   'arlClaseRiesgo',
@@ -287,6 +299,7 @@ const PILA_AFFILIATION_IMPORT_HINTS = [
   'Código de fondo de pensión (texto, 1–6 caracteres); no se valida contra catálogo.',
   'Nombre de fondo de pensión (1–120 caracteres).',
   'Opcional. S o N según el campo 5 del soporte de afiliación a pensiones; no lo infieras.',
+  'Opcional. NORMAL confirma tarifa ordinaria; usa 1–4 según soporte. Vacío conserva desconocido.',
   'Código ARL (texto, 1–6 caracteres); no se valida contra catálogo.',
   'Nombre ARL (1–120 caracteres).',
   'Clase de riesgo: 1 | 2 | 3 | 4 | 5.',
@@ -502,6 +515,30 @@ function parseInitialPilaAffiliation(
     pensionStatusText === 'S' || pensionStatusText === 'N'
       ? pensionStatusText
       : null;
+  const pensionTariffText = str(
+    row.indicadorTarifaEspecialPensiones,
+  )?.toUpperCase();
+  const validPensionTariffs = ['1', '2', '3', '4'];
+  if (
+    pensionTariffText &&
+    pensionTariffText !== 'NORMAL' &&
+    pensionTariffText !== 'SIN_CONFIRMAR' &&
+    !validPensionTariffs.includes(pensionTariffText)
+  ) {
+    errors.push({
+      fila,
+      campo: 'indicadorTarifaEspecialPensiones',
+      mensaje: 'Usa NORMAL o un código de tarifa especial 1, 2, 3 o 4.',
+    });
+  }
+  const indicadorTarifaEspecialPensiones =
+    pensionTariffText === 'NORMAL'
+      ? ''
+      : validPensionTariffs.includes(pensionTariffText ?? '')
+        ? (pensionTariffText as '1' | '2' | '3' | '4')
+        : pensionTariffText === 'SIN_CONFIRMAR'
+          ? null
+          : undefined;
   const arlCodigo = requiredText(
     'arlCodigo',
     'El código ARL',
@@ -631,6 +668,7 @@ function parseInitialPilaAffiliation(
     fondoPensionCodigo,
     fondoPensionNombre,
     estadoAfiliacionPensional,
+    indicadorTarifaEspecialPensiones,
     arlCodigo,
     arlNombre,
     arlClaseRiesgo,
@@ -759,7 +797,9 @@ export class EmployeeImportService {
     }
     const missingHeaders = PILA_AFFILIATION_IMPORT_HEADERS.filter(
       (header) =>
-        header !== 'estadoAfiliacionPensional' && !headers.includes(header),
+        header !== 'estadoAfiliacionPensional' &&
+        header !== 'indicadorTarifaEspecialPensiones' &&
+        !headers.includes(header),
     );
     if (missingHeaders.length > 0) {
       throw new BadRequestException(
@@ -1076,6 +1116,9 @@ export class EmployeeImportService {
       AFFILIATION_COMPARISON_FIELDS.every(
         (field) => (existing[field] ?? null) === (requested[field] ?? null),
       ) &&
+      (requested.indicadorTarifaEspecialPensiones === undefined ||
+        (existing.indicadorTarifaEspecialPensiones ?? null) ===
+          requested.indicadorTarifaEspecialPensiones) &&
       (requested.estadoAfiliacionPensional === null ||
         (existing.estadoAfiliacionPensional ?? null) ===
           requested.estadoAfiliacionPensional) &&

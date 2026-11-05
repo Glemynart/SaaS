@@ -36,6 +36,7 @@ const PILA_HEADERS = [
   'fondoPensionCodigo',
   'fondoPensionNombre',
   'estadoAfiliacionPensional',
+  'indicadorTarifaEspecialPensiones',
   'arlCodigo',
   'arlNombre',
   'arlClaseRiesgo',
@@ -85,6 +86,7 @@ function pilaImportRow(overrides: Record<string, unknown> = {}) {
     epsNombre: 'EPS de prueba',
     fondoPensionCodigo: 'AFP001',
     fondoPensionNombre: 'Fondo de prueba',
+    indicadorTarifaEspecialPensiones: 'NORMAL',
     arlCodigo: 'ARL001',
     arlNombre: 'ARL de prueba',
     arlClaseRiesgo: '1',
@@ -114,6 +116,7 @@ function pilaBulkAffiliationRow(
     fondoPensionCodigo: 'AFP001',
     fondoPensionNombre: 'Fondo de prueba',
     estadoAfiliacionPensional: '',
+    indicadorTarifaEspecialPensiones: 'NORMAL',
     arlCodigo: 'ARL001',
     arlNombre: 'ARL de prueba',
     arlClaseRiesgo: '1',
@@ -281,6 +284,7 @@ describe('EmployeeImportService', () => {
       expect.objectContaining({
         epsCodigo: 'EPS001',
         estadoAfiliacionPensional: null,
+        indicadorTarifaEspecialPensiones: '',
         vigenteDesde: '2026-01-01',
         vigenteHasta: null,
       }),
@@ -302,7 +306,68 @@ describe('EmployeeImportService', () => {
     expect(auditTransaction).toBe(mockPrismaClient);
   });
 
-  it('accepts an older affiliation template without the optional pension state column', async () => {
+  it('imports an explicit special pension tariff without converting its code', async () => {
+    mockEmpleadoFindMany.mockResolvedValue([
+      {
+        id: 'employee-a',
+        cedula: '1001',
+        tipoDocumento: 'CC',
+        tipoContrato: 'TERMINO_FIJO',
+      },
+    ]);
+
+    await service.importPilaAffiliationsFromBuffer(
+      TENANT_ID,
+      USER_ID,
+      workbookBuffer(
+        [pilaBulkAffiliationRow({ indicadorTarifaEspecialPensiones: '3' })],
+        PILA_BULK_HEADERS,
+      ),
+    );
+
+    expect(mockCreateAffiliationInTransaction).toHaveBeenCalledWith(
+      mockPrismaClient,
+      TENANT_ID,
+      USER_ID,
+      'employee-a',
+      expect.objectContaining({ indicadorTarifaEspecialPensiones: '3' }),
+    );
+  });
+
+  it('rejects unknown pension tariff codes before writing affiliations', async () => {
+    mockEmpleadoFindMany.mockResolvedValue([
+      {
+        id: 'employee-a',
+        cedula: '1001',
+        tipoDocumento: 'CC',
+        tipoContrato: 'TERMINO_FIJO',
+      },
+    ]);
+
+    let thrown: unknown;
+    try {
+      await service.importPilaAffiliationsFromBuffer(
+        TENANT_ID,
+        USER_ID,
+        workbookBuffer(
+          [pilaBulkAffiliationRow({ indicadorTarifaEspecialPensiones: '5' })],
+          PILA_BULK_HEADERS,
+        ),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(importErrors(thrown)).toContainEqual(
+      expect.objectContaining({
+        campo: 'indicadorTarifaEspecialPensiones',
+        fila: 2,
+      }),
+    );
+    expect(mockCreateAffiliationInTransaction).not.toHaveBeenCalled();
+  });
+
+  it('accepts older affiliation templates without the new pension evidence columns', async () => {
     mockEmpleadoFindMany.mockResolvedValue([
       {
         id: 'employee-a',
@@ -312,7 +377,9 @@ describe('EmployeeImportService', () => {
       },
     ]);
     const previousHeaders = PILA_BULK_HEADERS.filter(
-      (header) => header !== 'estadoAfiliacionPensional',
+      (header) =>
+        header !== 'estadoAfiliacionPensional' &&
+        header !== 'indicadorTarifaEspecialPensiones',
     );
 
     await service.importPilaAffiliationsFromBuffer(
@@ -329,7 +396,10 @@ describe('EmployeeImportService', () => {
       TENANT_ID,
       USER_ID,
       'employee-a',
-      expect.objectContaining({ estadoAfiliacionPensional: null }),
+      expect.objectContaining({
+        estadoAfiliacionPensional: null,
+        indicadorTarifaEspecialPensiones: undefined,
+      }),
     );
   });
 
@@ -350,6 +420,7 @@ describe('EmployeeImportService', () => {
       fondoPensionCodigo: 'AFP001',
       fondoPensionNombre: 'Fondo de prueba',
       estadoAfiliacionPensional: 'S',
+      indicadorTarifaEspecialPensiones: '2',
       arlCodigo: 'ARL001',
       arlNombre: 'ARL de prueba',
       arlClaseRiesgo: '1',
@@ -362,7 +433,9 @@ describe('EmployeeImportService', () => {
       vigenteHasta: null,
     });
     const previousHeaders = PILA_BULK_HEADERS.filter(
-      (header) => header !== 'estadoAfiliacionPensional',
+      (header) =>
+        header !== 'estadoAfiliacionPensional' &&
+        header !== 'indicadorTarifaEspecialPensiones',
     );
 
     await expect(
@@ -394,6 +467,7 @@ describe('EmployeeImportService', () => {
       epsNombre: 'EPS de prueba',
       fondoPensionCodigo: 'AFP001',
       fondoPensionNombre: 'Fondo de prueba',
+      indicadorTarifaEspecialPensiones: '',
       arlCodigo: 'ARL001',
       arlNombre: 'ARL de prueba',
       arlClaseRiesgo: '1',
@@ -676,7 +750,8 @@ describe('EmployeeImportService', () => {
       tenantId: TENANT_ID,
       empleadoId: 'employee-a',
       registradoPorId: USER_ID,
-      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V4',
+      versionCaptura: 'PILA_AFFILIATION_CAPTURE_V5',
+      indicadorTarifaEspecialPensiones: '',
       tipoCotizanteCodigo: '01',
       subtipoCotizanteCodigo: '00',
       epsCodigo: 'EPS001',
