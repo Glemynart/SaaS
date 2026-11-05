@@ -66,6 +66,12 @@ implementadas para ese alcance; no significa que un operador haya aceptado el
 archivo, emitido una liquidación o recibido un pago. La compatibilidad se declara
 por operador solo después de superar pruebas de carga con ese operador.
 
+Para preparar una prueba específica con SOI, sigue el [protocolo de aceptación
+por operador](../research/pila/SOI-OPERATOR-ACCEPTANCE-CHECKLIST.md). El archivo
+localmente validado y los estados de aceptación, liquidación y pago son hitos
+distintos. Si el Autocorrector de SOI cambia datos o valores, no apruebes ni
+pagues esos cambios sin conciliarlos con los snapshots aprobados de nómina.
+
 ### 4. Factura interna, cartera y Ledger (3–4 minutos)
 
 Abre **Facturación** (`/facturacion`) y muestra el resumen de emitido, recaudo

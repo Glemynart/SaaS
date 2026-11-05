@@ -1847,3 +1847,24 @@ false`.
   worktree vive dentro del directorio oculto `.codex`.
 - Antes de declarar la seguridad de publicación completa, revisar también los
   checks remotos y volver a consultar Dependabot después de integrar el lockfile.
+
+### Protocolo de aceptación de archivos PILA en SOI — 2026-11-05
+
+- **Preparación realizada:** las páginas oficiales de SOI describen la carga
+  autenticada de archivos planos, la creación posterior de un número y valor de
+  planilla y la separación del pago. El Autocorrector de SOI puede identificar
+  y modificar redondeos, topes, subsistemas obligatorios y proporcionalidad por
+  novedades. Por ello, la validación local no debe confundirse con aceptación
+  del operador ni con una liquidación que concilie con PayrollSnapshot.
+- **Artefacto:** `docs/research/pila/SOI-OPERATOR-ACCEPTANCE-CHECKLIST.md`
+  define precondiciones, evidencia saneada y los estados que se deben registrar
+  por separado. Si el operador cambia valores, deben conciliarse antes de
+  aceptar o pagar; el producto aún no implementa esa reconciliación.
+- **Estado:** no se ha cargado ningún archivo ni se ha probado una cuenta de
+  SOI. La aceptación permanece `NOT_VERIFIED`; no se declara compatibilidad.
+  El protocolo no transmite datos, no paga planillas y no altera snapshots.
+- **GOAL ACTIVO:** GOAL-02. **IMPLEMENTACIÓN BLOQUEADA:** la prueba específica
+  de SOI requiere un canal de prueba o una cuenta autorizada y un escenario
+  controlado sin pago. **ARQUITECTURA DISPONIBLE:** los archivos locales,
+  hashes e historial están disponibles para ejecutar esa validación; mientras
+  tanto, se puede avanzar en otros escenarios internos de nómina y finanzas.
