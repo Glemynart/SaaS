@@ -20,9 +20,10 @@
 > **Estado verificado en `main` el 2026-11-05:** PR #278 agregó composición
 > local de archivos tipo 1 y 2 desde snapshots aprobados; PR #279 agregó
 > generación autenticada tenant-scoped, historial append-only, almacenamiento
-> privado, hashes, auditoría y descargas protegidas. Esta continuación añade
-> una prueba Browser E2E del flujo exitoso, desde el preflight hasta descargar
-> y verificar los dos archivos. El endpoint de preparación conserva
+> privado, hashes, auditoría y descargas protegidas. PR #280 verifica por
+> Browser E2E el flujo exitoso, desde el preflight hasta descargar y verificar
+> los dos archivos; PR #281 comprueba que un segundo tenant reciba 404 al pedir
+> una descarga ajena y no obtenga el hash. El endpoint de preparación conserva
 > `formatVersion: null` porque describe el preflight, no un archivo emitido;
 > `normativeSourceStatus` sigue `RECONCILIATION_PENDING` porque hay reglas,
 > fuentes y casos fuera del MVP por reconciliar. `LOCAL_VALIDATED` significa
@@ -38,7 +39,7 @@ una migración hacia adelante. El historial bloquea UPDATE, DELETE directo y
 TRUNCATE; una eliminación en cascada del tenant propietario sigue permitida por
 la relación de base de datos.
 
-- **Estado:** Aprobado con cambios. PR #160 incorporó la primera etapa del historial de afiliaciones; PR #278 fusionó composición local de candidatos AT2 v30 y PR #279 la generación persistida, historial y descarga protegida. Se limita a escenarios cubiertos por preflight; ningún operador ha sido declarado compatible. Esta rama agrega cobertura Browser E2E del recorrido exitoso.
+- **Estado:** Aprobado con cambios. PR #160 incorporó la primera etapa del historial de afiliaciones; PR #278 fusionó composición local de candidatos AT2 v30 y PR #279 la generación persistida, historial y descarga protegida. PR #280 verifica generación/descarga end-to-end y PR #281 verifica aislamiento de descarga entre tenants. Se limita a escenarios cubiertos por preflight; ningún operador ha sido declarado compatible.
 - **Fecha:** 2026-10-30.
 - **Goal:** GOAL-02 — Evolución Financiera y Cumplimiento Electrónico.
 - **Responsable:** Producto / Payroll.
@@ -80,10 +81,10 @@ subconjunto acotado de escenarios; no constituyen compatibilidad universal:
 - PR #278 añadió composición local AT2 v30 en la API. PR #279 conecta esa
   composición con una operación de exportación tenant-scoped, persistencia
   inmutable, almacenamiento privado, auditoría y descarga desde la UI del
-  período de nómina. La nueva prueba Browser E2E en esta rama verifica el
-  preflight, la generación, el registro persistido, la idempotencia del
-  reintento, las descargas y la coincidencia de hashes. La compatibilidad por
-  operador sigue pendiente de pruebas de carga reales.
+  período de nómina. PR #280 verifica el preflight, la generación, el registro
+  persistido, la idempotencia del reintento, las descargas y la coincidencia de
+  hashes; PR #281 comprueba que otro tenant no pueda descargar el archivo. La
+  compatibilidad por operador sigue pendiente de pruebas de carga reales.
 
 El Ministerio publica anexos técnicos para PILA y los operadores documentan
 cargue de archivos planos. La [página oficial PILA de

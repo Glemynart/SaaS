@@ -1685,20 +1685,28 @@ false`.
 - **Brecha confirmada en el preflight:** los mappers y el serializador podían
   producir registros candidatos, pero no había una composición común de los
   dos archivos fijos a partir de snapshots aprobados.
-- **Cambio preparado en esta rama:** el campo 79 queda capturado por afiliación
+- **Composición integrada en main (PR #278):** el campo 79 queda capturado por afiliación
   histórica V5 y congelado en snapshot PILA v9, sin completar valores antiguos.
   Solo el indicador normal confirmado permite los candidatos de pensión
   estándar; las tarifas especiales y los históricos desconocidos quedan
   bloqueados. La composición reúne aportante tipo 1, cabecera y detalles tipo 2
   y falla el conjunto completo si hay campos pendientes, duplicados, mezcla de
   tenant/período, texto no representable o longitud inválida.
-- La salida local usa Windows-1252 y CRLF con estado `NOT_VERIFIED`. Es una
-  convención interna pendiente de carga de prueba: no acredita compatibilidad
-  con SOI ni otros operadores. No hay aún endpoint de descarga ni historial
-  inmutable de exportaciones, por lo que esta etapa no es una capacidad
-  terminada para clientes.
-- **Siguiente incremento:** conectar la composición a una operación tenant-
-  scoped de exportación desde nómina aprobada, guardar historial inmutable y
-  exponer descarga solo después de validar permisos, concurrencia, auditoría y
-  pruebas end-to-end. La aceptación de cada operador debe seguir separada de
-  generación, validación local, liquidación y pago.
+- **Generación integrada en main (PR #279):** una exportación autenticada,
+  tenant-scoped y ligada a nómina aprobada conserva historial append-only,
+  versiones de regla/formato, hashes, archivos privados y auditoría; la UI
+  permite descargar cada tipo con verificación de integridad.
+- **Verificación end-to-end:** PR #280 comprueba preflight, generación,
+  persistencia, reintento idempotente y descarga de ambos archivos con nombres,
+  codificación, bytes y SHA-256 esperados. PR #281 comprueba desde un segundo
+  tenant que la descarga ajena responde 404 sin revelar el hash del archivo.
+- El estado `LOCAL_VALIDATED` confirma solo las validaciones locales del
+  serializador y el formato/codificación guardados. La aceptación por operador
+  sigue `NOT_VERIFIED`: aún requiere pruebas de carga por operador. No se
+  transmite, liquida ni paga la planilla, y no se declara compatibilidad
+  universal. El MVP de generación queda limitado a dependientes estándar 01/00
+  sin bloqueos de preflight; los casos excluidos o con datos faltantes siguen
+  sin generar.
+- **Siguiente incremento:** validar con evidencia de carga real el archivo en
+  cada operador que se pretenda anunciar como compatible. Mantener separadas la
+  generación local, aceptación del operador, liquidación y pago.
