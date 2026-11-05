@@ -297,10 +297,11 @@ se accedió a demo, staging o producción.
 - Las 89 migraciones se aplicaron en una base PostgreSQL temporal vacía; las
   13 pruebas focalizadas, el typecheck, ESLint y build API pasaron. La base
   temporal se eliminó al terminar.
-- PR11 ya completó su agregado persistente. H1 sigue abierto: faltan numeración,
-  persistencia de intentos, evidencia, credenciales tenant-scoped y operación.
+- PR11 completó el agregado persistente y PR12 quedó integrado en PR #286. H1
+  sigue abierto: faltan validar el contrato del proveedor en sandbox,
+  persistencia de intentos/evidencia, credenciales tenant-scoped y operación.
 
-### Emisor y numeración — PR12 en curso
+### Emisor y numeración — PR12 completado en PR #286
 
 - El perfil deriva razón social, NIT, dirección, municipio y contacto de
   `Tenant`, evitando duplicar la identidad fiscal. Solo conserva por separado
@@ -324,6 +325,43 @@ se accedió a demo, staging o producción.
   archivos del cambio, `prisma validate` y el E2E de navegador de configuración
   (1/1). Las bases temporales se eliminaron después de cada ejecución. Esta
   validación local no equivale a los checks de GitHub ni a aceptación DIAN.
+- Tras el merge de PR #286, CI, Browser E2E, publicación de imagen API y Vercel
+  terminaron en verde sobre `2983eb54a3566645f2d9d83b347c2b3d46b5ff9e`.
+- La pantalla y el dominio configuran emisor y rangos; no generan ni transmiten
+  documentos. El siguiente hito de la secuencia es validar el contrato real de
+  MATIAS en sandbox (PR13), antes del adaptador.
+
+### Preparación de validación MATIAS sandbox — 2026-11-05
+
+- La [guía oficial de Quickstart sandbox](https://docs.matias-api.com/docs/sandbox/quickstart/)
+  indica que el entorno es gratuito y no requiere contrato, pero exige una
+  cuenta independiente, verificación del correo, inicio de sesión y creación de
+  un PAT. La URL publicada es `https://sandbox-api.matias-api.com/api/ubl2.1`;
+  las credenciales de producción y sandbox son independientes.
+- La guía documenta `POST /invoice`, consultas de estado y simulación de
+  rechazos/timeout mediante `X-Sandbox-Force-Status`; todas las respuestas
+  sandbox declaran `X-MATIAS-Environment: sandbox`. La [referencia oficial de
+  respuestas](https://docs.matias-api.com/docs/response-json/) distingue el
+  HTTP del resultado DIAN (`response.IsValid`/`StatusCode`) y advierte consultar
+  el estado antes de retransmitir ante timeout o `DOCUMENT_POSSIBLY_SENT`. El
+  proveedor describe la respuesta sandbox como simulada; no es aceptación de
+  DIAN ni prueba de carga de un operador.
+- En las páginas oficiales de Quickstart y respuestas revisadas no se describe
+  una garantía de idempotencia para el endpoint unitario. PR13 debe comprobarlo
+  o registrar la respuesta del proveedor; no se inferirá del contrato interno
+  de ADR-020.
+- No se registró una cuenta ni se hicieron llamadas al sandbox en esta tarea.
+  PR13 necesita una cuenta sandbox con correo verificado y un PAT guardado
+  fuera del repositorio para ejecutar la matriz contractual con datos
+  sintéticos: autenticación, emisión aceptada, rechazo, timeout ambiguo,
+  consulta de estado, descarga de evidencia y comportamiento ante número
+  repetido. Se debe registrar request/response sin credenciales y verificar
+  que ninguna llamada use el host de producción.
+- **GOAL ACTIVO:** GOAL-02. **IMPLEMENTACIÓN BLOQUEADA:** solo la validación
+  contra sandbox de PR13 hasta disponer de la cuenta verificada. **ARQUITECTURA
+  DISPONIBLE:** la documentación oficial permite preparar autenticación,
+  emisión, respuestas, consulta, error ambiguo y descarga; transmisión real y
+  producción siguen fuera de esta validación.
 
 ## H2/H3 — Cumplimiento electrónico
 
