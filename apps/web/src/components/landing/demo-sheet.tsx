@@ -17,7 +17,7 @@ const demoSchema = z.object({
   email: z.string().email('Ingrese un correo electrónico válido'),
   telefono: z.string().min(7, 'Ingrese un número de teléfono válido'),
   planta: z.enum(['menos50', '50a100', '100a300', 'mas300'], {
-    required_error: 'Seleccione el tamaño de su planta',
+    message: 'Seleccione el tamaño de su planta',
   }),
   dolor: z.enum(['contratos', 'expedientes', 'vencimientos', 'otro']).optional(),
 });
