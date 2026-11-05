@@ -384,10 +384,22 @@ se accedió a demo, staging o producción.
   el estado antes de retransmitir ante timeout o `DOCUMENT_POSSIBLY_SENT`. El
   proveedor describe la respuesta sandbox como simulada; no es aceptación de
   DIAN ni prueba de carga de un operador.
-- En las páginas oficiales de Quickstart y respuestas revisadas no se describe
-  una garantía de idempotencia para el endpoint unitario. PR13 debe comprobarlo
-  o registrar la respuesta del proveedor; no se inferirá del contrato interno
-  de ADR-020.
+- **Corrección de evidencia al 2026-11-05:** la documentación oficial actual
+  recomienda un `uuid` estable para el documento y dice que el mismo número con
+  el mismo `uuid` puede reintentarse sin crear otro documento; reutilizarlo para
+  otro documento causa conflicto. Por tanto, la afirmación anterior de que las
+  páginas revisadas no describían idempotencia quedó desactualizada. Esto es un
+  hecho publicado por MATIAS, aún no una conducta verificada mediante llamada
+  de sandbox ni una garantía suficiente para omitir la conciliación interna.
+- La respuesta de emisión puede ser HTTP 200 con rechazo DIAN; la clasificación
+  debe leer `response.IsValid` y `StatusCode`. Para `DOCUMENT_POSSIBLY_SENT`, la
+  guía indica consultar estado antes de retransmitir. `StatusCode 98` es
+  procesamiento transitorio. No se debe tratar `success: true` como aceptación
+  DIAN.
+- Se incorporó
+  [`MATIAS-SANDBOX-ACCEPTANCE-CHECKLIST.md`](../research/electronic-invoicing/MATIAS-SANDBOX-ACCEPTANCE-CHECKLIST.md)
+  con casos de aceptación para host, PAT, respuesta aceptada/rechazada,
+  timeout, conciliación, UUID repetido/colisionado y evidencia privada.
 - No se registró una cuenta ni se hicieron llamadas al sandbox en esta tarea.
   PR13 necesita una cuenta sandbox con correo verificado y un PAT guardado
   fuera del repositorio para ejecutar la matriz contractual con datos
@@ -395,11 +407,12 @@ se accedió a demo, staging o producción.
   consulta de estado, descarga de evidencia y comportamiento ante número
   repetido. Se debe registrar request/response sin credenciales y verificar
   que ninguna llamada use el host de producción.
-- **GOAL ACTIVO:** GOAL-02. **IMPLEMENTACIÓN BLOQUEADA:** solo la validación
-  contra sandbox de PR13 hasta disponer de la cuenta verificada. **ARQUITECTURA
-  DISPONIBLE:** la documentación oficial permite preparar autenticación,
-  emisión, respuestas, consulta, error ambiguo y descarga; transmisión real y
-  producción siguen fuera de esta validación.
+- **GOAL ACTIVO:** GOAL-02. **IMPLEMENTACIÓN BLOQUEADA:** el adaptador MATIAS
+  real sigue condicionado a la cuenta verificada, el PAT y la ejecución de la
+  matriz sandbox; no hay prueba de aceptación de proveedor. **ARQUITECTURA
+  DISPONIBLE:** ADR-020 y la matriz documentada permiten avanzar en el diseño y
+  en otros flujos internos; el sandbox no transmite a DIAN y no acredita
+  operación productiva.
 
 ## H2/H3 — Cumplimiento electrónico
 
