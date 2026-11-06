@@ -410,6 +410,125 @@ function mapCandidate(
 }
 
 describe('mapPilaAt2V30DetailCandidate', () => {
+  function approvedNewHireSnapshot(daysNomina = 21) {
+    const input = snapshot();
+    input.payloadVersion = 10;
+    const payload = payloadOf(input);
+    payload.schemaVersion = 10;
+    payload.employee.fechaIngreso = '2026-10-10';
+    (payload.contract as Record<string, unknown>).fechaInicio = '2026-10-10';
+    payload.affiliations[0].vigenteDesde = '2026-10-10';
+    payload.payroll.diasNomina = daysNomina;
+    payload.payroll.salarioBasicoCampo40 = {
+      valor: 5_600_000,
+      reglaVersion: 'PILA_ING_FIELD_40_FROM_APPROVED_BASE_V1',
+      bloqueos: [],
+    };
+    payload.payroll.salarioIntegral = false;
+    payload.payroll.tipoSalarioBloqueos = [];
+    payload.payroll.ibcPorSubsistema.otrosParafiscales = {
+      valor: 5_600_000,
+      sourceCount: 1,
+      conceptIds: ['salary-base-concept'],
+      reglaVersion: 'CO_PARAFISCAL_BASE_V2',
+      bloqueos: [],
+    };
+    for (const subsystem of [
+      'pension',
+      'salud',
+      'riesgos',
+      'cajaCompensacion',
+    ]) {
+      payload.payroll.ibcPorSubsistema[subsystem] = {
+        valor: 5_600_000,
+        sourceCount: 1,
+      };
+    }
+    const approvedDays = payload.payroll.diasCotizadosPorSubsistema as Record<
+      string,
+      Record<string, unknown>
+    >;
+    for (const subsystem of [
+      'pension',
+      'salud',
+      'riesgos',
+      'cajaCompensacion',
+    ]) {
+      approvedDays[subsystem] = {
+        valor: daysNomina,
+        reglaVersion: 'PILA_ING_DAYS_FROM_APPROVED_PAYROLL_V1',
+        bloqueos: [],
+      };
+    }
+    const event = {
+      eventId: 'pila-ing-event-1',
+      codigo: 'ING',
+      fechaInicio: '2026-10-10',
+      fechaFin: null,
+      dias: null,
+    };
+    payload.pilaEvents = [event];
+    payload.payroll.pilaEvents = [event];
+    return input;
+  }
+
+  it('maps one approved standard new-hire ING from frozen Payroll days', () => {
+    const candidate = mapCandidate(approvedNewHireSnapshot());
+
+    expect(candidate.values).toMatchObject({
+      15: { value: 'X' },
+      36: { value: 21 },
+      37: { value: 21 },
+      38: { value: 21 },
+      39: { value: 21 },
+      40: { value: 5_600_000 },
+      80: { value: '2026-10-10' },
+      95: { value: 5_600_000 },
+    });
+    expect(candidate.normativeRuleVersions.newHireIngressFields).toBe(
+      'AT2_V30_NEW_HIRE_INGRESS_FIELDS_V1',
+    );
+    expect(candidate.normativeRuleVersions.newHireBasicSalaryField40).toBe(
+      'PILA_ING_FIELD_40_FROM_APPROVED_BASE_V1',
+    );
+    expect(
+      candidate.unresolvedFields.filter(({ fieldNumber }) =>
+        [15, 36, 37, 38, 39, 40, 80, 95].includes(fieldNumber),
+      ),
+    ).toEqual([]);
+  });
+
+  it('blocks new-hire field 40 when it differs from the frozen common IBC', () => {
+    const input = approvedNewHireSnapshot();
+    payloadOf(input).payroll.salarioBasicoCampo40 = {
+      valor: 8_000_000,
+      reglaVersion: 'PILA_ING_FIELD_40_FROM_APPROVED_BASE_V1',
+      bloqueos: [],
+    };
+
+    const candidate = mapCandidate(input);
+
+    expect(candidate.values[40]).toBeUndefined();
+    expect(candidate.unresolvedFields).toContainEqual(
+      expect.objectContaining({ fieldNumber: 40 }),
+    );
+    expect(
+      candidate.normativeRuleVersions.newHireBasicSalaryField40,
+    ).toBeNull();
+  });
+
+  it('blocks new-hire ING when frozen Payroll days disagree with its date', () => {
+    const candidate = mapCandidate(approvedNewHireSnapshot(20));
+
+    for (const fieldNumber of [15, 36, 37, 38, 39, 80]) {
+      expect(candidate.values[fieldNumber]).toBeUndefined();
+      expect(candidate.unresolvedFields).toContainEqual(
+        expect.objectContaining({ fieldNumber }),
+      );
+    }
+    expect(candidate.normativeRuleVersions.newHireIngressFields).toBeNull();
+  });
+
   it('accepts a PILA v4 snapshot for the candidates supported by its source data', () => {
     const input = snapshot();
     input.payloadVersion = 4;
@@ -2488,7 +2607,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(
       candidate.unresolvedFields.find(({ fieldNumber }) => fieldNumber === 63)
         ?.reason,
-    ).toContain('sin novedades');
+    ).toContain('sin otras novedades');
   });
 
   it('does not map a work center assigned to another tenant', () => {
@@ -2545,6 +2664,6 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.supportedSnapshot).toBe(false);
     expect(candidate.values).toEqual({});
     expect(candidate.unresolvedFields).toHaveLength(98);
-    expect(candidate.unresolvedFields[0]?.reason).toContain('PILA v2 a v9');
+    expect(candidate.unresolvedFields[0]?.reason).toContain('PILA v2 a v10');
   });
 });

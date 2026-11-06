@@ -2064,3 +2064,31 @@ false`.
   esté soportada.
 - La ejecución de este Browser E2E debe permanecer en la base desechable de CI;
   no correrlo contra una base local o demo persistente.
+
+### Candidato PILA de ingreso único — trabajo local, aún no integrado
+
+- En `codex/goal02-pila-new-hire-segments`, el snapshot PILA v10 congela los
+  días de nómina y acepta solo un ING 01/00 fijo, no integral, al inicio del
+  contrato y con relación vigente hasta fin de un mes calendario. Mapea ING y
+  fecha de campo 80; los campos 36–39 usan el mismo resultado de Payroll tras
+  verificar 30/360. El campo 95 usa la base prorrateada congelada como
+  `CO_PARAFISCAL_BASE_V2`, no el IBC común.
+- El mapper y el preflight aplican la misma condición; el preflight extiende
+  cobertura de afiliación, ubicación y riesgo hasta desde la fecha de ingreso,
+  solo si los campos del candidato están aprobados. Eventos extra, RET, otras
+  novedades, conteo discordante y afiliación o vigencia incompleta siguen
+  bloqueados.
+- La revisión de AT2 confirmó que el campo 40 representa el IBC definitivo del
+  cotizante. En este escenario usa la base salarial prorrateada aprobada y solo
+  queda como candidato cuando coincide con los cuatro IBC por subsistema; si
+  falta una fuente o hay discordancia, queda bloqueado. El campo 95 mantiene su
+  regla independiente `CO_PARAFISCAL_BASE_V2`.
+- La prueba local usa el caso del 10-10-2026: 21 días y salario mensual de
+  $8.000.000 con concepto aprobado de $5.600.000. El mismatch de 20 días
+  permanece bloqueado; una segunda regresión bloquea el campo 40 si no coincide
+  con los IBC congelados. Pasan typecheck de API/web, lint dirigido y ocho
+  suites PILA/nómina (596 pruebas). La suite PostgreSQL no se pudo ejecutar
+  porque falta `DATABASE_URL`; no se conectó a ningún entorno de datos
+  persistente.
+- Este trabajo no declara compatibilidad con operador ni permite transmisión,
+  liquidación o pago. Mantiene el resto del alcance y exclusiones de ADR-013.

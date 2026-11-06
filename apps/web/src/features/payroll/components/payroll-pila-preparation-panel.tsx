@@ -539,7 +539,7 @@ export function PayrollPilaPreparationPanel({
             <p className="mt-1 text-sm text-muted-foreground">
               {query.data.employerCandidate.supportedSnapshots
                 ? 'Tenant y período coinciden; se muestran valores candidatos solo cuando todos los snapshots concuerdan.'
-                : 'Se requieren snapshots PILA v2–v9 únicos y consistentes con el tenant y período aprobado.'}{' '}
+                : 'Se requieren snapshots PILA v2–v10 únicos y consistentes con el tenant y período aprobado.'}{' '}
               Los datos faltantes o diferentes quedan pendientes. Esta revisión no genera el archivo
               ni confirma la aceptación de un operador.
             </p>
@@ -574,8 +574,8 @@ export function PayrollPilaPreparationPanel({
             </h3>
             <p className="mt-1 text-sm text-muted-foreground">
               {query.data.headerCandidate.supportedSnapshots
-                ? 'Valores candidatos calculados desde snapshots PILA v2–v9 del mismo tenant y período.'
-                : 'Se requieren snapshots PILA v2–v9 del mismo tenant y período para proponer valores.'}{' '}
+                ? 'Valores candidatos calculados desde snapshots PILA v2–v10 del mismo tenant y período.'
+                : 'Se requieren snapshots PILA v2–v10 del mismo tenant y período para proponer valores.'}{' '}
               Los campos asignados al operador muestran la posición vacía candidata; los datos
               faltantes muestran su motivo. Esta revisión no genera el archivo ni confirma su
               aceptación.

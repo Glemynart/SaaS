@@ -226,7 +226,8 @@ function summarizePensionTransitionStatus(
     if (
       (snapshot.payloadVersion === 7 ||
         snapshot.payloadVersion === 8 ||
-        snapshot.payloadVersion === 9) &&
+        snapshot.payloadVersion === 9 ||
+        snapshot.payloadVersion === 10) &&
       root?.schemaVersion === snapshot.payloadVersion
     ) {
       const employer = nested(root, 'employer');
@@ -325,7 +326,8 @@ export function inspectPilaSnapshotPreparation(
       input.payloadVersion === 6 ||
       input.payloadVersion === 7 ||
       input.payloadVersion === 8 ||
-      input.payloadVersion === 9) &&
+      input.payloadVersion === 9 ||
+      input.payloadVersion === 10) &&
       root?.schemaVersion === input.payloadVersion);
   if (!supportedPayloadVersion) {
     add(
@@ -346,6 +348,49 @@ export function inspectPilaSnapshotPreparation(
   const contextPilaEvents = root?.pilaEvents;
   const periodStart = date(period?.fechaInicio);
   const periodEnd = date(period?.fechaFin);
+  const ingressDetailCandidate =
+    input.payloadVersion === 10 &&
+    periodStart &&
+    periodEnd &&
+    text(period?.payrollPeriodId) &&
+    text(employer?.tenantId)
+      ? mapPilaAt2V30DetailCandidate(input, {
+          expectedTenantId: text(employer?.tenantId),
+          planillaType: 'E',
+          period: {
+            id: text(period?.payrollPeriodId)!,
+            fechaInicio: new Date(`${periodStart}T00:00:00.000Z`),
+            fechaFin: new Date(`${periodEnd}T00:00:00.000Z`),
+          },
+        })
+      : null;
+  const approvedNewHireIngress = Boolean(
+    ingressDetailCandidate?.normativeRuleVersions.newHireIngressFields ===
+      'AT2_V30_NEW_HIRE_INGRESS_FIELDS_V1' &&
+    ingressDetailCandidate.normativeRuleVersions.newHireBasicSalaryField40 ===
+      'PILA_ING_FIELD_40_FROM_APPROVED_BASE_V1' &&
+    ingressDetailCandidate.values[15]?.value === 'X' &&
+    typeof ingressDetailCandidate.values[40]?.value === 'number' &&
+    ingressDetailCandidate.values[80]?.value === date(employee?.fechaIngreso) &&
+    [36, 37, 38, 39].every((fieldNumber) => {
+      const sourceField =
+        fieldNumber === 36
+          ? 'pension'
+          : fieldNumber === 37
+            ? 'salud'
+            : fieldNumber === 38
+              ? 'riesgos'
+              : 'cajaCompensacion';
+      return (
+        ingressDetailCandidate.values[fieldNumber]?.value ===
+        nested(nested(payroll, 'diasCotizadosPorSubsistema'), sourceField)
+          ?.valor
+      );
+    }),
+  );
+  const coverageStart = approvedNewHireIngress
+    ? (date(employee?.fechaIngreso) ?? periodStart)
+    : periodStart;
 
   const requireText = (
     record: PilaPreparationRecord,
@@ -883,6 +928,17 @@ export function inspectPilaSnapshotPreparation(
 
       if (reportedEventCodes.has(code)) continue;
       reportedEventCodes.add(code);
+      const isApprovedSingleIngress =
+        code === 'ING' &&
+        ingressDetailCandidate?.values[15]?.value === 'X' &&
+        ingressDetailCandidate.values[80]?.value === text(event?.fechaInicio) &&
+        [36, 37, 38, 39, 80].every(
+          (fieldNumber) =>
+            !ingressDetailCandidate.unresolvedFields.some(
+              (field) => field.fieldNumber === fieldNumber,
+            ),
+        );
+      if (isApprovedSingleIngress) continue;
       const fieldNumber = pilaEventFieldNumbers.get(code) ?? null;
       add(
         'DETALLE_TIPO_2',
@@ -1042,7 +1098,7 @@ export function inspectPilaSnapshotPreparation(
       !periodStart ||
       !periodEnd ||
       !affiliationStart ||
-      affiliationStart > periodStart ||
+      (coverageStart !== null && affiliationStart > coverageStart) ||
       (affiliationEndValue !== null &&
         (affiliationEnd === null || affiliationEnd < periodEnd))
     ) {
@@ -1085,11 +1141,12 @@ export function inspectPilaSnapshotPreparation(
     workLocation &&
     periodStart &&
     periodEnd &&
+    coverageStart &&
     workLocation.tenantId === text(employer?.tenantId) &&
     text(workLocation.municipioId) !== null &&
     workLocation.municipioId === workLocationMunicipality?.id &&
     date(workLocation.vigenteDesde) !== null &&
-    date(workLocation.vigenteDesde)! <= periodStart &&
+    date(workLocation.vigenteDesde)! <= coverageStart &&
     (workLocation.vigenteHasta === null ||
       (date(workLocation.vigenteHasta) !== null &&
         date(workLocation.vigenteHasta)! >= periodEnd)),
@@ -1099,8 +1156,9 @@ export function inspectPilaSnapshotPreparation(
     affiliation &&
     periodStart &&
     periodEnd &&
+    coverageStart &&
     date(affiliation.vigenteDesde) !== null &&
-    date(affiliation.vigenteDesde)! <= periodStart &&
+    date(affiliation.vigenteDesde)! <= coverageStart &&
     (affiliation.vigenteHasta === null ||
       (date(affiliation.vigenteHasta) !== null &&
         date(affiliation.vigenteHasta)! >= periodEnd)) &&
@@ -1123,7 +1181,7 @@ export function inspectPilaSnapshotPreparation(
             code: 'UBICACION_LABORAL_PILA_FUENTE_INVALIDA',
             message:
               workLocationRows === null
-                ? 'El snapshot v3/v4/v5/v6 no conserva una lista válida de ubicaciones laborales PILA.'
+                ? 'El snapshot no conserva una lista válida de ubicaciones laborales PILA.'
                 : workLocationRows.length === 0
                   ? 'Falta una ubicación laboral PILA confirmada que cubra el período.'
                   : workLocationRows.length > 1
@@ -1216,8 +1274,9 @@ export function inspectPilaSnapshotPreparation(
     const coversPeriod = Boolean(
       periodStart &&
       periodEnd &&
+      coverageStart &&
       assignmentStart &&
-      assignmentStart <= periodStart &&
+      assignmentStart <= coverageStart &&
       (assignmentEndValue === null ||
         (assignmentEnd !== null && assignmentEnd >= periodEnd)),
     );
@@ -1333,7 +1392,13 @@ export function inspectPilaSnapshotPreparation(
         `CAMPO_${field}_DIAS_SIN_APROBAR`,
         `Faltan días cotizados a ${label} aprobados por Payroll.`,
       );
-    } else if (value !== 30) {
+    } else if (
+      value !== 30 &&
+      !(
+        approvedNewHireIngress &&
+        ingressDetailCandidate?.values[field]?.value === value
+      )
+    ) {
       add(
         detailRecord,
         field,
@@ -1403,7 +1468,13 @@ export function inspectPilaSnapshotPreparation(
         'La base parafiscal tiene bloqueos de origen y requiere revisión laboral antes de usarla.',
       );
     }
-    if (field === 95 && source?.reglaVersion !== 'CO_PARAFISCAL_BASE_V1') {
+    const supportedParafiscalRule =
+      source?.reglaVersion === 'CO_PARAFISCAL_BASE_V1' ||
+      (root?.schemaVersion === 10 &&
+        source?.reglaVersion === 'CO_PARAFISCAL_BASE_V2' &&
+        safeInteger(source?.valor) &&
+        ingressDetailCandidate?.values[95]?.value === source?.valor);
+    if (field === 95 && !supportedParafiscalRule) {
       add(
         detailRecord,
         field,
@@ -1804,7 +1875,7 @@ export function buildPilaPreparationReport(input: {
             },
           ],
           evidence:
-            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots PILA v2–v9 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
+            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots PILA v2–v10 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
         }
       : null;
   const readinessBlockers = [
