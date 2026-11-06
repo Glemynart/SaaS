@@ -776,6 +776,8 @@ describe('PILA source snapshot builders', () => {
       ],
     });
 
+    expect(result.payroll.salarioIntegral).toBe(false);
+    expect(result.payroll.diasNomina).toBe(30);
     expect(result.payroll.salarioBasicoCampo40).toEqual({
       valor: 2_000_000,
       bloqueos: [],

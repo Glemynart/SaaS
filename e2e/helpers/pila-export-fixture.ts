@@ -63,6 +63,7 @@ function buildApprovedSnapshot(
     payroll.pilaEvents = [event];
     payroll.tipoSalario = 'F';
     payroll.salarioIntegral = false;
+    payroll.diasNomina = 30;
     payroll.tipoSalarioBloqueos = [];
     payroll.novelties = [];
     return snapshot;

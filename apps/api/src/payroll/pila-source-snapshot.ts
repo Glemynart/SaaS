@@ -493,6 +493,7 @@ export function buildPilaSourceSnapshot(input: {
       fechaPrevistaPagoPila: calendarDate(input.payroll.fechaPrevistaPagoPila),
       salarioBasico: input.payroll.salarioBasico,
       salarioBasicoCampo40,
+      salarioIntegral: input.payroll.salarioIntegral,
       diasNomina,
       tipoSalario: salaryType.valor,
       tipoSalarioBloqueos: salaryType.bloqueos,
