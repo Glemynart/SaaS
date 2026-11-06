@@ -1,6 +1,23 @@
 import { randomUUID } from 'node:crypto';
 
-type BillingLedgerFixture = { disconnect: () => Promise<void> };
+type BillingLedgerFixture = {
+  inspectInvoiceCancellation: (invoiceId: string) => Promise<{
+    invoiceStatus: string | undefined;
+    voucher: {
+      id: string;
+      status: string;
+      totalDebito: number | string;
+      totalCredito: number | string;
+    } | null;
+    audit: {
+      action: string;
+      entityType: string;
+      entityId: string | null;
+      metadata: unknown;
+    } | null;
+  }>;
+  disconnect: () => Promise<void>;
+};
 
 /** Seeds only disposable Browser E2E data required to issue an internal invoice. */
 export async function seedBillingLedgerFixture(
@@ -146,5 +163,53 @@ export async function seedBillingLedgerFixture(
     });
   });
 
-  return { disconnect: () => prisma.$disconnect() };
+  return {
+    inspectInvoiceCancellation: (invoiceId) =>
+      prisma.$transaction(async (tx: any) => {
+        await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+        const [invoice, voucher, audit] = await Promise.all([
+          tx.invoice.findFirst({
+            where: { id: invoiceId, tenantId },
+            select: { status: true },
+          }),
+          tx.comprobanteContable.findFirst({
+            where: {
+              tenantId,
+              origenTipo: 'BILLING_INVOICE',
+              origenId: invoiceId,
+              origenEvento: 'ISSUED',
+            },
+            select: {
+              id: true,
+              estado: true,
+              totalDebito: true,
+              totalCredito: true,
+            },
+          }),
+          tx.auditLog.findFirst({
+            where: {
+              tenantId,
+              action: 'BILLING_INVOICE_CANCELLED',
+              entityType: 'Invoice',
+              entityId: invoiceId,
+            },
+            select: { action: true, entityType: true, entityId: true, metadata: true },
+          }),
+        ]);
+
+        return {
+          invoiceStatus: invoice?.status,
+          voucher: voucher
+            ? {
+                id: voucher.id,
+                status: voucher.estado,
+                totalDebito: voucher.totalDebito,
+                totalCredito: voucher.totalCredito,
+              }
+            : null,
+          audit,
+        };
+      }),
+    disconnect: () => prisma.$disconnect(),
+  };
 }

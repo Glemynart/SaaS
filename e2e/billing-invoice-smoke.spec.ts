@@ -279,8 +279,36 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
       .click();
     const cancelResponse = await cancelResponsePromise;
     expect(cancelResponse.status()).toBe(200);
-    const cancelledInvoice = (await cancelResponse.json()) as { status: string };
+    const cancelledInvoice = (await cancelResponse.json()) as {
+      status: string;
+      comprobanteContable: { id: string; estado: string };
+      reversoContable: { id: string; estado: string } | null;
+    };
     expect(cancelledInvoice.status).toBe('CANCELLED');
+    expect(cancelledInvoice.comprobanteContable.estado).toBe('ANULADO');
+    expect(cancelledInvoice.reversoContable).not.toBeNull();
+    expect(cancelledInvoice.reversoContable?.id).toBe(cancelledInvoice.comprobanteContable.id);
+    expect(cancelledInvoice.reversoContable?.estado).toBe('ANULADO');
+
+    const persistedCancellation = await accountingFixture.inspectInvoiceCancellation(invoice.id);
+    expect(persistedCancellation.invoiceStatus).toBe('CANCELLED');
+    expect(persistedCancellation.voucher).toMatchObject({
+      id: cancelledInvoice.comprobanteContable.id,
+      status: 'ANULADO',
+    });
+    expect(Number(persistedCancellation.voucher?.totalDebito)).toBe(142_800);
+    expect(Number(persistedCancellation.voucher?.totalCredito)).toBe(142_800);
+    expect(persistedCancellation.audit).toMatchObject({
+      action: 'BILLING_INVOICE_CANCELLED',
+      entityType: 'Invoice',
+      entityId: invoice.id,
+    });
+    expect(persistedCancellation.audit?.metadata).toMatchObject({
+      motivo: 'Cancelación de prueba E2E',
+      comprobanteOriginalId: cancelledInvoice.comprobanteContable.id,
+      reversoId: cancelledInvoice.reversoContable?.id,
+      facturaEmitidaSinComprobante: false,
+    });
 
     const cancelledRow = page.getByRole('link', { name: invoiceNumber }).locator('xpath=..');
     await expect(cancelledRow.getByText('Anulada', { exact: true })).toBeVisible();
