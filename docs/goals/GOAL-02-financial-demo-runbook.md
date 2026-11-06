@@ -45,13 +45,26 @@ Escenario opcional para ingreso durante el mes: prepara antes un empleado
 ficticio con ingreso y contrato desde el 10 de octubre de 2026, salario mensual de
 $8.000.000, y un único contrato vigente hasta el 31 de octubre. Crea un período
 que cubra el mes completo (1–31 de octubre) en **Nómina → Períodos**, genera el
-cálculo y muestra 21 días liquidados y $5.600.000 en el concepto de salario base, dejando
-claro que $8.000.000 sigue siendo el salario mensual de referencia. El contrato
+cálculo y muestra 21 días liquidados y $5.600.000 en el concepto de salario base,
+dejando claro que el snapshot conserva $8.000.000 como salario mensual de
+referencia y los 21 días. El contrato
 debe comenzar en la fecha de ingreso; períodos parciales, contratos
 superpuestos, salario integral y novedades que requieran segmentación no están
 cubiertos por este recorrido. La fórmula y la prorrata de auxilio requieren
 revisión laboral independiente antes de uso operativo. Consulta las [reglas y
 límites documentados](../research/pila/PAYROLL-NEW-HIRE-PRORATION.md).
+
+Para prepararlo desde la interfaz, registra primero el empleado ficticio en
+**Empleados** (`/empleados`), incluyendo sede, cargo, salario mensual, tipo de
+contrato y fecha de ingreso. Después crea su contrato real desde **Contratos**
+(`/contratos`) con el mismo empleado, sede, fecha de inicio y salario; el perfil
+laboral del empleado por sí solo no crea el registro de contrato. Verifica que
+el contrato cubra todo el período antes de calcular. Tras revisar el resultado,
+puedes enviarlo a revisión, aprobarlo y mostrar que el snapshot congela el
+salario de referencia y los 21 días, mientras el concepto guarda $5.600.000; si
+la empresa de demo tiene configuradas las cuentas de nómina, también puedes causar
+el período y consultar el comprobante balanceado en Ledger. Este escenario no
+habilita ni demuestra una exportación PILA válida para ingresos parciales.
 
 ### 2. Prima de servicios por lote (2–3 minutos)
 
@@ -137,6 +150,7 @@ La pantalla no transmite ni concilia documentos.
 - [Seed financiero E2E](../../e2e/financial-demo-seed.spec.ts).
 - [Prima masiva E2E](../../e2e/service-premium-smoke.spec.ts).
 - [Exportación PILA E2E](../../e2e/payroll-pila-export-smoke.spec.ts).
+- [Ingreso a mitad de mes hasta aprobación y Ledger](../../e2e/payroll-new-hire-proration-smoke.spec.ts).
 - [Backlog de GOAL-02](./GOAL-02-backlog.md), incluida la matriz de alcance y
   sus límites normativos.
 - [PR #304: seguimiento de transmisiones](https://github.com/Glemynart/SaaS/pull/304),
