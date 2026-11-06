@@ -9,6 +9,9 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 - El Browser E2E de facturación verifica la cancelación tras revertir el recaudo
   en un período contable abierto: factura y comprobante quedan anulados, y el
   motivo se conserva en la auditoría tenant-scoped.
+- La lista de facturas nombra `Cancelar` a la acción sobre una factura emitida,
+  coherente con el estado producido; el guion de demo documenta la reversión
+  previa de recaudos y la diferencia contable entre períodos abiertos y cerrados.
 - PR #311 amplía el Browser E2E de exportación PILA a 100 snapshots aprobados
   sintéticos en un período. CI, Browser E2E y Vercel Preview pasaron; la prueba
   comprueba secuencia y longitud de los detalles, historial, descargas, hashes,
