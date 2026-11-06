@@ -6,11 +6,11 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 
 ## Estado vigente — 2026-11-06
 
-- PR #311 está abierta para ampliar el Browser E2E de exportación PILA a 100
-  snapshots aprobados sintéticos en un período. La prueba comprueba la
-  secuencia y longitud de los 100 detalles, historial, descarga, hash,
+- PR #311 amplía el Browser E2E de exportación PILA a 100 snapshots aprobados
+  sintéticos en un período. CI, Browser E2E y Vercel Preview pasaron; la prueba
+  comprueba secuencia y longitud de los detalles, historial, descargas, hashes,
   reintento idempotente y aislamiento tenant. No cambia lógica de producción ni
-  acredita aceptación de un operador; sus checks remotos están pendientes.
+  acredita aceptación de un operador.
 
 - PR #278 se fusionó en main como 0aae82938fe430e258f35861eec944e59a5bde32 y PR #279 como 1b31782257313cc08f150e2f1024df88fe405562. Los checks post-merge de CI, Browser E2E y publicación de la imagen API pasaron en ambos.
 - PR #278 compone localmente archivos AT2 v30 tipo 1 y tipo 2 desde snapshots aprobados; PR #279 añade generación autenticada tenant-scoped, historial append-only, almacenamiento privado, SHA-256, versionamiento, auditoría y descarga protegida. La nueva prueba de navegador de esta continuación cubre generación, persistencia, reintento idempotente y descarga de ambos archivos desde la interfaz.
