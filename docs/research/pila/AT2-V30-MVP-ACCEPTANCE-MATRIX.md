@@ -4,7 +4,8 @@
 por un operador. La matriz sigue siendo el alcance de validación y no amplía
 automáticamente compatibilidad.
 
-**Corte de evidencia:** 2026-11-04.
+**Corte de evidencia normativa:** 2026-11-04.
+**Estado de implementación contrastado con `main@82d49bc` (2026-11-06).**
 
 **ADR relacionado:** [ADR-013 — Exportación estándar de nómina a PILA](../../adr/ADR-013-pila-standard-file-export.md).
 
@@ -296,14 +297,15 @@ verificarse de nuevo antes de habilitar planillas que alcancen el corte de
 
 ## Criterios de aceptación y pruebas de contrato
 
-Las pruebas `PILA-AT2-01` a `PILA-AT2-69` son criterios objetivo para la futura
-validación local. **“Bloquear” significa no producir una descarga parcial.**
+Los casos `PILA-AT2-01` a `PILA-AT2-81` registran criterios de aceptación,
+evidencia y cobertura; no todos son pruebas de operador ni todos habilitan un
+caso de exportación. **“Bloquear” significa no producir una descarga parcial.**
 La fuente normativa da el requisito del formato; donde se marca “Payroll debe
 aprobar”, AT2 no define por sí solo el cálculo laboral que alimenta el campo.
 
 | ID          | Fixture o condición                                                                                                                                                                                                                                         | Resultado esperado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Evidencia / estado                                                                                                                                                                                                                                                                                                                                                                                  |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PILA-AT2-01 | Tipo 01/subtipo 00, planilla E, mes completo de 31 días, contrato, afiliación y centro ARL vigentes; snapshot aprobado y campos requeridos presentes.                                                                                                       | Preflight sin errores de alcance; días 36–39 = 30 por subsistema. La futura serialización conserva cada base y aporte tal como aparece en el snapshot aprobado.                                                                                                                                                                                                                                                                                                                                                                                                                                 | AT2 v30, pp. 85, 91–95, 102 y 146–147. Confirmado como escenario objetivo, no como prueba de operador.                                                                                                                                                                                                                                                                                              |
+| PILA-AT2-01 | Tipo 01/subtipo 00, planilla E, mes completo de 31 días, contrato, afiliación y centro ARL vigentes; snapshot aprobado y campos requeridos presentes.                                                                                                       | Preflight sin errores de alcance; días 36–39 = 30 por subsistema. El conjunto aceptado puede generar y descargar localmente los dos archivos; sus resultados continúan sujetos a la prueba de carga del operador.                                                                                                                                                                                                                                                                                                                                                                               | AT2 v30, pp. 85, 91–95, 102 y 146–147; generación/descarga local verificadas en `main`. No prueba aceptación del operador.                                                                                                                                                                                                                                                                          |
 | PILA-AT2-02 | Mismo trabajador y reglas en febrero de 28 días.                                                                                                                                                                                                            | Días 36–39 = 30, no 28.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | AT2 v30, §2.1.2.3.11–13, pp. 146–147.                                                                                                                                                                                                                                                                                                                                                               |
 | PILA-AT2-03 | Febrero bisiesto de 29 días.                                                                                                                                                                                                                                | Días 36–39 = 30, no 29.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | AT2 v30, mismas secciones.                                                                                                                                                                                                                                                                                                                                                                          |
 | PILA-AT2-04 | Afiliación con subtipo nulo o faltante.                                                                                                                                                                                                                     | Bloqueo explícito en campo 6; no convertir el histórico a `00`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | AT2 v30, p. 85; formulario/DTO lo exigen en altas; snapshots null se bloquean sin backfill.                                                                                                                                                                                                                                                                                                         |
@@ -378,7 +380,7 @@ aprobar”, AT2 no define por sí solo el cálculo laboral que alimenta el campo
 | PILA-AT2-75 | Snapshot v6–v10 `READY` para FSP entre julio de 2025 y marzo de 2027; estado histórico S/N ausente, S o N; fuente única y demás guardas completas.                                                                                                          | Exponer candidatos de campos 51/52 usando la regla anterior a la reforma; bloquear si el período o el pago alcanza 2027-04-01. No inferir fuentes múltiples ni cambiar importes aprobados. La regla y redondeo deben conciliar exactamente con `FSP` congelado.                                                                                                                                                                                                                                                                                                                                 | Resolución 2388 compilada vigente (campos 51/52 con modificaciones 467/2025 suspendidas y remisión a legislación anterior), Circular 028/2025, C-264/2026; pruebas de evaluación, mapper y bloqueo de transición. No habilita composición, descarga ni compatibilidad con operador.                                                                                                                 |
 | PILA-AT2-76 | Snapshot v8–v10 de dependiente 01/00, planilla E, mes completo, afiliación vigente, sin eventos/novedades; declaración auditada NONE_CONFIRMED.                                                                                                             | Antes de 2027-04-01 y con fecha prevista de pago también anterior al corte: campo 28 blanco, 48/49 cero y 53 blanco. Aportes PRESENT, metadatos faltantes, snapshots v1–v7 y fechas de transición mantienen los cuatro campos bloqueados. El campo 50 solo se deriva si el 47 también está resuelto.                                                                                                                                                                                                                                                                                            | Compilación vigente Resolución 2388/2016, Circular 028/2025 y C-264/2026; `PayrollRun` tenant-scoped, endpoint auditado, snapshot PILA v8–v10 y pruebas mapper/API. Solo candidatos de preflight: no implica aceptación de operador.                                                                                                                                                                |
 | PILA-AT2-77 | Captura nueva o cambio de afiliación PILA: campo 79 explícitamente normal, código especial 1–4 o desconocido; afiliaciones históricas anteriores a V5 sin este dato.                                                                                        | Conservar el valor por afiliación y vigencia, auditar el cambio y congelarlo en snapshot PILA v9. No completar históricos por inferencia. Solo blanco normal confirmado permite candidato 79 y tarifas estándar 46–47; especial o desconocido deja esos campos pendientes y fuera del MVP.                                                                                                                                                                                                                                                                                                      | Anexo Técnico 2 v30, campo 79, p. 166; migración aditiva sin backfill; pruebas DTO, persistencia, captura web, snapshot y mapper. No declara soporte de categorías especiales.                                                                                                                                                                                                                      |
-| PILA-AT2-78 | Conjunto completo de snapshots aprobados de un mismo tenant y período, con candidatos válidos de aportante, cabecera y todos los detalles tipo 2.                                                                                                           | Componer los archivos tipo 1 y tipo 2 con registros de longitud fija, Windows-1252 y CRLF; rechazar el conjunto entero ante campos pendientes, duplicados, mezcla de tenant/período, texto con pérdida o longitud incorrecta. Convención local marcada `NOT_VERIFIED`; no descarga, no guarda historial de exportación y no declara aceptación de operador.                                                                                                                                                                                                                                     | `composePilaAt2V30FilesFromApprovedSnapshots` y `composePilaAt2V30LocalFiles`; pruebas del candidato completo y de rechazos. La codificación y separador quedan sujetos a carga real por operador; API de descarga, historial inmutable y verificación con operadores siguen pendientes.                                                                                                            |
+| PILA-AT2-78 | Conjunto completo de snapshots aprobados de un mismo tenant y período, con candidatos válidos de aportante, cabecera y todos los detalles tipo 2.                                                                                                           | Componer tipo 1 y tipo 2 con longitud fija, Windows-1252 y CRLF; rechazar el conjunto completo si hay campos pendientes, duplicados, mezcla de tenant/período, pérdida de texto o longitud inválida. En `main`, el archivo local validado se persiste en historial append-only por tenant/período, se identifica con versiones normativa y de formato y hashes, y se descarga con control de tenant, auditoría y comprobación del hash. `NOT_VERIFIED` significa que ningún operador ha aceptado el formato todavía.                                                                            | Funciones `composePilaAt2V30FilesFromApprovedSnapshots` / `composePilaAt2V30LocalFiles`; PR #278–#281 fusionados. Las pruebas API y Browser E2E cubren generación, reintento idempotente, persistencia, hashes, descarga y aislamiento tenant. La prueba de carga por operador sigue pendiente.                                                                                                     |
 | PILA-AT2-79 | Snapshot PILA v9 o posterior de cotizante dependiente 01/00; campo 96 sin fuente de horas y campo 97 con declaración CC/TI `colombianoEnElExterior=false`, `true` o desconocida.                                                                            | Dejar 96 vacío para 01/00 bajo regla versionada porque el AT2 vigente lo permite para cotizante 1. Dejar 97 vacío solo con CC/TI y declaración explícita `false`; `true` queda pendiente por falta de fecha y el valor desconocido también queda bloqueado. No inferir desde jornada, nacionalidad ni sede. No aplica a otros tipos en este MVP.                                                                                                                                                                                                                                                | Resolución 2388/2016 compilada, Anexo Técnico 2, campos 96–97 ([texto vigente](https://normativa.colpensiones.gov.co/compilacion/docs/resolucion_minsaludps_2388_2016.htm)); `AT2_V30_FIELD_96_OPTIONAL_BLANK_FOR_DEPENDENT_V1` y `AT2_V30_FIELD_97_BLANK_WHEN_NOT_ABROAD_V1`; regresiones del mapper/serializador. Sigue pendiente la validación de carga por operador.                            |
 | PILA-AT2-80 | Snapshot PILA v10, planilla E, trabajador dependiente 01/00 con salario fijo no integral; un único ING cuya fecha coincide con ingreso del empleado y comienzo del contrato; vigente hasta fin del mes, cuatro días congelados por Payroll y sin novedades. | Proponer campo 15=`X`, campo 80 con fecha de ingreso y campos 36–39 con los días congelados por subsistema, solo si coinciden con la regla 30/360 de ingreso de la Resolución 5858. El campo 40 toma el `SALARIO_BASE` prorrateado aprobado porque AT2 lo define como IBC definitivo y exige coincidencia con los cuatro IBC por subsistema; el 95 usa `CO_PARAFISCAL_BASE_V2` sobre el mismo concepto. Un IBC ausente o discordante, evento adicional, RET, novedad, salario variable/integral o afiliación efectiva incompleta bloquea el candidato. No genera envío ni demuestra aceptación. | Resoluciones 2388/2016 (AT2, campos 15, 36–40, 80) y 5858/2016; `calculateMonthlyEntryDays`; regla versionada `PILA_ING_FIELD_40_FROM_APPROVED_BASE_V1`; pruebas del snapshot PILA v10, mapper y preflight. La generación de archivos sigue sujeta a revisión laboral y pruebas con un operador.                                                                                                    |
 | PILA-AT2-81 | Conjunto completo de snapshots aprobados v10 para un período mensual; cada empleado 01/00 tiene afiliación de período completo o cumple todas las guardas de PILA-AT2-80; sin empleados duplicados.                                                         | Proponer campo 19 con el conteo de empleados tipo 2 y campo 20 con la suma de sus IBC congelados para parafiscales. El ING requiere fecha, contrato, afiliación, días de Payroll y evento coincidentes; días discordantes, duplicados, fuentes faltantes o una relación incompleta bloquean los agregados.                                                                                                                                                                                                                                                                                      | Campos 19–20 de la Resolución 2388/2016, AT2; mapper y regresiones positivas/negativas; Browser E2E de generación, persistencia y descarga. Sigue pendiente la aceptación de cada operador.                                                                                                                                                                                                         |
@@ -453,42 +455,49 @@ exoneración.
   asignaciones ARL; esto no demuestra generación del archivo, aceptación de un
   operador ni cierre de la capacidad de extremo a extremo.
 
-## Pruebas que faltan antes de una primera exportación
+## Validaciones que faltan para ampliar el MVP y declarar compatibilidad
 
-1. **Cobertura ya presente:** `pila-source-snapshot.spec.ts` verifica 30 días
-   por subsistema en febrero de 28/29 días y en meses de 30/31 días, y bloquea
-   rangos parciales. Esto no valida aún la liquidación de segmentos. **Pendiente
-   antes de habilitar ING, RET, ING+RET o eventos concurrentes:** aprobar
-   resultados de Payroll por segmento, días e IBC para cada escenario; no
-   derivar prorrata desde el calendario sin esos expected values.
-2. Matriz de devengos y descansos para campos 40–45 y 95: salario fijo,
+1. **Cobertura del MVP ya integrada:** `pila-source-snapshot.spec.ts`, pruebas
+   de mappers/serializador y Browser E2E cubren el escenario estándar de mes
+   completo y el único ING soportado por PILA-AT2-80. Esto no habilita otros
+   eventos parciales. **Pendiente antes de habilitar RET, ING+RET o eventos
+   concurrentes:** aprobar resultados Payroll por segmento, días e IBC para
+   cada escenario; no derivar prorrata desde el calendario sin esos valores
+   esperados revisados.
+2. Completar o ampliar la matriz de devengos y descansos para campos 40–45 y
+   95: salario fijo,
    integral, variable, horas extra, bonificaciones salariales/no salariales,
    auxilio, vacaciones remuneradas, incapacidad/licencia, tope y redondeo.
-3. Pruebas de contrato del ancho, orden, caracteres, padding, terminadores y
-   campos atribuidos al operador para cada archivo. La documentación AT2 no
-   acredita por sí sola que SOI u otro operador acepte la convención de carga.
-4. Pruebas tenant/RBAC, snapshots inmutables, lote con un cotizante bloqueado,
-   hash/historial de corrección e idempotencia.
-5. Prueba de carga por operador antes de mostrar compatibilidad; registrar
-   portal, fecha, AT2, versión de reglas/formato y evidencia del resultado.
+3. La generación local ya comprueba layout, longitud, codificación y
+   terminadores; la documentación AT2 no acredita por sí sola que SOI u otro
+   operador acepte esta convención de carga.
+4. Antes de ampliar casos, probar con fixtures revisados el lote con un
+   cotizante bloqueado y las correcciones PILA. Una corrección Payroll aprobada
+   actualmente bloquea exportación porque este MVP no reconstruye su resultado
+   regulatorio.
+5. Prueba de carga autorizada por operador antes de mostrar compatibilidad;
+   registrar portal, fecha, AT2, versión de reglas/formato y evidencia del
+   resultado. No se registran liquidación o pago por el resultado de cargar.
 
 ## Límites de la investigación
 
 La matriz confirma la estructura y reglas citadas en AT2 v30 y las normas
-oficiales revisadas al 2026-11-04, y contrasta el código local. Requiere nueva
-revisión normativa antes del corte 2027-04-01 o ante una modificación oficial.
-No verifica una carga en SOI u otro operador, no
-certifica el tratamiento individual de una empresa, no reemplaza el concepto
-laboral/contable del cliente y no confirma que no haya una revisión normativa
-posterior al corte indicado. Los documentos `PROJECT_STATE.md`, Goals y ADRs se
-trataron como contexto; el estado de código se verificó en la rama local. En la
-raíz del checkout no están `Decisiones de Producto.md`,
-`ENGINEERING_PLAYBOOK.md` ni `LA_OFICINA_NITIDA_CONTEXT.md`.
+oficiales revisadas al 2026-11-04; el estado de implementación se contrastó
+contra `main@82d49bc` el 2026-11-06. Requiere nueva revisión normativa antes
+del corte 2027-04-01 o ante una modificación oficial. No verifica una carga en
+SOI u otro operador, no certifica el tratamiento individual de una empresa, no
+reemplaza el concepto laboral/contable del cliente ni confirma que no haya una
+revisión normativa posterior al corte indicado. Los documentos
+`PROJECT_STATE.md`, Goals y ADRs se trataron como contexto; el estado de código
+se verificó en la rama local. En la raíz del checkout no están
+`Decisiones de Producto.md`, `ENGINEERING_PLAYBOOK.md` ni
+`LA_OFICINA_NITIDA_CONTEXT.md`.
 
 ## Captura masiva de centros de trabajo y actividad ARL — ADR-018
 
 La plantilla de empleados existentes permite reducir captura individual para
-los campos 62, 78 y 98, sin cambiar la matriz normativa ni habilitar archivos.
+los campos 62, 78 y 98, sin cambiar la matriz normativa ni declarar
+compatibilidad con operadores.
 Cada fila identifica al empleado dentro del tenant y referencia un centro ARL
 previamente registrado; actividad de siete dígitos y vigencias se validan con
 el catálogo y el historial de afiliaciones ya existentes. Una confirmación del
@@ -500,24 +509,25 @@ snapshots históricos inmutables. La prueba E2E debe descargar la plantilla,
 confirmar e importar una fila válida, verificar el detalle tras recargar y
 repetir la carga sin duplicados.
 
-## Estado de implementación de exportación — 2026-11-05
+## Estado de implementación de exportación — 2026-11-06
 
-PR #278 fusionó composición local de archivos tipo 1 y tipo 2 AT2 v30 a partir
-de candidatos construidos desde snapshots aprobados; los checks post-merge de
-CI, Browser E2E y publicación de imagen API pasaron. La salida local usa
-Windows-1252 y CRLF con versión `AT2_V30_CP1252_CRLF_LOCAL_V1`; esa convención
-no acredita aceptación de un operador.
+PR #278 fusionó la composición local de archivos tipo 1 y tipo 2 AT2 v30 desde
+snapshots aprobados. PR #279 agregó persistencia append-only por tenant y
+período, versiones de reglas/layout, IDs de snapshots fuente, hashes SHA-256,
+almacenamiento privado, auditoría de generación/descarga, comprobación del hash
+antes de entregar y reintento idempotente para la misma fuente. PR #280 cubrió
+el flujo de Browser E2E; PR #281 cubrió el aislamiento al intentar descargar
+la exportación desde otro tenant. Los cuatro PR están fusionados en `main`.
 
-La entrega en curso añade persistencia append-only por tenant y período,
-versiones de reglas/layout, IDs de snapshots fuente, hashes SHA-256,
-almacenamiento privado, auditoría de generación y descarga, verificación del
-hash antes de entregar, bloqueo de UPDATE/DELETE/TRUNCATE sobre el historial,
-y reintentos idempotentes para la misma fuente. Solo
-permite exportar un conjunto completo sin brechas locales. Una corrección
-Payroll aprobada bloquea el exportador mientras no exista una ruta de corrección
-PILA soportada. La UI separa archivo generado y validado localmente de la
-aceptación del operador, liquidación y pago, que no se registran como hechos
-confirmados por el producto.
+La salida local usa Windows-1252 y CRLF con versión
+`AT2_V30_CP1252_CRLF_LOCAL_V1`. Solo se genera para el conjunto completo que
+pasa preflight, composición y reglas vigentes codificadas; una corrección
+Payroll aprobada no incorporada bloquea la exportación. `LOCAL_VALIDATED`
+confirma validaciones locales del layout, longitud y codificación; no equivale
+a revisión normativa completa, aceptación de SOI u otro operador, liquidación
+ni pago. La UI y el modelo mantienen separados esos estados. El estado
+`normativeSourceStatus: RECONCILIATION_PENDING` refleja que quedan reglas y
+casos fuera del MVP por reconciliar.
 
 ### PILA-AT2-80 — Ingreso único al inicio del vínculo
 
