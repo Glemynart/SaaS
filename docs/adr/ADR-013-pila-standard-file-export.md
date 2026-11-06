@@ -1223,3 +1223,31 @@ siguen siendo dependencias previas a cualquier afirmación de compatibilidad.
   la [Resolución 2388 de 2016](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-2388-2016.pdf)
   la derogó. Se conserva únicamente como convención histórica candidata, a
   verificar con el AT2 vigente y carga real por operador.
+
+## Caso incremental PILA: ingreso único en un mes calendario
+
+Como extensión acotada del MVP aprobado, el payload PILA v10 y el mapper pueden
+proponer un detalle 02 para un trabajador dependiente estándar 01/00 con salario
+fijo no integral cuando se cumplen conjuntamente estas condiciones: período
+calendario completo; un único evento ING coincidente con `Employee.fechaIngreso`
+y con inicio de contrato; contrato, afiliación, ubicación y riesgo vigentes
+desde esa fecha hasta fin del período; ningún RET, segundo evento o novedad
+Payroll; y días liquidados congelados en el snapshot de Payroll que coinciden
+con la regla 30/360 documentada para PILA.
+
+En el detalle, el campo 15 registra ING, el 80 conserva la fecha de ingreso y
+los campos 36–39 toman los días aprobados por Payroll por subsistema. El campo
+40 conserva el IBC definitivo congelado en nómina: para este caso se toma del
+`SALARIO_BASE` prorrateado aprobado y solo se propone cuando coincide con los
+cuatro IBC por subsistema. El campo 95 usa `CO_PARAFISCAL_BASE_V2`, validada
+contra ese mismo concepto prorrateado; no se deriva del IBC común. Esta guarda
+se apoya en la descripción vigente del campo 40 como IBC definitivo del
+cotizante ([Resolución 2388 de 2016, AT2](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-2388-2016.pdf)).
+Cualquier inconsistencia deja los campos pendientes. No se soportan en este incremento
+retiros, cambios de salario, novedades concurrentes, períodos parciales,
+salario variable/integral ni múltiples detalles por empleado.
+
+La proyección de campo y el preflight siguen siendo candidatos locales sujetos
+a auditoría normativa/laboral y a aceptación de cada operador. No implican
+transmisión, liquidación ni pago; no cambian los límites de generación,
+corrección ni compatibilidad fijados por ADR-013.

@@ -205,7 +205,7 @@ describe('PILA source snapshot builders', () => {
     });
 
     expect(context.schemaVersion).toBe(4);
-    expect(snapshot.schemaVersion).toBe(9);
+    expect(snapshot.schemaVersion).toBe(10);
     expect(snapshot.pilaWorkLocations).toEqual([
       {
         assignmentId: 'work-location-1',
@@ -268,7 +268,7 @@ describe('PILA source snapshot builders', () => {
       });
 
       expect(snapshot).toMatchObject({
-        schemaVersion: 9,
+        schemaVersion: 10,
         affiliations: [{ estadoAfiliacionPensional }],
         payroll: {
           fspSubaccounts: {
@@ -413,7 +413,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(snapshot.schemaVersion).toBe(9);
+    expect(snapshot.schemaVersion).toBe(10);
     expect(snapshot.payroll.payrollCalculationParameters).toEqual({
       sourceVersion: 'PAYROLL_LEGAL_PARAMETERS_V2',
       parametroLegalId: 'legal-2026',
@@ -533,7 +533,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(9);
+    expect(result.schemaVersion).toBe(10);
     expect(result.capturedAt).toBe('2026-11-02T15:00:00.000Z');
     expect(result.employee.fechaIngreso).toBe('2026-01-05');
     expect(result.employee.fechaNacimiento).toBeNull();
@@ -679,6 +679,125 @@ describe('PILA source snapshot builders', () => {
         fundamento: 'COBERTURA_COMPLETA_MES_CALENDARIO_DEPENDIENTE',
         bloqueos: [],
       });
+    }
+  });
+
+  it('freezes approved days and prorated parafiscal salary for one standard ING', () => {
+    const entryDate = new Date('2026-10-10T00:00:00.000Z');
+    const context = buildPilaSourceContext({
+      ...contextInput,
+      employee: {
+        ...contextInput.employee,
+        fechaIngreso: entryDate,
+        tipoSalarioPila: 'F',
+      },
+      contract: {
+        ...contextInput.contract!,
+        fechaInicio: entryDate,
+        fechaFin: null,
+      },
+      affiliations: contextInput.affiliations.map((affiliation) => ({
+        ...affiliation,
+        vigenteDesde: entryDate,
+        vigenteHasta: null,
+      })),
+      pilaEvents: [
+        {
+          id: 'pila-ing-event-1',
+          codigo: PilaEventCode.ING,
+          fechaInicio: entryDate,
+          fechaFin: null,
+          dias: null,
+        },
+      ],
+    });
+    const result = buildPilaSourceSnapshot({
+      context,
+      payroll: {
+        runId: 'run-new-hire',
+        fechaPrevistaPagoPila: new Date('2026-11-05T00:00:00.000Z'),
+        salarioBasico: 8_000_000,
+        salarioIntegral: false,
+        diasNomina: 21,
+        ibc: 5_600_000,
+        concepts: [
+          {
+            codigo: 'SALARIO_BASE',
+            tipo: 'EARNING',
+            base: null,
+            factor: null,
+            valor: 5_600_000,
+          },
+        ],
+        novelties: [],
+      },
+    });
+
+    expect(result.schemaVersion).toBe(10);
+    expect(result.payroll.diasNomina).toBe(21);
+    expect(result.payroll.salarioBasicoCampo40).toEqual({
+      valor: 5_600_000,
+      reglaVersion: 'PILA_ING_FIELD_40_FROM_APPROVED_BASE_V1',
+      bloqueos: [],
+    });
+    for (const days of Object.values(
+      result.payroll.diasCotizadosPorSubsistema,
+    )) {
+      expect(days).toMatchObject({
+        valor: 21,
+        reglaVersion: 'PILA_ING_DAYS_FROM_APPROVED_PAYROLL_V1',
+        eventoIngresoId: 'pila-ing-event-1',
+        fechaIngreso: '2026-10-10',
+        diasNominaAprobados: 21,
+        bloqueos: [],
+      });
+    }
+    expect(result.payroll.ibcPorSubsistema.otrosParafiscales).toMatchObject({
+      valor: 5_600_000,
+      reglaVersion: 'CO_PARAFISCAL_BASE_V2',
+      bloqueos: [],
+    });
+  });
+
+  it('blocks a new-hire entry when the approved Payroll day count disagrees with the ING date', () => {
+    const entryDate = new Date('2026-10-10T00:00:00.000Z');
+    const context = buildPilaSourceContext({
+      ...contextInput,
+      employee: {
+        ...contextInput.employee,
+        fechaIngreso: entryDate,
+        tipoSalarioPila: 'F',
+      },
+      contract: { ...contextInput.contract!, fechaInicio: entryDate },
+      pilaEvents: [
+        {
+          id: 'pila-ing-event-mismatch',
+          codigo: PilaEventCode.ING,
+          fechaInicio: entryDate,
+          fechaFin: null,
+          dias: null,
+        },
+      ],
+    });
+    const result = buildPilaSourceSnapshot({
+      context,
+      payroll: {
+        runId: 'run-new-hire-day-mismatch',
+        fechaPrevistaPagoPila: null,
+        salarioBasico: 8_000_000,
+        salarioIntegral: false,
+        diasNomina: 20,
+        ibc: 0,
+        concepts: [],
+        novelties: [],
+      },
+    });
+
+    for (const days of Object.values(
+      result.payroll.diasCotizadosPorSubsistema,
+    )) {
+      expect(days.valor).toBeNull();
+      expect(days.bloqueos).toContain('HAY_EVENTOS_PILA_SIN_SEGMENTACION');
     }
   });
 

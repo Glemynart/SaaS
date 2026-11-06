@@ -99,7 +99,7 @@ const RECALCULATE_ALLOWED_STATUSES: PayrollPeriodStatus[] =
 
 const SNAPSHOT_PAYLOAD_VERSION = 1;
 const CALCULATION_TRACE_VERSION = 1;
-const PILA_PAYLOAD_VERSION = 9;
+const PILA_PAYLOAD_VERSION = 10;
 
 type PilaSourceData = {
   tenant: PilaSourceContextInput['tenant'];
@@ -3812,6 +3812,7 @@ export class PayrollService {
               fechaPrevistaPagoPila: period.fechaPrevistaPagoPila,
               salarioBasico: this.toNumber(run.salarioBaseSnapshot),
               salarioIntegral: trace.employee.salarioIntegralUsado,
+              diasNomina: trace.employee.diasNomina ?? 30,
               ibc: this.toNumber(run.ibc),
               fspSourceScope: run.pilaFspSourceScope,
               fspSourceScopeUpdatedAt: run.pilaFspSourceScopeUpdatedAt,

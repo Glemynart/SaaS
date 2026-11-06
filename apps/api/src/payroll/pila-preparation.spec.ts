@@ -307,6 +307,143 @@ function snapshot(
 }
 
 describe('inspectPilaSnapshotPreparation', () => {
+  it('does not report a single ING event as unsegmented when v10 freezes the approved days', () => {
+    const source = payload() as ReturnType<typeof payload> & {
+      pilaEvents?: unknown;
+      pilaRiskAssignments?: unknown;
+      pilaWorkLocations?: unknown;
+    };
+    source.schemaVersion = 10;
+    Object.assign(source.period, {
+      payrollPeriodId: 'period-1',
+      fechaInicio: '2026-10-01',
+      fechaFin: '2026-10-31',
+    });
+    Object.assign(source.employee, {
+      employeeId: 'employee-1',
+      fechaIngreso: '2026-10-10',
+      fechaRetiro: null,
+    });
+    Object.assign(source.contract, {
+      fechaInicio: '2026-10-10',
+      fechaFin: null,
+    });
+    Object.assign(source.affiliations[0], {
+      tipoCotizanteCodigo: '01',
+      subtipoCotizanteCodigo: '00',
+      vigenteDesde: '2026-10-10',
+      vigenteHasta: null,
+    });
+    const event = {
+      eventId: 'pila-ing-event-1',
+      codigo: 'ING',
+      fechaInicio: '2026-10-10',
+      fechaFin: null,
+      dias: null,
+    };
+    source.pilaEvents = [event];
+    source.pilaWorkLocations = [
+      {
+        assignmentId: 'work-location-1',
+        tenantId: 'tenant-1',
+        municipioId: 'municipality-1',
+        municipio: { id: 'municipality-1', codigo: '11001' },
+        vigenteDesde: '2026-10-10',
+        vigenteHasta: null,
+      },
+    ];
+    source.pilaRiskAssignments = [
+      {
+        assignmentId: 'risk-assignment-1',
+        tenantId: 'tenant-1',
+        codigoActividadEconomica: '1131202',
+        formatoNormativoVersion: 'DECRETO_768_2022',
+        vigenteDesde: '2026-10-10',
+        vigenteHasta: null,
+        centroTrabajo: {
+          tenantId: 'tenant-1',
+          arlCodigo: 'ARL001',
+          codigoCentro: '00012',
+        },
+      },
+    ];
+    Object.assign(source.payroll, {
+      tipoSalario: 'F',
+      salarioIntegral: false,
+      tipoSalarioBloqueos: [],
+      diasNomina: 21,
+      pilaEvents: [event],
+      novelties: [],
+      diasCotizadosPorSubsistema: Object.fromEntries(
+        ['pension', 'salud', 'riesgos', 'cajaCompensacion'].map((subsystem) => [
+          subsystem,
+          {
+            valor: 21,
+            reglaVersion: 'PILA_ING_DAYS_FROM_APPROVED_PAYROLL_V1',
+            bloqueos: [],
+          },
+        ]),
+      ),
+    });
+    Object.assign(source.payroll.salarioBasicoCampo40, {
+      valor: 5_600_000,
+      reglaVersion: 'PILA_ING_FIELD_40_FROM_APPROVED_BASE_V1',
+      bloqueos: [],
+    });
+    for (const subsystem of [
+      'pension',
+      'salud',
+      'riesgos',
+      'cajaCompensacion',
+    ] as const) {
+      Object.assign(source.payroll.ibcPorSubsistema[subsystem], {
+        valor: 5_600_000,
+        sourceCount: 1,
+      });
+    }
+    Object.assign(source.payroll.ibcPorSubsistema.otrosParafiscales, {
+      valor: 5_600_000,
+      sourceCount: 1,
+      conceptIds: ['salary-base-concept'],
+      reglaVersion: 'CO_PARAFISCAL_BASE_V2',
+      bloqueos: [],
+    });
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 10,
+      payload: source,
+      totalCotizantes: 1,
+    });
+
+    expect(result.issues).not.toContainEqual(
+      expect.objectContaining({
+        record: 'DETALLE_TIPO_2',
+        fieldNumber: 15,
+        code: 'EVENTO_PILA_ING_SIN_SEGMENTACION_APROBADA',
+      }),
+    );
+    expect(
+      result.issues.filter(({ code }) =>
+        [
+          'CAMPO_36_REQUIERE_SEGMENTACION',
+          'CAMPO_37_REQUIERE_SEGMENTACION',
+          'CAMPO_38_REQUIERE_SEGMENTACION',
+          'CAMPO_39_REQUIERE_SEGMENTACION',
+        ].includes(code),
+      ),
+    ).toEqual([]);
+    for (const code of [
+      'UBICACION_LABORAL_PILA_FUENTE_INVALIDA',
+      'CENTRO_TRABAJO_PILA_NO_CUBRE_PERIODO',
+      'ACTIVIDAD_ARL_PILA_NO_CUBRE_PERIODO',
+    ]) {
+      expect(result.issues).not.toContainEqual(
+        expect.objectContaining({ code }),
+      );
+    }
+  });
+
   it('bloquea un snapshot PILA histórico o ausente sin completar desde el maestro', () => {
     const result = inspectPilaSnapshotPreparation({
       employeeId: 'employee-1',
