@@ -1879,28 +1879,32 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.values[8]).toBeUndefined();
   });
 
-  it('does not map days or affiliations for a nonstandard cotizante', () => {
-    const input = snapshot();
-    payloadOf(input).affiliations[0].tipoCotizanteCodigo = '02';
+  it.each(['02', '75'])(
+    'does not map days or affiliations for nonstandard cotizante %s',
+    (tipoCotizanteCodigo) => {
+      const input = snapshot();
+      payloadOf(input).affiliations[0].tipoCotizanteCodigo =
+        tipoCotizanteCodigo;
 
-    const candidate = mapCandidate(input);
+      const candidate = mapCandidate(input);
 
-    expect(candidate.values[1]).toBeUndefined();
-    expect(candidate.values[5]).toBeUndefined();
-    expect(candidate.values[31]).toBeUndefined();
-    expect(candidate.values[36]).toBeUndefined();
-    expect(candidate.values[7]).toBeUndefined();
-    expect(candidate.values[8]).toBeUndefined();
-    for (const fieldNumber of [32, 34, 74, 75]) {
-      expect(candidate.values[fieldNumber]).toBeUndefined();
-    }
-    expect(
-      candidate.normativeRuleVersions.noTransferDestinationFields,
-    ).toBeNull();
-    expect(
-      candidate.normativeRuleVersions.nonCotizante40PrincipalFields,
-    ).toBeNull();
-  });
+      expect(candidate.values[1]).toBeUndefined();
+      expect(candidate.values[5]).toBeUndefined();
+      expect(candidate.values[31]).toBeUndefined();
+      expect(candidate.values[36]).toBeUndefined();
+      expect(candidate.values[7]).toBeUndefined();
+      expect(candidate.values[8]).toBeUndefined();
+      for (const fieldNumber of [32, 34, 74, 75]) {
+        expect(candidate.values[fieldNumber]).toBeUndefined();
+      }
+      expect(
+        candidate.normativeRuleVersions.noTransferDestinationFields,
+      ).toBeNull();
+      expect(
+        candidate.normativeRuleVersions.nonCotizante40PrincipalFields,
+      ).toBeNull();
+    },
+  );
 
   it('preserves numeric identifier and work center leading zeros', () => {
     const candidate = mapCandidate(snapshot());
