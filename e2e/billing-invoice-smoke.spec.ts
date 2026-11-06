@@ -275,7 +275,7 @@ test('crea y emite una factura desde la interfaz y conserva sus valores', async 
     await page
       .getByRole('link', { name: invoiceNumber })
       .locator('xpath=../../..')
-      .getByRole('button', { name: 'Revertir' })
+      .getByRole('button', { name: 'Cancelar' })
       .click();
     const cancelResponse = await cancelResponsePromise;
     expect(cancelResponse.status()).toBe(200);

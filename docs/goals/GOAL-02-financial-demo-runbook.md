@@ -110,6 +110,13 @@ Registra un recaudo ficticio y muestra cómo las aplicaciones reducen el saldo d
 las facturas. Las referencias de demo no representan transferencias reales; la
 cartera refleja aplicaciones internas, no conciliación bancaria.
 
+Si también vas a mostrar la cancelación de una factura emitida, usa una factura
+de demo y registra un motivo. Si tiene recaudos activos, reviértelos antes de
+cancelar. La factura quedará anulada; Ledger marca el comprobante original como
+anulado cuando su período está abierto y crea un comprobante de reverso en el
+período abierto actual cuando el período original está cerrado. Esto cancela la
+factura interna del producto y no transmite ni cancela un documento ante DIAN.
+
 En Contabilidad → Reportes (/contabilidad/reportes) consulta el Balance de
 Prueba, el Balance General o el Estado de Resultados y descarga el resultado en
 CSV para abrirlo en Excel. Los libros paginados descargan únicamente la página

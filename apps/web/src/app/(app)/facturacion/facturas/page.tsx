@@ -395,7 +395,7 @@ export default function FacturasPage() {
                       disabled={updateStatusMutation.isPending}
                       onClick={() => cancelInvoice(inv.id)}
                     >
-                      <XCircle className="size-3.5" /> Revertir
+                      <XCircle className="size-3.5" /> Cancelar
                     </Button>
                   )}
                 </div>
