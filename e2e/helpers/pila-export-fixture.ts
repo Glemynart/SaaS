@@ -113,7 +113,7 @@ function buildApprovedSnapshot(
     PENSION_PAT: 672_000,
     SALUD_EMP: 224_000,
     SALUD_PAT: 476_000,
-    ARL: 29_232,
+    ARL: 29_300,
     CAJA: 224_000,
     SENA: 112_000,
     ICBF: 168_000,
@@ -244,7 +244,7 @@ export async function seedPilaExportFixture(
           totalDeducciones: singleIngress ? 448_000 : 0,
           netoPagar: singleIngress ? 5_152_000 : salary,
           salarioBaseSnapshot: monthlySalary,
-          totalAportesPatronales: singleIngress ? 1_681_232 : 900_000,
+          totalAportesPatronales: singleIngress ? 1_681_300 : 900_000,
           totalProvisiones: singleIngress ? 1_000_000 : 250_000,
         })),
       });

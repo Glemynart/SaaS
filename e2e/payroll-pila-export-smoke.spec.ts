@@ -346,6 +346,7 @@ test('genera y descarga el candidato PILA local para un único ingreso a mitad d
     }
     expect(Number(detailFieldValue(records[1], 40))).toBe(5_600_000);
     expect(detailFieldValue(records[1], 80)).toBe('2026-10-10');
+    expect(Number(detailFieldValue(records[1], 63))).toBe(29_300);
     expect(Number(detailFieldValue(records[1], 95))).toBe(5_600_000);
   } finally {
     await fixture.disconnect();
