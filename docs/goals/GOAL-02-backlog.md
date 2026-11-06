@@ -2122,3 +2122,26 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   pasar antes de considerarlo listo.
 - Este trabajo no declara compatibilidad con operador ni permite transmisión,
   liquidación o pago. Mantiene el resto del alcance y exclusiones de ADR-013.
+
+### Valores candidatos de salario e IBC en el preflight PILA — 2026-11-06
+
+- Preparación PILA muestra por empleado los candidatos para campos 40–45 y 95,
+  la fuente congelada en el snapshot y, para la base parafiscal, la versión de
+  regla que contiene cada snapshot. Las brechas mantienen su motivo y empleado.
+- Los valores provienen únicamente de snapshots aprobados consultados dentro
+  del tenant y período. Si hay más de un snapshot o falla la coincidencia de
+  tenant/período, no se expone el importe. La ruta conserva el acceso
+  `ADMIN`/`OPERADOR` del preflight.
+- Estos valores son candidatos parciales; no validan el detalle completo,
+  habilitan la generación ni declaran compatibilidad con un operador. La
+  exportación, su historial y sus snapshots no se modifican.
+- Verificación local: 171 pruebas de preparación PILA; typecheck API/web,
+  ESLint dirigido y Prettier pasan. Playwright reconoce el E2E financiero
+  actualizado. El Browser E2E funcional correrá en CI con PostgreSQL efímero;
+  no se ejecutó localmente para evitar usar la base local de demo. **GOAL
+  ACTIVO:** GOAL-02; GOAL-01 permanece pausado. La prueba de carga específica
+  con SOI u otro operador sigue dependiendo de un canal controlado y autorizado.
+- La publicación Vercel actualiza la web; el workflow de API publica la imagen
+  en GHCR pero no actualiza su runtime. La vista informa cuando la API todavía
+  no devuelve este nuevo detalle; el despliegue del runtime requiere su
+  procedimiento operativo separado y no se hace en este incremento.

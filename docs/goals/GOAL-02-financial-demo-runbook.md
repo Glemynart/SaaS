@@ -86,9 +86,13 @@ corte y ajuste de diciembre.
 ### 3. Preparación y exportación PILA (2–3 minutos)
 
 Desde el detalle del período de nómina, revisa **Preparación de datos PILA**.
-Muestra el empleado, los campos candidatos y las brechas que impiden generar el
-archivo. Solo cuando la pantalla habilite la acción, genera y descarga los
-archivos tipo 1 y tipo 2; enseña el historial de la exportación local.
+Abre **Salario e IBC por empleado** para mostrar los campos 40–45 y 95, el valor
+candidato por persona, la fuente congelada y la versión de la regla para la base
+parafiscal. Los datos salen de snapshots aprobados; los campos pendientes
+conservan sus motivos. Estos candidatos no validan el registro completo ni
+habilitan por sí solos la generación. Solo cuando la pantalla habilite la
+acción, genera y descarga los archivos tipo 1 y tipo 2; enseña el historial de
+la exportación local.
 
 El flujo soporta únicamente los escenarios dependientes estándar incluidos en
 la matriz de aceptación. La validación local verifica el formato y las reglas

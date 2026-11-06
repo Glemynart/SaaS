@@ -2409,6 +2409,123 @@ describe('inspectPilaSnapshotPreparation', () => {
     });
   });
 
+  it('muestra fuentes congeladas de salario e IBC sin habilitar la descarga', () => {
+    const ana = detailCandidateSnapshot('employee-1', 'Ana');
+    const luis = detailCandidateSnapshot('employee-2', 'Luis');
+    const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [ana, luis],
+    });
+    const sourceField = (fieldNumber: number) =>
+      report.detailSourceFieldCandidates.find(
+        (status) => status.fieldNumber === fieldNumber,
+      );
+
+    expect(sourceField(40)).toMatchObject({
+      sourceLabel:
+        'Salario básico congelado en el snapshot aprobado de nómina.',
+      candidateEmployees: 2,
+      pendingEmployees: 0,
+      candidateValues: [
+        {
+          employeeId: 'employee-1',
+          employeeName: 'Ana Demo',
+          value: 3_000_000,
+        },
+        {
+          employeeId: 'employee-2',
+          employeeName: 'Luis Demo',
+          value: 3_000_000,
+        },
+      ],
+    });
+    expect(sourceField(42)?.candidateValues).toEqual([
+      { employeeId: 'employee-1', employeeName: 'Ana Demo', value: 3_000_000 },
+      { employeeId: 'employee-2', employeeName: 'Luis Demo', value: 3_000_000 },
+    ]);
+    expect(sourceField(95)?.candidateValues).toEqual([
+      {
+        employeeId: 'employee-1',
+        employeeName: 'Ana Demo',
+        value: 3_000_000,
+        ruleVersion: 'CO_PARAFISCAL_BASE_V1',
+      },
+      {
+        employeeId: 'employee-2',
+        employeeName: 'Luis Demo',
+        value: 3_000_000,
+        ruleVersion: 'CO_PARAFISCAL_BASE_V1',
+      },
+    ]);
+    expect(report.archivoGenerable).toBe(false);
+  });
+
+  it('oculta valores de candidatos para snapshots fuera del tenant consultado', () => {
+    const foreign = detailCandidateSnapshot('employee-1', 'Ana Demo');
+    const payload = foreign.payload as {
+      employer: { tenantId: string };
+    };
+    payload.employer.tenantId = 'tenant-2';
+    const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [foreign],
+    });
+    const field40 = report.detailSourceFieldCandidates.find(
+      (status) => status.fieldNumber === 40,
+    );
+
+    expect(field40).toMatchObject({
+      candidateEmployees: 0,
+      pendingEmployees: 1,
+      candidateValues: [],
+      pendingReasons: [
+        {
+          reason:
+            'El snapshot no corresponde al tenant o período consultado; se ocultan sus valores.',
+        },
+      ],
+    });
+  });
+
+  it('no elige ni expone valores cuando un empleado tiene snapshots duplicados', () => {
+    const first = detailCandidateSnapshot('employee-1', 'Ana');
+    const second = detailCandidateSnapshot('employee-1', 'Ana');
+    const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [first, second],
+    });
+    const field40 = report.detailSourceFieldCandidates.find(
+      (status) => status.fieldNumber === 40,
+    );
+
+    expect(field40).toMatchObject({
+      candidateEmployees: 0,
+      pendingEmployees: 1,
+      candidateValues: [],
+      pendingReasons: [
+        {
+          reason:
+            'Hay más de un snapshot aprobado para el empleado en este período; no se elige uno automáticamente.',
+        },
+      ],
+    });
+  });
+
   it('expone candidatos parciales por campo sin habilitar el archivo', () => {
     const compliant = detailCandidateSnapshot('employee-1', 'Ana');
     const arlAmountNotRounded = detailCandidateSnapshot(

@@ -140,7 +140,21 @@ export async function seedPayrollAccrualFixture(
       },
     ],
     payroll: {
-      ibcPorSubsistema: { cajaCompensacion: { valor: 1_000_000 } },
+      salarioBasicoCampo40: { valor: 1_000_000, bloqueos: [] },
+      tipoSalario: 'F',
+      tipoSalarioBloqueos: [],
+      ibcPorSubsistema: {
+        pension: { valor: 1_000_000, sourceCount: 1 },
+        salud: { valor: 1_000_000, sourceCount: 1 },
+        riesgos: { valor: 1_000_000, sourceCount: 1 },
+        cajaCompensacion: { valor: 1_000_000, sourceCount: 1 },
+        otrosParafiscales: {
+          valor: 1_000_000,
+          sourceCount: 1,
+          reglaVersion: 'CO_PARAFISCAL_BASE_V1',
+          bloqueos: [],
+        },
+      },
     },
   };
 
