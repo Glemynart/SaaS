@@ -1016,11 +1016,12 @@ export function mapPilaAt2V30DetailCandidate(
     }
   } else if (fullMonthVspPilaInputsApproved && periodStart) {
     for (const fieldNumber of [
-      15, 16, 17, 18, 19, 20, 23, 24, 25, 26, 27, 29, 30, 80, 81,
+      15, 16, 17, 18, 19, 20, 23, 24, 25, 26, 27, 29, 80, 81,
     ]) {
       blank(fieldNumber);
     }
     put(21, 'X');
+    put(30, 0);
     put(82, periodStart);
     for (let fieldNumber = 83; fieldNumber <= 94; fieldNumber += 1) {
       blank(fieldNumber);

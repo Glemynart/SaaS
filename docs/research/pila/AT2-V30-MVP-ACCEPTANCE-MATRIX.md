@@ -633,7 +633,8 @@ efectiva coincide con el primer día, con 30 días aprobados en Payroll. No admi
 eventos PILA, salario variable, eventos concurrentes, VSP de mitad de mes ni
 períodos parciales. Días 36–39, salario/IBC y demás fuentes siguen saliendo del
 snapshot aprobado; el mapper propone campo 21=`X` y campo 82 con la fecha
-congelada del evento. Un candidato parcial no basta para generar el archivo:
+congelada del evento, y conserva campo 30=`0` porque los días aprobados son de
+mes completo. Un candidato parcial no basta para generar el archivo:
 los demás campos obligatorios y la prevalidación completa aún deben pasar.
 
 La compilación vigente de la Resolución 2388 describe el campo 21 como VSP,

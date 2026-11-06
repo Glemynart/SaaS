@@ -255,9 +255,10 @@ también bloquea la revisión. La matriz PILA-AT2-84 permite únicamente el
 candidato VSP de un snapshot v10 cuya fecha efectiva sea el primer día de un
 mes completo, 30 días e IBC de período completo aprobados, salario fijo no
 integral y sin otros eventos o novedades. Propone los campos 21 y 82 desde el
-evento congelado, pero no calcula segmentos ni vuelve exportables los demás
-casos VSP. Esta excepción estrecha no constituye un preflight normativo
-completo ni habilita por sí sola la generación de archivos.
+evento congelado y conserva el campo 30 en cero para el mes completo, pero no
+calcula segmentos ni vuelve exportables los demás casos VSP. Esta excepción
+estrecha no constituye un preflight normativo completo ni habilita por sí sola
+la generación de archivos.
 
 El informe también muestra conteos por empleado de candidatos y pendientes para
 los campos 46–47, 54–55, 61, 63–69, junto con las razones y los empleados afectados.

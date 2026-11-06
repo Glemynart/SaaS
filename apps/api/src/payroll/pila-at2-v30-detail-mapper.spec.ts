@@ -592,6 +592,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
 
     expect(candidate.values).toMatchObject({
       21: { value: 'X' },
+      30: { value: 0 },
       36: { value: 30 },
       37: { value: 30 },
       38: { value: 30 },
