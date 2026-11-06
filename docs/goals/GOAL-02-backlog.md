@@ -17,6 +17,11 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   comprueba secuencia y longitud de los detalles, historial, descargas, hashes,
   reintento idempotente y aislamiento tenant. No cambia lógica de producción ni
   acredita aceptación de un operador.
+- Se preparó un [runbook de prueba por operador para SOI](../research/pila/SOI-OPERATOR-ACCEPTANCE-RUNBOOK.md)
+  a partir de sus páginas públicas vigentes. Estado SOI: `NOT_TESTED`; no se ha
+  iniciado sesión ni cargado archivo. La prueba requiere cuenta autorizada y se
+  detiene antes de crear una planilla o pagar sin autorización expresa. La
+  aceptación de SOI, si se obtiene, no implica compatibilidad universal.
 
 - PR #278 se fusionó en main como 0aae82938fe430e258f35861eec944e59a5bde32 y PR #279 como 1b31782257313cc08f150e2f1024df88fe405562. Los checks post-merge de CI, Browser E2E y publicación de la imagen API pasaron en ambos.
 - PR #278 compone localmente archivos AT2 v30 tipo 1 y tipo 2 desde snapshots aprobados; PR #279 añade generación autenticada tenant-scoped, historial append-only, almacenamiento privado, SHA-256, versionamiento, auditoría y descarga protegida. La nueva prueba de navegador de esta continuación cubre generación, persistencia, reintento idempotente y descarga de ambos archivos desde la interfaz.
