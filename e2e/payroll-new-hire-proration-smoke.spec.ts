@@ -168,3 +168,105 @@ test('liquida desde la UI el salario proporcional de un ingreso dentro del mes',
     await fixture.disconnect();
   }
 });
+
+test('liquida desde la UI un retiro RET único y lo congela en PayrollSnapshot', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const tenantId = await registerAndSignIn(page);
+  const fixture = await seedPayrollCalculationFixture(tenantId, {
+    fechaIngreso: '2025-01-01',
+    fechaInicioContrato: '2025-01-01',
+    fechaRetiro: '2026-10-20',
+  });
+  const periodName = 'Nómina octubre retiro parcial 2026';
+  let periodId = '';
+
+  try {
+    await page.goto('/nomina/periodos');
+    await page.getByRole('button', { name: 'Nuevo periodo' }).click();
+    await page.getByPlaceholder('Octubre 2026').fill(periodName);
+    const periodDates = page.locator('input[type="date"]');
+    await periodDates.nth(0).fill('2026-10-01');
+    await periodDates.nth(1).fill('2026-10-31');
+
+    const createResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/payroll/periods' &&
+        response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Crear', exact: true }).click();
+    const createResponse = await createResponsePromise;
+    expect(createResponse.status()).toBe(200);
+    periodId = ((await createResponse.json()) as { id: string }).id;
+
+    const periodCard = () => page.getByText(periodName, { exact: true }).locator('xpath=../..');
+    await expect(periodCard()).toBeVisible();
+    await periodCard().getByRole('link', { name: periodName }).click();
+
+    const pilaPanel = page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: 'Novedades de seguridad social' }) });
+    await pilaPanel.getByLabel('Novedad').selectOption('RET');
+    await pilaPanel.getByLabel('Empleado', { exact: true }).selectOption(fixture.employeeId);
+    await expect(pilaPanel.getByLabel('Fecha inicial')).toHaveValue('2026-10-20');
+
+    const createEventResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/payroll/periods/${periodId}/pila-events` &&
+        response.request().method() === 'POST',
+    );
+    await pilaPanel.getByRole('button', { name: 'Agregar novedad' }).click();
+    const createEventResponse = await createEventResponsePromise;
+    expect(createEventResponse.status()).toBe(200);
+    await expect(pilaPanel.getByText('Retiro · 2026-10-20')).toBeVisible();
+
+    await page.goto('/nomina/periodos');
+    const generateResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/payroll/periods/${periodId}/generate` &&
+        response.request().method() === 'POST',
+    );
+    await periodCard().getByRole('button', { name: 'Generar' }).click();
+    const generateResponse = await generateResponsePromise;
+    expect(generateResponse.status()).toBe(200);
+    expect(await generateResponse.json()).toMatchObject({ created: 1 });
+
+    const generated = await fixture.inspect(periodId);
+    expect(generated.runs).toHaveLength(1);
+    expect(generated.runs[0].salarioBaseSnapshot).toBe(8_000_000);
+    expect(generated.runs[0].calculationTrace?.employee?.diasNomina).toBe(20);
+    expect(generated.runs[0].ibc).toBe(5_333_333);
+    expect(
+      generated.runs[0].concepts.find((concept) => concept.codigo === 'SALARIO_BASE')?.valor,
+    ).toBe(5_333_333);
+
+    const reviewResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/payroll/periods/${periodId}/enviar-revision` &&
+        response.request().method() === 'POST',
+    );
+    await periodCard().getByRole('button', { name: 'Enviar' }).click();
+    expect((await reviewResponsePromise).status()).toBe(200);
+    await page.reload();
+    const approveResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/payroll/periods/${periodId}/aprobar` &&
+        response.request().method() === 'POST',
+    );
+    await periodCard().getByRole('button', { name: 'Aprobar' }).click();
+    expect((await approveResponsePromise).status()).toBe(200);
+
+    const approved = await fixture.inspect(periodId);
+    expect(approved.periodStatus).toBe('APROBADA');
+    expect(approved.snapshots).toHaveLength(1);
+    expect(approved.snapshots[0].payload.employee.fechaRetiro).toContain('2026-10-20');
+    expect(approved.snapshots[0].pilaPayloadVersion).toBe(10);
+    expect(approved.snapshots[0].pilaPayload.payroll.diasNomina).toBe(20);
+    expect(approved.snapshots[0].pilaPayload.pilaEvents).toEqual([
+      expect.objectContaining({ codigo: 'RET', fechaInicio: '2026-10-20' }),
+    ]);
+  } finally {
+    await fixture.disconnect();
+  }
+});

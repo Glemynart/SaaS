@@ -19,6 +19,7 @@ const mockLiquidationFindMany = jest.fn();
 const mockLiquidationCount = jest.fn();
 const mockPayrollPeriodFindFirst = jest.fn();
 const mockPayrollRunFindFirst = jest.fn();
+const mockPayrollPilaEventFindFirst = jest.fn();
 
 const mockPrisma = {
   empleado: { findFirst: mockEmpleadoFindFirst },
@@ -32,6 +33,8 @@ const mockPrisma = {
   },
   payrollPeriod: { findFirst: mockPayrollPeriodFindFirst },
   payrollRun: { findFirst: mockPayrollRunFindFirst },
+  payrollPilaEvent: { findFirst: mockPayrollPilaEventFindFirst },
+  $queryRaw: jest.fn(),
   $transaction: jest.fn(),
 };
 
@@ -63,6 +66,9 @@ describe('LiquidationService — validaciones de dominio', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPayrollRunFindFirst.mockResolvedValue(null);
+    mockPayrollPilaEventFindFirst.mockResolvedValue(null);
+    mockPrisma.$queryRaw.mockResolvedValue([]);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -135,6 +141,26 @@ describe('LiquidationService — validaciones de dominio', () => {
       service.createLiquidacion('tenant-1', 'user-1', 'emp-001'),
     ).resolves.toBeDefined();
   });
+
+  it('bloquea crear liquidación si ya existe cualquier evento RET del empleado', async () => {
+    const fechaRetiro = new Date('2023-12-31');
+    mockEmpleadoFindFirst.mockResolvedValue(makeEmp({ fechaRetiro }));
+    mockPayrollPilaEventFindFirst.mockResolvedValue({ id: 'event-ret' });
+
+    await expect(
+      service.createLiquidacion('tenant-1', 'user-1', 'emp-001'),
+    ).rejects.toThrow(ConflictException);
+
+    expect(mockPayrollPilaEventFindFirst).toHaveBeenCalledWith({
+      where: {
+        tenantId: 'tenant-1',
+        employeeId: 'emp-001',
+        codigo: 'RET',
+      },
+      select: { id: true },
+    });
+    expect(mockPrisma.liquidation.create).not.toHaveBeenCalled();
+  });
 });
 
 // ── N2D.4 — Resolución de salario pendiente ─────────────────────────────────────
@@ -183,6 +209,9 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPayrollRunFindFirst.mockResolvedValue(null);
+    mockPayrollPilaEventFindFirst.mockResolvedValue(null);
+    mockPrisma.$queryRaw.mockResolvedValue([]);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -207,6 +236,18 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
 
     expect(salarioPendienteConcept(data)).toBeUndefined();
     expect(mockPayrollRunFindFirst).toHaveBeenCalled();
+  });
+
+  it('período CAUSADA con PayrollRun del empleado → NO emite salario pendiente', async () => {
+    mockPayrollPeriodFindFirst.mockResolvedValue({
+      ...PERIODO_DIC,
+      status: 'CAUSADA',
+    });
+    mockPayrollRunFindFirst.mockResolvedValue({ id: 'run-1' });
+
+    const data = await runAndCaptureCreateData();
+
+    expect(salarioPendienteConcept(data)).toBeUndefined();
   });
 
   it('período APROBADA pero SIN PayrollRun del empleado → emite días trabajados', async () => {
@@ -240,7 +281,7 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
     expect(mockPayrollRunFindFirst).toHaveBeenCalled();
   });
 
-  it('período BORRADOR (no procesado) → emite días trabajados sin consultar runs', async () => {
+  it('período BORRADOR sin PayrollRun → emite días trabajados', async () => {
     mockPayrollPeriodFindFirst.mockResolvedValue(PERIODO_DIC);
 
     const data = await runAndCaptureCreateData();
@@ -248,8 +289,27 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
     const concept = salarioPendienteConcept(data);
     expect(concept).toBeDefined();
     expect(concept!.factor).toBeCloseTo(15 / 30, 6);
-    // En período no procesado no se consulta PayrollRun.
-    expect(mockPayrollRunFindFirst).not.toHaveBeenCalled();
+    expect(mockPayrollRunFindFirst).toHaveBeenCalledWith({
+      where: {
+        tenantId: 'tenant-1',
+        employeeId: 'emp-001',
+        payrollPeriodId: PERIODO_DIC.id,
+      },
+      select: { id: true },
+    });
+  });
+
+  it('período BORRADOR con PayrollRun → bloquea para evitar doble pago de salario', async () => {
+    mockPayrollPeriodFindFirst.mockResolvedValue(PERIODO_DIC);
+    mockPayrollRunFindFirst.mockResolvedValue({ id: 'run-pending' });
+    mockEmpleadoFindFirst.mockResolvedValue(
+      makeEmp({ fechaRetiro: new Date('2023-12-15') }),
+    );
+
+    await expect(
+      service.createLiquidacion('tenant-1', 'user-1', 'emp-001'),
+    ).rejects.toThrow(ConflictException);
+    expect(mockPrisma.liquidation.create).not.toHaveBeenCalled();
   });
 
   it('sin período → fallback calendario: retiro el 15 → 15 días', async () => {
@@ -793,12 +853,14 @@ describe('LiquidationService — concurrencia y lectura (N2D.6)', () => {
     });
     mockLiquidationFindFirst.mockResolvedValue(null);
     mockPayrollPeriodFindFirst.mockResolvedValue(null);
-    mockPrisma.$transaction.mockRejectedValue(
-      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
-        code: 'P2002',
-        clientVersion: '6.19.3',
-        meta: { target: ['liquidations_tenantId_empleadoId_draft_key'] },
-      }),
+    mockTenantPrisma.execute.mockImplementationOnce(() =>
+      Promise.reject(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: '6.19.3',
+          meta: { target: ['liquidations_tenantId_empleadoId_draft_key'] },
+        }),
+      ),
     );
 
     await expect(
@@ -825,7 +887,9 @@ describe('LiquidationService — concurrencia y lectura (N2D.6)', () => {
         meta: { target: ['some_other_index'] },
       },
     );
-    mockPrisma.$transaction.mockRejectedValue(otherP2002);
+    mockTenantPrisma.execute.mockImplementationOnce(() =>
+      Promise.reject(otherP2002),
+    );
 
     await expect(
       service.createLiquidacion(TENANT, USER, 'emp-001'),

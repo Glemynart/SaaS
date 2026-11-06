@@ -28,10 +28,12 @@ const VALID_TRANSITIONS: Record<LiquidationStatus, LiquidationStatus[]> = {
  * SalarioPendiente los usa como proxy temporal de PAID; ver ese método).
  * Antes de U1 el único estado terminal era CLOSED; U1 lo reemplazó por
  * APROBADA (P1) y migró los períodos legados CLOSED → CERRADA (backfill).
- * Ningún código nuevo escribe CLOSED — ver payroll-states.ts.
+ * CAUSADA también cuenta: el salario ya fue aprobado y contabilizado. Ningún
+ * código nuevo escribe CLOSED — ver payroll-states.ts.
  */
 const PERIODOS_PROCESADOS: PayrollPeriodStatus[] = [
   PayrollPeriodStatus.APROBADA,
+  PayrollPeriodStatus.CAUSADA,
   PayrollPeriodStatus.CERRADA,
 ];
 
@@ -64,89 +66,114 @@ export class LiquidationService {
     userId: string,
     empleadoId: string,
   ) {
-    // ── 1. Cargar empleado ───────────────────────────────────────────────────
-    const emp = await this.tenantPrisma.execute((prisma) =>
-      prisma.empleado.findFirst({
-        where: { id: empleadoId, tenantId, deletedAt: null },
-        select: {
-          id: true,
-          estado: true,
-          salario: true,
-          salarioIntegral: true,
-          fechaIngreso: true,
-          fechaRetiro: true,
-        },
-      }),
-    );
-
-    if (!emp) {
-      throw new NotFoundException('Empleado no encontrado');
-    }
-
-    // ── 2. Validaciones de dominio ───────────────────────────────────────────
-    if (emp.estado !== 'RETIRADO') {
-      throw new BadRequestException(
-        'Solo se pueden liquidar empleados retirados',
-      );
-    }
-
-    if (!emp.fechaRetiro) {
-      throw new BadRequestException(
-        'El empleado no tiene fecha de retiro registrada. ' +
-          'Registre la fecha de retiro antes de generar la liquidación.',
-      );
-    }
-
-    const existingDraft = await this.prisma.liquidation.findFirst({
-      where: { tenantId, empleadoId, status: 'DRAFT' },
-      select: { id: true },
-    });
-
-    if (existingDraft) {
-      throw new ConflictException(
-        `Ya existe una liquidación en estado DRAFT para este empleado ` +
-          `(id: ${existingDraft.id}). ` +
-          'Finalice o anule la existente antes de crear una nueva.',
-      );
-    }
-
-    // ── 3. Resolver salario pendiente (política N2D.4) ───────────────────────
-    const diasSalarioPendiente = await this.resolveDiasSalarioPendiente(
-      tenantId,
-      empleadoId,
-      emp.fechaIngreso,
-      emp.fechaRetiro,
-    );
-
-    // ── 4. Construir input (mapper adapta semántica inclusivo → exclusivo) ───
-    const { input, diasLiquidados } = buildLiquidationInput(
-      emp,
-      emp.fechaRetiro,
-      diasSalarioPendiente,
-    );
-
-    // ── 5. Calcular ──────────────────────────────────────────────────────────
-    const result = calculate(input);
-
-    // ── 6. Persistir en transacción ──────────────────────────────────────────
-    //    El findFirst anterior es una optimización con mensaje amable, pero es
-    //    racy (TOCTOU). El índice único parcial DRAFT (migración N2D.6) es la
-    //    garantía real: dos requests simultáneos (doble click) chocan en P2002
-    //    y aquí se traduce a 409 Conflict.
+    // Serialize liquidation creation with RET capture and payroll generation.
+    // All three paths lock this tenant-owned employee row before checking the
+    // cross-module state that could otherwise pay the retirement month twice.
     let liquidation;
     try {
-      liquidation = await this.prisma.$transaction(async (tx) => {
-        return tx.liquidation.create({
+      const outcome = await this.tenantPrisma.execute(async (tx) => {
+        await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id" FROM "empleados"
+          WHERE "tenantId" = ${tenantId} AND "id" = ${empleadoId}
+          FOR UPDATE
+        `;
+
+        const emp = await tx.empleado.findFirst({
+          where: { id: empleadoId, tenantId, deletedAt: null },
+          select: {
+            id: true,
+            estado: true,
+            salario: true,
+            salarioIntegral: true,
+            fechaIngreso: true,
+            fechaRetiro: true,
+          },
+        });
+        if (!emp) throw new NotFoundException('Empleado no encontrado');
+        if (emp.estado !== 'RETIRADO') {
+          throw new BadRequestException(
+            'Solo se pueden liquidar empleados retirados',
+          );
+        }
+        if (!emp.fechaRetiro) {
+          throw new BadRequestException(
+            'El empleado no tiene fecha de retiro registrada. ' +
+              'Registre la fecha de retiro antes de generar la liquidación.',
+          );
+        }
+
+        const existingDraft = await tx.liquidation.findFirst({
+          where: { tenantId, empleadoId, status: 'DRAFT' },
+          select: { id: true },
+        });
+        if (existingDraft) {
+          throw new ConflictException(
+            `Ya existe una liquidación en estado DRAFT para este empleado ` +
+              `(id: ${existingDraft.id}). ` +
+              'Finalice o anule la existente antes de crear una nueva.',
+          );
+        }
+
+        const existingRetirementEvent = await tx.payrollPilaEvent.findFirst({
+          where: {
+            tenantId,
+            employeeId: empleadoId,
+            codigo: 'RET',
+          },
+          select: { id: true },
+        });
+        if (existingRetirementEvent) {
+          throw new ConflictException(
+            'Ya existe una novedad RET para este empleado. Retire o corrija esa novedad antes de crear la liquidación laboral.',
+          );
+        }
+
+        const diasSalarioPendiente = await this.resolveDiasSalarioPendiente(
+          tenantId,
+          empleadoId,
+          emp.fechaIngreso,
+          emp.fechaRetiro,
+          tx,
+        );
+        const { input, diasLiquidados } = buildLiquidationInput(
+          emp,
+          emp.fechaRetiro,
+          diasSalarioPendiente,
+        );
+        const result = calculate(input);
+        const liquidation = await tx.liquidation.create({
           data: buildLiquidationCreateData(
             tenantId,
             empleadoId,
-            emp.fechaRetiro!,
+            emp.fechaRetiro,
             diasLiquidados,
             result,
           ),
           include: { concepts: true },
         });
+        return { liquidation, emp, diasLiquidados, result };
       });
+      liquidation = outcome.liquidation;
+
+      // ── 7. Auditoría ───────────────────────────────────────────────────────
+      this.audit
+        .log({
+          tenantId,
+          userId,
+          action: 'LIQUIDATION_CREATED',
+          entityType: 'Liquidation',
+          entityId: liquidation.id,
+          metadata: {
+            empleadoId,
+            fechaRetiro: outcome.emp.fechaRetiro!.toISOString().slice(0, 10),
+            diasLiquidados: outcome.diasLiquidados,
+            totalLiquidacion: outcome.result.totalLiquidacion,
+            conceptosGenerados: outcome.result.conceptos.length,
+          },
+        })
+        .catch(() => {});
+
+      return liquidation;
     } catch (e) {
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&
@@ -161,26 +188,6 @@ export class LiquidationService {
       }
       throw e;
     }
-
-    // ── 7. Auditoría ─────────────────────────────────────────────────────────
-    this.audit
-      .log({
-        tenantId,
-        userId,
-        action: 'LIQUIDATION_CREATED',
-        entityType: 'Liquidation',
-        entityId: liquidation.id,
-        metadata: {
-          empleadoId,
-          fechaRetiro: emp.fechaRetiro.toISOString().slice(0, 10),
-          diasLiquidados,
-          totalLiquidacion: result.totalLiquidacion,
-          conceptosGenerados: result.conceptos.length,
-        },
-      })
-      .catch(() => {});
-
-    return liquidation;
   }
 
   /**
@@ -206,9 +213,10 @@ export class LiquidationService {
     empleadoId: string,
     fechaIngreso: Date,
     fechaRetiro: Date,
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<number> {
     // 1. Período que contiene fechaRetiro.
-    const periodo = await this.prisma.payrollPeriod.findFirst({
+    const periodo = await db.payrollPeriod.findFirst({
       where: {
         tenantId,
         fechaInicio: { lte: fechaRetiro },
@@ -228,19 +236,24 @@ export class LiquidationService {
       return dias > 0 ? dias : 0;
     }
 
-    // 2. ¿Existe un PayrollRun del empleado en un período ya procesado?
-    if (PERIODOS_PROCESADOS.includes(periodo.status)) {
-      const run = await this.prisma.payrollRun.findFirst({
-        where: {
-          tenantId,
-          employeeId: empleadoId,
-          payrollPeriodId: periodo.id,
-        },
-        select: { id: true },
-      });
-      if (run) {
+    // 2. A run in a processed period already paid this salary; a run in a
+    //    draft/in-progress period must be completed or removed before a
+    //    liquidation can include the same days.
+    const run = await db.payrollRun.findFirst({
+      where: {
+        tenantId,
+        employeeId: empleadoId,
+        payrollPeriodId: periodo.id,
+      },
+      select: { id: true },
+    });
+    if (run) {
+      if (PERIODOS_PROCESADOS.includes(periodo.status)) {
         return 0;
       }
+      throw new ConflictException(
+        'Ya existe una ejecución de nómina sin aprobar en el período de retiro. Apruébela o elimínela antes de generar la liquidación.',
+      );
     }
 
     // 3. Días comerciales trabajados dentro del período de retiro.

@@ -35,6 +35,7 @@ type PayrollCalculationFixtureOptions = {
   salarioMensual?: number;
   fechaIngreso?: string;
   fechaInicioContrato?: string;
+  fechaRetiro?: string;
 };
 
 const ACCOUNT_ROLES = [
@@ -78,6 +79,7 @@ export async function seedPayrollCalculationFixture(
   const salarioMensual = options.salarioMensual ?? 8_000_000;
   const fechaIngreso = options.fechaIngreso ?? '2025-01-01';
   const fechaInicioContrato = options.fechaInicioContrato ?? fechaIngreso;
+  const fechaRetiro = options.fechaRetiro;
 
   try {
     await prisma.$connect();
@@ -141,6 +143,8 @@ export async function seedPayrollCalculationFixture(
           cargo: 'Auxiliar administrativa',
           salario: salarioMensual,
           fechaIngreso: new Date(`${fechaIngreso}T00:00:00.000Z`),
+          estado: fechaRetiro ? 'RETIRADO' : 'ACTIVO',
+          fechaRetiro: fechaRetiro ? new Date(`${fechaRetiro}T00:00:00.000Z`) : null,
         },
       });
       await tx.tercero.create({
@@ -161,8 +165,9 @@ export async function seedPayrollCalculationFixture(
           tenantId,
           empleadoId: employeeId,
           tipo: 'TERMINO_INDEFINIDO',
-          estado: 'VIGENTE',
+          estado: fechaRetiro ? 'TERMINADO' : 'VIGENTE',
           fechaInicio: new Date(`${fechaInicioContrato}T00:00:00.000Z`),
+          ...(fechaRetiro ? { fechaFin: new Date(`${fechaRetiro}T00:00:00.000Z`) } : {}),
           cargo: 'Auxiliar administrativa',
           salario: salarioMensual,
           claseRiesgoArl: 1,
