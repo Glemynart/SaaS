@@ -3,7 +3,7 @@ import { completeApprovedSnapshot } from '../../apps/api/test/fixtures/pila-at2-
 
 type PilaExportFixture = {
   periodId: string;
-  employeeId: string;
+  employeeCount: number;
   inspectPersistedState: () => Promise<{
     periodStatus: string | undefined;
     snapshotCount: number;
@@ -26,35 +26,45 @@ type PilaExportFixture = {
 export async function seedPilaExportFixture(
   tenantId: string,
   actorId: string,
+  employeeCount: number,
 ): Promise<PilaExportFixture> {
   const { PrismaClient } = require('../../apps/api/node_modules/@prisma/client') as {
     PrismaClient: new () => any;
   };
   const prisma = new PrismaClient();
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
-  const employeeId = randomUUID();
-  const contractId = randomUUID();
   const periodId = randomUUID();
-  const payrollRunId = randomUUID();
-  const snapshotId = randomUUID();
   const salary = 3_000_000;
-  const approved = completeApprovedSnapshot({
-    tenantId,
-    periodId,
-    employeeId,
-    contractId,
-    actorId,
+  const employees = Array.from({ length: employeeCount }, (_, index) => {
+    const employeeId = randomUUID();
+    const contractId = randomUUID();
+    const cedula = String(1_000_000_000 + index);
+    return {
+      employeeId,
+      contractId,
+      cedula,
+      payrollRunId: randomUUID(),
+      snapshotId: randomUUID(),
+      approved: completeApprovedSnapshot({
+        tenantId,
+        periodId,
+        employeeId,
+        contractId,
+        actorId,
+        employeeDocumentNumber: cedula,
+      }),
+    };
   });
 
   try {
     await prisma.$connect();
     await prisma.$transaction(async (tx: any) => {
       await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
-      await tx.empleado.create({
-        data: {
+      await tx.empleado.createMany({
+        data: employees.map(({ employeeId, cedula }) => ({
           id: employeeId,
           tenantId,
-          cedula: 'pila-export-' + suffix,
+          cedula,
           tipoDocumento: 'CC',
           primerNombre: 'Ana',
           primerApellido: 'Pérez',
@@ -62,10 +72,10 @@ export async function seedPilaExportFixture(
           salario: salary,
           fechaIngreso: new Date('2026-01-01T00:00:00.000Z'),
           estado: 'ACTIVO',
-        },
+        })),
       });
-      await tx.contrato.create({
-        data: {
+      await tx.contrato.createMany({
+        data: employees.map(({ employeeId, contractId }) => ({
           id: contractId,
           tenantId,
           empleadoId: employeeId,
@@ -74,7 +84,7 @@ export async function seedPilaExportFixture(
           fechaInicio: new Date('2026-01-01T00:00:00.000Z'),
           cargo: 'Analista',
           salario: salary,
-        },
+        })),
       });
       await tx.payrollPeriod.create({
         data: {
@@ -89,8 +99,8 @@ export async function seedPilaExportFixture(
           aprobadoEn: new Date('2026-10-31T00:00:00.000Z'),
         },
       });
-      await tx.payrollRun.create({
-        data: {
+      await tx.payrollRun.createMany({
+        data: employees.map(({ employeeId, payrollRunId }) => ({
           id: payrollRunId,
           tenantId,
           payrollPeriodId: periodId,
@@ -101,10 +111,10 @@ export async function seedPilaExportFixture(
           salarioBaseSnapshot: salary,
           totalAportesPatronales: 900_000,
           totalProvisiones: 250_000,
-        },
+        })),
       });
-      await tx.payrollSnapshot.create({
-        data: {
+      await tx.payrollSnapshot.createMany({
+        data: employees.map(({ employeeId, contractId, payrollRunId, snapshotId, approved }) => ({
           id: snapshotId,
           tenantId,
           payrollRunId,
@@ -140,13 +150,13 @@ export async function seedPilaExportFixture(
           },
           pilaPayloadVersion: approved.payloadVersion,
           pilaPayload: approved.payload,
-        },
+        })),
       });
     });
 
     return {
       periodId,
-      employeeId,
+      employeeCount,
       inspectPersistedState: async () =>
         prisma.$transaction(async (tx: any) => {
           await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
