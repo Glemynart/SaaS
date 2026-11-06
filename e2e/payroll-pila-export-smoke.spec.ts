@@ -579,7 +579,7 @@ test('genera y descarga el candidato PILA local para un VSP al inicio de mes', a
     expect(detailFieldValue(records[1], 15)).toBe('');
     expect(detailFieldValue(records[1], 16)).toBe('');
     expect(detailFieldValue(records[1], 21)).toBe('X');
-    expect(detailFieldValue(records[1], 30)).toBe('0');
+    expect(detailFieldValue(records[1], 30)).toBe('00');
     for (const fieldNumber of [36, 37, 38, 39]) {
       expect(detailFieldValue(records[1], fieldNumber)).toBe('30');
     }
