@@ -202,6 +202,23 @@ describe('PayrollCalculator — casos obligatorios N2A', () => {
     expect(byCodigo(r.concepts, 'FSP')).toBeUndefined();
   });
 
+  it('prorratea salario, auxilio y piso de IBC para días de ingreso', () => {
+    const r = calculate(baseInput({ salarioBase: SMMLV, diasNomina: 15 }));
+
+    expect(byCodigo(r.concepts, 'SALARIO_BASE')?.valor).toBe(711_750);
+    expect(r.auxilioTransporte).toBe(101_449);
+    expect(r.ibc).toBe(711_750);
+    expect(byCodigo(r.concepts, 'SALUD_EMP')?.valor).toBe(28_470);
+    expect(byCodigo(r.concepts, 'PROV_PRIMA')?.base).toBe(813_199);
+    expect(r.totalDevengos).toBe(813_199);
+  });
+
+  it.each([0, 31, 1.5])('rechaza días de nómina fuera de 1–30: %s', (days) => {
+    expect(() => calculate(baseInput({ diasNomina: days }))).toThrow(
+      RangeError,
+    );
+  });
+
   it.each([
     [16, 0, 0.012],
     [17, 0, 0.012],

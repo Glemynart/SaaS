@@ -27,6 +27,7 @@ export interface EmpForPayroll {
   id: string;
   salario: Prisma.Decimal;
   salarioIntegral: boolean;
+  fechaIngreso?: Date | null;
 }
 
 export interface ContratoForPayroll {
@@ -143,6 +144,69 @@ export function resolveContrato(
   return { contrato: null, fallback: false };
 }
 
+/**
+ * Resolves one active contract for an employee hired during a monthly period.
+ * This narrow path requires one contract beginning on the recorded hire date
+ * and covering the rest of the month. Other cases retain the original resolver.
+ */
+export function resolveContratoForPayrollPeriod(
+  contratos: ContratoForPayroll[],
+  periodStart: Date,
+  periodEnd: Date,
+  employeeEntryDate: Date | null | undefined,
+): ContratoResolution {
+  const entryDate = employeeEntryDate ? calendarDate(employeeEntryDate) : null;
+  const periodStartDate = calendarDate(periodStart);
+  const periodEndDate = calendarDate(periodEnd);
+  if (!entryDate || !periodStartDate || !periodEndDate) {
+    return resolveContrato(contratos, periodStart);
+  }
+  if (entryDate <= periodStartDate) {
+    return resolveContrato(contratos, periodStart);
+  }
+  if (entryDate > periodEndDate) {
+    return {
+      contrato: contratos[0] ?? null,
+      fallback: contratos.length > 0,
+    };
+  }
+
+  const overlapping = contratos.filter((contract) => {
+    const contractStart = calendarDate(contract.fechaInicio);
+    const contractEnd = contract.fechaFin
+      ? calendarDate(contract.fechaFin)
+      : null;
+    return (
+      contract.estado === 'VIGENTE' &&
+      contractStart !== null &&
+      contractStart <= periodEndDate &&
+      (contract.fechaFin === null ||
+        (contractEnd !== null && contractEnd >= periodStartDate))
+    );
+  });
+  const matchingStart = overlapping[0]
+    ? calendarDate(overlapping[0].fechaInicio)
+    : null;
+  const matchingContract = overlapping[0];
+  const matchingEnd = matchingContract?.fechaFin
+    ? calendarDate(matchingContract.fechaFin)
+    : null;
+  const matching =
+    overlapping.length === 1 &&
+    matchingContract !== undefined &&
+    matchingStart === entryDate &&
+    (matchingContract.fechaFin === null ||
+      (matchingEnd !== null && matchingEnd >= periodEndDate))
+      ? matchingContract
+      : null;
+
+  if (matching) return { contrato: matching, fallback: false };
+  return {
+    contrato: contratos[0] ?? null,
+    fallback: contratos.length > 0,
+  };
+}
+
 // ── Resolución de clase ARL ───────────────────────────────────────────────────
 
 export interface ArlResolution {
@@ -186,6 +250,7 @@ export function buildCalculationInput(
   novelties: Array<{ tipo: string; valor: Prisma.Decimal | null }>,
   aportesExonerados: boolean,
   legalParams: LegalParamsSnapshot,
+  diasNomina = 30,
 ): BuildInputResult {
   const evaluations: PayrollEvaluationResult[] = [];
   const serviceWarnings: string[] = [];
@@ -245,6 +310,7 @@ export function buildCalculationInput(
 
   const input: PayrollCalculationInput = {
     salarioBase: Number(emp.salario),
+    diasNomina,
     salarioIntegral: emp.salarioIntegral,
     claseRiesgoArl,
     aportesExonerados,
@@ -257,4 +323,9 @@ export function buildCalculationInput(
   const blocks = evaluations.filter(isFunctionalBlock);
 
   return { input, evaluations, blocks, serviceWarnings };
+}
+
+function calendarDate(value: Date): string | null {
+  if (Number.isNaN(value.getTime())) return null;
+  return value.toISOString().slice(0, 10);
 }

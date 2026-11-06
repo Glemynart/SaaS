@@ -49,7 +49,12 @@ export function calculate(
   const concepts: ConceptResult[] = [];
 
   // ── 1. Devengos constitutivos (entran a IBC) ────────────────────────────────
-  const salarioBase = input.salarioBase;
+  const salarioBaseMensual = input.salarioBase;
+  const diasNomina = input.diasNomina ?? 30;
+  if (!Number.isInteger(diasNomina) || diasNomina < 1 || diasNomina > 30) {
+    throw new RangeError('diasNomina debe ser un entero entre 1 y 30.');
+  }
+  const salarioBase = prorateMonthlyAmount(salarioBaseMensual, diasNomina);
   const bonificaciones = sumNovelties(input, 'BONUS');
   const horasExtra = sumNovelties(input, 'OVERTIME');
 
@@ -69,7 +74,7 @@ export function calculate(
   let ibcRaw = salarioBase + bonificaciones + horasExtra;
   if (input.salarioIntegral) ibcRaw *= SALARIO_INTEGRAL_IBC_FACTOR;
 
-  const ibcMin = p.smmlv * p.topeIbcMinSmmlv;
+  const ibcMin = p.smmlv * p.topeIbcMinSmmlv * (diasNomina / 30);
   const ibcMax = p.smmlv * p.topeIbcMaxSmmlv;
   let ibc = ibcRaw;
   if (ibc < ibcMin) {
@@ -82,8 +87,10 @@ export function calculate(
   ibc = roundPeso(ibc); // IBC redondeado ANTES de cotizar
 
   // ── 3. Auxilio de transporte (devengo, NO entra a IBC) ──────────────────────
-  const aplicaAuxilio = salarioBase <= p.smmlv * p.umbralAuxilioSmmlv;
-  const auxilioTransporte = aplicaAuxilio ? roundPeso(p.auxilioTransporte) : 0;
+  const aplicaAuxilio = salarioBaseMensual <= p.smmlv * p.umbralAuxilioSmmlv;
+  const auxilioTransporte = aplicaAuxilio
+    ? prorateMonthlyAmount(p.auxilioTransporte, diasNomina)
+    : 0;
   if (auxilioTransporte > 0) {
     concepts.push(
       earning(
@@ -126,7 +133,8 @@ export function calculate(
   // ── 5. Aportes patronales (sobre IBC) ───────────────────────────────────────
   // Exoneración Art. 114-1: tenant habilitado Y salario < 10 SMMLV.
   const exonera =
-    input.aportesExonerados && salarioBase < p.smmlv * p.umbralExoneracionSmmlv;
+    input.aportesExonerados &&
+    salarioBaseMensual < p.smmlv * p.umbralExoneracionSmmlv;
 
   if (!exonera) {
     concepts.push(
@@ -234,6 +242,10 @@ function sumNovelties(input: PayrollCalculationInput, tipo: string): number {
   return input.novelties
     .filter((n) => n.tipo === tipo)
     .reduce((sum, n) => sum + n.valor, 0);
+}
+
+function prorateMonthlyAmount(monthlyAmount: number, days: number): number {
+  return roundPeso((monthlyAmount / 30) * days);
 }
 
 function earning(
