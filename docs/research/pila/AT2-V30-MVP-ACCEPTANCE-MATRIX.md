@@ -593,6 +593,16 @@ aportante para archivos planos. El orden por ID es una decisión determinística
 del producto; no se atribuye como orden obligatorio de la norma. La prueba de
 carga por operador sigue pendiente.
 
+### PILA-AT2-83 — Fuentes de salario e IBC por empleado en el preflight
+
+Con un período aprobado o causado y snapshots únicos cuyo tenant y período
+coinciden, mostrar candidatos de los campos 40–45 y 95 por empleado, junto con
+la fuente congelada y la versión registrada para la base de otros
+parafiscales. Si el snapshot es duplicado o no corresponde al tenant/período,
+ocultar sus valores y explicar el bloqueo. Los candidatos parciales no validan
+el registro completo, no cambian `archivoGenerable` y no prueban aceptación del
+operador.
+
 ### PILA-AT2-69 — Captura histórica de transición pensional
 
 Al registrar una afiliación manualmente o desde Excel, aceptar el campo 5 como

@@ -139,6 +139,14 @@ export interface PilaDetailFieldCandidateStatus {
   fieldNumber: number;
   candidateEmployees: number;
   pendingEmployees: number;
+  sourceLabel?: string;
+  candidateValues?: Array<{
+    employeeId: string;
+    employeeName: string;
+    value: string | number | null;
+    emptyAs?: 'spaces' | 'zeros';
+    ruleVersion?: string;
+  }>;
   pendingReasons: Array<{
     reason: string;
     affectedEmployees: PilaPreparationAffectedEmployee[];
@@ -203,6 +211,7 @@ export interface PilaPreparationReport {
   };
   detailSequenceCandidates: PilaDetailFieldCandidateStatus[];
   detailContributionCandidates: PilaDetailFieldCandidateStatus[];
+  detailSourceFieldCandidates?: PilaDetailFieldCandidateStatus[];
   detailNoEventFieldCandidates: PilaDetailFieldCandidateStatus[];
   detailAbsentEventCandidates: PilaDetailFieldCandidateStatus[];
   detailStandardDependentEmptyCandidates: PilaDetailFieldCandidateStatus[];

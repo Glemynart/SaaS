@@ -389,6 +389,18 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
         ruleVersion: string | null;
         pendingReason: string | null;
       };
+      detailSourceFieldCandidates: Array<{
+        fieldNumber: number;
+        sourceLabel?: string;
+        candidateEmployees: number;
+        pendingEmployees: number;
+        candidateValues?: Array<{
+          employeeId: string;
+          employeeName: string;
+          value: string | number | null;
+          ruleVersion?: string;
+        }>;
+      }>;
       archivoGenerable: boolean;
       estadoArchivo: string;
       employerCandidate: {
@@ -422,6 +434,30 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
     expect(preparation.detailRecordSequence.status).toBe('PENDING');
     expect(preparation.detailRecordSequence.candidateRecords).toBe(0);
     expect(preparation.detailRecordSequence.pendingReason).toBeTruthy();
+    const fieldSource = (fieldNumber: number) =>
+      preparation.detailSourceFieldCandidates.find((status) => status.fieldNumber === fieldNumber);
+    expect(fieldSource(40)).toMatchObject({
+      sourceLabel: 'Salario básico congelado en el snapshot aprobado de nómina.',
+      candidateEmployees: 1,
+      candidateValues: [
+        {
+          employeeId: payroll.employeeId,
+          employeeName: 'Ana Pérez',
+          value: 1_000_000,
+        },
+      ],
+    });
+    expect(fieldSource(42)?.candidateValues).toContainEqual({
+      employeeId: payroll.employeeId,
+      employeeName: 'Ana Pérez',
+      value: 1_000_000,
+    });
+    expect(fieldSource(95)?.candidateValues).toContainEqual({
+      employeeId: payroll.employeeId,
+      employeeName: 'Ana Pérez',
+      value: 1_000_000,
+      ruleVersion: 'CO_PARAFISCAL_BASE_V1',
+    });
     expect(preparation.archivoGenerable).toBe(false);
     expect(preparation.estadoArchivo).toBe('BLOQUEADO');
     expect(preparation.employerCandidate.values[16]).toEqual({
@@ -443,6 +479,21 @@ test('muestra facturación, nómina y el detalle del Ledger en el mismo tenant',
         }),
       ]),
     );
+    const salarySourceField = pilaPreparationPanel
+      .getByRole('listitem')
+      .filter({ hasText: 'Campo 40 · Salario básico' })
+      .last();
+    await expect(salarySourceField).toContainText(
+      'Fuente: Salario básico congelado en el snapshot aprobado de nómina.',
+    );
+    await salarySourceField.getByText('Ver valores de 1 empleado', { exact: true }).click();
+    await expect(salarySourceField).toContainText('Ana Pérez');
+    await expect(salarySourceField).toContainText(/1\.000\.000/);
+    const parafiscalSourceField = pilaPreparationPanel
+      .getByRole('listitem')
+      .filter({ hasText: 'Campo 95 · IBC de otros parafiscales' })
+      .last();
+    await expect(parafiscalSourceField).toContainText(/Regla: CO_PARAFISCAL_BASE_V1/);
     expect(
       preparation.issues
         .flatMap(({ affectedEmployees }) => affectedEmployees)

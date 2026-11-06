@@ -70,6 +70,14 @@ export interface PilaDetailFieldCandidateStatus {
   fieldNumber: number;
   candidateEmployees: number;
   pendingEmployees: number;
+  sourceLabel?: string;
+  candidateValues?: Array<{
+    employeeId: string;
+    employeeName: string;
+    value: string | number | null;
+    emptyAs?: 'spaces' | 'zeros';
+    ruleVersion?: string;
+  }>;
   pendingReasons: Array<{
     reason: string;
     affectedEmployees: PilaPreparationAffectedEmployee[];
@@ -1730,6 +1738,7 @@ function summarizePilaDetailFieldCandidates(
     PilaSnapshotPreparationInput,
     ReturnType<typeof mapPilaAt2V30DetailCandidate>
   >,
+  sourceLabels?: Partial<Record<number, string>>,
 ): PilaDetailFieldCandidateStatus[] {
   const snapshotsPerEmployee = new Map<string, number>();
   for (const snapshot of snapshots) {
@@ -1760,6 +1769,9 @@ function summarizePilaDetailFieldCandidates(
   return fields.map((fieldNumber) => {
     const candidateEmployees = new Set<string>();
     const pendingEmployees = new Set<string>();
+    const candidateValues: NonNullable<
+      PilaDetailFieldCandidateStatus['candidateValues']
+    > = [];
     const reasons = new Map<
       string,
       Map<string, PilaPreparationAffectedEmployee>
@@ -1769,8 +1781,41 @@ function summarizePilaDetailFieldCandidates(
       const employeeId = snapshot.employeeId;
       const duplicateSnapshot = (snapshotsPerEmployee.get(employeeId) ?? 0) > 1;
       const candidate = candidatesByEmployee.get(employeeId) ?? null;
-      if (candidate && Object.hasOwn(candidate.values, fieldNumber)) {
+      const fieldValue = candidate?.values[fieldNumber];
+      const isCandidate =
+        Boolean(fieldValue) && (!sourceLabels || !candidate?.scopeMismatch);
+      if (candidate && isCandidate && fieldValue) {
         candidateEmployees.add(employeeId);
+        const employeeName =
+          affectedEmployeesById.get(employeeId)?.name ?? employeeId;
+        if (sourceLabels) {
+          const payload = object(snapshot.payload);
+          const payroll = nested(payload, 'payroll');
+          const subsystemBases = nested(payroll, 'ibcPorSubsistema');
+          const otherParafiscalBase = nested(
+            subsystemBases,
+            'otrosParafiscales',
+          );
+          const rawRuleVersion = otherParafiscalBase?.reglaVersion;
+          const field40RuleVersion =
+            candidate.normativeRuleVersions.newHireBasicSalaryField40 ??
+            candidate.normativeRuleVersions.retirementBasicSalaryField40;
+          const ruleVersion =
+            fieldNumber === 95 &&
+            (rawRuleVersion === 'CO_PARAFISCAL_BASE_V1' ||
+              rawRuleVersion === 'CO_PARAFISCAL_BASE_V2')
+              ? rawRuleVersion
+              : fieldNumber === 40
+                ? (field40RuleVersion ?? undefined)
+                : undefined;
+          candidateValues.push({
+            employeeId,
+            employeeName,
+            value: fieldValue.value,
+            ...(fieldValue.emptyAs ? { emptyAs: fieldValue.emptyAs } : {}),
+            ...(ruleVersion ? { ruleVersion } : {}),
+          });
+        }
         continue;
       }
 
@@ -1779,6 +1824,9 @@ function summarizePilaDetailFieldCandidates(
       if (duplicateSnapshot) {
         reason =
           'Hay más de un snapshot aprobado para el empleado en este período; no se elige uno automáticamente.';
+      } else if (sourceLabels && candidate?.scopeMismatch) {
+        reason =
+          'El snapshot no corresponde al tenant o período consultado; se ocultan sus valores.';
       } else {
         reason =
           candidate?.unresolvedFields.find(
@@ -1803,6 +1851,14 @@ function summarizePilaDetailFieldCandidates(
       fieldNumber,
       candidateEmployees: candidateEmployees.size,
       pendingEmployees: pendingEmployees.size,
+      ...(sourceLabels?.[fieldNumber]
+        ? {
+            sourceLabel: sourceLabels[fieldNumber],
+            candidateValues: candidateValues.sort((left, right) =>
+              left.employeeName.localeCompare(right.employeeName, 'es'),
+            ),
+          }
+        : {}),
       pendingReasons: [...reasons].map(([reason, affectedEmployees]) => ({
         reason,
         affectedEmployees: [...affectedEmployees.values()],
@@ -2018,6 +2074,21 @@ export function buildPilaPreparationReport(input: {
     ],
     detailCandidatesBySnapshot,
   );
+  const detailSourceFieldCandidates = summarizePilaDetailFieldCandidates(
+    input.snapshots,
+    assessments,
+    [40, 41, 42, 43, 44, 45, 95],
+    detailCandidatesBySnapshot,
+    {
+      40: 'Salario básico congelado en el snapshot aprobado de nómina.',
+      41: 'Tipo salarial explícito y congelado en el snapshot aprobado.',
+      42: 'IBC de pensión con fuente única en el snapshot aprobado.',
+      43: 'IBC de salud con fuente única en el snapshot aprobado.',
+      44: 'IBC de riesgos laborales con fuente única en el snapshot aprobado.',
+      45: 'IBC de caja de compensación con fuente única en el snapshot aprobado.',
+      95: 'Base de otros parafiscales congelada; se muestra la regla por empleado.',
+    },
+  );
   const detailSequenceCandidates = summarizePilaDetailFieldCandidates(
     input.snapshots,
     assessments,
@@ -2153,6 +2224,7 @@ export function buildPilaPreparationReport(input: {
     },
     detailSequenceCandidates,
     detailContributionCandidates,
+    detailSourceFieldCandidates,
     detailNoEventFieldCandidates,
     detailAbsentEventCandidates,
     detailStandardDependentEmptyCandidates,

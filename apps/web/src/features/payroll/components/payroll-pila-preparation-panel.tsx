@@ -34,6 +34,12 @@ function formatPilaBytes(bytes: number): string {
 }
 
 const detailFieldLabels: Record<PilaDetailFieldCandidateStatus['fieldNumber'], string> = {
+  40: 'Salario básico',
+  41: 'Tipo de salario',
+  42: 'IBC de pensión',
+  43: 'IBC de salud',
+  44: 'IBC de riesgos laborales',
+  45: 'IBC de caja de compensación',
   15: 'Ingreso (ING)',
   16: 'Retiro (RET)',
   17: 'Traslado desde EPS/EOC (TDE)',
@@ -97,6 +103,7 @@ const detailFieldLabels: Record<PilaDetailFieldCandidateStatus['fieldNumber'], s
   92: 'Fecha de fin VCT',
   93: 'Fecha de inicio IRL',
   94: 'Fecha de fin IRL',
+  95: 'IBC de otros parafiscales',
 };
 
 const headerFieldLabels: Record<number, string> = {
@@ -185,6 +192,21 @@ function candidateDisplay(
     candidate.unresolvedFields.find((field) => field.fieldNumber === fieldNumber)?.reason ??
     'Sin candidato disponible.'
   );
+}
+
+function sourceCandidateValue(value: string | number | null, emptyAs?: 'spaces' | 'zeros') {
+  if (value === null) {
+    if (emptyAs === 'spaces') return 'En blanco según regla candidata';
+    if (emptyAs === 'zeros') return 'Ceros según regla candidata';
+    return 'Sin valor';
+  }
+  return typeof value === 'number'
+    ? new Intl.NumberFormat('es-CO', {
+        style: 'currency',
+        currency: 'COP',
+        maximumFractionDigits: 0,
+      }).format(value)
+    : value;
 }
 
 function AffectedEmployeesList({
@@ -848,6 +870,92 @@ export function PayrollPilaPreparationPanel({
                 ))}
               </ul>
             </details>
+          </section>
+
+          <section
+            className="rounded-lg border border-border p-4"
+            aria-labelledby="pila-source-field-candidates-title"
+          >
+            <h3 id="pila-source-field-candidates-title" className="font-medium">
+              Salario e IBC por empleado
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Valores leídos solo de snapshots aprobados, junto con su fuente congelada. Son
+              candidatos parciales: no validan el registro completo ni habilitan la descarga.
+            </p>
+            {query.data.detailSourceFieldCandidates === undefined ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                Esta versión del servicio aún no entrega el detalle de salario e IBC por empleado.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-3">
+                {query.data.detailSourceFieldCandidates.map((status) => (
+                  <li key={status.fieldNumber} className="rounded-md bg-muted/40 px-3 py-2">
+                    <p className="text-sm font-medium">
+                      Campo {status.fieldNumber} · {detailFieldLabels[status.fieldNumber] ?? 'AT2'}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Fuente: {status.sourceLabel ?? 'Snapshot aprobado'}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Con candidato: {status.candidateEmployees}; pendientes:{' '}
+                      {status.pendingEmployees}.
+                    </p>
+                    {(status.candidateValues?.length ?? 0) > 0 && (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-sm text-primary">
+                          Ver valores de {status.candidateValues?.length}{' '}
+                          {status.candidateValues?.length === 1 ? 'empleado' : 'empleados'}
+                        </summary>
+                        <ul className="mt-2 space-y-2 text-sm">
+                          {status.candidateValues?.map((candidate) => (
+                            <li
+                              key={candidate.employeeId}
+                              className="flex flex-wrap justify-between gap-x-4"
+                            >
+                              <span>
+                                {candidate.employeeName}
+                                {candidate.ruleVersion ? (
+                                  <span className="block text-xs text-muted-foreground">
+                                    Regla: {candidate.ruleVersion}
+                                  </span>
+                                ) : null}
+                              </span>
+                              <span className="font-medium">
+                                {sourceCandidateValue(candidate.value, candidate.emptyAs)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                    {status.pendingReasons.length > 0 && (
+                      <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
+                        {status.pendingReasons.map(({ reason, affectedEmployees }, index) => (
+                          <li key={`${status.fieldNumber}-${index}`}>
+                            <p>{reason}</p>
+                            {affectedEmployees.length > 0 && (
+                              <details className="mt-1">
+                                <summary className="cursor-pointer text-primary">
+                                  Ver {affectedEmployees.length}{' '}
+                                  {affectedEmployees.length === 1
+                                    ? 'empleado afectado'
+                                    : 'empleados afectados'}
+                                </summary>
+                                <AffectedEmployeesList
+                                  employees={affectedEmployees}
+                                  className="mt-2 list-inside list-disc"
+                                />
+                              </details>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
 
           <section
