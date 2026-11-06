@@ -239,8 +239,10 @@ export function PayrollPilaEventsPanel({
                 value={codigo}
                 onChange={(event) => {
                   const nextCode = event.target.value as PilaEventCode;
+                  if ((codigo === 'RET') !== (nextCode === 'RET')) {
+                    setEmployeeId('');
+                  }
                   setCodigo(nextCode);
-                  setEmployeeId('');
                   setEventEnd('');
                   setIrlDays('');
                   setEventStart(nextCode === 'RET' ? '' : fechaInicio.slice(0, 10));

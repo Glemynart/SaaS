@@ -260,7 +260,7 @@ test('liquida desde la UI un retiro RET único y lo congela en PayrollSnapshot',
     const approved = await fixture.inspect(periodId);
     expect(approved.periodStatus).toBe('APROBADA');
     expect(approved.snapshots).toHaveLength(1);
-    expect(approved.snapshots[0].payload.employee.fechaRetiro).toContain('2026-10-20');
+    expect(approved.snapshots[0].pilaPayload.employee.fechaRetiro).toBe('2026-10-20');
     expect(approved.snapshots[0].pilaPayloadVersion).toBe(10);
     expect(approved.snapshots[0].pilaPayload.payroll.diasNomina).toBe(20);
     expect(approved.snapshots[0].pilaPayload.pilaEvents).toEqual([
