@@ -519,8 +519,8 @@ confirmados por el producto.
 
 ### PILA-AT2-80 — Ingreso único al inicio del vínculo
 
-La rama de trabajo `codex/goal02-pila-new-hire-segments` añade un candidato
-limitado para snapshot aprobado v10: un único ING del dependiente 01/00, fecha
+El PR #317, fusionado en `main` como `f6f88bd`, integra un candidato limitado
+para snapshot aprobado v10: un único ING del dependiente 01/00, fecha
 de ingreso igual a la fecha inicial del contrato y del evento, relación vigente
 hasta fin de mes, salario fijo no integral y ausencia de otras novedades. Los
 campos 15 y 80 se proponen desde ese evento y los campos 36–39 desde los días

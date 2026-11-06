@@ -2065,9 +2065,10 @@ false`.
 - La ejecución de este Browser E2E debe permanecer en la base desechable de CI;
   no correrlo contra una base local o demo persistente.
 
-### Candidato PILA de ingreso único — trabajo local, aún no integrado
+### Candidato PILA de ingreso único — integrado en main (PR #317)
 
-- En `codex/goal02-pila-new-hire-segments`, el snapshot PILA v10 congela los
+- PR #317 se fusionó en `main` como `f6f88bd` después de pasar Browser E2E,
+  verify y Vercel Preview. El snapshot PILA v10 congela los
   días de nómina y acepta solo un ING 01/00 fijo, no integral, al inicio del
   contrato y con relación vigente hasta fin de un mes calendario. Mapea ING y
   fecha de campo 80; los campos 36–39 usan el mismo resultado de Payroll tras
@@ -2083,7 +2084,7 @@ false`.
   queda como candidato cuando coincide con los cuatro IBC por subsistema; si
   falta una fuente o hay discordancia, queda bloqueado. El campo 95 mantiene su
   regla independiente `CO_PARAFISCAL_BASE_V2`.
-- La prueba local usa el caso del 10-10-2026: 21 días y salario mensual de
+- Las pruebas locales usan el caso del 10-10-2026: 21 días y salario mensual de
   $8.000.000 con concepto aprobado de $5.600.000. El mismatch de 20 días
   permanece bloqueado; una segunda regresión bloquea el campo 40 si no coincide
   con los IBC congelados. Pasan typecheck de API/web, lint dirigido y ocho
