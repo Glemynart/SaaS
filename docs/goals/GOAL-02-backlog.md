@@ -2003,6 +2003,10 @@ false`.
   navegador liquida desde la UI un empleado ficticio preparado con ingreso el
   10 de octubre de 2026, con 21 días y el concepto de salario base por
   $5.600.000 sobre una referencia mensual de $8.000.000.
+- La regresión entre nómina y prima también comprueba un ingreso el 10 de marzo:
+  snapshots de marzo–junio conservan $2.000.000 como salario mensual de
+  referencia, el primer mes aporta 21/30 del auxilio, y la prima resulta en
+  $678.333 para 111 días 30/360. El cálculo permanece sujeto a revisión laboral.
 - No habilita exportación PILA de ingresos parciales: el detalle necesita
   eventos, segmentos, días e IBC aprobados por subsistema, además de prueba de
   carga por operador. Ausencias y derecho individual al auxilio tampoco quedan

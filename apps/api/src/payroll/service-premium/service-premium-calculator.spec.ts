@@ -235,6 +235,39 @@ describe('calculateServicePremium', () => {
     });
   });
 
+  it('liquida un ingreso de mitad de semestre con referencia mensual y snapshot inicial prorrateado', () => {
+    const snapshots = Array.from({ length: 4 }, (_, index) =>
+      snapshot(index + 3, {
+        salary: 2_000_000,
+        aid: 200_000,
+        contractStart: '2026-03-10',
+      }),
+    );
+    const marchPayload = snapshots[0].payload as TestPayrollPayload & {
+      totals: { auxilioTransporte: number };
+    };
+    marchPayload.concepts.find(
+      (concept) => concept.codigo === 'SALARIO_BASE',
+    )!.valor = 1_400_000;
+    marchPayload.totals.auxilioTransporte = 140_000;
+
+    const result = calculateServicePremium({
+      employee,
+      year: 2026,
+      semester: 1,
+      snapshots,
+    });
+
+    expect(result).toMatchObject({
+      status: 'LISTA',
+      salaryBase: 2_000_000,
+      transportAllowance: 200_000,
+      serviceDays360: 111,
+      amount: 678_333,
+      snapshot: { transportWeightedTotal: 740_000 },
+    });
+  });
+
   it('bloquea auxilio mensual completo cuando el snapshot cubre solo una fracción del contrato', () => {
     const result = calculateServicePremium({
       employee,
