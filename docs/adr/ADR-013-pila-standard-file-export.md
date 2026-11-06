@@ -1259,3 +1259,14 @@ La proyección de campo y el preflight siguen siendo candidatos locales sujetos
 a auditoría normativa/laboral y a aceptación de cada operador. No implican
 transmisión, liquidación ni pago; no cambian los límites de generación,
 corrección ni compatibilidad fijados por ADR-013.
+
+## Preparación de aceptación por operador — SOI
+
+El procedimiento para la primera prueba manual está en el
+[runbook de aceptación SOI](../research/pila/SOI-OPERATOR-ACCEPTANCE-RUNBOOK.md).
+Al 2026-11-06, SOI continúa `NOT_TESTED`: sus páginas públicas describen carga
+de archivo plano, pero no se ha cargado un archivo de esta aplicación. La
+prueba requiere una cuenta de prueba reconocida por SOI o autorización del
+titular de una cuenta de empleador. No se crea ni paga una planilla durante la
+prueba sin autorización expresa. Un resultado de SOI no se extrapola a otros
+operadores.
