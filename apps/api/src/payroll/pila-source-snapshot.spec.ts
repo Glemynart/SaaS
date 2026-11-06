@@ -801,6 +801,81 @@ describe('PILA source snapshot builders', () => {
     }
   });
 
+  it('freezes one standard retirement event from approved Payroll days', () => {
+    const retirementDate = new Date('2026-10-20T00:00:00.000Z');
+    const context = buildPilaSourceContext({
+      ...contextInput,
+      employee: {
+        ...contextInput.employee,
+        fechaRetiro: retirementDate,
+        tipoSalarioPila: 'F',
+      },
+      contract: {
+        ...contextInput.contract!,
+        estado: 'TERMINADO',
+        fechaFin: retirementDate,
+      },
+      affiliations: contextInput.affiliations.map((affiliation) => ({
+        ...affiliation,
+        vigenteHasta: retirementDate,
+      })),
+      pilaEvents: [
+        {
+          id: 'pila-ret-event-1',
+          codigo: PilaEventCode.RET,
+          fechaInicio: retirementDate,
+          fechaFin: null,
+          dias: null,
+        },
+      ],
+    });
+    const result = buildPilaSourceSnapshot({
+      context,
+      payroll: {
+        runId: 'run-retirement',
+        fechaPrevistaPagoPila: new Date('2026-11-05T00:00:00.000Z'),
+        salarioBasico: 8_000_000,
+        salarioIntegral: false,
+        diasNomina: 20,
+        ibc: 5_333_333,
+        concepts: [
+          {
+            codigo: 'SALARIO_BASE',
+            tipo: 'EARNING',
+            base: null,
+            factor: null,
+            valor: 5_333_333,
+          },
+        ],
+        novelties: [],
+      },
+    });
+
+    expect(result.payroll.diasNomina).toBe(20);
+    expect(result.payroll.salarioBasicoCampo40).toEqual({
+      valor: 5_333_333,
+      reglaVersion: 'PILA_RET_FIELD_40_FROM_APPROVED_BASE_V1',
+      bloqueos: [],
+    });
+    for (const days of Object.values(
+      result.payroll.diasCotizadosPorSubsistema,
+    )) {
+      expect(days).toMatchObject({
+        valor: 20,
+        reglaVersion: 'PILA_RET_DAYS_FROM_APPROVED_PAYROLL_V1',
+        eventoRetiroId: 'pila-ret-event-1',
+        fechaRetiro: '2026-10-20',
+        diasNominaAprobados: 20,
+        bloqueos: [],
+      });
+    }
+    expect(result.payroll.ibcPorSubsistema.otrosParafiscales).toMatchObject({
+      valor: 5_333_333,
+      reglaVersion: 'CO_PARAFISCAL_BASE_V2',
+      bloqueos: [],
+    });
+  });
+
   it.each([
     ['February with 28 days', '2026-02-01', '2026-02-28'],
     ['leap February with 29 days', '2024-02-01', '2024-02-29'],

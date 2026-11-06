@@ -4,11 +4,16 @@ import {
   PilaEventCode,
 } from '@prisma/client';
 import { roundPeso } from './calculator/payroll-calculator';
-import { calculateMonthlyEntryDays } from './payroll-30-day-month';
+import {
+  calculateMonthlyEntryDays,
+  calculateMonthlyRetirementDays,
+} from './payroll-30-day-month';
 import { assessPilaFspSubaccounts } from './pila-fsp-subaccounts';
 
 const PILA_NEW_HIRE_BASIC_SALARY_FIELD_40_RULE_VERSION =
   'PILA_ING_FIELD_40_FROM_APPROVED_BASE_V1' as const;
+const PILA_RETIREMENT_BASIC_SALARY_FIELD_40_RULE_VERSION =
+  'PILA_RET_FIELD_40_FROM_APPROVED_BASE_V1' as const;
 
 type MunicipalitySource = {
   id: string;
@@ -381,6 +386,13 @@ export function buildPilaSourceSnapshot(input: {
     salarioIntegral: input.payroll.salarioIntegral,
     tipoSalario: salaryType.valor,
   });
+  const retirementPilaDays = buildSingleRetirementPilaDays({
+    context: input.context,
+    novelties: input.payroll.novelties,
+    diasNomina,
+    salarioIntegral: input.payroll.salarioIntegral,
+    tipoSalario: salaryType.valor,
+  });
   const otrosParafiscales = otherParafiscalBaseSource({
     context: input.context,
     concepts: input.payroll.concepts,
@@ -395,13 +407,15 @@ export function buildPilaSourceSnapshot(input: {
   const salarioBasicoCampo40 =
     newHirePilaDays.value !== null
       ? buildNewHireBasicSalaryField40(otrosParafiscales)
-      : hasPilaEvents
-        ? {
-            valor: null,
-            reglaVersion: PILA_NEW_HIRE_BASIC_SALARY_FIELD_40_RULE_VERSION,
-            bloqueos: ['CAMPO_40_ING_SIN_BASE_APROBADA'],
-          }
-        : validatePilaBasicSalary(input.payroll.salarioBasico);
+      : retirementPilaDays.value !== null
+        ? buildRetirementBasicSalaryField40(otrosParafiscales)
+        : hasPilaEvents
+          ? {
+              valor: null,
+              reglaVersion: PILA_NEW_HIRE_BASIC_SALARY_FIELD_40_RULE_VERSION,
+              bloqueos: ['CAMPO_40_ING_SIN_BASE_APROBADA'],
+            }
+          : validatePilaBasicSalary(input.payroll.salarioBasico);
   const pensionIbcSource = payrollConceptBaseSource(
     input.payroll.concepts,
     'PENSION_EMP',
@@ -419,15 +433,18 @@ export function buildPilaSourceSnapshot(input: {
     input.context.employee.fechaIngreso > periodStart
       ? input.context.employee.fechaIngreso
       : periodStart;
+  const pensionCoverageEnd = retirementPilaDays.fechaRetiro
+    ? calendarDateAsDate(retirementPilaDays.fechaRetiro)
+    : periodEnd;
   const coveringPensionAffiliation =
     input.context.affiliations.length === 1 &&
     onlyAffiliation !== undefined &&
     pensionCoverageStart !== null &&
-    periodEnd !== null &&
+    pensionCoverageEnd !== null &&
     onlyAffiliation.vigenteDesde !== null &&
     onlyAffiliation.vigenteDesde <= pensionCoverageStart &&
     (onlyAffiliation.vigenteHasta === null ||
-      onlyAffiliation.vigenteHasta >= periodEnd)
+      onlyAffiliation.vigenteHasta >= pensionCoverageEnd)
       ? onlyAffiliation
       : null;
   const pensionAffiliationStatus =
@@ -643,6 +660,33 @@ function buildPilaDaysBySubsystem(
     salarioIntegral,
     tipoSalario,
   });
+  const retirementDays = buildSingleRetirementPilaDays({
+    context,
+    novelties,
+    diasNomina,
+    salarioIntegral,
+    tipoSalario,
+  });
+  if (retirementDays.value !== null) {
+    const evidence = {
+      reglaVersion: 'PILA_RET_DAYS_FROM_APPROVED_PAYROLL_V1',
+      fundamento: 'RET_UNICO_DIAS_CONGELADOS_EN_NOMINA_APROBADA',
+      periodo: { fechaInicio, fechaFin },
+      empleadoId: employee.employeeId,
+      contratoId: contract?.contractId ?? null,
+      afiliacionId: context.affiliations[0]?.affiliationId ?? null,
+      eventoRetiroId: retirementDays.eventId,
+      fechaRetiro: retirementDays.fechaRetiro,
+      diasNominaAprobados: diasNomina,
+      bloqueos: [],
+    };
+    return {
+      pension: { valor: retirementDays.value, ...evidence },
+      salud: { valor: retirementDays.value, ...evidence },
+      riesgos: { valor: retirementDays.value, ...evidence },
+      cajaCompensacion: { valor: retirementDays.value, ...evidence },
+    };
+  }
   if (entryDays.value !== null) {
     const evidence = {
       reglaVersion: 'PILA_ING_DAYS_FROM_APPROVED_PAYROLL_V1',
@@ -757,6 +801,83 @@ function buildNewHirePilaDays(input: {
   };
 }
 
+function buildSingleRetirementPilaDays(input: {
+  context: PilaSourceContext;
+  novelties: PilaSnapshotNovelty[];
+  diasNomina: number;
+  salarioIntegral: boolean;
+  tipoSalario: 'X' | 'F' | 'V' | null;
+}): {
+  value: number | null;
+  eventId: string | null;
+  fechaRetiro: string | null;
+} {
+  const { context } = input;
+  const { fechaInicio, fechaFin } = context.period;
+  const employee = context.employee;
+  const contract = context.contract;
+  const affiliation =
+    context.affiliations.length === 1 ? context.affiliations[0] : null;
+  const events = context.pilaEvents;
+  const retirementDate = employee.fechaRetiro;
+
+  if (
+    !fechaInicio ||
+    !fechaFin ||
+    !retirementDate ||
+    !employee.fechaIngreso ||
+    !isFullCalendarMonth(fechaInicio, fechaFin) ||
+    retirementDate < fechaInicio ||
+    retirementDate > fechaFin ||
+    employee.fechaIngreso > fechaInicio ||
+    !contract ||
+    !contract.fechaInicio ||
+    contract.estado !== 'TERMINADO' ||
+    contract.fechaInicio > fechaInicio ||
+    !contract.fechaFin ||
+    contract.fechaFin !== retirementDate ||
+    !affiliation ||
+    affiliation.tipoCotizanteCodigo !== '01' ||
+    affiliation.subtipoCotizanteCodigo !== '00' ||
+    !affiliation.vigenteDesde ||
+    affiliation.vigenteDesde > fechaInicio ||
+    (affiliation.vigenteHasta !== null &&
+      affiliation.vigenteHasta < retirementDate) ||
+    input.salarioIntegral ||
+    input.tipoSalario !== 'F' ||
+    input.novelties.length !== 0 ||
+    events.length !== 1
+  ) {
+    return { value: null, eventId: null, fechaRetiro: null };
+  }
+
+  const [event] = events;
+  const expectedDays = calculateMonthlyRetirementDays(
+    calendarDateAsDate(fechaInicio),
+    calendarDateAsDate(fechaFin),
+    calendarDateAsDate(retirementDate),
+  );
+  if (
+    event.codigo !== PilaEventCode.RET ||
+    event.fechaInicio !== retirementDate ||
+    event.fechaFin !== null ||
+    event.dias !== null ||
+    !Number.isSafeInteger(input.diasNomina) ||
+    input.diasNomina < 1 ||
+    input.diasNomina > 30 ||
+    expectedDays === null ||
+    input.diasNomina !== expectedDays
+  ) {
+    return { value: null, eventId: null, fechaRetiro: null };
+  }
+
+  return {
+    value: input.diasNomina,
+    eventId: event.eventId,
+    fechaRetiro: retirementDate,
+  };
+}
+
 function calendarDateAsDate(value: string): Date {
   return new Date(`${value}T00:00:00.000Z`);
 }
@@ -842,12 +963,13 @@ function otherParafiscalBaseSource(input: {
   );
   const blockers: string[] = [];
 
-  const approvedEntryDays = Object.values(
+  const approvedPartialPeriodDays = Object.values(
     input.diasCotizadosPorSubsistema,
   ).every(
     ({ valor, reglaVersion, bloqueos }) =>
       valor === input.diasNomina &&
-      reglaVersion === 'PILA_ING_DAYS_FROM_APPROVED_PAYROLL_V1' &&
+      (reglaVersion === 'PILA_ING_DAYS_FROM_APPROVED_PAYROLL_V1' ||
+        reglaVersion === 'PILA_RET_DAYS_FROM_APPROVED_PAYROLL_V1') &&
       bloqueos.length === 0,
   );
   const isFullMonthDays = Object.values(input.diasCotizadosPorSubsistema).every(
@@ -864,9 +986,9 @@ function otherParafiscalBaseSource(input: {
   const salaryConceptValue = salaryConcepts[0]?.valor ?? null;
   const approvedSalarySourceMatches = isFullMonthDays
     ? salaryConceptValue === input.salarioBasico
-    : approvedEntryDays && salaryConceptValue === salaryAmountExpected;
+    : approvedPartialPeriodDays && salaryConceptValue === salaryAmountExpected;
 
-  if (!isFullMonthDays && !approvedEntryDays) {
+  if (!isFullMonthDays && !approvedPartialPeriodDays) {
     blockers.push('IBC_OTROS_PARAFISCALES_REQUIERE_MES_COMPLETO');
   }
   if (
@@ -894,7 +1016,7 @@ function otherParafiscalBaseSource(input: {
   ) {
     blockers.push('IBC_OTROS_PARAFISCALES_NOVEDAD_SIN_BASE_APROBADA');
   }
-  if (input.context.pilaEvents.length > 0 && !approvedEntryDays) {
+  if (input.context.pilaEvents.length > 0 && !approvedPartialPeriodDays) {
     blockers.push('IBC_OTROS_PARAFISCALES_EVENTO_PILA_SIN_BASE_APROBADA');
   }
   if (input.tipoSalario !== (input.salarioIntegral ? 'X' : 'F')) {
@@ -942,7 +1064,7 @@ function otherParafiscalBaseSource(input: {
     valor: blockers.length === 0 ? value : null,
     sourceCount: sources.length,
     conceptIds: sourceIds,
-    reglaVersion: approvedEntryDays
+    reglaVersion: approvedPartialPeriodDays
       ? 'CO_PARAFISCAL_BASE_V2'
       : 'CO_PARAFISCAL_BASE_V1',
     fundamento: 'LEY_21_1982_ART_17_LEY_344_1996_ART_17_LEY_789_2002_ART_49',
@@ -990,6 +1112,19 @@ function buildNewHireBasicSalaryField40(
   return {
     ...validated,
     reglaVersion: PILA_NEW_HIRE_BASIC_SALARY_FIELD_40_RULE_VERSION,
+    bloqueos: [
+      ...new Set([...validated.bloqueos, ...approvedParafiscalBase.bloqueos]),
+    ],
+  };
+}
+
+function buildRetirementBasicSalaryField40(
+  approvedParafiscalBase: ReturnType<typeof otherParafiscalBaseSource>,
+) {
+  const validated = validatePilaBasicSalary(approvedParafiscalBase.valor);
+  return {
+    ...validated,
+    reglaVersion: PILA_RETIREMENT_BASIC_SALARY_FIELD_40_RULE_VERSION,
     bloqueos: [
       ...new Set([...validated.bloqueos, ...approvedParafiscalBase.bloqueos]),
     ],

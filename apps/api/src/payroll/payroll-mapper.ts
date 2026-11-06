@@ -28,6 +28,7 @@ export interface EmpForPayroll {
   salario: Prisma.Decimal;
   salarioIntegral: boolean;
   fechaIngreso?: Date | null;
+  fechaRetiro?: Date | null;
 }
 
 export interface ContratoForPayroll {
@@ -154,7 +155,44 @@ export function resolveContratoForPayrollPeriod(
   periodStart: Date,
   periodEnd: Date,
   employeeEntryDate: Date | null | undefined,
+  employeeRetirementDate?: Date | null,
 ): ContratoResolution {
+  const retirementDate = employeeRetirementDate
+    ? calendarDate(employeeRetirementDate)
+    : null;
+  const periodStartForRetirement = calendarDate(periodStart);
+  const periodEndForRetirement = calendarDate(periodEnd);
+  const entryDateForRetirement = employeeEntryDate
+    ? calendarDate(employeeEntryDate)
+    : null;
+  if (
+    retirementDate &&
+    periodStartForRetirement &&
+    periodEndForRetirement &&
+    entryDateForRetirement &&
+    entryDateForRetirement <= periodStartForRetirement &&
+    retirementDate >= periodStartForRetirement &&
+    retirementDate <= periodEndForRetirement
+  ) {
+    const matchingRetirementContracts = contratos.filter((contract) => {
+      const contractStart = calendarDate(contract.fechaInicio);
+      return (
+        contract.estado === 'TERMINADO' &&
+        contractStart !== null &&
+        contractStart <= periodStartForRetirement &&
+        contract.fechaFin !== null &&
+        calendarDate(contract.fechaFin) === retirementDate
+      );
+    });
+    if (matchingRetirementContracts.length === 1) {
+      return { contrato: matchingRetirementContracts[0], fallback: false };
+    }
+    return {
+      contrato: contratos[0] ?? null,
+      fallback: contratos.length > 0,
+    };
+  }
+
   const entryDate = employeeEntryDate ? calendarDate(employeeEntryDate) : null;
   const periodStartDate = calendarDate(periodStart);
   const periodEndDate = calendarDate(periodEnd);

@@ -472,6 +472,72 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     return input;
   }
 
+  function approvedRetirementSnapshot(daysNomina = 20) {
+    const input = snapshot();
+    input.payloadVersion = 10;
+    const payload = payloadOf(input);
+    payload.schemaVersion = 10;
+    payload.employee.fechaRetiro = '2026-10-20';
+    Object.assign(payload.contract as Record<string, unknown>, {
+      fechaFin: '2026-10-20',
+      estado: 'TERMINADO',
+    });
+    payload.affiliations[0].vigenteHasta = '2026-10-20';
+    payload.pilaRiskAssignments[0].vigenteHasta = '2026-10-20';
+    payload.payroll.diasNomina = daysNomina;
+    payload.payroll.salarioIntegral = false;
+    payload.payroll.tipoSalarioBloqueos = [];
+    payload.payroll.salarioBasicoCampo40 = {
+      valor: 5_333_333,
+      reglaVersion: 'PILA_RET_FIELD_40_FROM_APPROVED_BASE_V1',
+      bloqueos: [],
+    };
+    payload.payroll.ibcPorSubsistema.otrosParafiscales = {
+      valor: 5_333_333,
+      sourceCount: 1,
+      conceptIds: ['salary-base-concept'],
+      reglaVersion: 'CO_PARAFISCAL_BASE_V2',
+      bloqueos: [],
+    };
+    for (const subsystem of [
+      'pension',
+      'salud',
+      'riesgos',
+      'cajaCompensacion',
+    ]) {
+      payload.payroll.ibcPorSubsistema[subsystem] = {
+        valor: 5_333_333,
+        sourceCount: 1,
+      };
+    }
+    const approvedDays = payload.payroll.diasCotizadosPorSubsistema as Record<
+      string,
+      Record<string, unknown>
+    >;
+    for (const subsystem of [
+      'pension',
+      'salud',
+      'riesgos',
+      'cajaCompensacion',
+    ]) {
+      approvedDays[subsystem] = {
+        valor: daysNomina,
+        reglaVersion: 'PILA_RET_DAYS_FROM_APPROVED_PAYROLL_V1',
+        bloqueos: [],
+      };
+    }
+    const event = {
+      eventId: 'pila-ret-event-1',
+      codigo: 'RET',
+      fechaInicio: '2026-10-20',
+      fechaFin: null,
+      dias: null,
+    };
+    payload.pilaEvents = [event];
+    payload.payroll.pilaEvents = [event];
+    return input;
+  }
+
   it('maps one approved standard new-hire ING from frozen Payroll days', () => {
     const candidate = mapCandidate(approvedNewHireSnapshot());
 
@@ -496,6 +562,46 @@ describe('mapPilaAt2V30DetailCandidate', () => {
         [15, 36, 37, 38, 39, 40, 80, 95].includes(fieldNumber),
       ),
     ).toEqual([]);
+  });
+
+  it('maps one approved standard retirement RET from frozen Payroll days', () => {
+    const candidate = mapCandidate(approvedRetirementSnapshot());
+
+    expect(candidate.values).toMatchObject({
+      15: { value: null, emptyAs: 'spaces' },
+      16: { value: 'X' },
+      36: { value: 20 },
+      37: { value: 20 },
+      38: { value: 20 },
+      39: { value: 20 },
+      40: { value: 5_333_333 },
+      80: { value: null, emptyAs: 'spaces' },
+      81: { value: '2026-10-20' },
+      95: { value: 5_333_333 },
+    });
+    expect(candidate.normativeRuleVersions.retirementEventFields).toBe(
+      'AT2_V30_SINGLE_RETIREMENT_FIELDS_V1',
+    );
+    expect(candidate.normativeRuleVersions.retirementBasicSalaryField40).toBe(
+      'PILA_RET_FIELD_40_FROM_APPROVED_BASE_V1',
+    );
+    expect(
+      candidate.unresolvedFields.filter(({ fieldNumber }) =>
+        [16, 36, 37, 38, 39, 40, 81, 95].includes(fieldNumber),
+      ),
+    ).toEqual([]);
+  });
+
+  it('blocks a retirement candidate when frozen Payroll days disagree with the date', () => {
+    const candidate = mapCandidate(approvedRetirementSnapshot(19));
+
+    for (const fieldNumber of [16, 36, 37, 38, 39, 40, 81]) {
+      expect(candidate.values[fieldNumber]).toBeUndefined();
+      expect(candidate.unresolvedFields).toContainEqual(
+        expect.objectContaining({ fieldNumber }),
+      );
+    }
+    expect(candidate.normativeRuleVersions.retirementEventFields).toBeNull();
   });
 
   it('blocks new-hire field 40 when it differs from the frozen common IBC', () => {

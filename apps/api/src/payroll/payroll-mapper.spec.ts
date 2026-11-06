@@ -224,3 +224,62 @@ describe('resolveContratoForPayrollPeriod - ingreso en el mes', () => {
     ).toBe(true);
   });
 });
+
+describe('resolveContratoForPayrollPeriod - retiro en el mes', () => {
+  const periodStart = new Date('2026-03-01T00:00:00.000Z');
+  const periodEnd = new Date('2026-03-31T00:00:00.000Z');
+  const retirementDate = new Date('2026-03-15T00:00:00.000Z');
+  const hireDate = new Date('2024-06-01T00:00:00.000Z');
+  const contract = (
+    over: Partial<ContratoForPayroll> = {},
+  ): ContratoForPayroll => ({
+    id: 'contract-retired',
+    empleadoId: 'emp-1',
+    tipo: 'TERMINO_FIJO',
+    estado: 'TERMINADO',
+    fechaInicio: hireDate,
+    fechaFin: retirementDate,
+    sedeId: 'site-1',
+    salario: new Prisma.Decimal('2000000'),
+    claseRiesgoArl: 1,
+    ...over,
+  });
+
+  it('accepts one terminated contract ending on the recorded retirement date', () => {
+    expect(
+      resolveContratoForPayrollPeriod(
+        [contract()],
+        periodStart,
+        periodEnd,
+        hireDate,
+        retirementDate,
+      ),
+    ).toEqual({ contrato: contract(), fallback: false });
+  });
+
+  it('keeps the existing fallback block for missing, duplicate, or mismatched contracts', () => {
+    const matching = contract();
+    const mismatched = contract({
+      id: 'contract-wrong-end',
+      fechaFin: new Date('2026-03-14T00:00:00.000Z'),
+    });
+    expect(
+      resolveContratoForPayrollPeriod(
+        [mismatched],
+        periodStart,
+        periodEnd,
+        hireDate,
+        retirementDate,
+      ).fallback,
+    ).toBe(true);
+    expect(
+      resolveContratoForPayrollPeriod(
+        [matching, { ...matching, id: 'contract-duplicate' }],
+        periodStart,
+        periodEnd,
+        hireDate,
+        retirementDate,
+      ).fallback,
+    ).toBe(true);
+  });
+});

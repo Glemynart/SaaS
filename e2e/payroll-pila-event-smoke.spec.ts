@@ -199,7 +199,7 @@ test('configura los datos PILA y registra, conserva y elimina una novedad del pe
   await pilaPanel.getByLabel('Novedad').selectOption('RET');
   await expect(
     pilaPanel.getByText(
-      'Los empleados inactivos no aparecen porque la nómina aún no liquida proporcionalmente el período desde la fecha de retiro.',
+      'Selecciona un empleado retirado con fecha de retiro registrada. La fecha inicial se completa con su último día trabajado.',
     ),
   ).toBeVisible();
   await expect(

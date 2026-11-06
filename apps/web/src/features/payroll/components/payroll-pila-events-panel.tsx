@@ -107,7 +107,7 @@ export function PayrollPilaEventsPanel({
     page: 1,
     limit: 100,
     search: employeeSearch || undefined,
-    estado: 'ACTIVO',
+    estado: codigo === 'RET' ? 'RETIRADO' : 'ACTIVO',
   });
   const createEvent = useCreatePayrollPilaEvent();
   const deleteEvent = useDeletePayrollPilaEvent(periodId);
@@ -116,6 +116,8 @@ export function PayrollPilaEventsPanel({
     [codigo],
   );
   const employees = employeesQuery.data?.data ?? [];
+  const selectableEmployees =
+    codigo === 'RET' ? employees.filter((employee) => Boolean(employee.fechaRetiro)) : employees;
   const canEdit = periodStatus === 'BORRADOR';
 
   useEffect(() => {
@@ -194,11 +196,22 @@ export function PayrollPilaEventsPanel({
               <Select
                 id="pila-event-employee"
                 value={employeeId}
-                onChange={(event) => setEmployeeId(event.target.value)}
+                onChange={(event) => {
+                  const nextEmployeeId = event.target.value;
+                  setEmployeeId(nextEmployeeId);
+                  if (codigo === 'RET') {
+                    const selectedEmployee = employees.find(
+                      (employee) => employee.id === nextEmployeeId,
+                    );
+                    if (selectedEmployee?.fechaRetiro) {
+                      setEventStart(selectedEmployee.fechaRetiro.slice(0, 10));
+                    }
+                  }
+                }}
                 required
               >
                 <option value="">Seleccionar empleado</option>
-                {employees.map((employee) => (
+                {selectableEmployees.map((employee) => (
                   <option key={employee.id} value={employee.id}>
                     {employeeLabel(employee)}
                   </option>
@@ -211,8 +224,8 @@ export function PayrollPilaEventsPanel({
               )}
               {codigo === 'RET' && (
                 <p className="text-2xs text-muted-foreground">
-                  Los empleados inactivos no aparecen porque la nómina aún no liquida
-                  proporcionalmente el período desde la fecha de retiro.
+                  Selecciona un empleado retirado con fecha de retiro registrada. La fecha inicial
+                  se completa con su último día trabajado.
                 </p>
               )}
             </div>
@@ -225,9 +238,14 @@ export function PayrollPilaEventsPanel({
                 id="pila-event-code"
                 value={codigo}
                 onChange={(event) => {
-                  setCodigo(event.target.value as PilaEventCode);
+                  const nextCode = event.target.value as PilaEventCode;
+                  if ((codigo === 'RET') !== (nextCode === 'RET')) {
+                    setEmployeeId('');
+                  }
+                  setCodigo(nextCode);
                   setEventEnd('');
                   setIrlDays('');
+                  setEventStart(nextCode === 'RET' ? '' : fechaInicio.slice(0, 10));
                 }}
               >
                 {eventOptions.map((option) => (

@@ -50,7 +50,10 @@ import {
   resolveContratoForPayrollPeriod,
   toSnapshot,
 } from './payroll-mapper';
-import { calculateMonthlyEntryDays } from './payroll-30-day-month';
+import {
+  calculateMonthlyEntryDays,
+  calculateMonthlyRetirementDays,
+} from './payroll-30-day-month';
 import { buildPayrollPeriodSnapshot } from './payroll-snapshot-period';
 import {
   buildPilaRiskAssignmentsSnapshot,
@@ -2522,9 +2525,20 @@ export class PayrollService {
     const legalSnapshot = toSnapshot(legalParam);
     const aportesExonerados = tenant.aportesExonerados;
 
+    const retirementEmployeeIds = await this.findPilaRetirementEmployeeIds(
+      tenantId,
+      periodId,
+    );
     const employees = await this.tenantPrisma.execute((prisma) =>
       prisma.empleado.findMany({
-        where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
+        where: {
+          tenantId,
+          deletedAt: null,
+          OR: [
+            { estado: 'ACTIVO' },
+            { estado: 'RETIRADO', id: { in: retirementEmployeeIds } },
+          ],
+        },
         select: {
           id: true,
           salario: true,
@@ -2625,6 +2639,7 @@ export class PayrollService {
               period.fechaFin,
               runWarnings,
               runBlocks,
+              pilaSourceData.pilaEventsByEmployee.get(emp.id) ?? [],
             );
             if (runBlocks[emp.id]?.length) continue;
 
@@ -2797,9 +2812,20 @@ export class PayrollService {
     const legalSnapshot = toSnapshot(legalParam);
     const aportesExonerados = tenant.aportesExonerados;
 
+    const retirementEmployeeIds = await this.findPilaRetirementEmployeeIds(
+      tenantId,
+      periodId,
+    );
     const employees = await this.tenantPrisma.execute((prisma) =>
       prisma.empleado.findMany({
-        where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
+        where: {
+          tenantId,
+          deletedAt: null,
+          OR: [
+            { estado: 'ACTIVO' },
+            { estado: 'RETIRADO', id: { in: retirementEmployeeIds } },
+          ],
+        },
         select: {
           id: true,
           salario: true,
@@ -2916,6 +2942,7 @@ export class PayrollService {
               period.fechaFin,
               runWarnings,
               runBlocks,
+              pilaSourceData.pilaEventsByEmployee.get(emp.id) ?? [],
             );
             if (runBlocks[emp.id]?.length) continue;
 
@@ -3103,15 +3130,45 @@ export class PayrollService {
         );
       }
 
+      // Serialize RET capture with liquidation creation for the same employee.
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "empleados"
+        WHERE "tenantId" = ${tenantId} AND "id" = ${dto.employeeId}
+        FOR UPDATE
+      `;
+
       const employee = await tx.empleado.findFirst({
         where: { id: dto.employeeId, tenantId, deletedAt: null },
-        select: { id: true, estado: true },
+        select: { id: true, estado: true, fechaRetiro: true },
       });
       if (!employee) throw new NotFoundException('Empleado no encontrado');
 
-      if (employee.estado !== 'ACTIVO') {
+      if (dto.codigo === 'RET') {
+        if (
+          employee.estado !== 'RETIRADO' ||
+          !employee.fechaRetiro ||
+          this.toIsoDate(employee.fechaRetiro)?.slice(0, 10) !== dto.fechaInicio
+        ) {
+          throw new BadRequestException(
+            'La novedad RET debe corresponder a un empleado retirado y coincidir con su último día trabajado registrado.',
+          );
+        }
+        const activeLiquidation = await tx.liquidation.findFirst({
+          where: {
+            tenantId,
+            empleadoId: dto.employeeId,
+            status: { not: 'VOIDED' },
+          },
+          select: { id: true },
+        });
+        if (activeLiquidation) {
+          throw new ConflictException(
+            'El empleado ya tiene una liquidación laboral no anulada. Anúlela antes de registrar RET en Nómina.',
+          );
+        }
+      } else if (employee.estado !== 'ACTIVO') {
         throw new BadRequestException(
-          'No se puede registrar una novedad PILA para un empleado inactivo: Nómina aún no liquida proporcionalmente el período desde su fecha de retiro.',
+          'Solo se pueden registrar novedades distintas de RET para empleados activos.',
         );
       }
 
@@ -3186,7 +3243,7 @@ export class PayrollService {
   }
 
   async deletePilaEvent(tenantId: string, userId: string, eventId: string) {
-    await this.prisma.$transaction(async (tx) => {
+    await this.tenantPrisma.execute(async (tx) => {
       const eventReference = await tx.payrollPilaEvent.findFirst({
         where: { id: eventId, tenantId },
         select: { id: true, payrollPeriodId: true },
@@ -3210,6 +3267,13 @@ export class PayrollService {
         throw new ConflictException(
           'Reabra el período y reliquide la nómina antes de modificar novedades PILA.',
         );
+      }
+      if (event.codigo === 'RET') {
+        await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id" FROM "empleados"
+          WHERE "tenantId" = ${tenantId} AND "id" = ${event.employeeId}
+          FOR UPDATE
+        `;
       }
       await tx.payrollPilaEvent.delete({ where: { id: event.id } });
       await this.auditService.log(
@@ -3997,25 +4061,81 @@ export class PayrollService {
     periodEnd: Date,
     warningsMap: Record<string, string[]>,
     blocksMap: PayrollBlockMap,
+    pilaEvents: PilaSourceContextInput['pilaEvents'] = [],
   ): {
     result: PayrollCalculationResult;
     contrato: ContratoForPayroll | null;
     contratoFallback: boolean;
     input: PayrollCalculationInput;
   } {
+    const entryDate =
+      this.toIsoDate(emp.fechaIngreso ?? null)?.slice(0, 10) ?? null;
+    const retirementDate =
+      this.toIsoDate(emp.fechaRetiro ?? null)?.slice(0, 10) ?? null;
+    const periodStartDate = this.toIsoDate(periodStart)?.slice(0, 10) ?? null;
+    const periodEndDate = this.toIsoDate(periodEnd)?.slice(0, 10) ?? null;
+    const retirementEvent =
+      pilaEvents.length === 1 &&
+      pilaEvents[0].codigo === 'RET' &&
+      retirementDate !== null &&
+      this.toIsoDate(pilaEvents[0].fechaInicio)?.slice(0, 10) === retirementDate
+        ? pilaEvents[0]
+        : null;
+    const hasRetirementInPeriod = Boolean(
+      retirementDate &&
+      periodStartDate &&
+      periodEndDate &&
+      retirementDate >= periodStartDate &&
+      retirementDate <= periodEndDate,
+    );
+    const hasRetirementEvent = pilaEvents.some(
+      (event) => event.codigo === 'RET',
+    );
+    const validRetirement = Boolean(
+      retirementEvent &&
+      entryDate &&
+      periodStartDate &&
+      retirementDate &&
+      entryDate <= periodStartDate &&
+      retirementDate >= periodStartDate &&
+      retirementDate <= (periodEndDate ?? ''),
+    );
+    const dateBlocks: PayrollFunctionalBlock[] = [];
+    if ((hasRetirementInPeriod || hasRetirementEvent) && !validRetirement) {
+      dateBlocks.push(
+        functionalBlock(
+          PayrollBlockCode.UNSUPPORTED_PARTIAL_PERIOD,
+          'El retiro en el período requiere una única novedad RET que coincida con la fecha de retiro registrada, un ingreso anterior al período y un mes calendario completo.',
+        ),
+      );
+    }
+
     const { contrato, fallback } = resolveContratoForPayrollPeriod(
       empContracts,
       periodStart,
       periodEnd,
       emp.fechaIngreso,
+      validRetirement ? emp.fechaRetiro : null,
     );
 
     let diasNomina = 30;
-    const periodStartDate = this.toIsoDate(periodStart)?.slice(0, 10) ?? null;
-    const periodEndDate = this.toIsoDate(periodEnd)?.slice(0, 10) ?? null;
-    const entryDate =
-      this.toIsoDate(emp.fechaIngreso ?? null)?.slice(0, 10) ?? null;
-    if (
+    if (validRetirement && emp.fechaRetiro) {
+      const retirementDays = calculateMonthlyRetirementDays(
+        periodStart,
+        periodEnd,
+        emp.fechaRetiro,
+      );
+      if (retirementDays === null) {
+        dateBlocks.push(
+          functionalBlock(
+            PayrollBlockCode.UNSUPPORTED_PARTIAL_PERIOD,
+            'El retiro dentro del período solo se liquida proporcionalmente en un mes calendario completo.',
+          ),
+        );
+      } else {
+        diasNomina = retirementDays;
+      }
+    } else if (
       periodStartDate &&
       periodEndDate &&
       entryDate &&
@@ -4028,12 +4148,12 @@ export class PayrollService {
         emp.fechaIngreso!,
       );
       if (entryDays === null) {
-        blocksMap[emp.id] = [
+        dateBlocks.push(
           functionalBlock(
             PayrollBlockCode.UNSUPPORTED_PARTIAL_PERIOD,
             'El ingreso dentro del período solo se liquida proporcionalmente en un mes calendario completo.',
           ),
-        ];
+        );
       } else {
         diasNomina = entryDays;
       }
@@ -4049,7 +4169,7 @@ export class PayrollService {
     );
 
     const allWarnings: string[] = [];
-    const blocks: PayrollFunctionalBlock[] = [];
+    const blocks: PayrollFunctionalBlock[] = [...dateBlocks];
     if (fallback) {
       allWarnings.push(
         `Contrato: sin VIGENTE para el período; usando fallback (${contrato?.estado ?? 'sin contrato'})`,
@@ -4216,6 +4336,23 @@ export class PayrollService {
     };
   }
 
+  private async findPilaRetirementEmployeeIds(
+    tenantId: string,
+    periodId: string,
+  ): Promise<string[]> {
+    const events = await this.tenantPrisma.execute((prisma) =>
+      prisma.payrollPilaEvent.findMany({
+        where: {
+          tenantId,
+          payrollPeriodId: periodId,
+          codigo: 'RET',
+        },
+        select: { employeeId: true },
+      }),
+    );
+    return [...new Set(events.map((event) => event.employeeId))];
+  }
+
   private async loadPilaSourceData(
     tenant: PilaSourceContextInput['tenant'],
     period: { id: string; fechaInicio: Date; fechaFin: Date },
@@ -4260,22 +4397,24 @@ export class PayrollService {
         orderBy: [{ vigenteDesde: 'asc' }, { id: 'asc' }],
       }),
     );
-    const pilaEvents = await this.prisma.payrollPilaEvent.findMany({
-      where: { tenantId: tenant.id, payrollPeriodId: period.id },
-      select: {
-        id: true,
-        employeeId: true,
-        codigo: true,
-        fechaInicio: true,
-        fechaFin: true,
-        dias: true,
-      },
-      orderBy: [
-        { employeeId: 'asc' },
-        { fechaInicio: 'asc' },
-        { createdAt: 'asc' },
-      ],
-    });
+    const pilaEvents = await this.tenantPrisma.execute((prisma) =>
+      prisma.payrollPilaEvent.findMany({
+        where: { tenantId: tenant.id, payrollPeriodId: period.id },
+        select: {
+          id: true,
+          employeeId: true,
+          codigo: true,
+          fechaInicio: true,
+          fechaFin: true,
+          dias: true,
+        },
+        orderBy: [
+          { employeeId: 'asc' },
+          { fechaInicio: 'asc' },
+          { createdAt: 'asc' },
+        ],
+      }),
+    );
     const riskAssignments = await this.tenantPrisma.execute((prisma) =>
       prisma.pilaAsignacionCentroTrabajo.findMany({
         where: {
@@ -4582,20 +4721,45 @@ export class PayrollService {
     if (eventEmployeeIds.length === 0) return;
 
     const eventEmployees = await tx.$queryRaw<
-      Array<{ id: string; estado: string; deletedAt: Date | null }>
+      Array<{
+        id: string;
+        estado: string;
+        deletedAt: Date | null;
+        fechaRetiro: Date | null;
+      }>
     >(Prisma.sql`
-      SELECT "id", "estado", "deletedAt"
+      SELECT "id", "estado", "deletedAt", "fechaRetiro"
       FROM "empleados"
       WHERE "tenantId" = ${tenantId}
         AND "id" IN (${Prisma.join(eventEmployeeIds)})
       FOR UPDATE
     `);
-    const currentlyActiveEmployeeIds = new Set(
-      eventEmployees
-        .filter(
-          (employee) => employee.estado === 'ACTIVO' && !employee.deletedAt,
-        )
-        .map((employee) => employee.id),
+    const eventEmployeesById = new Map(
+      eventEmployees.map((employee) => [employee.id, employee]),
+    );
+    const validPilaEventEmployeeIds = new Set(
+      eventEmployeeIds.filter((employeeId) => {
+        const employee = eventEmployeesById.get(employeeId);
+        const employeeEvents = data.pilaEventsByEmployee.get(employeeId) ?? [];
+        if (!employee || employee.deletedAt) return false;
+        if (employee.estado === 'ACTIVO') {
+          return employeeEvents.every((event) => event.codigo !== 'RET');
+        }
+        if (
+          employee.estado !== 'RETIRADO' ||
+          employeeEvents.length !== 1 ||
+          employeeEvents[0].codigo !== 'RET' ||
+          employeeEvents[0].fechaFin !== null ||
+          employeeEvents[0].dias !== null ||
+          !employee.fechaRetiro
+        ) {
+          return false;
+        }
+        return (
+          this.toIsoDate(employeeEvents[0].fechaInicio)?.slice(0, 10) ===
+          this.toIsoDate(employee.fechaRetiro)?.slice(0, 10)
+        );
+      }),
     );
     const payrollEmployeeIds = new Set(
       employees.map((employee) => employee.id),
@@ -4603,12 +4767,33 @@ export class PayrollService {
     const excludedEmployeeIds = eventEmployeeIds.filter(
       (employeeId) =>
         !payrollEmployeeIds.has(employeeId) ||
-        !currentlyActiveEmployeeIds.has(employeeId),
+        !validPilaEventEmployeeIds.has(employeeId),
     );
     if (excludedEmployeeIds.length > 0) {
       throw new BadRequestException(
-        `${excludedEmployeeIds.length} empleado(s) asociado(s) a novedades PILA no está(n) activo(s) o no fue(ron) incluido(s) en la generación. Revise su estado y corrija el período antes de continuar.`,
+        `${excludedEmployeeIds.length} empleado(s) asociado(s) a novedades PILA no cumple(n) el estado y la novedad requeridos o no fue(ron) incluido(s) en la generación. Un empleado retirado solo se admite con una única novedad RET cuya fecha coincida con fechaRetiro.`,
       );
+    }
+
+    const retirementEmployeeIds = eventEmployeeIds.filter((employeeId) =>
+      (data.pilaEventsByEmployee.get(employeeId) ?? []).some(
+        (event) => event.codigo === 'RET',
+      ),
+    );
+    if (retirementEmployeeIds.length > 0) {
+      const activeLiquidations = await tx.liquidation.findMany({
+        where: {
+          tenantId,
+          empleadoId: { in: retirementEmployeeIds },
+          status: { not: 'VOIDED' },
+        },
+        select: { empleadoId: true },
+      });
+      if (activeLiquidations.length > 0) {
+        throw new BadRequestException(
+          'No se puede generar RET en Nómina porque uno o más empleados ya tienen una liquidación laboral no anulada.',
+        );
+      }
     }
   }
 

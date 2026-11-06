@@ -388,9 +388,37 @@ export function inspectPilaSnapshotPreparation(
       );
     }),
   );
+  const approvedRetirement = Boolean(
+    ingressDetailCandidate?.normativeRuleVersions.retirementEventFields ===
+      'AT2_V30_SINGLE_RETIREMENT_FIELDS_V1' &&
+    ingressDetailCandidate.normativeRuleVersions
+      .retirementBasicSalaryField40 ===
+      'PILA_RET_FIELD_40_FROM_APPROVED_BASE_V1' &&
+    ingressDetailCandidate.values[16]?.value === 'X' &&
+    ingressDetailCandidate.values[81]?.value === date(employee?.fechaRetiro) &&
+    typeof ingressDetailCandidate.values[40]?.value === 'number' &&
+    [36, 37, 38, 39].every((fieldNumber) => {
+      const sourceField =
+        fieldNumber === 36
+          ? 'pension'
+          : fieldNumber === 37
+            ? 'salud'
+            : fieldNumber === 38
+              ? 'riesgos'
+              : 'cajaCompensacion';
+      return (
+        ingressDetailCandidate.values[fieldNumber]?.value ===
+        nested(nested(payroll, 'diasCotizadosPorSubsistema'), sourceField)
+          ?.valor
+      );
+    }),
+  );
   const coverageStart = approvedNewHireIngress
     ? (date(employee?.fechaIngreso) ?? periodStart)
     : periodStart;
+  const coverageEnd = approvedRetirement
+    ? (date(employee?.fechaRetiro) ?? periodEnd)
+    : periodEnd;
 
   const requireText = (
     record: PilaPreparationRecord,
@@ -938,7 +966,18 @@ export function inspectPilaSnapshotPreparation(
               (field) => field.fieldNumber === fieldNumber,
             ),
         );
-      if (isApprovedSingleIngress) continue;
+      const isApprovedSingleRetirement =
+        code === 'RET' &&
+        approvedRetirement &&
+        ingressDetailCandidate?.values[81]?.value ===
+          text(event?.fechaInicio) &&
+        [16, 36, 37, 38, 39, 40, 81].every(
+          (fieldNumber) =>
+            !ingressDetailCandidate.unresolvedFields.some(
+              (field) => field.fieldNumber === fieldNumber,
+            ),
+        );
+      if (isApprovedSingleIngress || isApprovedSingleRetirement) continue;
       const fieldNumber = pilaEventFieldNumbers.get(code) ?? null;
       add(
         'DETALLE_TIPO_2',
@@ -1097,10 +1136,11 @@ export function inspectPilaSnapshotPreparation(
     if (
       !periodStart ||
       !periodEnd ||
+      !coverageEnd ||
       !affiliationStart ||
       (coverageStart !== null && affiliationStart > coverageStart) ||
       (affiliationEndValue !== null &&
-        (affiliationEnd === null || affiliationEnd < periodEnd))
+        (affiliationEnd === null || affiliationEnd < coverageEnd))
     ) {
       add(
         detailRecord,
@@ -1142,6 +1182,7 @@ export function inspectPilaSnapshotPreparation(
     periodStart &&
     periodEnd &&
     coverageStart &&
+    coverageEnd &&
     workLocation.tenantId === text(employer?.tenantId) &&
     text(workLocation.municipioId) !== null &&
     workLocation.municipioId === workLocationMunicipality?.id &&
@@ -1149,7 +1190,7 @@ export function inspectPilaSnapshotPreparation(
     date(workLocation.vigenteDesde)! <= coverageStart &&
     (workLocation.vigenteHasta === null ||
       (date(workLocation.vigenteHasta) !== null &&
-        date(workLocation.vigenteHasta)! >= periodEnd)),
+        date(workLocation.vigenteHasta)! >= coverageEnd)),
   );
   const affiliationCoversPeriod = Boolean(
     affiliations.length === 1 &&
@@ -1157,11 +1198,12 @@ export function inspectPilaSnapshotPreparation(
     periodStart &&
     periodEnd &&
     coverageStart &&
+    coverageEnd &&
     date(affiliation.vigenteDesde) !== null &&
     date(affiliation.vigenteDesde)! <= coverageStart &&
     (affiliation.vigenteHasta === null ||
       (date(affiliation.vigenteHasta) !== null &&
-        date(affiliation.vigenteHasta)! >= periodEnd)) &&
+        date(affiliation.vigenteHasta)! >= coverageEnd)) &&
     text(affiliation.tipoCotizanteCodigo) === '01' &&
     text(affiliation.subtipoCotizanteCodigo) === '00',
   );
@@ -1275,10 +1317,11 @@ export function inspectPilaSnapshotPreparation(
       periodStart &&
       periodEnd &&
       coverageStart &&
+      coverageEnd &&
       assignmentStart &&
       assignmentStart <= coverageStart &&
       (assignmentEndValue === null ||
-        (assignmentEnd !== null && assignmentEnd >= periodEnd)),
+        (assignmentEnd !== null && assignmentEnd >= coverageEnd)),
     );
     const tenantId = text(employer?.tenantId);
     const sameTenant =
@@ -1395,7 +1438,7 @@ export function inspectPilaSnapshotPreparation(
     } else if (
       value !== 30 &&
       !(
-        approvedNewHireIngress &&
+        (approvedNewHireIngress || approvedRetirement) &&
         ingressDetailCandidate?.values[field]?.value === value
       )
     ) {

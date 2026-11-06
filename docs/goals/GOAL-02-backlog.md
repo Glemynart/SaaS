@@ -6,6 +6,17 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 
 ## Estado vigente — 2026-11-06
 
+- **Candidato local todavía fuera de `main`:** la rama
+  `codex/goal02-pila-retirement-payroll` prepara un candidato único RET para
+  dependientes 01/00 con salario fijo no integral, un solo evento, un mes
+  calendario completo, contrato terminado en la fecha de retiro, vigencias que
+  cubren hasta el retiro, y días/IBC congelados en PayrollSnapshot. Se bloquea
+  la liquidación laboral si existe el evento RET y se bloquea RET si existe una
+  liquidación no anulada; una ejecución de nómina sin aprobar también impide
+  calcular salario pendiente en la liquidación. Al 2026-11-06 pasan 577 pruebas
+  en siete suites, typecheck API/web, build completo y ESLint de fuentes de
+  producción modificadas. El Browser E2E, checks remotos y Preview se validan
+  por PR. No es aceptación laboral ni de operador.
 - El Browser E2E de facturación verifica la cancelación tras revertir el recaudo
   en un período contable abierto: factura y comprobante quedan anulados, y el
   motivo se conserva en la auditoría tenant-scoped.
@@ -1613,7 +1624,12 @@ false`.
   bloqueadas. El cálculo y publicación del segundo semestre siguen fuera del
   alcance hasta la revisión laboral del corte.
 
-### RET PILA para empleado que ya está inactivo — dependencia pendiente — 2026-11-03
+### RET PILA para empleado INACTIVO — estado histórico — 2026-11-03
+
+El bloqueo descrito aquí corresponde al estado de `main` del 2026-11-03 y fue
+actualizado por el candidato local anotado en el estado vigente de 2026-11-06.
+`INACTIVO` no equivale al estado de negocio `RETIRADO`: solo `RETIRADO` puede
+entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
 
 - **Hechos confirmados en código:** `generatePayroll` y
   `recalculatePayroll` solo seleccionan empleados `ACTIVO`;
