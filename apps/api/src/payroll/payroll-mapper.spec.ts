@@ -3,6 +3,7 @@ import {
   buildCalculationInput,
   ContratoForPayroll,
   EmpForPayroll,
+  resolveContratoForPayrollPeriod,
   toSnapshot,
   ParamLegalForPayroll,
 } from './payroll-mapper';
@@ -164,5 +165,62 @@ describe('buildCalculationInput - clasificacion funcional (U4)', () => {
 
     expect(result.evaluations).toEqual([]);
     expect(result.blocks).toEqual([]);
+  });
+});
+
+describe('resolveContratoForPayrollPeriod - ingreso en el mes', () => {
+  const contract = (
+    over: Partial<ContratoForPayroll> = {},
+  ): ContratoForPayroll => ({
+    id: 'contract-1',
+    empleadoId: 'emp-1',
+    tipo: 'TERMINO_FIJO',
+    estado: 'VIGENTE',
+    fechaInicio: new Date('2026-03-10T00:00:00.000Z'),
+    fechaFin: null,
+    sedeId: 'site-1',
+    salario: new Prisma.Decimal('2000000'),
+    claseRiesgoArl: 1,
+    ...over,
+  });
+
+  const periodStart = new Date('2026-03-01T00:00:00.000Z');
+  const periodEnd = new Date('2026-03-31T00:00:00.000Z');
+  const entryDate = new Date('2026-03-10T00:00:00.000Z');
+
+  it('accepts one current contract starting on entry date and covering month end', () => {
+    expect(
+      resolveContratoForPayrollPeriod(
+        [contract()],
+        periodStart,
+        periodEnd,
+        entryDate,
+      ),
+    ).toEqual({ contrato: contract(), fallback: false });
+  });
+
+  it('keeps the existing fallback block for overlapping or incomplete contracts', () => {
+    const newest = contract();
+    const older = contract({
+      id: 'contract-older',
+      fechaInicio: new Date('2026-02-01T00:00:00.000Z'),
+    });
+
+    expect(
+      resolveContratoForPayrollPeriod(
+        [newest, older],
+        periodStart,
+        periodEnd,
+        entryDate,
+      ),
+    ).toEqual({ contrato: newest, fallback: true });
+    expect(
+      resolveContratoForPayrollPeriod(
+        [contract({ fechaFin: new Date('2026-03-20T00:00:00.000Z') })],
+        periodStart,
+        periodEnd,
+        entryDate,
+      ).fallback,
+    ).toBe(true);
   });
 });

@@ -95,6 +95,8 @@ export interface NoveltyInput {
 export interface PayrollCalculationInput {
   /** Empleado.salario — fuente oficial del salario (decisión cerrada). */
   salarioBase: number;
+  /** Días de nómina bajo convención mensual de 30 días; omitted = mes completo. */
+  diasNomina?: number;
   /** Empleado.salarioIntegral → IBC al 70%. */
   salarioIntegral: boolean;
   /** Contrato.claseRiesgoArl ya resuelta (null → 1 lo hace el servicio). */

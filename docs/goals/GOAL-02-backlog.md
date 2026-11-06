@@ -1985,3 +1985,21 @@ false`.
   end-to-end de ausencias requiere primero modelar y validar su impacto en
   Payroll. La revisión laboral independiente continúa pendiente para el uso
   operativo de primas.
+
+### Nómina para ingresos dentro de un mes — incremento en preparación
+
+- `main` calculaba el salario mensual completo y solo encontraba contrato
+  vigente desde el primer día del período. Esto bloqueaba a un empleado con
+  fecha de ingreso y contrato a mitad de un mes completo.
+- El incremento prorratea la nómina estándar de un nuevo empleado usando la
+  convención 30/360, deja intacto el salario mensual de referencia y congela
+  los días liquidados para futuras correcciones. Solo acepta un contrato
+  vigente que inicia en la fecha de ingreso y cubre hasta fin de mes.
+- La base normativa, las inferencias y exclusiones están documentadas en
+  [`PAYROLL-NEW-HIRE-PRORATION.md`](../research/pila/PAYROLL-NEW-HIRE-PRORATION.md).
+  Las pruebas cubren los ejemplos PILA de ingreso el 28/29 de febrero y 30/31
+  de marzo, el flujo de cálculo y las correcciones encadenadas.
+- No habilita exportación PILA de ingresos parciales: el detalle necesita
+  eventos, segmentos, días e IBC aprobados por subsistema, además de prueba de
+  carga por operador. Ausencias y derecho individual al auxilio tampoco quedan
+  determinados porque falta asistencia y modalidad laboral.

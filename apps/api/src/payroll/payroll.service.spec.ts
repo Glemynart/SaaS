@@ -191,10 +191,11 @@ function correctionIntents() {
   ];
 }
 
-function makeCorrectionSnapshot() {
+function makeCorrectionSnapshot(salarioBase = 2_000_000, diasNomina = 30) {
   const legal = makeLegalParam();
   const result = calculate({
-    salarioBase: 2_000_000,
+    salarioBase,
+    diasNomina,
     salarioIntegral: false,
     claseRiesgoArl: 1,
     aportesExonerados: false,
@@ -234,7 +235,11 @@ function makeCorrectionSnapshot() {
     employeeId: 'emp-1',
     centroCostoId: 'cc-1',
     payload: {
-      employee: { salarioBaseUsado: 2_000_000, salarioIntegralUsado: false },
+      employee: {
+        salarioBaseUsado: salarioBase,
+        salarioIntegralUsado: false,
+        diasNomina,
+      },
       contract: { claseRiesgoArlUsada: 1 },
       companyPolicy: { aportesExonerados: false },
       legalParameters: makeCalculationTrace().legalParameters,
@@ -1662,6 +1667,18 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       mockPayrollCorrectionFindMany.mockResolvedValueOnce([
         {
           id: 'corr-1',
+          intent: {
+            version: 1,
+            intents: [
+              {
+                id: 'intent-1',
+                kind: PayrollCorrectionIntentKind.SET_CALCULATION_INPUT,
+                snapshotId: 'snapshot-1',
+                input: PayrollCorrectionCalculationInput.BONUS,
+                targetAmount: 50_000,
+              },
+            ],
+          },
           materializationVersion: 1,
           materialization: firstMaterialization,
           materializedAt: new Date('2026-02-01T10:00:00.000Z'),
@@ -1686,6 +1703,103 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           }),
         ]),
       });
+    });
+
+    it('mantiene el prorrateo al encadenar correcciones de salario en un ingreso parcial', async () => {
+      const original = makeCorrectionSnapshot(2_000_000, 15);
+      const previousSalary = makeCorrectionSnapshot(2_200_000, 15);
+      const previousValues = new Map(
+        previousSalary.payload.concepts.map((concept) => [
+          `${concept.codigo}:${concept.tipo}`,
+          concept.valor,
+        ]),
+      );
+      const entries = original.payload.concepts.flatMap((concept) => {
+        const delta =
+          (previousValues.get(`${concept.codigo}:${concept.tipo}`) ?? 0) -
+          concept.valor;
+        return delta === 0
+          ? []
+          : [
+              {
+                snapshotId: original.id,
+                employeeId: original.employeeId,
+                centroCostoId: original.centroCostoId,
+                concept: { codigo: concept.codigo, tipo: concept.tipo },
+                delta,
+              },
+            ];
+      });
+      mockPayrollCorrectionFindFirst.mockResolvedValueOnce(
+        makeCorrection(PayrollCorrectionStatus.EN_REVISION, {
+          intent: {
+            version: 1,
+            intents: [
+              {
+                id: 'intent-current-salary',
+                kind: PayrollCorrectionIntentKind.SET_CALCULATION_INPUT,
+                snapshotId: original.id,
+                input: PayrollCorrectionCalculationInput.SALARIO_BASE,
+                targetAmount: 2_400_000,
+              },
+            ],
+          },
+        }),
+      );
+      mockPayrollSnapshotFindMany.mockResolvedValueOnce([original]);
+      mockPayrollCorrectionFindMany.mockResolvedValueOnce([
+        {
+          id: 'corr-previous-salary',
+          intent: {
+            version: 1,
+            intents: [
+              {
+                id: 'intent-previous-salary',
+                kind: PayrollCorrectionIntentKind.SET_CALCULATION_INPUT,
+                snapshotId: original.id,
+                input: PayrollCorrectionCalculationInput.SALARIO_BASE,
+                targetAmount: 2_200_000,
+              },
+            ],
+          },
+          materializationVersion: 1,
+          materialization: {
+            version: 1,
+            generatedAt: '2026-03-01T00:00:00.000Z',
+            snapshotIds: [original.id],
+            approvedCorrectionIds: [],
+            entries,
+          },
+          materializedAt: new Date('2026-03-01T00:00:00.000Z'),
+          createdAt: new Date('2026-03-01T00:00:00.000Z'),
+        },
+      ]);
+      mockPayrollCorrectionFindFirstOrThrow.mockResolvedValueOnce(
+        makeCorrection(PayrollCorrectionStatus.APROBADA),
+      );
+
+      await service.aprobarCorrection(TENANT, USER, 'corr-1');
+
+      const updateCalls = mockPayrollCorrectionUpdateMany.mock
+        .calls as unknown as Array<
+        [
+          {
+            data: {
+              materialization?: { entries: unknown[] };
+            };
+          },
+        ]
+      >;
+      const materialization = updateCalls.at(-1)?.[0].data.materialization;
+      expect(materialization?.entries).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            snapshotId: original.id,
+            concept: { codigo: 'SALARIO_BASE', tipo: 'EARNING' },
+            delta: 100_000,
+          }),
+        ]),
+      );
     });
 
     it('rechaza snapshots inexistentes o de otro tenant al aprobar', async () => {
@@ -2299,6 +2413,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         employeeId: 'emp-1',
         salarioBaseUsado: 2_000_000,
         salarioIntegralUsado: false,
+        diasNomina: 30,
       });
       expect(payload.contract).toMatchObject({
         contratoId: 'contrato-1',
@@ -2493,6 +2608,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       expect(payload.employee).toMatchObject({
         salarioBaseUsado: 2_000_000,
         salarioIntegralUsado: false,
+        diasNomina: 30,
       });
       expect(payload.contract).toMatchObject({
         contratoId: 'contrato-1',
@@ -2923,6 +3039,109 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       expect(mockPayrollRunCreate).toHaveBeenCalledWith({
         data: expect.objectContaining({ centroCostoId: null }),
       });
+    });
+
+    it('prorratea el ingreso de mitad de mes y conserva el salario mensual de referencia', async () => {
+      setupPayrollGeneration();
+      const period = makePeriod('BORRADOR', {
+        fechaInicio: new Date('2026-03-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-03-31T00:00:00.000Z'),
+        nombre: 'Marzo 2026',
+      });
+      mockPayrollPeriodFindFirst.mockResolvedValue(period);
+      mockEmpleadoFindMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          salario: 2_000_000,
+          salarioIntegral: false,
+          tipoSalarioPila: null,
+          tipoDocumento: 'CC',
+          cedula: '1000000001',
+          primerNombre: 'Ana',
+          segundoNombre: null,
+          primerApellido: 'Pérez',
+          segundoApellido: null,
+          fechaNacimiento: new Date('1990-01-01T00:00:00.000Z'),
+          fechaIngreso: new Date('2026-03-10T00:00:00.000Z'),
+          fechaRetiro: null,
+        },
+      ]);
+      mockContratoFindMany.mockResolvedValue([
+        {
+          id: 'contract-new-hire',
+          empleadoId: 'emp-1',
+          estado: 'VIGENTE',
+          fechaInicio: new Date('2026-03-10T00:00:00.000Z'),
+          fechaFin: null,
+          sedeId: 'sede-1',
+          salario: 2_000_000,
+          claseRiesgoArl: 1,
+        },
+      ]);
+
+      const result = await service.generatePayroll(TENANT, USER, PERIOD_ID);
+
+      expect(result.created).toBe(1);
+      const createCalls = mockPayrollRunCreate.mock.calls as unknown as Array<
+        [
+          {
+            data: {
+              salarioBaseSnapshot: number;
+              calculationTrace: { employee: { diasNomina: number } };
+              concepts: { create: Array<{ codigo: string; valor: number }> };
+              ibc: number;
+            };
+          },
+        ]
+      >;
+      const data = createCalls[0][0].data;
+      expect(data.salarioBaseSnapshot).toBe(2_000_000);
+      expect(data.calculationTrace.employee.diasNomina).toBe(21);
+      expect(data.concepts.create).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ codigo: 'SALARIO_BASE', valor: 1_400_000 }),
+        ]),
+      );
+      expect(data.ibc).toBe(1_400_000);
+    });
+
+    it('bloquea un ingreso parcial cuando el período no es un mes calendario completo', async () => {
+      setupPayrollGeneration();
+      mockPayrollPeriodFindFirst.mockResolvedValue(
+        makePeriod('BORRADOR', {
+          fechaInicio: new Date('2026-03-15T00:00:00.000Z'),
+          fechaFin: new Date('2026-03-31T00:00:00.000Z'),
+          nombre: 'Segunda quincena marzo 2026',
+        }),
+      );
+      mockEmpleadoFindMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          salario: 2_000_000,
+          salarioIntegral: false,
+          fechaIngreso: new Date('2026-03-15T00:00:00.000Z'),
+        },
+      ]);
+      mockContratoFindMany.mockResolvedValue([
+        {
+          id: 'contract-new-hire',
+          empleadoId: 'emp-1',
+          estado: 'VIGENTE',
+          fechaInicio: new Date('2026-03-15T00:00:00.000Z'),
+          fechaFin: null,
+          sedeId: 'sede-1',
+          salario: 2_000_000,
+          claseRiesgoArl: 1,
+        },
+      ]);
+
+      const result = await service.generatePayroll(TENANT, USER, PERIOD_ID);
+
+      expect(result.created).toBe(0);
+      expect(result.blocks?.['emp-1']).toContain(
+        'El ingreso dentro del período solo se liquida proporcionalmente en un mes calendario completo.',
+      );
+      expect(mockPayrollRunCreate).not.toHaveBeenCalled();
     });
 
     it('clasifica salario integral como bloqueo y no crea PayrollRun', async () => {

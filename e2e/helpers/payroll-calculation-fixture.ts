@@ -5,7 +5,16 @@ type PayrollCalculationFixture = {
   employeeName: string;
   inspect: (periodId: string) => Promise<{
     periodStatus: string | undefined;
-    runs: Array<{ id: string; totalDevengos: number; totalDeducciones: number; netoPagar: number }>;
+    runs: Array<{
+      id: string;
+      totalDevengos: number;
+      totalDeducciones: number;
+      netoPagar: number;
+      salarioBaseSnapshot: number | null;
+      ibc: number | null;
+      calculationTrace: { employee?: { diasNomina?: number } } | null;
+      concepts: Array<{ codigo: string; valor: number }>;
+    }>;
     snapshots: Array<{
       estadoPeriodo: string;
       payload: any;
@@ -20,6 +29,12 @@ type PayrollCalculationFixture = {
     }>;
   }>;
   disconnect: () => Promise<void>;
+};
+
+type PayrollCalculationFixtureOptions = {
+  salarioMensual?: number;
+  fechaIngreso?: string;
+  fechaInicioContrato?: string;
 };
 
 const ACCOUNT_ROLES = [
@@ -48,6 +63,7 @@ const ACCOUNT_ROLES = [
 /** Seeds only disposable account, contract, employee and legal-rule data for the UI flow. */
 export async function seedPayrollCalculationFixture(
   tenantId: string,
+  options: PayrollCalculationFixtureOptions = {},
 ): Promise<PayrollCalculationFixture> {
   const { PrismaClient } = require('../../apps/api/node_modules/@prisma/client') as {
     PrismaClient: new () => any;
@@ -59,6 +75,9 @@ export async function seedPayrollCalculationFixture(
   const employeeName = 'Ana Gómez';
   const legalParameterId = randomUUID();
   const contractId = randomUUID();
+  const salarioMensual = options.salarioMensual ?? 8_000_000;
+  const fechaIngreso = options.fechaIngreso ?? '2025-01-01';
+  const fechaInicioContrato = options.fechaInicioContrato ?? fechaIngreso;
 
   try {
     await prisma.$connect();
@@ -120,8 +139,8 @@ export async function seedPayrollCalculationFixture(
           primerNombre: 'Ana',
           primerApellido: 'Gómez',
           cargo: 'Auxiliar administrativa',
-          salario: 8_000_000,
-          fechaIngreso: new Date('2025-01-01T00:00:00.000Z'),
+          salario: salarioMensual,
+          fechaIngreso: new Date(`${fechaIngreso}T00:00:00.000Z`),
         },
       });
       await tx.tercero.create({
@@ -143,9 +162,9 @@ export async function seedPayrollCalculationFixture(
           empleadoId: employeeId,
           tipo: 'TERMINO_INDEFINIDO',
           estado: 'VIGENTE',
-          fechaInicio: new Date('2025-01-01T00:00:00.000Z'),
+          fechaInicio: new Date(`${fechaInicioContrato}T00:00:00.000Z`),
           cargo: 'Auxiliar administrativa',
-          salario: 8_000_000,
+          salario: salarioMensual,
           claseRiesgoArl: 1,
         },
       });
@@ -202,6 +221,10 @@ export async function seedPayrollCalculationFixture(
                 totalDevengos: true,
                 totalDeducciones: true,
                 netoPagar: true,
+                salarioBaseSnapshot: true,
+                ibc: true,
+                calculationTrace: true,
+                concepts: { select: { codigo: true, valor: true } },
               },
             }),
             tx.payrollSnapshot.findMany({
@@ -231,6 +254,14 @@ export async function seedPayrollCalculationFixture(
               totalDevengos: Number(run.totalDevengos),
               totalDeducciones: Number(run.totalDeducciones),
               netoPagar: Number(run.netoPagar),
+              salarioBaseSnapshot:
+                run.salarioBaseSnapshot === null ? null : Number(run.salarioBaseSnapshot),
+              ibc: run.ibc === null ? null : Number(run.ibc),
+              calculationTrace: run.calculationTrace,
+              concepts: run.concepts.map((concept: any) => ({
+                codigo: concept.codigo,
+                valor: Number(concept.valor),
+              })),
             })),
             snapshots: snapshots.map((snapshot: any) => ({
               estadoPeriodo: snapshot.estadoPeriodo,

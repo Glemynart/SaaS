@@ -47,9 +47,10 @@ import {
   EmpForPayroll,
   ContratoForPayroll,
   buildCalculationInput,
-  resolveContrato,
+  resolveContratoForPayrollPeriod,
   toSnapshot,
 } from './payroll-mapper';
+import { calculateMonthlyEntryDays } from './payroll-30-day-month';
 import { buildPayrollPeriodSnapshot } from './payroll-snapshot-period';
 import {
   buildPilaRiskAssignmentsSnapshot,
@@ -81,6 +82,7 @@ import {
   PayrollCorrectionDeltaEntry,
   PayrollCorrectionIntent,
   PayrollCorrectionIntentKind,
+  PayrollCorrectionIntentPayload,
   PayrollCorrectionMaterialization,
   PAYROLL_CORRECTION_MATERIALIZATION_VERSION,
 } from './corrections/payroll-correction.types';
@@ -202,6 +204,7 @@ type PayrollCalculationTrace = {
   };
   employee: {
     salarioIntegralUsado: boolean;
+    diasNomina: number;
   };
   contract: {
     contratoId: string;
@@ -1625,6 +1628,7 @@ export class PayrollService {
           },
           select: {
             id: true,
+            intent: true,
             materialization: true,
             materializationVersion: true,
             materializedAt: true,
@@ -1645,6 +1649,7 @@ export class PayrollService {
           }
           return {
             correctionId: previous.id,
+            intent: parseCorrectionIntentPayload(previous.intent),
             materialization: parseCorrectionMaterialization(
               previous.materialization,
             ),
@@ -1777,6 +1782,7 @@ export class PayrollService {
     intents: PayrollCorrectionIntent[],
     previousCorrections: Array<{
       correctionId: string;
+      intent: PayrollCorrectionIntentPayload;
       materialization: PayrollCorrectionMaterialization;
     }>,
     materializedAt: Date,
@@ -1805,10 +1811,15 @@ export class PayrollService {
       });
       const baseline = this.buildEffectiveAmounts(snapshot, previousEntries);
       const currentCenterId = this.resolveEffectiveCostCenter(baseline);
+      const currentMonthlySalary = this.resolveCorrectedMonthlySalary(
+        snapshot,
+        previousCorrections,
+      );
       const currentInput = this.reconstructCalculationInput(
         snapshot,
         baseline,
         currentCenterId,
+        currentMonthlySalary,
       );
 
       const currentResult = calculate(currentInput);
@@ -1922,6 +1933,28 @@ export class PayrollService {
     return [...amounts.values()].filter((amount) => amount.valor !== 0);
   }
 
+  private resolveCorrectedMonthlySalary(
+    snapshot: ParsedCorrectionSnapshot,
+    previousCorrections: Array<{
+      intent: PayrollCorrectionIntentPayload;
+      materialization: PayrollCorrectionMaterialization;
+    }>,
+  ): number {
+    let monthlySalary = snapshot.calculationInput.salarioBase;
+    for (const correction of previousCorrections) {
+      for (const intent of correction.intent.intents) {
+        if (
+          intent.kind === PayrollCorrectionIntentKind.SET_CALCULATION_INPUT &&
+          intent.input === PayrollCorrectionCalculationInput.SALARIO_BASE &&
+          intent.snapshotId === snapshot.id
+        ) {
+          monthlySalary = intent.targetAmount;
+        }
+      }
+    }
+    return monthlySalary;
+  }
+
   private resolveEffectiveCostCenter(amounts: EffectiveConceptAmount[]) {
     const centers = new Set(
       amounts
@@ -1940,6 +1973,7 @@ export class PayrollService {
     snapshot: ParsedCorrectionSnapshot,
     amounts: EffectiveConceptAmount[],
     centroCostoId: string | null,
+    monthlySalaryBase: number,
   ): PayrollCalculationInput {
     const amountFor = (codigo: string) =>
       amounts
@@ -1948,15 +1982,15 @@ export class PayrollService {
             amount.codigo === codigo && amount.centroCostoId === centroCostoId,
         )
         .reduce((total, amount) => total + amount.valor, 0);
-    const salarioBase = amountFor(ConceptCodigo.SALARIO_BASE);
-    if (salarioBase <= 0) {
+    const salaryConceptAmount = amountFor(ConceptCodigo.SALARIO_BASE);
+    if (salaryConceptAmount <= 0 || monthlySalaryBase <= 0) {
       throw new ConflictException(
         'La línea base no contiene un salario base válido.',
       );
     }
     return {
       ...snapshot.calculationInput,
-      salarioBase,
+      salarioBase: monthlySalaryBase,
       novelties: [
         {
           tipo: PayrollCorrectionCalculationInput.BONUS,
@@ -2083,6 +2117,18 @@ export class PayrollService {
     if (!Array.isArray(payload.concepts)) {
       throw new ConflictException('El snapshot no contiene conceptos válidos.');
     }
+    const diasNomina =
+      employee.diasNomina === undefined
+        ? 30
+        : this.asInteger(
+            employee.diasNomina,
+            'El snapshot no contiene días de nómina válidos.',
+          );
+    if (diasNomina < 1 || diasNomina > 30) {
+      throw new ConflictException(
+        'El snapshot contiene días de nómina fuera del rango admitido.',
+      );
+    }
 
     const concepts = payload.concepts.map((concept) => {
       const value = this.asRecord(
@@ -2122,6 +2168,7 @@ export class PayrollService {
           employee.salarioIntegralUsado,
           'El snapshot no contiene la condición salarial original.',
         ),
+        diasNomina,
         claseRiesgoArl: this.asArlClass(contract?.claseRiesgoArlUsada ?? 1),
         aportesExonerados: this.asBoolean(
           policy.aportesExonerados,
@@ -2575,6 +2622,7 @@ export class PayrollService {
               aportesExonerados,
               legalSnapshot,
               period.fechaInicio,
+              period.fechaFin,
               runWarnings,
               runBlocks,
             );
@@ -2865,6 +2913,7 @@ export class PayrollService {
               aportesExonerados,
               legalSnapshot,
               period.fechaInicio,
+              period.fechaFin,
               runWarnings,
               runBlocks,
             );
@@ -3252,6 +3301,7 @@ export class PayrollService {
     period: {
       id: string;
       fechaInicio: Date;
+      fechaFin: Date;
     },
   ) {
     const blocks = await this.collectFunctionalBlocksForPeriod(
@@ -3286,6 +3336,7 @@ export class PayrollService {
     period: {
       id: string;
       fechaInicio: Date;
+      fechaFin: Date;
     },
   ): Promise<PayrollBlockMap> {
     const [legalParam, tenant] = await Promise.all([
@@ -3300,7 +3351,12 @@ export class PayrollService {
 
     const employees = await tx.empleado.findMany({
       where: { tenantId, deletedAt: null, estado: 'ACTIVO' },
-      select: { id: true, salario: true, salarioIntegral: true },
+      select: {
+        id: true,
+        salario: true,
+        salarioIntegral: true,
+        fechaIngreso: true,
+      },
     });
 
     const allNovelties = await tx.payrollNovelty.findMany({
@@ -3346,6 +3402,7 @@ export class PayrollService {
         aportesExonerados,
         legalSnapshot,
         period.fechaInicio,
+        period.fechaFin,
         warnings,
         blocks,
       );
@@ -3696,6 +3753,7 @@ export class PayrollService {
           employeeId: run.employeeId,
           salarioBaseUsado: this.toNumber(run.salarioBaseSnapshot),
           salarioIntegralUsado: trace.employee.salarioIntegralUsado,
+          diasNomina: trace.employee.diasNomina ?? 30,
         },
         contract: trace.contract
           ? {
@@ -3935,6 +3993,7 @@ export class PayrollService {
     aportesExonerados: boolean,
     legalSnapshot: ReturnType<typeof toSnapshot>,
     periodStart: Date,
+    periodEnd: Date,
     warningsMap: Record<string, string[]>,
     blocksMap: PayrollBlockMap,
   ): {
@@ -3943,7 +4002,41 @@ export class PayrollService {
     contratoFallback: boolean;
     input: PayrollCalculationInput;
   } {
-    const { contrato, fallback } = resolveContrato(empContracts, periodStart);
+    const { contrato, fallback } = resolveContratoForPayrollPeriod(
+      empContracts,
+      periodStart,
+      periodEnd,
+      emp.fechaIngreso,
+    );
+
+    let diasNomina = 30;
+    const periodStartDate = this.toIsoDate(periodStart)?.slice(0, 10) ?? null;
+    const periodEndDate = this.toIsoDate(periodEnd)?.slice(0, 10) ?? null;
+    const entryDate =
+      this.toIsoDate(emp.fechaIngreso ?? null)?.slice(0, 10) ?? null;
+    if (
+      periodStartDate &&
+      periodEndDate &&
+      entryDate &&
+      entryDate >= periodStartDate &&
+      entryDate <= periodEndDate
+    ) {
+      const entryDays = calculateMonthlyEntryDays(
+        periodStart,
+        periodEnd,
+        emp.fechaIngreso!,
+      );
+      if (entryDays === null) {
+        blocksMap[emp.id] = [
+          functionalBlock(
+            PayrollBlockCode.UNSUPPORTED_PARTIAL_PERIOD,
+            'El ingreso dentro del período solo se liquida proporcionalmente en un mes calendario completo.',
+          ),
+        ];
+      } else {
+        diasNomina = entryDays;
+      }
+    }
 
     const { input, blocks: inputBlocks } = buildCalculationInput(
       emp,
@@ -3951,6 +4044,7 @@ export class PayrollService {
       empNovelties,
       aportesExonerados,
       legalSnapshot,
+      diasNomina,
     );
 
     const allWarnings: string[] = [];
@@ -4021,6 +4115,7 @@ export class PayrollService {
       },
       employee: {
         salarioIntegralUsado: emp.salarioIntegral,
+        diasNomina: calculation.input.diasNomina ?? 30,
       },
       contract: contrato
         ? {
