@@ -217,6 +217,30 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   [Sentencia C-871/2014](https://www.corteconstitucional.gov.co/relatoria/2014/C-871-14.htm)
   y [LegalApp de MinJusticia](https://www.minjusticia.gov.co/programas-co/LegalApp/Paginas/Que-es-la-prima-de-servicios-y-que-hacer-si-no-se-reconoce-o-paga.aspx).
 
+#### Revisión adicional — Circular 096 de 2026
+
+- La [Circular 096 del Ministerio del Trabajo, del 13 de agosto de 2026](https://www.alcaldiabogota.gov.co/sisjur/normas/Norma1.jsp?dt=S&i=194018),
+  dirigida a empleadores y trabajadores privados, invita a valorar anticipos
+  voluntarios de la prima del segundo semestre de 2026. Exige información y
+  aceptación del trabajador, documentar el anticipo e imputarlo al pago de
+  diciembre o a la liquidación definitiva si el vínculo termina antes. También
+  aclara que el anticipo no cambia la causación y que debe reconocerse cualquier
+  diferencia a favor del trabajador.
+- **Inferencia de producto:** la Circular regula un anticipo voluntario en el
+  contexto excepcional que trata; no establece una regla general para proyectar
+  y cerrar el cálculo del semestre antes del 20 de diciembre, ni cómo ajustar
+  los días y conceptos variables posteriores al corte. No se usa como soporte
+  para habilitar una liquidación general de julio–diciembre.
+- **Estado:** GOAL ACTIVO: GOAL-02. IMPLEMENTACIÓN BLOQUEADA: el segundo semestre
+  de prima sigue pendiente de una regla laboral revisada para fecha de corte,
+  base salarial variable y ajuste posterior. ARQUITECTURA DISPONIBLE: la demo
+  enero–junio permanece utilizable sin pagos, Tesorería ni Ledger.
+- Antes de reabrir el segundo semestre, incluir casos representativos de salario
+  fijo y variable, ingreso o retiro durante diciembre, incapacidades y licencias
+  que no suspenden el contrato, y anticipo voluntario conciliado con la
+  liquidación final. Un responsable laboral debe revisar los resultados
+  esperados; la Circular por sí sola no los determina.
+
 ### Bloqueo de integración — PR #251
 
 - Verificado el 2026-11-03: CI (`verify`) y Browser E2E están verdes; el check
