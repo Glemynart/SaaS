@@ -1,10 +1,10 @@
 # Backlog de GOAL-02 — Evolución Financiera y Cumplimiento Electrónico
 
-Actualizado: 2026-11-05. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
+Actualizado: 2026-11-06. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
 no cerrado. Este backlog conserva el resultado completo de GOAL-02 y prioriza
 primero flujos financieros internos que puedan mostrarse a futuros clientes.
 
-## Estado vigente — 2026-11-05
+## Estado vigente — 2026-11-06
 
 - PR #278 se fusionó en main como 0aae82938fe430e258f35861eec944e59a5bde32 y PR #279 como 1b31782257313cc08f150e2f1024df88fe405562. Los checks post-merge de CI, Browser E2E y publicación de la imagen API pasaron en ambos.
 - PR #278 compone localmente archivos AT2 v30 tipo 1 y tipo 2 desde snapshots aprobados; PR #279 añade generación autenticada tenant-scoped, historial append-only, almacenamiento privado, SHA-256, versionamiento, auditoría y descarga protegida. La nueva prueba de navegador de esta continuación cubre generación, persistencia, reintento idempotente y descarga de ambos archivos desde la interfaz.
@@ -16,6 +16,7 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 - PR #291 añade persistencia tenant-scoped de eventos, intentos, resultados, transiciones y evidencia privada de factura electrónica, con historial append-only, checksum y RLS. PR #303 añade un ejecutor interno para un puerto explícito, pero no registra un adaptador real ni un endpoint de ejecución; ninguno transmite ni declara aceptación DIAN.
 - PR #303 se fusionó en `main` como `f6b8b29fae09d5de9cd53ca3929cfb2b4e33e421`; CI, Browser E2E y publicación de imagen API posteriores quedaron en verde. Añade ejecución interna de un intento contra un puerto explícito, sin reintento automático ni adaptador registrado; no transmite a MATIAS/DIAN.
 - PR #304 se fusionó en `main` como `e1f7d54e07aabc9d3303ee23114f21824398b998`; CI, Browser E2E y publicación de imagen API post-merge pasaron. Añade una vista autenticada y tenant-scoped para que `ADMIN` consulte las últimas 50 transmisiones y el resultado normalizado del intento reciente. Omite payload canónico, clave idempotente, ruta de evidencia y contenido privado; no habilita envíos ni conciliaciones. H1 sigue bloqueada para transmisión real por sandbox/proveedor, credenciales tenant-scoped y worker conectado.
+- PR #307 se fusionó en `main` como `c9eb6fbe816b8347fb5e612097853020c9bcb6d1`; los checks post-merge de CI, Browser E2E y publicación de imagen API terminaron en verde. El cálculo estándar de nómina ahora admite ciertos ingresos a mitad de un mes calendario completo, conserva el salario mensual de referencia y congela los días liquidados para snapshots y correcciones. La exportación PILA parcial y los casos excluidos siguen bloqueados.
 - PR #293 se fusionó en `main` como `0193594ee45229652b987bebafbe277ca51dbc63`. `PRIMA_SEMESTRAL_V2` usa los importes de auxilio congelados en snapshots mensuales aprobados, bloquea valores sobre el máximo proporcional o que cruzan meses sin poder atribuirse, y persiste la versión de fórmula; V1 y sus PDFs históricos no se recalculan. Los checks del PR fueron verdes; CI y publicación de imagen post-merge pasaron, y Browser E2E seguía en ejecución al actualizar este registro.
 - El resultado LOCAL_VALIDATED acredita layout, longitud y codificación comprobados localmente. No acredita revisión normativa completa, aceptación del operador, liquidación ni pago.
 - Los escenarios dependientes estándar 01/00 se habilitan solo si el preflight no detecta brechas. Novedades que requieran segmentación, casos especiales y correcciones aprobadas continúan bloqueando la generación.
@@ -1986,9 +1987,9 @@ false`.
   Payroll. La revisión laboral independiente continúa pendiente para el uso
   operativo de primas.
 
-### Nómina para ingresos dentro de un mes — incremento en preparación
+### Nómina para ingresos dentro de un mes — integrado en main (PR #307)
 
-- `main` calculaba el salario mensual completo y solo encontraba contrato
+- Antes de PR #307, `main` calculaba el salario mensual completo y solo encontraba contrato
   vigente desde el primer día del período. Esto bloqueaba a un empleado con
   fecha de ingreso y contrato a mitad de un mes completo.
 - El incremento prorratea la nómina estándar de un nuevo empleado usando la
@@ -1998,8 +1999,13 @@ false`.
 - La base normativa, las inferencias y exclusiones están documentadas en
   [`PAYROLL-NEW-HIRE-PRORATION.md`](../research/pila/PAYROLL-NEW-HIRE-PRORATION.md).
   Las pruebas cubren los ejemplos PILA de ingreso el 28/29 de febrero y 30/31
-  de marzo, el flujo de cálculo y las correcciones encadenadas.
+  de marzo, el flujo de cálculo y las correcciones encadenadas. El E2E de
+  navegador liquida desde la UI un empleado ficticio preparado con ingreso el
+  10 de octubre de 2026, con 21 días y el concepto de salario base por
+  $5.600.000 sobre una referencia mensual de $8.000.000.
 - No habilita exportación PILA de ingresos parciales: el detalle necesita
   eventos, segmentos, días e IBC aprobados por subsistema, además de prueba de
   carga por operador. Ausencias y derecho individual al auxilio tampoco quedan
-  determinados porque falta asistencia y modalidad laboral.
+  determinados porque falta asistencia y modalidad laboral. La fórmula y la
+  prorrata de auxilio requieren revisión laboral independiente antes de usarse
+  como liquidación operativa.

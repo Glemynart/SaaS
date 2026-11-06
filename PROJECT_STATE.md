@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-02 activo; GOAL-01 pausado; evidencia financiera sincronizada con main (2026-11-03)
+## Última actualización: GOAL-02 activo; GOAL-01 pausado; evidencia financiera sincronizada con main (2026-11-06)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -10,6 +10,13 @@
 > decisión explícita del usuario. GOAL-01 está pausado, no cerrado; sus ramas,
 > PR, documentos y pendientes se conservan. Las menciones de GOAL-01 activo en
 > los snapshots siguientes corresponden a evidencia hasta 2026-10-29.
+
+> **Actualización 2026-11-06:** PR #307 está integrado en `main`. La nómina
+> estándar permite calcular ciertos ingresos a mitad de un mes calendario
+> completo y conserva los días liquidados en snapshots/correcciones. Esto no
+> habilita PILA parcial ni sustituye la revisión laboral independiente. El
+> código y la prueba de navegador se contrastaron con `main` en
+> `c9eb6fbe816b8347fb5e612097853020c9bcb6d1`.
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 
