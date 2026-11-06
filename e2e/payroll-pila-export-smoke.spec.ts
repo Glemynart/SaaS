@@ -62,13 +62,13 @@ async function registerAndSignIn(page: Page) {
   return registration;
 }
 
-test('genera, conserva y descarga archivos PILA del período desde la interfaz', async ({
+test('genera, conserva y descarga archivos PILA para 100 empleados desde la interfaz', async ({
   page,
 }) => {
   test.setTimeout(120_000);
   const { tenant, user } = await registerAndSignIn(page);
   const ownerTenantId = tenant.id;
-  const fixture = await seedPilaExportFixture(tenant.id, user.id);
+  const fixture = await seedPilaExportFixture(tenant.id, user.id, 100);
   let foreignDownloadPath = '';
   let foreignType1Sha256 = '';
 
@@ -126,34 +126,37 @@ test('genera, conserva y descarga archivos PILA del período desde la interfaz',
     expect(created).toMatchObject({
       status: 'LOCAL_VALIDATED',
       normativeVersion: 'AT2_V30',
-      sourceSnapshotCount: 1,
+      sourceSnapshotCount: fixture.employeeCount,
       operatorCompatibilityStatus: 'NOT_VERIFIED',
       type1: { sizeBytes: 567, recordCount: 1 },
-      type2: { sizeBytes: 1054, recordCount: 2, detailRecordCount: 1 },
+      type2: { sizeBytes: expect.any(Number), recordCount: 101, detailRecordCount: 100 },
     });
     expect(created.fileFormatVersion).toContain('AT2_V30');
 
     const stateAfterCreate = await fixture.inspectPersistedState();
     expect(stateAfterCreate).toMatchObject({
       periodStatus: 'APROBADA',
-      snapshotCount: 1,
+      snapshotCount: fixture.employeeCount,
     });
     expect(stateAfterCreate.exports).toHaveLength(1);
     expect(stateAfterCreate.exports[0]).toMatchObject({
       id: created.id,
       status: 'LOCAL_VALIDATED',
-      sourceSnapshotIds: expect.arrayContaining([expect.any(String)]),
+      sourceSnapshotIds: expect.any(Array),
       type1Sha256: created.type1.sha256,
       type1SizeBytes: 567,
       type2Sha256: created.type2.sha256,
-      type2SizeBytes: 1054,
+      type2SizeBytes: created.type2.sizeBytes,
       type1RecordCount: 1,
-      type2RecordCount: 2,
-      detailRecordCount: 1,
+      type2RecordCount: 101,
+      detailRecordCount: fixture.employeeCount,
     });
+    expect(stateAfterCreate.exports[0].sourceSnapshotIds).toHaveLength(fixture.employeeCount);
+    expect(new Set(stateAfterCreate.exports[0].sourceSnapshotIds).size).toBe(fixture.employeeCount);
 
     await expect(panel.getByText('Generado y validado localmente')).toBeVisible();
     await expect(panel.getByText('Compatibilidad con operadores no verificada')).toBeVisible();
+    await expect(panel.getByText(/100 snapshots · AT2/)).toBeVisible();
     const type1Link = panel.getByRole('link', { name: /Descargar tipo 1/ });
     const type2Link = panel.getByRole('link', { name: /Descargar tipo 2/ });
     await expect(type1Link).toBeVisible();
@@ -185,8 +188,19 @@ test('genera, conserva y descarga archivos PILA del período desde la interfaz',
     expect(createHash('sha256').update(type1Bytes).digest('hex')).toBe(created.type1.sha256);
     expect(createHash('sha256').update(type2Bytes).digest('hex')).toBe(created.type2.sha256);
     expect(type1Bytes.subarray(0, 10).toString('ascii')).toBe('Empresa De');
-    expect(type2Bytes.subarray(0, 2).toString('ascii')).toBe('01');
-    expect(type2Bytes.subarray(361, 363).toString('ascii')).toBe('02');
+    const type2Records = type2Bytes.toString('latin1').split('\r\n');
+    expect(type2Records).toHaveLength(fixture.employeeCount + 1);
+    expect(type2Records[0].slice(0, 2)).toBe('01');
+    expect(type2Records.slice(1).map((record) => record.slice(0, 7))).toEqual(
+      Array.from(
+        { length: fixture.employeeCount },
+        (_, index) => `02${String(index + 1).padStart(5, '0')}`,
+      ),
+    );
+    expect(type2Records.map((record) => Buffer.byteLength(record, 'latin1'))).toEqual([
+      359,
+      ...Array.from({ length: fixture.employeeCount }, () => 693),
+    ]);
     expect(type2Bytes.subarray(-2).toString('ascii')).not.toBe('\r\n');
 
     const retryResponsePromise = page.waitForResponse(

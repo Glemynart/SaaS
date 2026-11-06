@@ -12,6 +12,7 @@ export type PilaApprovedSnapshotFixtureInput = {
   employeeId?: string;
   contractId?: string;
   actorId?: string;
+  employeeDocumentNumber?: string;
   periodStart?: string;
   periodEnd?: string;
   paymentDate?: string;
@@ -29,6 +30,7 @@ export function completeApprovedSnapshot(
     employeeId = 'employee-1',
     contractId = 'contract-1',
     actorId = 'payroll-user-1',
+    employeeDocumentNumber = '1234567890',
     periodStart = '2026-10-01',
     periodEnd = '2026-10-31',
     paymentDate = '2026-11-06',
@@ -82,7 +84,7 @@ export function completeApprovedSnapshot(
       employee: {
         employeeId,
         tipoDocumento: 'CC',
-        cedula: '1234567890',
+        cedula: employeeDocumentNumber,
         fechaIngreso: '2026-01-01',
         fechaRetiro: null,
         primerNombre: 'Ana',
