@@ -26,7 +26,7 @@ Ese seed está restringido a una base local y crea una nómina sintética de un
 empleado; sirve para mostrar comprobantes de demo, no para demostrar un cálculo
 operativo de nómina, la prima masiva o la exportación PILA de un grupo.
 
-## Recorrido sugerido (10–16 minutos; el paso 5 es opcional)
+## Recorrido sugerido (10–18 minutos; los escenarios adicionales son opcionales)
 
 ### 1. Nómina y resultado contable (3 minutos)
 
@@ -40,6 +40,18 @@ La prueba de navegador del escenario financiero valida un período con un
 snapshot sintético y el comprobante en Ledger. Aclara que ese fixture automatizado
 no sustituye una validación contable del cliente ni convierte los datos sintéticos
 en una liquidación operativa.
+
+Escenario opcional para ingreso durante el mes: prepara antes un empleado
+ficticio con ingreso y contrato desde el 10 de octubre de 2026, salario mensual de
+$8.000.000, y un único contrato vigente hasta el 31 de octubre. Crea un período
+que cubra el mes completo (1–31 de octubre) en **Nómina → Períodos**, genera el
+cálculo y muestra 21 días liquidados y $5.600.000 en el concepto de salario base, dejando
+claro que $8.000.000 sigue siendo el salario mensual de referencia. El contrato
+debe comenzar en la fecha de ingreso; períodos parciales, contratos
+superpuestos, salario integral y novedades que requieran segmentación no están
+cubiertos por este recorrido. La fórmula y la prorrata de auxilio requieren
+revisión laboral independiente antes de uso operativo. Consulta las [reglas y
+límites documentados](../research/pila/PAYROLL-NEW-HIRE-PRORATION.md).
 
 ### 2. Prima de servicios por lote (2–3 minutos)
 
@@ -105,7 +117,8 @@ La pantalla no transmite ni concilia documentos.
 ## Qué comunicar con precisión
 
 - **Sí se puede mostrar:** nómina interna, causación al Ledger, prima masiva de
-  enero–junio con PDF por empleado, preparación y descarga local de PILA cuando
+  enero–junio con PDF por empleado, nómina estándar de un ingreso a mitad de un
+  mes completo en el alcance documentado, preparación y descarga local de PILA cuando
   no haya brechas, facturación interna, cartera derivada de recaudos y
   comprobantes contables, además del seguimiento de intentos electrónicos ya
   persistidos cuando existan.
