@@ -2145,3 +2145,38 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   en GHCR pero no actualiza su runtime. La vista informa cuando la API todavía
   no devuelve este nuevo detalle; el despliegue del runtime requiere su
   procedimiento operativo separado y no se hace en este incremento.
+
+### Candidato PILA de VSP desde el primer día del mes — 2026-11-06
+
+- En la rama `codex/goal02-pila-vsp-first-day` se prepara un candidato local
+  para una sola VSP de un dependiente 01/00, efectiva el primer día de un mes
+  completo, con salario fijo no integral, cobertura laboral/afiliatoria de
+  todo el período, 30 días e IBC aprobados y sin otros eventos ni novedades.
+- El snapshot aprobado conserva el evento; el mapper solo propone el campo 21
+  y su fecha en el campo 82. Variaciones a mitad de mes, concurrentes, múltiples
+  y períodos parciales permanecen bloqueados. Este caso no declara compatibilidad
+  con operador ni habilita el archivo si quedan otros campos pendientes.
+- La matriz PILA-AT2-84 documenta el alcance frente a la compilación vigente de
+  Resolución 2388 y la regla de múltiples registros modificada por Resolución
+  10 de 2026. Está pendiente cerrar los checks y la auditoría del PR.
+
+### Dependencias operativas para demo — R2 privado y correo de OCI — 2026-11-06
+
+- El código ya incluye `CloudflareR2StorageProvider`, transporte SMTP y
+  configuración de `REQUIRE_REAL_EMAIL`; el Compose de staging requiere las
+  variables del bucket privado. Esto confirma preparación del software, no que
+  los secretos, el bucket o el envío real estén configurados en el VPS.
+- `deploy/README.md` registra una observación histórica del 2026-10-25 en la
+  que el runtime consultado aún usaba storage local y readiness no verificaba
+  conexión SMTP ni entrega de correo. No se actualizó esa evidencia operativa
+  en este incremento.
+- Antes de usarlo en demo se requiere una iniciativa operativa separada: validar
+  bucket y credenciales R2 de mínimo privilegio, probar escritura/lectura,
+  integridad y aislamiento; configurar OCI Email Delivery con remitente
+  aprobado, DNS de autenticación y una prueba real de invitación/recuperación.
+  Mantener credenciales fuera de Git. El ejemplo SMTP vigente del repositorio
+  usa puerto 587 con STARTTLS; la documentación oficial actual de Oracle indica
+  TLS en puerto 465, así que se debe reconciliar y probar el endpoint/puerto de
+  la región antes de aplicar configuración. El migrador local→R2 no tiene una
+  reversión demostrada, por lo que no se debe cambiar el provider hasta acordar
+  y probar la recuperación.

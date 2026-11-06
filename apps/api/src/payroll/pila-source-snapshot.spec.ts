@@ -126,8 +126,10 @@ function buildField95TestSnapshot(
     exonerated?: boolean;
     declaredSalaryType?: 'X' | 'F' | 'V' | null;
     sharedIbc?: number;
+    days?: number;
     extraConcepts?: PilaPayrollInput['concepts'];
     novelties?: PilaPayrollInput['novelties'];
+    pilaEvents?: PilaSourceContextInput['pilaEvents'];
   } = {},
 ) {
   const salary = options.salary ?? 2_000_000;
@@ -145,6 +147,7 @@ function buildField95TestSnapshot(
     contract: contextInput.contract
       ? { ...contextInput.contract, salario: salary }
       : null,
+    pilaEvents: options.pilaEvents ?? contextInput.pilaEvents,
   });
 
   return buildPilaSourceSnapshot({
@@ -154,6 +157,7 @@ function buildField95TestSnapshot(
       fechaPrevistaPagoPila: null,
       salarioBasico: salary,
       salarioIntegral: integral,
+      diasNomina: options.days,
       ibc: options.sharedIbc ?? salary,
       concepts: [
         {
@@ -757,6 +761,116 @@ describe('PILA source snapshot builders', () => {
       reglaVersion: 'CO_PARAFISCAL_BASE_V2',
       bloqueos: [],
     });
+  });
+
+  it('keeps a first-day full-month VSP on approved full-month salary and IBC sources', () => {
+    const result = buildField95TestSnapshot({
+      pilaEvents: [
+        {
+          id: 'pila-vsp-event-1',
+          codigo: PilaEventCode.VSP,
+          fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+          fechaFin: null,
+          dias: null,
+        },
+      ],
+    });
+
+    expect(result.payroll.salarioIntegral).toBe(false);
+    expect(result.payroll.diasNomina).toBe(30);
+    expect(result.payroll.salarioBasicoCampo40).toEqual({
+      valor: 2_000_000,
+      bloqueos: [],
+    });
+    for (const days of Object.values(
+      result.payroll.diasCotizadosPorSubsistema,
+    )) {
+      expect(days).toMatchObject({
+        valor: 30,
+        reglaVersion: 'PILA_FULL_MONTH_DAYS_V1',
+        bloqueos: [],
+      });
+    }
+    expect(result.payroll.ibcPorSubsistema.otrosParafiscales).toMatchObject({
+      valor: 2_000_000,
+      reglaVersion: 'CO_PARAFISCAL_BASE_V1',
+      bloqueos: [],
+    });
+  });
+
+  it('blocks a VSP effective after the first day because the monthly snapshot has no salary segments', () => {
+    const result = buildField95TestSnapshot({
+      pilaEvents: [
+        {
+          id: 'pila-vsp-mid-month',
+          codigo: PilaEventCode.VSP,
+          fechaInicio: new Date('2026-10-15T00:00:00.000Z'),
+          fechaFin: null,
+          dias: null,
+        },
+      ],
+    });
+
+    for (const days of Object.values(
+      result.payroll.diasCotizadosPorSubsistema,
+    )) {
+      expect(days.valor).toBeNull();
+      expect(days.bloqueos).toContain('HAY_EVENTOS_PILA_SIN_SEGMENTACION');
+    }
+    expect(result.payroll.salarioBasicoCampo40.valor).toBeNull();
+    expect(
+      result.payroll.ibcPorSubsistema.otrosParafiscales.bloqueos,
+    ).toContain('IBC_OTROS_PARAFISCALES_EVENTO_PILA_SIN_BASE_APROBADA');
+  });
+
+  it('blocks a first-day VSP when another PILA event is also present', () => {
+    const result = buildField95TestSnapshot({
+      pilaEvents: [
+        {
+          id: 'pila-vsp-event-1',
+          codigo: PilaEventCode.VSP,
+          fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+          fechaFin: null,
+          dias: null,
+        },
+        {
+          id: 'pila-ret-event-1',
+          codigo: PilaEventCode.RET,
+          fechaInicio: new Date('2026-10-20T00:00:00.000Z'),
+          fechaFin: null,
+          dias: null,
+        },
+      ],
+    });
+
+    for (const days of Object.values(
+      result.payroll.diasCotizadosPorSubsistema,
+    )) {
+      expect(days.valor).toBeNull();
+      expect(days.bloqueos).toContain('HAY_EVENTOS_PILA_SIN_SEGMENTACION');
+    }
+  });
+
+  it('blocks a first-day VSP when approved Payroll days are not a full month', () => {
+    const result = buildField95TestSnapshot({
+      days: 29,
+      pilaEvents: [
+        {
+          id: 'pila-vsp-event-1',
+          codigo: PilaEventCode.VSP,
+          fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+          fechaFin: null,
+          dias: null,
+        },
+      ],
+    });
+
+    for (const days of Object.values(
+      result.payroll.diasCotizadosPorSubsistema,
+    )) {
+      expect(days.valor).toBeNull();
+      expect(days.bloqueos).toContain('HAY_EVENTOS_PILA_SIN_SEGMENTACION');
+    }
   });
 
   it('blocks a new-hire entry when the approved Payroll day count disagrees with the ING date', () => {

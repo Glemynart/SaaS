@@ -37,13 +37,37 @@ function mutableRecordArray(value: unknown): Record<string, unknown>[] {
   return value.map(mutableRecord);
 }
 
-type PilaExportScenario = 'FULL_MONTH' | 'SINGLE_INGRESS' | 'SINGLE_RETIREMENT';
+type PilaExportScenario = 'FULL_MONTH' | 'SINGLE_INGRESS' | 'SINGLE_RETIREMENT' | 'SINGLE_VSP';
 
 function buildApprovedSnapshot(
   snapshot: ReturnType<typeof completeApprovedSnapshot>,
   scenario: PilaExportScenario,
 ) {
   if (scenario === 'FULL_MONTH') return snapshot;
+
+  if (scenario === 'SINGLE_VSP') {
+    snapshot.payloadVersion = 10;
+    const payload = mutableRecord(snapshot.payload);
+    payload.schemaVersion = 10;
+    const contract = mutableRecord(payload.contract);
+    contract.tipo = 'TERMINO_INDEFINIDO';
+    const event = {
+      eventId: 'pila-vsp-export-e2e',
+      codigo: 'VSP',
+      fechaInicio: '2026-10-01',
+      fechaFin: null,
+      dias: null,
+    };
+    payload.pilaEvents = [event];
+    const payroll = mutableRecord(payload.payroll);
+    payroll.pilaEvents = [event];
+    payroll.tipoSalario = 'F';
+    payroll.salarioIntegral = false;
+    payroll.diasNomina = 30;
+    payroll.tipoSalarioBloqueos = [];
+    payroll.novelties = [];
+    return snapshot;
+  }
 
   snapshot.payloadVersion = 10;
   const payload = mutableRecord(snapshot.payload);

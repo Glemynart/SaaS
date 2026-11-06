@@ -985,7 +985,19 @@ export function inspectPilaSnapshotPreparation(
               (field) => field.fieldNumber === fieldNumber,
             ),
         );
-      if (isApprovedSingleIngress || isApprovedSingleRetirement) continue;
+      const isApprovedSingleFullMonthVsp =
+        code === 'VSP' &&
+        ingressDetailCandidate?.normativeRuleVersions.vspEventFields ===
+          'AT2_V30_SINGLE_FULL_MONTH_VSP_FIELDS_V1' &&
+        ingressDetailCandidate.values[21]?.value === 'X' &&
+        ingressDetailCandidate.values[82]?.value === text(event?.fechaInicio);
+      if (
+        isApprovedSingleIngress ||
+        isApprovedSingleRetirement ||
+        isApprovedSingleFullMonthVsp
+      ) {
+        continue;
+      }
       const fieldNumber = pilaEventFieldNumbers.get(code) ?? null;
       add(
         'DETALLE_TIPO_2',

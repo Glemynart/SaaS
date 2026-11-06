@@ -251,8 +251,13 @@ en el snapshot. Cada código reconocido se presenta como bloqueo explícito en
 su campo AT2 (15, 16, 21, 23–27 o 29–30) mientras Payroll no conserve sus
 segmentos y días/IBC aprobados; un código fuera de la matriz o una lista de
 eventos ausente o incompleta en cualquiera de las dos copias de un payload v2
-también bloquea la revisión. Esto mejora la trazabilidad de brechas, pero no
-calcula segmentos, no constituye un preflight normativo completo y no habilita
+también bloquea la revisión. La matriz PILA-AT2-84 permite únicamente el
+candidato VSP de un snapshot v10 cuya fecha efectiva sea el primer día de un
+mes completo, 30 días e IBC de período completo aprobados, salario fijo no
+integral y sin otros eventos o novedades. Propone los campos 21 y 82 desde el
+evento congelado y conserva el campo 30 en cero para el mes completo, pero no
+calcula segmentos ni vuelve exportables los demás casos VSP. Esta excepción
+estrecha no constituye un preflight normativo completo ni habilita por sí sola
 la generación de archivos.
 
 El informe también muestra conteos por empleado de candidatos y pendientes para

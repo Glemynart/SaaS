@@ -480,3 +480,115 @@ test('genera y descarga el candidato PILA local para un único retiro durante el
     await fixture.disconnect();
   }
 });
+
+test('genera y descarga el candidato PILA local para un VSP al inicio de mes', async ({ page }) => {
+  test.setTimeout(120_000);
+  const { tenant, user } = await registerAndSignIn(page);
+  const fixture = await seedPilaExportFixture(tenant.id, user.id, 1, 'SINGLE_VSP');
+
+  try {
+    await page.goto('/nomina/periodos/' + fixture.periodId);
+    const panel = page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: 'Preparación de datos PILA' }) });
+    await expect(panel).toBeVisible();
+
+    const preparationResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+          '/api/payroll/periods/' + fixture.periodId + '/pila-preparation' &&
+        response.request().method() === 'GET',
+    );
+    await panel.getByRole('button', { name: 'Revisar datos' }).click();
+    const preparationResponse = await preparationResponsePromise;
+    expect(preparationResponse.status()).toBe(200);
+    const preparation = (await preparationResponse.json()) as {
+      archivoGenerable: boolean;
+      exportReadiness: {
+        operatorAcceptanceStatus: string;
+        blockers: Array<{ scope: string }>;
+      };
+    };
+    expect(preparation.archivoGenerable).toBe(true);
+    expect(preparation.exportReadiness.operatorAcceptanceStatus).toBe('NOT_VERIFIED');
+    expect(
+      preparation.exportReadiness.blockers.some((blocker) => blocker.scope === 'FILE_GENERATION'),
+    ).toBe(false);
+
+    const createResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+          '/api/payroll/periods/' + fixture.periodId + '/pila-exports' &&
+        response.request().method() === 'POST',
+    );
+    await panel.getByRole('button', { name: 'Generar y guardar archivos' }).click();
+    const createResponse = await createResponsePromise;
+    const createdPayload = await createResponse.json();
+    expect(createResponse.status(), JSON.stringify(createdPayload)).toBe(201);
+    const created = createdPayload as {
+      id: string;
+      status: string;
+      sourceSnapshotCount: number;
+      operatorCompatibilityStatus: string;
+      type1: { recordCount: number; sizeBytes: number; sha256: string };
+      type2: { recordCount: number; detailRecordCount: number; sizeBytes: number; sha256: string };
+    };
+    expect(created).toMatchObject({
+      status: 'LOCAL_VALIDATED',
+      sourceSnapshotCount: 1,
+      operatorCompatibilityStatus: 'NOT_VERIFIED',
+      type1: { recordCount: 1 },
+      type2: { recordCount: 2, detailRecordCount: 1 },
+    });
+
+    const persisted = await fixture.inspectPersistedState();
+    expect(persisted).toMatchObject({
+      periodStatus: 'APROBADA',
+      snapshotCount: 1,
+      exports: [
+        {
+          id: created.id,
+          status: 'LOCAL_VALIDATED',
+          sourceSnapshotIds: expect.any(Array),
+          type1Sha256: created.type1.sha256,
+          type2Sha256: created.type2.sha256,
+          detailRecordCount: 1,
+        },
+      ],
+    });
+    await expect(panel.getByText('Compatibilidad con operadores no verificada')).toBeVisible();
+
+    const type1Link = panel.getByRole('link', { name: /Descargar tipo 1/ });
+    const type2Link = panel.getByRole('link', { name: /Descargar tipo 2/ });
+    const type1Download = await downloadFromLink(page, type1Link);
+    const type2Download = await downloadFromLink(page, type2Link);
+    expect(type1Download.response.status()).toBe(200);
+    expect(type2Download.response.status()).toBe(200);
+    expect(type1Download.bytes.byteLength).toBe(created.type1.sizeBytes);
+    expect(type2Download.bytes.byteLength).toBe(created.type2.sizeBytes);
+    expect(createHash('sha256').update(type1Download.bytes).digest('hex')).toBe(
+      created.type1.sha256,
+    );
+    expect(createHash('sha256').update(type2Download.bytes).digest('hex')).toBe(
+      created.type2.sha256,
+    );
+
+    const records = type2Download.bytes.toString('latin1').split('\r\n');
+    expect(records).toHaveLength(2);
+    expect(records[1]).toHaveLength(693);
+    expect(detailFieldValue(records[1], 15)).toBe('');
+    expect(detailFieldValue(records[1], 16)).toBe('');
+    expect(detailFieldValue(records[1], 21)).toBe('X');
+    expect(detailFieldValue(records[1], 30)).toBe('00');
+    for (const fieldNumber of [36, 37, 38, 39]) {
+      expect(detailFieldValue(records[1], fieldNumber)).toBe('30');
+    }
+    expect(Number(detailFieldValue(records[1], 40))).toBe(3_000_000);
+    expect(detailFieldValue(records[1], 80)).toBe('');
+    expect(detailFieldValue(records[1], 81)).toBe('');
+    expect(detailFieldValue(records[1], 82)).toBe('2026-10-01');
+    expect(Number(detailFieldValue(records[1], 95))).toBe(3_000_000);
+  } finally {
+    await fixture.disconnect();
+  }
+});
