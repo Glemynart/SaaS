@@ -409,8 +409,9 @@ test('genera y descarga el candidato PILA local para un único retiro durante el
     );
     await panel.getByRole('button', { name: 'Generar y guardar archivos' }).click();
     const createResponse = await createResponsePromise;
-    expect(createResponse.status()).toBe(201);
-    const created = (await createResponse.json()) as {
+    const createdPayload = await createResponse.json();
+    expect(createResponse.status(), JSON.stringify(createdPayload)).toBe(201);
+    const created = createdPayload as {
       id: string;
       status: string;
       sourceSnapshotCount: number;
@@ -463,7 +464,7 @@ test('genera y descarga el candidato PILA local para un único retiro durante el
     expect(records).toHaveLength(2);
     expect(records[0].slice(0, 2)).toBe('01');
     expect(headerFieldValue(records[0], 19)).toBe('00001');
-    expect(headerFieldValue(records[0], 20)).toBe('000005333333');
+    expect(headerFieldValue(records[0], 20)).toBe('000005400000');
     expect(records[1].slice(0, 7)).toBe('0200001');
     expect(records[1]).toHaveLength(693);
     expect(detailFieldValue(records[1], 15)).toBe('');
@@ -471,10 +472,10 @@ test('genera y descarga el candidato PILA local para un único retiro durante el
     for (const fieldNumber of [36, 37, 38, 39]) {
       expect(detailFieldValue(records[1], fieldNumber)).toBe('20');
     }
-    expect(Number(detailFieldValue(records[1], 40))).toBe(5_333_333);
+    expect(Number(detailFieldValue(records[1], 40))).toBe(5_400_000);
     expect(detailFieldValue(records[1], 80)).toBe('');
     expect(detailFieldValue(records[1], 81)).toBe('2026-10-20');
-    expect(Number(detailFieldValue(records[1], 95))).toBe(5_333_333);
+    expect(Number(detailFieldValue(records[1], 95))).toBe(5_400_000);
   } finally {
     await fixture.disconnect();
   }

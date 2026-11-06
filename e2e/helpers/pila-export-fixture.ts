@@ -52,8 +52,8 @@ function buildApprovedSnapshot(
   const entryDate = singleIngress ? '2026-10-10' : '2025-01-01';
   const retirementDate = singleIngress ? null : '2026-10-20';
   const days = singleIngress ? 21 : 20;
-  const monthlySalary = 8_000_000;
-  const proratedSalary = singleIngress ? 5_600_000 : 5_333_333;
+  const monthlySalary = singleIngress ? 8_000_000 : 8_100_000;
+  const proratedSalary = singleIngress ? 5_600_000 : 5_400_000;
   const employee = mutableRecord(payload.employee);
   employee.fechaIngreso = entryDate;
   employee.fechaRetiro = retirementDate;
@@ -131,14 +131,14 @@ function buildApprovedSnapshot(
         ICBF: 168_000,
       }
     : {
-        PENSION_EMP: 213_400,
-        PENSION_PAT: 640_000,
-        SALUD_EMP: 213_400,
-        SALUD_PAT: 453_400,
-        ARL: 27_900,
-        CAJA: 213_400,
-        SENA: 106_700,
-        ICBF: 160_000,
+        PENSION_EMP: 216_000,
+        PENSION_PAT: 648_000,
+        SALUD_EMP: 216_000,
+        SALUD_PAT: 459_000,
+        ARL: 28_200,
+        CAJA: 216_000,
+        SENA: 108_000,
+        ICBF: 162_000,
       };
   const concepts = mutableRecordArray(payroll.concepts);
   for (const concept of concepts) {
@@ -182,16 +182,16 @@ export async function seedPilaExportFixture(
   const prisma = new PrismaClient();
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
   const periodId = randomUUID();
-  const monthlySalary = singlePartialPeriod ? 8_000_000 : 3_000_000;
-  const salary = singleIngress ? 5_600_000 : singleRetirement ? 5_333_333 : monthlySalary;
+  const monthlySalary = singleRetirement ? 8_100_000 : singlePartialPeriod ? 8_000_000 : 3_000_000;
+  const salary = singleIngress ? 5_600_000 : singleRetirement ? 5_400_000 : monthlySalary;
   const employeeEntryDate = singleIngress
     ? '2026-10-10'
     : singleRetirement
       ? '2025-01-01'
       : '2026-01-01';
   const retirementDate = singleRetirement ? '2026-10-20' : null;
-  const employeeDeductions = singleIngress ? 448_000 : singleRetirement ? 426_800 : 0;
-  const employerContributions = singleIngress ? 1_681_300 : singleRetirement ? 1_601_400 : 900_000;
+  const employeeDeductions = singleIngress ? 448_000 : singleRetirement ? 432_000 : 0;
+  const employerContributions = singleIngress ? 1_681_300 : singleRetirement ? 1_621_200 : 900_000;
   const employees = Array.from({ length: employeeCount }, (_, index) => {
     const employeeId = randomUUID();
     const contractId = randomUUID();
