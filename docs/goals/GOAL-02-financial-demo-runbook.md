@@ -45,8 +45,9 @@ Escenario opcional para ingreso durante el mes: prepara antes un empleado
 ficticio con ingreso y contrato desde el 10 de octubre de 2026, salario mensual de
 $8.000.000, y un único contrato vigente hasta el 31 de octubre. Crea un período
 que cubra el mes completo (1–31 de octubre) en **Nómina → Períodos**, genera el
-cálculo y muestra 21 días liquidados y $5.600.000 en el concepto de salario base, dejando
-claro que $8.000.000 sigue siendo el salario mensual de referencia. El contrato
+cálculo y muestra 21 días liquidados y $5.600.000 en el concepto de salario base,
+dejando claro que el snapshot conserva $8.000.000 como salario mensual de
+referencia y los 21 días. El contrato
 debe comenzar en la fecha de ingreso; períodos parciales, contratos
 superpuestos, salario integral y novedades que requieran segmentación no están
 cubiertos por este recorrido. La fórmula y la prorrata de auxilio requieren
@@ -59,8 +60,9 @@ contrato y fecha de ingreso. Después crea su contrato real desde **Contratos**
 (`/contratos`) con el mismo empleado, sede, fecha de inicio y salario; el perfil
 laboral del empleado por sí solo no crea el registro de contrato. Verifica que
 el contrato cubra todo el período antes de calcular. Tras revisar el resultado,
-puedes enviarlo a revisión, aprobarlo y mostrar el snapshot con 21 días; si la
-empresa de demo tiene configuradas las cuentas de nómina, también puedes causar
+puedes enviarlo a revisión, aprobarlo y mostrar que el snapshot congela el
+salario de referencia y los 21 días, mientras el concepto guarda $5.600.000; si
+la empresa de demo tiene configuradas las cuentas de nómina, también puedes causar
 el período y consultar el comprobante balanceado en Ledger. Este escenario no
 habilita ni demuestra una exportación PILA válida para ingresos parciales.
 

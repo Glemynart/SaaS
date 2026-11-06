@@ -127,7 +127,7 @@ test('liquida desde la UI el salario proporcional de un ingreso dentro del mes',
     expect(approved.snapshots).toHaveLength(1);
     expect(approved.snapshots[0].estadoPeriodo).toBe('APROBADA');
     expect(approved.snapshots[0].payload.employee).toMatchObject({
-      salarioBaseUsado: 5_600_000,
+      salarioBaseUsado: 8_000_000,
       diasNomina: 21,
     });
     expect(

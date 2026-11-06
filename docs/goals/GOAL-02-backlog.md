@@ -2018,10 +2018,10 @@ false`.
 
 - El E2E de navegador ahora continúa el escenario ficticio del 10 de octubre
   desde el cálculo hasta enviar a revisión, aprobar y causar la nómina en
-  Ledger. Comprueba que el snapshot aprobado y el concepto `SALARIO_BASE`
-  conservan $5.600.000 para 21 días sobre $8.000.000 mensuales, y que el
-  comprobante resultante queda balanceado sin mutar la liquidación ni el
-  snapshot.
+  Ledger. Comprueba que el snapshot aprobado conserva los $8.000.000 mensuales
+  de referencia y 21 días, que el concepto congelado `SALARIO_BASE` es
+  $5.600.000, y que el comprobante resultante queda balanceado sin mutar la
+  liquidación ni el snapshot.
 - El guion de demo explica cómo preparar el empleado y su contrato desde sus
   pantallas y cómo mostrar el snapshot y el comprobante. No crea registros en
   tenants del usuario ni afirma que la exportación PILA de un ingreso parcial
