@@ -53,6 +53,17 @@ cubiertos por este recorrido. La fórmula y la prorrata de auxilio requieren
 revisión laboral independiente antes de uso operativo. Consulta las [reglas y
 límites documentados](../research/pila/PAYROLL-NEW-HIRE-PRORATION.md).
 
+Para prepararlo desde la interfaz, registra primero el empleado ficticio en
+**Empleados** (`/empleados`), incluyendo sede, cargo, salario mensual, tipo de
+contrato y fecha de ingreso. Después crea su contrato real desde **Contratos**
+(`/contratos`) con el mismo empleado, sede, fecha de inicio y salario; el perfil
+laboral del empleado por sí solo no crea el registro de contrato. Verifica que
+el contrato cubra todo el período antes de calcular. Tras revisar el resultado,
+puedes enviarlo a revisión, aprobarlo y mostrar el snapshot con 21 días; si la
+empresa de demo tiene configuradas las cuentas de nómina, también puedes causar
+el período y consultar el comprobante balanceado en Ledger. Este escenario no
+habilita ni demuestra una exportación PILA válida para ingresos parciales.
+
 ### 2. Prima de servicios por lote (2–3 minutos)
 
 Abre **Nómina → Prima de servicios** (`/nomina/prima`), selecciona enero–junio,
@@ -137,6 +148,7 @@ La pantalla no transmite ni concilia documentos.
 - [Seed financiero E2E](../../e2e/financial-demo-seed.spec.ts).
 - [Prima masiva E2E](../../e2e/service-premium-smoke.spec.ts).
 - [Exportación PILA E2E](../../e2e/payroll-pila-export-smoke.spec.ts).
+- [Ingreso a mitad de mes hasta aprobación y Ledger](../../e2e/payroll-new-hire-proration-smoke.spec.ts).
 - [Backlog de GOAL-02](./GOAL-02-backlog.md), incluida la matriz de alcance y
   sus límites normativos.
 - [PR #304: seguimiento de transmisiones](https://github.com/Glemynart/SaaS/pull/304),

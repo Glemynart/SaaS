@@ -43,7 +43,7 @@ async function registerAndSignIn(page: Page) {
 test('liquida desde la UI el salario proporcional de un ingreso dentro del mes', async ({
   page,
 }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
   const tenantId = await registerAndSignIn(page);
   const fixture = await seedPayrollCalculationFixture(tenantId, {
     fechaIngreso: '2026-10-10',
@@ -99,6 +99,71 @@ test('liquida desde la UI el salario proporcional de un ingreso dentro del mes',
       generated.runs[0].concepts.find((concept) => concept.codigo === 'SALARIO_BASE')?.valor,
     ).toBe(5_600_000);
     expect(generated.snapshots).toHaveLength(0);
+
+    await page.goto('/nomina/periodos');
+    const reviewResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/payroll/periods/${periodId}/enviar-revision` &&
+        response.request().method() === 'POST',
+    );
+    await periodCard().getByRole('button', { name: 'Enviar' }).click();
+    expect((await reviewResponsePromise).status()).toBe(200);
+
+    await page.reload();
+    await expect(periodCard()).toContainText('En revisión');
+    const approveResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/payroll/periods/${periodId}/aprobar` &&
+        response.request().method() === 'POST',
+    );
+    await periodCard().getByRole('button', { name: 'Aprobar' }).click();
+    expect((await approveResponsePromise).status()).toBe(200);
+
+    await page.reload();
+    await expect(periodCard()).toContainText('Aprobada');
+    await periodCard().getByRole('link', { name: periodName }).click();
+    const approved = await fixture.inspect(periodId);
+    expect(approved.periodStatus).toBe('APROBADA');
+    expect(approved.snapshots).toHaveLength(1);
+    expect(approved.snapshots[0].estadoPeriodo).toBe('APROBADA');
+    expect(approved.snapshots[0].payload.employee).toMatchObject({
+      salarioBaseUsado: 5_600_000,
+      diasNomina: 21,
+    });
+    expect(
+      approved.snapshots[0].payload.concepts.find(
+        (concept: { codigo: string }) => concept.codigo === 'SALARIO_BASE',
+      )?.valor,
+    ).toBe(5_600_000);
+
+    const postingResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/payroll/periods/${periodId}/contabilizar` &&
+        response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Contabilizar en Ledger' }).click();
+    await page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: 'Contabilizar nómina' })
+      .click();
+    const postingResponse = await postingResponsePromise;
+    expect(postingResponse.status()).toBe(200);
+    const posting = (await postingResponse.json()) as {
+      status: string;
+      payrollPeriodId: string;
+      comprobanteId: string;
+    };
+    expect(posting).toMatchObject({ status: 'CAUSADA', payrollPeriodId: periodId });
+    await expect(page.getByText('Nómina contabilizada en el Ledger.')).toBeVisible();
+
+    const caused = await fixture.inspect(periodId);
+    expect(caused.periodStatus).toBe('CAUSADA');
+    expect(caused.runs).toEqual(approved.runs);
+    expect(caused.snapshots).toEqual(approved.snapshots);
+    expect(caused.vouchers).toHaveLength(1);
+    expect(caused.vouchers[0].id).toBe(posting.comprobanteId);
+    expect(caused.vouchers[0].totalDebito).toBe(caused.vouchers[0].totalCredito);
+    expect(caused.vouchers[0].movimientoCount).toBeGreaterThan(2);
   } finally {
     await fixture.disconnect();
   }
