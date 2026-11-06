@@ -538,6 +538,29 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     return input;
   }
 
+  function approvedVspSnapshot(fechaInicio = '2026-10-01') {
+    const input = snapshot();
+    input.payloadVersion = 10;
+    const payload = payloadOf(input);
+    payload.schemaVersion = 10;
+    Object.assign(payload.contract as Record<string, unknown>, {
+      tipo: 'TERMINO_INDEFINIDO',
+      fechaFin: null,
+    });
+    payload.payroll.salarioIntegral = false;
+    payload.payroll.diasNomina = 30;
+    const event = {
+      eventId: 'pila-vsp-event-1',
+      codigo: 'VSP',
+      fechaInicio,
+      fechaFin: null,
+      dias: null,
+    };
+    payload.pilaEvents = [event];
+    payload.payroll.pilaEvents = [event];
+    return input;
+  }
+
   it('maps one approved standard new-hire ING from frozen Payroll days', () => {
     const candidate = mapCandidate(approvedNewHireSnapshot());
 
@@ -562,6 +585,89 @@ describe('mapPilaAt2V30DetailCandidate', () => {
         [15, 36, 37, 38, 39, 40, 80, 95].includes(fieldNumber),
       ),
     ).toEqual([]);
+  });
+
+  it('maps a single first-day VSP using the approved full-month salary and IBC', () => {
+    const candidate = mapCandidate(approvedVspSnapshot());
+
+    expect(candidate.values).toMatchObject({
+      21: { value: 'X' },
+      36: { value: 30 },
+      37: { value: 30 },
+      38: { value: 30 },
+      39: { value: 30 },
+      40: { value: 2_000_000 },
+      82: { value: '2026-10-01' },
+      95: { value: 2_000_000 },
+    });
+    expect(candidate.normativeRuleVersions.vspEventFields).toBe(
+      'AT2_V30_SINGLE_FULL_MONTH_VSP_FIELDS_V1',
+    );
+    expect(candidate.unresolvedFields).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ fieldNumber: 21 }),
+        expect.objectContaining({ fieldNumber: 40 }),
+        expect.objectContaining({ fieldNumber: 82 }),
+      ]),
+    );
+  });
+
+  it('keeps a mid-month VSP blocked without approved salary segments', () => {
+    const candidate = mapCandidate(approvedVspSnapshot('2026-10-15'));
+
+    expect(candidate.normativeRuleVersions.vspEventFields).toBeNull();
+    expect(candidate.values[21]).toBeUndefined();
+    expect(candidate.values[82]).toBeUndefined();
+    expect(candidate.unresolvedFields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ fieldNumber: 21 }),
+        expect.objectContaining({ fieldNumber: 40 }),
+        expect.objectContaining({ fieldNumber: 82 }),
+      ]),
+    );
+  });
+
+  it('keeps a first-day VSP blocked when a second PILA event is present', () => {
+    const input = approvedVspSnapshot();
+    const payload = payloadOf(input);
+    const events = payload.pilaEvents as Array<Record<string, unknown>>;
+    const payroll = payload.payroll as Record<string, unknown>;
+    const payrollEvents = payroll.pilaEvents as Array<Record<string, unknown>>;
+    const secondEvent = {
+      eventId: 'pila-ret-event-1',
+      codigo: 'RET',
+      fechaInicio: '2026-10-20',
+      fechaFin: null,
+      dias: null,
+    };
+    events.push(secondEvent);
+    payrollEvents.push(secondEvent);
+
+    const candidate = mapCandidate(input);
+
+    expect(candidate.normativeRuleVersions.vspEventFields).toBeNull();
+    expect(candidate.values[21]).toBeUndefined();
+    expect(candidate.values[82]).toBeUndefined();
+    expect(candidate.unresolvedFields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ fieldNumber: 21 }),
+        expect.objectContaining({ fieldNumber: 40 }),
+        expect.objectContaining({ fieldNumber: 82 }),
+      ]),
+    );
+  });
+
+  it('keeps a first-day VSP blocked when Payroll did not approve 30 days', () => {
+    const input = approvedVspSnapshot();
+    const payload = payloadOf(input);
+    const payroll = payload.payroll as Record<string, unknown>;
+    payroll.diasNomina = 29;
+
+    const candidate = mapCandidate(input);
+
+    expect(candidate.normativeRuleVersions.vspEventFields).toBeNull();
+    expect(candidate.values[21]).toBeUndefined();
+    expect(candidate.values[82]).toBeUndefined();
   });
 
   it('maps one approved standard retirement RET from frozen Payroll days', () => {

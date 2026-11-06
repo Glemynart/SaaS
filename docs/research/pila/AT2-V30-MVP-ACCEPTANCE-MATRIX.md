@@ -4,8 +4,9 @@
 por un operador. La matriz sigue siendo el alcance de validación y no amplía
 automáticamente compatibilidad.
 
-**Corte de evidencia normativa:** 2026-11-04.
-**Estado de implementación contrastado con `main@82d49bc` (2026-11-06).**
+**Corte de evidencia normativa:** 2026-11-06.
+**Estado de implementación contrastado con `main@6642501` (2026-11-06); el
+candidato VSP descrito al final está en una rama local y aún no está integrado.**
 
 **ADR relacionado:** [ADR-013 — Exportación estándar de nómina a PILA](../../adr/ADR-013-pila-standard-file-export.md).
 
@@ -14,14 +15,17 @@ automáticamente compatibilidad.
 Validar primero una planilla E de un aportante empleador con trabajadores
 dependientes estándar, tipo de cotizante `01`, subtipo explícito `00` (sin
 subtipo especial), período mensual completo y snapshot de nómina aprobado.
-Cada afiliación debe cubrir el período trabajado, salvo el único ING o RET
-soportado por PILA-AT2-80 y PILA-AT2-82. El RET se limita a un empleado 01/00,
-salario fijo no integral, contrato terminado en la fecha registrada de retiro,
-un único evento RET, días e IBC congelados por Payroll y ausencia de novedades.
+Cada afiliación debe cubrir el período trabajado, salvo el único ING, RET o VSP
+soportado por PILA-AT2-80, PILA-AT2-82 y PILA-AT2-84. El RET se limita a un
+empleado 01/00, salario fijo no integral, contrato terminado en la fecha
+registrada de retiro, un único evento RET, días e IBC congelados por Payroll y
+ausencia de novedades.
 Los datos del aportante, trabajador, centro ARL y actividad económica deben
-estar confirmados y congelados en el snapshot. ING+RET, eventos concurrentes,
-variaciones, ausentismos, varios detalles por trabajador, salario/pagos no
-clasificados y tipos/subtipos especiales quedan bloqueados.
+estar confirmados y congelados en el snapshot. La VSP se limita al primer día
+de un mes completo, con salario fijo no integral y sin otros eventos o
+novedades. ING+RET, eventos concurrentes, VSP de mitad de mes, VST,
+ausentismos, varios detalles por trabajador, salario/pagos no clasificados y
+tipos/subtipos especiales quedan bloqueados.
 
 Esta acotación es una recomendación de preparación. La aceptación del archivo
 por un operador requiere una prueba independiente en ese portal; la validación
@@ -299,7 +303,7 @@ verificarse de nuevo antes de habilitar planillas que alcancen el corte de
 
 ## Criterios de aceptación y pruebas de contrato
 
-Los casos `PILA-AT2-01` a `PILA-AT2-81` registran criterios de aceptación,
+Los casos `PILA-AT2-01` a `PILA-AT2-84` registran criterios de aceptación,
 evidencia y cobertura; no todos son pruebas de operador ni todos habilitan un
 caso de exportación. **“Bloquear” significa no producir una descarga parcial.**
 La fuente normativa da el requisito del formato; donde se marca “Payroll debe
@@ -460,8 +464,9 @@ exoneración.
 ## Validaciones que faltan para ampliar el MVP y declarar compatibilidad
 
 1. **Candidatos locales cubiertos:** `pila-source-snapshot.spec.ts`, pruebas de
-   Payroll, mapper y preflight cubren el mes completo, un ING (PILA-AT2-80) y
-   un RET (PILA-AT2-82) con días e IBC congelados por Payroll. La regla
+   Payroll, mapper y preflight cubren el mes completo, un ING (PILA-AT2-80),
+   un RET (PILA-AT2-82) y la VSP estricta (PILA-AT2-84), con días e IBC
+   congelados por Payroll. La regla
    30/360 debe coincidir con los días aprobados; un desacuerdo bloquea el
    candidato. ING+RET, eventos concurrentes y los demás períodos parciales
    siguen bloqueados. La revisión laboral independiente y las pruebas con un
@@ -618,3 +623,26 @@ anterior queda disponible hasta el corte 2027 solo bajo las guardas de la
 matriz. La
 [Resolución 467 de 2025](https://normativa.colpensiones.gov.co/compilacion/docs/resolucion_minsaludps_0467_2025.htm)
 identifica el campo 5 como “Transición”.
+
+### PILA-AT2-84 — VSP única desde el primer día del mes completo
+
+El candidato local requiere un snapshot aprobado v10 de un dependiente 01/00,
+con una única afiliación que cubre todo el período, contrato estándar y vínculo
+activo durante el mes, salario fijo no integral y una sola VSP cuya fecha
+efectiva coincide con el primer día, con 30 días aprobados en Payroll. No admite otras novedades Payroll ni
+eventos PILA, salario variable, eventos concurrentes, VSP de mitad de mes ni
+períodos parciales. Días 36–39, salario/IBC y demás fuentes siguen saliendo del
+snapshot aprobado; el mapper propone campo 21=`X` y campo 82 con la fecha
+congelada del evento. Un candidato parcial no basta para generar el archivo:
+los demás campos obligatorios y la prevalidación completa aún deben pasar.
+
+La compilación vigente de la Resolución 2388 describe el campo 21 como VSP,
+admite blanco o `X` y asigna su declaración al aportante. El campo 82 es la
+fecha de inicio de VSP y debe contener una fecha válida cuando la novedad ocurre
+en el período liquidado. La Resolución 10 de 2026 también exige registros tipo 2
+separados cuando las novedades causan IBC distintos; este candidato evita esa
+segmentación al aceptar solo una VSP desde el primer día y una única fuente
+aprobada de IBC para todo el período. La restricción al primer día es una guarda
+conservadora del producto, no una regla de calendario atribuida a la norma. La
+revisión laboral independiente y la aceptación por cada operador continúan
+pendientes.

@@ -68,6 +68,8 @@ const PILA_AT2_V30_RETIREMENT_EVENT_FIELDS_RULE_VERSION =
   'AT2_V30_SINGLE_RETIREMENT_FIELDS_V1' as const;
 const PILA_AT2_V30_RETIREMENT_BASIC_SALARY_FIELD_40_RULE_VERSION =
   'PILA_RET_FIELD_40_FROM_APPROVED_BASE_V1' as const;
+const PILA_AT2_V30_SINGLE_FULL_MONTH_VSP_FIELDS_RULE_VERSION =
+  'AT2_V30_SINGLE_FULL_MONTH_VSP_FIELDS_V1' as const;
 const PILA_AT2_V30_PLANILLA_E_FIELD_22_RULE_VERSION =
   'AT2_V30_PLANILLA_E_FIELD_22_BLANK_V1' as const;
 const PILA_AT2_V30_PENSION_TOTAL_FIELD_50_RULE_VERSION =
@@ -156,6 +158,9 @@ export interface PilaAt2V30DetailCandidate {
       | null;
     retirementBasicSalaryField40:
       | typeof PILA_AT2_V30_RETIREMENT_BASIC_SALARY_FIELD_40_RULE_VERSION
+      | null;
+    vspEventFields:
+      | typeof PILA_AT2_V30_SINGLE_FULL_MONTH_VSP_FIELDS_RULE_VERSION
       | null;
     noTransferDestinationFields:
       | typeof PILA_AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_RULE_VERSION
@@ -420,6 +425,7 @@ export function mapPilaAt2V30DetailCandidate(
         newHireBasicSalaryField40: null,
         retirementEventFields: null,
         retirementBasicSalaryField40: null,
+        vspEventFields: null,
         noTransferDestinationFields: null,
         nonCotizante40PrincipalFields: null,
         confirmedNonExemptCotizante: null,
@@ -474,6 +480,21 @@ export function mapPilaAt2V30DetailCandidate(
     sourceText(payrollPilaEvent.codigo) === 'RET' &&
     sourceText(rootPilaEvent.fechaInicio) === retirementDate &&
     sourceText(payrollPilaEvent.fechaInicio) === retirementDate &&
+    rootPilaEvent.fechaFin === null &&
+    payrollPilaEvent.fechaFin === null &&
+    rootPilaEvent.dias === null &&
+    payrollPilaEvent.dias === null &&
+    sourceText(rootPilaEvent.eventId) === sourceText(payrollPilaEvent.eventId),
+  );
+  const approvedSingleVspEvent = Boolean(
+    snapshot.payloadVersion === 10 &&
+    rootPilaEvent &&
+    payrollPilaEvent &&
+    sourceText(rootPilaEvent.eventId) !== null &&
+    sourceText(rootPilaEvent.codigo) === 'VSP' &&
+    sourceText(payrollPilaEvent.codigo) === 'VSP' &&
+    sourceText(rootPilaEvent.fechaInicio) === periodStart &&
+    sourceText(payrollPilaEvent.fechaInicio) === periodStart &&
     rootPilaEvent.fechaFin === null &&
     payrollPilaEvent.fechaFin === null &&
     rootPilaEvent.dias === null &&
@@ -537,6 +558,25 @@ export function mapPilaAt2V30DetailCandidate(
     fullMonth &&
     employeeCoversPeriod &&
     contractCoversPeriod;
+  const standardFullMonthVspEmployee = Boolean(
+    standardFullMonthEmployee &&
+    periodEnd &&
+    (sourceText(employee?.fechaRetiro) === null ||
+      sourceText(employee?.fechaRetiro)! > periodEnd) &&
+    (sourceText(contract?.fechaFin) === null ||
+      sourceText(contract?.fechaFin)! > periodEnd) &&
+    ['TERMINO_FIJO', 'TERMINO_INDEFINIDO', 'OBRA_LABOR'].includes(
+      sourceText(contract?.tipo) ?? '',
+    ) &&
+    payroll?.tipoSalario === 'F' &&
+    payroll?.salarioIntegral === false &&
+    payroll?.diasNomina === 30 &&
+    Array.isArray(payroll?.tipoSalarioBloqueos) &&
+    payroll.tipoSalarioBloqueos.length === 0 &&
+    Array.isArray(payroll?.novelties) &&
+    payroll.novelties.length === 0 &&
+    approvedSingleVspEvent,
+  );
   const frozenEntryDays = payroll?.diasNomina;
   const expectedEntryDays =
     periodStart && periodEnd && entryDate
@@ -615,6 +655,7 @@ export function mapPilaAt2V30DetailCandidate(
   );
   const standardSupportedEmployee =
     standardFullMonthEmployee ||
+    standardFullMonthVspEmployee ||
     standardNewHireEmployee ||
     standardRetirementEmployee;
   const supportedCoverageStart =
@@ -911,6 +952,17 @@ export function mapPilaAt2V30DetailCandidate(
     payroll.pilaEvents.length === 0 &&
     Array.isArray(payroll?.novelties) &&
     payroll.novelties.length === 0;
+  const fullMonthVspPilaInputsApproved =
+    standardFullMonthVspEmployee &&
+    daySources.every(([, subsystem]) => {
+      const source = object(days?.[subsystem]);
+      return (
+        source !== null &&
+        source.valor === 30 &&
+        source.reglaVersion === 'PILA_FULL_MONTH_DAYS_V1' &&
+        hasNoBlockers(source)
+      );
+    });
   const newHirePilaInputsApproved =
     standardNewHireEmployee &&
     daySources.every(([, subsystem]) => {
@@ -935,6 +987,7 @@ export function mapPilaAt2V30DetailCandidate(
     });
   const pilaInputsApproved =
     fullMonthPilaInputsApproved ||
+    fullMonthVspPilaInputsApproved ||
     newHirePilaInputsApproved ||
     retirementPilaInputsApproved;
 
@@ -959,6 +1012,17 @@ export function mapPilaAt2V30DetailCandidate(
     }
     put(30, 0);
     for (let fieldNumber = 80; fieldNumber <= 94; fieldNumber += 1) {
+      blank(fieldNumber);
+    }
+  } else if (fullMonthVspPilaInputsApproved && periodStart) {
+    for (const fieldNumber of [
+      15, 16, 17, 18, 19, 20, 23, 24, 25, 26, 27, 29, 30, 80, 81,
+    ]) {
+      blank(fieldNumber);
+    }
+    put(21, 'X');
+    put(82, periodStart);
+    for (let fieldNumber = 83; fieldNumber <= 94; fieldNumber += 1) {
       blank(fieldNumber);
     }
   } else if (newHirePilaInputsApproved && entryDate) {
@@ -1047,10 +1111,14 @@ export function mapPilaAt2V30DetailCandidate(
   );
   if (newHireField40Approved || retirementField40Approved) {
     put(40, salary?.valor as number);
-  } else if (snapshot.payloadVersion === 10 && hasPilaEvents) {
+  } else if (
+    snapshot.payloadVersion === 10 &&
+    hasPilaEvents &&
+    !fullMonthVspPilaInputsApproved
+  ) {
     unresolved(
       40,
-      'Para un ING o RET soportado, el campo 40 debe coincidir con la base prorrateada aprobada y con los cuatro IBC del snapshot.',
+      'Para ING y RET se requiere una base prorrateada aprobada; VSP solo se admite desde el primer día del mes con salario fijo e IBC de período completo aprobados.',
     );
   } else if (
     safeInteger(salary?.valor, 9) &&
@@ -2154,6 +2222,9 @@ export function mapPilaAt2V30DetailCandidate(
         : null,
       retirementBasicSalaryField40: retirementField40Approved
         ? PILA_AT2_V30_RETIREMENT_BASIC_SALARY_FIELD_40_RULE_VERSION
+        : null,
+      vspEventFields: fullMonthVspPilaInputsApproved
+        ? PILA_AT2_V30_SINGLE_FULL_MONTH_VSP_FIELDS_RULE_VERSION
         : null,
       noTransferDestinationFields: standardAffiliation
         ? PILA_AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_RULE_VERSION

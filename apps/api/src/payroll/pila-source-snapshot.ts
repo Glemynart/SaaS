@@ -372,12 +372,20 @@ export function buildPilaSourceSnapshot(input: {
     input.payroll.salarioIntegral,
     input.context.employee.tipoSalarioPila,
   );
+  const approvedFullMonthVsp = isSupportedFullMonthVsp({
+    context: input.context,
+    novelties: input.payroll.novelties,
+    salarioIntegral: input.payroll.salarioIntegral,
+    tipoSalario: salaryType.valor,
+    diasNomina,
+  });
   const diasCotizadosPorSubsistema = buildPilaDaysBySubsystem(
     input.context,
     input.payroll.novelties,
     diasNomina,
     input.payroll.salarioIntegral,
     salaryType.valor,
+    approvedFullMonthVsp,
   );
   const newHirePilaDays = buildNewHirePilaDays({
     context: input.context,
@@ -402,6 +410,7 @@ export function buildPilaSourceSnapshot(input: {
     diasNomina,
     novelties: input.payroll.novelties,
     diasCotizadosPorSubsistema,
+    approvedFullMonthVsp,
   });
   const hasPilaEvents = input.context.pilaEvents.length > 0;
   const salarioBasicoCampo40 =
@@ -409,7 +418,7 @@ export function buildPilaSourceSnapshot(input: {
       ? buildNewHireBasicSalaryField40(otrosParafiscales)
       : retirementPilaDays.value !== null
         ? buildRetirementBasicSalaryField40(otrosParafiscales)
-        : hasPilaEvents
+        : hasPilaEvents && !approvedFullMonthVsp
           ? {
               valor: null,
               reglaVersion: PILA_NEW_HIRE_BASIC_SALARY_FIELD_40_RULE_VERSION,
@@ -589,6 +598,7 @@ function buildPilaDaysBySubsystem(
   diasNomina: number,
   salarioIntegral: boolean,
   tipoSalario: 'X' | 'F' | 'V' | null,
+  approvedFullMonthVsp: boolean,
 ) {
   const blockers: string[] = [];
   const { fechaInicio, fechaFin } = context.period;
@@ -625,7 +635,7 @@ function buildPilaDaysBySubsystem(
   if (novelties.some(({ tipo }) => !['BONUS', 'OVERTIME'].includes(tipo))) {
     blockers.push('HAY_NOVEDADES_SIN_SEGMENTACION_PILA');
   }
-  if (context.pilaEvents.length > 0) {
+  if (context.pilaEvents.length > 0 && !approvedFullMonthVsp) {
     blockers.push('HAY_EVENTOS_PILA_SIN_SEGMENTACION');
   }
 
@@ -937,6 +947,7 @@ function otherParafiscalBaseSource(input: {
   diasNomina: number;
   novelties: PilaSnapshotNovelty[];
   diasCotizadosPorSubsistema: ReturnType<typeof buildPilaDaysBySubsystem>;
+  approvedFullMonthVsp: boolean;
 }) {
   const salaryConcepts = input.concepts.filter(
     (concept) =>
@@ -1016,7 +1027,11 @@ function otherParafiscalBaseSource(input: {
   ) {
     blockers.push('IBC_OTROS_PARAFISCALES_NOVEDAD_SIN_BASE_APROBADA');
   }
-  if (input.context.pilaEvents.length > 0 && !approvedPartialPeriodDays) {
+  if (
+    input.context.pilaEvents.length > 0 &&
+    !approvedPartialPeriodDays &&
+    !input.approvedFullMonthVsp
+  ) {
     blockers.push('IBC_OTROS_PARAFISCALES_EVENTO_PILA_SIN_BASE_APROBADA');
   }
   if (input.tipoSalario !== (input.salarioIntegral ? 'X' : 'F')) {
@@ -1070,6 +1085,57 @@ function otherParafiscalBaseSource(input: {
     fundamento: 'LEY_21_1982_ART_17_LEY_344_1996_ART_17_LEY_789_2002_ART_49',
     bloqueos: blockers,
   };
+}
+
+function isSupportedFullMonthVsp(input: {
+  context: PilaSourceContext;
+  novelties: PilaSnapshotNovelty[];
+  salarioIntegral: boolean;
+  tipoSalario: 'X' | 'F' | 'V' | null;
+  diasNomina: number;
+}): boolean {
+  const { context } = input;
+  const { fechaInicio, fechaFin } = context.period;
+  const employee = context.employee;
+  const contract = context.contract;
+  const affiliation =
+    context.affiliations.length === 1 ? context.affiliations[0] : null;
+  const contractStart = contract?.fechaInicio ?? null;
+  const affiliationStart = affiliation?.vigenteDesde ?? null;
+  const event = context.pilaEvents.length === 1 ? context.pilaEvents[0] : null;
+
+  return Boolean(
+    fechaInicio &&
+    fechaFin &&
+    isFullCalendarMonth(fechaInicio, fechaFin) &&
+    event &&
+    event.eventId.trim() &&
+    event.codigo === PilaEventCode.VSP &&
+    event.fechaInicio === fechaInicio &&
+    event.fechaFin === null &&
+    event.dias === null &&
+    employee.fechaIngreso &&
+    employee.fechaIngreso <= fechaInicio &&
+    (employee.fechaRetiro === null || employee.fechaRetiro > fechaFin) &&
+    contract &&
+    ['TERMINO_FIJO', 'TERMINO_INDEFINIDO', 'OBRA_LABOR'].includes(
+      contract.tipo,
+    ) &&
+    contractStart !== null &&
+    contractStart <= fechaInicio &&
+    (contract.fechaFin === null || contract.fechaFin > fechaFin) &&
+    affiliation &&
+    affiliation.tipoCotizanteCodigo === '01' &&
+    affiliation.subtipoCotizanteCodigo === '00' &&
+    affiliationStart !== null &&
+    affiliationStart <= fechaInicio &&
+    (affiliation.vigenteHasta === null ||
+      affiliation.vigenteHasta >= fechaFin) &&
+    !input.salarioIntegral &&
+    input.tipoSalario === 'F' &&
+    input.diasNomina === 30 &&
+    input.novelties.length === 0,
+  );
 }
 
 function resolvePilaSalaryType(
