@@ -2146,37 +2146,50 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   no devuelve este nuevo detalle; el despliegue del runtime requiere su
   procedimiento operativo separado y no se hace en este incremento.
 
-### Candidato PILA de VSP desde el primer día del mes — 2026-11-06
+### Candidato PILA de VSP desde el primer día del mes — PR #327 integrado
 
-- En la rama `codex/goal02-pila-vsp-first-day` se prepara un candidato local
-  para una sola VSP de un dependiente 01/00, efectiva el primer día de un mes
-  completo, con salario fijo no integral, cobertura laboral/afiliatoria de
-  todo el período, 30 días e IBC aprobados y sin otros eventos ni novedades.
-- El snapshot aprobado conserva el evento; el mapper solo propone el campo 21
-  y su fecha en el campo 82. Variaciones a mitad de mes, concurrentes, múltiples
-  y períodos parciales permanecen bloqueados. Este caso no declara compatibilidad
-  con operador ni habilita el archivo si quedan otros campos pendientes.
-- La matriz PILA-AT2-84 documenta el alcance frente a la compilación vigente de
-  Resolución 2388 y la regla de múltiples registros modificada por Resolución
-  10 de 2026. Está pendiente cerrar los checks y la auditoría del PR.
+- PR #327 se fusionó en `main` como `abff04bb04eff6e87f86df6e5d4a07e5c4e94034`.
+  Los checks post-merge de CI, Browser E2E y publicación de imagen API pasaron;
+  el estado Vercel del commit también terminó en verde.
+- El candidato cubre una sola VSP de un dependiente 01/00, efectiva el primer
+  día de un mes completo, con salario fijo no integral, cobertura
+  laboral/afiliatoria de todo el período, 30 días e IBC aprobados y sin otros
+  eventos ni novedades. El snapshot aprobado conserva el evento; el mapper solo
+  propone el campo 21 y su fecha en el campo 82.
+- Variaciones a mitad de mes, concurrentes, múltiples y períodos parciales
+  permanecen bloqueados. El caso no declara compatibilidad con operador ni
+  habilita el archivo si quedan otros campos pendientes. La matriz PILA-AT2-84
+  documenta el alcance frente a la compilación vigente de Resolución 2388 y la
+  regla de múltiples registros modificada por Resolución 10 de 2026.
 
 ### Dependencias operativas para demo — R2 privado y correo de OCI — 2026-11-06
 
 - El código ya incluye `CloudflareR2StorageProvider`, transporte SMTP y
   configuración de `REQUIRE_REAL_EMAIL`; el Compose de staging requiere las
-  variables del bucket privado. Esto confirma preparación del software, no que
+  variables de un bucket privado. Esto confirma preparación del software, no que
   los secretos, el bucket o el envío real estén configurados en el VPS.
-- `deploy/README.md` registra una observación histórica del 2026-10-25 en la
-  que el runtime consultado aún usaba storage local y readiness no verificaba
-  conexión SMTP ni entrega de correo. No se actualizó esa evidencia operativa
-  en este incremento.
-- Antes de usarlo en demo se requiere una iniciativa operativa separada: validar
-  bucket y credenciales R2 de mínimo privilegio, probar escritura/lectura,
-  integridad y aislamiento; configurar OCI Email Delivery con remitente
-  aprobado, DNS de autenticación y una prueba real de invitación/recuperación.
-  Mantener credenciales fuera de Git. El ejemplo SMTP vigente del repositorio
-  usa puerto 587 con STARTTLS; la documentación oficial actual de Oracle indica
-  TLS en puerto 465, así que se debe reconciliar y probar el endpoint/puerto de
-  la región antes de aplicar configuración. El migrador local→R2 no tiene una
-  reversión demostrada, por lo que no se debe cambiar el provider hasta acordar
-  y probar la recuperación.
+- `deploy/README.md` contiene evidencia histórica de solo lectura del
+  2026-10-25: el runtime llamado staging usaba `STORAGE_PROVIDER=local` y
+  compartía la base de datos clasificada como producción. Esa observación no
+  acredita el estado actual. Antes de cambiar el provider o enviar datos desde
+  el VPS se debe confirmar que el destino esté aislado y que exista una
+  recuperación probada; el migrador local→R2 no tiene una reversión demostrada.
+- Para R2, usar un bucket privado separado por entorno y un token S3 de
+  `Object Read & Write` limitado a ese bucket. La prueba debe verificar
+  escritura, lectura, checksum, borrado controlado y aislamiento tenant antes
+  de considerar lista la migración. Cloudflare documenta el alcance por bucket
+  y el endpoint S3 en su [guía de autenticación R2](https://developers.cloudflare.com/r2/api/tokens/).
+- Para OCI Email Delivery, confirmar en la consola el endpoint de la región,
+  mantener el `From` en un remitente aprobado, crear credenciales SMTP para una
+  identidad de mínimo privilegio y publicar los registros de autenticación del
+  dominio. Oracle exige TLS entre la aplicación y Email Delivery; la consola
+  documenta TLS implícito en puerto 465 y su guía de conectividad también
+  enumera 25, 587 y 465. Por ello, el ejemplo `587` + STARTTLS del repositorio
+  debe probarse desde el VPS junto con su configuración Nodemailer, o cambiarse
+  al método que confirme la consola. La aceptación requiere una prueba real de
+  invitación y recuperación de acceso, no solo `readiness`. Ver
+  [configuración SMTP de OCI](https://docs.oracle.com/en-us/iaas/Content/Email/Reference/gettingstarted_topic-Configure_the_SMTP_connection.htm)
+  y [diagnóstico de conectividad y entrega](https://docs.oracle.com/en-us/iaas/Content/Email/Concepts/troubleshooting.htm).
+- Las credenciales deben permanecer en el gestor de secretos del entorno, fuera
+  de Git y de los logs. No se ha confirmado la configuración actual del VPS ni
+  se ha cambiado R2, DNS o OCI en este incremento.
