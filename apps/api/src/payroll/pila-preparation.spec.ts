@@ -322,6 +322,22 @@ describe('inspectPilaSnapshotPreparation', () => {
     ]);
   });
 
+  it('bloquea el cotizante 75 porque está fuera del MVP 01/00', () => {
+    const source = payload();
+    source.affiliations[0].tipoCotizanteCodigo = '75';
+
+    const result = inspectPilaSnapshotPreparation(
+      snapshot('employee-1', 'Ana', { payload: source }),
+    );
+
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        fieldNumber: 5,
+        code: 'TIPO_COTIZANTE_FUERA_DEL_MVP',
+      }),
+    );
+  });
+
   it('reconoce un snapshot PILA v5 con esquema coincidente', () => {
     const source = payload();
     source.schemaVersion = 5;
