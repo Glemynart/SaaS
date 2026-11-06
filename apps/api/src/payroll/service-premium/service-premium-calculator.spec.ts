@@ -268,6 +268,45 @@ describe('calculateServicePremium', () => {
     });
   });
 
+  it('promedia horas extra durante la fracción de semestre servida', () => {
+    const overtime = [84_000, 120_000, 120_000, 120_000];
+    const snapshots = Array.from({ length: 4 }, (_, index) =>
+      snapshot(index + 3, {
+        salary: 2_000_000,
+        overtime: overtime[index],
+        aid: 200_000,
+        contractStart: '2026-03-10',
+      }),
+    );
+    const marchPayload = snapshots[0].payload as TestPayrollPayload & {
+      totals: { auxilioTransporte: number };
+    };
+    marchPayload.concepts.find(
+      (concept) => concept.codigo === 'SALARIO_BASE',
+    )!.valor = 1_400_000;
+    marchPayload.totals.auxilioTransporte = 140_000;
+
+    const result = calculateServicePremium({
+      employee,
+      year: 2026,
+      semester: 1,
+      snapshots,
+    });
+
+    expect(result).toMatchObject({
+      status: 'LISTA',
+      salaryBase: 2_000_000,
+      variableSalary: 120_000,
+      transportAllowance: 200_000,
+      serviceDays360: 111,
+      amount: 715_333,
+      snapshot: {
+        variableSalaryTotal: 444_000,
+        transportWeightedTotal: 740_000,
+      },
+    });
+  });
+
   it('bloquea auxilio mensual completo cuando el snapshot cubre solo una fracción del contrato', () => {
     const result = calculateServicePremium({
       employee,
