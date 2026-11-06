@@ -1,7 +1,8 @@
 # Matriz de aceptación previa — PILA AT2 v30
 
-**Estado:** preparación para revisión; no habilita el exportador ni afirma que
-un archivo pueda cargarse en un operador.
+**Estado:** MVP local para casos aprobados y acotados; no acredita aceptación
+por un operador. La matriz sigue siendo el alcance de validación y no amplía
+automáticamente compatibilidad.
 
 **Corte de evidencia:** 2026-11-04.
 
@@ -12,12 +13,12 @@ un archivo pueda cargarse en un operador.
 Validar primero una planilla E de un aportante empleador con trabajadores
 dependientes estándar, tipo de cotizante `01`, subtipo explícito `00` (sin
 subtipo especial), período mensual completo y snapshot de nómina aprobado.
-Cada afiliación debe cubrir todo el período y los datos del aportante, trabajador,
-centro ARL y actividad económica deben estar confirmados y congelados en el
-snapshot. Casos con ingreso/retiro parcial, variaciones, ausentismos, varios
-detalles por trabajador, salario o pagos no clasificados y tipos/subtipos
-especiales quedan bloqueados hasta que Payroll conserve los resultados por
-segmento y subsistema.
+Cada afiliación debe cubrir todo el período, salvo el único ING soportado por
+PILA-AT2-80, y los datos del aportante, trabajador, centro ARL y actividad
+económica deben estar confirmados y congelados en el snapshot. Los demás casos
+con ingreso/retiro parcial, variaciones, ausentismos, varios detalles por
+trabajador, salario o pagos no clasificados y tipos/subtipos especiales quedan
+bloqueados hasta que Payroll conserve los resultados por segmento y subsistema.
 
 Esta acotación es una recomendación de preparación. La aceptación del archivo
 por un operador requiere una prueba independiente en ese portal; la validación
@@ -380,6 +381,7 @@ aprobar”, AT2 no define por sí solo el cálculo laboral que alimenta el campo
 | PILA-AT2-78 | Conjunto completo de snapshots aprobados de un mismo tenant y período, con candidatos válidos de aportante, cabecera y todos los detalles tipo 2.                                                                                                           | Componer los archivos tipo 1 y tipo 2 con registros de longitud fija, Windows-1252 y CRLF; rechazar el conjunto entero ante campos pendientes, duplicados, mezcla de tenant/período, texto con pérdida o longitud incorrecta. Convención local marcada `NOT_VERIFIED`; no descarga, no guarda historial de exportación y no declara aceptación de operador.                                                                                                                                                                                                                                     | `composePilaAt2V30FilesFromApprovedSnapshots` y `composePilaAt2V30LocalFiles`; pruebas del candidato completo y de rechazos. La codificación y separador quedan sujetos a carga real por operador; API de descarga, historial inmutable y verificación con operadores siguen pendientes.                                                                                                            |
 | PILA-AT2-79 | Snapshot PILA v9 o posterior de cotizante dependiente 01/00; campo 96 sin fuente de horas y campo 97 con declaración CC/TI `colombianoEnElExterior=false`, `true` o desconocida.                                                                            | Dejar 96 vacío para 01/00 bajo regla versionada porque el AT2 vigente lo permite para cotizante 1. Dejar 97 vacío solo con CC/TI y declaración explícita `false`; `true` queda pendiente por falta de fecha y el valor desconocido también queda bloqueado. No inferir desde jornada, nacionalidad ni sede. No aplica a otros tipos en este MVP.                                                                                                                                                                                                                                                | Resolución 2388/2016 compilada, Anexo Técnico 2, campos 96–97 ([texto vigente](https://normativa.colpensiones.gov.co/compilacion/docs/resolucion_minsaludps_2388_2016.htm)); `AT2_V30_FIELD_96_OPTIONAL_BLANK_FOR_DEPENDENT_V1` y `AT2_V30_FIELD_97_BLANK_WHEN_NOT_ABROAD_V1`; regresiones del mapper/serializador. Sigue pendiente la validación de carga por operador.                            |
 | PILA-AT2-80 | Snapshot PILA v10, planilla E, trabajador dependiente 01/00 con salario fijo no integral; un único ING cuya fecha coincide con ingreso del empleado y comienzo del contrato; vigente hasta fin del mes, cuatro días congelados por Payroll y sin novedades. | Proponer campo 15=`X`, campo 80 con fecha de ingreso y campos 36–39 con los días congelados por subsistema, solo si coinciden con la regla 30/360 de ingreso de la Resolución 5858. El campo 40 toma el `SALARIO_BASE` prorrateado aprobado porque AT2 lo define como IBC definitivo y exige coincidencia con los cuatro IBC por subsistema; el 95 usa `CO_PARAFISCAL_BASE_V2` sobre el mismo concepto. Un IBC ausente o discordante, evento adicional, RET, novedad, salario variable/integral o afiliación efectiva incompleta bloquea el candidato. No genera envío ni demuestra aceptación. | Resoluciones 2388/2016 (AT2, campos 15, 36–40, 80) y 5858/2016; `calculateMonthlyEntryDays`; regla versionada `PILA_ING_FIELD_40_FROM_APPROVED_BASE_V1`; pruebas del snapshot PILA v10, mapper y preflight. La generación de archivos sigue sujeta a revisión laboral y pruebas con un operador.                                                                                                    |
+| PILA-AT2-81 | Conjunto completo de snapshots aprobados v10 para un período mensual; cada empleado 01/00 tiene afiliación de período completo o cumple todas las guardas de PILA-AT2-80; sin empleados duplicados.                                                         | Proponer campo 19 con el conteo de empleados tipo 2 y campo 20 con la suma de sus IBC congelados para parafiscales. El ING requiere fecha, contrato, afiliación, días de Payroll y evento coincidentes; días discordantes, duplicados, fuentes faltantes o una relación incompleta bloquean los agregados.                                                                                                                                                                                                                                                                                      | Campos 19–20 de la Resolución 2388/2016, AT2; mapper y regresiones positivas/negativas; Browser E2E de generación, persistencia y descarga. Sigue pendiente la aceptación de cada operador.                                                                                                                                                                                                         |
 
 Confirmación del comportamiento local: `buildPilaDaysBySubsystem` acepta el
 subtipo explícito `00`, deja sin candidato el valor nulo y bloquea subtipos

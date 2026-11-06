@@ -1,6 +1,6 @@
 # Nómina de ingreso durante un mes calendario
 
-Fecha de revisión: 2026-11-05
+Fecha de revisión: 2026-11-06
 
 ## Evidencia normativa consultada
 
@@ -23,9 +23,10 @@ Fecha de revisión: 2026-11-05
 - El cálculo ordinario utiliza `Empleado.salario` como salario mensual,
   calcula conceptos y prestaciones desde ese valor y congela ese salario en
   `PayrollRun.salarioBaseSnapshot`.
-- PILA mantiene preflight propio. El snapshot de empleados con fecha de ingreso
-  posterior al inicio del período no acredita cobertura completa; esta mejora
-  no genera ni habilita archivos PILA para ingresos parciales.
+- PILA mantiene preflight y reglas propios. PR #317 añade un caso limitado para
+  un único ingreso estándar; PR #319 agrega la aceptación coherente de la
+  cabecera y su verificación de extremo a extremo. Esto no admite ingresos
+  parciales genéricos ni elimina las validaciones de cobertura laboral.
 - Los datos de asistencia, modalidad de trabajo y desplazamientos diarios no
   están modelados por Payroll.
 
@@ -44,6 +45,14 @@ Fecha de revisión: 2026-11-05
 - Congela `diasNomina` en el rastro y en el snapshot aprobado. Las correcciones
   reutilizan esos días; los snapshots históricos sin el campo se leen como
   períodos completos (30 días).
+- En PILA solo se admite el caso estrecho de snapshot v10 con un único evento
+  ING 01/00 que coincide con la fecha de ingreso y el inicio del contrato,
+  afiliación, ubicación y riesgo vigentes desde esa fecha hasta fin del mes,
+  salario fijo no integral, sin otras novedades y con días congelados que
+  coinciden con la regla 30/360. Para generar, el detalle, la cabecera y el
+  preflight deben aceptar el mismo snapshot; los campos 19–20 de cabecera
+  agregan el conteo de empleados y los IBC parafiscales. La definición de esos
+  campos está en la [Resolución 2388 de 2016, Anexo Técnico 2](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-2388-2016.pdf).
 - Contratos superpuestos o insuficientes, salarios integrales, novedades de
   retiro, novedad PILA/Payroll que requiera segmentación y períodos parciales
   siguen fuera del cálculo admitido o bloqueados por sus guardas existentes.
@@ -59,9 +68,9 @@ Fecha de revisión: 2026-11-05
 - La prorrata de auxilio por días de vinculación aproxima el importe mensual.
   Sin asistencia, modalidad y desplazamientos, no permite resolver ausencias,
   teletrabajo, transporte suministrado ni excepciones de elegibilidad.
-- El nuevo cálculo Payroll no habilita PILA parcial: faltan segmentación por
-  novedad, días e IBC aprobado por subsistema, junto con la validación del
-  operador.
+- El caso limitado de ingreso único no cubre otros períodos parciales. La
+  validación local de un archivo no demuestra que un operador lo acepte; cada
+  operador aún requiere pruebas de carga.
 - No se implementan ingreso y retiro en un mismo período, retiro parcial,
   cambios de salario, varios contratos, salario integral, períodos de pago
   fraccionados ni situaciones especiales de cotización.

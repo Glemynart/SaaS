@@ -88,9 +88,12 @@ aceptación DIAN. El estado de `main` se verificó en `e1f7d54e07aabc9d3303ee231
 
 Actualización al 2026-11-06: `main` avanzó a `f6f88bd` con el PR #317,
 que integra el candidato PILA v10 para un ingreso único estándar dentro de un
-mes completo. Los checks Browser E2E, verify y Vercel Preview pasaron. La
-validación normativa con operador sigue pendiente; no se transmite, liquida ni
-paga la planilla.
+mes completo. El Browser E2E de exportación del PR #319 detectó que los campos
+19–20 de cabecera no seguían esa misma guarda, aunque el detalle y preflight sí.
+La corrección alinea esos campos y agrega regresiones negativas para días
+discordantes; el PR comprueba generación, persistencia y descarga desde la UI.
+La aceptación del operador sigue pendiente; no se transmite, liquida ni paga la
+planilla.
 
 | Capacidad                  | Evidencia real                                                                                                                                                                                                                                                                         | Límite actual                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

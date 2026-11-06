@@ -23,18 +23,143 @@ type PilaExportFixture = {
   disconnect: () => Promise<void>;
 };
 
+function mutableRecord(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error('El snapshot PILA de prueba no tiene la estructura esperada.');
+  }
+  return value as Record<string, unknown>;
+}
+
+function mutableRecordArray(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) {
+    throw new Error('El snapshot PILA de prueba no contiene la lista esperada.');
+  }
+  return value.map(mutableRecord);
+}
+
+function buildApprovedSnapshot(
+  snapshot: ReturnType<typeof completeApprovedSnapshot>,
+  singleIngress: boolean,
+) {
+  if (!singleIngress) return snapshot;
+
+  snapshot.payloadVersion = 10;
+  const payload = mutableRecord(snapshot.payload);
+  payload.schemaVersion = 10;
+  const entryDate = '2026-10-10';
+  const days = 21;
+  const monthlySalary = 8_000_000;
+  const proratedSalary = 5_600_000;
+  const employee = mutableRecord(payload.employee);
+  employee.fechaIngreso = entryDate;
+  employee.fechaRetiro = null;
+  const contract = mutableRecord(payload.contract);
+  contract.fechaInicio = entryDate;
+
+  const affiliations = mutableRecordArray(payload.affiliations);
+  affiliations[0].vigenteDesde = entryDate;
+  const locations = mutableRecordArray(payload.pilaWorkLocations);
+  locations[0].vigenteDesde = entryDate;
+  const riskAssignments = mutableRecordArray(payload.pilaRiskAssignments);
+  riskAssignments[0].vigenteDesde = entryDate;
+
+  const event = {
+    eventId: 'pila-ing-export-e2e',
+    codigo: 'ING',
+    fechaInicio: entryDate,
+    fechaFin: null,
+    dias: null,
+  };
+  payload.pilaEvents = [event];
+
+  const payroll = mutableRecord(payload.payroll);
+  payroll.diasNomina = days;
+  payroll.salarioBasico = monthlySalary;
+  payroll.ibc = proratedSalary;
+  payroll.salarioIntegral = false;
+  payroll.tipoSalario = 'F';
+  payroll.tipoSalarioBloqueos = [];
+  payroll.novelties = [];
+  payroll.pilaEvents = [event];
+  payroll.salarioBasicoCampo40 = {
+    valor: proratedSalary,
+    reglaVersion: 'PILA_ING_FIELD_40_FROM_APPROVED_BASE_V1',
+    bloqueos: [],
+  };
+
+  const daysBySubsystem = mutableRecord(payroll.diasCotizadosPorSubsistema);
+  for (const subsystem of ['pension', 'salud', 'riesgos', 'cajaCompensacion']) {
+    daysBySubsystem[subsystem] = {
+      valor: days,
+      reglaVersion: 'PILA_ING_DAYS_FROM_APPROVED_PAYROLL_V1',
+      bloqueos: [],
+    };
+  }
+
+  const subsystemBases = mutableRecord(payroll.ibcPorSubsistema);
+  for (const subsystem of ['pension', 'salud', 'riesgos', 'cajaCompensacion']) {
+    subsystemBases[subsystem] = { valor: proratedSalary, sourceCount: 1 };
+  }
+  subsystemBases.otrosParafiscales = {
+    valor: proratedSalary,
+    sourceCount: 1,
+    conceptIds: ['salary-base-concept'],
+    reglaVersion: 'CO_PARAFISCAL_BASE_V2',
+    bloqueos: [],
+  };
+
+  const contributionAmounts: Record<string, number> = {
+    PENSION_EMP: 224_000,
+    PENSION_PAT: 672_000,
+    SALUD_EMP: 224_000,
+    SALUD_PAT: 476_000,
+    ARL: 29_300,
+    CAJA: 224_000,
+    SENA: 112_000,
+    ICBF: 168_000,
+  };
+  const concepts = mutableRecordArray(payroll.concepts);
+  for (const concept of concepts) {
+    const amount = contributionAmounts[String(concept.codigo)];
+    if (amount !== undefined) {
+      concept.base = proratedSalary;
+      concept.valor = amount;
+    }
+  }
+  concepts.push({
+    id: 'salary-base-concept',
+    codigo: 'SALARIO_BASE',
+    tipo: 'EARNING',
+    base: null,
+    factor: null,
+    valor: proratedSalary,
+  });
+  payroll.concepts = concepts;
+
+  const fsp = mutableRecord(payroll.fspSubaccounts);
+  fsp.ibcPensionalAgregado = proratedSalary;
+  return snapshot;
+}
+
 export async function seedPilaExportFixture(
   tenantId: string,
   actorId: string,
   employeeCount: number,
+  scenario: 'FULL_MONTH' | 'SINGLE_INGRESS' = 'FULL_MONTH',
 ): Promise<PilaExportFixture> {
+  const singleIngress = scenario === 'SINGLE_INGRESS';
+  if (singleIngress && employeeCount !== 1) {
+    throw new Error('El fixture de ingreso único requiere exactamente un empleado.');
+  }
+
   const { PrismaClient } = require('../../apps/api/node_modules/@prisma/client') as {
     PrismaClient: new () => any;
   };
   const prisma = new PrismaClient();
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
   const periodId = randomUUID();
-  const salary = 3_000_000;
+  const monthlySalary = singleIngress ? 8_000_000 : 3_000_000;
+  const salary = singleIngress ? 5_600_000 : monthlySalary;
   const employees = Array.from({ length: employeeCount }, (_, index) => {
     const employeeId = randomUUID();
     const contractId = randomUUID();
@@ -45,14 +170,20 @@ export async function seedPilaExportFixture(
       cedula,
       payrollRunId: randomUUID(),
       snapshotId: randomUUID(),
-      approved: completeApprovedSnapshot({
-        tenantId,
-        periodId,
-        employeeId,
-        contractId,
-        actorId,
-        employeeDocumentNumber: cedula,
-      }),
+      approved: buildApprovedSnapshot(
+        completeApprovedSnapshot({
+          tenantId,
+          periodId,
+          employeeId,
+          contractId,
+          actorId,
+          employeeDocumentNumber: cedula,
+          periodStart: '2026-10-01',
+          periodEnd: '2026-10-31',
+          paymentDate: '2026-11-06',
+        }),
+        singleIngress,
+      ),
     };
   });
 
@@ -69,8 +200,10 @@ export async function seedPilaExportFixture(
           primerNombre: 'Ana',
           primerApellido: 'Pérez',
           cargo: 'Analista',
-          salario: salary,
-          fechaIngreso: new Date('2026-01-01T00:00:00.000Z'),
+          salario: monthlySalary,
+          fechaIngreso: new Date(
+            singleIngress ? '2026-10-10T00:00:00.000Z' : '2026-01-01T00:00:00.000Z',
+          ),
           estado: 'ACTIVO',
         })),
       });
@@ -81,9 +214,11 @@ export async function seedPilaExportFixture(
           empleadoId: employeeId,
           tipo: 'TERMINO_INDEFINIDO',
           estado: 'VIGENTE',
-          fechaInicio: new Date('2026-01-01T00:00:00.000Z'),
+          fechaInicio: new Date(
+            singleIngress ? '2026-10-10T00:00:00.000Z' : '2026-01-01T00:00:00.000Z',
+          ),
           cargo: 'Analista',
-          salario: salary,
+          salario: monthlySalary,
         })),
       });
       await tx.payrollPeriod.create({
@@ -106,11 +241,11 @@ export async function seedPilaExportFixture(
           payrollPeriodId: periodId,
           employeeId,
           totalDevengos: salary,
-          totalDeducciones: 0,
-          netoPagar: salary,
-          salarioBaseSnapshot: salary,
-          totalAportesPatronales: 900_000,
-          totalProvisiones: 250_000,
+          totalDeducciones: singleIngress ? 448_000 : 0,
+          netoPagar: singleIngress ? 5_152_000 : salary,
+          salarioBaseSnapshot: monthlySalary,
+          totalAportesPatronales: singleIngress ? 1_681_300 : 900_000,
+          totalProvisiones: singleIngress ? 1_000_000 : 250_000,
         })),
       });
       await tx.payrollSnapshot.createMany({

@@ -46,6 +46,7 @@ function snapshot(employeeId = 'employee-1'): PilaSnapshotPreparationInput {
         },
       },
       employee: { employeeId },
+      contract: { fechaInicio: '2026-01-01', fechaFin: null },
       affiliations: [
         {
           tipoCotizanteCodigo: '01',
@@ -69,9 +70,14 @@ function payloadOf(snapshotInput: PilaSnapshotPreparationInput) {
       [key: string]: unknown;
     };
     period: { payrollPeriodId: string; [key: string]: unknown };
-    employee: { employeeId: string };
+    employee: Record<string, unknown> & { employeeId: string };
+    contract: Record<string, unknown>;
     affiliations: Array<Record<string, unknown>>;
-    payroll: { ibcPorSubsistema: { cajaCompensacion: { valor: number } } };
+    payroll: Record<string, unknown> & {
+      ibcPorSubsistema: {
+        cajaCompensacion: Record<string, unknown> & { valor: number };
+      };
+    };
     [key: string]: unknown;
   };
 }
@@ -92,6 +98,34 @@ function mapCandidateForDemoScope(
     period,
     snapshots,
   });
+}
+
+function approvedNewHireSnapshot(daysNomina = 21) {
+  const input = snapshot();
+  input.payloadVersion = 10;
+  const payload = payloadOf(input);
+  payload.schemaVersion = 10;
+  payload.employee.fechaIngreso = '2026-10-10';
+  payload.employee.fechaRetiro = null;
+  payload.contract.fechaInicio = '2026-10-10';
+  payload.contract.fechaFin = null;
+  payload.affiliations[0].vigenteDesde = '2026-10-10';
+  payload.payroll.diasNomina = daysNomina;
+  payload.payroll.ibcPorSubsistema.cajaCompensacion.valor = 5_600_000;
+  payload.payroll.tipoSalario = 'F';
+  payload.payroll.salarioIntegral = false;
+  payload.payroll.tipoSalarioBloqueos = [];
+  payload.payroll.novelties = [];
+  const event = {
+    eventId: 'pila-ing-header-e2e',
+    codigo: 'ING',
+    fechaInicio: '2026-10-10',
+    fechaFin: null,
+    dias: null,
+  };
+  payload.pilaEvents = [event];
+  payload.payroll.pilaEvents = [event];
+  return input;
 }
 
 describe('mapPilaAt2V30HeaderCandidate', () => {
@@ -142,6 +176,62 @@ describe('mapPilaAt2V30HeaderCandidate', () => {
 
     expect(record).toHaveLength(359);
     expect(record.slice(227, 237)).toBe(' '.repeat(10));
+  });
+
+  it('maps the cotizante count and CCF base for one approved mid-month ING', () => {
+    const candidate = mapCandidateForDemoScope([approvedNewHireSnapshot()]);
+
+    expect(candidate.values[19]).toEqual({ value: 1 });
+    expect(candidate.values[20]).toEqual({ value: 5_600_000 });
+    expect(candidate.unresolvedFields).toEqual([]);
+  });
+
+  it.each([
+    ['frozen Payroll days disagree with the ING date', 20],
+    [
+      'frozen Payroll days disagree with the ING date by exceeding the month',
+      31,
+    ],
+  ])('blocks the header totals when %s', (_case, daysNomina) => {
+    const candidate = mapCandidateForDemoScope([
+      approvedNewHireSnapshot(daysNomina),
+    ]);
+
+    expect(candidate.values[19]).toBeUndefined();
+    expect(candidate.values[20]).toBeUndefined();
+    expect(candidate.unresolvedFields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ fieldNumber: 19 }),
+        expect.objectContaining({ fieldNumber: 20 }),
+      ]),
+    );
+  });
+
+  it('blocks the header totals when the contract does not start at ING', () => {
+    const input = approvedNewHireSnapshot();
+    payloadOf(input).contract.fechaInicio = '2026-10-11';
+    const candidate = mapCandidateForDemoScope([input]);
+
+    expect(candidate.values[19]).toBeUndefined();
+    expect(candidate.values[20]).toBeUndefined();
+  });
+
+  it('blocks the header totals when the affiliation ends before the period', () => {
+    const input = approvedNewHireSnapshot();
+    payloadOf(input).affiliations[0].vigenteHasta = '2026-10-30';
+    const candidate = mapCandidateForDemoScope([input]);
+
+    expect(candidate.values[19]).toBeUndefined();
+    expect(candidate.values[20]).toBeUndefined();
+  });
+
+  it('does not apply the new-hire exception to a snapshot before v10', () => {
+    const input = approvedNewHireSnapshot();
+    input.payloadVersion = 9;
+    const candidate = mapCandidateForDemoScope([input]);
+
+    expect(candidate.values[19]).toBeUndefined();
+    expect(candidate.values[20]).toBeUndefined();
   });
 
   it('maps the type 2 header from current PILA v3 snapshots', () => {
