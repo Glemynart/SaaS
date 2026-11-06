@@ -1,6 +1,17 @@
 import { createHash, randomInt } from 'node:crypto';
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { PILA_AT2_V30_RECORD_LAYOUTS } from '../apps/api/src/payroll/pila-at2-v30-record-serializer';
 import { seedPilaExportFixture } from './helpers/pila-export-fixture';
+
+function detailFieldValue(record: string, fieldNumber: number): string {
+  const fields = PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2.fields;
+  const field = fields.find((candidate) => candidate.fieldNumber === fieldNumber);
+  if (!field) throw new Error(`No existe el campo PILA ${fieldNumber}.`);
+  const offset = fields
+    .filter((candidate) => candidate.fieldNumber < fieldNumber)
+    .reduce((total, candidate) => total + candidate.length, 0);
+  return record.slice(offset, offset + field.length).trim();
+}
 
 async function downloadFromLink(page: Page, link: Locator) {
   const href = await link.getAttribute('href');
@@ -228,4 +239,115 @@ test('genera, conserva y descarga archivos PILA para 100 empleados desde la inte
   const deniedDownload = await foreignDownloadResponse?.json();
   expect(deniedDownload).toMatchObject({ message: 'Exportación PILA no encontrada.' });
   expect(JSON.stringify(deniedDownload)).not.toContain(foreignType1Sha256);
+});
+
+test('genera y descarga el candidato PILA local para un único ingreso a mitad de mes', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const { tenant, user } = await registerAndSignIn(page);
+  const fixture = await seedPilaExportFixture(tenant.id, user.id, 1, 'SINGLE_INGRESS');
+
+  try {
+    await page.goto('/nomina/periodos/' + fixture.periodId);
+    const panel = page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: 'Preparación de datos PILA' }) });
+    await expect(panel).toBeVisible();
+
+    const preparationResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+          '/api/payroll/periods/' + fixture.periodId + '/pila-preparation' &&
+        response.request().method() === 'GET',
+    );
+    await panel.getByRole('button', { name: 'Revisar datos' }).click();
+    const preparationResponse = await preparationResponsePromise;
+    expect(preparationResponse.status()).toBe(200);
+    const preparation = (await preparationResponse.json()) as {
+      archivoGenerable: boolean;
+      exportReadiness: {
+        operatorAcceptanceStatus: string;
+        blockers: Array<{ scope: string }>;
+      };
+    };
+    expect(preparation.archivoGenerable).toBe(true);
+    expect(preparation.exportReadiness.operatorAcceptanceStatus).toBe('NOT_VERIFIED');
+    expect(
+      preparation.exportReadiness.blockers.some((blocker) => blocker.scope === 'FILE_GENERATION'),
+    ).toBe(false);
+
+    const createResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+          '/api/payroll/periods/' + fixture.periodId + '/pila-exports' &&
+        response.request().method() === 'POST',
+    );
+    await panel.getByRole('button', { name: 'Generar y guardar archivos' }).click();
+    const createResponse = await createResponsePromise;
+    expect(createResponse.status()).toBe(201);
+    const created = (await createResponse.json()) as {
+      id: string;
+      status: string;
+      sourceSnapshotCount: number;
+      operatorCompatibilityStatus: string;
+      type1: { recordCount: number; sizeBytes: number; sha256: string };
+      type2: { recordCount: number; detailRecordCount: number; sizeBytes: number; sha256: string };
+    };
+    expect(created).toMatchObject({
+      status: 'LOCAL_VALIDATED',
+      sourceSnapshotCount: 1,
+      operatorCompatibilityStatus: 'NOT_VERIFIED',
+      type1: { recordCount: 1 },
+      type2: { recordCount: 2, detailRecordCount: 1 },
+    });
+
+    const persisted = await fixture.inspectPersistedState();
+    expect(persisted).toMatchObject({
+      periodStatus: 'APROBADA',
+      snapshotCount: 1,
+      exports: [
+        {
+          id: created.id,
+          status: 'LOCAL_VALIDATED',
+          sourceSnapshotIds: expect.any(Array),
+          type1Sha256: created.type1.sha256,
+          type2Sha256: created.type2.sha256,
+          detailRecordCount: 1,
+        },
+      ],
+    });
+    expect(persisted.exports[0].sourceSnapshotIds).toHaveLength(1);
+    await expect(panel.getByText('Compatibilidad con operadores no verificada')).toBeVisible();
+
+    const type1Link = panel.getByRole('link', { name: /Descargar tipo 1/ });
+    const type2Link = panel.getByRole('link', { name: /Descargar tipo 2/ });
+    const type1Download = await downloadFromLink(page, type1Link);
+    const type2Download = await downloadFromLink(page, type2Link);
+    expect(type1Download.response.status()).toBe(200);
+    expect(type2Download.response.status()).toBe(200);
+    expect(type1Download.bytes.byteLength).toBe(created.type1.sizeBytes);
+    expect(type2Download.bytes.byteLength).toBe(created.type2.sizeBytes);
+    expect(createHash('sha256').update(type1Download.bytes).digest('hex')).toBe(
+      created.type1.sha256,
+    );
+    expect(createHash('sha256').update(type2Download.bytes).digest('hex')).toBe(
+      created.type2.sha256,
+    );
+
+    const records = type2Download.bytes.toString('latin1').split('\r\n');
+    expect(records).toHaveLength(2);
+    expect(records[0].slice(0, 2)).toBe('01');
+    expect(records[1].slice(0, 7)).toBe('0200001');
+    expect(records[1]).toHaveLength(693);
+    expect(detailFieldValue(records[1], 15)).toBe('X');
+    for (const fieldNumber of [36, 37, 38, 39]) {
+      expect(detailFieldValue(records[1], fieldNumber)).toBe('21');
+    }
+    expect(Number(detailFieldValue(records[1], 40))).toBe(5_600_000);
+    expect(detailFieldValue(records[1], 80)).toBe('2026-10-10');
+    expect(Number(detailFieldValue(records[1], 95))).toBe(5_600_000);
+  } finally {
+    await fixture.disconnect();
+  }
 });
