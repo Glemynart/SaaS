@@ -203,6 +203,12 @@ revisar sus casos antes de habilitar el cálculo.
 
 ## Criterios de aceptación y casos laborales para revisión
 
+Caso de ingreso con remuneración variable: contrato desde el 10 de marzo,
+`SALARIO_BASE` mensual de $2.000.000, horas extra por $84.000 en marzo y
+$120.000 en cada mes de abril a junio, con salario y auxilio de marzo
+prorrateados y 111 días 30/360. El promedio variable es $120.000, el auxilio
+promedio es $200.000 y el resultado esperado es una prima de $715.333.
+
 Todos los importes de la tabla usan COP, redondeo half-up al peso y fórmula
 `base mensual elegible × días360 / 360`, con auxilio cuando corresponda. El
 promedio solo se aplica a remuneración variable salarial registrada, no a
