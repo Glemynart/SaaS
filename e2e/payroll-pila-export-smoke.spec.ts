@@ -13,6 +13,16 @@ function detailFieldValue(record: string, fieldNumber: number): string {
   return record.slice(offset, offset + field.length).trim();
 }
 
+function headerFieldValue(record: string, fieldNumber: number): string {
+  const fields = PILA_AT2_V30_RECORD_LAYOUTS.payrollHeaderType2.fields;
+  const field = fields.find((candidate) => candidate.fieldNumber === fieldNumber);
+  if (!field) throw new Error(`No existe el campo PILA ${fieldNumber}.`);
+  const offset = fields
+    .filter((candidate) => candidate.fieldNumber < fieldNumber)
+    .reduce((total, candidate) => total + candidate.length, 0);
+  return record.slice(offset, offset + field.length).trim();
+}
+
 async function downloadFromLink(page: Page, link: Locator) {
   const href = await link.getAttribute('href');
   if (!href) throw new Error('Falta el enlace de descarga PILA.');
@@ -338,6 +348,8 @@ test('genera y descarga el candidato PILA local para un único ingreso a mitad d
     const records = type2Download.bytes.toString('latin1').split('\r\n');
     expect(records).toHaveLength(2);
     expect(records[0].slice(0, 2)).toBe('01');
+    expect(headerFieldValue(records[0], 19)).toBe('00001');
+    expect(headerFieldValue(records[0], 20)).toBe('000005600000');
     expect(records[1].slice(0, 7)).toBe('0200001');
     expect(records[1]).toHaveLength(693);
     expect(detailFieldValue(records[1], 15)).toBe('X');
