@@ -97,7 +97,7 @@ archivo, emitido una liquidación o recibido un pago. La compatibilidad se decla
 por operador solo después de superar pruebas de carga con ese operador.
 
 Para preparar una prueba específica con SOI, sigue el [protocolo de aceptación
-por operador](../research/pila/SOI-OPERATOR-ACCEPTANCE-CHECKLIST.md). El archivo
+por operador](../research/pila/SOI-OPERATOR-ACCEPTANCE-RUNBOOK.md). El archivo
 localmente validado y los estados de aceptación, liquidación y pago son hitos
 distintos. Si el Autocorrector de SOI cambia datos o valores, no apruebes ni
 pagues esos cambios sin conciliarlos con los snapshots aprobados de nómina.
