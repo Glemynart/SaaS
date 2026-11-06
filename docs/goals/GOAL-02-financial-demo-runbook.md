@@ -63,8 +63,13 @@ el contrato cubra todo el período antes de calcular. Tras revisar el resultado,
 puedes enviarlo a revisión, aprobarlo y mostrar que el snapshot congela el
 salario de referencia y los 21 días, mientras el concepto guarda $5.600.000; si
 la empresa de demo tiene configuradas las cuentas de nómina, también puedes causar
-el período y consultar el comprobante balanceado en Ledger. Este escenario no
-habilita ni demuestra una exportación PILA válida para ingresos parciales.
+el período y consultar el comprobante balanceado en Ledger. Para mostrar PILA,
+usa el mismo caso solo después de aprobar Payroll, completar afiliación,
+ubicación laboral y riesgo con vigencia desde el ingreso, y superar el
+preflight. El producto puede producir y conservar el archivo local de un
+ingreso único v10 dentro del alcance estricto documentado; esto no demuestra
+aceptación de un operador, liquidación ni pago. Otros períodos o escenarios
+parciales siguen fuera de alcance.
 
 ### 2. Prima de servicios por lote (2–3 minutos)
 
@@ -138,8 +143,9 @@ La pantalla no transmite ni concilia documentos.
 
 - **Sí se puede mostrar:** nómina interna, causación al Ledger, prima masiva de
   enero–junio con PDF por empleado, nómina estándar de un ingreso a mitad de un
-  mes completo en el alcance documentado, preparación y descarga local de PILA cuando
-  no haya brechas, facturación interna, cartera derivada de recaudos y
+  mes completo y exportación local de PILA para ese único ING cuando todos los
+  controles documentados pasen, preparación y descarga local de PILA estándar
+  cuando no haya brechas, facturación interna, cartera derivada de recaudos y
   comprobantes contables, además del seguimiento de intentos electrónicos ya
   persistidos cuando existan.
 - **Aún no se debe ofrecer como terminado:** transmisión de factura electrónica

@@ -3,6 +3,7 @@ import {
   type PilaAt2V30FieldInput,
 } from './pila-at2-v30-record-serializer';
 import { mapPilaAt2V30EmployerCandidate } from './pila-at2-v30-employer-mapper';
+import { calculateMonthlyEntryDays } from './payroll-30-day-month';
 import type { PilaSnapshotPreparationInput } from './pila-preparation';
 
 type JsonRecord = Record<string, unknown>;
@@ -52,6 +53,95 @@ function fullCalendarMonth(start: string, end: string): boolean {
       new Date(
         Date.UTC(parsedEnd.getUTCFullYear(), parsedEnd.getUTCMonth() + 1, 0),
       ).getUTCDate()
+  );
+}
+
+function isApprovedSingleIngressSnapshot(
+  snapshot: PilaSnapshotPreparationInput,
+  periodStart: string,
+  periodEnd: string,
+): boolean {
+  if (!fullCalendarMonth(periodStart, periodEnd)) return false;
+
+  const root = object(snapshot.payload);
+  const employee = object(root?.employee);
+  const contract = object(root?.contract);
+  const payroll = object(root?.payroll);
+  const affiliations = Array.isArray(root?.affiliations)
+    ? root.affiliations.map(object)
+    : null;
+  const affiliation = affiliations?.length === 1 ? affiliations[0] : null;
+  const entryDate = calendarDate(employee?.fechaIngreso);
+  const affiliationStart = calendarDate(affiliation?.vigenteDesde);
+  const affiliationEnd =
+    affiliation?.vigenteHasta === null
+      ? null
+      : calendarDate(affiliation?.vigenteHasta);
+  const contractEnd =
+    contract?.fechaFin === null ? null : calendarDate(contract?.fechaFin);
+  const employeeEnd =
+    employee?.fechaRetiro === null ? null : calendarDate(employee?.fechaRetiro);
+  const rootEvents = Array.isArray(root?.pilaEvents) ? root.pilaEvents : null;
+  const payrollEvents = Array.isArray(payroll?.pilaEvents)
+    ? payroll.pilaEvents
+    : null;
+  const rootEvent = rootEvents?.length === 1 ? object(rootEvents[0]) : null;
+  const payrollEvent =
+    payrollEvents?.length === 1 ? object(payrollEvents[0]) : null;
+  const payrollDays = payroll?.diasNomina;
+  const expectedDays = entryDate
+    ? calculateMonthlyEntryDays(
+        new Date(`${periodStart}T00:00:00.000Z`),
+        new Date(`${periodEnd}T00:00:00.000Z`),
+        new Date(`${entryDate}T00:00:00.000Z`),
+      )
+    : null;
+
+  return Boolean(
+    snapshot.payloadVersion === 10 &&
+    root?.schemaVersion === 10 &&
+    employee &&
+    contract &&
+    payroll &&
+    affiliation &&
+    text(affiliation.tipoCotizanteCodigo) === '01' &&
+    text(affiliation.subtipoCotizanteCodigo) === '00' &&
+    entryDate &&
+    entryDate >= periodStart &&
+    entryDate <= periodEnd &&
+    affiliationStart &&
+    affiliationStart <= entryDate &&
+    (affiliation.vigenteHasta === null ||
+      (affiliationEnd !== null && affiliationEnd >= periodEnd)) &&
+    (employee.fechaRetiro === null ||
+      (employeeEnd !== null && employeeEnd >= periodEnd)) &&
+    calendarDate(contract.fechaInicio) === entryDate &&
+    (contract.fechaFin === null ||
+      (contractEnd !== null && contractEnd >= periodEnd)) &&
+    payroll.tipoSalario === 'F' &&
+    payroll.salarioIntegral === false &&
+    Array.isArray(payroll.tipoSalarioBloqueos) &&
+    payroll.tipoSalarioBloqueos.length === 0 &&
+    Array.isArray(payroll.novelties) &&
+    payroll.novelties.length === 0 &&
+    Number.isSafeInteger(payrollDays) &&
+    typeof payrollDays === 'number' &&
+    payrollDays >= 1 &&
+    payrollDays <= 30 &&
+    expectedDays !== null &&
+    payrollDays === expectedDays &&
+    rootEvent &&
+    payrollEvent &&
+    text(rootEvent.eventId) !== null &&
+    text(rootEvent.eventId) === text(payrollEvent.eventId) &&
+    text(rootEvent.codigo) === 'ING' &&
+    text(payrollEvent.codigo) === 'ING' &&
+    text(rootEvent.fechaInicio) === entryDate &&
+    text(payrollEvent.fechaInicio) === entryDate &&
+    rootEvent.fechaFin === null &&
+    payrollEvent.fechaFin === null &&
+    rootEvent.dias === null &&
+    payrollEvent.dias === null,
   );
 }
 
@@ -299,25 +389,32 @@ export function mapPilaAt2V30HeaderCandidate(input: {
 
   const employeeIds = parsed.map(({ snapshot }) => snapshot.employeeId);
   const duplicateEmployees = new Set(employeeIds).size !== employeeIds.length;
-  const standardContributorSnapshots = parsed.every(({ affiliations }) => {
-    if (!affiliations || affiliations.length !== 1 || !affiliations[0]) {
-      return false;
-    }
-    const affiliation = affiliations[0];
-    const affiliationStart = calendarDate(affiliation.vigenteDesde);
-    const affiliationEnd =
-      affiliation.vigenteHasta === null
-        ? null
-        : calendarDate(affiliation.vigenteHasta);
-    return (
-      text(affiliation.tipoCotizanteCodigo) === '01' &&
-      text(affiliation.subtipoCotizanteCodigo) === '00' &&
-      affiliationStart !== null &&
-      affiliationStart <= periodStart &&
-      (affiliation.vigenteHasta === null ||
-        (affiliationEnd !== null && affiliationEnd >= periodEnd))
-    );
-  });
+  const standardContributorSnapshots = parsed.every(
+    ({ affiliations, snapshot }) => {
+      if (!affiliations || affiliations.length !== 1 || !affiliations[0]) {
+        return false;
+      }
+      const affiliation = affiliations[0];
+      const affiliationStart = calendarDate(affiliation.vigenteDesde);
+      const affiliationEnd =
+        affiliation.vigenteHasta === null
+          ? null
+          : calendarDate(affiliation.vigenteHasta);
+      const standardIdentity =
+        text(affiliation.tipoCotizanteCodigo) === '01' &&
+        text(affiliation.subtipoCotizanteCodigo) === '00';
+      const coversFullPeriod =
+        affiliationStart !== null &&
+        affiliationStart <= periodStart &&
+        (affiliation.vigenteHasta === null ||
+          (affiliationEnd !== null && affiliationEnd >= periodEnd));
+      return (
+        standardIdentity &&
+        (coversFullPeriod ||
+          isApprovedSingleIngressSnapshot(snapshot, periodStart, periodEnd))
+      );
+    },
+  );
 
   if (duplicateEmployees) {
     unresolved(

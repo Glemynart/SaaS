@@ -1247,6 +1247,14 @@ Cualquier inconsistencia deja los campos pendientes. No se soportan en este incr
 retiros, cambios de salario, novedades concurrentes, períodos parciales,
 salario variable/integral ni múltiples detalles por empleado.
 
+La cabecera tipo 2 usa la misma condición estricta para sus agregados: el campo
+19 cuenta los empleados de los detalles tipo 2 y el campo 20 suma los IBC para
+parafiscales congelados. Una relación que solo cubre desde la fecha de ingreso
+no habilita esos totales por sí sola; deben coincidir el evento ING, el
+contrato, los días aprobados, la afiliación y las demás coberturas del detalle.
+La definición oficial de los campos 19–20 está en la [Resolución 2388 de 2016,
+Anexo Técnico 2](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-2388-2016.pdf).
+
 La proyección de campo y el preflight siguen siendo candidatos locales sujetos
 a auditoría normativa/laboral y a aceptación de cada operador. No implican
 transmisión, liquidación ni pago; no cambian los límites de generación,

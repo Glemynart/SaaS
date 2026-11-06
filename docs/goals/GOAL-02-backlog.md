@@ -2065,7 +2065,7 @@ false`.
 - La ejecución de este Browser E2E debe permanecer en la base desechable de CI;
   no correrlo contra una base local o demo persistente.
 
-### Candidato PILA de ingreso único — integrado en main (PR #317)
+### Candidato PILA de ingreso único — PR #317 y corrección de exportación en PR #319
 
 - PR #317 se fusionó en `main` como `f6f88bd` después de pasar Browser E2E,
   verify y Vercel Preview. El snapshot PILA v10 congela los
@@ -2091,5 +2091,14 @@ false`.
   suites PILA/nómina (596 pruebas). La suite PostgreSQL no se pudo ejecutar
   porque falta `DATABASE_URL`; no se conectó a ningún entorno de datos
   persistente.
+- El Browser E2E de exportación desde la interfaz descubrió que el mapper de
+  cabecera aún bloqueaba los campos 19–20 para este ingreso, aunque detalle y
+  preflight lo aceptaban. PR #319 alinea la cabecera con la misma guarda
+  estricta de snapshot v10: un solo ING 01/00 coincidente con el ingreso,
+  contrato y días aprobados; las regresiones mantienen bloqueados días
+  discordantes. Los campos 19–20 agregan cantidad de empleados y suma de IBC
+  para parafiscales según la Resolución 2388 de 2016. El PR también verifica
+  preflight, generación, persistencia y descarga desde la UI; sus checks deben
+  pasar antes de considerarlo listo.
 - Este trabajo no declara compatibilidad con operador ni permite transmisión,
   liquidación o pago. Mantiene el resto del alcance y exclusiones de ADR-013.
