@@ -128,6 +128,36 @@ function approvedNewHireSnapshot(daysNomina = 21) {
   return input;
 }
 
+function approvedRetirementSnapshot(daysNomina = 20) {
+  const input = snapshot();
+  input.payloadVersion = 10;
+  const payload = payloadOf(input);
+  payload.schemaVersion = 10;
+  payload.employee.fechaIngreso = '2025-01-01';
+  payload.employee.fechaRetiro = '2026-10-20';
+  payload.contract.fechaInicio = '2025-01-01';
+  payload.contract.fechaFin = '2026-10-20';
+  payload.contract.estado = 'TERMINADO';
+  payload.affiliations[0].vigenteDesde = '2025-01-01';
+  payload.affiliations[0].vigenteHasta = '2026-10-20';
+  payload.payroll.diasNomina = daysNomina;
+  payload.payroll.ibcPorSubsistema.cajaCompensacion.valor = 5_400_000;
+  payload.payroll.tipoSalario = 'F';
+  payload.payroll.salarioIntegral = false;
+  payload.payroll.tipoSalarioBloqueos = [];
+  payload.payroll.novelties = [];
+  const event = {
+    eventId: 'pila-ret-header-e2e',
+    codigo: 'RET',
+    fechaInicio: '2026-10-20',
+    fechaFin: null,
+    dias: null,
+  };
+  payload.pilaEvents = [event];
+  payload.payroll.pilaEvents = [event];
+  return input;
+}
+
 describe('mapPilaAt2V30HeaderCandidate', () => {
   it('maps constants, shared employer data, period and totals from approved snapshots', () => {
     const candidate = mapCandidateForDemoScope([snapshot()]);
@@ -186,6 +216,14 @@ describe('mapPilaAt2V30HeaderCandidate', () => {
     expect(candidate.unresolvedFields).toEqual([]);
   });
 
+  it('maps the cotizante count and CCF base for one approved mid-month RET', () => {
+    const candidate = mapCandidateForDemoScope([approvedRetirementSnapshot()]);
+
+    expect(candidate.values[19]).toEqual({ value: 1 });
+    expect(candidate.values[20]).toEqual({ value: 5_400_000 });
+    expect(candidate.unresolvedFields).toEqual([]);
+  });
+
   it.each([
     ['frozen Payroll days disagree with the ING date', 20],
     [
@@ -205,6 +243,33 @@ describe('mapPilaAt2V30HeaderCandidate', () => {
         expect.objectContaining({ fieldNumber: 20 }),
       ]),
     );
+  });
+
+  it.each([
+    ['frozen Payroll days disagree with the RET date', 19],
+    ['frozen Payroll days exceed the RET date', 21],
+  ])('blocks the RET header totals when %s', (_case, daysNomina) => {
+    const candidate = mapCandidateForDemoScope([
+      approvedRetirementSnapshot(daysNomina),
+    ]);
+
+    expect(candidate.values[19]).toBeUndefined();
+    expect(candidate.values[20]).toBeUndefined();
+    expect(candidate.unresolvedFields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ fieldNumber: 19 }),
+        expect.objectContaining({ fieldNumber: 20 }),
+      ]),
+    );
+  });
+
+  it('blocks the RET header totals when the affiliation ends before retirement', () => {
+    const input = approvedRetirementSnapshot();
+    payloadOf(input).affiliations[0].vigenteHasta = '2026-10-19';
+    const candidate = mapCandidateForDemoScope([input]);
+
+    expect(candidate.values[19]).toBeUndefined();
+    expect(candidate.values[20]).toBeUndefined();
   });
 
   it('blocks the header totals when the contract does not start at ING', () => {

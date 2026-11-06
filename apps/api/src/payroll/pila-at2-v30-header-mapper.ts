@@ -3,7 +3,10 @@ import {
   type PilaAt2V30FieldInput,
 } from './pila-at2-v30-record-serializer';
 import { mapPilaAt2V30EmployerCandidate } from './pila-at2-v30-employer-mapper';
-import { calculateMonthlyEntryDays } from './payroll-30-day-month';
+import {
+  calculateMonthlyEntryDays,
+  calculateMonthlyRetirementDays,
+} from './payroll-30-day-month';
 import type { PilaSnapshotPreparationInput } from './pila-preparation';
 
 type JsonRecord = Record<string, unknown>;
@@ -138,6 +141,95 @@ function isApprovedSingleIngressSnapshot(
     text(payrollEvent.codigo) === 'ING' &&
     text(rootEvent.fechaInicio) === entryDate &&
     text(payrollEvent.fechaInicio) === entryDate &&
+    rootEvent.fechaFin === null &&
+    payrollEvent.fechaFin === null &&
+    rootEvent.dias === null &&
+    payrollEvent.dias === null,
+  );
+}
+
+function isApprovedSingleRetirementSnapshot(
+  snapshot: PilaSnapshotPreparationInput,
+  periodStart: string,
+  periodEnd: string,
+): boolean {
+  if (!fullCalendarMonth(periodStart, periodEnd)) return false;
+
+  const root = object(snapshot.payload);
+  const employee = object(root?.employee);
+  const contract = object(root?.contract);
+  const payroll = object(root?.payroll);
+  const affiliations = Array.isArray(root?.affiliations)
+    ? root.affiliations.map(object)
+    : null;
+  const affiliation = affiliations?.length === 1 ? affiliations[0] : null;
+  const entryDate = calendarDate(employee?.fechaIngreso);
+  const retirementDate = calendarDate(employee?.fechaRetiro);
+  const affiliationStart = calendarDate(affiliation?.vigenteDesde);
+  const affiliationEnd =
+    affiliation?.vigenteHasta === null
+      ? null
+      : calendarDate(affiliation?.vigenteHasta);
+  const contractStart = calendarDate(contract?.fechaInicio);
+  const contractEnd = calendarDate(contract?.fechaFin);
+  const rootEvents = Array.isArray(root?.pilaEvents) ? root.pilaEvents : null;
+  const payrollEvents = Array.isArray(payroll?.pilaEvents)
+    ? payroll.pilaEvents
+    : null;
+  const rootEvent = rootEvents?.length === 1 ? object(rootEvents[0]) : null;
+  const payrollEvent =
+    payrollEvents?.length === 1 ? object(payrollEvents[0]) : null;
+  const payrollDays = payroll?.diasNomina;
+  const expectedDays = retirementDate
+    ? calculateMonthlyRetirementDays(
+        new Date(`${periodStart}T00:00:00.000Z`),
+        new Date(`${periodEnd}T00:00:00.000Z`),
+        new Date(`${retirementDate}T00:00:00.000Z`),
+      )
+    : null;
+
+  return Boolean(
+    snapshot.payloadVersion === 10 &&
+    root?.schemaVersion === 10 &&
+    employee &&
+    contract &&
+    payroll &&
+    affiliation &&
+    text(affiliation.tipoCotizanteCodigo) === '01' &&
+    text(affiliation.subtipoCotizanteCodigo) === '00' &&
+    entryDate &&
+    entryDate <= periodStart &&
+    retirementDate &&
+    retirementDate >= periodStart &&
+    retirementDate <= periodEnd &&
+    affiliationStart &&
+    affiliationStart <= periodStart &&
+    (affiliation.vigenteHasta === null ||
+      (affiliationEnd !== null && affiliationEnd >= retirementDate)) &&
+    contractStart &&
+    contractStart <= periodStart &&
+    contractEnd === retirementDate &&
+    text(contract.estado) === 'TERMINADO' &&
+    payroll.tipoSalario === 'F' &&
+    payroll.salarioIntegral === false &&
+    Array.isArray(payroll.tipoSalarioBloqueos) &&
+    payroll.tipoSalarioBloqueos.length === 0 &&
+    Array.isArray(payroll.novelties) &&
+    payroll.novelties.length === 0 &&
+    typeof payrollDays === 'number' &&
+    Number.isSafeInteger(payrollDays) &&
+    payrollDays >= 1 &&
+    payrollDays <= 30 &&
+    expectedDays !== null &&
+    payrollDays === expectedDays &&
+    rootEvent &&
+    payrollEvent &&
+    text(rootEvent.eventId) !== null &&
+    text(rootEvent.eventId) === text(payrollEvent.eventId) &&
+    text(rootEvent.codigo) === 'RET' &&
+    text(payrollEvent.codigo) === 'RET' &&
+    text(rootEvent.fechaInicio) === retirementDate &&
+    text(payrollEvent.fechaInicio) === retirementDate &&
     rootEvent.fechaFin === null &&
     payrollEvent.fechaFin === null &&
     rootEvent.dias === null &&
@@ -408,10 +500,15 @@ export function mapPilaAt2V30HeaderCandidate(input: {
         affiliationStart <= periodStart &&
         (affiliation.vigenteHasta === null ||
           (affiliationEnd !== null && affiliationEnd >= periodEnd));
+      const coversRetirementWindow =
+        affiliationStart !== null &&
+        affiliationStart <= periodStart &&
+        isApprovedSingleRetirementSnapshot(snapshot, periodStart, periodEnd);
       return (
         standardIdentity &&
         (coversFullPeriod ||
-          isApprovedSingleIngressSnapshot(snapshot, periodStart, periodEnd))
+          isApprovedSingleIngressSnapshot(snapshot, periodStart, periodEnd) ||
+          coversRetirementWindow)
       );
     },
   );
