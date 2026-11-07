@@ -115,8 +115,9 @@ transmisión, liquidación ni pago.
 
 Actualización al 2026-11-07, contrastada con `main@6319059a`: PR #333 y su
 corrección PR #334 agregan un preflight manual y acotado para verificar el
-round-trip de un objeto sintético en un bucket R2 privado y la autenticación
-SMTP de OCI con TLS, sin enviar correo ni usar datos del tenant. CI, Browser
+round-trip de un objeto sintético en el bucket R2 configurado por el operador
+(sin comprobar su política de privacidad) y la autenticación SMTP de OCI con
+TLS, sin enviar correo ni usar datos del tenant. CI, Browser
 E2E, Vercel y publicación de imagen API post-merge pasaron. Esto verifica el
 código de preparación, no configura el VPS, no demuestra aislamiento tenant,
 entrega real de correo ni que R2/OCI estén habilitados en algún entorno.
