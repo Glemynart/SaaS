@@ -107,7 +107,7 @@ function printUsage(): void {
   console.log(`Safe delivery preflight (does not send email or access tenant data)
 
 R2 writes one random 32-byte object and attempts to delete it. Both flags are required:
-  pnpm --filter @saas/api ops:delivery-preflight -- --r2-write --confirm-r2-bucket=<type exact isolated staging bucket>
+  pnpm --filter @saas/api ops:delivery-preflight -- --r2-write --confirm-r2-bucket=REPLACE_WITH_EXACT_PRIVATE_STAGING_BUCKET
 
 SMTP makes one TLS-protected connection/authentication attempt and sends no email:
   pnpm --filter @saas/api ops:delivery-preflight -- --smtp-verify --confirm-smtp-connect

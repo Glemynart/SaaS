@@ -123,6 +123,36 @@ describe('delivery preflight', () => {
       ).toBe(true);
     });
 
+    it('classifies a missing read as a read failure and still removes the key', async () => {
+      const send = jest.fn<Promise<unknown>, [R2PreflightCommand]>();
+      send.mockImplementation((command) => {
+        if (command instanceof GetObjectCommand) {
+          return Promise.reject(
+            Object.assign(new Error('missing'), {
+              name: 'NoSuchKey',
+              $metadata: { httpStatusCode: 404 },
+            }),
+          );
+        }
+        if (
+          command instanceof HeadObjectCommand &&
+          send.mock.calls.some(([item]) => item instanceof DeleteObjectCommand)
+        ) {
+          return Promise.reject(
+            Object.assign(new Error('missing'), { name: 'NotFound' }),
+          );
+        }
+        return Promise.resolve({ ContentLength: 32 });
+      });
+
+      await expect(
+        verifyR2WriteAccess(r2Environment(), 'preflight-test-bucket', send),
+      ).rejects.toMatchObject({ code: 'R2_READ_FAILED' });
+      expect(
+        send.mock.calls.some(([item]) => item instanceof DeleteObjectCommand),
+      ).toBe(true);
+    });
+
     it('reports the key if cleanup cannot be confirmed', async () => {
       const send = jest.fn<Promise<unknown>, [R2PreflightCommand]>();
       send.mockImplementation((command) => {

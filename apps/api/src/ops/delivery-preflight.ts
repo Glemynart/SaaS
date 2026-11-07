@@ -110,6 +110,7 @@ export async function verifyR2WriteAccess(
   let putAttempted = false;
   let operationFailure: DeliveryPreflightError | undefined;
   let cleanupFailure = false;
+  let operationPhase: 'write' | 'read' | 'metadata' = 'write';
 
   try {
     putAttempted = true;
@@ -122,6 +123,7 @@ export async function verifyR2WriteAccess(
       }),
     );
 
+    operationPhase = 'read';
     const getResponse = (await send(
       new GetObjectCommand({ Bucket: bucket, Key: key }),
     )) as { Body?: { transformToByteArray?: () => Promise<Uint8Array> } };
@@ -136,6 +138,7 @@ export async function verifyR2WriteAccess(
       throw new DeliveryPreflightError('R2_HASH_MISMATCH');
     }
 
+    operationPhase = 'metadata';
     const headResponse = (await send(
       new HeadObjectCommand({ Bucket: bucket, Key: key }),
     )) as { ContentLength?: number };
@@ -146,7 +149,7 @@ export async function verifyR2WriteAccess(
     operationFailure =
       error instanceof DeliveryPreflightError
         ? error
-        : toR2OperationFailure(error);
+        : toR2OperationFailure(error, operationPhase);
   }
 
   if (putAttempted) {
@@ -247,7 +250,10 @@ function sha256(value: Buffer): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
-function toR2OperationFailure(error: unknown): DeliveryPreflightError {
+function toR2OperationFailure(
+  error: unknown,
+  phase: 'write' | 'read' | 'metadata',
+): DeliveryPreflightError {
   const name = getErrorProperty(error, 'name');
   const code = getErrorProperty(error, 'code');
   const status = getStatusCode(error);
@@ -266,7 +272,9 @@ function toR2OperationFailure(error: unknown): DeliveryPreflightError {
   ) {
     return new DeliveryPreflightError('R2_CONNECTION_FAILED');
   }
-  return new DeliveryPreflightError('R2_WRITE_FAILED');
+  return new DeliveryPreflightError(
+    phase === 'write' ? 'R2_WRITE_FAILED' : 'R2_READ_FAILED',
+  );
 }
 
 function toSmtpFailure(error: unknown): PreflightFailureCode {
