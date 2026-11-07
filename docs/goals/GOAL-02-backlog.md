@@ -2242,3 +2242,10 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   pruebas usan clientes simulados. Esto no sustituye revisar que el bucket sea
   privado, probar aislamiento tenant ni recibir una invitación y recuperación
   reales. No se ha conectado a R2/OCI ni al VPS.
+- La implementación se fusionó como PR #333 (`615cbefe`) y el ajuste de
+  clasificación de errores como PR #334 (`6319059a`). Los checks post-merge de
+  CI, Browser E2E, publicación de imagen API y Vercel terminaron en verde. El
+  preflight queda listo para ejecutar por un operador desde un entorno aislado;
+  la configuración de secretos, el cambio del provider y la validación real de
+  invitaciones/recuperación en el VPS siguen pendientes y no se simulan como
+  completados.
