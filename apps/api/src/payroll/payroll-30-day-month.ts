@@ -84,6 +84,39 @@ export function calculateMonthlyRetirementDays(
   return retirementDay === lastDay ? 30 : Math.min(30, retirementDay);
 }
 
+/**
+ * Day count for one employee hired and retired inside the same full calendar
+ * month. It combines the existing 30-day ING and RET conventions and removes
+ * the overlapping full-month baseline. Payroll remains the source of the
+ * approved frozen day count; this helper is used to validate that result.
+ */
+export function calculateMonthlyEmploymentDays(
+  periodStart: Date,
+  periodEnd: Date,
+  entryDate: Date,
+  retirementDate: Date,
+): number | null {
+  const start = calendarDate(periodStart);
+  const entry = calendarDate(entryDate);
+  const retirement = calendarDate(retirementDate);
+  if (!start || !entry || !retirement || entry > retirement) return null;
+
+  const entryDays = calculateMonthlyEntryDays(
+    periodStart,
+    periodEnd,
+    entryDate,
+  );
+  const retirementDays = calculateMonthlyRetirementDays(
+    periodStart,
+    periodEnd,
+    retirementDate,
+  );
+  if (entryDays === null || retirementDays === null) return null;
+
+  const days = entryDays + retirementDays - 30;
+  return Number.isSafeInteger(days) && days >= 1 && days <= 30 ? days : null;
+}
+
 function calendarDate(value: Date): string | null {
   if (Number.isNaN(value.getTime())) return null;
   return value.toISOString().slice(0, 10);

@@ -54,6 +54,7 @@ export interface PilaExportReadinessBlocker {
     | 'PILA_PAYMENT_DATE_REQUIRED'
     | 'PILA_PAYMENT_DATE_SNAPSHOT_INCONSISTENT'
     | 'AT2_HEADER_CCF_IBC_TOTAL_SUPERA_LONGITUD'
+    | 'AT2_V30_SERIALIZATION_FIELDS_PENDING'
     | 'PILA_PENSION_RULESET_AFTER_2027_NOT_RECONCILED'
     | 'OPERATOR_UPLOAD_NOT_VERIFIED';
   scope: 'FILE_GENERATION' | 'OPERATOR_COMPATIBILITY';
@@ -235,7 +236,8 @@ function summarizePensionTransitionStatus(
       (snapshot.payloadVersion === 7 ||
         snapshot.payloadVersion === 8 ||
         snapshot.payloadVersion === 9 ||
-        snapshot.payloadVersion === 10) &&
+        snapshot.payloadVersion === 10 ||
+        snapshot.payloadVersion === 11) &&
       root?.schemaVersion === snapshot.payloadVersion
     ) {
       const employer = nested(root, 'employer');
@@ -335,7 +337,8 @@ export function inspectPilaSnapshotPreparation(
       input.payloadVersion === 7 ||
       input.payloadVersion === 8 ||
       input.payloadVersion === 9 ||
-      input.payloadVersion === 10) &&
+      input.payloadVersion === 10 ||
+      input.payloadVersion === 11) &&
       root?.schemaVersion === input.payloadVersion);
   if (!supportedPayloadVersion) {
     add(
@@ -357,7 +360,7 @@ export function inspectPilaSnapshotPreparation(
   const periodStart = date(period?.fechaInicio);
   const periodEnd = date(period?.fechaFin);
   const ingressDetailCandidate =
-    input.payloadVersion === 10 &&
+    (input.payloadVersion === 10 || input.payloadVersion === 11) &&
     periodStart &&
     periodEnd &&
     text(period?.payrollPeriodId) &&
@@ -421,12 +424,42 @@ export function inspectPilaSnapshotPreparation(
       );
     }),
   );
-  const coverageStart = approvedNewHireIngress
-    ? (date(employee?.fechaIngreso) ?? periodStart)
-    : periodStart;
-  const coverageEnd = approvedRetirement
-    ? (date(employee?.fechaRetiro) ?? periodEnd)
-    : periodEnd;
+  const approvedIngressRetirement = Boolean(
+    ingressDetailCandidate?.normativeRuleVersions
+      .samePeriodIngressRetirementFields ===
+      'AT2_V30_SAME_PERIOD_ING_RET_FIELDS_V1' &&
+    ingressDetailCandidate.normativeRuleVersions
+      .ingressRetirementBasicSalaryField40 ===
+      'PILA_ING_RET_FIELD_40_FROM_APPROVED_BASE_V1' &&
+    ingressDetailCandidate.values[15]?.value === 'X' &&
+    ingressDetailCandidate.values[16]?.value === 'X' &&
+    typeof ingressDetailCandidate.values[40]?.value === 'number' &&
+    ingressDetailCandidate.values[80]?.value === date(employee?.fechaIngreso) &&
+    ingressDetailCandidate.values[81]?.value === date(employee?.fechaRetiro) &&
+    [36, 37, 38, 39].every((fieldNumber) => {
+      const sourceField =
+        fieldNumber === 36
+          ? 'pension'
+          : fieldNumber === 37
+            ? 'salud'
+            : fieldNumber === 38
+              ? 'riesgos'
+              : 'cajaCompensacion';
+      return (
+        ingressDetailCandidate.values[fieldNumber]?.value ===
+        nested(nested(payroll, 'diasCotizadosPorSubsistema'), sourceField)
+          ?.valor
+      );
+    }),
+  );
+  const coverageStart =
+    approvedNewHireIngress || approvedIngressRetirement
+      ? (date(employee?.fechaIngreso) ?? periodStart)
+      : periodStart;
+  const coverageEnd =
+    approvedRetirement || approvedIngressRetirement
+      ? (date(employee?.fechaRetiro) ?? periodEnd)
+      : periodEnd;
 
   const requireText = (
     record: PilaPreparationRecord,
@@ -985,6 +1018,27 @@ export function inspectPilaSnapshotPreparation(
               (field) => field.fieldNumber === fieldNumber,
             ),
         );
+      const isApprovedSamePeriodIngressRetirement =
+        ingressDetailCandidate !== null &&
+        approvedIngressRetirement &&
+        ((code === 'ING' &&
+          ingressDetailCandidate.values[80]?.value ===
+            text(event?.fechaInicio) &&
+          [15, 36, 37, 38, 39, 40, 80].every(
+            (fieldNumber) =>
+              !ingressDetailCandidate.unresolvedFields.some(
+                (field) => field.fieldNumber === fieldNumber,
+              ),
+          )) ||
+          (code === 'RET' &&
+            ingressDetailCandidate.values[81]?.value ===
+              text(event?.fechaInicio) &&
+            [16, 36, 37, 38, 39, 40, 81].every(
+              (fieldNumber) =>
+                !ingressDetailCandidate.unresolvedFields.some(
+                  (field) => field.fieldNumber === fieldNumber,
+                ),
+            )));
       const isApprovedSingleFullMonthVsp =
         code === 'VSP' &&
         ingressDetailCandidate?.normativeRuleVersions.vspEventFields ===
@@ -994,6 +1048,7 @@ export function inspectPilaSnapshotPreparation(
       if (
         isApprovedSingleIngress ||
         isApprovedSingleRetirement ||
+        isApprovedSamePeriodIngressRetirement ||
         isApprovedSingleFullMonthVsp
       ) {
         continue;
@@ -1458,7 +1513,9 @@ export function inspectPilaSnapshotPreparation(
     } else if (
       value !== 30 &&
       !(
-        (approvedNewHireIngress || approvedRetirement) &&
+        (approvedNewHireIngress ||
+          approvedRetirement ||
+          approvedIngressRetirement) &&
         ingressDetailCandidate?.values[field]?.value === value
       )
     ) {
@@ -1533,7 +1590,7 @@ export function inspectPilaSnapshotPreparation(
     }
     const supportedParafiscalRule =
       source?.reglaVersion === 'CO_PARAFISCAL_BASE_V1' ||
-      (root?.schemaVersion === 10 &&
+      ((root?.schemaVersion === 10 || root?.schemaVersion === 11) &&
         source?.reglaVersion === 'CO_PARAFISCAL_BASE_V2' &&
         safeInteger(source?.valor) &&
         ingressDetailCandidate?.values[95]?.value === source?.valor);
@@ -1811,7 +1868,8 @@ function summarizePilaDetailFieldCandidates(
           const rawRuleVersion = otherParafiscalBase?.reglaVersion;
           const field40RuleVersion =
             candidate.normativeRuleVersions.newHireBasicSalaryField40 ??
-            candidate.normativeRuleVersions.retirementBasicSalaryField40;
+            candidate.normativeRuleVersions.retirementBasicSalaryField40 ??
+            candidate.normativeRuleVersions.ingressRetirementBasicSalaryField40;
           const ruleVersion =
             fieldNumber === 95 &&
             (rawRuleVersion === 'CO_PARAFISCAL_BASE_V1' ||
@@ -1986,7 +2044,7 @@ export function buildPilaPreparationReport(input: {
             },
           ],
           evidence:
-            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots PILA v2–v10 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
+            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots PILA v2–v11 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
         }
       : null;
   const readinessBlockers = [
@@ -1995,13 +2053,6 @@ export function buildPilaPreparationReport(input: {
     ...(pensionRulesBlocker ? [pensionRulesBlocker] : []),
     ...(headerCcfIbcBlocker ? [headerCcfIbcBlocker] : []),
   ];
-  const exportReadiness =
-    readinessBlockers.length > pilaExportReadiness.blockers.length
-      ? {
-          ...pilaExportReadiness,
-          blockers: readinessBlockers,
-        }
-      : pilaExportReadiness;
   const totalCotizantes = new Set(
     input.snapshots.map(({ employeeId }) => employeeId),
   ).size;
@@ -2057,6 +2108,49 @@ export function buildPilaPreparationReport(input: {
       );
     }
   }
+  const unresolvedSerializationFields = [
+    {
+      record: 'APORTANTE_TIPO_1' as const,
+      fieldNumbers: employerCandidate.unresolvedFields.map(
+        ({ fieldNumber }) => fieldNumber,
+      ),
+    },
+    {
+      record: 'CABECERA_TIPO_2' as const,
+      fieldNumbers: headerCandidate.unresolvedFields.map(
+        ({ fieldNumber }) => fieldNumber,
+      ),
+    },
+    {
+      record: 'DETALLE_TIPO_2' as const,
+      fieldNumbers: [
+        ...new Set(
+          [...detailCandidatesBySnapshot.values()].flatMap((candidate) =>
+            candidate.unresolvedFields.map(({ fieldNumber }) => fieldNumber),
+          ),
+        ),
+      ],
+    },
+  ].filter(({ fieldNumbers }) => fieldNumbers.length > 0);
+  if (unresolvedSerializationFields.length > 0) {
+    readinessBlockers.push({
+      code: 'AT2_V30_SERIALIZATION_FIELDS_PENDING',
+      scope: 'FILE_GENERATION',
+      title: 'Faltan campos para serializar todos los registros PILA',
+      message:
+        'Uno o más candidatos AT2 v30 tienen campos pendientes. El archivo local solo puede construirse cuando todos los campos de aportante, encabezado y detalle estén resueltos.',
+      fields: unresolvedSerializationFields,
+      evidence:
+        'El serializador AT2 v30 rechaza un registro si conserva campos sin candidato. El preflight ahora usa los mismos candidatos que consume la generación de archivos.',
+    });
+  }
+  const exportReadiness =
+    readinessBlockers.length > pilaExportReadiness.blockers.length
+      ? {
+          ...pilaExportReadiness,
+          blockers: readinessBlockers,
+        }
+      : pilaExportReadiness;
   const assessments = input.snapshots.map((snapshot) => {
     const assessment = inspectPilaSnapshotPreparation({
       ...snapshot,

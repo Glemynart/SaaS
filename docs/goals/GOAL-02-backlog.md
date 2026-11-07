@@ -2168,8 +2168,8 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   fusionado de RET (#324) y VSP desde el primer día de mes (#327), con evidencia
   contrastada en `main@2c35ef5` antes de integrar este ajuste. El PR se fusionó
   en `main@710f2df`; CI y Browser E2E post-merge pasaron.
-- La Resolución 0010 de 2026 admite registros tipo 2 separados cuando cambia
-  el IBC entre novedades; el aportante calcula los IBC afectados. La fecha o el
+- La [Resolución 2064 de 2025](https://minsalud.gov.co/Normatividad_Nuevo/Resolucion%20No%2064%20de%202025.pdf)
+  admite registros tipo 2 separados cuando cambia el IBC entre novedades; el aportante calcula los IBC afectados. La fecha o el
   código VSP por sí solos no aportan esos cálculos: Payroll no conserva
   segmentos salariales aprobados, por lo que VSP de mitad de mes y
   concurrencias continúan bloqueadas.

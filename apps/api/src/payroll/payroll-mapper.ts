@@ -20,6 +20,7 @@ import {
   PayrollEvaluationResult,
   PayrollFunctionalBlock,
 } from './payroll-evaluation';
+import { calculateMonthlyEmploymentDays } from './payroll-30-day-month';
 
 // ── Tipos mínimos de entidades Prisma que necesita el mapper ─────────────────
 
@@ -156,6 +157,7 @@ export function resolveContratoForPayrollPeriod(
   periodEnd: Date,
   employeeEntryDate: Date | null | undefined,
   employeeRetirementDate?: Date | null,
+  allowSamePeriodEntryAndRetirement = false,
 ): ContratoResolution {
   const retirementDate = employeeRetirementDate
     ? calendarDate(employeeRetirementDate)
@@ -165,6 +167,32 @@ export function resolveContratoForPayrollPeriod(
   const entryDateForRetirement = employeeEntryDate
     ? calendarDate(employeeEntryDate)
     : null;
+  if (
+    allowSamePeriodEntryAndRetirement &&
+    retirementDate &&
+    entryDateForRetirement &&
+    calculateMonthlyEmploymentDays(
+      periodStart,
+      periodEnd,
+      employeeEntryDate!,
+      employeeRetirementDate!,
+    ) !== null
+  ) {
+    const matchingContracts = contratos.filter(
+      (contract) =>
+        contract.estado === 'TERMINADO' &&
+        calendarDate(contract.fechaInicio) === entryDateForRetirement &&
+        contract.fechaFin !== null &&
+        calendarDate(contract.fechaFin) === retirementDate,
+    );
+    if (matchingContracts.length === 1) {
+      return { contrato: matchingContracts[0], fallback: false };
+    }
+    return {
+      contrato: contratos[0] ?? null,
+      fallback: contratos.length > 0,
+    };
+  }
   if (
     retirementDate &&
     periodStartForRetirement &&

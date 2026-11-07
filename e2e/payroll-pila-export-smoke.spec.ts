@@ -481,6 +481,86 @@ test('genera y descarga el candidato PILA local para un único retiro durante el
   }
 });
 
+test('genera ING y RET en una sola línea tipo 2 cuando ocurren en el mismo mes', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const { tenant, user } = await registerAndSignIn(page);
+  const fixture = await seedPilaExportFixture(tenant.id, user.id, 1, 'SINGLE_INGRESS_RETIREMENT');
+
+  try {
+    await page.goto('/nomina/periodos/' + fixture.periodId);
+    const panel = page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: 'Preparación de datos PILA' }) });
+    await expect(panel).toBeVisible();
+
+    const preparationResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+          '/api/payroll/periods/' + fixture.periodId + '/pila-preparation' &&
+        response.request().method() === 'GET',
+    );
+    await panel.getByRole('button', { name: 'Revisar datos' }).click();
+    const preparationResponse = await preparationResponsePromise;
+    expect(preparationResponse.status()).toBe(200);
+    const preparation = (await preparationResponse.json()) as {
+      archivoGenerable: boolean;
+      exportReadiness: {
+        operatorAcceptanceStatus: string;
+        blockers: Array<{ scope: string }>;
+      };
+    };
+    expect(preparation.archivoGenerable).toBe(true);
+    expect(preparation.exportReadiness.operatorAcceptanceStatus).toBe('NOT_VERIFIED');
+    expect(
+      preparation.exportReadiness.blockers.some((blocker) => blocker.scope === 'FILE_GENERATION'),
+    ).toBe(false);
+
+    const createResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+          '/api/payroll/periods/' + fixture.periodId + '/pila-exports' &&
+        response.request().method() === 'POST',
+    );
+    await panel.getByRole('button', { name: 'Generar y guardar archivos' }).click();
+    const createResponse = await createResponsePromise;
+    const createdPayload = await createResponse.json();
+    expect(createResponse.status(), JSON.stringify(createdPayload)).toBe(201);
+    const created = createdPayload as {
+      id: string;
+      type2: { detailRecordCount: number; sizeBytes: number; sha256: string };
+    };
+    expect(created.type2.detailRecordCount).toBe(1);
+
+    const type2Link = panel.getByRole('link', { name: /Descargar tipo 2/ });
+    const type2Download = await downloadFromLink(page, type2Link);
+    expect(type2Download.response.status()).toBe(200);
+    expect(type2Download.bytes.byteLength).toBe(created.type2.sizeBytes);
+    expect(createHash('sha256').update(type2Download.bytes).digest('hex')).toBe(
+      created.type2.sha256,
+    );
+
+    const records = type2Download.bytes.toString('latin1').split('\r\n');
+    expect(records).toHaveLength(2);
+    expect(headerFieldValue(records[0], 19)).toBe('00001');
+    expect(headerFieldValue(records[0], 20)).toBe('000002200000');
+    expect(records[1].slice(0, 7)).toBe('0200001');
+    expect(detailFieldValue(records[1], 15)).toBe('X');
+    expect(detailFieldValue(records[1], 16)).toBe('X');
+    for (const fieldNumber of [36, 37, 38, 39]) {
+      expect(detailFieldValue(records[1], fieldNumber)).toBe('11');
+    }
+    expect(Number(detailFieldValue(records[1], 40))).toBe(2_200_000);
+    expect(Number(detailFieldValue(records[1], 55))).toBe(275_000);
+    expect(detailFieldValue(records[1], 80)).toBe('2026-10-10');
+    expect(detailFieldValue(records[1], 81)).toBe('2026-10-20');
+    expect(Number(detailFieldValue(records[1], 95))).toBe(2_200_000);
+  } finally {
+    await fixture.disconnect();
+  }
+});
+
 test('genera y descarga el candidato PILA local para un VSP al inicio de mes', async ({ page }) => {
   test.setTimeout(120_000);
   const { tenant, user } = await registerAndSignIn(page);

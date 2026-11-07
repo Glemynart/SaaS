@@ -37,7 +37,12 @@ function mutableRecordArray(value: unknown): Record<string, unknown>[] {
   return value.map(mutableRecord);
 }
 
-type PilaExportScenario = 'FULL_MONTH' | 'SINGLE_INGRESS' | 'SINGLE_RETIREMENT' | 'SINGLE_VSP';
+type PilaExportScenario =
+  | 'FULL_MONTH'
+  | 'SINGLE_INGRESS'
+  | 'SINGLE_RETIREMENT'
+  | 'SINGLE_INGRESS_RETIREMENT'
+  | 'SINGLE_VSP';
 
 function buildApprovedSnapshot(
   snapshot: ReturnType<typeof completeApprovedSnapshot>,
@@ -69,15 +74,33 @@ function buildApprovedSnapshot(
     return snapshot;
   }
 
-  snapshot.payloadVersion = 10;
+  const samePeriodIngressRetirement = scenario === 'SINGLE_INGRESS_RETIREMENT';
+  snapshot.payloadVersion = samePeriodIngressRetirement ? 11 : 10;
   const payload = mutableRecord(snapshot.payload);
-  payload.schemaVersion = 10;
+  payload.schemaVersion = snapshot.payloadVersion;
   const singleIngress = scenario === 'SINGLE_INGRESS';
-  const entryDate = singleIngress ? '2026-10-10' : '2025-01-01';
-  const retirementDate = singleIngress ? null : '2026-10-20';
-  const days = singleIngress ? 21 : 20;
-  const monthlySalary = singleIngress ? 8_000_000 : 8_100_000;
-  const proratedSalary = singleIngress ? 5_600_000 : 5_400_000;
+  const entryDate =
+    singleIngress || samePeriodIngressRetirement
+      ? '2026-10-10'
+      : scenario === 'SINGLE_RETIREMENT'
+        ? '2025-01-01'
+        : '2026-01-01';
+  const retirementDate = singleIngress
+    ? null
+    : scenario === 'SINGLE_RETIREMENT' || samePeriodIngressRetirement
+      ? '2026-10-20'
+      : null;
+  const days = singleIngress ? 21 : samePeriodIngressRetirement ? 11 : 20;
+  const monthlySalary = samePeriodIngressRetirement
+    ? 6_000_000
+    : singleIngress
+      ? 8_000_000
+      : 8_100_000;
+  const proratedSalary = singleIngress
+    ? 5_600_000
+    : samePeriodIngressRetirement
+      ? 2_200_000
+      : 5_400_000;
   const employee = mutableRecord(payload.employee);
   employee.fechaIngreso = entryDate;
   employee.fechaRetiro = retirementDate;
@@ -94,14 +117,33 @@ function buildApprovedSnapshot(
   const riskAssignments = mutableRecordArray(payload.pilaRiskAssignments);
   riskAssignments[0].vigenteDesde = entryDate;
 
-  const event = {
-    eventId: singleIngress ? 'pila-ing-export-e2e' : 'pila-ret-export-e2e',
-    codigo: singleIngress ? 'ING' : 'RET',
-    fechaInicio: singleIngress ? entryDate : retirementDate,
-    fechaFin: null,
-    dias: null,
-  };
-  payload.pilaEvents = [event];
+  const events = samePeriodIngressRetirement
+    ? [
+        {
+          eventId: 'pila-ing-export-e2e',
+          codigo: 'ING',
+          fechaInicio: entryDate,
+          fechaFin: null,
+          dias: null,
+        },
+        {
+          eventId: 'pila-ret-export-e2e',
+          codigo: 'RET',
+          fechaInicio: retirementDate,
+          fechaFin: null,
+          dias: null,
+        },
+      ]
+    : [
+        {
+          eventId: singleIngress ? 'pila-ing-export-e2e' : 'pila-ret-export-e2e',
+          codigo: singleIngress ? 'ING' : 'RET',
+          fechaInicio: singleIngress ? entryDate : retirementDate,
+          fechaFin: null,
+          dias: null,
+        },
+      ];
+  payload.pilaEvents = events;
 
   const payroll = mutableRecord(payload.payroll);
   payroll.diasNomina = days;
@@ -111,12 +153,14 @@ function buildApprovedSnapshot(
   payroll.tipoSalario = 'F';
   payroll.tipoSalarioBloqueos = [];
   payroll.novelties = [];
-  payroll.pilaEvents = [event];
+  payroll.pilaEvents = events;
   payroll.salarioBasicoCampo40 = {
     valor: proratedSalary,
-    reglaVersion: singleIngress
-      ? 'PILA_ING_FIELD_40_FROM_APPROVED_BASE_V1'
-      : 'PILA_RET_FIELD_40_FROM_APPROVED_BASE_V1',
+    reglaVersion: samePeriodIngressRetirement
+      ? 'PILA_ING_RET_FIELD_40_FROM_APPROVED_BASE_V1'
+      : singleIngress
+        ? 'PILA_ING_FIELD_40_FROM_APPROVED_BASE_V1'
+        : 'PILA_RET_FIELD_40_FROM_APPROVED_BASE_V1',
     bloqueos: [],
   };
 
@@ -124,9 +168,11 @@ function buildApprovedSnapshot(
   for (const subsystem of ['pension', 'salud', 'riesgos', 'cajaCompensacion']) {
     daysBySubsystem[subsystem] = {
       valor: days,
-      reglaVersion: singleIngress
-        ? 'PILA_ING_DAYS_FROM_APPROVED_PAYROLL_V1'
-        : 'PILA_RET_DAYS_FROM_APPROVED_PAYROLL_V1',
+      reglaVersion: samePeriodIngressRetirement
+        ? 'PILA_ING_RET_DAYS_FROM_APPROVED_PAYROLL_V1'
+        : singleIngress
+          ? 'PILA_ING_DAYS_FROM_APPROVED_PAYROLL_V1'
+          : 'PILA_RET_DAYS_FROM_APPROVED_PAYROLL_V1',
       bloqueos: [],
     };
   }
@@ -154,16 +200,27 @@ function buildApprovedSnapshot(
         SENA: 112_000,
         ICBF: 168_000,
       }
-    : {
-        PENSION_EMP: 216_000,
-        PENSION_PAT: 648_000,
-        SALUD_EMP: 216_000,
-        SALUD_PAT: 459_000,
-        ARL: 28_200,
-        CAJA: 216_000,
-        SENA: 108_000,
-        ICBF: 162_000,
-      };
+    : samePeriodIngressRetirement
+      ? {
+          PENSION_EMP: 88_000,
+          PENSION_PAT: 264_000,
+          SALUD_EMP: 88_000,
+          SALUD_PAT: 187_000,
+          ARL: 11_500,
+          CAJA: 88_000,
+          SENA: 44_000,
+          ICBF: 66_000,
+        }
+      : {
+          PENSION_EMP: 216_000,
+          PENSION_PAT: 648_000,
+          SALUD_EMP: 216_000,
+          SALUD_PAT: 459_000,
+          ARL: 28_200,
+          CAJA: 216_000,
+          SENA: 108_000,
+          ICBF: 162_000,
+        };
   const concepts = mutableRecordArray(payroll.concepts);
   for (const concept of concepts) {
     const amount = contributionAmounts[String(concept.codigo)];
@@ -195,7 +252,8 @@ export async function seedPilaExportFixture(
 ): Promise<PilaExportFixture> {
   const singleIngress = scenario === 'SINGLE_INGRESS';
   const singleRetirement = scenario === 'SINGLE_RETIREMENT';
-  const singlePartialPeriod = singleIngress || singleRetirement;
+  const singleIngressRetirement = scenario === 'SINGLE_INGRESS_RETIREMENT';
+  const singlePartialPeriod = singleIngress || singleRetirement || singleIngressRetirement;
   if (singlePartialPeriod && employeeCount !== 1) {
     throw new Error('El fixture parcial requiere exactamente un empleado.');
   }
@@ -206,16 +264,41 @@ export async function seedPilaExportFixture(
   const prisma = new PrismaClient();
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
   const periodId = randomUUID();
-  const monthlySalary = singleRetirement ? 8_100_000 : singlePartialPeriod ? 8_000_000 : 3_000_000;
-  const salary = singleIngress ? 5_600_000 : singleRetirement ? 5_400_000 : monthlySalary;
-  const employeeEntryDate = singleIngress
-    ? '2026-10-10'
+  const monthlySalary = singleIngressRetirement
+    ? 6_000_000
     : singleRetirement
-      ? '2025-01-01'
-      : '2026-01-01';
-  const retirementDate = singleRetirement ? '2026-10-20' : null;
-  const employeeDeductions = singleIngress ? 448_000 : singleRetirement ? 432_000 : 0;
-  const employerContributions = singleIngress ? 1_681_300 : singleRetirement ? 1_621_200 : 900_000;
+      ? 8_100_000
+      : singlePartialPeriod
+        ? 8_000_000
+        : 3_000_000;
+  const salary = singleIngress
+    ? 5_600_000
+    : singleRetirement
+      ? 5_400_000
+      : singleIngressRetirement
+        ? 2_200_000
+        : monthlySalary;
+  const employeeEntryDate =
+    singleIngress || singleIngressRetirement
+      ? '2026-10-10'
+      : singleRetirement
+        ? '2025-01-01'
+        : '2026-01-01';
+  const retirementDate = singleRetirement || singleIngressRetirement ? '2026-10-20' : null;
+  const employeeDeductions = singleIngress
+    ? 448_000
+    : singleRetirement
+      ? 432_000
+      : singleIngressRetirement
+        ? 176_000
+        : 0;
+  const employerContributions = singleIngress
+    ? 1_681_300
+    : singleRetirement
+      ? 1_621_200
+      : singleIngressRetirement
+        ? 660_500
+        : 900_000;
   const employees = Array.from({ length: employeeCount }, (_, index) => {
     const employeeId = randomUUID();
     const contractId = randomUUID();
@@ -259,7 +342,7 @@ export async function seedPilaExportFixture(
           salario: monthlySalary,
           fechaIngreso: new Date(employeeEntryDate + 'T00:00:00.000Z'),
           fechaRetiro: retirementDate ? new Date(retirementDate + 'T00:00:00.000Z') : null,
-          estado: singleRetirement ? 'RETIRADO' : 'ACTIVO',
+          estado: singleRetirement || singleIngressRetirement ? 'RETIRADO' : 'ACTIVO',
         })),
       });
       await tx.contrato.createMany({
@@ -268,7 +351,7 @@ export async function seedPilaExportFixture(
           tenantId,
           empleadoId: employeeId,
           tipo: 'TERMINO_INDEFINIDO',
-          estado: singleRetirement ? 'TERMINADO' : 'VIGENTE',
+          estado: singleRetirement || singleIngressRetirement ? 'TERMINADO' : 'VIGENTE',
           fechaInicio: new Date(employeeEntryDate + 'T00:00:00.000Z'),
           fechaFin: retirementDate ? new Date(retirementDate + 'T00:00:00.000Z') : null,
           cargo: 'Analista',
@@ -330,7 +413,7 @@ export async function seedPilaExportFixture(
             contract: {
               contratoId: contractId,
               tipo: 'TERMINO_INDEFINIDO',
-              estado: singleRetirement ? 'TERMINADO' : 'VIGENTE',
+              estado: singleRetirement || singleIngressRetirement ? 'TERMINADO' : 'VIGENTE',
               fechaInicio: employeeEntryDate + 'T00:00:00.000Z',
               fechaFin: retirementDate ? retirementDate + 'T00:00:00.000Z' : null,
             },

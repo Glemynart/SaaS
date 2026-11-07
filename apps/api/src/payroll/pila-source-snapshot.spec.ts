@@ -209,7 +209,7 @@ describe('PILA source snapshot builders', () => {
     });
 
     expect(context.schemaVersion).toBe(4);
-    expect(snapshot.schemaVersion).toBe(10);
+    expect(snapshot.schemaVersion).toBe(11);
     expect(snapshot.pilaWorkLocations).toEqual([
       {
         assignmentId: 'work-location-1',
@@ -272,7 +272,7 @@ describe('PILA source snapshot builders', () => {
       });
 
       expect(snapshot).toMatchObject({
-        schemaVersion: 10,
+        schemaVersion: 11,
         affiliations: [{ estadoAfiliacionPensional }],
         payroll: {
           fspSubaccounts: {
@@ -417,7 +417,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(snapshot.schemaVersion).toBe(10);
+    expect(snapshot.schemaVersion).toBe(11);
     expect(snapshot.payroll.payrollCalculationParameters).toEqual({
       sourceVersion: 'PAYROLL_LEGAL_PARAMETERS_V2',
       parametroLegalId: 'legal-2026',
@@ -537,7 +537,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(10);
+    expect(result.schemaVersion).toBe(11);
     expect(result.capturedAt).toBe('2026-11-02T15:00:00.000Z');
     expect(result.employee.fechaIngreso).toBe('2026-01-05');
     expect(result.employee.fechaNacimiento).toBeNull();
@@ -737,7 +737,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(10);
+    expect(result.schemaVersion).toBe(11);
     expect(result.payroll.diasNomina).toBe(21);
     expect(result.payroll.salarioBasicoCampo40).toEqual({
       valor: 5_600_000,
@@ -985,6 +985,94 @@ describe('PILA source snapshot builders', () => {
     }
     expect(result.payroll.ibcPorSubsistema.otrosParafiscales).toMatchObject({
       valor: 5_333_333,
+      reglaVersion: 'CO_PARAFISCAL_BASE_V2',
+      bloqueos: [],
+    });
+  });
+
+  it('freezes one same-period ING+RET pair from approved Payroll days', () => {
+    const entryDate = new Date('2026-10-10T00:00:00.000Z');
+    const retirementDate = new Date('2026-10-20T00:00:00.000Z');
+    const context = buildPilaSourceContext({
+      ...contextInput,
+      employee: {
+        ...contextInput.employee,
+        fechaIngreso: entryDate,
+        fechaRetiro: retirementDate,
+        tipoSalarioPila: 'F',
+      },
+      contract: {
+        ...contextInput.contract!,
+        estado: 'TERMINADO',
+        fechaInicio: entryDate,
+        fechaFin: retirementDate,
+      },
+      affiliations: contextInput.affiliations.map((affiliation) => ({
+        ...affiliation,
+        vigenteDesde: entryDate,
+        vigenteHasta: retirementDate,
+      })),
+      pilaEvents: [
+        {
+          id: 'pila-ing-event-pair',
+          codigo: PilaEventCode.ING,
+          fechaInicio: entryDate,
+          fechaFin: null,
+          dias: null,
+        },
+        {
+          id: 'pila-ret-event-pair',
+          codigo: PilaEventCode.RET,
+          fechaInicio: retirementDate,
+          fechaFin: null,
+          dias: null,
+        },
+      ],
+    });
+    const result = buildPilaSourceSnapshot({
+      context,
+      payroll: {
+        runId: 'run-ingress-retirement',
+        fechaPrevistaPagoPila: new Date('2026-11-05T00:00:00.000Z'),
+        salarioBasico: 8_000_000,
+        salarioIntegral: false,
+        diasNomina: 11,
+        ibc: 2_933_333,
+        concepts: [
+          {
+            codigo: 'SALARIO_BASE',
+            tipo: 'EARNING',
+            base: null,
+            factor: null,
+            valor: 2_933_333,
+          },
+        ],
+        novelties: [],
+      },
+    });
+
+    expect(result.schemaVersion).toBe(11);
+    expect(result.payroll.salarioBasicoCampo40).toEqual({
+      valor: 2_933_333,
+      reglaVersion: 'PILA_ING_RET_FIELD_40_FROM_APPROVED_BASE_V1',
+      bloqueos: [],
+    });
+    for (const days of Object.values(
+      result.payroll.diasCotizadosPorSubsistema,
+    )) {
+      expect(days).toMatchObject({
+        valor: 11,
+        reglaVersion: 'PILA_ING_RET_DAYS_FROM_APPROVED_PAYROLL_V1',
+        eventoIngresoId: 'pila-ing-event-pair',
+        eventoRetiroId: 'pila-ret-event-pair',
+        fechaIngreso: '2026-10-10',
+        fechaRetiro: '2026-10-20',
+        diasNominaAprobados: 11,
+        bloqueos: [],
+      });
+    }
+    expect(result.payroll.ibcPorSubsistema.otrosParafiscales).toMatchObject({
+      valor: 2_933_333,
       reglaVersion: 'CO_PARAFISCAL_BASE_V2',
       bloqueos: [],
     });

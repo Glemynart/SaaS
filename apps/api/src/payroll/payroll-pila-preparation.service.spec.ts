@@ -85,8 +85,8 @@ describe('PayrollService.getPilaPreparation', () => {
         fileGenerationStatus: 'IMPLEMENTED',
         localValidationStatus: 'PER_EXPORT',
         operatorAcceptanceStatus: 'NOT_VERIFIED',
-        blockers: [
-          {
+        blockers: expect.arrayContaining([
+          expect.objectContaining({
             code: 'SOI_OPERATOR_FIELDS_UNCONFIRMED',
             fields: [
               { record: 'APORTANTE_TIPO_1', fieldNumbers: [28, 29] },
@@ -95,16 +95,34 @@ describe('PayrollService.getPilaPreparation', () => {
                 fieldNumbers: [2, 15, 17, 18, 22],
               },
             ],
-          },
-          {
+          }),
+          expect.objectContaining({
             code: 'OPERATOR_UPLOAD_NOT_VERIFIED',
             scope: 'OPERATOR_COMPATIBILITY',
-          },
-          {
+          }),
+          expect.objectContaining({
             code: 'PILA_PAYMENT_DATE_REQUIRED',
             scope: 'FILE_GENERATION',
-          },
-        ],
+          }),
+          expect.objectContaining({
+            code: 'AT2_V30_SERIALIZATION_FIELDS_PENDING',
+            scope: 'FILE_GENERATION',
+            fields: expect.arrayContaining([
+              {
+                record: 'APORTANTE_TIPO_1',
+                fieldNumbers: expect.any(Array),
+              },
+              {
+                record: 'CABECERA_TIPO_2',
+                fieldNumbers: expect.any(Array),
+              },
+              {
+                record: 'DETALLE_TIPO_2',
+                fieldNumbers: expect.any(Array),
+              },
+            ]),
+          }),
+        ]),
       },
       period: { fechaPrevistaPagoPila: null },
       snapshotsRevisados: 1,

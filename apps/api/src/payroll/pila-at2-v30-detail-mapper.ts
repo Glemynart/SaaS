@@ -50,6 +50,7 @@ import {
 import type { PilaSnapshotPreparationInput } from './pila-preparation';
 import type { PILA_AT2_V30_DETAIL_RECORD_SEQUENCE_RULE_VERSION } from './pila-at2-v30-detail-sequencer';
 import {
+  calculateMonthlyEmploymentDays,
   calculateMonthlyEntryDays,
   calculateMonthlyRetirementDays,
 } from './payroll-30-day-month';
@@ -68,6 +69,12 @@ const PILA_AT2_V30_RETIREMENT_EVENT_FIELDS_RULE_VERSION =
   'AT2_V30_SINGLE_RETIREMENT_FIELDS_V1' as const;
 const PILA_AT2_V30_RETIREMENT_BASIC_SALARY_FIELD_40_RULE_VERSION =
   'PILA_RET_FIELD_40_FROM_APPROVED_BASE_V1' as const;
+const PILA_AT2_V30_ING_RET_FIELDS_RULE_VERSION =
+  'AT2_V30_SAME_PERIOD_ING_RET_FIELDS_V1' as const;
+const PILA_AT2_V30_ING_RET_DAYS_RULE_VERSION =
+  'PILA_ING_RET_DAYS_FROM_APPROVED_PAYROLL_V1' as const;
+const PILA_AT2_V30_ING_RET_BASIC_SALARY_FIELD_40_RULE_VERSION =
+  'PILA_ING_RET_FIELD_40_FROM_APPROVED_BASE_V1' as const;
 const PILA_AT2_V30_SINGLE_FULL_MONTH_VSP_FIELDS_RULE_VERSION =
   'AT2_V30_SINGLE_FULL_MONTH_VSP_FIELDS_V1' as const;
 const PILA_AT2_V30_PLANILLA_E_FIELD_22_RULE_VERSION =
@@ -158,6 +165,12 @@ export interface PilaAt2V30DetailCandidate {
       | null;
     retirementBasicSalaryField40:
       | typeof PILA_AT2_V30_RETIREMENT_BASIC_SALARY_FIELD_40_RULE_VERSION
+      | null;
+    samePeriodIngressRetirementFields:
+      | typeof PILA_AT2_V30_ING_RET_FIELDS_RULE_VERSION
+      | null;
+    ingressRetirementBasicSalaryField40:
+      | typeof PILA_AT2_V30_ING_RET_BASIC_SALARY_FIELD_40_RULE_VERSION
       | null;
     vspEventFields:
       | typeof PILA_AT2_V30_SINGLE_FULL_MONTH_VSP_FIELDS_RULE_VERSION
@@ -378,7 +391,8 @@ export function mapPilaAt2V30DetailCandidate(
       snapshot.payloadVersion === 7 ||
       snapshot.payloadVersion === 8 ||
       snapshot.payloadVersion === 9 ||
-      snapshot.payloadVersion === 10) &&
+      snapshot.payloadVersion === 10 ||
+      snapshot.payloadVersion === 11) &&
     root?.schemaVersion === snapshot.payloadVersion &&
     employee !== null &&
     employer !== null &&
@@ -394,7 +408,7 @@ export function mapPilaAt2V30DetailCandidate(
   if (!supportedSnapshot || !periodStart || !periodEnd) {
     const reason = scopeMismatch
       ? 'El tenant, empleado o período congelado en el snapshot no coincide con el contexto autenticado solicitado.'
-      : 'Se requiere un snapshot PILA v2 a v10 válido y atribuible a un tenant y período.';
+      : 'Se requiere un snapshot PILA v2 a v11 válido y atribuible a un tenant y período.';
     for (const field of PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2
       .fields) {
       unresolved(field.fieldNumber, reason);
@@ -425,6 +439,8 @@ export function mapPilaAt2V30DetailCandidate(
         newHireBasicSalaryField40: null,
         retirementEventFields: null,
         retirementBasicSalaryField40: null,
+        samePeriodIngressRetirementFields: null,
+        ingressRetirementBasicSalaryField40: null,
         vspEventFields: null,
         noTransferDestinationFields: null,
         nonCotizante40PrincipalFields: null,
@@ -454,6 +470,30 @@ export function mapPilaAt2V30DetailCandidate(
     rootEventRows?.length === 1 ? object(rootEventRows[0]) : null;
   const payrollPilaEvent =
     payrollEventRows?.length === 1 ? object(payrollEventRows[0]) : null;
+  const rootIngressEvent =
+    rootEventRows?.length === 2
+      ? rootEventRows
+          .map(object)
+          .find((event) => sourceText(event?.codigo) === 'ING')
+      : null;
+  const rootRetirementEvent =
+    rootEventRows?.length === 2
+      ? rootEventRows
+          .map(object)
+          .find((event) => sourceText(event?.codigo) === 'RET')
+      : null;
+  const payrollIngressEvent =
+    payrollEventRows?.length === 2
+      ? payrollEventRows
+          .map(object)
+          .find((event) => sourceText(event?.codigo) === 'ING')
+      : null;
+  const payrollRetirementEvent =
+    payrollEventRows?.length === 2
+      ? payrollEventRows
+          .map(object)
+          .find((event) => sourceText(event?.codigo) === 'RET')
+      : null;
   const entryDate = sourceText(employee?.fechaIngreso);
   const retirementDate = sourceText(employee?.fechaRetiro);
   const contractStartDate = sourceText(contract?.fechaInicio);
@@ -486,8 +526,34 @@ export function mapPilaAt2V30DetailCandidate(
     payrollPilaEvent.dias === null &&
     sourceText(rootPilaEvent.eventId) === sourceText(payrollPilaEvent.eventId),
   );
+  const approvedSamePeriodIngressRetirementEvents = Boolean(
+    rootIngressEvent &&
+    rootRetirementEvent &&
+    payrollIngressEvent &&
+    payrollRetirementEvent &&
+    sourceText(rootIngressEvent.eventId) !== null &&
+    sourceText(rootRetirementEvent.eventId) !== null &&
+    sourceText(rootIngressEvent.eventId) !==
+      sourceText(rootRetirementEvent.eventId) &&
+    sourceText(rootIngressEvent.eventId) ===
+      sourceText(payrollIngressEvent.eventId) &&
+    sourceText(rootRetirementEvent.eventId) ===
+      sourceText(payrollRetirementEvent.eventId) &&
+    sourceText(rootIngressEvent.fechaInicio) === entryDate &&
+    sourceText(payrollIngressEvent.fechaInicio) === entryDate &&
+    sourceText(rootRetirementEvent.fechaInicio) === retirementDate &&
+    sourceText(payrollRetirementEvent.fechaInicio) === retirementDate &&
+    rootIngressEvent.fechaFin === null &&
+    payrollIngressEvent.fechaFin === null &&
+    rootRetirementEvent.fechaFin === null &&
+    payrollRetirementEvent.fechaFin === null &&
+    rootIngressEvent.dias === null &&
+    payrollIngressEvent.dias === null &&
+    rootRetirementEvent.dias === null &&
+    payrollRetirementEvent.dias === null,
+  );
   const approvedSingleVspEvent = Boolean(
-    snapshot.payloadVersion === 10 &&
+    (snapshot.payloadVersion === 10 || snapshot.payloadVersion === 11) &&
     rootPilaEvent &&
     payrollPilaEvent &&
     sourceText(rootPilaEvent.eventId) !== null &&
@@ -536,11 +602,23 @@ export function mapPilaAt2V30DetailCandidate(
       periodEnd,
     ),
   );
+  const affiliationCoversIngressRetirementWindow = Boolean(
+    affiliation &&
+    entryDate &&
+    retirementDate &&
+    coversPeriod(
+      affiliation.vigenteDesde,
+      affiliation.vigenteHasta,
+      entryDate,
+      retirementDate,
+    ),
+  );
   const standardAffiliation =
     standardAffiliationIdentity &&
     (affiliationCoversPeriod ||
       affiliationCoversNewHireWindow ||
-      affiliationCoversRetirementWindow);
+      affiliationCoversRetirementWindow ||
+      affiliationCoversIngressRetirementWindow);
   const employeeCoversPeriod = coversPeriod(
     employee?.fechaIngreso,
     employee?.fechaRetiro,
@@ -587,7 +665,7 @@ export function mapPilaAt2V30DetailCandidate(
         )
       : null;
   const standardNewHireEmployee = Boolean(
-    snapshot.payloadVersion === 10 &&
+    (snapshot.payloadVersion === 10 || snapshot.payloadVersion === 11) &&
     fullMonth &&
     standardAffiliationIdentity &&
     affiliationCoversNewHireWindow &&
@@ -625,7 +703,7 @@ export function mapPilaAt2V30DetailCandidate(
         )
       : null;
   const standardRetirementEmployee = Boolean(
-    snapshot.payloadVersion === 10 &&
+    (snapshot.payloadVersion === 10 || snapshot.payloadVersion === 11) &&
     fullMonth &&
     standardAffiliationIdentity &&
     affiliationCoversRetirementWindow &&
@@ -653,15 +731,60 @@ export function mapPilaAt2V30DetailCandidate(
     expectedRetirementDays !== null &&
     frozenRetirementDays === expectedRetirementDays,
   );
+  const frozenIngressRetirementDays = payroll?.diasNomina;
+  const expectedIngressRetirementDays =
+    periodStart && periodEnd && entryDate && retirementDate
+      ? calculateMonthlyEmploymentDays(
+          calendarDateAsDate(periodStart),
+          calendarDateAsDate(periodEnd),
+          calendarDateAsDate(entryDate),
+          calendarDateAsDate(retirementDate),
+        )
+      : null;
+  const standardIngressRetirementEmployee = Boolean(
+    snapshot.payloadVersion === 11 &&
+    fullMonth &&
+    standardAffiliationIdentity &&
+    affiliationCoversIngressRetirementWindow &&
+    entryDate &&
+    retirementDate &&
+    periodStart &&
+    periodEnd &&
+    entryDate >= periodStart &&
+    entryDate <= retirementDate &&
+    retirementDate <= periodEnd &&
+    contractStartDate === entryDate &&
+    contractEndDate === retirementDate &&
+    sourceText(contract?.estado) === 'TERMINADO' &&
+    approvedSamePeriodIngressRetirementEvents &&
+    payroll?.tipoSalario === 'F' &&
+    payroll?.salarioIntegral === false &&
+    Array.isArray(payroll?.tipoSalarioBloqueos) &&
+    payroll.tipoSalarioBloqueos.length === 0 &&
+    Array.isArray(payroll?.novelties) &&
+    payroll.novelties.length === 0 &&
+    typeof frozenIngressRetirementDays === 'number' &&
+    Number.isSafeInteger(frozenIngressRetirementDays) &&
+    frozenIngressRetirementDays >= 1 &&
+    frozenIngressRetirementDays <= 30 &&
+    expectedIngressRetirementDays !== null &&
+    frozenIngressRetirementDays === expectedIngressRetirementDays,
+  );
   const standardSupportedEmployee =
     standardFullMonthEmployee ||
     standardFullMonthVspEmployee ||
     standardNewHireEmployee ||
-    standardRetirementEmployee;
+    standardRetirementEmployee ||
+    standardIngressRetirementEmployee;
   const supportedCoverageStart =
-    standardNewHireEmployee && entryDate ? entryDate : periodStart;
+    (standardNewHireEmployee || standardIngressRetirementEmployee) && entryDate
+      ? entryDate
+      : periodStart;
   const supportedCoverageEnd =
-    standardRetirementEmployee && retirementDate ? retirementDate : periodEnd;
+    (standardRetirementEmployee || standardIngressRetirementEmployee) &&
+    retirementDate
+      ? retirementDate
+      : periodEnd;
   const standardPrivateEmployer =
     standardAffiliation &&
     sourceText(employerPila.tipoAportante) === '1' &&
@@ -908,16 +1031,20 @@ export function mapPilaAt2V30DetailCandidate(
     [38, 'riesgos'],
     [39, 'cajaCompensacion'],
   ] as const;
-  const expectedDayValue = standardRetirementEmployee
-    ? (frozenRetirementDays as number)
-    : standardNewHireEmployee
-      ? (frozenEntryDays as number)
-      : 30;
-  const expectedDayRuleVersion = standardRetirementEmployee
-    ? 'PILA_RET_DAYS_FROM_APPROVED_PAYROLL_V1'
-    : standardNewHireEmployee
-      ? 'PILA_ING_DAYS_FROM_APPROVED_PAYROLL_V1'
-      : 'PILA_FULL_MONTH_DAYS_V1';
+  const expectedDayValue = standardIngressRetirementEmployee
+    ? (frozenIngressRetirementDays as number)
+    : standardRetirementEmployee
+      ? (frozenRetirementDays as number)
+      : standardNewHireEmployee
+        ? (frozenEntryDays as number)
+        : 30;
+  const expectedDayRuleVersion = standardIngressRetirementEmployee
+    ? PILA_AT2_V30_ING_RET_DAYS_RULE_VERSION
+    : standardRetirementEmployee
+      ? 'PILA_RET_DAYS_FROM_APPROVED_PAYROLL_V1'
+      : standardNewHireEmployee
+        ? 'PILA_ING_DAYS_FROM_APPROVED_PAYROLL_V1'
+        : 'PILA_FULL_MONTH_DAYS_V1';
   for (const [fieldNumber, subsystem] of daySources) {
     const source = object(days?.[subsystem]);
     if (
@@ -985,11 +1112,23 @@ export function mapPilaAt2V30DetailCandidate(
         hasNoBlockers(source)
       );
     });
+  const ingressRetirementPilaInputsApproved =
+    standardIngressRetirementEmployee &&
+    daySources.every(([, subsystem]) => {
+      const source = object(days?.[subsystem]);
+      return (
+        source !== null &&
+        source.valor === frozenIngressRetirementDays &&
+        source.reglaVersion === PILA_AT2_V30_ING_RET_DAYS_RULE_VERSION &&
+        hasNoBlockers(source)
+      );
+    });
   const pilaInputsApproved =
     fullMonthPilaInputsApproved ||
     fullMonthVspPilaInputsApproved ||
     newHirePilaInputsApproved ||
-    retirementPilaInputsApproved;
+    retirementPilaInputsApproved ||
+    ingressRetirementPilaInputsApproved;
 
   if (pilaInputsApproved) {
     blank(57);
@@ -1026,6 +1165,22 @@ export function mapPilaAt2V30DetailCandidate(
     for (let fieldNumber = 83; fieldNumber <= 94; fieldNumber += 1) {
       blank(fieldNumber);
     }
+  } else if (
+    ingressRetirementPilaInputsApproved &&
+    entryDate &&
+    retirementDate
+  ) {
+    put(15, 'X');
+    put(16, 'X');
+    for (const fieldNumber of [17, 18, 19, 20, 21, 23, 24, 25, 26, 27, 29]) {
+      blank(fieldNumber);
+    }
+    put(30, 0);
+    put(80, entryDate);
+    put(81, retirementDate);
+    for (let fieldNumber = 82; fieldNumber <= 94; fieldNumber += 1) {
+      blank(fieldNumber);
+    }
   } else if (newHirePilaInputsApproved && entryDate) {
     put(15, 'X');
     for (const fieldNumber of [
@@ -1052,7 +1207,7 @@ export function mapPilaAt2V30DetailCandidate(
     }
   } else {
     const reason =
-      'Este campo solo se propone para un dependiente 01/00 de mes completo, con un único ING o con un único RET aprobado y sin otras novedades.';
+      'Este campo solo se propone para un dependiente 01/00 de mes completo, con eventos ING/RET admitidos y aprobados, sin otras novedades ni segmentos.';
     for (const fieldNumber of PILA_AT2_V30_NO_EVENT_NOVELTY_CANDIDATE_FIELDS) {
       unresolved(fieldNumber, reason);
     }
@@ -1107,13 +1262,30 @@ export function mapPilaAt2V30DetailCandidate(
     hasNoBlockers(field40ParafiscalBase) &&
     field40SubsystemsAgree,
   );
+  const ingressRetirementField40Approved = Boolean(
+    standardIngressRetirementEmployee &&
+    salary?.reglaVersion ===
+      PILA_AT2_V30_ING_RET_BASIC_SALARY_FIELD_40_RULE_VERSION &&
+    safeInteger(salary.valor, 9) &&
+    Array.isArray(salary.bloqueos) &&
+    salary.bloqueos.length === 0 &&
+    field40ParafiscalBase?.reglaVersion === 'CO_PARAFISCAL_BASE_V2' &&
+    field40ParafiscalBase.sourceCount === 1 &&
+    field40ParafiscalBase.valor === salary.valor &&
+    hasNoBlockers(field40ParafiscalBase) &&
+    field40SubsystemsAgree,
+  );
   const hasPilaEvents = Boolean(
     rootEventRows?.length || payrollEventRows?.length,
   );
-  if (newHireField40Approved || retirementField40Approved) {
+  if (
+    newHireField40Approved ||
+    retirementField40Approved ||
+    ingressRetirementField40Approved
+  ) {
     put(40, salary?.valor as number);
   } else if (
-    snapshot.payloadVersion === 10 &&
+    (snapshot.payloadVersion === 10 || snapshot.payloadVersion === 11) &&
     hasPilaEvents &&
     !fullMonthVspPilaInputsApproved
   ) {
@@ -1227,7 +1399,9 @@ export function mapPilaAt2V30DetailCandidate(
   const otherParafiscalBase = object(subsystemBases?.otrosParafiscales);
   if (
     (otherParafiscalBase?.reglaVersion === 'CO_PARAFISCAL_BASE_V1' ||
-      ((standardNewHireEmployee || standardRetirementEmployee) &&
+      ((standardNewHireEmployee ||
+        standardRetirementEmployee ||
+        standardIngressRetirementEmployee) &&
         otherParafiscalBase?.reglaVersion === 'CO_PARAFISCAL_BASE_V2')) &&
     safeInteger(otherParafiscalBase.valor, 9) &&
     hasNoBlockers(otherParafiscalBase)
@@ -1811,7 +1985,8 @@ export function mapPilaAt2V30DetailCandidate(
     } else if (
       snapshot.payloadVersion !== 8 &&
       snapshot.payloadVersion !== 9 &&
-      snapshot.payloadVersion !== 10
+      snapshot.payloadVersion !== 10 &&
+      snapshot.payloadVersion !== 11
     ) {
       const reason =
         'El snapshot PILA histórico anterior a v8 no conserva una declaración AVP compatible y no se completa con datos actuales.';
@@ -2046,7 +2221,9 @@ export function mapPilaAt2V30DetailCandidate(
         : 'Falta declarar explícitamente que no aplica el beneficio general de Ley 1429 para SENA e ICBF.';
   }
   const expectedParafiscalBaseRuleVersion =
-    standardNewHireEmployee || standardRetirementEmployee
+    standardNewHireEmployee ||
+    standardRetirementEmployee ||
+    standardIngressRetirementEmployee
       ? 'CO_PARAFISCAL_BASE_V2'
       : 'CO_PARAFISCAL_BASE_V1';
   const parafiscalBase =
@@ -2223,6 +2400,12 @@ export function mapPilaAt2V30DetailCandidate(
         : null,
       retirementBasicSalaryField40: retirementField40Approved
         ? PILA_AT2_V30_RETIREMENT_BASIC_SALARY_FIELD_40_RULE_VERSION
+        : null,
+      samePeriodIngressRetirementFields: ingressRetirementPilaInputsApproved
+        ? PILA_AT2_V30_ING_RET_FIELDS_RULE_VERSION
+        : null,
+      ingressRetirementBasicSalaryField40: ingressRetirementField40Approved
+        ? PILA_AT2_V30_ING_RET_BASIC_SALARY_FIELD_40_RULE_VERSION
         : null,
       vspEventFields: fullMonthVspPilaInputsApproved
         ? PILA_AT2_V30_SINGLE_FULL_MONTH_VSP_FIELDS_RULE_VERSION

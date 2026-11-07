@@ -158,6 +158,56 @@ function approvedRetirementSnapshot(daysNomina = 20) {
   return input;
 }
 
+function approvedIngressRetirementSnapshot(daysNomina = 11) {
+  const input = snapshot();
+  input.payloadVersion = 11;
+  const payload = payloadOf(input);
+  payload.schemaVersion = 11;
+  payload.employee.fechaIngreso = '2026-10-10';
+  payload.employee.fechaRetiro = '2026-10-20';
+  payload.contract.fechaInicio = '2026-10-10';
+  payload.contract.fechaFin = '2026-10-20';
+  payload.contract.estado = 'TERMINADO';
+  payload.affiliations[0].vigenteDesde = '2026-10-10';
+  payload.affiliations[0].vigenteHasta = '2026-10-20';
+  payload.payroll.diasNomina = daysNomina;
+  payload.payroll.ibcPorSubsistema.cajaCompensacion.valor = 2_933_333;
+  payload.payroll.tipoSalario = 'F';
+  payload.payroll.salarioIntegral = false;
+  payload.payroll.tipoSalarioBloqueos = [];
+  payload.payroll.novelties = [];
+  const days = {
+    valor: daysNomina,
+    reglaVersion: 'PILA_ING_RET_DAYS_FROM_APPROVED_PAYROLL_V1',
+    bloqueos: [],
+  };
+  payload.payroll.diasCotizadosPorSubsistema = {
+    pension: days,
+    salud: days,
+    riesgos: days,
+    cajaCompensacion: days,
+  };
+  const events = [
+    {
+      eventId: 'pila-ing-header-e2e',
+      codigo: 'ING',
+      fechaInicio: '2026-10-10',
+      fechaFin: null,
+      dias: null,
+    },
+    {
+      eventId: 'pila-ret-header-e2e',
+      codigo: 'RET',
+      fechaInicio: '2026-10-20',
+      fechaFin: null,
+      dias: null,
+    },
+  ];
+  payload.pilaEvents = events;
+  payload.payroll.pilaEvents = events;
+  return input;
+}
+
 describe('mapPilaAt2V30HeaderCandidate', () => {
   it('maps constants, shared employer data, period and totals from approved snapshots', () => {
     const candidate = mapCandidateForDemoScope([snapshot()]);
@@ -221,6 +271,16 @@ describe('mapPilaAt2V30HeaderCandidate', () => {
 
     expect(candidate.values[19]).toEqual({ value: 1 });
     expect(candidate.values[20]).toEqual({ value: 5_400_000 });
+    expect(candidate.unresolvedFields).toEqual([]);
+  });
+
+  it('counts one approved same-period ING+RET employee once in header totals', () => {
+    const candidate = mapCandidateForDemoScope([
+      approvedIngressRetirementSnapshot(),
+    ]);
+
+    expect(candidate.values[19]).toEqual({ value: 1 });
+    expect(candidate.values[20]).toEqual({ value: 2_933_333 });
     expect(candidate.unresolvedFields).toEqual([]);
   });
 
@@ -353,7 +413,7 @@ describe('mapPilaAt2V30HeaderCandidate', () => {
 
     expect(candidate.supportedSnapshots).toBe(false);
     expect(candidate.unresolvedFields).toHaveLength(22);
-    expect(candidate.unresolvedFields[0]?.reason).toContain('PILA v2 a v10');
+    expect(candidate.unresolvedFields[0]?.reason).toContain('PILA v2 a v11');
   });
 
   it('aggregates distinct standard cotizantes and their frozen CCF IBCs', () => {

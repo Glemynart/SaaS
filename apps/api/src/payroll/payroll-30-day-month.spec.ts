@@ -1,4 +1,5 @@
 import {
+  calculateMonthlyEmploymentDays,
   calculateMonthlyEntryDays,
   calculateMonthlyRetirementDays,
 } from './payroll-30-day-month';
@@ -73,6 +74,59 @@ describe('calculateMonthlyRetirementDays', () => {
         new Date('2026-03-01T00:00:00.000Z'),
         new Date('2026-03-30T00:00:00.000Z'),
         new Date('2026-03-15T00:00:00.000Z'),
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('calculateMonthlyEmploymentDays', () => {
+  const periodStart = new Date('2026-03-01T00:00:00.000Z');
+  const periodEnd = new Date('2026-03-31T00:00:00.000Z');
+
+  it.each([
+    ['2026-03-10', '2026-03-20', 11],
+    ['2026-03-01', '2026-03-01', 1],
+    ['2026-03-30', '2026-03-31', 1],
+  ])(
+    'counts employment from %s through %s under 30/360',
+    (entry, retirement, days) => {
+      expect(
+        calculateMonthlyEmploymentDays(
+          periodStart,
+          periodEnd,
+          new Date(`${entry}T00:00:00.000Z`),
+          new Date(`${retirement}T00:00:00.000Z`),
+        ),
+      ).toBe(days);
+    },
+  );
+
+  it('uses the existing February ingress and retirement boundaries', () => {
+    expect(
+      calculateMonthlyEmploymentDays(
+        new Date('2026-02-01T00:00:00.000Z'),
+        new Date('2026-02-28T00:00:00.000Z'),
+        new Date('2026-02-28T00:00:00.000Z'),
+        new Date('2026-02-28T00:00:00.000Z'),
+      ),
+    ).toBe(3);
+  });
+
+  it('rejects reversed dates and partial payroll periods', () => {
+    expect(
+      calculateMonthlyEmploymentDays(
+        periodStart,
+        periodEnd,
+        new Date('2026-03-20T00:00:00.000Z'),
+        new Date('2026-03-10T00:00:00.000Z'),
+      ),
+    ).toBeNull();
+    expect(
+      calculateMonthlyEmploymentDays(
+        new Date('2026-03-15T00:00:00.000Z'),
+        periodEnd,
+        new Date('2026-03-20T00:00:00.000Z'),
+        new Date('2026-03-25T00:00:00.000Z'),
       ),
     ).toBeNull();
   });

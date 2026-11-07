@@ -576,6 +576,143 @@ describe('inspectPilaSnapshotPreparation', () => {
     ).toEqual([]);
   });
 
+  it('accepts matching approved ING and RET events in the same v11 period', () => {
+    const source = payload() as ReturnType<typeof payload> & {
+      pilaEvents?: unknown;
+      pilaRiskAssignments?: unknown;
+      pilaWorkLocations?: unknown;
+    };
+    source.schemaVersion = 11;
+    Object.assign(source.period, {
+      payrollPeriodId: 'period-1',
+      fechaInicio: '2026-10-01',
+      fechaFin: '2026-10-31',
+    });
+    Object.assign(source.employee, {
+      employeeId: 'employee-1',
+      fechaIngreso: '2026-10-10',
+      fechaRetiro: '2026-10-20',
+    });
+    Object.assign(source.contract, {
+      estado: 'TERMINADO',
+      fechaInicio: '2026-10-10',
+      fechaFin: '2026-10-20',
+    });
+    Object.assign(source.affiliations[0], {
+      tipoCotizanteCodigo: '01',
+      subtipoCotizanteCodigo: '00',
+      vigenteDesde: '2026-10-10',
+      vigenteHasta: '2026-10-20',
+    });
+    const events = [
+      {
+        eventId: 'pila-ing-event-1',
+        codigo: 'ING',
+        fechaInicio: '2026-10-10',
+        fechaFin: null,
+        dias: null,
+      },
+      {
+        eventId: 'pila-ret-event-1',
+        codigo: 'RET',
+        fechaInicio: '2026-10-20',
+        fechaFin: null,
+        dias: null,
+      },
+    ];
+    source.pilaEvents = events;
+    source.pilaWorkLocations = [
+      {
+        assignmentId: 'work-location-1',
+        tenantId: 'tenant-1',
+        municipioId: 'municipality-1',
+        municipio: { id: 'municipality-1', codigo: '11001' },
+        vigenteDesde: '2026-10-10',
+        vigenteHasta: '2026-10-20',
+      },
+    ];
+    source.pilaRiskAssignments = [
+      {
+        assignmentId: 'risk-assignment-1',
+        tenantId: 'tenant-1',
+        codigoActividadEconomica: '1131202',
+        formatoNormativoVersion: 'DECRETO_768_2022',
+        vigenteDesde: '2026-10-10',
+        vigenteHasta: '2026-10-20',
+        centroTrabajo: {
+          tenantId: 'tenant-1',
+          arlCodigo: 'ARL001',
+          codigoCentro: '00012',
+        },
+      },
+    ];
+    Object.assign(source.payroll, {
+      tipoSalario: 'F',
+      salarioIntegral: false,
+      tipoSalarioBloqueos: [],
+      diasNomina: 11,
+      pilaEvents: events,
+      novelties: [],
+      diasCotizadosPorSubsistema: Object.fromEntries(
+        ['pension', 'salud', 'riesgos', 'cajaCompensacion'].map((subsystem) => [
+          subsystem,
+          {
+            valor: 11,
+            reglaVersion: 'PILA_ING_RET_DAYS_FROM_APPROVED_PAYROLL_V1',
+            bloqueos: [],
+          },
+        ]),
+      ),
+    });
+    const salary = 2_933_333;
+    Object.assign(source.payroll.salarioBasicoCampo40, {
+      valor: salary,
+      reglaVersion: 'PILA_ING_RET_FIELD_40_FROM_APPROVED_BASE_V1',
+      bloqueos: [],
+    });
+    for (const subsystem of [
+      'pension',
+      'salud',
+      'riesgos',
+      'cajaCompensacion',
+    ] as const) {
+      Object.assign(source.payroll.ibcPorSubsistema[subsystem], {
+        valor: salary,
+        sourceCount: 1,
+      });
+    }
+    Object.assign(source.payroll.ibcPorSubsistema.otrosParafiscales, {
+      valor: salary,
+      sourceCount: 1,
+      conceptIds: ['salary-base-concept'],
+      reglaVersion: 'CO_PARAFISCAL_BASE_V2',
+      bloqueos: [],
+    });
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 11,
+      payload: source,
+      totalCotizantes: 1,
+    });
+
+    expect(
+      result.issues.filter(({ code }) =>
+        [
+          'EVENTO_PILA_ING_SIN_SEGMENTACION_APROBADA',
+          'EVENTO_PILA_RET_SIN_SEGMENTACION_APROBADA',
+          'CAMPO_36_REQUIERE_SEGMENTACION',
+          'CAMPO_37_REQUIERE_SEGMENTACION',
+          'CAMPO_38_REQUIERE_SEGMENTACION',
+          'CAMPO_39_REQUIERE_SEGMENTACION',
+          'UBICACION_LABORAL_PILA_FUENTE_INVALIDA',
+          'CENTRO_TRABAJO_PILA_NO_CUBRE_PERIODO',
+          'ACTIVIDAD_ARL_PILA_NO_CUBRE_PERIODO',
+        ].includes(code),
+      ),
+    ).toEqual([]);
+  });
+
   it('bloquea un snapshot PILA histórico o ausente sin completar desde el maestro', () => {
     const result = inspectPilaSnapshotPreparation({
       employeeId: 'employee-1',
@@ -2224,6 +2361,42 @@ describe('inspectPilaSnapshotPreparation', () => {
         expect.objectContaining({ fieldNumber: 98, affectedCount: 2 }),
       ]),
     );
+  });
+
+  it('blocks file generation when an AT2 field candidate cannot be serialized', () => {
+    const source = detailCandidateSnapshot('employee-1', 'Ana');
+    const payload = source.payload as {
+      payroll: { concepts: Array<Record<string, unknown>> };
+    };
+    const employerHealth = payload.payroll.concepts.find(
+      ({ codigo }) => codigo === 'SALUD_PAT',
+    );
+    expect(employerHealth).toBeDefined();
+    employerHealth!.valor = 255_100;
+
+    const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [source],
+    });
+
+    const serializationBlocker = report.exportReadiness.blockers.find(
+      ({ code }) => code === 'AT2_V30_SERIALIZATION_FIELDS_PENDING',
+    );
+    expect(serializationBlocker?.scope).toBe('FILE_GENERATION');
+    expect(
+      serializationBlocker?.fields.some(
+        ({ record, fieldNumbers }) =>
+          record === 'DETALLE_TIPO_2' &&
+          fieldNumbers.includes(54) &&
+          fieldNumbers.includes(55),
+      ),
+    ).toBe(true);
+    expect(report.archivoGenerable).toBe(false);
   });
 
   it('keeps employees with identical names distinct in PILA findings', () => {

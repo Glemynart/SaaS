@@ -5,6 +5,7 @@ import {
 } from '@prisma/client';
 import { roundPeso } from './calculator/payroll-calculator';
 import {
+  calculateMonthlyEmploymentDays,
   calculateMonthlyEntryDays,
   calculateMonthlyRetirementDays,
 } from './payroll-30-day-month';
@@ -14,6 +15,10 @@ const PILA_NEW_HIRE_BASIC_SALARY_FIELD_40_RULE_VERSION =
   'PILA_ING_FIELD_40_FROM_APPROVED_BASE_V1' as const;
 const PILA_RETIREMENT_BASIC_SALARY_FIELD_40_RULE_VERSION =
   'PILA_RET_FIELD_40_FROM_APPROVED_BASE_V1' as const;
+const PILA_ING_RET_BASIC_SALARY_FIELD_40_RULE_VERSION =
+  'PILA_ING_RET_FIELD_40_FROM_APPROVED_BASE_V1' as const;
+const PILA_ING_RET_DAYS_RULE_VERSION =
+  'PILA_ING_RET_DAYS_FROM_APPROVED_PAYROLL_V1' as const;
 
 type MunicipalitySource = {
   id: string;
@@ -379,6 +384,13 @@ export function buildPilaSourceSnapshot(input: {
     tipoSalario: salaryType.valor,
     diasNomina,
   });
+  const ingressRetirementPilaDays = buildSamePeriodIngressRetirementPilaDays({
+    context: input.context,
+    novelties: input.payroll.novelties,
+    diasNomina,
+    salarioIntegral: input.payroll.salarioIntegral,
+    tipoSalario: salaryType.valor,
+  });
   const diasCotizadosPorSubsistema = buildPilaDaysBySubsystem(
     input.context,
     input.payroll.novelties,
@@ -386,6 +398,7 @@ export function buildPilaSourceSnapshot(input: {
     input.payroll.salarioIntegral,
     salaryType.valor,
     approvedFullMonthVsp,
+    ingressRetirementPilaDays,
   );
   const newHirePilaDays = buildNewHirePilaDays({
     context: input.context,
@@ -414,17 +427,19 @@ export function buildPilaSourceSnapshot(input: {
   });
   const hasPilaEvents = input.context.pilaEvents.length > 0;
   const salarioBasicoCampo40 =
-    newHirePilaDays.value !== null
-      ? buildNewHireBasicSalaryField40(otrosParafiscales)
-      : retirementPilaDays.value !== null
-        ? buildRetirementBasicSalaryField40(otrosParafiscales)
-        : hasPilaEvents && !approvedFullMonthVsp
-          ? {
-              valor: null,
-              reglaVersion: PILA_NEW_HIRE_BASIC_SALARY_FIELD_40_RULE_VERSION,
-              bloqueos: ['CAMPO_40_ING_SIN_BASE_APROBADA'],
-            }
-          : validatePilaBasicSalary(input.payroll.salarioBasico);
+    ingressRetirementPilaDays.value !== null
+      ? buildIngressRetirementBasicSalaryField40(otrosParafiscales)
+      : newHirePilaDays.value !== null
+        ? buildNewHireBasicSalaryField40(otrosParafiscales)
+        : retirementPilaDays.value !== null
+          ? buildRetirementBasicSalaryField40(otrosParafiscales)
+          : hasPilaEvents && !approvedFullMonthVsp
+            ? {
+                valor: null,
+                reglaVersion: PILA_NEW_HIRE_BASIC_SALARY_FIELD_40_RULE_VERSION,
+                bloqueos: ['CAMPO_40_ING_SIN_BASE_APROBADA'],
+              }
+            : validatePilaBasicSalary(input.payroll.salarioBasico);
   const pensionIbcSource = payrollConceptBaseSource(
     input.payroll.concepts,
     'PENSION_EMP',
@@ -442,9 +457,13 @@ export function buildPilaSourceSnapshot(input: {
     input.context.employee.fechaIngreso > periodStart
       ? input.context.employee.fechaIngreso
       : periodStart;
-  const pensionCoverageEnd = retirementPilaDays.fechaRetiro
-    ? calendarDateAsDate(retirementPilaDays.fechaRetiro)
-    : periodEnd;
+  const pensionCoverageEnd =
+    ingressRetirementPilaDays.fechaRetiro || retirementPilaDays.fechaRetiro
+      ? calendarDateAsDate(
+          ingressRetirementPilaDays.fechaRetiro ??
+            retirementPilaDays.fechaRetiro!,
+        )
+      : periodEnd;
   const coveringPensionAffiliation =
     input.context.affiliations.length === 1 &&
     onlyAffiliation !== undefined &&
@@ -482,7 +501,7 @@ export function buildPilaSourceSnapshot(input: {
 
   return {
     ...input.context,
-    schemaVersion: 10,
+    schemaVersion: 11,
     pilaRiskAssignments: input.context.pilaRiskAssignments ?? [],
     payroll: {
       payrollRunId: input.payroll.runId,
@@ -600,7 +619,39 @@ function buildPilaDaysBySubsystem(
   salarioIntegral: boolean,
   tipoSalario: 'X' | 'F' | 'V' | null,
   approvedFullMonthVsp: boolean,
+  ingressRetirementPilaDays: ReturnType<
+    typeof buildSamePeriodIngressRetirementPilaDays
+  >,
 ) {
+  if (ingressRetirementPilaDays.value !== null) {
+    const evidence = {
+      reglaVersion: PILA_ING_RET_DAYS_RULE_VERSION,
+      fundamento: 'ING_RET_MISMO_PERIODO_DIAS_CONGELADOS_EN_NOMINA_APROBADA',
+      periodo: {
+        fechaInicio: context.period.fechaInicio,
+        fechaFin: context.period.fechaFin,
+      },
+      empleadoId: context.employee.employeeId,
+      contratoId: context.contract?.contractId ?? null,
+      afiliacionId: context.affiliations[0]?.affiliationId ?? null,
+      eventoIngresoId: ingressRetirementPilaDays.ingressEventId,
+      eventoRetiroId: ingressRetirementPilaDays.retirementEventId,
+      fechaIngreso: ingressRetirementPilaDays.fechaIngreso,
+      fechaRetiro: ingressRetirementPilaDays.fechaRetiro,
+      diasNominaAprobados: diasNomina,
+      bloqueos: [],
+    };
+    return {
+      pension: { valor: ingressRetirementPilaDays.value, ...evidence },
+      salud: { valor: ingressRetirementPilaDays.value, ...evidence },
+      riesgos: { valor: ingressRetirementPilaDays.value, ...evidence },
+      cajaCompensacion: {
+        valor: ingressRetirementPilaDays.value,
+        ...evidence,
+      },
+    };
+  }
+
   const blockers: string[] = [];
   const { fechaInicio, fechaFin } = context.period;
 
@@ -735,6 +786,107 @@ function buildPilaDaysBySubsystem(
     salud: { valor: value, ...evidence },
     riesgos: { valor: value, ...evidence },
     cajaCompensacion: { valor: value, ...evidence },
+  };
+}
+
+function buildSamePeriodIngressRetirementPilaDays(input: {
+  context: PilaSourceContext;
+  novelties: PilaSnapshotNovelty[];
+  diasNomina: number;
+  salarioIntegral: boolean;
+  tipoSalario: 'X' | 'F' | 'V' | null;
+}): {
+  value: number | null;
+  ingressEventId: string | null;
+  retirementEventId: string | null;
+  fechaIngreso: string | null;
+  fechaRetiro: string | null;
+} {
+  const { context } = input;
+  const { fechaInicio, fechaFin } = context.period;
+  const entryDate = context.employee.fechaIngreso;
+  const retirementDate = context.employee.fechaRetiro;
+  const contract = context.contract;
+  const affiliation =
+    context.affiliations.length === 1 ? context.affiliations[0] : null;
+  const ingressEvents = context.pilaEvents.filter(
+    ({ codigo }) => codigo === PilaEventCode.ING,
+  );
+  const retirementEvents = context.pilaEvents.filter(
+    ({ codigo }) => codigo === PilaEventCode.RET,
+  );
+  const noValue = {
+    value: null,
+    ingressEventId: null,
+    retirementEventId: null,
+    fechaIngreso: null,
+    fechaRetiro: null,
+  };
+
+  if (
+    !fechaInicio ||
+    !fechaFin ||
+    !entryDate ||
+    !retirementDate ||
+    !isFullCalendarMonth(fechaInicio, fechaFin) ||
+    entryDate < fechaInicio ||
+    entryDate > fechaFin ||
+    retirementDate < entryDate ||
+    retirementDate > fechaFin ||
+    !contract ||
+    contract.estado !== 'TERMINADO' ||
+    contract.fechaInicio !== entryDate ||
+    contract.fechaFin !== retirementDate ||
+    !affiliation ||
+    affiliation.tipoCotizanteCodigo !== '01' ||
+    affiliation.subtipoCotizanteCodigo !== '00' ||
+    !affiliation.vigenteDesde ||
+    affiliation.vigenteDesde > entryDate ||
+    (affiliation.vigenteHasta !== null &&
+      affiliation.vigenteHasta < retirementDate) ||
+    input.salarioIntegral ||
+    input.tipoSalario !== 'F' ||
+    input.novelties.length !== 0 ||
+    context.pilaEvents.length !== 2 ||
+    ingressEvents.length !== 1 ||
+    retirementEvents.length !== 1
+  ) {
+    return noValue;
+  }
+
+  const [ingressEvent] = ingressEvents;
+  const [retirementEvent] = retirementEvents;
+  const expectedDays = calculateMonthlyEmploymentDays(
+    calendarDateAsDate(fechaInicio),
+    calendarDateAsDate(fechaFin),
+    calendarDateAsDate(entryDate),
+    calendarDateAsDate(retirementDate),
+  );
+  if (
+    !ingressEvent ||
+    !retirementEvent ||
+    ingressEvent.eventId === retirementEvent.eventId ||
+    ingressEvent.fechaInicio !== entryDate ||
+    retirementEvent.fechaInicio !== retirementDate ||
+    ingressEvent.fechaFin !== null ||
+    retirementEvent.fechaFin !== null ||
+    ingressEvent.dias !== null ||
+    retirementEvent.dias !== null ||
+    !Number.isSafeInteger(input.diasNomina) ||
+    input.diasNomina < 1 ||
+    input.diasNomina > 30 ||
+    expectedDays === null ||
+    input.diasNomina !== expectedDays
+  ) {
+    return noValue;
+  }
+
+  return {
+    value: input.diasNomina,
+    ingressEventId: ingressEvent.eventId,
+    retirementEventId: retirementEvent.eventId,
+    fechaIngreso: entryDate,
+    fechaRetiro: retirementDate,
   };
 }
 
@@ -981,7 +1133,8 @@ function otherParafiscalBaseSource(input: {
     ({ valor, reglaVersion, bloqueos }) =>
       valor === input.diasNomina &&
       (reglaVersion === 'PILA_ING_DAYS_FROM_APPROVED_PAYROLL_V1' ||
-        reglaVersion === 'PILA_RET_DAYS_FROM_APPROVED_PAYROLL_V1') &&
+        reglaVersion === 'PILA_RET_DAYS_FROM_APPROVED_PAYROLL_V1' ||
+        reglaVersion === PILA_ING_RET_DAYS_RULE_VERSION) &&
       bloqueos.length === 0,
   );
   const isFullMonthDays = Object.values(input.diasCotizadosPorSubsistema).every(
@@ -1192,6 +1345,19 @@ function buildRetirementBasicSalaryField40(
   return {
     ...validated,
     reglaVersion: PILA_RETIREMENT_BASIC_SALARY_FIELD_40_RULE_VERSION,
+    bloqueos: [
+      ...new Set([...validated.bloqueos, ...approvedParafiscalBase.bloqueos]),
+    ],
+  };
+}
+
+function buildIngressRetirementBasicSalaryField40(
+  approvedParafiscalBase: ReturnType<typeof otherParafiscalBaseSource>,
+) {
+  const validated = validatePilaBasicSalary(approvedParafiscalBase.valor);
+  return {
+    ...validated,
+    reglaVersion: PILA_ING_RET_BASIC_SALARY_FIELD_40_RULE_VERSION,
     bloqueos: [
       ...new Set([...validated.bloqueos, ...approvedParafiscalBase.bloqueos]),
     ],
