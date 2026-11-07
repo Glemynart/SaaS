@@ -5,8 +5,9 @@ por un operador. La matriz sigue siendo el alcance de validación y no amplía
 automáticamente compatibilidad.
 
 **Corte de evidencia normativa:** 2026-11-06.
-**Estado de implementación contrastado con `main@6642501` (2026-11-06); el
-candidato VSP descrito al final está en una rama local y aún no está integrado.**
+**Estado de implementación contrastado con `main@2c35ef5` (2026-11-07). Los
+candidatos acotados RET (PILA-AT2-82) y VSP (PILA-AT2-84) están integrados por
+los PR #324 y #327; ninguno acredita aceptación por un operador.**
 
 **ADR relacionado:** [ADR-013 — Exportación estándar de nómina a PILA](../../adr/ADR-013-pila-standard-file-export.md).
 
@@ -490,14 +491,14 @@ exoneración.
 ## Límites de la investigación
 
 La matriz confirma la estructura y reglas citadas en AT2 v30 y las normas
-oficiales revisadas al 2026-11-04; el estado de implementación se contrastó
-contra `main@82d49bc` el 2026-11-06. Requiere nueva revisión normativa antes
+oficiales revisadas al 2026-11-06; el estado de implementación se contrastó
+contra `main@2c35ef5` el 2026-11-07. Requiere nueva revisión normativa antes
 del corte 2027-04-01 o ante una modificación oficial. No verifica una carga en
 SOI u otro operador, no certifica el tratamiento individual de una empresa, no
 reemplaza el concepto laboral/contable del cliente ni confirma que no haya una
 revisión normativa posterior al corte indicado. Los documentos
 `PROJECT_STATE.md`, Goals y ADRs se trataron como contexto; el estado de código
-se verificó en la rama local. En la raíz del checkout no están
+se verificó en el commit de `main` indicado arriba. El checkout no contiene
 `Decisiones de Producto.md`, `ENGINEERING_PLAYBOOK.md` ni
 `LA_OFICINA_NITIDA_CONTEXT.md`.
 
@@ -517,7 +518,7 @@ snapshots históricos inmutables. La prueba E2E debe descargar la plantilla,
 confirmar e importar una fila válida, verificar el detalle tras recargar y
 repetir la carga sin duplicados.
 
-## Estado de implementación de exportación — 2026-11-06
+## Estado de implementación de exportación — 2026-11-07
 
 PR #278 fusionó la composición local de archivos tipo 1 y tipo 2 AT2 v30 desde
 snapshots aprobados. PR #279 agregó persistencia append-only por tenant y
@@ -536,6 +537,12 @@ a revisión normativa completa, aceptación de SOI u otro operador, liquidación
 ni pago. La UI y el modelo mantienen separados esos estados. El estado
 `normativeSourceStatus: RECONCILIATION_PENDING` refleja que quedan reglas y
 casos fuera del MVP por reconciliar.
+
+PR #324 integra el candidato RET único en un mes completo (PILA-AT2-82), y PR
+#327 integra la VSP única efectiva desde el primer día de un mes completo
+(PILA-AT2-84). Ambos conservan sus guardas de dependiente 01/00 y snapshots
+aprobados; no habilitan segmentación de eventos ni equivalen a aceptación por
+un operador.
 
 ### PILA-AT2-80 — Ingreso único al inicio del vínculo
 
@@ -560,8 +567,8 @@ queda sujeta a esas verificaciones.
 
 ### PILA-AT2-82 — Retiro único dentro de un mes calendario
 
-El candidato local v10 admite un único RET para un dependiente 01/00 con
-salario fijo no integral, ingreso anterior al mes, contrato en estado
+El candidato v10 integrado en `main` por PR #324 admite un único RET para un
+dependiente 01/00 con salario fijo no integral, ingreso anterior al mes, contrato en estado
 `TERMINADO` con fecha fin igual al último día trabajado, afiliación, ubicación
 laboral y asignación ARL únicas que cubren desde el inicio del período hasta el
 retiro, y ninguna novedad Payroll adicional. Los días de los cuatro subsistemas
@@ -576,8 +583,8 @@ PayrollRun del mes sin aprobar, para evitar duplicar salario pendiente.
 Las pruebas negativas bloquean fechas/días discordantes, afiliaciones o
 vigencias incompletas, eventos adicionales, novedades, salario variable o
 integral y períodos parciales. No admite ING+RET ni segmentación. La revisión
-laboral y las pruebas con un operador siguen pendientes; este candidato local
-no acredita aceptación, liquidación ni pago en SOI u otro operador.
+laboral y las pruebas con un operador siguen pendientes; este candidato no
+acredita aceptación, liquidación ni pago en SOI u otro operador.
 
 ### PILA-AT2-68 — Secuencia global del detalle tipo 2
 
@@ -626,9 +633,10 @@ identifica el campo 5 como “Transición”.
 
 ### PILA-AT2-84 — VSP única desde el primer día del mes completo
 
-El candidato local requiere un snapshot aprobado v10 de un dependiente 01/00,
-con una única afiliación que cubre todo el período, contrato estándar y vínculo
-activo durante el mes, salario fijo no integral y una sola VSP cuya fecha
+El candidato integrado en `main` por PR #327 requiere un snapshot aprobado v10
+de un dependiente 01/00, con una única afiliación que cubre todo el período,
+contrato estándar y vínculo activo durante el mes, salario fijo no integral y
+una sola VSP cuya fecha
 efectiva coincide con el primer día, con 30 días aprobados en Payroll. No admite otras novedades Payroll ni
 eventos PILA, salario variable, eventos concurrentes, VSP de mitad de mes ni
 períodos parciales. Días 36–39, salario/IBC y demás fuentes siguen saliendo del
