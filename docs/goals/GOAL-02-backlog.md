@@ -2235,3 +2235,10 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
 - Las credenciales deben permanecer en el gestor de secretos del entorno, fuera
   de Git y de los logs. No se ha confirmado la configuración actual del VPS ni
   se ha cambiado R2, DNS o OCI en este incremento.
+- El preflight `ops:delivery-preflight` añade dos verificaciones manuales para
+  un entorno aislado: round-trip sintético R2 con nombre exacto del bucket
+  ingresado por el operador, hash y limpieza; y autenticación SMTP con TLS 1.2
+  sin enviar correo. Las
+  pruebas usan clientes simulados. Esto no sustituye revisar que el bucket sea
+  privado, probar aislamiento tenant ni recibir una invitación y recuperación
+  reales. No se ha conectado a R2/OCI ni al VPS.
