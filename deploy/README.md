@@ -607,8 +607,8 @@ pnpm --filter @saas/api ops:delivery-preflight -- \
 Reemplaza el texto de ejemplo escribiendo el nombre exacto del bucket privado
 aislado de staging; no uses una expansión automática de `R2_BUCKET` para esa
 confirmación. El operador debe cargar las variables desde el entorno privado
-aprobado antes de ejecutar los comandos. La herramienta nunca lee archivos `.env`, muestra
-credenciales ni imprime respuestas SMTP sin filtrar. Un error de limpieza
+aprobado antes de ejecutar los comandos. La herramienta no carga archivos
+`.env`, no muestra credenciales ni imprime respuestas SMTP sin filtrar. Un error de limpieza
 informa la key sintética para que se retire manualmente. Si la verificación de
 escritura falla por permisos, revisa la política y el alcance del token antes
 de conceder más permisos; no reutilices credenciales de producción. Si el
