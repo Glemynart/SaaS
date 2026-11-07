@@ -175,6 +175,32 @@ ajuste, no a la existencia de una fórmula proporcional general. Fuentes:
 [Sentencia C-871/2014](https://www.corteconstitucional.gov.co/relatoria/2014/C-871-14.htm)
 y [LegalApp de MinJusticia](https://www.minjusticia.gov.co/programas-co/LegalApp/Paginas/Que-es-la-prima-de-servicios-y-que-hacer-si-no-se-reconoce-o-paga.aspx).
 
+### Revalidación oficial del corte de diciembre — 2026-11-07
+
+Se volvió a consultar la compilación del artículo 306 del CST en el Gestor
+Normativo de Función Pública y la guía de liquidación de MinJusticia. La norma
+confirma el pago de la segunda cuota dentro de los primeros veinte días de
+diciembre y el reconocimiento por el semestre trabajado o proporcional al
+tiempo. La guía publica la fórmula proporcional de días del semestre × medio
+salario / 180 e incluye en el salario base los factores salariales aplicables,
+como horas extra, recargos, comisiones, bonificaciones salariales y auxilio de
+transporte.
+
+Estas fuentes oficiales no fijan un corte para los días 21–31 de diciembre ni
+explican cómo ajustar después del pago la remuneración variable de esos días
+para un empleado que continúa activo. Tampoco permiten trasladar al sector
+privado la fecha de corte usada para prestaciones distintas de empleados
+públicos. La verificación, por tanto, no aporta una regla segura para calcular
+el segundo semestre antes del vencimiento legal.
+
+**Decisión vigente:** conservar julio–diciembre deshabilitado para preview,
+aprobación y PDF hasta que Producto/Nómina obtenga revisión laboral de una
+regla de corte, base y ajuste, junto con casos esperados revisados. No proyectar
+días o pagos futuros ni inferir un corte de una convención particular. Esto no
+cambia enero–junio ni la obligación legal del empleador. Fuentes consultadas el
+2026-11-07: [compilación del CST en Función Pública](https://www1.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=199983)
+y [guía de liquidación de contrato de MinJusticia](https://www.minjusticia.gov.co/programas-co/LegalApp/Paginas/Como-liquidar-un-contrato-de-trabajo.aspx).
+
 ## Matriz del MVP de conceptos y novedades
 
 Esta matriz de conceptos y novedades aplica a las versiones `PRIMA_SEMESTRAL_V1` y `PRIMA_SEMESTRAL_V2`. Cubre todos
