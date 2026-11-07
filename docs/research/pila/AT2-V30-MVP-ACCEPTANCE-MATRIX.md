@@ -4,9 +4,11 @@
 por un operador. La matriz sigue siendo el alcance de validación y no amplía
 automáticamente compatibilidad.
 
-**Corte de evidencia normativa:** 2026-11-06.
-**Estado previo a este incremento contrastado con `main@b4bbddf` (2026-11-07).
-Los candidatos acotados RET (PILA-AT2-82) y VSP (PILA-AT2-84) están integrados por los PR #324 y #327; el caso ING+RET aquí documentado está en revisión y no acredita aceptación por un operador.**
+**Corte de evidencia normativa:** 2026-11-07.
+**Estado contrastado con `main@35f2606` (2026-11-07):** los candidatos
+acotados RET (PILA-AT2-82), VSP (PILA-AT2-84) e ING+RET (PILA-AT2-07) están
+integrados por los PR #324, #327 y #331. Ninguno acredita aceptación por un
+operador.
 
 **ADR relacionado:** [ADR-013 — Exportación estándar de nómina a PILA](../../adr/ADR-013-pila-standard-file-export.md).
 
@@ -646,7 +648,7 @@ los demás campos obligatorios y la prevalidación completa aún deben pasar.
 La compilación vigente de la Resolución 2388 describe el campo 21 como VSP,
 admite blanco o `X` y asigna su declaración al aportante. El campo 82 es la
 fecha de inicio de VSP y debe contener una fecha válida cuando la novedad ocurre
-en el período liquidado. La Resolución 10 de 2026 también exige registros tipo 2
+en el período liquidado. La [Resolución 2064 de 2025](https://normograma.supersalud.gov.co/compilacion/docs/resolucion_minsaludps_2064_2025.htm) permite registros tipo 2
 separados cuando las novedades causan IBC distintos; este candidato evita esa
 segmentación al aceptar solo una VSP desde el primer día y una única fuente
 aprobada de IBC para todo el período. La restricción al primer día es una guarda
