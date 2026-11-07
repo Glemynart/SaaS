@@ -584,6 +584,44 @@ R2 anteriores y fija `REQUIRE_REAL_EMAIL=true`. El bucket debe ser privado y
 dedicado a staging. Las claves de R2 y las credenciales SMTP de OCI deben
 existir únicamente en el `.env` privado del VPS; no deben entrar en Git.
 
+### Preflight manual de R2 y SMTP
+
+La readiness de la API no demuestra que R2 permita escribir ni que el servidor
+SMTP acepte la autenticación. El repositorio ofrece una comprobación manual
+para ejecutar solo en un entorno aislado ya aprobado. No la ejecutes contra
+producción ni como parte automática del arranque:
+
+```bash
+# Debe coincidir exactamente con R2_BUCKET. Escribe 32 bytes aleatorios en
+# una key __health__/preflight/ única, los vuelve a leer y hashear, los borra
+# y confirma que la key ya no existe. La identidad de R2 necesita Put, Get,
+# Head y Delete en el bucket de staging.
+pnpm --filter @saas/api ops:delivery-preflight -- \
+  --r2-write --confirm-r2-bucket=REEMPLAZA_POR_EL_BUCKET_PRIVADO_DE_STAGING
+
+# Una conexión y autenticación TLS; no envía un correo.
+pnpm --filter @saas/api ops:delivery-preflight -- \
+  --smtp-verify --confirm-smtp-connect
+```
+
+Reemplaza el texto de ejemplo escribiendo el nombre exacto del bucket privado
+aislado de staging; no uses una expansión automática de `R2_BUCKET` para esa
+confirmación. El operador debe cargar las variables desde el entorno privado
+aprobado antes de ejecutar los comandos. La herramienta nunca lee archivos `.env`, muestra
+credenciales ni imprime respuestas SMTP sin filtrar. Un error de limpieza
+informa la key sintética para que se retire manualmente. Si la verificación de
+escritura falla por permisos, revisa la política y el alcance del token antes
+de conceder más permisos; no reutilices credenciales de producción. Si el
+proceso se interrumpe abruptamente, inspecciona el prefijo
+`__health__/preflight/` del bucket aislado y retira cualquier objeto sintético
+que haya quedado.
+
+Un resultado exitoso solo demuestra round-trip de un objeto sintético y
+autenticación SMTP en ese instante. No demuestra que el bucket sea privado, que
+el aislamiento por tenant funcione, que una invitación/restablecimiento se
+entregue o que el destinatario la reciba. Esas comprobaciones funcionales y la
+revisión de bucket privado siguen siendo parte de la aceptación del entorno.
+
 ## Migración de objetos local a R2 y reversibilidad
 
 El repositorio incluye `pnpm --filter @saas/api storage:migrate-local-to-r2`.
