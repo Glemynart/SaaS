@@ -1,10 +1,10 @@
 # Backlog de GOAL-02 — Evolución Financiera y Cumplimiento Electrónico
 
-Actualizado: 2026-11-06. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
+Actualizado: 2026-11-07. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
 no cerrado. Este backlog conserva el resultado completo de GOAL-02 y prioriza
 primero flujos financieros internos que puedan mostrarse a futuros clientes.
 
-## Estado vigente — 2026-11-06
+## Estado vigente — 2026-11-07
 
 - **RET PILA integrado en `main` por PR #324** (`b708dcd1`): soporta solo
   dependientes 01/00 con salario fijo no integral, un evento RET, mes calendario
@@ -2161,6 +2161,20 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   habilita el archivo si quedan otros campos pendientes. La matriz PILA-AT2-84
   documenta el alcance frente a la compilación vigente de Resolución 2388 y la
   regla de múltiples registros modificada por Resolución 10 de 2026.
+
+### Sincronización de estado GOAL-02 y PILA — PR #329 — 2026-11-07
+
+- PR #329 actualiza ADR-013 y la matriz de aceptación para reflejar el estado
+  fusionado de RET (#324) y VSP desde el primer día de mes (#327), con evidencia
+  contrastada en `main@2c35ef5` antes de integrar este ajuste. El PR se fusionó
+  en `main@710f2df`; CI y Browser E2E post-merge pasaron.
+- La Resolución 0010 de 2026 admite registros tipo 2 separados cuando cambia
+  el IBC entre novedades; el aportante calcula los IBC afectados. La fecha o el
+  código VSP por sí solos no aportan esos cálculos: Payroll no conserva
+  segmentos salariales aprobados, por lo que VSP de mitad de mes y
+  concurrencias continúan bloqueadas.
+- La prueba real por operador sigue `NOT_TESTED`. Los archivos generados y
+  validados localmente no equivalen a aceptación, liquidación ni pago.
 
 ### Dependencias operativas para demo — R2 privado y correo de OCI — 2026-11-06
 
