@@ -91,11 +91,15 @@ function buildApprovedSnapshot(
       ? '2026-10-20'
       : null;
   const days = singleIngress ? 21 : samePeriodIngressRetirement ? 11 : 20;
-  const monthlySalary = singleIngress || samePeriodIngressRetirement ? 8_000_000 : 8_100_000;
+  const monthlySalary = samePeriodIngressRetirement
+    ? 6_000_000
+    : singleIngress
+      ? 8_000_000
+      : 8_100_000;
   const proratedSalary = singleIngress
     ? 5_600_000
     : samePeriodIngressRetirement
-      ? 2_933_333
+      ? 2_200_000
       : 5_400_000;
   const employee = mutableRecord(payload.employee);
   employee.fechaIngreso = entryDate;
@@ -198,14 +202,14 @@ function buildApprovedSnapshot(
       }
     : samePeriodIngressRetirement
       ? {
-          PENSION_EMP: 117_400,
-          PENSION_PAT: 352_000,
-          SALUD_EMP: 117_400,
-          SALUD_PAT: 249_400,
-          ARL: 15_400,
-          CAJA: 117_400,
-          SENA: 58_700,
-          ICBF: 88_000,
+          PENSION_EMP: 88_000,
+          PENSION_PAT: 264_000,
+          SALUD_EMP: 88_000,
+          SALUD_PAT: 187_000,
+          ARL: 11_500,
+          CAJA: 88_000,
+          SENA: 44_000,
+          ICBF: 66_000,
         }
       : {
           PENSION_EMP: 216_000,
@@ -260,13 +264,19 @@ export async function seedPilaExportFixture(
   const prisma = new PrismaClient();
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
   const periodId = randomUUID();
-  const monthlySalary = singleRetirement ? 8_100_000 : singlePartialPeriod ? 8_000_000 : 3_000_000;
+  const monthlySalary = singleIngressRetirement
+    ? 6_000_000
+    : singleRetirement
+      ? 8_100_000
+      : singlePartialPeriod
+        ? 8_000_000
+        : 3_000_000;
   const salary = singleIngress
     ? 5_600_000
     : singleRetirement
       ? 5_400_000
       : singleIngressRetirement
-        ? 2_933_333
+        ? 2_200_000
         : monthlySalary;
   const employeeEntryDate =
     singleIngress || singleIngressRetirement
@@ -280,14 +290,14 @@ export async function seedPilaExportFixture(
     : singleRetirement
       ? 432_000
       : singleIngressRetirement
-        ? 234_800
+        ? 176_000
         : 0;
   const employerContributions = singleIngress
     ? 1_681_300
     : singleRetirement
       ? 1_621_200
       : singleIngressRetirement
-        ? 881_000
+        ? 660_500
         : 900_000;
   const employees = Array.from({ length: employeeCount }, (_, index) => {
     const employeeId = randomUUID();

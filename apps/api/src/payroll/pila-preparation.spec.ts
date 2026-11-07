@@ -2363,6 +2363,42 @@ describe('inspectPilaSnapshotPreparation', () => {
     );
   });
 
+  it('blocks file generation when an AT2 field candidate cannot be serialized', () => {
+    const source = detailCandidateSnapshot('employee-1', 'Ana');
+    const payload = source.payload as {
+      payroll: { concepts: Array<Record<string, unknown>> };
+    };
+    const employerHealth = payload.payroll.concepts.find(
+      ({ codigo }) => codigo === 'SALUD_PAT',
+    );
+    expect(employerHealth).toBeDefined();
+    employerHealth!.valor = 255_100;
+
+    const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [source],
+    });
+
+    const serializationBlocker = report.exportReadiness.blockers.find(
+      ({ code }) => code === 'AT2_V30_SERIALIZATION_FIELDS_PENDING',
+    );
+    expect(serializationBlocker?.scope).toBe('FILE_GENERATION');
+    expect(
+      serializationBlocker?.fields.some(
+        ({ record, fieldNumbers }) =>
+          record === 'DETALLE_TIPO_2' &&
+          fieldNumbers.includes(54) &&
+          fieldNumbers.includes(55),
+      ),
+    ).toBe(true);
+    expect(report.archivoGenerable).toBe(false);
+  });
+
   it('keeps employees with identical names distinct in PILA findings', () => {
     const report = buildPilaPreparationReport({
       tenantId: 'tenant-1',

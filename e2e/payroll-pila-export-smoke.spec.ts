@@ -544,17 +544,18 @@ test('genera ING y RET en una sola línea tipo 2 cuando ocurren en el mismo mes'
     const records = type2Download.bytes.toString('latin1').split('\r\n');
     expect(records).toHaveLength(2);
     expect(headerFieldValue(records[0], 19)).toBe('00001');
-    expect(headerFieldValue(records[0], 20)).toBe('000002933333');
+    expect(headerFieldValue(records[0], 20)).toBe('000002200000');
     expect(records[1].slice(0, 7)).toBe('0200001');
     expect(detailFieldValue(records[1], 15)).toBe('X');
     expect(detailFieldValue(records[1], 16)).toBe('X');
     for (const fieldNumber of [36, 37, 38, 39]) {
       expect(detailFieldValue(records[1], fieldNumber)).toBe('11');
     }
-    expect(Number(detailFieldValue(records[1], 40))).toBe(2_933_333);
+    expect(Number(detailFieldValue(records[1], 40))).toBe(2_200_000);
+    expect(Number(detailFieldValue(records[1], 55))).toBe(275_000);
     expect(detailFieldValue(records[1], 80)).toBe('2026-10-10');
     expect(detailFieldValue(records[1], 81)).toBe('2026-10-20');
-    expect(Number(detailFieldValue(records[1], 95))).toBe(2_933_333);
+    expect(Number(detailFieldValue(records[1], 95))).toBe(2_200_000);
   } finally {
     await fixture.disconnect();
   }

@@ -54,6 +54,7 @@ export interface PilaExportReadinessBlocker {
     | 'PILA_PAYMENT_DATE_REQUIRED'
     | 'PILA_PAYMENT_DATE_SNAPSHOT_INCONSISTENT'
     | 'AT2_HEADER_CCF_IBC_TOTAL_SUPERA_LONGITUD'
+    | 'AT2_V30_SERIALIZATION_FIELDS_PENDING'
     | 'PILA_PENSION_RULESET_AFTER_2027_NOT_RECONCILED'
     | 'OPERATOR_UPLOAD_NOT_VERIFIED';
   scope: 'FILE_GENERATION' | 'OPERATOR_COMPATIBILITY';
@@ -2052,13 +2053,6 @@ export function buildPilaPreparationReport(input: {
     ...(pensionRulesBlocker ? [pensionRulesBlocker] : []),
     ...(headerCcfIbcBlocker ? [headerCcfIbcBlocker] : []),
   ];
-  const exportReadiness =
-    readinessBlockers.length > pilaExportReadiness.blockers.length
-      ? {
-          ...pilaExportReadiness,
-          blockers: readinessBlockers,
-        }
-      : pilaExportReadiness;
   const totalCotizantes = new Set(
     input.snapshots.map(({ employeeId }) => employeeId),
   ).size;
@@ -2114,6 +2108,49 @@ export function buildPilaPreparationReport(input: {
       );
     }
   }
+  const unresolvedSerializationFields = [
+    {
+      record: 'APORTANTE_TIPO_1' as const,
+      fieldNumbers: employerCandidate.unresolvedFields.map(
+        ({ fieldNumber }) => fieldNumber,
+      ),
+    },
+    {
+      record: 'CABECERA_TIPO_2' as const,
+      fieldNumbers: headerCandidate.unresolvedFields.map(
+        ({ fieldNumber }) => fieldNumber,
+      ),
+    },
+    {
+      record: 'DETALLE_TIPO_2' as const,
+      fieldNumbers: [
+        ...new Set(
+          [...detailCandidatesBySnapshot.values()].flatMap((candidate) =>
+            candidate.unresolvedFields.map(({ fieldNumber }) => fieldNumber),
+          ),
+        ),
+      ],
+    },
+  ].filter(({ fieldNumbers }) => fieldNumbers.length > 0);
+  if (unresolvedSerializationFields.length > 0) {
+    readinessBlockers.push({
+      code: 'AT2_V30_SERIALIZATION_FIELDS_PENDING',
+      scope: 'FILE_GENERATION',
+      title: 'Faltan campos para serializar todos los registros PILA',
+      message:
+        'Uno o más candidatos AT2 v30 tienen campos pendientes. El archivo local solo puede construirse cuando todos los campos de aportante, encabezado y detalle estén resueltos.',
+      fields: unresolvedSerializationFields,
+      evidence:
+        'El serializador AT2 v30 rechaza un registro si conserva campos sin candidato. El preflight ahora usa los mismos candidatos que consume la generación de archivos.',
+    });
+  }
+  const exportReadiness =
+    readinessBlockers.length > pilaExportReadiness.blockers.length
+      ? {
+          ...pilaExportReadiness,
+          blockers: readinessBlockers,
+        }
+      : pilaExportReadiness;
   const assessments = input.snapshots.map((snapshot) => {
     const assessment = inspectPilaSnapshotPreparation({
       ...snapshot,
