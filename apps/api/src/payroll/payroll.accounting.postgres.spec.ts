@@ -16,6 +16,7 @@ import {
   PayrollAccountingPreflightService,
   PAYROLL_ACCOUNTING_REQUIRED_ROLES,
 } from './accounting-preflight/payroll-accounting-preflight.service';
+import { mapPilaAt2V30DetailCandidate } from './pila-at2-v30-detail-mapper';
 import { PayrollService } from './payroll.service';
 
 describe('Payroll accounting PostgreSQL integration', () => {
@@ -31,6 +32,7 @@ describe('Payroll accounting PostgreSQL integration', () => {
   const snapshotApprovalRunId = randomUUID();
   const snapshotApprovalContractId = randomUUID();
   const snapshotApprovalLegalParamId = randomUUID();
+  const pilaWorkLocationId = randomUUID();
   const snapshotId = randomUUID();
   const accountingPeriodId = randomUUID();
   const contextService = new TenantContextService();
@@ -122,6 +124,25 @@ describe('Payroll accounting PostgreSQL integration', () => {
           cargo: 'Docente',
           salario: 1_000_000,
           fechaIngreso: new Date('2025-01-01T00:00:00.000Z'),
+        },
+      });
+      const workMunicipality = await tx.municipioDane.upsert({
+        where: { codigo: '08001' },
+        update: {},
+        create: {
+          codigo: '08001',
+          nombre: 'Barranquilla',
+          departamento: 'Atlántico',
+        },
+      });
+      await tx.pilaUbicacionLaboral.create({
+        data: {
+          id: pilaWorkLocationId,
+          tenantId,
+          empleadoId: employeeId,
+          municipioId: workMunicipality.id,
+          vigenteDesde: new Date('2026-01-01T00:00:00.000Z'),
+          registradoPorId: actorId,
         },
       });
       await tx.tercero.create({
@@ -256,15 +277,80 @@ describe('Payroll accounting PostgreSQL integration', () => {
           fechaInicio: '2026-03-01',
           fechaFin: '2026-03-31',
         },
+        employer: {
+          tenantId,
+          razonSocial: 'Payroll Accounting Integration S.A.S.',
+          nit: '800000001',
+          digitoVerif: '1',
+          direccion: 'Calle 1 # 1-1',
+          telefono: '6011234567',
+          email: context.email,
+          representanteLegal: 'Ana Integración',
+          aportesExonerados: false,
+          municipio: { codigo: '08001' },
+          pila: {
+            tipoDocumentoAportante: 'NI',
+            naturalezaJuridica: '2',
+            tipoPersona: 'J',
+            formaPresentacion: 'U',
+            claseAportante: 'B',
+            codigoActividadEconomica: '1234',
+            codigoArlAportante: 'ARL001',
+            tipoAportante: '1',
+            codigoSucursal: '',
+            nombreSucursal: '',
+            fax: '',
+            aportesExoneradosConfirmado: false,
+            beneficioCcfLey1429: false,
+            beneficioLey1429: false,
+            sinAccionEspecial: true,
+            representanteNumeroDocumento: '800000001',
+            representanteTipoDocumento: 'CC',
+            representantePrimerApellido: 'Integración',
+            representanteSegundoApellido: '',
+            representantePrimerNombre: 'Ana',
+            representanteSegundoNombre: '',
+          },
+        },
         employee: {
+          employeeId,
+          tipoDocumento: 'CC',
           cedula: '1000000001',
           primerNombre: 'Ana',
+          segundoNombre: '',
+          primerApellido: 'Integración',
+          segundoApellido: '',
+          fechaNacimiento: '1990-01-01',
+          fechaIngreso: '2025-01-01',
+          fechaRetiro: null,
           tipoSalarioPila: 'F',
+        },
+        contract: {
+          contractId: snapshotApprovalContractId,
+          tipo: 'TERMINO_FIJO',
+          estado: 'VIGENTE',
+          fechaInicio: '2025-01-01T00:00:00.000Z',
+          fechaFin: null,
+          salario: 1_000_000,
+          sedeId: null,
+          claseRiesgoArl: 1,
         },
         affiliations: [
           {
             affiliationId: 'affiliation-approval',
+            tipoCotizanteCodigo: '01',
+            subtipoCotizanteCodigo: '00',
             epsCodigo: 'EPS001',
+            fondoPensionCodigo: 'AFP001',
+            estadoAfiliacionPensional: 'N',
+            indicadorTarifaEspecialPensiones: '',
+            arlCodigo: 'ARL001',
+            arlClaseRiesgo: '1',
+            cajaCompensacionCodigo: 'CCF001',
+            cajaCompensacionNombre: 'Caja Demo',
+            cajaCompensacionDepartamentoCodigo: '08',
+            extranjeroNoObligadoPension: null,
+            colombianoEnElExterior: false,
             vigenteDesde: '2026-01-01',
             vigenteHasta: null,
           },
@@ -425,6 +511,7 @@ describe('Payroll accounting PostgreSQL integration', () => {
         await tx.cuentaContable.deleteMany({ where: { tenantId } });
         await tx.periodoContable.deleteMany({ where: { tenantId } });
         await tx.tercero.deleteMany({ where: { tenantId } });
+        await tx.pilaUbicacionLaboral.deleteMany({ where: { tenantId } });
         await tx.empleado.deleteMany({ where: { tenantId } });
         await tx.auditLog.deleteMany({ where: { tenantId } });
         await tx.user.deleteMany({ where: { tenantId } });
@@ -564,7 +651,19 @@ describe('Payroll accounting PostgreSQL integration', () => {
       affiliations: [
         {
           affiliationId: 'affiliation-approval',
+          tipoCotizanteCodigo: '01',
+          subtipoCotizanteCodigo: '00',
           epsCodigo: 'EPS001',
+          fondoPensionCodigo: 'AFP001',
+          estadoAfiliacionPensional: 'N',
+          indicadorTarifaEspecialPensiones: '',
+          arlCodigo: 'ARL001',
+          arlClaseRiesgo: '1',
+          cajaCompensacionCodigo: 'CCF001',
+          cajaCompensacionNombre: 'Caja Demo',
+          cajaCompensacionDepartamentoCodigo: '08',
+          extranjeroNoObligadoPension: null,
+          colombianoEnElExterior: false,
           vigenteDesde: '2026-01-01',
           vigenteHasta: null,
         },
@@ -600,5 +699,66 @@ describe('Payroll accounting PostgreSQL integration', () => {
         },
       },
     });
+
+    if (!persisted.snapshot || persisted.snapshot.pilaPayloadVersion === null) {
+      throw new Error('La aprobación no persistió el snapshot PILA esperado.');
+    }
+    const approvedPilaPayload = persisted.snapshot.pilaPayload as unknown as {
+      pilaWorkLocations?: Array<{
+        assignmentId: string;
+        tenantId: string;
+        municipioId: string;
+        municipio: {
+          id: string;
+          codigo: string;
+          nombre: string;
+          departamento: string;
+        };
+        vigenteDesde: string;
+        vigenteHasta: string | null;
+      }>;
+    };
+    const [savedWorkLocation] = approvedPilaPayload.pilaWorkLocations ?? [];
+    if (!savedWorkLocation) {
+      throw new Error(
+        'El snapshot PILA aprobado no conservó la ubicación laboral.',
+      );
+    }
+    expect(savedWorkLocation).toMatchObject({
+      assignmentId: pilaWorkLocationId,
+      tenantId,
+      municipio: {
+        codigo: '08001',
+        nombre: 'Barranquilla',
+        departamento: 'Atlántico',
+      },
+      vigenteDesde: '2026-01-01',
+      vigenteHasta: null,
+    });
+    expect(savedWorkLocation.municipioId).toBe(savedWorkLocation.municipio.id);
+
+    const detailCandidate = mapPilaAt2V30DetailCandidate(
+      {
+        employeeId,
+        payloadVersion: persisted.snapshot.pilaPayloadVersion,
+        payload: persisted.snapshot.pilaPayload,
+      },
+      {
+        expectedTenantId: tenantId,
+        planillaType: 'E',
+        period: {
+          id: snapshotApprovalPeriodId,
+          fechaInicio: new Date('2026-03-01T00:00:00.000Z'),
+          fechaFin: new Date('2026-03-31T00:00:00.000Z'),
+        },
+      },
+    );
+    expect(detailCandidate.values[9]).toEqual({ value: '08' });
+    expect(detailCandidate.values[10]).toEqual({ value: '001' });
+    expect(
+      detailCandidate.unresolvedFields.filter(({ fieldNumber }) =>
+        [9, 10].includes(fieldNumber),
+      ),
+    ).toEqual([]);
   }, 30000);
 });

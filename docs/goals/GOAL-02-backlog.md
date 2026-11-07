@@ -2249,3 +2249,14 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   la configuración de secretos, el cambio del provider y la validación real de
   invitaciones/recuperación en el VPS siguen pendientes y no se simulan como
   completados.
+
+### Ubicación laboral en snapshot aprobado y candidato PILA — 2026-11-07
+
+- La integración PostgreSQL de `PayrollService.aprobar` conserva en el snapshot
+  PILA la ubicación laboral vigente consultada desde `PilaUbicacionLaboral`;
+  luego el mapper deriva los campos 9 y 10 desde esa ubicación congelada y el
+  departamento CCF de la afiliación. El caso confirma municipio `08001` →
+  departamento `08` y municipio `001`. No cambia datos del producto ni acredita
+  aceptación de un operador; la persistencia desde la ficha del empleado y la
+  generación/descarga de archivos permanecen cubiertas por sus pruebas de
+  navegador existentes.
