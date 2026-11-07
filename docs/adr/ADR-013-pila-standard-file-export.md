@@ -1327,7 +1327,8 @@ Payroll, y conserva las reglas de versión explícitas
 El payload v11 identifica esta estructura; los snapshots históricos v2–v10
 mantienen sus reglas anteriores y no se reinterpretan como ING+RET. Esta
 validación local se apoya en la regla de un mismo registro para ING y RET
-cuando ocurren en el mismo período ([Resolución 0010 de 2026](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-0010-de-2026.pdf))
+cuando ocurren en el mismo período, incorporada por la [Resolución 2064 de
+2025](https://minsalud.gov.co/Normatividad_Nuevo/Resolucion%20No%2064%20de%202025.pdf)
 y en el formato/campos del AT2 de la [Resolución 2388 de 2016](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-2388-2016.pdf).
 La fórmula combinada 30/360 se trata como guardia de concordancia contra el
 snapshot aprobado, no como sustituto de liquidación laboral. Sus expected

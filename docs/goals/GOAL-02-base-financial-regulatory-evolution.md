@@ -100,8 +100,9 @@ RET único dentro de un mes calendario completo y PR #327 integra una VSP única
 efectiva desde el primer día de un mes completo, siempre con fuentes aprobadas
 por Payroll y guardas de alcance estrictas. PR #329 sincroniza ADR-013 y la
 matriz AT2 con estos hechos; sus checks post-merge de CI y Browser E2E pasaron.
-La Resolución 0010 de 2026 permite registros tipo 2 separados cuando las
-novedades producen IBC distintos y asigna su cálculo al aportante. Como Payroll
+La [Resolución 2064 de 2025](https://minsalud.gov.co/Normatividad_Nuevo/Resolucion%20No%2064%20de%202025.pdf)
+permite registros tipo 2 separados cuando las novedades producen IBC distintos
+y asigna su cálculo al aportante. Como Payroll
 no congela segmentos salariales aprobados, VSP de mitad de mes y concurrencias
 siguen bloqueadas. Esto no acredita aceptación de SOI u otro operador.
 
