@@ -2221,7 +2221,9 @@ export function mapPilaAt2V30DetailCandidate(
         : 'Falta declarar explícitamente que no aplica el beneficio general de Ley 1429 para SENA e ICBF.';
   }
   const expectedParafiscalBaseRuleVersion =
-    standardNewHireEmployee || standardRetirementEmployee
+    standardNewHireEmployee ||
+    standardRetirementEmployee ||
+    standardIngressRetirementEmployee
       ? 'CO_PARAFISCAL_BASE_V2'
       : 'CO_PARAFISCAL_BASE_V1';
   const parafiscalBase =

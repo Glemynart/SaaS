@@ -545,6 +545,15 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     payload.schemaVersion = 11;
     payload.employee.fechaIngreso = '2026-10-10';
     payload.employee.fechaRetiro = '2026-10-20';
+    payload.employer.aportesExonerados = false;
+    Object.assign(payload.employer.pila, {
+      tipoAportante: '1',
+      claseAportante: 'B',
+      naturalezaJuridica: '2',
+      beneficioLey1429: false,
+      beneficioCcfLey1429: false,
+      aportesExoneradosConfirmado: false,
+    });
     Object.assign(payload.contract as Record<string, unknown>, {
       fechaInicio: '2026-10-10',
       fechaFin: '2026-10-20',
@@ -560,6 +569,22 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     payload.payroll.tipoSalarioBloqueos = [];
     payload.payroll.novelties = [];
     const salary = 2_933_333;
+    payload.payroll.concepts = [
+      {
+        codigo: 'SENA',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: salary,
+        factor: 0.02,
+        valor: 58_700,
+      },
+      {
+        codigo: 'ICBF',
+        tipo: 'EMPLOYER_CONTRIBUTION',
+        base: salary,
+        factor: 0.03,
+        valor: 88_000,
+      },
+    ];
     payload.payroll.salarioBasicoCampo40 = {
       valor: salary,
       reglaVersion: 'PILA_ING_RET_FIELD_40_FROM_APPROVED_BASE_V1',
@@ -681,6 +706,10 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       38: { value: 11 },
       39: { value: 11 },
       40: { value: 2_933_333 },
+      66: { value: '0.02000' },
+      67: { value: 58_700 },
+      68: { value: '0.03000' },
+      69: { value: 88_000 },
       80: { value: '2026-10-10' },
       81: { value: '2026-10-20' },
       95: { value: 2_933_333 },
@@ -693,7 +722,9 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     ).toBe('PILA_ING_RET_FIELD_40_FROM_APPROVED_BASE_V1');
     expect(
       candidate.unresolvedFields.filter(({ fieldNumber }) =>
-        [15, 16, 30, 36, 37, 38, 39, 40, 80, 81, 95].includes(fieldNumber),
+        [15, 16, 30, 36, 37, 38, 39, 40, 66, 67, 68, 69, 80, 81, 95].includes(
+          fieldNumber,
+        ),
       ),
     ).toEqual([]);
   });

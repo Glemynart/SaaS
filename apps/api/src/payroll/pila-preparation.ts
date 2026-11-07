@@ -1017,6 +1017,27 @@ export function inspectPilaSnapshotPreparation(
               (field) => field.fieldNumber === fieldNumber,
             ),
         );
+      const isApprovedSamePeriodIngressRetirement =
+        ingressDetailCandidate !== null &&
+        approvedIngressRetirement &&
+        ((code === 'ING' &&
+          ingressDetailCandidate.values[80]?.value ===
+            text(event?.fechaInicio) &&
+          [15, 36, 37, 38, 39, 40, 80].every(
+            (fieldNumber) =>
+              !ingressDetailCandidate.unresolvedFields.some(
+                (field) => field.fieldNumber === fieldNumber,
+              ),
+          )) ||
+          (code === 'RET' &&
+            ingressDetailCandidate.values[81]?.value ===
+              text(event?.fechaInicio) &&
+            [16, 36, 37, 38, 39, 40, 81].every(
+              (fieldNumber) =>
+                !ingressDetailCandidate.unresolvedFields.some(
+                  (field) => field.fieldNumber === fieldNumber,
+                ),
+            )));
       const isApprovedSingleFullMonthVsp =
         code === 'VSP' &&
         ingressDetailCandidate?.normativeRuleVersions.vspEventFields ===
@@ -1026,6 +1047,7 @@ export function inspectPilaSnapshotPreparation(
       if (
         isApprovedSingleIngress ||
         isApprovedSingleRetirement ||
+        isApprovedSamePeriodIngressRetirement ||
         isApprovedSingleFullMonthVsp
       ) {
         continue;
@@ -1490,7 +1512,9 @@ export function inspectPilaSnapshotPreparation(
     } else if (
       value !== 30 &&
       !(
-        (approvedNewHireIngress || approvedRetirement) &&
+        (approvedNewHireIngress ||
+          approvedRetirement ||
+          approvedIngressRetirement) &&
         ingressDetailCandidate?.values[field]?.value === value
       )
     ) {
