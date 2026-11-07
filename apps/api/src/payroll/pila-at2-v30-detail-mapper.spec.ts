@@ -538,6 +538,88 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     return input;
   }
 
+  function approvedIngressRetirementSnapshot(daysNomina = 11) {
+    const input = snapshot();
+    input.payloadVersion = 11;
+    const payload = payloadOf(input);
+    payload.schemaVersion = 11;
+    payload.employee.fechaIngreso = '2026-10-10';
+    payload.employee.fechaRetiro = '2026-10-20';
+    Object.assign(payload.contract as Record<string, unknown>, {
+      fechaInicio: '2026-10-10',
+      fechaFin: '2026-10-20',
+      estado: 'TERMINADO',
+    });
+    payload.affiliations[0].vigenteDesde = '2026-10-10';
+    payload.affiliations[0].vigenteHasta = '2026-10-20';
+    payload.pilaRiskAssignments[0].vigenteDesde = '2026-10-10';
+    payload.pilaRiskAssignments[0].vigenteHasta = '2026-10-20';
+    payload.payroll.diasNomina = daysNomina;
+    payload.payroll.salarioIntegral = false;
+    payload.payroll.tipoSalario = 'F';
+    payload.payroll.tipoSalarioBloqueos = [];
+    payload.payroll.novelties = [];
+    const salary = 2_933_333;
+    payload.payroll.salarioBasicoCampo40 = {
+      valor: salary,
+      reglaVersion: 'PILA_ING_RET_FIELD_40_FROM_APPROVED_BASE_V1',
+      bloqueos: [],
+    };
+    payload.payroll.ibcPorSubsistema.otrosParafiscales = {
+      valor: salary,
+      sourceCount: 1,
+      conceptIds: ['salary-base-concept'],
+      reglaVersion: 'CO_PARAFISCAL_BASE_V2',
+      bloqueos: [],
+    };
+    for (const subsystem of [
+      'pension',
+      'salud',
+      'riesgos',
+      'cajaCompensacion',
+    ]) {
+      payload.payroll.ibcPorSubsistema[subsystem] = {
+        valor: salary,
+        sourceCount: 1,
+      };
+    }
+    const approvedDays = payload.payroll.diasCotizadosPorSubsistema as Record<
+      string,
+      Record<string, unknown>
+    >;
+    for (const subsystem of [
+      'pension',
+      'salud',
+      'riesgos',
+      'cajaCompensacion',
+    ]) {
+      approvedDays[subsystem] = {
+        valor: daysNomina,
+        reglaVersion: 'PILA_ING_RET_DAYS_FROM_APPROVED_PAYROLL_V1',
+        bloqueos: [],
+      };
+    }
+    const events = [
+      {
+        eventId: 'pila-ing-ret-ing-1',
+        codigo: 'ING',
+        fechaInicio: '2026-10-10',
+        fechaFin: null,
+        dias: null,
+      },
+      {
+        eventId: 'pila-ing-ret-ret-1',
+        codigo: 'RET',
+        fechaInicio: '2026-10-20',
+        fechaFin: null,
+        dias: null,
+      },
+    ];
+    payload.pilaEvents = events;
+    payload.payroll.pilaEvents = events;
+    return input;
+  }
+
   function approvedVspSnapshot(fechaInicio = '2026-10-01') {
     const input = snapshot();
     input.payloadVersion = 10;
@@ -585,6 +667,49 @@ describe('mapPilaAt2V30DetailCandidate', () => {
         [15, 36, 37, 38, 39, 40, 80, 95].includes(fieldNumber),
       ),
     ).toEqual([]);
+  });
+
+  it('maps ING and RET together in one type 2 record from approved Payroll days', () => {
+    const candidate = mapCandidate(approvedIngressRetirementSnapshot());
+
+    expect(candidate.values).toMatchObject({
+      15: { value: 'X' },
+      16: { value: 'X' },
+      30: { value: 0 },
+      36: { value: 11 },
+      37: { value: 11 },
+      38: { value: 11 },
+      39: { value: 11 },
+      40: { value: 2_933_333 },
+      80: { value: '2026-10-10' },
+      81: { value: '2026-10-20' },
+      95: { value: 2_933_333 },
+    });
+    expect(
+      candidate.normativeRuleVersions.samePeriodIngressRetirementFields,
+    ).toBe('AT2_V30_SAME_PERIOD_ING_RET_FIELDS_V1');
+    expect(
+      candidate.normativeRuleVersions.ingressRetirementBasicSalaryField40,
+    ).toBe('PILA_ING_RET_FIELD_40_FROM_APPROVED_BASE_V1');
+    expect(
+      candidate.unresolvedFields.filter(({ fieldNumber }) =>
+        [15, 16, 30, 36, 37, 38, 39, 40, 80, 81, 95].includes(fieldNumber),
+      ),
+    ).toEqual([]);
+  });
+
+  it('blocks the combined ING+RET candidate when approved Payroll days disagree', () => {
+    const candidate = mapCandidate(approvedIngressRetirementSnapshot(10));
+
+    expect(candidate.values[15]).toBeUndefined();
+    expect(candidate.values[16]).toBeUndefined();
+    expect(candidate.values[36]).toBeUndefined();
+    expect(candidate.values[40]).toBeUndefined();
+    expect(candidate.values[80]).toBeUndefined();
+    expect(candidate.values[81]).toBeUndefined();
+    expect(
+      candidate.normativeRuleVersions.samePeriodIngressRetirementFields,
+    ).toBeNull();
   });
 
   it('maps a single first-day VSP using the approved full-month salary and IBC', () => {
@@ -2877,6 +3002,6 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.supportedSnapshot).toBe(false);
     expect(candidate.values).toEqual({});
     expect(candidate.unresolvedFields).toHaveLength(98);
-    expect(candidate.unresolvedFields[0]?.reason).toContain('PILA v2 a v10');
+    expect(candidate.unresolvedFields[0]?.reason).toContain('PILA v2 a v11');
   });
 });

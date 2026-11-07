@@ -283,3 +283,61 @@ describe('resolveContratoForPayrollPeriod - retiro en el mes', () => {
     ).toBe(true);
   });
 });
+
+describe('resolveContratoForPayrollPeriod - ingreso y retiro en el mismo mes', () => {
+  const periodStart = new Date('2026-03-01T00:00:00.000Z');
+  const periodEnd = new Date('2026-03-31T00:00:00.000Z');
+  const entryDate = new Date('2026-03-10T00:00:00.000Z');
+  const retirementDate = new Date('2026-03-20T00:00:00.000Z');
+  const contract = (
+    over: Partial<ContratoForPayroll> = {},
+  ): ContratoForPayroll => ({
+    id: 'contract-same-month',
+    empleadoId: 'emp-1',
+    tipo: 'TERMINO_FIJO',
+    estado: 'TERMINADO',
+    fechaInicio: entryDate,
+    fechaFin: retirementDate,
+    sedeId: 'site-1',
+    salario: new Prisma.Decimal('2000000'),
+    claseRiesgoArl: 1,
+    ...over,
+  });
+
+  it('accepts exactly one terminated contract matching both dates', () => {
+    expect(
+      resolveContratoForPayrollPeriod(
+        [contract()],
+        periodStart,
+        periodEnd,
+        entryDate,
+        retirementDate,
+        true,
+      ),
+    ).toEqual({ contrato: contract(), fallback: false });
+  });
+
+  it('falls back for a mismatched or ambiguous contract', () => {
+    const matching = contract();
+    expect(
+      resolveContratoForPayrollPeriod(
+        [contract({ fechaFin: new Date('2026-03-19T00:00:00.000Z') })],
+        periodStart,
+        periodEnd,
+        entryDate,
+        retirementDate,
+        true,
+      ).fallback,
+    ).toBe(true);
+    expect(
+      resolveContratoForPayrollPeriod(
+        [matching, { ...matching, id: 'contract-duplicate' }],
+        periodStart,
+        periodEnd,
+        entryDate,
+        retirementDate,
+        true,
+      ).fallback,
+    ).toBe(true);
+  });
+});

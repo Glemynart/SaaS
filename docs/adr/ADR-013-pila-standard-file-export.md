@@ -842,7 +842,7 @@ reconciliación normativa.
 | 13    | Primer nombre                                  | `employee.primerNombre`, congelado en `pilaPayload`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Obligatorio y limitado a 20 posiciones; la preparación bloquea ausencia o exceso.                                                                                                                                                                                                                                                                                                                                                                                         |
 | 14    | Segundo nombre                                 | `employee.segundoNombre`, congelado en `pilaPayload`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Dato opcional; la preparación bloquea exceso de 30 posiciones, sin truncar.                                                                                                                                                                                                                                                                                                                                                                                               |
 | 15    | Novedad ING                                    | PayrollPilaEvent captura la fecha ING informada para el período y la copia al payload aprobado; no se infiere de fechaIngreso/contrato. Aún falta segmentación y serialización.                                                                                                                                                                                                                                                                                                                                                                                              |
-| 16    | Novedad RET                                    | La API admite RET únicamente para un empleado `RETIRADO` cuya fecha coincida con `fechaRetiro`; un dependiente 01/00 de salario fijo no integral puede producir candidato v10 solo con contrato terminado y único evento, días/IBC aprobados y vigencias únicas hasta el retiro. ING+RET, novedades y segmentos quedan bloqueados. El evento y una liquidación no anulada son mutuamente excluyentes. No se infiere el RET ni se declara aceptación de operador.                                                                                                             |
+| 16    | Novedad RET                                    | La ruta de RET único v10 admite un empleado `RETIRADO`, contrato terminado, evento único, días/IBC aprobados y vigencias hasta el retiro. La extensión v11 de ING+RET solo permite el par estricto descrito abajo; otras novedades y segmentos quedan bloqueados. El evento RET y una liquidación no anulada son mutuamente excluyentes. No se infiere el RET ni se declara aceptación de operador.                                                                                                                                                                          |
 | 17    | TDE                                            | AT2 exige blanco.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | 18    | TAE                                            | AT2 exige blanco.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | 19    | TDP                                            | AT2 exige blanco.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -1298,6 +1298,42 @@ laboral independiente y las cargas de aceptación en cada operador siguen
 pendientes. Este candidato no declara compatibilidad, transmisión, liquidación
 ni pago, y no incluye ING+RET, segmentos múltiples, novedades concurrentes,
 salario variable/integral ni períodos no mensuales completos.
+
+## Caso incremental PILA: ingreso y retiro en el mismo período
+
+Como extensión acotada del MVP, el payload PILA v11 y los mappers admiten un
+único registro 02 con ING y RET para un trabajador dependiente estándar 01/00,
+con salario fijo no integral, solo si el período es un mes calendario completo
+y el ingreso y el retiro ocurren dentro de ese período. El snapshot aprobado
+debe conservar exactamente un evento ING y uno RET, con fechas coincidentes con
+`Employee.fechaIngreso`, `Employee.fechaRetiro` y los extremos del único
+contrato `TERMINADO`. Debe existir una afiliación única que cubra el intervalo
+trabajado. Cualquier otro evento PILA, novedad Payroll, cambio salarial,
+salario variable/integral, inconsistencia de fechas, vigencia incompleta o
+período parcial mantiene el candidato bloqueado.
+
+Los campos 15 y 16 se proponen como `X`; los campos 80 y 81 conservan las fechas
+de ingreso y retiro congeladas. Los campos 36–39 usan los días aprobados por
+Payroll, únicamente si coinciden con la regla de validación 30/360 compuesta
+por los candidatos existentes de ingreso y retiro. El campo 40 se propone
+desde la base salarial congelada cuando coincide con los cuatro IBC por
+subsistema. El campo 95 conserva su regla de base parafiscal aprobada. La
+cabecera cuenta al empleado una vez. El exportador no recalcula ni modifica
+Payroll, y conserva las reglas de versión explícitas
+`PILA_ING_RET_DAYS_FROM_APPROVED_PAYROLL_V1`,
+`PILA_ING_RET_FIELD_40_FROM_APPROVED_BASE_V1` y
+`AT2_V30_SAME_PERIOD_ING_RET_FIELDS_V1`.
+
+El payload v11 identifica esta estructura; los snapshots históricos v2–v10
+mantienen sus reglas anteriores y no se reinterpretan como ING+RET. Esta
+validación local se apoya en la regla de un mismo registro para ING y RET
+cuando ocurren en el mismo período ([Resolución 0010 de 2026](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-0010-de-2026.pdf))
+y en el formato/campos del AT2 de la [Resolución 2388 de 2016](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/DIJ/resolucion-2388-2016.pdf).
+La fórmula combinada 30/360 se trata como guardia de concordancia contra el
+snapshot aprobado, no como sustituto de liquidación laboral. Sus expected
+values deben revisarse con nómina laboral antes del uso operativo. Aún no hay
+pruebas de aceptación con un operador; generar o validar localmente no acredita
+aceptación, liquidación, pago ni compatibilidad universal.
 
 ## Preparación de aceptación por operador — SOI
 

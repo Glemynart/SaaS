@@ -235,7 +235,8 @@ function summarizePensionTransitionStatus(
       (snapshot.payloadVersion === 7 ||
         snapshot.payloadVersion === 8 ||
         snapshot.payloadVersion === 9 ||
-        snapshot.payloadVersion === 10) &&
+        snapshot.payloadVersion === 10 ||
+        snapshot.payloadVersion === 11) &&
       root?.schemaVersion === snapshot.payloadVersion
     ) {
       const employer = nested(root, 'employer');
@@ -335,7 +336,8 @@ export function inspectPilaSnapshotPreparation(
       input.payloadVersion === 7 ||
       input.payloadVersion === 8 ||
       input.payloadVersion === 9 ||
-      input.payloadVersion === 10) &&
+      input.payloadVersion === 10 ||
+      input.payloadVersion === 11) &&
       root?.schemaVersion === input.payloadVersion);
   if (!supportedPayloadVersion) {
     add(
@@ -357,7 +359,7 @@ export function inspectPilaSnapshotPreparation(
   const periodStart = date(period?.fechaInicio);
   const periodEnd = date(period?.fechaFin);
   const ingressDetailCandidate =
-    input.payloadVersion === 10 &&
+    (input.payloadVersion === 10 || input.payloadVersion === 11) &&
     periodStart &&
     periodEnd &&
     text(period?.payrollPeriodId) &&
@@ -421,12 +423,42 @@ export function inspectPilaSnapshotPreparation(
       );
     }),
   );
-  const coverageStart = approvedNewHireIngress
-    ? (date(employee?.fechaIngreso) ?? periodStart)
-    : periodStart;
-  const coverageEnd = approvedRetirement
-    ? (date(employee?.fechaRetiro) ?? periodEnd)
-    : periodEnd;
+  const approvedIngressRetirement = Boolean(
+    ingressDetailCandidate?.normativeRuleVersions
+      .samePeriodIngressRetirementFields ===
+      'AT2_V30_SAME_PERIOD_ING_RET_FIELDS_V1' &&
+    ingressDetailCandidate.normativeRuleVersions
+      .ingressRetirementBasicSalaryField40 ===
+      'PILA_ING_RET_FIELD_40_FROM_APPROVED_BASE_V1' &&
+    ingressDetailCandidate.values[15]?.value === 'X' &&
+    ingressDetailCandidate.values[16]?.value === 'X' &&
+    typeof ingressDetailCandidate.values[40]?.value === 'number' &&
+    ingressDetailCandidate.values[80]?.value === date(employee?.fechaIngreso) &&
+    ingressDetailCandidate.values[81]?.value === date(employee?.fechaRetiro) &&
+    [36, 37, 38, 39].every((fieldNumber) => {
+      const sourceField =
+        fieldNumber === 36
+          ? 'pension'
+          : fieldNumber === 37
+            ? 'salud'
+            : fieldNumber === 38
+              ? 'riesgos'
+              : 'cajaCompensacion';
+      return (
+        ingressDetailCandidate.values[fieldNumber]?.value ===
+        nested(nested(payroll, 'diasCotizadosPorSubsistema'), sourceField)
+          ?.valor
+      );
+    }),
+  );
+  const coverageStart =
+    approvedNewHireIngress || approvedIngressRetirement
+      ? (date(employee?.fechaIngreso) ?? periodStart)
+      : periodStart;
+  const coverageEnd =
+    approvedRetirement || approvedIngressRetirement
+      ? (date(employee?.fechaRetiro) ?? periodEnd)
+      : periodEnd;
 
   const requireText = (
     record: PilaPreparationRecord,
@@ -1533,7 +1565,7 @@ export function inspectPilaSnapshotPreparation(
     }
     const supportedParafiscalRule =
       source?.reglaVersion === 'CO_PARAFISCAL_BASE_V1' ||
-      (root?.schemaVersion === 10 &&
+      ((root?.schemaVersion === 10 || root?.schemaVersion === 11) &&
         source?.reglaVersion === 'CO_PARAFISCAL_BASE_V2' &&
         safeInteger(source?.valor) &&
         ingressDetailCandidate?.values[95]?.value === source?.valor);
@@ -1811,7 +1843,8 @@ function summarizePilaDetailFieldCandidates(
           const rawRuleVersion = otherParafiscalBase?.reglaVersion;
           const field40RuleVersion =
             candidate.normativeRuleVersions.newHireBasicSalaryField40 ??
-            candidate.normativeRuleVersions.retirementBasicSalaryField40;
+            candidate.normativeRuleVersions.retirementBasicSalaryField40 ??
+            candidate.normativeRuleVersions.ingressRetirementBasicSalaryField40;
           const ruleVersion =
             fieldNumber === 95 &&
             (rawRuleVersion === 'CO_PARAFISCAL_BASE_V1' ||
@@ -1986,7 +2019,7 @@ export function buildPilaPreparationReport(input: {
             },
           ],
           evidence:
-            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots PILA v2–v10 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
+            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots PILA v2–v11 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
         }
       : null;
   const readinessBlockers = [

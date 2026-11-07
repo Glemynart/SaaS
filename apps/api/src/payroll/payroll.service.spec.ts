@@ -2704,7 +2704,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       ]);
       const pilaPayload = snapshotCreateData.pilaPayload;
       expect(pilaPayload).toMatchObject({
-        schemaVersion: 10,
+        schemaVersion: 11,
         pilaRiskAssignments: [
           {
             assignmentId: 'risk-assignment-at-approval',
@@ -2762,7 +2762,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         },
       });
       expect(snapshotCreateData).toMatchObject({
-        pilaPayloadVersion: 10,
+        pilaPayloadVersion: 11,
       });
     });
 
@@ -3261,6 +3261,104 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         ]),
       );
       expect(data.ibc).toBe(1_333_333);
+    });
+
+    it('prorratea ING+RET del mismo mes y conserva el salario mensual de referencia', async () => {
+      setupPayrollGeneration();
+      const periodStart = new Date('2026-10-01T00:00:00.000Z');
+      const periodEnd = new Date('2026-10-31T00:00:00.000Z');
+      const entryDate = new Date('2026-10-10T00:00:00.000Z');
+      const retirementDate = new Date('2026-10-20T00:00:00.000Z');
+      mockPayrollPeriodFindFirst.mockResolvedValue(
+        makePeriod('BORRADOR', {
+          fechaInicio: periodStart,
+          fechaFin: periodEnd,
+          nombre: 'Octubre 2026',
+        }),
+      );
+      mockPayrollPilaEventFindMany.mockResolvedValue([
+        {
+          id: 'event-ing',
+          employeeId: 'emp-1',
+          codigo: PilaEventCode.ING,
+          fechaInicio: entryDate,
+          fechaFin: null,
+          dias: null,
+          createdAt: entryDate,
+        },
+        {
+          id: 'event-ret',
+          employeeId: 'emp-1',
+          codigo: PilaEventCode.RET,
+          fechaInicio: retirementDate,
+          fechaFin: null,
+          dias: null,
+          createdAt: retirementDate,
+        },
+      ]);
+      mockEmpleadoFindMany.mockResolvedValue([
+        {
+          id: 'emp-1',
+          salario: 2_000_000,
+          salarioIntegral: false,
+          tipoSalarioPila: null,
+          tipoDocumento: 'CC',
+          cedula: '1000000001',
+          primerNombre: 'Ana',
+          segundoNombre: null,
+          primerApellido: 'Pérez',
+          segundoApellido: null,
+          fechaNacimiento: new Date('1990-01-01T00:00:00.000Z'),
+          fechaIngreso: entryDate,
+          fechaRetiro: retirementDate,
+        },
+      ]);
+      mockContratoFindMany.mockResolvedValue([
+        {
+          id: 'contract-ing-ret',
+          empleadoId: 'emp-1',
+          estado: 'TERMINADO',
+          fechaInicio: entryDate,
+          fechaFin: retirementDate,
+          sedeId: 'sede-1',
+          salario: 2_000_000,
+          claseRiesgoArl: 1,
+        },
+      ]);
+      mockQueryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([
+        {
+          id: 'emp-1',
+          estado: 'RETIRADO',
+          deletedAt: null,
+          fechaIngreso: entryDate,
+          fechaRetiro: retirementDate,
+        },
+      ]);
+
+      const result = await service.generatePayroll(TENANT, USER, PERIOD_ID);
+
+      expect(result.created).toBe(1);
+      const createCalls = mockPayrollRunCreate.mock.calls as unknown as Array<
+        [
+          {
+            data: {
+              salarioBaseSnapshot: number;
+              calculationTrace: { employee: { diasNomina: number } };
+              concepts: { create: Array<{ codigo: string; valor: number }> };
+              ibc: number;
+            };
+          },
+        ]
+      >;
+      const data = createCalls[0][0].data;
+      expect(data.salarioBaseSnapshot).toBe(2_000_000);
+      expect(data.calculationTrace.employee.diasNomina).toBe(11);
+      expect(data.concepts.create).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ codigo: 'SALARIO_BASE', valor: 733_333 }),
+        ]),
+      );
+      expect(data.ibc).toBe(733_333);
     });
 
     it('bloquea el retiro si el evento RET no coincide con fechaRetiro', async () => {

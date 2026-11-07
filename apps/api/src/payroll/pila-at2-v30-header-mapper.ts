@@ -4,6 +4,7 @@ import {
 } from './pila-at2-v30-record-serializer';
 import { mapPilaAt2V30EmployerCandidate } from './pila-at2-v30-employer-mapper';
 import {
+  calculateMonthlyEmploymentDays,
   calculateMonthlyEntryDays,
   calculateMonthlyRetirementDays,
 } from './payroll-30-day-month';
@@ -101,8 +102,8 @@ function isApprovedSingleIngressSnapshot(
     : null;
 
   return Boolean(
-    snapshot.payloadVersion === 10 &&
-    root?.schemaVersion === 10 &&
+    (snapshot.payloadVersion === 10 || snapshot.payloadVersion === 11) &&
+    root?.schemaVersion === snapshot.payloadVersion &&
     employee &&
     contract &&
     payroll &&
@@ -189,8 +190,8 @@ function isApprovedSingleRetirementSnapshot(
     : null;
 
   return Boolean(
-    snapshot.payloadVersion === 10 &&
-    root?.schemaVersion === 10 &&
+    (snapshot.payloadVersion === 10 || snapshot.payloadVersion === 11) &&
+    root?.schemaVersion === snapshot.payloadVersion &&
     employee &&
     contract &&
     payroll &&
@@ -234,6 +235,127 @@ function isApprovedSingleRetirementSnapshot(
     payrollEvent.fechaFin === null &&
     rootEvent.dias === null &&
     payrollEvent.dias === null,
+  );
+}
+
+function isApprovedSamePeriodIngressRetirementSnapshot(
+  snapshot: PilaSnapshotPreparationInput,
+  periodStart: string,
+  periodEnd: string,
+): boolean {
+  if (!fullCalendarMonth(periodStart, periodEnd)) return false;
+
+  const root = object(snapshot.payload);
+  const employee = object(root?.employee);
+  const contract = object(root?.contract);
+  const payroll = object(root?.payroll);
+  const affiliations = Array.isArray(root?.affiliations)
+    ? root.affiliations.map(object)
+    : null;
+  const affiliation = affiliations?.length === 1 ? affiliations[0] : null;
+  const entryDate = calendarDate(employee?.fechaIngreso);
+  const retirementDate = calendarDate(employee?.fechaRetiro);
+  const affiliationStart = calendarDate(affiliation?.vigenteDesde);
+  const affiliationEnd =
+    affiliation?.vigenteHasta === null
+      ? null
+      : calendarDate(affiliation?.vigenteHasta);
+  const contractStart = calendarDate(contract?.fechaInicio);
+  const contractEnd = calendarDate(contract?.fechaFin);
+  const rootEvents = Array.isArray(root?.pilaEvents)
+    ? root.pilaEvents.map(object)
+    : null;
+  const payrollEvents = Array.isArray(payroll?.pilaEvents)
+    ? payroll.pilaEvents.map(object)
+    : null;
+  const rootIngress = rootEvents?.find(
+    (event) => text(event?.codigo) === 'ING',
+  );
+  const rootRetirement = rootEvents?.find(
+    (event) => text(event?.codigo) === 'RET',
+  );
+  const payrollIngress = payrollEvents?.find(
+    (event) => text(event?.codigo) === 'ING',
+  );
+  const payrollRetirement = payrollEvents?.find(
+    (event) => text(event?.codigo) === 'RET',
+  );
+  const expectedDays =
+    entryDate && retirementDate
+      ? calculateMonthlyEmploymentDays(
+          new Date(`${periodStart}T00:00:00.000Z`),
+          new Date(`${periodEnd}T00:00:00.000Z`),
+          new Date(`${entryDate}T00:00:00.000Z`),
+          new Date(`${retirementDate}T00:00:00.000Z`),
+        )
+      : null;
+  const payrollDays = payroll?.diasNomina;
+  const subsystemDays = object(payroll?.diasCotizadosPorSubsistema);
+
+  return Boolean(
+    snapshot.payloadVersion === 11 &&
+    root?.schemaVersion === 11 &&
+    employee &&
+    contract &&
+    payroll &&
+    affiliation &&
+    text(affiliation.tipoCotizanteCodigo) === '01' &&
+    text(affiliation.subtipoCotizanteCodigo) === '00' &&
+    entryDate &&
+    retirementDate &&
+    entryDate >= periodStart &&
+    entryDate <= retirementDate &&
+    retirementDate <= periodEnd &&
+    affiliationStart &&
+    affiliationStart <= entryDate &&
+    (affiliation.vigenteHasta === null ||
+      (affiliationEnd !== null && affiliationEnd >= retirementDate)) &&
+    contractStart === entryDate &&
+    contractEnd === retirementDate &&
+    text(contract.estado) === 'TERMINADO' &&
+    payroll.tipoSalario === 'F' &&
+    payroll.salarioIntegral === false &&
+    Array.isArray(payroll.tipoSalarioBloqueos) &&
+    payroll.tipoSalarioBloqueos.length === 0 &&
+    Array.isArray(payroll.novelties) &&
+    payroll.novelties.length === 0 &&
+    typeof payrollDays === 'number' &&
+    Number.isSafeInteger(payrollDays) &&
+    expectedDays !== null &&
+    payrollDays === expectedDays &&
+    Array.isArray(rootEvents) &&
+    rootEvents.length === 2 &&
+    Array.isArray(payrollEvents) &&
+    payrollEvents.length === 2 &&
+    rootIngress &&
+    rootRetirement &&
+    payrollIngress &&
+    payrollRetirement &&
+    text(rootIngress.eventId) !== null &&
+    text(rootIngress.eventId) === text(payrollIngress.eventId) &&
+    text(rootRetirement.eventId) !== null &&
+    text(rootRetirement.eventId) === text(payrollRetirement.eventId) &&
+    text(rootIngress.fechaInicio) === entryDate &&
+    text(payrollIngress.fechaInicio) === entryDate &&
+    text(rootRetirement.fechaInicio) === retirementDate &&
+    text(payrollRetirement.fechaInicio) === retirementDate &&
+    rootIngress.fechaFin === null &&
+    payrollIngress.fechaFin === null &&
+    rootRetirement.fechaFin === null &&
+    payrollRetirement.fechaFin === null &&
+    rootIngress.dias === null &&
+    payrollIngress.dias === null &&
+    rootRetirement.dias === null &&
+    payrollRetirement.dias === null &&
+    ['pension', 'salud', 'riesgos', 'cajaCompensacion'].every((key) => {
+      const source = object(subsystemDays?.[key]);
+      return (
+        source?.valor === payrollDays &&
+        source.reglaVersion === 'PILA_ING_RET_DAYS_FROM_APPROVED_PAYROLL_V1' &&
+        Array.isArray(source.bloqueos) &&
+        source.bloqueos.length === 0
+      );
+    }),
   );
 }
 
@@ -352,7 +474,8 @@ export function mapPilaAt2V30HeaderCandidate(input: {
           snapshot.payloadVersion === 7 ||
           snapshot.payloadVersion === 8 ||
           snapshot.payloadVersion === 9 ||
-          snapshot.payloadVersion === 10) &&
+          snapshot.payloadVersion === 10 ||
+          snapshot.payloadVersion === 11) &&
         root?.schemaVersion === snapshot.payloadVersion &&
         employer !== null &&
         employerPila !== null &&
@@ -373,7 +496,7 @@ export function mapPilaAt2V30HeaderCandidate(input: {
 
   if (!supportedSnapshots) {
     const reason = expectedTenantId
-      ? 'Se requiere un conjunto de snapshots PILA v2 a v10 que coincida con el tenant autenticado y el período aprobado.'
+      ? 'Se requiere un conjunto de snapshots PILA v2 a v11 que coincida con el tenant autenticado y el período aprobado.'
       : 'Falta el contexto del tenant autenticado para revisar la cabecera PILA.';
     for (let fieldNumber = 1; fieldNumber <= 22; fieldNumber += 1) {
       unresolved(fieldNumber, reason);
@@ -508,7 +631,12 @@ export function mapPilaAt2V30HeaderCandidate(input: {
         standardIdentity &&
         (coversFullPeriod ||
           isApprovedSingleIngressSnapshot(snapshot, periodStart, periodEnd) ||
-          coversRetirementWindow)
+          coversRetirementWindow ||
+          isApprovedSamePeriodIngressRetirementSnapshot(
+            snapshot,
+            periodStart,
+            periodEnd,
+          ))
       );
     },
   );

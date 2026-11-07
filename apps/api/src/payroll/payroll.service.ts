@@ -51,6 +51,7 @@ import {
   toSnapshot,
 } from './payroll-mapper';
 import {
+  calculateMonthlyEmploymentDays,
   calculateMonthlyEntryDays,
   calculateMonthlyRetirementDays,
 } from './payroll-30-day-month';
@@ -102,7 +103,7 @@ const RECALCULATE_ALLOWED_STATUSES: PayrollPeriodStatus[] =
 
 const SNAPSHOT_PAYLOAD_VERSION = 1;
 const CALCULATION_TRACE_VERSION = 1;
-const PILA_PAYLOAD_VERSION = 10;
+const PILA_PAYLOAD_VERSION = 11;
 
 type PilaSourceData = {
   tenant: PilaSourceContextInput['tenant'];
@@ -4081,6 +4082,14 @@ export class PayrollService {
       this.toIsoDate(pilaEvents[0].fechaInicio)?.slice(0, 10) === retirementDate
         ? pilaEvents[0]
         : null;
+    const ingressEvent =
+      pilaEvents.length === 2
+        ? pilaEvents.find((event) => event.codigo === 'ING')
+        : null;
+    const pairedRetirementEvent =
+      pilaEvents.length === 2
+        ? pilaEvents.find((event) => event.codigo === 'RET')
+        : null;
     const hasRetirementInPeriod = Boolean(
       retirementDate &&
       periodStartDate &&
@@ -4090,6 +4099,32 @@ export class PayrollService {
     );
     const hasRetirementEvent = pilaEvents.some(
       (event) => event.codigo === 'RET',
+    );
+    const validIngressRetirement = Boolean(
+      pilaEvents.length === 2 &&
+      ingressEvent &&
+      pairedRetirementEvent &&
+      entryDate &&
+      retirementDate &&
+      periodStartDate &&
+      periodEndDate &&
+      entryDate >= periodStartDate &&
+      entryDate <= periodEndDate &&
+      retirementDate >= entryDate &&
+      retirementDate <= periodEndDate &&
+      this.toIsoDate(ingressEvent.fechaInicio)?.slice(0, 10) === entryDate &&
+      this.toIsoDate(pairedRetirementEvent.fechaInicio)?.slice(0, 10) ===
+        retirementDate &&
+      ingressEvent.fechaFin === null &&
+      pairedRetirementEvent.fechaFin === null &&
+      ingressEvent.dias === null &&
+      pairedRetirementEvent.dias === null &&
+      calculateMonthlyEmploymentDays(
+        periodStart,
+        periodEnd,
+        emp.fechaIngreso!,
+        emp.fechaRetiro!,
+      ) !== null,
     );
     const validRetirement = Boolean(
       retirementEvent &&
@@ -4101,11 +4136,15 @@ export class PayrollService {
       retirementDate <= (periodEndDate ?? ''),
     );
     const dateBlocks: PayrollFunctionalBlock[] = [];
-    if ((hasRetirementInPeriod || hasRetirementEvent) && !validRetirement) {
+    if (
+      (hasRetirementInPeriod || hasRetirementEvent) &&
+      !validRetirement &&
+      !validIngressRetirement
+    ) {
       dateBlocks.push(
         functionalBlock(
           PayrollBlockCode.UNSUPPORTED_PARTIAL_PERIOD,
-          'El retiro en el período requiere una única novedad RET que coincida con la fecha de retiro registrada, un ingreso anterior al período y un mes calendario completo.',
+          'El retiro en el período requiere un RET único con ingreso anterior, o una pareja ING+RET del mismo mes que coincida con las fechas del empleado y un contrato terminado.',
         ),
       );
     }
@@ -4115,11 +4154,29 @@ export class PayrollService {
       periodStart,
       periodEnd,
       emp.fechaIngreso,
-      validRetirement ? emp.fechaRetiro : null,
+      validRetirement || validIngressRetirement ? emp.fechaRetiro : null,
+      validIngressRetirement,
     );
 
     let diasNomina = 30;
-    if (validRetirement && emp.fechaRetiro) {
+    if (validIngressRetirement && emp.fechaIngreso && emp.fechaRetiro) {
+      const employmentDays = calculateMonthlyEmploymentDays(
+        periodStart,
+        periodEnd,
+        emp.fechaIngreso,
+        emp.fechaRetiro,
+      );
+      if (employmentDays === null) {
+        dateBlocks.push(
+          functionalBlock(
+            PayrollBlockCode.UNSUPPORTED_PARTIAL_PERIOD,
+            'El ingreso y retiro dentro del período solo se liquidan proporcionalmente en el mismo mes calendario completo.',
+          ),
+        );
+      } else {
+        diasNomina = employmentDays;
+      }
+    } else if (validRetirement && emp.fechaRetiro) {
       const retirementDays = calculateMonthlyRetirementDays(
         periodStart,
         periodEnd,
@@ -4725,10 +4782,11 @@ export class PayrollService {
         id: string;
         estado: string;
         deletedAt: Date | null;
+        fechaIngreso: Date | null;
         fechaRetiro: Date | null;
       }>
     >(Prisma.sql`
-      SELECT "id", "estado", "deletedAt", "fechaRetiro"
+      SELECT "id", "estado", "deletedAt", "fechaIngreso", "fechaRetiro"
       FROM "empleados"
       WHERE "tenantId" = ${tenantId}
         AND "id" IN (${Prisma.join(eventEmployeeIds)})
@@ -4745,20 +4803,41 @@ export class PayrollService {
         if (employee.estado === 'ACTIVO') {
           return employeeEvents.every((event) => event.codigo !== 'RET');
         }
-        if (
-          employee.estado !== 'RETIRADO' ||
-          employeeEvents.length !== 1 ||
-          employeeEvents[0].codigo !== 'RET' ||
-          employeeEvents[0].fechaFin !== null ||
-          employeeEvents[0].dias !== null ||
-          !employee.fechaRetiro
-        ) {
+        if (employee.estado !== 'RETIRADO' || !employee.fechaRetiro) {
           return false;
         }
-        return (
+        const retirementDate =
+          this.toIsoDate(employee.fechaRetiro)?.slice(0, 10) ?? null;
+        const singleRetirement =
+          employeeEvents.length === 1 &&
+          employeeEvents[0].codigo === 'RET' &&
+          employeeEvents[0].fechaFin === null &&
+          employeeEvents[0].dias === null &&
           this.toIsoDate(employeeEvents[0].fechaInicio)?.slice(0, 10) ===
-          this.toIsoDate(employee.fechaRetiro)?.slice(0, 10)
+            retirementDate;
+        const ingressEvent = employeeEvents.find(
+          (event) => event.codigo === 'ING',
         );
+        const retirementEvent = employeeEvents.find(
+          (event) => event.codigo === 'RET',
+        );
+        const entryDate = employee.fechaIngreso
+          ? this.toIsoDate(employee.fechaIngreso)?.slice(0, 10)
+          : null;
+        const pairedIngressRetirement =
+          employeeEvents.length === 2 &&
+          ingressEvent !== undefined &&
+          retirementEvent !== undefined &&
+          entryDate !== null &&
+          ingressEvent.fechaFin === null &&
+          ingressEvent.dias === null &&
+          retirementEvent.fechaFin === null &&
+          retirementEvent.dias === null &&
+          this.toIsoDate(ingressEvent.fechaInicio)?.slice(0, 10) ===
+            entryDate &&
+          this.toIsoDate(retirementEvent.fechaInicio)?.slice(0, 10) ===
+            retirementDate;
+        return singleRetirement || pairedIngressRetirement;
       }),
     );
     const payrollEmployeeIds = new Set(
