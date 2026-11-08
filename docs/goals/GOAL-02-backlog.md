@@ -2262,6 +2262,10 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   navegador existentes.
 - El Browser E2E de `payroll-new-hire-proration-smoke.spec.ts` conecta la captura
   de afiliación y ubicación desde la ficha, la aprobación de nómina y los
-  candidatos de campos 9 y 10 derivados del snapshot aprobado. La generación y
-  descarga de archivos se mantienen en su E2E separado; no se afirma aceptación
-  de operador. La prueba usa únicamente PostgreSQL efímero de CI.
+  candidatos de campos 9 y 10 derivados del snapshot aprobado. El endpoint de
+  preparación y la pantalla de nómina ahora muestran por empleado estos
+  candidatos, su fuente y los pendientes; el E2E verifica los códigos `08` y
+  `001` en el panel. La descarga permanece bloqueada mientras haya brechas y
+  estas sugerencias no acreditan aceptación de operador. La generación y
+  descarga de archivos se mantienen en su E2E separado. La prueba usa
+  únicamente PostgreSQL efímero de CI.

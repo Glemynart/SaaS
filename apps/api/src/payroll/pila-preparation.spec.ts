@@ -2638,6 +2638,64 @@ describe('inspectPilaSnapshotPreparation', () => {
     expect(report.archivoGenerable).toBe(false);
   });
 
+  it('expone los campos de ubicación laboral desde la fuente congelada del snapshot aprobado', () => {
+    const employee = detailCandidateSnapshot('employee-1', 'Ana');
+    employee.payloadVersion = 3;
+    const source = employee.payload as {
+      schemaVersion: number;
+      affiliations: Array<{
+        cajaCompensacionDepartamentoCodigo: string | null;
+      }>;
+      [key: string]: unknown;
+    };
+    source.schemaVersion = 3;
+    source.affiliations[0].cajaCompensacionDepartamentoCodigo = '11';
+    source.pilaWorkLocations = [
+      {
+        assignmentId: 'location-1',
+        tenantId: 'tenant-1',
+        municipioId: 'municipio-1',
+        municipio: { id: 'municipio-1', codigo: '11001' },
+        vigenteDesde: '2026-01-01',
+        vigenteHasta: null,
+      },
+    ];
+
+    const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [employee],
+    });
+    const locationField = (fieldNumber: number) =>
+      report.detailLocationFieldCandidates.find(
+        (status) => status.fieldNumber === fieldNumber,
+      );
+
+    expect(locationField(9)).toMatchObject({
+      sourceLabel:
+        'Departamento DIVIPOLA del municipio laboral confirmado, validado contra el departamento de la CCF congelada.',
+      candidateEmployees: 1,
+      pendingEmployees: 0,
+      candidateValues: [
+        { employeeId: 'employee-1', employeeName: 'Ana Demo', value: '11' },
+      ],
+    });
+    expect(locationField(10)).toMatchObject({
+      sourceLabel:
+        'Tres últimos dígitos del código DIVIPOLA del municipio laboral confirmado en el snapshot.',
+      candidateEmployees: 1,
+      pendingEmployees: 0,
+      candidateValues: [
+        { employeeId: 'employee-1', employeeName: 'Ana Demo', value: '001' },
+      ],
+    });
+    expect(report.archivoGenerable).toBe(false);
+  });
+
   it('oculta valores de candidatos para snapshots fuera del tenant consultado', () => {
     const foreign = detailCandidateSnapshot('employee-1', 'Ana Demo');
     const payload = foreign.payload as {
