@@ -2260,3 +2260,8 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   aceptación de un operador; la persistencia desde la ficha del empleado y la
   generación/descarga de archivos permanecen cubiertas por sus pruebas de
   navegador existentes.
+- El Browser E2E de `payroll-new-hire-proration-smoke.spec.ts` conecta la captura
+  de afiliación y ubicación desde la ficha, la aprobación de nómina y los
+  candidatos de campos 9 y 10 derivados del snapshot aprobado. La generación y
+  descarga de archivos se mantienen en su E2E separado; no se afirma aceptación
+  de operador. La prueba usa únicamente PostgreSQL efímero de CI.
