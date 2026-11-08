@@ -29,6 +29,13 @@ concepto sin regla verificable debe bloquear la preparación del DSNE.
   pero no una identidad legal completa. Tampoco contiene fecha efectiva ni
   medio de pago/abono. `fechaPrevistaPagoPila` es una fecha prevista de PILA y no
   prueba ese hecho.
+- `PayrollService` sí registra una causación contable para un período aprobado:
+  el comprobante `PAYROLL/CAUSACION` lleva `PayrollPeriod.fechaFin` como fecha y
+  acredita `SALARIOS_POR_PAGAR` por beneficiario. El estado cambia a `CAUSADA`,
+  pero no hay estado `PAGADA` ni se registra allí una fecha/medio de desembolso.
+  La causación es un posible rastro del reconocimiento contable; este preanálisis
+  no determina que sea el abono en cuenta tributario ni que `fechaFin` sea la
+  fecha correcta para DSNE. Debe resolverlo Contabilidad/Tributario por caso.
 
 ## Cruce preliminar
 
@@ -53,9 +60,12 @@ recuerda usar el orden y esquema oficial y no inventar elementos.
 
 1. Responsable de nómina/laboral aprueba la naturaleza de cada código y la
    relación entre novedad, concepto, período laboral y valor pagado/abonado.
-2. Cada DSNE recibe evidencia tenant-scoped y auditable de fecha y medio del
-   pago/abono, y se puede asignar inequívocamente a su mes calendario. La fecha
-   prevista de PILA no satisface este requisito.
+2. Contabilidad/Tributario identifica y aprueba la fuente y fecha del primer
+   pago o abono en cuenta, como exige la regla fiscal aplicable al caso. El
+   comprobante `PAYROLL/CAUSACION` puede evaluarse como evidencia de un abono
+   contable, pero su fecha automática (`fechaFin`) no se acepta por defecto. El
+   medio de pago y cualquier desembolso posterior deben tener evidencia propia,
+   tenant-scoped y auditable; `fechaPrevistaPagoPila` no satisface el requisito.
 3. El snapshot regulatorio incluye identidad completa e histórica del emisor y
    del beneficiario, y los valores/conceptos que corresponden a ese hecho, sin
    leer después datos actuales para completar un documento pasado.
@@ -77,6 +87,7 @@ como pruebas regulatorias.
 | Nómina estándar mensual, con un snapshot aprobado | Un beneficiario y un mes; devengos, deducciones y diferencia cuadran con los snapshots y la evidencia de pago/abono; identidad y formato pasan sus validaciones. |
 | Dos pagos dentro del mismo mes | Consolidación individual por beneficiario sin duplicar conceptos; períodos no se cruzan ni traslapan y el mes de cada hecho está probado. |
 | Período que cruza meses, se traslapa o tiene snapshot sin aprobar | Bloqueo explícito; no asignar por nombre del período ni por `fechaPrevistaPagoPila`. |
+| Período `CAUSADA`, sin comprobante de desembolso | No afirmar que fue pagado. El comprobante de causación puede usarse como abono en cuenta solo si Contabilidad/Tributario aprueba que el reconocimiento y la fecha representan el hecho fiscal para esos conceptos; de lo contrario bloquear. |
 | Bonificación salarial frente a no salarial | Cada caso produce el campo que el responsable aprueba; un `BONUS` sin clasificación se rechaza. |
 | Horas extra de clases distintas | Cantidad, porcentaje, tipo y pago quedan conservados por clase; un `OVERTIME` agregado se rechaza. |
 | Aporte FSP con solidaridad y subsistencia | Los dos importes y porcentajes se verifican por separado; un total único no se divide por inferencia. |
@@ -89,6 +100,7 @@ como pruebas regulatorias.
 ### Fuentes oficiales vigentes consultadas el 2026-11-08
 
 - [Resolución 227 de 2025, Normograma DIAN](https://normograma.dian.gov.co/dian/compilacion/docs/resolucion_dian_0227_2025.htm), reglas compiladas de DSNE y anexos aplicables.
+- [Oficio DIAN 904127 de 2022](https://normograma.dian.gov.co/dian/compilacion/docs/oficio_dian_904127_2022.htm): doctrina sobre incluir los conceptos al momento del pago o abono en cuenta, lo que ocurra primero; la situación concreta depende del reconocimiento y de los hechos de cada obligado.
 - [Anexo Técnico DSNE 1.0, Resolución DIAN 000013 de 2021 (PDF oficial)](https://www.dian.gov.co/normatividad/Normatividad/Resoluci%C3%B3n%20000013%20de%2011-02-2021.pdf): sueldo y días, bonificaciones salariales/no salariales, horas extras, salud, pensión y componentes FSP.
 - [Documentación técnica DIAN de nómina electrónica](https://micrositios.dian.gov.co/sistema-de-facturacion-electronica/documentacion-tecnica-soporte-de-pago-de-nomina-electronica/): identifica Anexo 1.0 y casos de transmisión y validación.
 
@@ -99,9 +111,12 @@ como pruebas regulatorias.
 - `apps/api/src/payroll/payroll-mapper.ts`: los registros de novedad se convierten a tipo/valor, sin clasificación DSNE adicional.
 - `apps/api/prisma/schema.prisma`: enum y campos de `PayrollNovelty`; `PayrollSnapshot` conserva `payload` JSON.
 - `apps/api/src/payroll/payroll.service.ts`: captura de conceptos y novedades en `PayrollSnapshot.payload`; no incluye identidad legal completa ni evidencia efectiva del pago/abono.
+- `apps/api/src/payroll/payroll.service.ts` y `apps/api/src/payroll/accounting/payroll-accounting.mapper.ts`: al causar, registran un comprobante `PAYROLL/CAUSACION`, lo fechan en `PayrollPeriod.fechaFin` y acreditan salarios por pagar por tercero. Esto es una causación en Ledger, no evidencia de pago bancario ni de su medio.
 
 **Conclusión técnica:** aún no existe un subconjunto listo para transmitirse
 con garantía normativa. Salario, auxilio, salud y pensión son candidatos para
 revisión; bonificaciones, horas extra, FSP y novedades están bloqueados por
-datos que hoy no se conservan o reglas que faltan. Esta matriz prepara la
-revisión; no habilita implementación ni publicidad de compatibilidad.
+datos que hoy no se conservan o reglas que faltan. La causación actual en
+Ledger no basta por sí sola para confirmar el mes del abono ni el medio de pago.
+Esta matriz prepara la revisión; no habilita implementación ni publicidad de
+compatibilidad.
