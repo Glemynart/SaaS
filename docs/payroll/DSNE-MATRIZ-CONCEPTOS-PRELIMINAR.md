@@ -74,7 +74,7 @@ como pruebas regulatorias.
 
 | Caso | Resultado esperado para aceptar la matriz |
 | --- | --- |
-| Nómina estándar mensual, con un snapshot aprobado | Un beneficiario y un mes; conceptos/total diferencian cuadran con el snapshot y la evidencia de pago/abono; faltan bloqueos de datos legales y formato. |
+| Nómina estándar mensual, con un snapshot aprobado | Un beneficiario y un mes; devengos, deducciones y diferencia cuadran con los snapshots y la evidencia de pago/abono; identidad y formato pasan sus validaciones. |
 | Dos pagos dentro del mismo mes | Consolidación individual por beneficiario sin duplicar conceptos; períodos no se cruzan ni traslapan y el mes de cada hecho está probado. |
 | Período que cruza meses, se traslapa o tiene snapshot sin aprobar | Bloqueo explícito; no asignar por nombre del período ni por `fechaPrevistaPagoPila`. |
 | Bonificación salarial frente a no salarial | Cada caso produce el campo que el responsable aprueba; un `BONUS` sin clasificación se rechaza. |
