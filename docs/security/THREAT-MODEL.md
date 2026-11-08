@@ -220,11 +220,11 @@ Puntos de ruptura que el atacante busca: (a) saltar Z2→Z4 sin pasar por los co
 
 - **Objetivo:** leer datos de otro tenant.
 - **Superficie:** Z3→Z4; cualquier servicio que construya una consulta sin `tenantId`.
-- **Precondiciones:** un solo punto de acceso a datos donde el desarrollador olvidó el filtro de tenant; hoy el aislamiento es disciplina de aplicación sin RLS (ADR-SEC-002 §6.1–6.2).
+- **Precondiciones:** un acceso a una tabla sin política RLS donde se omite el filtro de tenant, o una consulta protegida ejecutada fuera de una transacción con contexto confiable. Las migraciones actuales aplican RLS a una cohorte de 19 tablas; las demás dependen del ámbito de aplicación (ADR-SEC-002 §6.1–6.2).
 - **Impacto:** fuga masiva cross-tenant; fin de la confianza (A1).
 - **Probabilidad:** Media (un solo olvido basta; el equipo crecerá). **Severidad:** Crítica.
 - **Detección:** un servicio que lee volúmenes o filas fuera de su tenant habitual (§19.5); pruebas de invariante que intentan cruzar tenant y deben fallar (rector §21, verificabilidad).
-- **Mitigaciones arquitectónicas:** doble imposición dominio **y** datos (S4, rector §5.2.2); rutas de acceso sin tenant obligatorio no deben existir (rector §5.2.3, "imposible por construcción"); pruebas de cruce en el pipeline (S12, rector §17.4). **Estado:** hoy solo hay una capa (aplicación); RLS está diferido (ADR-SEC-002 §9 Fase 3) — **gap crítico**, ver §20.
+- **Mitigaciones arquitectónicas:** doble imposición dominio **y** datos (S4, rector §5.2.2); rutas de acceso sin tenant obligatorio no deben existir (rector §5.2.3, "imposible por construcción"); pruebas de cruce en el pipeline (S12, rector §17.4). **Estado:** cobertura de datos parcial; RLS limita omisiones dentro de la transacción tenant-scoped en las tablas protegidas, mientras que otras tablas siguen expuestas a errores de ámbito de aplicación — **gap crítico**, ver §20.
 - **Relacionado:** ADR-SEC-001 §5, ADR-SEC-002 §6.
 
 ### T-MT-2 — IDOR / BOLA: acceso a recurso de otro tenant por su identificador
@@ -548,7 +548,7 @@ Puntos de ruptura que el atacante busca: (a) saltar Z2→Z4 sin pasar por los co
 - **Impacto:** fuga o alteración total, sin auditoría (invisible).
 - **Probabilidad:** Baja. **Severidad:** Crítica.
 - **Detección:** conexiones desde origen no-Z3; anomalías de acceso (§19.5).
-- **Mitigaciones arquitectónicas:** Z4 sin ruta de red desde el exterior, único cliente Z3 (rector §4.2.5); identidades de servicio de mínimo privilegio (rector §6.6); RLS como defensa en profundidad para que ni una consulta raw cruce tenant (ADR-SEC-002 §9 Fase 3 — diferido, **gap** §20).
+- **Mitigaciones arquitectónicas:** Z4 sin ruta de red desde el exterior, único cliente Z3 (rector §4.2.5) e identidades de servicio de mínimo privilegio (rector §6.6). RLS se aplica solo a 19 tablas y usa el parámetro personalizado `app.current_tenant_id`; una sesión SQL con las credenciales del rol puede establecer ese parámetro, así que RLS no es una barrera ante credenciales SQL comprometidas. Sí es defensa adicional contra omisiones de filtro en la ruta tenant-scoped normal. **Gap** §20.
 - **Relacionado:** ADR-SEC-001 §4, §16.
 
 ### T-DB-2 — Fuga o robo de backups
@@ -974,27 +974,27 @@ Ordenadas por severidad y, dentro de cada nivel, por probabilidad. La columna "E
 
 ### 19.1 Críticas
 
-| ID     | Amenaza                                     | Prob. | Invariante clave | Estado            |
-| ------ | ------------------------------------------- | ----- | ---------------- | ----------------- |
-| T-MT-1 | Fuga cross-tenant por omisión de ámbito     | Media | S1, S4           | **Gap** (sin RLS) |
-| T-MT-2 | IDOR/BOLA cross-tenant                      | Alta  | S1, S3, S4       | Cubierta (diseño) |
-| T-MT-5 | Confusión de tenant por dato del cliente    | Media | S1, S3           | Cubierta          |
-| T-MT-3 | Aislamiento roto por caché/índice/cola      | Media | S1               | Cubierta (diseño) |
-| T-MT-7 | Abuso de proceso cross-tenant de plataforma | Baja  | S1, S15          | Cubierta (diseño) |
-| T-FE-6 | Fuga cross-tenant por SSR/hidratación       | Baja  | S1               | Cubierta (diseño) |
-| T-BE-3 | Inyección (SQL/comando/plantilla)           | Media | S9               | Cubierta          |
-| T-CO-1 | Alteración de evidencia contable            | Baja  | S5               | Cubierta          |
-| T-CO-3 | Reapertura informal de períodos             | Baja  | S5, S11          | Cubierta (C3)     |
-| T-DB-1 | Acceso directo a la base                    | Baja  | Z4, S4           | **Gap** (sin RLS) |
-| T-DB-2 | Fuga de backups                             | Baja  | S13              | Gap infra (§20)   |
-| T-DB-3 | Ransomware                                  | Media | S13              | Gap infra (§20)   |
-| T-FA-2 | Robo de certificados de firma DIAN          | Baja  | S8               | Futuro (SEC-007)  |
-| T-AI-2 | Exceso de privilegio de agente IA           | Media | S14, S7          | Futuro (SEC-010)  |
-| T-AI-5 | Acción irreversible de IA sin humano        | Media | S14              | Futuro (SEC-010)  |
-| T-DV-1 | Compromiso de dependencia                   | Media | §15              | Gap CI/CD (§20)   |
-| T-DV-2 | Compromiso del pipeline                     | Baja  | S12              | Gap CI/CD (§20)   |
-| T-DV-3 | Exfiltración de secretos                    | Media | S8               | **Gap** (.env)    |
-| T-IN-2 | Abuso de superadmin catastrófico            | Baja  | S11, S6          | Cubierta (diseño) |
+| ID     | Amenaza                                     | Prob. | Invariante clave | Estado                                  |
+| ------ | ------------------------------------------- | ----- | ---------------- | --------------------------------------- |
+| T-MT-1 | Fuga cross-tenant por omisión de ámbito     | Media | S1, S4           | **Gap** (RLS parcial)                   |
+| T-MT-2 | IDOR/BOLA cross-tenant                      | Alta  | S1, S3, S4       | Cubierta (diseño)                       |
+| T-MT-5 | Confusión de tenant por dato del cliente    | Media | S1, S3           | Cubierta                                |
+| T-MT-3 | Aislamiento roto por caché/índice/cola      | Media | S1               | Cubierta (diseño)                       |
+| T-MT-7 | Abuso de proceso cross-tenant de plataforma | Baja  | S1, S15          | Cubierta (diseño)                       |
+| T-FE-6 | Fuga cross-tenant por SSR/hidratación       | Baja  | S1               | Cubierta (diseño)                       |
+| T-BE-3 | Inyección (SQL/comando/plantilla)           | Media | S9               | Cubierta                                |
+| T-CO-1 | Alteración de evidencia contable            | Baja  | S5               | Cubierta                                |
+| T-CO-3 | Reapertura informal de períodos             | Baja  | S5, S11          | Cubierta (C3)                           |
+| T-DB-1 | Acceso directo a la base                    | Baja  | Z4, S4           | **Gap** (RLS no cubre credenciales SQL) |
+| T-DB-2 | Fuga de backups                             | Baja  | S13              | Gap infra (§20)                         |
+| T-DB-3 | Ransomware                                  | Media | S13              | Gap infra (§20)                         |
+| T-FA-2 | Robo de certificados de firma DIAN          | Baja  | S8               | Futuro (SEC-007)                        |
+| T-AI-2 | Exceso de privilegio de agente IA           | Media | S14, S7          | Futuro (SEC-010)                        |
+| T-AI-5 | Acción irreversible de IA sin humano        | Media | S14              | Futuro (SEC-010)                        |
+| T-DV-1 | Compromiso de dependencia                   | Media | §15              | Gap CI/CD (§20)                         |
+| T-DV-2 | Compromiso del pipeline                     | Baja  | S12              | Gap CI/CD (§20)                         |
+| T-DV-3 | Exfiltración de secretos                    | Media | S8               | **Gap** (.env)                          |
+| T-IN-2 | Abuso de superadmin catastrófico            | Baja  | S11, S6          | Cubierta (diseño)                       |
 
 ### 19.2 Altas
 
@@ -1069,19 +1069,19 @@ Ordenadas por severidad y, dentro de cada nivel, por probabilidad. La columna "E
 
 El rector es el objetivo; el estado implementado (ADR-SEC-002) es el presente. Estos son los deltas donde una amenaza real no está aún contenida a nivel arquitectónico. **No son autorización de implementación** — son insumo para priorizar el hardening y para la revisión de ADR-SEC-002 que el rector §22 ya ordena.
 
-| Gap                                                                 | Amenazas                      | Delta frente al rector                                                                                                       | Severidad del gap |
-| ------------------------------------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| G1 — Aislamiento en una sola capa (sin RLS)                         | T-MT-1, T-DB-1                | Rompe la doble imposición S4; un olvido fuga cross-tenant.                                                                   | **Crítico**       |
-| G2 — Secretos en `.env`, sin inventario gobernado                   | T-DV-3                        | Contradice S8; compromiso de un secreto (JWT_SECRET) colapsa varios tenants.                                                 | **Crítico**       |
-| G3 — Default de autorización abierto (endpoint sin rol = accesible) | T-API-1                       | Contradice secure-by-default (S2); un olvido expone función.                                                                 | Alto              |
-| G4 — RBAC plano sin segregación crear/aprobar                       | T-CO-5, T-BE-5, T-NO-1        | No permite exigir S11 (segregación de deberes) donde el negocio lo requiere.                                                 | Alto              |
-| G5 — Sin pruebas de invariante en el pipeline                       | T-IN-3 y todas las S-críticas | El rector §21 exige que cada invariante tenga prueba que la viole y falle; su ausencia degrada invariantes a aspiraciones.   | Alto              |
-| G6 — Rate limiting solo en auth                                     | T-API-6, T-API-5, T-MT-6      | Sin anti-abuso general (rector §7.4).                                                                                        | Medio             |
-| G7 — Headers de seguridad ausentes (Helmet pendiente)               | T-FE-1, T-FE-3, T-ID-3        | Falta la restricción estructural de §8.7.                                                                                    | Medio             |
-| G8 — Filtros de sede incompletos                                    | T-MT-4                        | Sede como dimensión de autorización aún no uniforme (§5.3).                                                                  | Medio             |
-| G9 — Almacén documental en filesystem local                         | T-DO-1, T-DO-2                | Verificar no-navegabilidad y control de acceso por petición (§11.1–11.2).                                                    | Medio             |
-| G10 — Auditoría fire-and-forget parcial                             | T-CO-_, T-IN-_                | El rector §13.1 exige que la indisponibilidad de auditoría bloquee la acción crítica; hoy es best-effort (`.catch(()=>{})`). | Medio             |
-| G11 — Backups/DR e infraestructura de borde                         | T-DB-2, T-DB-3, T-DV-6        | Dependen de la capa de despliegue; el rector §10.3/§16 los eleva a requisito con S13.                                        | Alto (infra)      |
+| Gap                                                                 | Amenazas                      | Delta frente al rector                                                                                                                                                                                                                                                         | Severidad del gap |
+| ------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------- |
+| G1 — Cobertura RLS parcial y tenant GUC no confiable ante SQL       | T-MT-1, T-DB-1                | 19 tablas tienen `ENABLE`/`FORCE` RLS; otras tablas tenant-scoped siguen dependiendo de filtros de aplicación. El parámetro personalizado de tenant puede ser establecido por una sesión SQL con acceso al rol; RLS no sustituye controles de red ni custodia de credenciales. | **Crítico**       |
+| G2 — Secretos en `.env`, sin inventario gobernado                   | T-DV-3                        | Contradice S8; compromiso de un secreto (JWT_SECRET) colapsa varios tenants.                                                                                                                                                                                                   | **Crítico**       |
+| G3 — Default de autorización abierto (endpoint sin rol = accesible) | T-API-1                       | Contradice secure-by-default (S2); un olvido expone función.                                                                                                                                                                                                                   | Alto              |
+| G4 — RBAC plano sin segregación crear/aprobar                       | T-CO-5, T-BE-5, T-NO-1        | No permite exigir S11 (segregación de deberes) donde el negocio lo requiere.                                                                                                                                                                                                   | Alto              |
+| G5 — Sin pruebas de invariante en el pipeline                       | T-IN-3 y todas las S-críticas | El rector §21 exige que cada invariante tenga prueba que la viole y falle; su ausencia degrada invariantes a aspiraciones.                                                                                                                                                     | Alto              |
+| G6 — Rate limiting solo en auth                                     | T-API-6, T-API-5, T-MT-6      | Sin anti-abuso general (rector §7.4).                                                                                                                                                                                                                                          | Medio             |
+| G7 — Headers de seguridad ausentes (Helmet pendiente)               | T-FE-1, T-FE-3, T-ID-3        | Falta la restricción estructural de §8.7.                                                                                                                                                                                                                                      | Medio             |
+| G8 — Filtros de sede incompletos                                    | T-MT-4                        | Sede como dimensión de autorización aún no uniforme (§5.3).                                                                                                                                                                                                                    | Medio             |
+| G9 — Almacén documental en filesystem local                         | T-DO-1, T-DO-2                | Verificar no-navegabilidad y control de acceso por petición (§11.1–11.2).                                                                                                                                                                                                      | Medio             |
+| G10 — Auditoría fire-and-forget parcial                             | T-CO-_, T-IN-_                | El rector §13.1 exige que la indisponibilidad de auditoría bloquee la acción crítica; hoy es best-effort (`.catch(()=>{})`).                                                                                                                                                   | Medio             |
+| G11 — Backups/DR e infraestructura de borde                         | T-DB-2, T-DB-3, T-DV-6        | Dependen de la capa de despliegue; el rector §10.3/§16 los eleva a requisito con S13.                                                                                                                                                                                          | Alto (infra)      |
 
 > Cada gap crítico/alto debería resolverse en su ADR de destino (§22 del rector) antes de que la superficie que lo expone crezca. El orden sugerido de atención por reducción de riesgo: **G1 → G2 → G5 → G4 → G3 → G7 → G6 → resto.** Esta secuencia es una recomendación de priorización de riesgo, no un plan de implementación aprobado.
 
