@@ -503,7 +503,45 @@ se accedió a demo, staging o producción.
 | Prioridad | Estado    | Iniciativa                                                | Criterios de aceptación                                                                                                                      | Dependencias y riesgo                                                                       |
 | --------- | --------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | P2        | PENDIENTE | Facturación electrónica DIAN por proveedor especializado. | Factura fiscal trazable desde Invoice, intentos idempotentes, estados normalizados, rechazo/contingencia y evidencia verificable en sandbox. | H1, ADR fiscal, proveedor, sandbox y custodia de certificados; riesgo normativo alto.       |
-| P2        | PENDIENTE | Nómina electrónica derivada de PayrollSnapshot.           | Una nómina aprobada produce un evento inmutable, con rechazo/reintento/corrección y evidencia vinculada al período y al empleado.            | H1, reglas vigentes, proveedor, sandbox, seguridad y ADR de eventos; riesgo normativo alto. |
+| P2        | ADR-021 APROBADA; IMPLEMENTACIÓN PENDIENTE | Nómina electrónica derivada de PayrollSnapshot. | DSNE mensual por beneficiario, derivado de snapshots aprobados, con ajustes y respuestas trazables. | H1, matriz laboral, evidencia de pago/abono, proveedor y sandbox. |
+
+### Nómina electrónica: frontera y dependencias del MVP — ADR-021 — 2026-11-08
+
+- ADR-021, aceptada bajo la delegación de Producto al Lead Engineer, define el
+  DSNE mensual por beneficiario como documento fiscal independiente de
+  `PayrollRun`, desprendible, PILA y Ledger. Puede consolidar snapshots de más
+  de un período de pago dentro del mes solo cuando no haya cruces o traslapes y
+  el mes del pago/abono se pueda demostrar.
+- Hechos verificados en el código de `main`: los snapshots congelan conceptos,
+  totales y período, pero no identidad legal completa del emisor/beneficiario ni
+  el medio/fecha efectiva del pago. Los rangos de Payroll pueden ser arbitrarios;
+  `fechaPrevistaPagoPila` no es evidencia de pago. No hay documento ni
+  transmisión de nómina electrónica.
+- Hechos oficiales revisados: la Resolución 227/2025 compila la Resolución
+  013/2021; el DSNE se genera por beneficiario con consolidación mensual, el
+  plazo ordinario es dentro de los primeros diez días del mes siguiente, y las
+  notas de ajuste conservan referencia al CUNE original. La DIAN publica el
+  Anexo Técnico de nómina electrónica como versión 1.0. Concepto 10193/2026
+  aclara que transmitir tarde no impide por sí solo la deducción fiscal si se
+  cumplen los requisitos sustanciales; no elimina el plazo ordinario.
+- Recomendación/decisión de producto: la primera cohorte se limita a empleados
+  dependientes estándar ya soportados; no se deben inventar códigos, omitir
+  conceptos ni reutilizar datos actuales para reconstruir un documento histórico.
+  Correcciones posteriores a validación DIAN se representan como notas de ajuste
+  append-only, nunca mutando el DSNE validado.
+- **Trabajo pendiente antes de implementar:** matriz revisada por responsable
+  laboral de conceptos, deducciones y novedades; origen tenant-scoped y auditable
+  de fecha/medio del pago o abono; pruebas representativas con resultados
+  esperados revisados; y matriz de proveedor/sandbox. La prueba DIAN debe
+  distinguir habilitación, transmisión, validación y operación. La ADR no
+  acredita integración ni aceptación de DIAN.
+- Fuentes oficiales: [Resolución 227 de 2025](https://normograma.dian.gov.co/dian/compilacion/docs/resolucion_dian_0227_2025.htm), [Anexo Técnico en DIAN](https://micrositios.dian.gov.co/sistema-de-facturacion-electronica/documentacion-tecnica-soporte-de-pago-de-nomina-electronica/) y [Concepto 10193 de 2026](https://normograma.dian.gov.co/dian/compilacion/docs/oficio_dian_10193_2026.htm).
+- **GOAL ACTIVO:** GOAL-02. **IMPLEMENTACIÓN BLOQUEADA:** el flujo DSNE
+  necesita antes una matriz de conceptos/novedades revisada, un origen auditable
+  de pago/abono y la validación de contrato/sandbox del proveedor.
+  **ARQUITECTURA DISPONIBLE:** ADR-021 fija la unidad mensual por beneficiario,
+  el snapshot regulatorio, las correcciones inmutables y el vínculo contable sin
+  doble causación; la elaboración de la matriz preliminar sigue desbloqueada.
 
 ## H4 — Operación financiera ampliada
 

@@ -138,6 +138,17 @@ la decisión de generación del archivo y no acreditan aceptación de SOI u otro
 operador. CI (1.946 pruebas API en 147 suites), Browser E2E (33/33), Vercel
 Production y publicación de imagen API post-merge pasaron.
 
+Actualización al 2026-11-08, con fuentes DIAN vigentes consultadas ese día:
+ADR-021 decide el límite inicial de nómina electrónica: un DSNE por beneficiario
+y mes, construido solo desde snapshots aprobados y con evidencia de identidad y
+pago/abono congelada en el propio documento. La DIAN compila la Resolución 013
+de 2021 en la Resolución 227 de 2025; el plazo ordinario permanece en los diez
+primeros días del mes siguiente. El Concepto DIAN 10193 de 2026 aclara el efecto
+fiscal de la transmisión extemporánea sin retirar ese plazo. `main` todavía no
+incluye documentos, mapeo del Anexo Técnico, adaptador ni transmisión de nómina
+electrónica. El código actual no congela identidad completa del emisor o
+beneficiario ni el medio/fecha efectiva del pago en `PayrollSnapshot`.
+
 | Capacidad                  | Evidencia real                                                                                                                                                                                                                                                                         | Límite actual                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Multiempresa y seguridad   | `Tenant`, JWT, `ActiveTenantGuard`, RBAC y `TenantPrismaService`                                                                                                                                                                                                                       | La integración regulatoria necesitará credenciales y permisos por tenant.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -421,8 +432,10 @@ como mínimo:
 
 - ADR de modelo fiscal: factura, nota, consecutivo, impuestos, contingencia y
   relación con Ledger;
-- ADR de modelo de nómina electrónica: unidad de transmisión, evento, período,
-  corrección, rechazo y relación con PayrollSnapshot;
+- [ADR-021](../adr/ADR-021-electronic-payroll-document.md) acepta el límite de
+  dominio de nómina electrónica. Antes de implementar faltan la matriz laboral
+  de conceptos y novedades, una fuente verificable de pago/abono, los casos de
+  prueba revisados y la matriz de proveedor/sandbox;
 - ADR del puerto/adaptadores de proveedores, incluyendo contrato interno,
   secretos, sandbox, webhooks o consulta de estados;
 - ADR de custodia de certificados, evidencia, retención y respuesta ante
@@ -464,7 +477,8 @@ de demostración que no dependa de ellas.
 - `GOAL-01`: pausado, no cerrado.
 - `GOAL-02`: único Goal activo desde 2026-10-30.
 - Facturación Electrónica: planificada, no implementada.
-- Nómina Electrónica: planificada, no implementada.
+- Nómina Electrónica: frontera del dominio definida en ADR-021; generación,
+  persistencia, interfaz, firma y transmisión no implementadas.
 - Evolución financiera: parcialmente fundada por Accounting, pero no completa.
 - Integración Matías API: no implementada; cualquier proveedor debe entrar por
   adaptador.

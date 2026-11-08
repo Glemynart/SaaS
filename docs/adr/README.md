@@ -19,3 +19,4 @@
 | [ADR-018](ADR-018-importacion-masiva-asignaciones-centro-pila.md)   | Importación masiva de asignaciones de centro y actividad PILA          | aceptada para GOAL-02                                             | 2026-11-02 |
 | [ADR-019](ADR-019-cartera-aplicacion-recaudos.md)                   | Cartera y aplicación de recaudos a facturas internas                   | aceptada por delegación; revisión contable pendiente              | 2026-11-03 |
 | [ADR-020](ADR-020-regulatory-integration-contract.md)               | Contrato inicial de adaptadores regulatorios                           | accepted bajo delegación de Producto                              | 2026-11-05 |
+| [ADR-021](ADR-021-electronic-payroll-document.md)                   | Documento soporte de pago de nómina electrónica                       | accepted bajo delegación de Producto; implementación pendiente    | 2026-11-08 |
