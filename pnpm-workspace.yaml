@@ -5,6 +5,7 @@ allowBuilds:
   '@prisma/client': true
   '@prisma/engines': true
   bcrypt: true
+  canvas: false # PDF text extraction does not require native canvas support.
   prisma: true
   puppeteer: true
   sharp: true

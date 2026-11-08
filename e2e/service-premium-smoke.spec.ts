@@ -1,5 +1,26 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
+
+async function extractPdfText(pdfBytes: Buffer): Promise<string> {
+  const pdf = await getDocument({
+    data: new Uint8Array(pdfBytes),
+    isEvalSupported: false,
+    useSystemFonts: true,
+  }).promise;
+
+  try {
+    const pages: string[] = [];
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+      pages.push(content.items.map((item) => ('str' in item ? item.str : '')).join(' '));
+    }
+    return pages.join(' ').replace(/\s+/g, ' ').normalize('NFC');
+  } finally {
+    await pdf.destroy();
+  }
+}
 
 async function registerAndSignIn(page: Page) {
   const suffix = randomInt(10_000_000, 100_000_000).toString();
@@ -221,6 +242,7 @@ async function seedServicePremiumFixture(tenantId: string, actorId: string) {
       employeeCount,
       employeeIds: employees.map((employee) => employee.id),
       firstEmployeeName: employees[0].name,
+      correctedEmployeeDocument: employees[0].document,
       correctedEmployeeId: employees[0].id,
       correctedSnapshotId,
       correctionId,
@@ -408,6 +430,7 @@ test('aplica una corrección aprobada y genera los 100 PDFs aunque el navegador 
         signature: String.fromCharCode(...content.slice(0, 4)),
         byteLength: content.byteLength,
         sha256,
+        base64: btoa(Array.from(content, (byte) => String.fromCharCode(byte)).join('')),
       };
     }, firstDocument.id);
     expect(download).toMatchObject({
@@ -417,6 +440,22 @@ test('aplica una corrección aprobada y genera los 100 PDFs aunque el navegador 
       sha256: firstLine.documentSha256,
     });
     expect(download.byteLength).toBeGreaterThan(0);
+
+    const pdfText = await extractPdfText(Buffer.from(download.base64, 'base64'));
+    expect(pdfText).toContain(fixture.firstEmployeeName);
+    expect(pdfText).toContain(fixture.correctedEmployeeDocument);
+    expect(pdfText).toContain('Prima de servicios');
+    expect(pdfText).toContain('Enero a junio');
+    expect(pdfText).toContain('Salario fijo mensual');
+    expect(pdfText).toContain('Promedio variable salarial');
+    expect(pdfText).toContain('Auxilio de transporte promedio causado');
+    expect(pdfText).toContain('2.000.000');
+    expect(pdfText).toContain('10.000');
+    expect(pdfText).toContain('200.000');
+    expect(pdfText).toContain('180 / 360');
+    expect(pdfText).toContain('1.105.000');
+    expect(pdfText).toContain('PRIMA_SEMESTRAL_V2');
+    expect(pdfText).toContain('no acredita el pago de la prima');
   } finally {
     await fixture.disconnect();
   }

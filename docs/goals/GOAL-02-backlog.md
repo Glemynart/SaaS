@@ -1755,8 +1755,10 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   corrección aplicada.
 - La prueba unitaria del worker verifica que el HTML enviado al renderizador
   contiene identidad, componentes de la base, días, importe aprobado y versión
-  de fórmula. El E2E demuestra que se descargó el artefacto publicado sin
-  cambios; no extrae texto del PDF.
+  de fórmula. El E2E ahora extrae texto del PDF publicado y comprueba identidad,
+  semestre, componentes, días, fórmula, resultado, versión y advertencia de que
+  el documento no acredita el pago. El hash descargado sigue comparándose con
+  el inmutable de la línea; la extracción usa `pdfjs-dist` solo en las pruebas.
 - Evidencia local actual: Browser E2E (1/1, 39,0 s) sobre PostgreSQL 16
   desechable con las 82 migraciones. Esta ejecución no usó la base de desarrollo.
   Las pruebas de cálculo, servicio y worker (52/52), typecheck API/web y builds
