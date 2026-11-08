@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-02 activo; GOAL-01 pausado; evidencia financiera sincronizada con main (2026-11-06)
+## Última actualización: GOAL-02 activo; GOAL-01 pausado; evidencia financiera sincronizada con main (2026-11-08)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -17,6 +17,15 @@
 > habilita PILA parcial ni sustituye la revisión laboral independiente. El
 > código y la prueba de navegador se contrastaron con `main` en
 > `c9eb6fbe816b8347fb5e612097853020c9bcb6d1`.
+
+> **Actualización 2026-11-08:** PR #338 verifica que la ubicación laboral y la
+> afiliación capturadas para el empleado se conserven al aprobar nómina y
+> produzcan candidatos PILA para los campos 9 y 10. PR #339 hace visibles esos
+> candidatos, su fuente y los pendientes en el preflight API/web, sin habilitar
+> exportación cuando quedan otras brechas. Los checks CI, Browser E2E, Vercel
+> Production y publicación de imagen API post-merge quedaron verdes en
+> `main@654bebe`. No hay aceptación de operador, transmisión, liquidación ni
+> pago PILA acreditados.
 
 # <a name="descripción-del-producto"></a>Descripción del producto
 

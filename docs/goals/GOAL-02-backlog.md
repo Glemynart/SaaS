@@ -1,10 +1,18 @@
 # Backlog de GOAL-02 — Evolución Financiera y Cumplimiento Electrónico
 
-Actualizado: 2026-11-07. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
+Actualizado: 2026-11-08. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
 no cerrado. Este backlog conserva el resultado completo de GOAL-02 y prioriza
 primero flujos financieros internos que puedan mostrarse a futuros clientes.
 
-## Estado vigente — 2026-11-07
+## Estado vigente — 2026-11-08
+
+- **Ubicación laboral PILA integrada en `main` por PR #338 y #339**
+  (`654bebe`): el E2E verifica captura por empleado, aprobación de nómina,
+  snapshot y derivación de campos 9/10; el endpoint y panel muestran candidatos,
+  fuentes y pendientes. CI, Browser E2E, Vercel Production y publicación de
+  imagen API post-merge pasaron. La generación sigue sujeta al preflight
+  completo; no se acredita aceptación de operador, transmisión, liquidación ni
+  pago.
 
 - **RET PILA integrado en `main` por PR #324** (`b708dcd1`): soporta solo
   dependientes 01/00 con salario fijo no integral, un evento RET, mes calendario
