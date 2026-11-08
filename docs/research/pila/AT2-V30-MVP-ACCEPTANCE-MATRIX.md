@@ -655,3 +655,46 @@ aprobada de IBC para todo el período. La restricción al primer día es una gua
 conservadora del producto, no una regla de calendario atribuida a la norma. La
 revisión laboral independiente y la aceptación por cada operador continúan
 pendientes.
+
+### PILA-AT2-85 — Vacaciones o licencia remunerada (VAC-LR): conservar el bloqueo
+
+**Hechos del código en `main@d15143d`:** Payroll permite capturar `VAC_LR` con
+fechas y congelar el evento en el snapshot aprobado. La matriz de exportación
+no incluye una regla que habilite ese evento ni segmenta sus días o IBC por
+subsistema; por ello el preflight deja pendientes los campos dependientes y la
+descarga permanece bloqueada.
+
+**Hechos normativos verificados al 2026-11-08:** el AT2 v30 que publica
+MinSalud incorpora la Resolución 1529 de 2026 y asigna a VAC-LR el campo 27 y
+las fechas de inicio/fin de los campos 89–90. El artículo 70 del Decreto 806
+de 1998, ubicado en las reglas de cotización en salud, dispone que las
+cotizaciones durante vacaciones se calculan sobre el último IBC informado antes
+de iniciar el disfrute. La Circular 018 de 2012 del Ministerio del Trabajo
+incluye las vacaciones disfrutadas y pagadas en dinero dentro de la base de
+aportes parafiscales.
+
+**Alcance no resuelto:** el Decreto 1072 de 2015, artículo 2.2.4.2.1.6,
+enumera vacaciones entre ciertas novedades del Sistema de Riesgos Laborales y
+prevé no causar cotización durante ellas; el Concepto 091961 de 2022 de Función
+Pública, en el contexto de empleados públicos, indica pagar ARL mientras se
+disfrutan. La aplicabilidad de esas disposiciones al trabajador dependiente
+privado del MVP requiere reconciliación jurídica; no se extrapola una de ellas.
+Tampoco basta con copiar las fechas VAC-LR: deben coincidir los días y las bases
+congeladas por subsistema, el salario/IBC anterior al disfrute y cualquier
+concurrencia con VSP, ING, RET u otra novedad.
+
+**Decisión de preparación:** mantener VAC-LR fuera de la generación hasta que
+una matriz de escenarios para dependientes 01/00 resuelva esa aplicabilidad,
+fije resultados esperados para cada subsistema y los pruebe contra snapshots
+aprobados. Casos mínimos: salario fijo sin cambio, salario variable o cambio de
+salario, vacaciones dentro del mes y cruzando el corte mensual, vacaciones
+concurrentes con otra novedad, e IBC anterior ausente o diferente. El primer
+caso implementable debe limitarse a las fuentes y combinaciones cuya base y
+días estén congelados sin inferencias. No cambia el mapper ni declara aceptación
+de operador.
+
+Fuentes oficiales: [AT2 v30, MinSalud](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/OT/anexo-tecnico2-cotizantes.pdf),
+[Decreto 806 de 1998, art. 70](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=19411),
+[Decreto 1072 de 2015, art. 2.2.4.2.1.6](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=72173),
+[Concepto 091961 de 2022](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=190866)
+y [Circular 018 de 2012](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=71322).
