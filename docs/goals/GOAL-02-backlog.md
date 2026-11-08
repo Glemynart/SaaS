@@ -2302,6 +2302,11 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   contra la firma de solicitudes hacia un host configurado por error; no verifica
   la privacidad del bucket, los permisos efectivos, el aislamiento tenant ni la
   entrega de correo. No se han usado credenciales ni conectado a R2, OCI o VPS.
+- Actualización al 2026-11-08: el transporte SMTP de runtime ahora requiere TLS
+  implícito o STARTTLS obligatorio y fija TLS 1.2 mínimo, para aplicar en los
+  envíos la misma protección que el preflight. Si ambas opciones están
+  desactivadas, EmailService queda degradado y no inicializa el transporte.
+  Esta corrección no acredita conexión ni entrega real desde el VPS.
 - La implementación se fusionó como PR #333 (`615cbefe`) y el ajuste de
   clasificación de errores como PR #334 (`6319059a`). Los checks post-merge de
   CI, Browser E2E, publicación de imagen API y Vercel terminaron en verde. El

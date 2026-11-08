@@ -604,6 +604,13 @@ pnpm --filter @saas/api ops:delivery-preflight -- \
   --smtp-verify --confirm-smtp-connect
 ```
 
+El runtime de correo solo inicializa SMTP si `EMAIL_SMTP_SECURE=true` (TLS
+implícito) o `EMAIL_SMTP_REQUIRE_TLS=true` (STARTTLS obligatorio), y fija TLS
+1.2 como versión mínima. Para OCI, el puerto 465 usa TLS implícito; el 587 debe
+probarse con STARTTLS obligatorio desde el VPS. Confirma endpoint y puerto en la
+consola de OCI. El preflight prueba conexión y autenticación, pero no envía un
+correo.
+
 El proveedor de runtime y el preflight aceptan únicamente endpoints HTTPS cuyo
 host termine en `.r2.cloudflarestorage.com`, sin puerto personalizado, ruta,
 userinfo, query ni fragmento. Esto evita firmar solicitudes hacia un endpoint

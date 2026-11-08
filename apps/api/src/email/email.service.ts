@@ -86,6 +86,14 @@ export class EmailService implements OnModuleInit {
       return;
     }
 
+    if (smtpSecure !== true && smtpRequireTls !== true) {
+      this.logger.error(
+        'Configuración SMTP insegura. Se requiere TLS implícito o STARTTLS obligatorio; EmailService operará en modo degradado.',
+      );
+      this.degraded = true;
+      return;
+    }
+
     this.transporter = createTransport({
       host: smtpHost,
       port: smtpPort,
@@ -95,6 +103,7 @@ export class EmailService implements OnModuleInit {
         user: smtpUser,
         pass: smtpPassword,
       },
+      tls: { minVersion: 'TLSv1.2' },
     });
     this.logger.log(`EmailService listo — from: ${this.from}`);
   }
