@@ -72,7 +72,37 @@ propios.
 
 ## Evidencia actual contrastada en `main`
 
-El estado vigente de esta referencia se contrastó con `main@654bebe` el 2026-11-08, después de integrar los PR #324, #327, #329, #331, #333, #334, #336, #338 y #339. Los bloques siguientes conservan las fechas históricas de cada revisión. Los PR #267–#269 actualizan guías de snapshots, campos de identificación del candidato y su vínculo verificable con el empleado. El PR #232 hizo visible el bloqueo del campo UPC 56 en PILA; el cambio actual lo resuelve para dependientes 01/00 de acuerdo con AT2 v30 §2.1.2.3.23 y mantiene 40/69 fuera del MVP. El PR #233 rechaza la prima de julio–diciembre, fuera del MVP aprobado; la revisión oficial del 2026-11-04 no encontró una regla general para el corte operativo previo al pago de diciembre y conserva esa limitación. El PR #234 rechaza novedades PILA para empleados inactivos y bloquea la generación/reliquidación si uno queda asociado a novedades después de inactivarse. El PR #235 completa la matriz del cálculo de prima para todos los conceptos estables de Payroll y bloquea conceptos o tipos desconocidos. El seed de demo emite facturas a través de BillingService y contabiliza las emitidas en Ledger; la factura en borrador permanece sin asiento. El PR #237 verifica desde la UI el comprobante de una factura emitida y sus movimientos de cartera, ingreso e IVA. El PR #265 añade la puerta de serialización de candidatos: fuentes no soportadas, campos pendientes o decisiones ausentes fallan cerradas. Los PR #266–#269 corrigen la guía, validación y trazabilidad de candidatos. PR #283 elimina las alertas altas de dependencias de producción verificadas antes de continuar con GOAL-02; PR #284 añade el puerto interno de proveedor electrónico y pruebas con fake sin transmitir. PR #285 añade el agregado fiscal persistente, líneas snapshot y RLS. PR #286 incorpora perfil emisor y rangos de numeración tenant-scoped, con asignación atómica preparada para una transacción de emisión; no crea ni transmite facturas. PR #291 añade persistencia de intentos, resultados, transiciones y evidencia privada con RLS; no transmite. PR #307 añade prorrateo estándar para ingresos a mitad de un mes completo, con salario mensual de referencia y días congelados en snapshots/correcciones; no habilita PILA parcial. CI, Browser E2E y publicación de imagen API posteriores a PR #291 y #307 pasaron.
+Esta referencia se contrastó por última vez con `main@e98b312` el 2026-11-08,
+después de integrar los PR #342–#345 y los PR #324, #327, #329, #331, #333,
+#334, #336, #338 y #339. Los bloques siguientes conservan las fechas
+históricas de cada revisión. Los PR #267–#269 actualizan guías de snapshots,
+campos de identificación del candidato y su vínculo verificable con el
+empleado. El PR #232 hizo visible el bloqueo del campo UPC 56 en PILA; el cambio
+actual lo resuelve para dependientes 01/00 de acuerdo con AT2 v30 §2.1.2.3.23 y
+mantiene 40/69 fuera del MVP. El PR #233 rechaza la prima de julio–diciembre,
+fuera del MVP aprobado; la revisión oficial del 2026-11-04 no encontró una
+regla general para el corte operativo previo al pago de diciembre y conserva
+esa limitación. El PR #234 rechaza novedades PILA para empleados inactivos y
+bloquea la generación/reliquidación si uno queda asociado a novedades después
+de inactivarse. El PR #235 completa la matriz del cálculo de prima para todos
+los conceptos estables de Payroll y bloquea conceptos o tipos desconocidos. El
+seed de demo emite facturas a través de BillingService y contabiliza las
+emitidas en Ledger; la factura en borrador permanece sin asiento. El PR #237
+verifica desde la UI el comprobante de una factura emitida y sus movimientos
+de cartera, ingreso e IVA. El PR #265 añade la puerta de serialización de
+candidatos: fuentes no soportadas, campos pendientes o decisiones ausentes
+fallan cerradas. Los PR #266–#269 corrigen la guía, validación y trazabilidad
+de candidatos. PR #283 elimina las alertas altas de dependencias de producción
+verificadas antes de continuar con GOAL-02; PR #284 añade el puerto interno de
+proveedor electrónico y pruebas con fake sin transmitir. PR #285 añade el
+agregado fiscal persistente, líneas snapshot y RLS. PR #286 incorpora perfil
+emisor y rangos de numeración tenant-scoped, con asignación atómica preparada
+para una transacción de emisión; no crea ni transmite facturas. PR #291 añade
+persistencia de intentos, resultados, transiciones y evidencia privada con
+RLS; no transmite. PR #307 añade prorrateo estándar para ingresos a mitad de
+un mes completo, con salario mensual de referencia y días congelados en
+snapshots/correcciones; no habilita PILA parcial. CI, Browser E2E y publicación
+de imagen API posteriores a PR #291 y #307 pasaron.
 
 PR #290 también integró la exportación CSV de reportes contables: las tablas
 paginadas descargan la página visible y balances/estados financieros descargan
@@ -148,6 +178,18 @@ fiscal de la transmisión extemporánea sin retirar ese plazo. `main` todavía n
 incluye documentos, mapeo del Anexo Técnico, adaptador ni transmisión de nómina
 electrónica. El código actual no congela identidad completa del emisor o
 beneficiario ni el medio/fecha efectiva del pago en `PayrollSnapshot`.
+
+Actualización al 2026-11-08, contrastada con `main@e98b312`: PR #342 aprueba
+ADR-021 y limita el futuro DSNE a un documento mensual por beneficiario; PR #343
+añade una matriz de mapeo preliminar que no es aprobación laboral ni habilita
+transmisión. La verificación documentada en PR #344 confirma que Payroll causa
+un comprobante `PAYROLL/CAUSACION` fechado con `PayrollPeriod.fechaFin` y
+acredita salarios por pagar por beneficiario, pero no registra estado de pago,
+medio ni fecha efectiva de desembolso. Ese asiento no prueba automáticamente el
+hecho fiscal ni el mes DSNE. PR #345 actualiza el guion de demo para declarar
+que el producto aún no genera ni transmite DSNE. Siguen pendientes la revisión
+laboral y contable/tributaria de conceptos y evidencia, así como proveedor y
+sandbox; no existe generación ni transmisión electrónica.
 
 | Capacidad                  | Evidencia real                                                                                                                                                                                                                                                                         | Límite actual                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
