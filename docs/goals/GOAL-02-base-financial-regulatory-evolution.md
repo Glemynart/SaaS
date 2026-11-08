@@ -72,9 +72,9 @@ propios.
 
 ## Evidencia actual contrastada en `main`
 
-Esta referencia se contrastó por última vez con `main@e98b312` el 2026-11-08,
-después de integrar los PR #342–#345 y los PR #324, #327, #329, #331, #333,
-#334, #336, #338 y #339. Los bloques siguientes conservan las fechas
+Esta referencia se contrastó por última vez con `main@3247e1a` el 2026-11-08,
+después de integrar los PR #342–#345, los PR #324, #327, #329, #331, #333,
+#334, #336, #338, #339 y el PR documental #353. Los bloques siguientes conservan las fechas
 históricas de cada revisión. Los PR #267–#269 actualizan guías de snapshots,
 campos de identificación del candidato y su vínculo verificable con el
 empleado. El PR #232 hizo visible el bloqueo del campo UPC 56 en PILA; el cambio
@@ -130,6 +130,14 @@ RET único dentro de un mes calendario completo y PR #327 integra una VSP única
 efectiva desde el primer día de un mes completo, siempre con fuentes aprobadas
 por Payroll y guardas de alcance estrictas. PR #329 sincroniza ADR-013 y la
 matriz AT2 con estos hechos; sus checks post-merge de CI y Browser E2E pasaron.
+
+Actualización al 2026-11-08, contrastada con `main@3247e1a`: PR #353 documenta
+que el evento VAC-LR permanece bloqueado en exportación. Una revisión de la
+providencia del Consejo de Estado, Sección Cuarta, Exp. 26941 (2024-04-04)
+aclara para vacaciones disfrutadas por trabajadores privados las bases de
+salud/pensión, ARL y parafiscales. El código todavía mezcla vacaciones y licencias
+remuneradas y no congela el IBC anterior ni los días/bases por subsistema; no se
+habilita el archivo hasta agregar esas fuentes aprobadas al snapshot.
 La [Resolución 2064 de 2025](https://minsalud.gov.co/Normatividad_Nuevo/Resolucion%20No%2064%20de%202025.pdf)
 permite registros tipo 2 separados cuando las novedades producen IBC distintos
 y asigna su cálculo al aportante. Como Payroll

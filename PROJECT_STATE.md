@@ -27,6 +27,13 @@
 > `main@654bebe`. No hay aceptación de operador, transmisión, liquidación ni
 > pago PILA acreditados.
 
+> **Actualización 2026-11-08, `main@3247e1a`:** PR #353 actualizó la matriz
+> normativa de VAC-LR. El Consejo de Estado, Sección Cuarta, Exp. 26941
+> (2024-04-04) aclara el tratamiento de vacaciones disfrutadas para salud,
+> pensión, ARL y parafiscales de trabajadores privados. El exportador sigue
+> bloqueado porque el código no distingue vacaciones de licencias remuneradas
+> ni congela el IBC previo y las bases/días segmentados por subsistema.
+
 > **Actualización 2026-11-08, contrastada con `main@e98b312`:** PR #342 aprobó
 > ADR-021 para un futuro DSNE mensual por beneficiario; #343 agregó una matriz
 > de conceptos preliminar, todavía sin revisión laboral. La revisión de #344
