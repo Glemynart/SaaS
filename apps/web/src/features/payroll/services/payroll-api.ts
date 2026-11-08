@@ -212,6 +212,7 @@ export interface PilaPreparationReport {
   detailSequenceCandidates: PilaDetailFieldCandidateStatus[];
   detailContributionCandidates: PilaDetailFieldCandidateStatus[];
   detailSourceFieldCandidates?: PilaDetailFieldCandidateStatus[];
+  detailLocationFieldCandidates?: PilaDetailFieldCandidateStatus[];
   detailNoEventFieldCandidates: PilaDetailFieldCandidateStatus[];
   detailAbsentEventCandidates: PilaDetailFieldCandidateStatus[];
   detailStandardDependentEmptyCandidates: PilaDetailFieldCandidateStatus[];

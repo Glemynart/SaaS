@@ -1,6 +1,5 @@
 import { randomInt } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
-import { mapPilaAt2V30DetailCandidate } from '../apps/api/src/payroll/pila-at2-v30-detail-mapper';
 import { seedPayrollCalculationFixture } from './helpers/payroll-calculation-fixture';
 
 async function registerAndSignIn(page: Page) {
@@ -415,27 +414,78 @@ test('congela la ubicación laboral registrada desde la ficha para los campos PI
       }),
     ]);
 
-    const candidate = mapPilaAt2V30DetailCandidate(
-      {
-        employeeId: fixture.employeeId,
-        payloadVersion: approved.snapshots[0].pilaPayloadVersion,
-        payload: approved.snapshots[0].pilaPayload,
-      },
-      {
-        expectedTenantId: tenantId,
-        planillaType: 'E',
-        period: {
-          id: periodId,
-          fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
-          fechaFin: new Date('2026-10-31T00:00:00.000Z'),
-        },
-      },
+    await page.goto(`/nomina/periodos/${periodId}`);
+    const pilaPanel = page.locator('section').filter({
+      has: page.getByRole('heading', { name: 'Preparación de datos PILA' }),
+    });
+    const preparationResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/payroll/periods/${periodId}/pila-preparation` &&
+        response.request().method() === 'GET',
     );
-    expect(candidate.values[9]).toEqual({ value: '08' });
-    expect(candidate.values[10]).toEqual({ value: '001' });
-    expect(
-      candidate.unresolvedFields.filter(({ fieldNumber }) => [9, 10].includes(fieldNumber)),
-    ).toEqual([]);
+    await pilaPanel.getByRole('button', { name: 'Revisar datos' }).click();
+    const preparationResponse = await preparationResponsePromise;
+    expect(preparationResponse.status()).toBe(200);
+    const preparation = (await preparationResponse.json()) as {
+      detailLocationFieldCandidates: Array<{
+        fieldNumber: number;
+        candidateEmployees: number;
+        pendingEmployees: number;
+        sourceLabel: string;
+        candidateValues?: Array<{
+          employeeId: string;
+          employeeName: string;
+          value: string | number | null;
+        }>;
+        pendingReasons: Array<{ reason: string }>;
+      }>;
+      archivoGenerable: boolean;
+      estadoArchivo: string;
+    };
+    expect(preparation.detailLocationFieldCandidates).toEqual([
+      {
+        fieldNumber: 9,
+        candidateEmployees: 1,
+        pendingEmployees: 0,
+        sourceLabel:
+          'Departamento DIVIPOLA del municipio laboral confirmado, validado contra el departamento de la CCF congelada.',
+        candidateValues: [
+          { employeeId: fixture.employeeId, employeeName: 'Ana Gómez', value: '08' },
+        ],
+        pendingReasons: [],
+      },
+      {
+        fieldNumber: 10,
+        candidateEmployees: 1,
+        pendingEmployees: 0,
+        sourceLabel:
+          'Tres últimos dígitos del código DIVIPOLA del municipio laboral confirmado en el snapshot.',
+        candidateValues: [
+          { employeeId: fixture.employeeId, employeeName: 'Ana Gómez', value: '001' },
+        ],
+        pendingReasons: [],
+      },
+    ]);
+    expect(preparation.archivoGenerable).toBe(false);
+    expect(preparation.estadoArchivo).toBe('BLOQUEADO');
+
+    const locationCandidatesPanel = pilaPanel.locator('section').filter({
+      has: page.getByRole('heading', { name: 'Ubicación laboral por empleado' }),
+    });
+    const departmentField = locationCandidatesPanel
+      .getByRole('listitem')
+      .filter({ hasText: 'Campo 9 · Departamento de ubicación laboral (DIVIPOLA)' });
+    const municipalityField = locationCandidatesPanel
+      .getByRole('listitem')
+      .filter({ hasText: 'Campo 10 · Municipio de ubicación laboral (DIVIPOLA)' });
+    await expect(departmentField).toContainText('Con candidato: 1; pendientes: 0.');
+    await expect(municipalityField).toContainText('Con candidato: 1; pendientes: 0.');
+    await departmentField.getByText('Ver valores de 1 empleado').click();
+    await municipalityField.getByText('Ver valores de 1 empleado').click();
+    await expect(departmentField).toContainText('Ana Gómez');
+    await expect(departmentField).toContainText('08');
+    await expect(municipalityField).toContainText('Ana Gómez');
+    await expect(municipalityField).toContainText('001');
   } finally {
     await fixture.disconnect();
   }

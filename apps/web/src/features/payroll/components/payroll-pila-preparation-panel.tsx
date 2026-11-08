@@ -34,6 +34,8 @@ function formatPilaBytes(bytes: number): string {
 }
 
 const detailFieldLabels: Record<PilaDetailFieldCandidateStatus['fieldNumber'], string> = {
+  9: 'Departamento de ubicación laboral (DIVIPOLA)',
+  10: 'Municipio de ubicación laboral (DIVIPOLA)',
   40: 'Salario básico',
   41: 'Tipo de salario',
   42: 'IBC de pensión',
@@ -921,6 +923,87 @@ export function PayrollPilaPreparationPanel({
                                   </span>
                                 ) : null}
                               </span>
+                              <span className="font-medium">
+                                {sourceCandidateValue(candidate.value, candidate.emptyAs)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                    {status.pendingReasons.length > 0 && (
+                      <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
+                        {status.pendingReasons.map(({ reason, affectedEmployees }, index) => (
+                          <li key={`${status.fieldNumber}-${index}`}>
+                            <p>{reason}</p>
+                            {affectedEmployees.length > 0 && (
+                              <details className="mt-1">
+                                <summary className="cursor-pointer text-primary">
+                                  Ver {affectedEmployees.length}{' '}
+                                  {affectedEmployees.length === 1
+                                    ? 'empleado afectado'
+                                    : 'empleados afectados'}
+                                </summary>
+                                <AffectedEmployeesList
+                                  employees={affectedEmployees}
+                                  className="mt-2 list-inside list-disc"
+                                />
+                              </details>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section
+            className="rounded-lg border border-border p-4"
+            aria-labelledby="pila-location-field-candidates-title"
+          >
+            <h3 id="pila-location-field-candidates-title" className="font-medium">
+              Ubicación laboral por empleado
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Los campos 9 y 10 se proponen desde la ubicación laboral congelada en el snapshot
+              aprobado. El departamento debe coincidir con la afiliación a la CCF. Estos valores son
+              parciales y no habilitan por sí solos la descarga ni acreditan aceptación de un
+              operador.
+            </p>
+            {query.data.detailLocationFieldCandidates === undefined ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                Esta versión del servicio aún no entrega candidatos de ubicación laboral.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-3">
+                {query.data.detailLocationFieldCandidates.map((status) => (
+                  <li key={status.fieldNumber} className="rounded-md bg-muted/40 px-3 py-2">
+                    <p className="text-sm font-medium">
+                      Campo {status.fieldNumber} · {detailFieldLabels[status.fieldNumber] ?? 'AT2'}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Fuente: {status.sourceLabel ?? 'Snapshot aprobado'}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Con candidato: {status.candidateEmployees}; pendientes:{' '}
+                      {status.pendingEmployees}.
+                    </p>
+                    {(status.candidateValues?.length ?? 0) > 0 && (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-sm text-primary">
+                          Ver valores de {status.candidateValues?.length}{' '}
+                          {status.candidateValues?.length === 1 ? 'empleado' : 'empleados'}
+                        </summary>
+                        <ul className="mt-2 space-y-2 text-sm">
+                          {status.candidateValues?.map((candidate) => (
+                            <li
+                              key={candidate.employeeId}
+                              className="flex flex-wrap justify-between gap-x-4"
+                            >
+                              <span>{candidate.employeeName}</span>
                               <span className="font-medium">
                                 {sourceCandidateValue(candidate.value, candidate.emptyAs)}
                               </span>

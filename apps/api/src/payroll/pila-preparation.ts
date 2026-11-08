@@ -2195,6 +2195,16 @@ export function buildPilaPreparationReport(input: {
       95: 'Base de otros parafiscales congelada; se muestra la regla por empleado.',
     },
   );
+  const detailLocationFieldCandidates = summarizePilaDetailFieldCandidates(
+    input.snapshots,
+    assessments,
+    [9, 10],
+    detailCandidatesBySnapshot,
+    {
+      9: 'Departamento DIVIPOLA del municipio laboral confirmado, validado contra el departamento de la CCF congelada.',
+      10: 'Tres últimos dígitos del código DIVIPOLA del municipio laboral confirmado en el snapshot.',
+    },
+  );
   const detailSequenceCandidates = summarizePilaDetailFieldCandidates(
     input.snapshots,
     assessments,
@@ -2336,6 +2346,7 @@ export function buildPilaPreparationReport(input: {
     detailStandardDependentEmptyCandidates,
     detailNonExemptCotizanteCandidates,
     detailPrivateEmployerEsapMenCandidates,
+    detailLocationFieldCandidates,
     employerCandidate,
     headerCandidate,
     issues,
