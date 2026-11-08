@@ -541,7 +541,10 @@ se accedió a demo, staging o producción.
   de pago/abono y la validación de contrato/sandbox del proveedor.
   **ARQUITECTURA DISPONIBLE:** ADR-021 fija la unidad mensual por beneficiario,
   el snapshot regulatorio, las correcciones inmutables y el vínculo contable sin
-  doble causación; la elaboración de la matriz preliminar sigue desbloqueada.
+  doble causación. La [matriz preliminar de conceptos](../payroll/DSNE-MATRIZ-CONCEPTOS-PRELIMINAR.md)
+  contrasta el catálogo y snapshots de `main` contra los campos DIAN; identifica
+  candidatos y bloqueos, y sigue pendiente de revisión laboral. No constituye
+  mapeo normativo aprobado ni habilita transmisión.
 
 ## H4 — Operación financiera ampliada
 
