@@ -6,7 +6,7 @@ se contrastaron con las rutas de navegación y los recorridos E2E del producto.
 Usa un tenant de demostración con datos ficticios; no ejecutes procesos contra
 staging, producción ni información laboral real.
 
-Estado contrastado con `main@5791a9f` el 2026-11-08.
+Estado contrastado con `main@fdfbcf2` el 2026-11-08.
 
 ## Preparación
 
@@ -78,7 +78,11 @@ parciales siguen fuera de alcance.
 Abre **Nómina → Prima de servicios** (`/nomina/prima`), selecciona enero–junio,
 crea la vista previa y revisa empleados, días y valores antes de aprobar. Tras la
 aprobación, muestra los documentos PDF publicados en el expediente de cada
-empleado.
+empleado. Abre uno y señala la identidad del empleado, el semestre, el detalle
+de salario fijo, promedio variable y auxilio promedio causado, los días usados,
+el resultado y la versión de fórmula. El documento debe indicar que no acredita
+el pago de la prima. El E2E verifica esos contenidos, además de la cabecera
+`%PDF` del archivo y el hash SHA-256 asociado al documento publicado.
 
 La demo cubre el cálculo y la generación documental del primer semestre; no
 registra pagos ni asientos de tesorería. No presentes julio–diciembre como

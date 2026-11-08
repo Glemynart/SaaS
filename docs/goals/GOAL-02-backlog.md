@@ -578,10 +578,10 @@ se accedió a demo, staging o producción.
   devuelvan registros. El cálculo de saldo ejecuta bajo `TenantPrismaService`.
 - Quedan fuera: recaudos no aplicados, anticipos, devoluciones, conciliación
   bancaria, transmisión DIAN, manejo de intereses y operación de tesorería. La
-  versión inicial de la captura aplica el recaudo a una factura por vez; la API
-  admite varias facturas del mismo cliente en una solicitud. La ampliación de
-  interfaz descrita abajo está en una rama candidata y aún no acredita uso en
-  `main`.
+  interfaz de captura admite aplicar un recaudo a una o varias facturas del
+  mismo cliente y tenant, hasta 100 por solicitud; la API valida los saldos y
+  el total antes de contabilizar. PR #251 integró el flujo en `main`, y PR #256
+  añadió al seed local una demostración del reparto entre dos facturas.
 - La migración es aditiva y conserva las facturas históricas sin vencimiento.
   Una vez existan recaudos reales no debe revertirse eliminando esas tablas; se
   debe corregir hacia adelante para preservar evidencia financiera.
