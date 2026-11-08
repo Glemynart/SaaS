@@ -6,7 +6,7 @@ se contrastaron con las rutas de navegación y los recorridos E2E del producto.
 Usa un tenant de demostración con datos ficticios; no ejecutes procesos contra
 staging, producción ni información laboral real.
 
-Estado contrastado con `main@c26a51d` el 2026-11-08.
+Estado contrastado con `main@5791a9f` el 2026-11-08.
 
 ## Preparación
 
@@ -166,9 +166,13 @@ La pantalla no transmite ni concilia documentos.
   cartera derivada de recaudos y comprobantes contables, además del seguimiento
   de intentos electrónicos ya persistidos cuando existan.
 - **Aún no se debe ofrecer como terminado:** transmisión de factura electrónica
-  a DIAN, transmisión de nómina electrónica, aceptación o liquidación de una
-  planilla por un operador, pagos PILA, conciliación bancaria y liquidación
-  masiva de prima de julio–diciembre.
+  a DIAN; generación o transmisión de nómina electrónica (DSNE); aceptación o
+  liquidación de una planilla por un operador; pagos PILA; conciliación bancaria;
+  y liquidación masiva de prima de julio–diciembre. La causación contable de
+  nómina no demuestra por sí sola el pago o abono en cuenta ni su fecha fiscal,
+  y no equivale a un DSNE. La matriz de conceptos sigue siendo preliminar y
+  requiere revisión laboral y contable/tributaria antes de iniciar su
+  implementación.
 - Una factura interna en estado `ISSUED` no es una factura electrónica aceptada
   por DIAN. Un archivo PILA localmente validado no prueba aceptación, liquidación
   ni pago por un operador.
@@ -180,6 +184,7 @@ La pantalla no transmite ni concilia documentos.
 - [Seed financiero E2E](../../e2e/financial-demo-seed.spec.ts).
 - [Prima masiva E2E](../../e2e/service-premium-smoke.spec.ts).
 - [Exportación PILA E2E](../../e2e/payroll-pila-export-smoke.spec.ts).
+- [ADR-021: frontera del documento soporte de nómina electrónica](../adr/ADR-021-electronic-payroll-document.md) y [matriz preliminar de conceptos DSNE](../payroll/DSNE-MATRIZ-CONCEPTOS-PRELIMINAR.md): explican por qué el producto aún no genera ni transmite un DSNE.
 - [Ingreso a mitad de mes hasta aprobación y Ledger](../../e2e/payroll-new-hire-proration-smoke.spec.ts).
 - [PR #339: candidatos PILA 9/10 visibles por empleado](https://github.com/Glemynart/SaaS/pull/339).
 - [Backlog de GOAL-02](./GOAL-02-backlog.md), incluida la matriz de alcance y
