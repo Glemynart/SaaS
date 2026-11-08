@@ -22,15 +22,21 @@ El inventario de seguridad actual incluye:
 
 - **Autenticación:** JWT (HS256, 15 min) + refresh tokens rotativos con detección de reuso.
 - **Autorización:** RBAC plano de 3 roles (`ADMIN`, `OPERADOR`, `VIEWER`).
-- **Aislamiento multi-tenant:** `tenantId` en toda consulta, forzado por disciplina de aplicación, con RLS activa únicamente sobre `empleados`.
+- **Aislamiento multi-tenant:** filtros `tenantId` en consultas de aplicación; `TenantPrismaService` instala el tenant en la transacción. Las migraciones activan y fuerzan RLS en una cohorte de 19 tablas, no en todo el esquema.
 - **Validación de entrada:** `ValidationPipe` global con `whitelist` + `forbidNonWhitelisted`.
 - **Rate limiting:** Solo en endpoints de auth (`@nestjs/throttler`); el límite
   global permanece deliberadamente sin activar hasta resolver sus prerrequisitos
   operativos.
 - **Headers HTTP:** Helmet está aplicado en el bootstrap del API con una política
   CSP explícita y headers de transporte/anti-sniffing.
-- **RLS:** Activa únicamente sobre `empleados`; los filtros `tenantId` de la
-  aplicación se conservan como defensa en profundidad.
+- **RLS:** `ENABLE` y `FORCE` con políticas tenant-scoped están definidos para
+  `empleados`, afiliaciones de seguridad social, historial de prima, centros,
+  asignaciones y ubicaciones PILA, exportaciones PILA, recaudos y sus
+  asignaciones/reversiones, y el agregado, numeración e intentos de facturación
+  electrónica. El inventario exacto de las 19 tablas se mantiene en §6.1.
+  Contratos y documentos de expediente no están en esa cohorte; sus rutas
+  dependen de filtros en la aplicación. Esto describe migraciones del repositorio,
+  no un estado operativo de una base desplegada.
 - **Auditoría:** `AuditLog` central con `AuditService` global (fire-and-forget).
 - **CORS:** Configurable por variable de entorno.
 
@@ -82,7 +88,7 @@ El inventario de seguridad actual incluye:
 │  │ │ │ │ │ │  │                                │ │ │ │ │ │ │
 │  │ │ │ │ │ │  ▼                                │ │ │ │ │ │ │
 │  │ │ │ │ │ │ ┌──────────────────────────────┐ │ │ │ │ │ │ │
-│  │ │ │ │ │ │ │ PostgreSQL (RLS: empleados)   │ │ │ │ │ │ │ │
+│  │ │ │ │ │ │ │ PostgreSQL (RLS parcial)      │ │ │ │ │ │ │ │
 │  │ │ │ │ │ │ │ Auditoría (AuditLog)          │ │ │ │ │ │ │ │
 │  │ │ │ │ │ │ └──────────────────────────────┘ │ │ │ │ │ │ │
 │  │ │ │ │ │ └──────────────────────────────────┘ │ │ │ │ │ │
@@ -97,7 +103,7 @@ El inventario de seguridad actual incluye:
 ### 2.3 Sesgo arquitectónico
 
 - **Stateless siempre que sea posible.** El access token JWT es stateless; no se consulta la base de datos en cada request para autorización básica.
-- **Application-layer sobre DB-layer para tenant isolation.** La disciplina de `tenantId` en cada `WHERE` se conserva como defensa en profundidad; RLS protege actualmente la cohorte `empleados` y su expansión requiere migraciones y pruebas independientes.
+- **Application-layer y DB-layer para tenant isolation.** La disciplina de `tenantId` en cada `WHERE` se conserva en todo el esquema. RLS protege hoy 19 tablas mediante migraciones independientes; la expansión al resto requiere migraciones y pruebas por cohorte. Las políticas usan `app.current_tenant_id`, instalado por `TenantPrismaService` dentro de la transacción.
 - **Rate limiting progresivo.** Auth tiene throttling estricto; los endpoints de datos se protegen con throttling global moderado en una fase posterior.
 
 ---
@@ -117,7 +123,7 @@ El inventario de seguridad actual incluye:
 | CORS configurable                  | Implementado        | —         |
 | Security headers (Helmet)          | Implementado        | —         |
 | Rate limiting global               | Pendiente           | Alta      |
-| RLS en PostgreSQL                  | Parcial (empleados) | Media     |
+| RLS en PostgreSQL                  | Parcial (19 tablas) | Media     |
 | Tests de guards de seguridad       | Pendiente           | Alta      |
 | Rotación de refresh tokens         | Implementado        | —         |
 | Detección de reuso de tokens       | Implementado        | —         |
@@ -214,11 +220,28 @@ POST /auth/login ──► { accessToken, refreshToken }
 - **Toda entidad** tiene `tenantId` como primer índice compuesto.
 - **Todo servicio** recibe `tenantId` del `@CurrentUser()` (extraído del JWT) y lo incluye explícitamente en cada `WHERE`.
 - **`ActiveTenantGuard`** verifica que el tenant existe y está activo antes de ejecutar el handler.
-- **No existe** `$use` middleware de Prisma ni Row-Level Security en PostgreSQL.
+- No existe `$use` middleware global de Prisma. `TenantPrismaService` instala
+  `app.current_tenant_id` con alcance local a la transacción. Las migraciones
+  activan y fuerzan RLS en estas 19 tablas: `afiliaciones_seguridad_social`,
+  `customer_receipt_reversals`, `customer_receipts`, `empleados`,
+  `facturas_electronicas`, `intentos_facturas_electronicas`,
+  `invoice_receipt_allocations`, `lineas_facturas_electronicas`,
+  `perfiles_emisor_electronicos`, `pila_asignaciones_centro_trabajo`,
+  `pila_centros_trabajo`, `pila_exports`, `pila_ubicaciones_laborales`,
+  `rangos_numeracion_electronica`, `resultados_intentos_facturas_electronicas`,
+  `service_premium_batches`, `service_premium_lines`,
+  `transiciones_facturas_electronicas` y `transmisiones_facturas_electronicas`.
+- La suite `employees.rls.postgres.spec.ts` comprueba la lista de tablas con
+  `ENABLE` y `FORCE` y ejercita varios dominios con un rol `NOBYPASSRLS`;
+  pruebas separadas cubren el dominio y el historial de intentos de facturación
+  electrónica. No se ha acreditado una prueba operativa sobre la base desplegada.
+- El resto del esquema, incluidos contratos, `generated_documents`,
+  `expediente_doc_families` y `expediente_docs`, continúa dependiendo del filtro
+  de tenant en la aplicación.
 
 ### 6.2 Riesgo aceptado
 
-Un bug de omisión de `tenantId` en una consulta expone datos entre tenants. La mitigación actual es **disciplina de código + revisión en PR + tests de aislamiento**, con RLS activa sobre `empleados` como defensa adicional. La expansión de RLS a otras tablas requiere unidades independientes (ver §9).
+Un bug de omisión de `tenantId` en una tabla sin RLS puede exponer datos entre tenants. La mitigación actual combina **disciplina de código + revisión en PR + tests de aislamiento** con políticas RLS en las 19 tablas listadas en §6.1. Para esas políticas, la protección depende de que la consulta use el contexto instalado por la ruta de aplicación: `app.current_tenant_id` es un parámetro PostgreSQL personalizado aceptado por nombre de dos partes y no constituye por sí solo una identidad de tenant confiable frente a una sesión SQL con credenciales. RLS reduce omisiones de filtro en la ruta normal; no protege contra credenciales SQL comprometidas ni cubre las tablas sin política. Ver [opciones de configuración personalizadas de PostgreSQL](https://www.postgresql.org/docs/current/runtime-config-custom.html). La expansión y la revisión de la fuente confiable del tenant requieren unidades independientes.
 
 ### 6.3 Soft delete
 
@@ -340,15 +363,18 @@ prerrequisitos operativos.
 
 ### Fase siguiente — Row-Level Security (RLS)
 
-**Estado:** Diferida
+**Estado:** Parcialmente implementada; la cobertura sigue siendo incompleta.
 
 **Alcance:**
 
-- Expandir RLS progresivamente a tablas multi-tenant adicionales mediante migraciones y pruebas independientes.
-- Migrar la política de tenant del código de aplicación a la base de datos como defensa en profundidad.
+- Completar la expansión progresiva de RLS a tablas multi-tenant adicionales mediante migraciones y pruebas independientes; hoy hay políticas en las 19 tablas enumeradas en §6.1.
+- Revisar por separado una fuente de identidad de tenant confiable frente a SQL arbitrario con el rol de aplicación; el parámetro `app.current_tenant_id` actual no cubre ese escenario.
 - Mantener el `tenantId` en las consultas de aplicación (doble capa).
 
-**Validación:** un usuario del tenant A no puede leer filas del tenant B incluso con una consulta raw sin `tenantId`.
+**Validación:** para cada cohorte protegida, una consulta dentro de una
+transacción tenant-scoped del tenant A no debe leer ni mutar filas del tenant B
+aunque omita `tenantId` en el `WHERE`. Esta prueba de omisión no acredita que el
+GUC sea confiable frente a una sesión SQL que pueda establecerlo.
 
 ### Fase siguiente — Granularidad de permisos
 

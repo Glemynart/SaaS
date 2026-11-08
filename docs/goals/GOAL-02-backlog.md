@@ -2337,3 +2337,32 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   estas sugerencias no acreditan aceptación de operador. La generación y
   descarga de archivos se mantienen en su E2E separado. La prueba usa
   únicamente PostgreSQL efímero de CI.
+
+### Auditoría de RLS y entrega de documentos — 2026-11-08
+
+- Auditoría de solo lectura contrastada con `main@68b3926`: las migraciones
+  activan y fuerzan RLS en 19 tablas de empleados, seguridad social, prima,
+  PILA, recaudos y facturación electrónica. La suite PostgreSQL de empleados
+  enumera las 19; ejercita aislamiento en varios dominios, y las suites de
+  facturación electrónica prueban cruces de tenant y escrituras inválidas.
+  Esto verifica código/migraciones, no el estado de una base desplegada.
+- Las rutas inspeccionadas de descarga de documentos generados y de expediente
+  consultan por `id` y `tenantId` antes de llamar a `StorageService`; el ingreso
+  manual construye keys con prefijo tenant. Los documentos de contrato y
+  expediente siguen sin política RLS y dependen del filtro de aplicación. Las
+  pruebas HTTP de entrega sustituyen Prisma y almacenamiento por mocks, por lo
+  que no acreditan aislamiento real en R2 ni privacidad efectiva del bucket.
+- Hallazgo de seguridad: las políticas usan `current_setting` sobre el GUC
+  personalizado `app.current_tenant_id`, que `TenantPrismaService` establece
+  para las transacciones tenant-scoped. PostgreSQL acepta opciones personalizadas
+  de dos partes; el repositorio no define un mecanismo que haga confiable ese
+  valor frente a una sesión SQL que pueda establecerlo. Por tanto RLS es defensa
+  contra omisiones de filtro dentro del flujo de aplicación, pero no una barrera
+  independiente frente a credenciales SQL comprometidas. El estado de permisos,
+  roles y red de la base desplegada no se determinó.
+- Clasificación: divergencia documental corregida en ADR-SEC-002, el modelo de
+  amenazas y la arquitectura de plataforma; riesgo restante de cobertura parcial
+  y de confianza en el GUC. La siguiente expansión requiere una revisión de
+  arquitectura para tablas/documentos y una decisión explícita sobre la fuente
+  confiable del tenant; no se cambió código, almacenamiento ni ningún entorno.
+- Referencia primaria: [opciones personalizadas de PostgreSQL](https://www.postgresql.org/docs/current/runtime-config-custom.html).
