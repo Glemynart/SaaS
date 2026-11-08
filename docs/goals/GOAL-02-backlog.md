@@ -515,8 +515,13 @@ se accedió a demo, staging o producción.
 - Hechos verificados en el código de `main`: los snapshots congelan conceptos,
   totales y período, pero no identidad legal completa del emisor/beneficiario ni
   el medio/fecha efectiva del pago. Los rangos de Payroll pueden ser arbitrarios;
-  `fechaPrevistaPagoPila` no es evidencia de pago. No hay documento ni
-  transmisión de nómina electrónica.
+  `fechaPrevistaPagoPila` no es evidencia de pago. Payroll sí registra al causar
+  el período un comprobante `PAYROLL/CAUSACION` en `PayrollPeriod.fechaFin` y
+  acredita salarios por pagar por tercero; no existe estado de pago ni medio de
+  desembolso. Si ese asiento representa el primer abono en cuenta tributario y
+  si su fecha es la correcta requieren revisión de Contabilidad/Tributario; no
+  se debe inferir desde el período. No hay documento ni transmisión de nómina
+  electrónica.
 - Hechos oficiales revisados: la Resolución 227/2025 compila la Resolución
   013/2021; el DSNE se genera por beneficiario con consolidación mensual, el
   plazo ordinario es dentro de los primeros diez días del mes siguiente, y las
