@@ -195,3 +195,5 @@ La pantalla no transmite ni concilia documentos.
   sus límites normativos.
 - [PR #304: seguimiento de transmisiones](https://github.com/Glemynart/SaaS/pull/304),
   que añade la vista de solo lectura descrita en el paso 5.
+- Para registrar necesidades y seleccionar un primer caso piloto después de la
+  demostración, usa la [ficha de descubrimiento con clientes](./GOAL-02-client-discovery.md).
