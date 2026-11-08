@@ -503,16 +503,7 @@ se accedió a demo, staging o producción.
 | Prioridad | Estado    | Iniciativa                                                | Criterios de aceptación                                                                                                                      | Dependencias y riesgo                                                                       |
 | --------- | --------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | P2        | PENDIENTE | Facturación electrónica DIAN por proveedor especializado. | Factura fiscal trazable desde Invoice, intentos idempotentes, estados normalizados, rechazo/contingencia y evidencia verificable en sandbox. | H1, ADR fiscal, proveedor, sandbox y custodia de certificados; riesgo normativo alto.       |
-| P2        | ADR-021 APROBADA; IMPLEMENTACIÓN PENDIENTE | Nómina electrónica derivada de PayrollSnapshot. | Un DSNE mensual por beneficiario agrega snapshots aprobados con identidad, evidencia de pago/abono y conceptos versionados; correcciones, rechazos y validación DIAN conservan historia auditable. | H1, matriz laboral revisada, fuente de pago/abono, proveedor y sandbox; riesgo normativo alto. |
-
-## H4 — Operación financiera ampliada
-
-| Prioridad | Estado                                                 | Iniciativa                        | Criterios de aceptación                                                                                                    | Dependencias y riesgo                                                 |
-| --------- | ------------------------------------------------------ | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| P2        | IMPLEMENTADA PARA DEMO; VALIDACIÓN OPERATIVA PENDIENTE | Cartera y aplicación de recaudos. | Saldos, vencimientos, pagos parciales y aplicación contra facturas se derivan de hechos trazables y cuadran con el Ledger. | Facturación estable, tercero canónico y caso comercial verificable.   |
-| P2        | PENDIENTE                                              | Tesorería y conciliación.         | Obligaciones y pagos se concilian con extractos para un banco/flujo concreto con auditoría e idempotencia.                 | Necesidad real de cliente, Cartera/Payroll/Compras y datos bancarios. |
-| P3        | PENDIENTE                                              | Compras y cuentas por pagar.      | Proveedor, obligación, soporte, causación y pago se rastrean hasta el Ledger.                                              | Tercero canónico, aprobaciones y necesidades de proveedor.            |
-| P3        | PENDIENTE                                              | Reportes financieros integrados.  | Los reportes se calculan desde fuentes completas; cualquier cobertura parcial se identifica claramente.                    | H4.1–H4.3 o fuentes equivalentes ya verificadas.                      |
+| P2        | ADR-021 APROBADA; IMPLEMENTACIÓN PENDIENTE | Nómina electrónica derivada de PayrollSnapshot. | DSNE mensual por beneficiario, derivado de snapshots aprobados, con ajustes y respuestas trazables. | H1, matriz laboral, evidencia de pago/abono, proveedor y sandbox. |
 
 ### Nómina electrónica: frontera y dependencias del MVP — ADR-021 — 2026-11-08
 
@@ -551,6 +542,15 @@ se accedió a demo, staging o producción.
   **ARQUITECTURA DISPONIBLE:** ADR-021 fija la unidad mensual por beneficiario,
   el snapshot regulatorio, las correcciones inmutables y el vínculo contable sin
   doble causación; la elaboración de la matriz preliminar sigue desbloqueada.
+
+## H4 — Operación financiera ampliada
+
+| Prioridad | Estado                                                 | Iniciativa                        | Criterios de aceptación                                                                                                    | Dependencias y riesgo                                                 |
+| --------- | ------------------------------------------------------ | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| P2        | IMPLEMENTADA PARA DEMO; VALIDACIÓN OPERATIVA PENDIENTE | Cartera y aplicación de recaudos. | Saldos, vencimientos, pagos parciales y aplicación contra facturas se derivan de hechos trazables y cuadran con el Ledger. | Facturación estable, tercero canónico y caso comercial verificable.   |
+| P2        | PENDIENTE                                              | Tesorería y conciliación.         | Obligaciones y pagos se concilian con extractos para un banco/flujo concreto con auditoría e idempotencia.                 | Necesidad real de cliente, Cartera/Payroll/Compras y datos bancarios. |
+| P3        | PENDIENTE                                              | Compras y cuentas por pagar.      | Proveedor, obligación, soporte, causación y pago se rastrean hasta el Ledger.                                              | Tercero canónico, aprobaciones y necesidades de proveedor.            |
+| P3        | PENDIENTE                                              | Reportes financieros integrados.  | Los reportes se calculan desde fuentes completas; cualquier cobertura parcial se identifica claramente.                    | H4.1–H4.3 o fuentes equivalentes ya verificadas.                      |
 
 ### Cartera y aplicación de recaudos — 2026-11-03
 
