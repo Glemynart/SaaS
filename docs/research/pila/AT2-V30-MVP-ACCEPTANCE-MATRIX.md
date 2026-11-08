@@ -656,45 +656,54 @@ conservadora del producto, no una regla de calendario atribuida a la norma. La
 revisión laboral independiente y la aceptación por cada operador continúan
 pendientes.
 
-### PILA-AT2-85 — Vacaciones o licencia remunerada (VAC-LR): conservar el bloqueo
+### PILA-AT2-85 — Vacaciones disfrutadas dentro de VAC-LR: ampliar evidencia, conservar bloqueo
 
-**Hechos del código en `main@d15143d`:** Payroll permite capturar `VAC_LR` con
-fechas y congelar el evento en el snapshot aprobado. La matriz de exportación
-no incluye una regla que habilite ese evento ni segmenta sus días o IBC por
-subsistema; por ello el preflight deja pendientes los campos dependientes y la
-descarga permanece bloqueada.
+**Hechos del código en `main@3247e1a`:** Payroll acepta `VAC_LR` con fechas y
+congela código y fechas en el snapshot. `PayrollPilaEvent`, su DTO y
+`PilaSnapshotEvent` conservan código, fechas y días opcionales, pero no
+distinguen vacaciones disfrutadas de licencia remunerada. Tampoco congelan el
+IBC anterior al descanso ni un concepto de remuneración de vacaciones
+trazable; la prueba `blocks vacation amounts until Payroll stores a traceable
+paid-rest concept` confirma ese límite. La preparación deja pendientes los
+campos afectados y no se genera ni descarga el archivo.
 
-**Hechos normativos verificados al 2026-11-08:** el AT2 v30 que publica
-MinSalud incorpora la Resolución 1529 de 2026 y asigna a VAC-LR el campo 27 y
-las fechas de inicio/fin de los campos 89–90. El artículo 70 del Decreto 806
-de 1998, ubicado en las reglas de cotización en salud, dispone que las
-cotizaciones durante vacaciones se calculan sobre el último IBC informado antes
-de iniciar el disfrute. La Circular 018 de 2012 del Ministerio del Trabajo
-incluye las vacaciones disfrutadas y pagadas en dinero dentro de la base de
-aportes parafiscales.
+**Hechos normativos verificados al 2026-11-08:** AT2 v30 asigna VAC-LR al campo
+27 y las fechas a los campos 89–90. El artículo 70 del Decreto 806 de 1998
+dispone que las cotizaciones durante vacaciones se causan en su totalidad sobre
+el último IBC reportado antes del inicio del descanso. Para el caso de
+vacaciones disfrutadas por trabajadores privados, la Sección Cuarta del Consejo
+de Estado, en la providencia de 2024-04-04, expediente 26941, concluyó que:
+salud y pensión usan ese IBC anterior; no se cotiza a ARL durante los días de
+vacaciones por ausencia de riesgo asegurable; y el valor pagado por vacaciones
+integra la base de aportes parafiscales. **Inferencia de alcance:** el concepto
+DAFP 091961 de 2022 trata empleados públicos y por eso no desplaza la regla que
+esta providencia aplica al caso privado; la providencia no resuelve licencias
+remuneradas. La Circular 018 de 2012 también incluye descansos remunerados en
+la base parafiscal.
 
-**Alcance no resuelto:** el Decreto 1072 de 2015, artículo 2.2.4.2.1.6,
-enumera vacaciones entre ciertas novedades del Sistema de Riesgos Laborales y
-prevé no causar cotización durante ellas; el Concepto 091961 de 2022 de Función
-Pública, en el contexto de empleados públicos, indica pagar ARL mientras se
-disfrutan. La aplicabilidad de esas disposiciones al trabajador dependiente
-privado del MVP requiere reconciliación jurídica; no se extrapola una de ellas.
-Tampoco basta con copiar las fechas VAC-LR: deben coincidir los días y las bases
-congeladas por subsistema, el salario/IBC anterior al disfrute y cualquier
-concurrencia con VSP, ING, RET u otra novedad.
+**Lo que esta evidencia no resuelve ni implementa:** la providencia trata
+vacaciones disfrutadas; no habilita automáticamente cualquier licencia
+remunerada ni las vacaciones compensadas en dinero. El enum `VAC_LR` actual
+mezcla esas situaciones. Además, el snapshot no conserva el IBC previo al
+disfrute, el concepto pagado específico ni la segmentación de días e IBC por
+subsistema; las fechas solas no permiten reconstruirlos sin inferir datos.
 
-**Decisión de preparación:** mantener VAC-LR fuera de la generación hasta que
-una matriz de escenarios para dependientes 01/00 resuelva esa aplicabilidad,
-fije resultados esperados para cada subsistema y los pruebe contra snapshots
-aprobados. Casos mínimos: salario fijo sin cambio, salario variable o cambio de
-salario, vacaciones dentro del mes y cruzando el corte mensual, vacaciones
-concurrentes con otra novedad, e IBC anterior ausente o diferente. El primer
-caso implementable debe limitarse a las fuentes y combinaciones cuya base y
-días estén congelados sin inferencias. No cambia el mapper ni declara aceptación
-de operador.
+**Siguiente incremento candidato:** distinguir en la captura el subtipo
+`VACACIONES_DISFRUTADAS` de licencia remunerada y, dentro del alcance inicial,
+aceptar solo dependientes 01/00 con una novedad que no concurra con otras. Al
+aprobar nómina, congelar la fuente aprobada del último IBC anterior, días de
+vacaciones/trabajo y remuneración que alimenta parafiscales. Solo el preflight y
+mapper que consuman esos datos congelados podrán proponer la novedad y fechas,
+días, bases y aportes derivados. Mantener bloqueados licencias remuneradas, vacaciones compensadas,
+salario variable o cambio salarial, novedades concurrentes, intervalos que
+crucen períodos y falta/discordancia de la fuente anterior. Casos mínimos:
+vacación dentro del mes, mes completo, cruce de fin de mes, IBC anterior
+ausente o diferente y concurrencia. Hasta que exista ese soporte, la generación
+y descarga continúan bloqueadas; esto no acredita aceptación de operador.
 
-Fuentes oficiales: [AT2 v30, MinSalud](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/OT/anexo-tecnico2-cotizantes.pdf),
+Fuentes: [AT2 v30, MinSalud](https://www.minsalud.gov.co/sites/rid/Lists/BibliotecaDigital/RIDE/DE/OT/anexo-tecnico2-cotizantes.pdf),
 [Decreto 806 de 1998, art. 70](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=19411),
 [Decreto 1072 de 2015, art. 2.2.4.2.1.6](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=72173),
-[Concepto 091961 de 2022](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=190866)
+[Consejo de Estado, Sección Cuarta, Exp. 26941 (2024-04-04)](https://normograma.supersalud.gov.co/compilacion/docs/25000-23-37-000-2017-00244-01%2826941%29_20240404.htm),
+[Concepto DAFP 091961 de 2022](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=190866)
 y [Circular 018 de 2012](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=71322).
