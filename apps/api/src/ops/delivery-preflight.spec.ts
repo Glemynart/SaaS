@@ -35,6 +35,24 @@ describe('delivery preflight', () => {
       expect(send).not.toHaveBeenCalled();
     });
 
+    it.each([
+      'https://account.r2.cloudflarestorage.com:8443',
+      'https://account.r2.cloudflarestorage.com/?unexpected=1',
+      'https://account.r2.cloudflarestorage.com/#unexpected',
+    ])(
+      'rejects R2 endpoints with unsupported URL parts before sending credentials: %s',
+      async (endpoint) => {
+        const environment = r2Environment();
+        environment.R2_ENDPOINT = endpoint;
+        const send = jest.fn<Promise<unknown>, [R2PreflightCommand]>();
+
+        await expect(
+          verifyR2WriteAccess(environment, 'preflight-test-bucket', send),
+        ).rejects.toMatchObject({ code: 'R2_CONFIGURATION_INVALID' });
+        expect(send).not.toHaveBeenCalled();
+      },
+    );
+
     it('writes, reads, hashes, deletes and confirms absence of a synthetic object', async () => {
       let expected = Buffer.alloc(0);
       const send = jest.fn<Promise<unknown>, [R2PreflightCommand]>();

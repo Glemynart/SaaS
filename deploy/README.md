@@ -604,6 +604,12 @@ pnpm --filter @saas/api ops:delivery-preflight -- \
   --smtp-verify --confirm-smtp-connect
 ```
 
+El proveedor de runtime y el preflight aceptan únicamente endpoints HTTPS cuyo
+host termine en `.r2.cloudflarestorage.com`, sin puerto personalizado, ruta,
+userinfo, query ni fragmento. Esto evita firmar solicitudes hacia un endpoint
+arbitrario por una configuración errónea; no demuestra que el bucket sea
+privado ni que el aislamiento tenant funcione.
+
 Reemplaza el texto de ejemplo escribiendo el nombre exacto del bucket privado
 aislado de staging; no uses una expansión automática de `R2_BUCKET` para esa
 confirmación. El operador debe cargar las variables desde el entorno privado

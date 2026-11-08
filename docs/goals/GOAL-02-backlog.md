@@ -500,10 +500,10 @@ se accedió a demo, staging o producción.
 
 ## H2/H3 — Cumplimiento electrónico
 
-| Prioridad | Estado    | Iniciativa                                                | Criterios de aceptación                                                                                                                      | Dependencias y riesgo                                                                       |
-| --------- | --------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| P2        | PENDIENTE | Facturación electrónica DIAN por proveedor especializado. | Factura fiscal trazable desde Invoice, intentos idempotentes, estados normalizados, rechazo/contingencia y evidencia verificable en sandbox. | H1, ADR fiscal, proveedor, sandbox y custodia de certificados; riesgo normativo alto.       |
-| P2        | ADR-021 APROBADA; IMPLEMENTACIÓN PENDIENTE | Nómina electrónica derivada de PayrollSnapshot. | DSNE mensual por beneficiario, derivado de snapshots aprobados, con ajustes y respuestas trazables. | H1, matriz laboral, evidencia de pago/abono, proveedor y sandbox. |
+| Prioridad | Estado                                     | Iniciativa                                                | Criterios de aceptación                                                                                                                      | Dependencias y riesgo                                                                 |
+| --------- | ------------------------------------------ | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| P2        | PENDIENTE                                  | Facturación electrónica DIAN por proveedor especializado. | Factura fiscal trazable desde Invoice, intentos idempotentes, estados normalizados, rechazo/contingencia y evidencia verificable en sandbox. | H1, ADR fiscal, proveedor, sandbox y custodia de certificados; riesgo normativo alto. |
+| P2        | ADR-021 APROBADA; IMPLEMENTACIÓN PENDIENTE | Nómina electrónica derivada de PayrollSnapshot.           | DSNE mensual por beneficiario, derivado de snapshots aprobados, con ajustes y respuestas trazables.                                          | H1, matriz laboral, evidencia de pago/abono, proveedor y sandbox.                     |
 
 ### Nómina electrónica: frontera y dependencias del MVP — ADR-021 — 2026-11-08
 
@@ -2296,6 +2296,12 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   pruebas usan clientes simulados. Esto no sustituye revisar que el bucket sea
   privado, probar aislamiento tenant ni recibir una invitación y recuperación
   reales. No se ha conectado a R2/OCI ni al VPS.
+- Actualización al 2026-11-08: el proveedor de runtime y el preflight rechazan
+  endpoints R2 que no usen HTTPS bajo `*.r2.cloudflarestorage.com` o incluyan
+  puerto personalizado, ruta, credenciales, query o fragmento. Es una guarda
+  contra la firma de solicitudes hacia un host configurado por error; no verifica
+  la privacidad del bucket, los permisos efectivos, el aislamiento tenant ni la
+  entrega de correo. No se han usado credenciales ni conectado a R2, OCI o VPS.
 - La implementación se fusionó como PR #333 (`615cbefe`) y el ajuste de
   clasificación de errores como PR #334 (`6319059a`). Los checks post-merge de
   CI, Browser E2E, publicación de imagen API y Vercel terminaron en verde. El

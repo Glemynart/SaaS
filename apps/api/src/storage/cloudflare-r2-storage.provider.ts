@@ -31,7 +31,7 @@ export class CloudflareR2StorageProvider implements StorageProvider {
   constructor() {
     this.client = new S3Client({
       region: 'auto',
-      endpoint: process.env.R2_ENDPOINT,
+      endpoint: process.env.R2_ENDPOINT?.trim(),
       forcePathStyle: true,
       credentials: {
         accessKeyId: process.env.R2_ACCESS_KEY_ID ?? '',
@@ -42,7 +42,7 @@ export class CloudflareR2StorageProvider implements StorageProvider {
 
   validateConfiguration(): void {
     const missing = R2_REQUIRED_ENVIRONMENT_VARIABLES.filter(
-      (name) => !process.env[name],
+      (name) => !process.env[name]?.trim(),
     );
     if (missing.length > 0) {
       throw new CloudflareR2StorageConfigurationError(
@@ -50,11 +50,27 @@ export class CloudflareR2StorageProvider implements StorageProvider {
       );
     }
 
+    let endpoint: URL;
     try {
-      new URL(process.env.R2_ENDPOINT!);
+      endpoint = new URL(process.env.R2_ENDPOINT!.trim());
     } catch {
       throw new CloudflareR2StorageConfigurationError(
         'R2_ENDPOINT debe ser una URL válida',
+      );
+    }
+
+    if (
+      endpoint.protocol !== 'https:' ||
+      !endpoint.hostname.endsWith('.r2.cloudflarestorage.com') ||
+      endpoint.port !== '' ||
+      endpoint.pathname !== '/' ||
+      endpoint.username !== '' ||
+      endpoint.password !== '' ||
+      endpoint.search !== '' ||
+      endpoint.hash !== ''
+    ) {
+      throw new CloudflareR2StorageConfigurationError(
+        'R2_ENDPOINT debe usar HTTPS y un host oficial de Cloudflare R2',
       );
     }
   }

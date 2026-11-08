@@ -138,6 +138,33 @@ describe('CloudflareR2StorageProvider', () => {
     );
   });
 
+  it.each([
+    ['rechaza HTTP', 'http://account.r2.cloudflarestorage.com'],
+    ['rechaza host externo', 'https://attacker.example.invalid'],
+    [
+      'rechaza puerto personalizado',
+      'https://account.r2.cloudflarestorage.com:8443',
+    ],
+    ['rechaza rutas', 'https://account.r2.cloudflarestorage.com/other'],
+    [
+      'rechaza credenciales embebidas',
+      'https://user:password@account.r2.cloudflarestorage.com',
+    ],
+    ['rechaza query string', 'https://account.r2.cloudflarestorage.com/?x=1'],
+    ['rechaza fragmento', 'https://account.r2.cloudflarestorage.com/#fragment'],
+  ])(
+    'rechaza endpoint R2 inseguro antes de enviar solicitudes: %s',
+    (_, endpoint) => {
+      process.env.R2_ENDPOINT = endpoint;
+      const provider = new CloudflareR2StorageProvider();
+
+      expect(() => provider.validateConfiguration()).toThrow(
+        CloudflareR2StorageConfigurationError,
+      );
+      expect(send).not.toHaveBeenCalled();
+    },
+  );
+
   it('comprueba la disponibilidad de R2 sin leer objetos de negocio', async () => {
     send.mockResolvedValueOnce({});
     const provider = new CloudflareR2StorageProvider();

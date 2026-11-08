@@ -90,16 +90,19 @@ export async function verifyR2WriteAccess(
 
   let endpoint: URL;
   try {
-    endpoint = new URL(environment.R2_ENDPOINT!);
+    endpoint = new URL(environment.R2_ENDPOINT!.trim());
   } catch {
     throw new DeliveryPreflightError('R2_CONFIGURATION_INVALID');
   }
   if (
     endpoint.protocol !== 'https:' ||
     !endpoint.hostname.endsWith('.r2.cloudflarestorage.com') ||
+    endpoint.port !== '' ||
     endpoint.pathname !== '/' ||
     endpoint.username !== '' ||
-    endpoint.password !== ''
+    endpoint.password !== '' ||
+    endpoint.search !== '' ||
+    endpoint.hash !== ''
   ) {
     throw new DeliveryPreflightError('R2_CONFIGURATION_INVALID');
   }
@@ -233,7 +236,7 @@ export function createR2PreflightSender(): {
 } {
   const client = new S3Client({
     region: 'auto',
-    endpoint: process.env.R2_ENDPOINT,
+    endpoint: process.env.R2_ENDPOINT?.trim(),
     forcePathStyle: true,
     credentials: {
       accessKeyId: process.env.R2_ACCESS_KEY_ID ?? '',
