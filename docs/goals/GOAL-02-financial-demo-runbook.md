@@ -6,6 +6,8 @@ se contrastaron con las rutas de navegación y los recorridos E2E del producto.
 Usa un tenant de demostración con datos ficticios; no ejecutes procesos contra
 staging, producción ni información laboral real.
 
+Estado contrastado con `main@c26a51d` el 2026-11-08.
+
 ## Preparación
 
 1. Inicia sesión con un usuario `ADMIN` del tenant de demostración.
@@ -94,6 +96,17 @@ habilitan por sí solos la generación. Solo cuando la pantalla habilite la
 acción, genera y descarga los archivos tipo 1 y tipo 2; enseña el historial de
 la exportación local.
 
+Para explicar el origen de los códigos geográficos, abre también **Ubicación
+laboral por empleado**. Revisa los campos 9 (departamento DIVIPOLA) y 10
+(municipio DIVIPOLA), el conteo por empleado, la fuente y los pendientes. Se
+derivan de la ubicación laboral congelada en el snapshot aprobado; el
+departamento debe coincidir con el de la afiliación a la CCF. Como referencia,
+el código municipal `08001` produce departamento `08` y municipio `001`. Si un
+empleado tiene un campo pendiente, enseña el motivo y resuelve el dato de origen
+antes de calcular y aprobar la nómina que se usará para exportar. Un snapshot
+aprobado no se edita, y los candidatos parciales no autorizan por sí solos la
+descarga.
+
 El flujo soporta únicamente los escenarios dependientes estándar incluidos en
 la matriz de aceptación. La validación local verifica el formato y las reglas
 implementadas para ese alcance; no significa que un operador haya aceptado el
@@ -148,10 +161,10 @@ La pantalla no transmite ni concilia documentos.
 - **Sí se puede mostrar:** nómina interna, causación al Ledger, prima masiva de
   enero–junio con PDF por empleado, nómina estándar de un ingreso a mitad de un
   mes completo y exportación local de PILA para ese único ING cuando todos los
-  controles documentados pasen, preparación y descarga local de PILA estándar
-  cuando no haya brechas, facturación interna, cartera derivada de recaudos y
-  comprobantes contables, además del seguimiento de intentos electrónicos ya
-  persistidos cuando existan.
+  controles documentados pasen, preparación de campos PILA 9/10 por empleado y
+  descarga local de PILA estándar cuando no haya brechas, facturación interna,
+  cartera derivada de recaudos y comprobantes contables, además del seguimiento
+  de intentos electrónicos ya persistidos cuando existan.
 - **Aún no se debe ofrecer como terminado:** transmisión de factura electrónica
   a DIAN, transmisión de nómina electrónica, aceptación o liquidación de una
   planilla por un operador, pagos PILA, conciliación bancaria y liquidación
@@ -168,6 +181,7 @@ La pantalla no transmite ni concilia documentos.
 - [Prima masiva E2E](../../e2e/service-premium-smoke.spec.ts).
 - [Exportación PILA E2E](../../e2e/payroll-pila-export-smoke.spec.ts).
 - [Ingreso a mitad de mes hasta aprobación y Ledger](../../e2e/payroll-new-hire-proration-smoke.spec.ts).
+- [PR #339: candidatos PILA 9/10 visibles por empleado](https://github.com/Glemynart/SaaS/pull/339).
 - [Backlog de GOAL-02](./GOAL-02-backlog.md), incluida la matriz de alcance y
   sus límites normativos.
 - [PR #304: seguimiento de transmisiones](https://github.com/Glemynart/SaaS/pull/304),
