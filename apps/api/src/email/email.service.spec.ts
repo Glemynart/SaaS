@@ -43,7 +43,59 @@ describe('EmailService', () => {
         user: 'smtp-user',
         pass: 'smtp-password',
       },
+      tls: { minVersion: 'TLSv1.2' },
     });
+    expect(service.getReadiness()).toEqual({ status: 'up' });
+  });
+
+  it('keeps SMTP degraded when neither implicit TLS nor mandatory STARTTLS is enabled', async () => {
+    mockTransport(jest.fn());
+    const service = createService({
+      ...smtpConfig(),
+      'email.smtp.requireTls': false,
+      'email.requireReal': true,
+    });
+
+    service.onModuleInit();
+
+    expect(service.getReadiness()).toEqual({ status: 'degraded' });
+    expect(createTransport).not.toHaveBeenCalled();
+    await expect(service.send(passwordResetParams())).resolves.toBe('degraded');
+  });
+
+  it('allows a non-TLS test sink when real email is not required', () => {
+    mockTransport(jest.fn());
+    const service = createService({
+      ...smtpConfig(),
+      'email.smtp.requireTls': false,
+      'email.requireReal': false,
+    });
+
+    service.onModuleInit();
+
+    expect(createTransport).toHaveBeenCalled();
+    expect(service.getReadiness()).toEqual({ status: 'up' });
+  });
+
+  it('supports OCI-style implicit TLS on port 465 with the TLS 1.2 floor', () => {
+    mockTransport(jest.fn());
+    const service = createService({
+      ...smtpConfig(),
+      'email.smtp.port': 465,
+      'email.smtp.secure': true,
+      'email.smtp.requireTls': false,
+    });
+
+    service.onModuleInit();
+
+    expect(createTransport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        port: 465,
+        secure: true,
+        requireTLS: false,
+        tls: { minVersion: 'TLSv1.2' },
+      }),
+    );
     expect(service.getReadiness()).toEqual({ status: 'up' });
   });
 

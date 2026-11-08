@@ -86,6 +86,21 @@ export class EmailService implements OnModuleInit {
       return;
     }
 
+    const realEmailRequired =
+      this.config.get<boolean>('email.requireReal') === true;
+    const productionRuntime = process.env.NODE_ENV === 'production';
+    if (
+      smtpSecure !== true &&
+      smtpRequireTls !== true &&
+      (realEmailRequired || productionRuntime)
+    ) {
+      this.logger.error(
+        'Configuración SMTP insegura para correo real. Se requiere TLS implícito o STARTTLS obligatorio; EmailService operará en modo degradado.',
+      );
+      this.degraded = true;
+      return;
+    }
+
     this.transporter = createTransport({
       host: smtpHost,
       port: smtpPort,
@@ -95,6 +110,7 @@ export class EmailService implements OnModuleInit {
         user: smtpUser,
         pass: smtpPassword,
       },
+      tls: { minVersion: 'TLSv1.2' },
     });
     this.logger.log(`EmailService listo — from: ${this.from}`);
   }
