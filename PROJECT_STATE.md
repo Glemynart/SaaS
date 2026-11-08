@@ -27,6 +27,19 @@
 > `main@654bebe`. No hay aceptación de operador, transmisión, liquidación ni
 > pago PILA acreditados.
 
+> **Actualización 2026-11-08, contrastada con `main@e98b312`:** PR #342 aprobó
+> ADR-021 para un futuro DSNE mensual por beneficiario; #343 agregó una matriz
+> de conceptos preliminar, todavía sin revisión laboral. La revisión de #344
+> confirmó que la causación `PAYROLL/CAUSACION` se fecha en
+> `PayrollPeriod.fechaFin` y acredita salarios por pagar por tercero, pero no
+> prueba automáticamente pago/abono en cuenta ni su fecha fiscal. El guion de
+> demo actualizado por #345 aclara que no existe generación ni transmisión de
+> DSNE. Esta capacidad sigue pendiente de validación laboral y
+> contable/tributaria, fuente auditable del hecho fiscal y proveedor/sandbox;
+> ver [`ADR-021`](docs/adr/ADR-021-electronic-payroll-document.md), la [matriz
+> preliminar](docs/payroll/DSNE-MATRIZ-CONCEPTOS-PRELIMINAR.md) y el [backlog de
+> GOAL-02](docs/goals/GOAL-02-backlog.md).
+
 # <a name="descripción-del-producto"></a>Descripción del producto
 
 La Oficina Nítida es un SaaS orientado inicialmente a operadores educativos colombianos.
