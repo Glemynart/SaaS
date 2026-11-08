@@ -53,6 +53,7 @@ describe('EmailService', () => {
     const service = createService({
       ...smtpConfig(),
       'email.smtp.requireTls': false,
+      'email.requireReal': true,
     });
 
     service.onModuleInit();
@@ -60,6 +61,20 @@ describe('EmailService', () => {
     expect(service.getReadiness()).toEqual({ status: 'degraded' });
     expect(createTransport).not.toHaveBeenCalled();
     await expect(service.send(passwordResetParams())).resolves.toBe('degraded');
+  });
+
+  it('allows a non-TLS test sink when real email is not required', () => {
+    mockTransport(jest.fn());
+    const service = createService({
+      ...smtpConfig(),
+      'email.smtp.requireTls': false,
+      'email.requireReal': false,
+    });
+
+    service.onModuleInit();
+
+    expect(createTransport).toHaveBeenCalled();
+    expect(service.getReadiness()).toEqual({ status: 'up' });
   });
 
   it('supports OCI-style implicit TLS on port 465 with the TLS 1.2 floor', () => {

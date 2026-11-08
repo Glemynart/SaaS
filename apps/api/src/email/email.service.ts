@@ -86,9 +86,16 @@ export class EmailService implements OnModuleInit {
       return;
     }
 
-    if (smtpSecure !== true && smtpRequireTls !== true) {
+    const realEmailRequired =
+      this.config.get<boolean>('email.requireReal') === true;
+    const productionRuntime = process.env.NODE_ENV === 'production';
+    if (
+      smtpSecure !== true &&
+      smtpRequireTls !== true &&
+      (realEmailRequired || productionRuntime)
+    ) {
       this.logger.error(
-        'Configuración SMTP insegura. Se requiere TLS implícito o STARTTLS obligatorio; EmailService operará en modo degradado.',
+        'Configuración SMTP insegura para correo real. Se requiere TLS implícito o STARTTLS obligatorio; EmailService operará en modo degradado.',
       );
       this.degraded = true;
       return;
