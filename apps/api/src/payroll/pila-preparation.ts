@@ -1890,7 +1890,13 @@ function summarizePilaDetailFieldCandidates(
               ? rawRuleVersion
               : fieldNumber === 40
                 ? (field40RuleVersion ?? undefined)
-                : undefined;
+                : fieldNumber === 27 ||
+                    fieldNumber === 30 ||
+                    fieldNumber === 89 ||
+                    fieldNumber === 90
+                  ? (candidate.normativeRuleVersions.vacLrEventFields ??
+                    undefined)
+                  : undefined;
           candidateValues.push({
             employeeId,
             employeeName,
@@ -2235,6 +2241,12 @@ export function buildPilaPreparationReport(input: {
     assessments,
     PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS,
     detailCandidatesBySnapshot,
+    {
+      27: 'Subtipo VAC-LR explícito del snapshot v12: X para vacaciones disfrutadas y L para licencia remunerada; candidato parcial.',
+      30: 'Días IRL; cero solo cuando el snapshot no contiene incapacidad laboral ni otra novedad concurrente.',
+      89: 'Fecha inicial VAC-LR congelada en las dos copias del evento del snapshot v12.',
+      90: 'Fecha final VAC-LR congelada en las dos copias del evento del snapshot v12.',
+    },
   );
   const detailStandardDependentEmptyCandidates =
     summarizePilaDetailFieldCandidates(

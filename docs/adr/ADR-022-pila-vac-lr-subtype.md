@@ -28,9 +28,12 @@ actuales no es seguro.
    aumentar el payload a v12. Los payloads históricos no se reescriben ni se
    completan retrospectivamente; eventos anteriores sin subtipo permanecen
    identificables como no clasificados.
-4. Mantener ambos subtipos fuera de la exportación. La captura tipada mejora la
-   calidad de la fuente y el diagnóstico, pero no aprueba días, IBC, importes,
-   aportes ni compatibilidad de operador.
+4. Mantener ambos subtipos fuera de la exportación. El preflight puede mostrar
+   como candidatos parciales los campos AT2 27, 89 y 90 desde el evento tipado
+   y congelado, y campo 30 en cero cuando no hay otra novedad. Los días 36–39
+   por subsistema se mantienen sin candidato hasta contar con su segmentación
+   aprobada. Esto no aprueba IBC, importes, aportes ni compatibilidad de
+   operador, y no habilita la generación o descarga del archivo.
 5. La siguiente etapa podrá evaluar únicamente vacaciones disfrutadas cuando
    Payroll congele la fuente del último IBC realmente reportado, el pago
    trazable y días/bases por subsistema. Licencias, vacaciones compensadas,
@@ -54,6 +57,13 @@ reglas existentes y v12 conserva también sus validaciones anteriores.
 - La aprobación congela el subtipo en ambas copias del payload v12; un evento
   histórico sin subtipo sigue siendo `null` y no se reinterpreta.
 - Preflight y mapper reconocen v12, conservan validaciones existentes y
-  bloquean ambos subtipos con una causa específica. Ningún archivo se habilita
-  por la sola presencia del subtipo.
+  muestran los candidatos parciales AT2 27 (`X` vacaciones / `L` licencia),
+  89–90 (fechas) y 30 (`0` días IRL) solo cuando ambas copias del único evento
+  coinciden, el período es un mes calendario completo y la persona dependiente
+  01/00 mantiene su cobertura. Eventos históricos sin subtipo, fechas fuera del
+  período, copias discordantes, concurrencias y otros escenarios no reciben
+  esos candidatos.
+- Ambos subtipos siguen bloqueando la exportación mientras falten reglas y
+  evidencia aprobadas para días, IBC, importes y aportes por subsistema. Ningún
+  archivo se habilita por la sola presencia del subtipo o de esos candidatos.
 - La migración es aditiva y no actualiza filas históricas.

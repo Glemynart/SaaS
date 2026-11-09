@@ -131,7 +131,7 @@ efectiva desde el primer día de un mes completo, siempre con fuentes aprobadas
 por Payroll y guardas de alcance estrictas. PR #329 sincroniza ADR-013 y la
 matriz AT2 con estos hechos; sus checks post-merge de CI y Browser E2E pasaron.
 
-Actualización al 2026-11-08, contrastada con `main@3247e1a`: PR #353 documenta
+Actualización al 2026-11-08, contrastada con `main@3247e1a`: PR #353 documentó
 que el evento VAC-LR permanece bloqueado en exportación. Una revisión de la
 providencia del Consejo de Estado, Sección Cuarta, Exp. 26941 (2024-04-04)
 aclara para vacaciones disfrutadas por trabajadores privados las bases de
@@ -143,6 +143,15 @@ permite registros tipo 2 separados cuando las novedades producen IBC distintos
 y asigna su cálculo al aportante. Como Payroll
 no congela segmentos salariales aprobados, VSP de mitad de mes y concurrencias
 siguen bloqueadas. Esto no acredita aceptación de SOI u otro operador.
+
+Actualización al 2026-11-08, contrastada con `main@8e9c3b7`: PR #355 añade la
+clasificación explícita de VAC-LR al evento y a snapshots v12; los datos
+históricos conservan subtipo `null`. No cambia el bloqueo de exportación: siguen
+faltando último IBC reportado, pago de vacaciones trazable y segmentación
+aprobada de días/IBC por subsistema. La extensión del preflight en esta rama
+propone mostrar candidatos parciales de campos 27, 30 y 89–90 y elimina
+candidatos de días 36–39 e IBC genéricos cuando hay VAC-LR. La generación sigue
+bloqueada y el cambio de preflight depende de sus verificaciones de CI.
 
 Actualización al 2026-11-07, contrastada con `main@35f2606f`: PR #331 integra
 una ruta de exportación PILA con ING y RET en una sola línea tipo 2 para un

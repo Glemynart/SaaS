@@ -829,7 +829,12 @@ export function PayrollPilaPreparationPanel({
               de ausencia de aportes en el snapshot PILA v8 y período y pago anteriores al
               2027-04-01. Aportes presentes, falta de declaración, snapshots históricos y fechas de
               transición quedan pendientes. El campo 50 también queda pendiente mientras 47–49 no
-              estén resueltos. Este informe no habilita la descarga del archivo.
+              estén resueltos. Para un único VAC-LR tipado en ambas copias de un snapshot v12 de un
+              dependiente 01/00 con cobertura del mes completo, también se muestran candidatos
+              parciales: campo 27 (X vacaciones, L licencia), campo 30 en cero para IRL y fechas
+              89–90. No se completan días ni IBC por subsistema; la licencia remunerada carece de
+              regla de aportes aprobada y el archivo sigue bloqueado. Este informe no habilita la
+              descarga.
             </p>
             <details className="mt-3 rounded-md bg-muted/40 px-3 py-2">
               <summary className="cursor-pointer text-sm font-medium">
@@ -848,6 +853,39 @@ export function PayrollPilaPreparationPanel({
                       Con candidato: {status.candidateEmployees}; pendientes:{' '}
                       {status.pendingEmployees}.
                     </p>
+                    {status.sourceLabel && (
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Fuente: {status.sourceLabel}
+                      </p>
+                    )}
+                    {(status.candidateValues?.length ?? 0) > 0 && (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-sm text-primary">
+                          Ver valores de {status.candidateValues?.length}{' '}
+                          {status.candidateValues?.length === 1 ? 'empleado' : 'empleados'}
+                        </summary>
+                        <ul className="mt-2 space-y-2 text-sm">
+                          {status.candidateValues?.map((candidate) => (
+                            <li
+                              key={candidate.employeeId}
+                              className="flex flex-wrap justify-between gap-x-4"
+                            >
+                              <span>
+                                {candidate.employeeName}
+                                {candidate.ruleVersion ? (
+                                  <span className="block text-xs text-muted-foreground">
+                                    Regla: {candidate.ruleVersion}
+                                  </span>
+                                ) : null}
+                              </span>
+                              <span className="font-medium">
+                                {sourceCandidateValue(candidate.value, candidate.emptyAs)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
                     {status.pendingReasons.length > 0 && (
                       <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
                         {status.pendingReasons.map(({ reason, affectedEmployees }, index) => (

@@ -365,6 +365,88 @@ test('genera y descarga el candidato PILA local para un único ingreso a mitad d
   }
 });
 
+test('muestra candidatos parciales VAC-LR y mantiene bloqueada la exportación', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const { tenant, user } = await registerAndSignIn(page);
+  const fixture = await seedPilaExportFixture(tenant.id, user.id, 1, 'SINGLE_VAC_LR');
+
+  try {
+    await page.goto('/nomina/periodos/' + fixture.periodId);
+    const panel = page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: 'Preparación de datos PILA' }) });
+    await expect(panel).toBeVisible();
+
+    const preparationResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+          '/api/payroll/periods/' + fixture.periodId + '/pila-preparation' &&
+        response.request().method() === 'GET',
+    );
+    await panel.getByRole('button', { name: 'Revisar datos' }).click();
+    const preparationResponse = await preparationResponsePromise;
+    expect(preparationResponse.status()).toBe(200);
+    const preparation = (await preparationResponse.json()) as {
+      archivoGenerable: boolean;
+      detailAbsentEventCandidates: Array<{
+        fieldNumber: number;
+        candidateEmployees: number;
+        pendingEmployees: number;
+        candidateValues?: Array<{ value: string | number | null; ruleVersion?: string }>;
+      }>;
+      issues: Array<{ fieldNumber: number | null; code: string }>;
+    };
+    expect(preparation.archivoGenerable).toBe(false);
+    for (const [fieldNumber, expectedValue] of [
+      [27, 'X'],
+      [30, 0],
+      [89, '2026-10-12'],
+      [90, '2026-10-16'],
+    ] as const) {
+      expect(
+        preparation.detailAbsentEventCandidates.find(
+          (candidate) => candidate.fieldNumber === fieldNumber,
+        ),
+      ).toMatchObject({
+        candidateEmployees: 1,
+        pendingEmployees: 0,
+        candidateValues: [
+          {
+            value: expectedValue,
+            ruleVersion: 'AT2_V30_TYPED_VAC_LR_EVENT_FIELDS_V1',
+          },
+        ],
+      });
+    }
+    expect(preparation.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldNumber: 27,
+          code: 'EVENTO_PILA_VAC_LR_SIN_SEGMENTACION_APROBADA',
+        }),
+      ]),
+    );
+    await expect(panel.getByRole('button', { name: 'Generar y guardar archivos' })).toBeDisabled();
+
+    const eventSection = page.locator('section').filter({
+      has: page.getByRole('heading', { name: 'Eventos y particularidades de planilla' }),
+    });
+    await expect(eventSection.getByText(/Para un único VAC-LR tipado/)).toBeVisible();
+    await eventSection.getByText(/Ver estado de \d+ campos/).click();
+    const vacationFieldRow = eventSection
+      .getByRole('listitem')
+      .filter({ hasText: 'Campo 27 · Vacaciones o licencia remunerada (VAC-LR)' });
+    await expect(vacationFieldRow).toBeVisible();
+    await vacationFieldRow.getByText('Ver valores de 1 empleado').click();
+    await expect(vacationFieldRow.getByText('X', { exact: true })).toBeVisible();
+    await expect(vacationFieldRow.getByText('AT2_V30_TYPED_VAC_LR_EVENT_FIELDS_V1')).toBeVisible();
+  } finally {
+    await fixture.disconnect();
+  }
+});
+
 test('genera y descarga el candidato PILA local para un único retiro durante el mes', async ({
   page,
 }) => {

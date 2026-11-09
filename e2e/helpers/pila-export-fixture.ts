@@ -42,13 +42,33 @@ type PilaExportScenario =
   | 'SINGLE_INGRESS'
   | 'SINGLE_RETIREMENT'
   | 'SINGLE_INGRESS_RETIREMENT'
-  | 'SINGLE_VSP';
+  | 'SINGLE_VSP'
+  | 'SINGLE_VAC_LR';
 
 function buildApprovedSnapshot(
   snapshot: ReturnType<typeof completeApprovedSnapshot>,
   scenario: PilaExportScenario,
 ) {
   if (scenario === 'FULL_MONTH') return snapshot;
+
+  if (scenario === 'SINGLE_VAC_LR') {
+    snapshot.payloadVersion = 12;
+    const payload = mutableRecord(snapshot.payload);
+    payload.schemaVersion = 12;
+    const event = {
+      eventId: 'pila-vac-lr-preflight-e2e',
+      codigo: 'VAC_LR',
+      subtipo: 'VACACIONES_DISFRUTADAS',
+      fechaInicio: '2026-10-12',
+      fechaFin: '2026-10-16',
+      dias: null,
+    };
+    payload.pilaEvents = [event];
+    const payroll = mutableRecord(payload.payroll);
+    payroll.pilaEvents = [event];
+    payroll.novelties = [];
+    return snapshot;
+  }
 
   if (scenario === 'SINGLE_VSP') {
     snapshot.payloadVersion = 10;
@@ -253,9 +273,10 @@ export async function seedPilaExportFixture(
   const singleIngress = scenario === 'SINGLE_INGRESS';
   const singleRetirement = scenario === 'SINGLE_RETIREMENT';
   const singleIngressRetirement = scenario === 'SINGLE_INGRESS_RETIREMENT';
+  const singleVacLr = scenario === 'SINGLE_VAC_LR';
   const singlePartialPeriod = singleIngress || singleRetirement || singleIngressRetirement;
-  if (singlePartialPeriod && employeeCount !== 1) {
-    throw new Error('El fixture parcial requiere exactamente un empleado.');
+  if ((singlePartialPeriod || singleVacLr) && employeeCount !== 1) {
+    throw new Error('El fixture de evento requiere exactamente un empleado.');
   }
 
   const { PrismaClient } = require('../../apps/api/node_modules/@prisma/client') as {
