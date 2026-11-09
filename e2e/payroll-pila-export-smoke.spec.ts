@@ -433,7 +433,7 @@ test('muestra candidatos parciales VAC-LR y mantiene bloqueada la exportación',
     const eventSection = page.locator('section').filter({
       has: page.getByRole('heading', { name: 'Eventos y particularidades de planilla' }),
     });
-    await expect(eventSection.getByText(/candidatos parciales/)).toBeVisible();
+    await expect(eventSection.getByText(/Para un único VAC-LR tipado/)).toBeVisible();
     await eventSection.getByText(/Ver estado de \d+ campos/).click();
     await expect(
       eventSection.getByText('Campo 27 · Vacaciones o licencia remunerada (VAC-LR)'),
