@@ -188,6 +188,7 @@ test('configura los datos PILA y registra, conserva y elimina una novedad del pe
   ).toBeVisible();
 
   await pilaPanel.getByLabel('Novedad').selectOption('VAC_LR');
+  await pilaPanel.getByLabel('Empleado', { exact: true }).selectOption(employee.id);
   await pilaPanel.getByLabel('Tipo de VAC-LR').selectOption('VACACIONES_DISFRUTADAS');
   await pilaPanel.getByLabel('Fecha inicial').fill('2026-10-12');
   await pilaPanel.getByLabel('Fecha final').fill('2026-10-16');
