@@ -23,6 +23,7 @@ ALTER TABLE "payroll_pila_events"
       AND length(btrim("referenciaFuenteRemuneracion")) BETWEEN 1 AND 160
       AND "confirmoFuenteRemuneracion" = TRUE
       AND "codigo" = 'VAC_LR'::"PilaEventCode"
+      AND "subtipo" IS NOT NULL
       AND "subtipo" = 'VACACIONES_DISFRUTADAS'::"PilaVacLrSubtype"
     )
   );
