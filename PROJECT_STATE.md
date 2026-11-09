@@ -34,6 +34,16 @@
 > bloqueado porque el código no distingue vacaciones de licencias remuneradas
 > ni congela el IBC previo y las bases/días segmentados por subsistema.
 
+> **Actualización 2026-11-08, `main@8e9c3b7`:** PR #355 incorpora subtipo
+> explícito `VACACIONES_DISFRUTADAS` / `LICENCIA_REMUNERADA` en eventos PILA y
+> snapshots v12; los eventos históricos siguen sin subtipo. Esto resuelve la
+> clasificación, pero no aporta el último IBC reportado, la remuneración
+> trazable ni los días/IBC por subsistema, por lo que el archivo sigue bloqueado.
+> En esta rama se prepara una extensión del preflight que muestra solo los
+> candidatos AT2 27, 30 y 89–90 bajo una guarda estricta; no añade datos al
+> archivo ni habilita generación o descarga. Sus pruebas de navegador aún deben
+> pasar en CI antes de aceptar el cambio.
+
 > **Actualización 2026-11-08, contrastada con `main@e98b312`:** PR #342 aprobó
 > ADR-021 para un futuro DSNE mensual por beneficiario; #343 agregó una matriz
 > de conceptos preliminar, todavía sin revisión laboral. La revisión de #344

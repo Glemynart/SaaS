@@ -2685,6 +2685,90 @@ describe('inspectPilaSnapshotPreparation', () => {
     expect(report.archivoGenerable).toBe(false);
   });
 
+  it('muestra candidatos VAC-LR del snapshot tipado y mantiene bloqueada la exportación', () => {
+    const employee = detailCandidateSnapshot('employee-1', 'Ana Demo');
+    employee.payloadVersion = 12;
+    const source = employee.payload as {
+      schemaVersion: number;
+      pilaEvents: unknown[];
+      payroll: { pilaEvents: unknown[] };
+    };
+    source.schemaVersion = 12;
+    const event = {
+      eventId: 'vac-lr-event-1',
+      codigo: 'VAC_LR',
+      subtipo: 'VACACIONES_DISFRUTADAS',
+      fechaInicio: '2026-10-12',
+      fechaFin: '2026-10-16',
+      dias: null,
+    };
+    source.pilaEvents = [event];
+    source.payroll.pilaEvents = [event];
+
+    const report = buildPilaPreparationReport({
+      tenantId: 'tenant-1',
+      period: {
+        id: 'period-1',
+        fechaInicio: new Date('2026-10-01T00:00:00.000Z'),
+        fechaFin: new Date('2026-10-31T00:00:00.000Z'),
+      },
+      snapshots: [employee],
+    });
+    const candidateFor = (fieldNumber: number) =>
+      report.detailAbsentEventCandidates.find(
+        (status) => status.fieldNumber === fieldNumber,
+      );
+
+    expect(candidateFor(27)?.sourceLabel).toContain(
+      'X para vacaciones disfrutadas',
+    );
+    expect(candidateFor(27)).toMatchObject({
+      candidateEmployees: 1,
+      pendingEmployees: 0,
+      candidateValues: [
+        {
+          employeeId: 'employee-1',
+          employeeName: 'Ana Demo Demo',
+          value: 'X',
+          ruleVersion: 'AT2_V30_TYPED_VAC_LR_EVENT_FIELDS_V1',
+        },
+      ],
+    });
+    expect(candidateFor(30)?.candidateValues).toEqual([
+      {
+        employeeId: 'employee-1',
+        employeeName: 'Ana Demo Demo',
+        value: 0,
+        ruleVersion: 'AT2_V30_TYPED_VAC_LR_EVENT_FIELDS_V1',
+      },
+    ]);
+    expect(candidateFor(89)?.candidateValues).toEqual([
+      {
+        employeeId: 'employee-1',
+        employeeName: 'Ana Demo Demo',
+        value: '2026-10-12',
+        ruleVersion: 'AT2_V30_TYPED_VAC_LR_EVENT_FIELDS_V1',
+      },
+    ]);
+    expect(candidateFor(90)?.candidateValues).toEqual([
+      {
+        employeeId: 'employee-1',
+        employeeName: 'Ana Demo Demo',
+        value: '2026-10-16',
+        ruleVersion: 'AT2_V30_TYPED_VAC_LR_EVENT_FIELDS_V1',
+      },
+    ]);
+    expect(report.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldNumber: 27,
+          code: 'EVENTO_PILA_VAC_LR_SIN_SEGMENTACION_APROBADA',
+        }),
+      ]),
+    );
+    expect(report.archivoGenerable).toBe(false);
+  });
+
   it('expone los campos de ubicación laboral desde la fuente congelada del snapshot aprobado', () => {
     const employee = detailCandidateSnapshot('employee-1', 'Ana');
     employee.payloadVersion = 3;

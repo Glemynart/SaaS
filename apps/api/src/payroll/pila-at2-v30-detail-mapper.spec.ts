@@ -3036,7 +3036,88 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.unresolvedFields[0]?.reason).toContain('PILA v2 a v12');
   });
 
-  it('accepts a v12 snapshot with a typed VAC-LR event without making it exportable', () => {
+  it.each([
+    ['VACACIONES_DISFRUTADAS', 'X'],
+    ['LICENCIA_REMUNERADA', 'L'],
+  ])(
+    'maps typed v12 VAC-LR subtype %s as partial field candidates without approving export',
+    (subtype, fieldCode) => {
+      const input = snapshot();
+      input.payloadVersion = 12;
+      const payload = payloadOf(input);
+      payload.schemaVersion = 12;
+      const event = {
+        eventId: 'vac-lr-event-1',
+        codigo: 'VAC_LR',
+        subtipo: subtype,
+        fechaInicio: '2026-10-12',
+        fechaFin: '2026-10-16',
+        dias: null,
+      };
+      payload.pilaEvents = [event];
+      payload.payroll.pilaEvents = [event];
+
+      const candidate = mapCandidate(input);
+
+      expect(candidate.supportedSnapshot).toBe(true);
+      expect(candidate.values[27]).toEqual({ value: fieldCode });
+      expect(candidate.values[30]).toEqual({ value: 0 });
+      expect(candidate.values[89]).toEqual({ value: '2026-10-12' });
+      expect(candidate.values[90]).toEqual({ value: '2026-10-16' });
+      expect(candidate.normativeRuleVersions.vacLrEventFields).toBe(
+        'AT2_V30_TYPED_VAC_LR_EVENT_FIELDS_V1',
+      );
+      expect(
+        candidate.unresolvedFields.some(
+          ({ fieldNumber }) => fieldNumber === 27,
+        ),
+      ).toBe(false);
+      for (const fieldNumber of [36, 37, 38, 39]) {
+        expect(candidate.values[fieldNumber]).toBeUndefined();
+        expect(
+          candidate.unresolvedFields.some(
+            ({ fieldNumber: unresolvedFieldNumber }) =>
+              unresolvedFieldNumber === fieldNumber,
+          ),
+        ).toBe(true);
+      }
+      for (const fieldNumber of [40, 42, 43, 44, 45, 95]) {
+        expect(candidate.values[fieldNumber]).toBeUndefined();
+        expect(
+          candidate.unresolvedFields.some(
+            ({ fieldNumber: unresolvedFieldNumber }) =>
+              unresolvedFieldNumber === fieldNumber,
+          ),
+        ).toBe(true);
+      }
+    },
+  );
+
+  it('does not map VAC-LR candidates when the frozen event copies disagree', () => {
+    const input = snapshot();
+    input.payloadVersion = 12;
+    const payload = payloadOf(input);
+    payload.schemaVersion = 12;
+    const rootEvent = {
+      eventId: 'vac-lr-event-1',
+      codigo: 'VAC_LR',
+      subtipo: 'VACACIONES_DISFRUTADAS',
+      fechaInicio: '2026-10-12',
+      fechaFin: '2026-10-16',
+      dias: null,
+    };
+    payload.pilaEvents = [rootEvent];
+    payload.payroll.pilaEvents = [{ ...rootEvent, fechaFin: '2026-10-17' }];
+
+    const candidate = mapCandidate(input);
+
+    expect(candidate.values[27]).toBeUndefined();
+    expect(candidate.values[89]).toBeUndefined();
+    expect(candidate.values[90]).toBeUndefined();
+    expect(candidate.normativeRuleVersions.vacLrEventFields).toBeNull();
+  });
+
+  it('suppresses generic day and IBC candidates when a VAC-LR copy contains a malformed row', () => {
     const input = snapshot();
     input.payloadVersion = 12;
     const payload = payloadOf(input);
@@ -3049,15 +3130,20 @@ describe('mapPilaAt2V30DetailCandidate', () => {
       fechaFin: '2026-10-16',
       dias: null,
     };
-    payload.pilaEvents = [event];
+    payload.pilaEvents = [event, null];
     payload.payroll.pilaEvents = [event];
 
     const candidate = mapCandidate(input);
 
-    expect(candidate.supportedSnapshot).toBe(true);
     expect(candidate.values[27]).toBeUndefined();
-    expect(
-      candidate.unresolvedFields.some(({ fieldNumber }) => fieldNumber === 27),
-    ).toBe(true);
+    for (const fieldNumber of [36, 37, 38, 39, 42, 43, 44, 45, 95]) {
+      expect(candidate.values[fieldNumber]).toBeUndefined();
+      expect(
+        candidate.unresolvedFields.some(
+          ({ fieldNumber: unresolvedFieldNumber }) =>
+            unresolvedFieldNumber === fieldNumber,
+        ),
+      ).toBe(true);
+    }
   });
 });

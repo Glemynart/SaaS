@@ -77,6 +77,8 @@ const PILA_AT2_V30_ING_RET_BASIC_SALARY_FIELD_40_RULE_VERSION =
   'PILA_ING_RET_FIELD_40_FROM_APPROVED_BASE_V1' as const;
 const PILA_AT2_V30_SINGLE_FULL_MONTH_VSP_FIELDS_RULE_VERSION =
   'AT2_V30_SINGLE_FULL_MONTH_VSP_FIELDS_V1' as const;
+const PILA_AT2_V30_VAC_LR_EVENT_FIELDS_RULE_VERSION =
+  'AT2_V30_TYPED_VAC_LR_EVENT_FIELDS_V1' as const;
 const PILA_AT2_V30_PLANILLA_E_FIELD_22_RULE_VERSION =
   'AT2_V30_PLANILLA_E_FIELD_22_BLANK_V1' as const;
 const PILA_AT2_V30_PENSION_TOTAL_FIELD_50_RULE_VERSION =
@@ -175,6 +177,9 @@ export interface PilaAt2V30DetailCandidate {
     vspEventFields:
       | typeof PILA_AT2_V30_SINGLE_FULL_MONTH_VSP_FIELDS_RULE_VERSION
       | null;
+    vacLrEventFields:
+      | typeof PILA_AT2_V30_VAC_LR_EVENT_FIELDS_RULE_VERSION
+      | null;
     noTransferDestinationFields:
       | typeof PILA_AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_RULE_VERSION
       | null;
@@ -226,6 +231,16 @@ function objectRows(value: unknown): JsonRecord[] | null {
 function sourceText(value: unknown): string | null {
   if (typeof value !== 'string' || value.trim().length === 0) return null;
   return value;
+}
+
+function containsPilaEventCode(value: unknown, expectedCode: string): boolean {
+  return (
+    Array.isArray(value) &&
+    value.some((row: unknown) => {
+      const event = object(row);
+      return sourceText(event?.codigo) === expectedCode;
+    })
+  );
 }
 
 function calendarDate(value: unknown): string | null {
@@ -443,6 +458,7 @@ export function mapPilaAt2V30DetailCandidate(
         samePeriodIngressRetirementFields: null,
         ingressRetirementBasicSalaryField40: null,
         vspEventFields: null,
+        vacLrEventFields: null,
         noTransferDestinationFields: null,
         nonCotizante40PrincipalFields: null,
         confirmedNonExemptCotizante: null,
@@ -467,6 +483,9 @@ export function mapPilaAt2V30DetailCandidate(
   const payrollEventRows = Array.isArray(payroll?.pilaEvents)
     ? payroll.pilaEvents
     : null;
+  const hasVacLrEvent =
+    containsPilaEventCode(root?.pilaEvents, 'VAC_LR') ||
+    containsPilaEventCode(payroll?.pilaEvents, 'VAC_LR');
   const rootPilaEvent =
     rootEventRows?.length === 1 ? object(rootEventRows[0]) : null;
   const payrollPilaEvent =
@@ -639,6 +658,43 @@ export function mapPilaAt2V30DetailCandidate(
     fullMonth &&
     employeeCoversPeriod &&
     contractCoversPeriod;
+  const vacationStart = sourceText(rootPilaEvent?.fechaInicio);
+  const vacationEnd = sourceText(rootPilaEvent?.fechaFin);
+  const vacationSubtype = sourceText(rootPilaEvent?.subtipo);
+  const vacationWindowIsValid = Boolean(
+    periodStart &&
+    periodEnd &&
+    vacationStart &&
+    vacationEnd &&
+    vacationStart <= vacationEnd &&
+    vacationStart >= periodStart &&
+    vacationEnd <= periodEnd &&
+    calendarDate(vacationStart) === vacationStart &&
+    calendarDate(vacationEnd) === vacationEnd,
+  );
+  const approvedSingleVacLrEvent = Boolean(
+    snapshot.payloadVersion === 12 &&
+    standardFullMonthEmployee &&
+    rootEventRows?.length === 1 &&
+    payrollEventRows?.length === 1 &&
+    rootPilaEvent &&
+    payrollPilaEvent &&
+    sourceText(rootPilaEvent.eventId) !== null &&
+    sourceText(rootPilaEvent.codigo) === 'VAC_LR' &&
+    sourceText(payrollPilaEvent.codigo) === 'VAC_LR' &&
+    (vacationSubtype === 'VACACIONES_DISFRUTADAS' ||
+      vacationSubtype === 'LICENCIA_REMUNERADA') &&
+    sourceText(payrollPilaEvent.subtipo) === vacationSubtype &&
+    sourceText(payrollPilaEvent.eventId) ===
+      sourceText(rootPilaEvent.eventId) &&
+    sourceText(payrollPilaEvent.fechaInicio) === vacationStart &&
+    sourceText(payrollPilaEvent.fechaFin) === vacationEnd &&
+    rootPilaEvent.dias === null &&
+    payrollPilaEvent.dias === null &&
+    vacationWindowIsValid &&
+    Array.isArray(payroll?.novelties) &&
+    payroll.novelties.length === 0,
+  );
   const standardFullMonthVspEmployee = Boolean(
     standardFullMonthEmployee &&
     periodEnd &&
@@ -1055,6 +1111,7 @@ export function mapPilaAt2V30DetailCandidate(
   for (const [fieldNumber, subsystem] of daySources) {
     const source = object(days?.[subsystem]);
     if (
+      !hasVacLrEvent &&
       standardSupportedEmployee &&
       source !== null &&
       source?.valor === expectedDayValue &&
@@ -1065,7 +1122,9 @@ export function mapPilaAt2V30DetailCandidate(
     } else {
       unresolved(
         fieldNumber,
-        `Faltan días aprobados y sin bloqueos para ${subsystem}.`,
+        hasVacLrEvent
+          ? `El evento VAC-LR requiere días aprobados por subsistema; no se usa el valor genérico de ${subsystem}.`
+          : `Faltan días aprobados y sin bloqueos para ${subsystem}.`,
       );
     }
   }
@@ -1212,6 +1271,22 @@ export function mapPilaAt2V30DetailCandidate(
     for (let fieldNumber = 82; fieldNumber <= 94; fieldNumber += 1) {
       blank(fieldNumber);
     }
+  } else if (approvedSingleVacLrEvent && vacationStart && vacationEnd) {
+    for (const fieldNumber of [
+      15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 26, 29,
+    ]) {
+      blank(fieldNumber);
+    }
+    put(27, vacationSubtype === 'VACACIONES_DISFRUTADAS' ? 'X' : 'L');
+    put(30, 0);
+    for (let fieldNumber = 80; fieldNumber <= 88; fieldNumber += 1) {
+      blank(fieldNumber);
+    }
+    put(89, vacationStart);
+    put(90, vacationEnd);
+    for (let fieldNumber = 91; fieldNumber <= 94; fieldNumber += 1) {
+      blank(fieldNumber);
+    }
   } else {
     const reason =
       'Este campo solo se propone para un dependiente 01/00 de mes completo, con eventos ING/RET admitidos y aprobados, sin otras novedades ni segmentos.';
@@ -1335,12 +1410,18 @@ export function mapPilaAt2V30DetailCandidate(
   ] as const;
   for (const [fieldNumber, subsystem] of baseSources) {
     const source = object(subsystemBases?.[subsystem]);
-    if (source?.sourceCount === 1 && safeInteger(source.valor, 9)) {
+    if (
+      !hasVacLrEvent &&
+      source?.sourceCount === 1 &&
+      safeInteger(source.valor, 9)
+    ) {
       put(fieldNumber, source.valor);
     } else {
       unresolved(
         fieldNumber,
-        `Falta una fuente única y válida de IBC para ${subsystem}.`,
+        hasVacLrEvent
+          ? `El evento VAC-LR requiere IBC aprobado por subsistema; no se usa el IBC genérico de ${subsystem}.`
+          : `Falta una fuente única y válida de IBC para ${subsystem}.`,
       );
     }
   }
@@ -1407,6 +1488,7 @@ export function mapPilaAt2V30DetailCandidate(
 
   const otherParafiscalBase = object(subsystemBases?.otrosParafiscales);
   if (
+    !hasVacLrEvent &&
     (otherParafiscalBase?.reglaVersion === 'CO_PARAFISCAL_BASE_V1' ||
       ((standardNewHireEmployee ||
         standardRetirementEmployee ||
@@ -2419,6 +2501,9 @@ export function mapPilaAt2V30DetailCandidate(
         : null,
       vspEventFields: fullMonthVspPilaInputsApproved
         ? PILA_AT2_V30_SINGLE_FULL_MONTH_VSP_FIELDS_RULE_VERSION
+        : null,
+      vacLrEventFields: approvedSingleVacLrEvent
+        ? PILA_AT2_V30_VAC_LR_EVENT_FIELDS_RULE_VERSION
         : null,
       noTransferDestinationFields: standardAffiliation
         ? PILA_AT2_V30_NO_TRANSFER_DESTINATION_FIELDS_RULE_VERSION

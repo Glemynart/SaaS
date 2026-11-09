@@ -656,16 +656,15 @@ conservadora del producto, no una regla de calendario atribuida a la norma. La
 revisión laboral independiente y la aceptación por cada operador continúan
 pendientes.
 
-### PILA-AT2-85 — Vacaciones disfrutadas dentro de VAC-LR: ampliar evidencia, conservar bloqueo
+### PILA-AT2-85 — VAC-LR tipado: candidatos normativos parciales, conservar bloqueo
 
-**Hechos del código en `main@3247e1a`:** Payroll acepta `VAC_LR` con fechas y
-congela código y fechas en el snapshot. `PayrollPilaEvent`, su DTO y
-`PilaSnapshotEvent` conservan código, fechas y días opcionales, pero no
-distinguen vacaciones disfrutadas de licencia remunerada. Tampoco congelan el
-IBC anterior al descanso ni un concepto de remuneración de vacaciones
-trazable; la prueba `blocks vacation amounts until Payroll stores a traceable
-paid-rest concept` confirma ese límite. La preparación deja pendientes los
-campos afectados y no se genera ni descarga el archivo.
+**Hechos del código en `main@8e9c3b7`:** PR #355 incorpora subtipo explícito a
+`VAC_LR` y lo congela en snapshots v12; eventos históricos conservan `null`.
+Payroll todavía no congela el IBC anterior al descanso ni un concepto de
+remuneración de vacaciones trazable; la prueba `blocks vacation amounts until
+Payroll stores a traceable paid-rest concept` confirma ese límite. La
+preparación mantiene bloqueadas las reglas de días/IBC e importes y no se genera
+ni descarga el archivo.
 
 **Hechos normativos verificados al 2026-11-08:** AT2 v30 asigna VAC-LR al campo
 27 y las fechas a los campos 89–90. El artículo 70 del Decreto 806 de 1998
@@ -681,11 +680,16 @@ esta providencia aplica al caso privado; la providencia no resuelve licencias
 remuneradas. La Circular 018 de 2012 también incluye descansos remunerados en
 la base parafiscal.
 
-**Alcance de ADR-022:** capturar el subtipo explícito
+**Alcance de ADR-022 y candidato de preflight:** capturar el subtipo explícito
 `VACACIONES_DISFRUTADAS` o `LICENCIA_REMUNERADA`, incluirlo en snapshots PILA
-v12 y conservar `null` en eventos y snapshots históricos. La clasificación
-mejora la fuente y el diagnóstico, pero no propone campos ni habilita generación
-o descarga.
+v12 y conservar `null` en eventos y snapshots históricos. Para un único evento
+coincidente en las dos copias del snapshot, un dependiente 01/00 y un mes
+calendario completo, el mapper puede mostrar campo 27 (`X` vacaciones / `L`
+licencia), fechas 89–90 y cero en el campo 30 de días IRL. El cero aplica
+porque el snapshot de este candidato solo conserva VAC-LR, sin evento IRL ni
+otra novedad concurrente. Son sugerencias parciales del preflight: no completan
+los días 36–39 ni los IBC por subsistema, no rellenan esos campos con días
+genéricos de nómina ni autorizan generación o descarga.
 
 **Brecha funcional restante:** la providencia trata vacaciones disfrutadas; no
 habilita automáticamente cualquier licencia remunerada ni las vacaciones
