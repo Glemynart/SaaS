@@ -72,7 +72,7 @@ propios.
 
 ## Evidencia actual contrastada en `main`
 
-Esta referencia se contrastó por última vez con `main@9eee1aa` el 2026-11-09,
+Esta referencia se contrastó por última vez con `main@503eceda` el 2026-11-09,
 después de integrar los PR #342–#345, los PR #324, #327, #329, #331, #333,
 #334, #336, #338, #339 y el PR documental #353. Los bloques siguientes conservan las fechas
 históricas de cada revisión. Los PR #267–#269 actualizan guías de snapshots,
@@ -159,6 +159,15 @@ días genéricos 36–39 ni IBC genéricos 42–45/95. Las dos suites CI y Brows
 pasaron CI, Browser E2E, publicación de imagen API y Vercel Production. El
 archivo PILA permanece bloqueado por la falta de días/IBC segmentados y
 remuneración trazable; no se acredita aceptación de operador.
+
+Actualización al 2026-11-09, contrastada con `main@503eceda`: PR #358 conserva
+en snapshot v13 la declaración del último IBC previo a vacaciones disfrutadas,
+sin verificarla con el operador ni usarla para mapear campos. PR #359 agrega
+una declaración separada de remuneración y la conserva en snapshot v14; ambas
+fuentes se muestran como no verificadas, sin cálculo ni desbloqueo de la
+exportación. CI, Browser E2E, publicación de imagen API y Vercel Production
+post-merge pasaron. Siguen pendientes fuentes de pago verificables y reglas
+aprobadas de días/IBC por subsistema.
 
 Actualización operativa al 2026-11-09: la guía oficial de OCI identifica TLS
 implícito en 465 y remite el endpoint a la configuración regional de Email

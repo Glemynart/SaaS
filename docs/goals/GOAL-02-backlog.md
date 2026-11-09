@@ -65,16 +65,15 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   checks post-merge de CI, Browser E2E, Vercel Production y publicación de la
   imagen API pasaron.
 
-- **VAC-LR, fuentes declaradas — incremento local en rama
-  `codex/goal02-vacation-remuneration-source`:** `main` ya contiene la
-  declaración del último IBC previo (snapshot v13, PR #358 fusionado). Esta
-  rama agrega una declaración independiente de remuneración de vacaciones
-  disfrutadas y eleva el snapshot a v14. Ambas fuentes se etiquetan
-  `DECLARADO_NO_VERIFICADO`; el preflight y el mapper no las usan para calcular
-  ni exportar. La PR todavía debe pasar auditoría y checks. Siguen pendientes
-  la verificación con fuentes de pago, las reglas aprobadas de días/IBC por
-  subsistema y la aceptación por operador; generación y descarga continúan
-  bloqueadas.
+- **VAC-LR, fuentes declaradas — integrado en `main` por PR #359**
+  (`503eceda`): snapshots v14 conservan, además del último IBC previo (PR #358,
+  v13), una declaración independiente de remuneración para vacaciones
+  disfrutadas. Ambas fuentes quedan `DECLARADO_NO_VERIFICADO`; el preflight y
+  el mapper no las usan para calcular ni exportar. Checks post-merge de CI,
+  Browser E2E, Vercel Production y publicación de imagen API pasaron. Siguen
+  pendientes la verificación con fuentes de pago, las reglas aprobadas de
+  días/IBC por subsistema y la aceptación por operador; generación y descarga
+  continúan bloqueadas.
 
 - PR #278 se fusionó en main como 0aae82938fe430e258f35861eec944e59a5bde32 y PR #279 como 1b31782257313cc08f150e2f1024df88fe405562. Los checks post-merge de CI, Browser E2E y publicación de la imagen API pasaron en ambos.
 - PR #278 compone localmente archivos AT2 v30 tipo 1 y tipo 2 desde snapshots aprobados; PR #279 añade generación autenticada tenant-scoped, historial append-only, almacenamiento privado, SHA-256, versionamiento, auditoría y descarga protegida. La nueva prueba de navegador de esta continuación cubre generación, persistencia, reintento idempotente y descarga de ambos archivos desde la interfaz.

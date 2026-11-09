@@ -716,7 +716,7 @@ y [Circular 018 de 2012](https://www.funcionpublica.gov.co/eva/gestornormativo/n
 
 ### PILA-AT2-86 — Captura declarada de remuneración de vacaciones, sin cálculo
 
-**Estado en esta rama:** ADR-024 registra monto, mes de pago declarado,
+**Estado en `main` desde PR #359 (`503eceda`):** ADR-024 registra monto, mes de pago declarado,
 referencia y confirmación del usuario para `VAC_LR` con subtipo
 `VACACIONES_DISFRUTADAS`. La declaración se conserva como
 `DECLARADO_NO_VERIFICADO` en el snapshot v14 y se valida como conjunto completo.
