@@ -15,7 +15,7 @@ import {
   useDeletePayrollPilaEvent,
   usePayrollPilaEvents,
 } from '../hooks/use-payroll';
-import type { PilaEventCode, PayrollPeriodStatus } from '../services/payroll-api';
+import type { PilaEventCode, PilaVacLrSubtype, PayrollPeriodStatus } from '../services/payroll-api';
 
 const eventOptions: Array<{
   code: PilaEventCode;
@@ -99,6 +99,7 @@ export function PayrollPilaEventsPanel({
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [codigo, setCodigo] = useState<PilaEventCode>('ING');
+  const [subtipoVacLr, setSubtipoVacLr] = useState<PilaVacLrSubtype | ''>('');
   const [eventStart, setEventStart] = useState(fechaInicio.slice(0, 10));
   const [eventEnd, setEventEnd] = useState('');
   const [irlDays, setIrlDays] = useState('');
@@ -130,6 +131,10 @@ export function PayrollPilaEventsPanel({
       toast.error('Selecciona un empleado.');
       return;
     }
+    if (codigo === 'VAC_LR' && !subtipoVacLr) {
+      toast.error('Selecciona si el evento corresponde a vacaciones o licencia remunerada.');
+      return;
+    }
 
     try {
       await createEvent.mutateAsync({
@@ -137,6 +142,7 @@ export function PayrollPilaEventsPanel({
         payload: {
           employeeId,
           codigo,
+          ...(codigo === 'VAC_LR' && subtipoVacLr ? { subtipo: subtipoVacLr } : {}),
           fechaInicio: eventStart,
           ...(selectedOption.allowsEndDate && eventEnd ? { fechaFin: eventEnd } : {}),
           ...(codigo === 'IRL' ? { dias: Number(irlDays) } : {}),
@@ -144,6 +150,7 @@ export function PayrollPilaEventsPanel({
       });
       setEventEnd('');
       setIrlDays('');
+      setSubtipoVacLr('');
       toast.success('Novedad PILA agregada al período.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo guardar la novedad PILA.');
@@ -243,6 +250,7 @@ export function PayrollPilaEventsPanel({
                     setEmployeeId('');
                   }
                   setCodigo(nextCode);
+                  setSubtipoVacLr('');
                   setEventEnd('');
                   setIrlDays('');
                   setEventStart(nextCode === 'RET' ? '' : fechaInicio.slice(0, 10));
@@ -255,6 +263,25 @@ export function PayrollPilaEventsPanel({
                 ))}
               </Select>
             </div>
+            {codigo === 'VAC_LR' && (
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="pila-event-subtype">Tipo de VAC-LR</Label>
+                <Select
+                  id="pila-event-subtype"
+                  value={subtipoVacLr}
+                  onChange={(event) => setSubtipoVacLr(event.target.value as PilaVacLrSubtype | '')}
+                  required
+                >
+                  <option value="">Seleccionar tipo</option>
+                  <option value="VACACIONES_DISFRUTADAS">Vacaciones disfrutadas</option>
+                  <option value="LICENCIA_REMUNERADA">Licencia remunerada</option>
+                </Select>
+                <p className="text-2xs text-muted-foreground">
+                  La clasificación queda en el snapshot. La exportación sigue bloqueada hasta
+                  validar días y bases de cotización para este evento.
+                </p>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="pila-event-start">Fecha inicial</Label>
               <Input
@@ -336,6 +363,14 @@ export function PayrollPilaEventsPanel({
           <div className="divide-y divide-border">
             {events.map((pilaEvent) => {
               const option = eventOptions.find((item) => item.code === pilaEvent.codigo);
+              const eventLabel =
+                pilaEvent.codigo === 'VAC_LR'
+                  ? pilaEvent.subtipo === 'VACACIONES_DISFRUTADAS'
+                    ? 'Vacaciones disfrutadas'
+                    : pilaEvent.subtipo === 'LICENCIA_REMUNERADA'
+                      ? 'Licencia remunerada'
+                      : 'VAC-LR sin clasificar'
+                  : (option?.label ?? pilaEvent.codigo);
               return (
                 <div
                   key={pilaEvent.id}
@@ -346,7 +381,7 @@ export function PayrollPilaEventsPanel({
                       {formatNombreCompleto(pilaEvent.employee)}
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      {option?.label ?? pilaEvent.codigo} · {eventDate(pilaEvent)}
+                      {eventLabel} · {eventDate(pilaEvent)}
                       {pilaEvent.dias !== null ? ` · ${pilaEvent.dias} días` : ''}
                     </p>
                   </div>

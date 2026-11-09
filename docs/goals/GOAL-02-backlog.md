@@ -52,10 +52,13 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   brecha ya no es reconciliar la aparente diferencia con el concepto DAFP de
   empleo público; el código mezcla vacaciones con licencias remuneradas y no
   congela el subtipo, el IBC anterior ni días/bases por subsistema. El candidato
-  siguiente debe separar vacaciones disfrutadas, limitarse al caso estándar
-  01/00 y mantener bloqueados licencias remuneradas, concurrencias y segmentos
-  que no tengan fuentes aprobadas congeladas. La matriz contiene criterios y
-  fuentes; el preflight y descarga siguen bloqueados.
+  ADR-022 separa en la captura vacaciones disfrutadas de licencias remuneradas
+  y congela esa clasificación en snapshots v12; esta etapa no habilita ningún
+  archivo. El trabajo posterior debe aportar el último IBC realmente reportado,
+  remuneración de vacaciones trazable y días/bases por subsistema antes de
+  habilitar siquiera el caso estándar 01/00. Licencias, concurrencias,
+  segmentos sin fuentes aprobadas y los demás casos fuera de alcance siguen
+  bloqueados.
 
 - PR #278 se fusionó en main como 0aae82938fe430e258f35861eec944e59a5bde32 y PR #279 como 1b31782257313cc08f150e2f1024df88fe405562. Los checks post-merge de CI, Browser E2E y publicación de la imagen API pasaron en ambos.
 - PR #278 compone localmente archivos AT2 v30 tipo 1 y tipo 2 desde snapshots aprobados; PR #279 añade generación autenticada tenant-scoped, historial append-only, almacenamiento privado, SHA-256, versionamiento, auditoría y descarga protegida. La nueva prueba de navegador de esta continuación cubre generación, persistencia, reintento idempotente y descarga de ambos archivos desde la interfaz.

@@ -187,6 +187,43 @@ test('configura los datos PILA y registra, conserva y elimina una novedad del pe
     pilaPanel.getByText('No hay novedades PILA registradas en este período.'),
   ).toBeVisible();
 
+  await pilaPanel.getByLabel('Novedad').selectOption('VAC_LR');
+  await pilaPanel.getByLabel('Tipo de VAC-LR').selectOption('VACACIONES_DISFRUTADAS');
+  await pilaPanel.getByLabel('Fecha inicial').fill('2026-10-12');
+  await pilaPanel.getByLabel('Fecha final').fill('2026-10-16');
+  const createVacationResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === `/api/payroll/periods/${periodId}/pila-events` &&
+      response.request().method() === 'POST',
+  );
+  await pilaPanel.getByRole('button', { name: 'Agregar novedad' }).click();
+  const createVacationResponse = await createVacationResponsePromise;
+  expect(createVacationResponse.status()).toBe(200);
+  const createdVacationEvent = (await createVacationResponse.json()) as {
+    id: string;
+    subtipo: string;
+  };
+  expect(createdVacationEvent.subtipo).toBe('VACACIONES_DISFRUTADAS');
+  await expect(
+    pilaPanel.getByText('Vacaciones disfrutadas · 2026-10-12 — 2026-10-16'),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    pilaPanel.getByText('Vacaciones disfrutadas · 2026-10-12 — 2026-10-16'),
+  ).toBeVisible();
+
+  const deleteVacationResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === `/api/payroll/pila-events/${createdVacationEvent.id}` &&
+      response.request().method() === 'DELETE',
+  );
+  await pilaPanel.getByRole('button', { name: 'Eliminar novedad de Ana Pérez' }).click();
+  const deleteVacationResponse = await deleteVacationResponsePromise;
+  expect(deleteVacationResponse.status()).toBe(200);
+  await expect(
+    pilaPanel.getByText('No hay novedades PILA registradas en este período.'),
+  ).toBeVisible();
+
   const retireEmployeeResponse = await browserJsonRequest(
     page,
     `/api/employees/${employee.id}`,

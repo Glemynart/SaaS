@@ -852,6 +852,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
             payrollPeriodId: PERIOD_ID,
             employeeId: employee.id,
             codigo: PilaEventCode.ING,
+            subtipo: null,
             fechaInicio,
             fechaFin: null,
             dias: null,
@@ -860,6 +861,57 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       );
       expect(mockAudit.log).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'PAYROLL_PILA_EVENT_CREATED' }),
+        mockPrisma,
+      );
+    });
+
+    it('persiste, devuelve y audita el subtipo de un VAC-LR', async () => {
+      mockEmpleadoFindFirst.mockResolvedValue({
+        id: 'emp-1',
+        estado: 'ACTIVO',
+        fechaRetiro: null,
+      });
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('BORRADOR'));
+      mockPayrollPilaEventFindFirst.mockResolvedValue(null);
+      mockPayrollPilaEventCreate.mockResolvedValue({
+        id: 'event-vac-lr',
+        tenantId: TENANT,
+        payrollPeriodId: PERIOD_ID,
+        employeeId: 'emp-1',
+        codigo: PilaEventCode.VAC_LR,
+        subtipo: 'VACACIONES_DISFRUTADAS',
+        fechaInicio: new Date('2026-01-10T00:00:00.000Z'),
+        fechaFin: new Date('2026-01-12T00:00:00.000Z'),
+        dias: null,
+      });
+
+      const result = await service.createPilaEvent(TENANT, USER, PERIOD_ID, {
+        employeeId: 'emp-1',
+        codigo: PilaEventCode.VAC_LR,
+        subtipo: 'VACACIONES_DISFRUTADAS',
+        fechaInicio: '2026-01-10',
+        fechaFin: '2026-01-12',
+      });
+
+      expect(result).toMatchObject({
+        codigo: PilaEventCode.VAC_LR,
+        subtipo: 'VACACIONES_DISFRUTADAS',
+      });
+      expect(mockPayrollPilaEventCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            codigo: PilaEventCode.VAC_LR,
+            subtipo: 'VACACIONES_DISFRUTADAS',
+          }),
+        }),
+      );
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            codigo: PilaEventCode.VAC_LR,
+            subtipo: 'VACACIONES_DISFRUTADAS',
+          }),
+        }),
         mockPrisma,
       );
     });
@@ -2704,7 +2756,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       ]);
       const pilaPayload = snapshotCreateData.pilaPayload;
       expect(pilaPayload).toMatchObject({
-        schemaVersion: 11,
+        schemaVersion: 12,
         pilaRiskAssignments: [
           {
             assignmentId: 'risk-assignment-at-approval',
@@ -2762,7 +2814,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         },
       });
       expect(snapshotCreateData).toMatchObject({
-        pilaPayloadVersion: 11,
+        pilaPayloadVersion: 12,
       });
     });
 
@@ -3697,11 +3749,12 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       ]);
       mockPayrollPilaEventFindMany.mockResolvedValue([
         {
-          id: 'event-ige-1',
+          id: 'event-vac-lr-1',
           employeeId: 'emp-1',
-          codigo: PilaEventCode.IGE,
+          codigo: PilaEventCode.VAC_LR,
+          subtipo: 'VACACIONES_DISFRUTADAS',
           fechaInicio: new Date('2026-01-12T00:00:00.000Z'),
-          fechaFin: new Date('2026-01-14T00:00:00.000Z'),
+          fechaFin: new Date('2026-01-16T00:00:00.000Z'),
           dias: null,
         },
       ]);
@@ -3716,6 +3769,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       expect(mockPayrollRunCreate).toHaveBeenCalledWith({
         data: expect.objectContaining({
           pilaSource: expect.objectContaining({
+            schemaVersion: 5,
             employee: expect.objectContaining({ cedula: '1000000001' }),
             worksite: expect.objectContaining({
               sedeId: 'sede-1',
@@ -3738,10 +3792,11 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
             ]),
             pilaEvents: [
               {
-                eventId: 'event-ige-1',
-                codigo: PilaEventCode.IGE,
+                eventId: 'event-vac-lr-1',
+                codigo: PilaEventCode.VAC_LR,
+                subtipo: 'VACACIONES_DISFRUTADAS',
                 fechaInicio: '2026-01-12',
-                fechaFin: '2026-01-14',
+                fechaFin: '2026-01-16',
                 dias: null,
               },
             ],
@@ -3774,6 +3829,11 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
               { vigenteHasta: { gte: new Date('2026-01-01') } },
             ],
           }),
+        }),
+      );
+      expect(mockPayrollPilaEventFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          select: expect.objectContaining({ subtipo: true }),
         }),
       );
       expect(mockSedeFindMany).toHaveBeenCalledWith(

@@ -237,7 +237,8 @@ function summarizePensionTransitionStatus(
         snapshot.payloadVersion === 8 ||
         snapshot.payloadVersion === 9 ||
         snapshot.payloadVersion === 10 ||
-        snapshot.payloadVersion === 11) &&
+        snapshot.payloadVersion === 11 ||
+        snapshot.payloadVersion === 12) &&
       root?.schemaVersion === snapshot.payloadVersion
     ) {
       const employer = nested(root, 'employer');
@@ -338,7 +339,8 @@ export function inspectPilaSnapshotPreparation(
       input.payloadVersion === 8 ||
       input.payloadVersion === 9 ||
       input.payloadVersion === 10 ||
-      input.payloadVersion === 11) &&
+      input.payloadVersion === 11 ||
+      input.payloadVersion === 12) &&
       root?.schemaVersion === input.payloadVersion);
   if (!supportedPayloadVersion) {
     add(
@@ -360,7 +362,9 @@ export function inspectPilaSnapshotPreparation(
   const periodStart = date(period?.fechaInicio);
   const periodEnd = date(period?.fechaFin);
   const ingressDetailCandidate =
-    (input.payloadVersion === 10 || input.payloadVersion === 11) &&
+    (input.payloadVersion === 10 ||
+      input.payloadVersion === 11 ||
+      input.payloadVersion === 12) &&
     periodStart &&
     periodEnd &&
     text(period?.payrollPeriodId) &&
@@ -985,6 +989,7 @@ export function inspectPilaSnapshotPreparation(
     for (const eventValue of eventSources.flat()) {
       const event = object(eventValue);
       const code = text(event?.codigo);
+      const subtype = text(event?.subtipo);
       if (!code) {
         add(
           'DETALLE_TIPO_2',
@@ -1062,7 +1067,13 @@ export function inspectPilaSnapshotPreparation(
           : `EVENTO_PILA_${code}_SIN_SEGMENTACION_APROBADA`,
         fieldNumber === null
           ? `La novedad PILA ${code} no pertenece a la matriz del MVP revisada y no tiene una segmentación aprobada.`
-          : `La novedad PILA ${code} está congelada en el snapshot, pero Payroll aún no conserva sus segmentos y días/IBC aprobados para el campo ${fieldNumber}.`,
+          : code === 'VAC_LR'
+            ? subtype === 'VACACIONES_DISFRUTADAS'
+              ? 'Las vacaciones disfrutadas están clasificadas en el snapshot, pero aún faltan el último IBC reportado, el pago trazable y los días/bases aprobados por subsistema.'
+              : subtype === 'LICENCIA_REMUNERADA'
+                ? 'La licencia remunerada está clasificada en el snapshot, pero su regla y segmentación no están aprobadas para exportar.'
+                : 'El evento VAC-LR histórico no tiene subtipo; no se puede distinguir vacaciones disfrutadas de licencia remunerada.'
+            : `La novedad PILA ${code} está congelada en el snapshot, pero Payroll aún no conserva sus segmentos y días/IBC aprobados para el campo ${fieldNumber}.`,
       );
     }
   }
@@ -1590,7 +1601,9 @@ export function inspectPilaSnapshotPreparation(
     }
     const supportedParafiscalRule =
       source?.reglaVersion === 'CO_PARAFISCAL_BASE_V1' ||
-      ((root?.schemaVersion === 10 || root?.schemaVersion === 11) &&
+      ((root?.schemaVersion === 10 ||
+        root?.schemaVersion === 11 ||
+        root?.schemaVersion === 12) &&
         source?.reglaVersion === 'CO_PARAFISCAL_BASE_V2' &&
         safeInteger(source?.valor) &&
         ingressDetailCandidate?.values[95]?.value === source?.valor);
@@ -2044,7 +2057,7 @@ export function buildPilaPreparationReport(input: {
             },
           ],
           evidence:
-            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots PILA v2–v11 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
+            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots PILA v2–v12 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
         }
       : null;
   const readinessBlockers = [

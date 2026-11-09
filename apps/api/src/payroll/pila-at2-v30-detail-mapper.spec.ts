@@ -3033,6 +3033,31 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.supportedSnapshot).toBe(false);
     expect(candidate.values).toEqual({});
     expect(candidate.unresolvedFields).toHaveLength(98);
-    expect(candidate.unresolvedFields[0]?.reason).toContain('PILA v2 a v11');
+    expect(candidate.unresolvedFields[0]?.reason).toContain('PILA v2 a v12');
+  });
+
+  it('accepts a v12 snapshot with a typed VAC-LR event without making it exportable', () => {
+    const input = snapshot();
+    input.payloadVersion = 12;
+    const payload = payloadOf(input);
+    payload.schemaVersion = 12;
+    const event = {
+      eventId: 'vac-lr-event-1',
+      codigo: 'VAC_LR',
+      subtipo: 'VACACIONES_DISFRUTADAS',
+      fechaInicio: '2026-10-12',
+      fechaFin: '2026-10-16',
+      dias: null,
+    };
+    payload.pilaEvents = [event];
+    payload.payroll.pilaEvents = [event];
+
+    const candidate = mapCandidate(input);
+
+    expect(candidate.supportedSnapshot).toBe(true);
+    expect(candidate.values[27]).toBeUndefined();
+    expect(
+      candidate.unresolvedFields.some(({ fieldNumber }) => fieldNumber === 27),
+    ).toBe(true);
   });
 });

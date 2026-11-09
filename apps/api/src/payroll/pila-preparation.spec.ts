@@ -2216,6 +2216,53 @@ describe('inspectPilaSnapshotPreparation', () => {
     },
   );
 
+  it.each<[string | null, string]>([
+    ['VACACIONES_DISFRUTADAS', 'aún faltan el último IBC reportado'],
+    ['LICENCIA_REMUNERADA', 'su regla y segmentación no están aprobadas'],
+    [null, 'no tiene subtipo'],
+  ])(
+    'accepts snapshot v12 but keeps VAC-LR subtype %s blocked',
+    (subtype: string | null, expectedMessage: string) => {
+      const source = payloadV2() as unknown as {
+        schemaVersion: number;
+        pilaEvents?: unknown;
+        payroll: { pilaEvents?: unknown };
+      };
+      source.schemaVersion = 12;
+      const events = [
+        {
+          eventId: 'vac-lr-event-1',
+          codigo: 'VAC_LR',
+          subtipo: subtype,
+          fechaInicio: '2026-10-12',
+          fechaFin: '2026-10-16',
+          dias: null,
+        },
+      ];
+      source.pilaEvents = events;
+      source.payroll.pilaEvents = events;
+
+      const result = inspectPilaSnapshotPreparation({
+        employeeId: 'employee-1',
+        payloadVersion: 12,
+        payload: source,
+        totalCotizantes: 1,
+      });
+
+      expect(result.issues).not.toContainEqual(
+        expect.objectContaining({ code: 'PILA_SNAPSHOT_VERSION_NO_SOPORTADA' }),
+      );
+      expect(
+        result.issues.some(
+          ({ fieldNumber, code, message }) =>
+            fieldNumber === 27 &&
+            code === 'EVENTO_PILA_VAC_LR_SIN_SEGMENTACION_APROBADA' &&
+            message.includes(expectedMessage),
+        ),
+      ).toBe(true);
+    },
+  );
+
   it('blocks a v2 PILA snapshot that omits its frozen event list', () => {
     const source = payload();
     source.schemaVersion = 2;
