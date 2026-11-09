@@ -1336,6 +1336,15 @@ values deben revisarse con nómina laboral antes del uso operativo. Aún no hay
 pruebas de aceptación con un operador; generar o validar localmente no acredita
 aceptación, liquidación, pago ni compatibilidad universal.
 
+## Addendum — declaración de remuneración VAC-LR (2026-11-09)
+
+ADR-024 agrega campos de captura para monto, mes reportado de pago y referencia
+solo en vacaciones disfrutadas. Desde snapshot v14, esta fuente declarada se
+conserva como `DECLARADO_NO_VERIFICADO`; el exportador no la usa para calcular
+ni mapear campos AT2 y el preflight mantiene el bloqueo. Su captura no satisface
+la fuente de pago trazable ni las reglas aprobadas por subsistema exigidas por
+este ADR.
+
 ## Preparación de aceptación por operador — SOI
 
 El procedimiento para la primera prueba manual está en el

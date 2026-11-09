@@ -11,6 +11,10 @@ export type PilaEventDateInput = {
   operadorFuenteIbc?: string | null;
   referenciaFuenteIbc?: string | null;
   confirmoFuenteIbc?: boolean | null;
+  remuneracionVacacionesReportada?: string | null;
+  periodoPagoVacaciones?: string | null;
+  referenciaFuenteRemuneracion?: string | null;
+  confirmoFuenteRemuneracion?: boolean | null;
 };
 
 export function parsePilaCalendarDate(value: string): Date | null {
@@ -126,6 +130,38 @@ export function validatePilaEventDateRange(
     }
     if (month >= input.fechaInicio.slice(0, 7)) {
       return 'El período del último IBC reportado debe ser anterior al mes de inicio de las vacaciones.';
+    }
+  }
+
+  const hasVacationRemunerationDeclaration = [
+    input.remuneracionVacacionesReportada,
+    input.periodoPagoVacaciones,
+    input.referenciaFuenteRemuneracion,
+  ].some((value) => value !== undefined && value !== null);
+  if (
+    hasVacationRemunerationDeclaration ||
+    input.confirmoFuenteRemuneracion === true
+  ) {
+    if (
+      input.codigo !== PilaEventCode.VAC_LR ||
+      input.subtipo !== PilaVacLrSubtype.VACACIONES_DISFRUTADAS
+    ) {
+      return 'La remuneración declarada solo se admite para vacaciones disfrutadas (VAC-LR).';
+    }
+
+    const amount = input.remuneracionVacacionesReportada;
+    const paymentMonth = input.periodoPagoVacaciones;
+    const reference = input.referenciaFuenteRemuneracion?.trim();
+    if (
+      typeof amount !== 'string' ||
+      !/^(?=.*[1-9])(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/.test(amount) ||
+      !paymentMonth ||
+      !parsePilaYearMonth(paymentMonth) ||
+      !reference ||
+      reference.length > 160 ||
+      input.confirmoFuenteRemuneracion !== true
+    ) {
+      return 'Para declarar la remuneración de vacaciones, completa el valor, mes de pago y referencia, y confirma que los transcribiste de la fuente.';
     }
   }
 

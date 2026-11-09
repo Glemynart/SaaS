@@ -3033,7 +3033,7 @@ describe('mapPilaAt2V30DetailCandidate', () => {
     expect(candidate.supportedSnapshot).toBe(false);
     expect(candidate.values).toEqual({});
     expect(candidate.unresolvedFields).toHaveLength(98);
-    expect(candidate.unresolvedFields[0]?.reason).toContain('PILA v2 a v13');
+    expect(candidate.unresolvedFields[0]?.reason).toContain('PILA v2 a v14');
   });
 
   it.each([
@@ -3111,6 +3111,54 @@ describe('mapPilaAt2V30DetailCandidate', () => {
         periodo: '2026-09',
         operador: 'SOI',
         referencia: 'Planilla septiembre 2026, línea 8',
+        confirmadoPorUsuario: true,
+      },
+    };
+    payload.pilaEvents = [event];
+    payload.payroll.pilaEvents = [{ ...event }];
+
+    const candidate = mapCandidate(input);
+
+    expect(candidate.supportedSnapshot).toBe(true);
+    expect(candidate.values[27]).toEqual({ value: 'X' });
+    expect(candidate.values[89]).toEqual({ value: '2026-10-12' });
+    expect(candidate.values[90]).toEqual({ value: '2026-10-16' });
+    for (const fieldNumber of [36, 37, 38, 39, 40, 42, 43, 44, 45, 95]) {
+      expect(candidate.values[fieldNumber]).toBeUndefined();
+      expect(
+        candidate.unresolvedFields.some(
+          ({ fieldNumber: unresolvedFieldNumber }) =>
+            unresolvedFieldNumber === fieldNumber,
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it('accepts v14 vacation source declarations without mapping their money values', () => {
+    const input = snapshot();
+    input.payloadVersion = 14;
+    const payload = payloadOf(input);
+    payload.schemaVersion = 14;
+    const event = {
+      eventId: 'vac-lr-event-1',
+      codigo: 'VAC_LR',
+      subtipo: 'VACACIONES_DISFRUTADAS',
+      fechaInicio: '2026-10-12',
+      fechaFin: '2026-10-16',
+      dias: null,
+      fuenteUltimoIbcReportado: {
+        estado: 'DECLARADO_NO_VERIFICADO',
+        valor: '2450000.50',
+        periodo: '2026-09',
+        operador: 'SOI',
+        referencia: 'Planilla septiembre 2026, línea 8',
+        confirmadoPorUsuario: true,
+      },
+      fuenteRemuneracionVacaciones: {
+        estado: 'DECLARADO_NO_VERIFICADO',
+        valor: '350000.50',
+        periodoPago: '2026-10',
+        referencia: 'Nómina octubre 2026, concepto vacaciones',
         confirmadoPorUsuario: true,
       },
     };

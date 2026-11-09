@@ -105,6 +105,10 @@ export function PayrollPilaEventsPanel({
   const [periodoIbcReportado, setPeriodoIbcReportado] = useState('');
   const [operadorFuenteIbc, setOperadorFuenteIbc] = useState('');
   const [referenciaFuenteIbc, setReferenciaFuenteIbc] = useState('');
+  const [confirmoFuenteRemuneracion, setConfirmoFuenteRemuneracion] = useState(false);
+  const [remuneracionVacacionesReportada, setRemuneracionVacacionesReportada] = useState('');
+  const [periodoPagoVacaciones, setPeriodoPagoVacaciones] = useState('');
+  const [referenciaFuenteRemuneracion, setReferenciaFuenteRemuneracion] = useState('');
   const [eventStart, setEventStart] = useState(fechaInicio.slice(0, 10));
   const [eventEnd, setEventEnd] = useState('');
   const [irlDays, setIrlDays] = useState('');
@@ -150,6 +154,17 @@ export function PayrollPilaEventsPanel({
       toast.error('Completa el IBC, el mes, el operador y la referencia de la fuente.');
       return;
     }
+    if (
+      confirmoFuenteRemuneracion &&
+      (!remuneracionVacacionesReportada ||
+        !periodoPagoVacaciones ||
+        !referenciaFuenteRemuneracion.trim())
+    ) {
+      toast.error(
+        'Completa el valor, el mes de pago y la referencia de la remuneración de vacaciones.',
+      );
+      return;
+    }
 
     try {
       await createEvent.mutateAsync({
@@ -167,6 +182,14 @@ export function PayrollPilaEventsPanel({
                 confirmoFuenteIbc: true,
               }
             : {}),
+          ...(confirmoFuenteRemuneracion
+            ? {
+                remuneracionVacacionesReportada,
+                periodoPagoVacaciones,
+                referenciaFuenteRemuneracion: referenciaFuenteRemuneracion.trim(),
+                confirmoFuenteRemuneracion: true,
+              }
+            : {}),
           fechaInicio: eventStart,
           ...(selectedOption.allowsEndDate && eventEnd ? { fechaFin: eventEnd } : {}),
           ...(codigo === 'IRL' ? { dias: Number(irlDays) } : {}),
@@ -180,6 +203,10 @@ export function PayrollPilaEventsPanel({
       setPeriodoIbcReportado('');
       setOperadorFuenteIbc('');
       setReferenciaFuenteIbc('');
+      setConfirmoFuenteRemuneracion(false);
+      setRemuneracionVacacionesReportada('');
+      setPeriodoPagoVacaciones('');
+      setReferenciaFuenteRemuneracion('');
       toast.success('Novedad PILA agregada al período.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo guardar la novedad PILA.');
@@ -285,6 +312,10 @@ export function PayrollPilaEventsPanel({
                   setPeriodoIbcReportado('');
                   setOperadorFuenteIbc('');
                   setReferenciaFuenteIbc('');
+                  setConfirmoFuenteRemuneracion(false);
+                  setRemuneracionVacacionesReportada('');
+                  setPeriodoPagoVacaciones('');
+                  setReferenciaFuenteRemuneracion('');
                   setEventEnd('');
                   setIrlDays('');
                   setEventStart(nextCode === 'RET' ? '' : fechaInicio.slice(0, 10));
@@ -312,6 +343,10 @@ export function PayrollPilaEventsPanel({
                       setPeriodoIbcReportado('');
                       setOperadorFuenteIbc('');
                       setReferenciaFuenteIbc('');
+                      setConfirmoFuenteRemuneracion(false);
+                      setRemuneracionVacacionesReportada('');
+                      setPeriodoPagoVacaciones('');
+                      setReferenciaFuenteRemuneracion('');
                     }
                   }}
                   required
@@ -401,6 +436,81 @@ export function PayrollPilaEventsPanel({
                     <p className="text-xs text-muted-foreground sm:col-span-2">
                       El dato se conserva como declaración del usuario y no se verifica contra el
                       operador. No calcula aportes ni habilita la generación de la planilla.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+            {codigo === 'VAC_LR' && subtipoVacLr === 'VACACIONES_DISFRUTADAS' && (
+              <div className="space-y-3 rounded-md border border-border p-3 sm:col-span-2">
+                <label
+                  htmlFor="pila-event-vacation-remuneration-confirmation"
+                  className="flex items-start gap-2 text-sm text-foreground"
+                >
+                  <input
+                    id="pila-event-vacation-remuneration-confirmation"
+                    type="checkbox"
+                    checked={confirmoFuenteRemuneracion}
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      setConfirmoFuenteRemuneracion(checked);
+                      if (!checked) {
+                        setRemuneracionVacacionesReportada('');
+                        setPeriodoPagoVacaciones('');
+                        setReferenciaFuenteRemuneracion('');
+                      }
+                    }}
+                    className="mt-0.5 size-4 rounded border-border"
+                  />
+                  <span>
+                    Registrar la remuneración de vacaciones indicada en una fuente. Confirmo que
+                    transcribo esos datos de la referencia señalada.
+                  </span>
+                </label>
+                {confirmoFuenteRemuneracion && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pila-event-vacation-remuneration">
+                        Remuneración reportada (COP)
+                      </Label>
+                      <Input
+                        id="pila-event-vacation-remuneration"
+                        type="number"
+                        min="0.01"
+                        max="999999999999.99"
+                        step="0.01"
+                        value={remuneracionVacacionesReportada}
+                        onChange={(event) => setRemuneracionVacacionesReportada(event.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pila-event-vacation-payment-period">
+                        Mes reportado de pago
+                      </Label>
+                      <Input
+                        id="pila-event-vacation-payment-period"
+                        type="month"
+                        value={periodoPagoVacaciones}
+                        onChange={(event) => setPeriodoPagoVacaciones(event.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="pila-event-vacation-remuneration-reference">
+                        Referencia de la fuente
+                      </Label>
+                      <Input
+                        id="pila-event-vacation-remuneration-reference"
+                        value={referenciaFuenteRemuneracion}
+                        maxLength={160}
+                        onChange={(event) => setReferenciaFuenteRemuneracion(event.target.value)}
+                        required
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground sm:col-span-2">
+                      El dato queda como declaración sin verificar. No se usa para calcular aportes
+                      ni habilita la generación del archivo.
                     </p>
                   </div>
                 )}
@@ -516,6 +626,16 @@ export function PayrollPilaEventsPanel({
                           {pilaEvent.periodoIbcReportado.slice(0, 7)} ·{' '}
                           {pilaEvent.operadorFuenteIbc} · {pilaEvent.referenciaFuenteIbc} · no
                           verificado con el operador.
+                        </p>
+                      )}
+                    {pilaEvent.confirmoFuenteRemuneracion &&
+                      pilaEvent.remuneracionVacacionesReportada &&
+                      pilaEvent.periodoPagoVacaciones && (
+                        <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
+                          Remuneración de vacaciones declarada: COP{' '}
+                          {pilaEvent.remuneracionVacacionesReportada} · período{' '}
+                          {pilaEvent.periodoPagoVacaciones.slice(0, 7)} ·{' '}
+                          {pilaEvent.referenciaFuenteRemuneracion} · no verificada.
                         </p>
                       )}
                   </div>

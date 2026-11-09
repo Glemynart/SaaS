@@ -713,3 +713,19 @@ Fuentes: [AT2 v30, MinSalud](https://www.minsalud.gov.co/sites/rid/Lists/Bibliot
 [Consejo de Estado, Sección Cuarta, Exp. 26941 (2024-04-04)](https://normograma.supersalud.gov.co/compilacion/docs/25000-23-37-000-2017-00244-01%2826941%29_20240404.htm),
 [Concepto DAFP 091961 de 2022](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=190866)
 y [Circular 018 de 2012](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=71322).
+
+### PILA-AT2-86 — Captura declarada de remuneración de vacaciones, sin cálculo
+
+**Estado en esta rama:** ADR-024 registra monto, mes de pago declarado,
+referencia y confirmación del usuario para `VAC_LR` con subtipo
+`VACACIONES_DISFRUTADAS`. La declaración se conserva como
+`DECLARADO_NO_VERIFICADO` en el snapshot v14 y se valida como conjunto completo.
+No es una fuente de pago verificada, no produce bases por subsistema y no se
+mapea a AT2 ni habilita generación o descarga. Las filas preexistentes quedan
+sin backfill; v2–v13 conservan su semántica. Falta vincular el dato a un concepto
+y pago fuente aprobados y validar reglas de días/bases antes de cualquier
+extensión del mapper.
+
+**Pruebas requeridas:** API y base de datos rechazan declaraciones parciales,
+inválidas o asociadas a licencias; la UI persiste la declaración tras recargar,
+la auditoría no registra monto ni referencia y el preflight conserva el bloqueo.

@@ -1603,6 +1603,10 @@ model PayrollPilaEvent {
   operadorFuenteIbc   String?   @db.VarChar(80)
   referenciaFuenteIbc String?   @db.VarChar(160)
   confirmoFuenteIbc   Boolean   @default(false)
+  remuneracionVacacionesReportada Decimal?  @db.Decimal(14, 2)
+  periodoPagoVacaciones          DateTime? @db.Date
+  referenciaFuenteRemuneracion   String?   @db.VarChar(160)
+  confirmoFuenteRemuneracion     Boolean   @default(false)
 
   @@index([tenantId, payrollPeriodId, employeeId])
   @@index([tenantId, payrollPeriodId, codigo])

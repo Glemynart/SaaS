@@ -374,6 +374,13 @@ describe('Payroll accounting PostgreSQL integration', () => {
               referencia: 'Planilla febrero 2026, línea 8',
               confirmadoPorUsuario: true,
             },
+            fuenteRemuneracionVacaciones: {
+              estado: 'DECLARADO_NO_VERIFICADO',
+              valor: '350000.50',
+              periodoPago: '2026-03',
+              referencia: 'Nómina marzo 2026, concepto vacaciones',
+              confirmadoPorUsuario: true,
+            },
           },
         ],
       } satisfies Prisma.InputJsonValue;
@@ -403,6 +410,11 @@ describe('Payroll accounting PostgreSQL integration', () => {
           operadorFuenteIbc: 'SOI',
           referenciaFuenteIbc: 'Planilla febrero 2026, línea 8',
           confirmoFuenteIbc: true,
+          remuneracionVacacionesReportada: new Prisma.Decimal('350000.50'),
+          periodoPagoVacaciones: new Date('2026-03-01T00:00:00.000Z'),
+          referenciaFuenteRemuneracion:
+            'Nómina marzo 2026, concepto vacaciones',
+          confirmoFuenteRemuneracion: true,
         },
       });
       await tx.payrollRun.create({
@@ -680,9 +692,9 @@ describe('Payroll accounting PostgreSQL integration', () => {
     );
 
     expect(persisted.period?.status).toBe(PayrollPeriodStatus.APROBADA);
-    expect(persisted.snapshot?.pilaPayloadVersion).toBe(13);
+    expect(persisted.snapshot?.pilaPayloadVersion).toBe(14);
     expect(persisted.snapshot?.pilaPayload).toMatchObject({
-      schemaVersion: 13,
+      schemaVersion: 14,
       capturedAt: '2026-03-31T00:00:00.000Z',
       employee: { cedula: '1000000001', primerNombre: 'Ana' },
       affiliations: [
@@ -716,6 +728,13 @@ describe('Payroll accounting PostgreSQL integration', () => {
             referencia: 'Planilla febrero 2026, línea 8',
             confirmadoPorUsuario: true,
           },
+          fuenteRemuneracionVacaciones: {
+            estado: 'DECLARADO_NO_VERIFICADO',
+            valor: '350000.50',
+            periodoPago: '2026-03',
+            referencia: 'Nómina marzo 2026, concepto vacaciones',
+            confirmadoPorUsuario: true,
+          },
         },
       ],
       payroll: {
@@ -732,6 +751,13 @@ describe('Payroll accounting PostgreSQL integration', () => {
               periodo: '2026-02',
               operador: 'SOI',
               referencia: 'Planilla febrero 2026, línea 8',
+              confirmadoPorUsuario: true,
+            },
+            fuenteRemuneracionVacaciones: {
+              estado: 'DECLARADO_NO_VERIFICADO',
+              valor: '350000.50',
+              periodoPago: '2026-03',
+              referencia: 'Nómina marzo 2026, concepto vacaciones',
               confirmadoPorUsuario: true,
             },
           },
@@ -878,5 +904,52 @@ describe('Payroll accounting PostgreSQL integration', () => {
         ultimoIbcReportado: new Prisma.Decimal('2450000.50'),
       }),
     ).rejects.toThrow('payroll_pila_events_prior_ibc_source_check');
+  });
+
+  it('database rejects incomplete or non-vacation remuneration declarations', async () => {
+    const declarationBase = {
+      tenantId,
+      payrollPeriodId: snapshotApprovalPeriodId,
+      employeeId,
+      codigo: PilaEventCode.VAC_LR,
+      fechaInicio: new Date('2026-03-17T00:00:00.000Z'),
+      fechaFin: new Date('2026-03-19T00:00:00.000Z'),
+      periodoPagoVacaciones: new Date('2026-03-01T00:00:00.000Z'),
+      referenciaFuenteRemuneracion: 'Nómina marzo 2026, concepto vacaciones',
+      confirmoFuenteRemuneracion: true,
+    };
+    const createEvent = (data: Prisma.PayrollPilaEventUncheckedCreateInput) =>
+      contextService.run(context, () =>
+        tenantPrisma.execute((tx) => tx.payrollPilaEvent.create({ data })),
+      );
+
+    await expect(
+      createEvent({
+        ...declarationBase,
+        subtipo: PilaVacLrSubtype.VACACIONES_DISFRUTADAS,
+      }),
+    ).rejects.toThrow(
+      'payroll_pila_events_vacation_remuneration_declaration_check',
+    );
+
+    await expect(
+      createEvent({
+        ...declarationBase,
+        remuneracionVacacionesReportada: new Prisma.Decimal('350000.50'),
+      }),
+    ).rejects.toThrow(
+      'payroll_pila_events_vacation_remuneration_declaration_check',
+    );
+
+    await expect(
+      createEvent({
+        ...declarationBase,
+        fechaInicio: new Date('2026-03-20T00:00:00.000Z'),
+        subtipo: PilaVacLrSubtype.LICENCIA_REMUNERADA,
+        remuneracionVacacionesReportada: new Prisma.Decimal('350000.50'),
+      }),
+    ).rejects.toThrow(
+      'payroll_pila_events_vacation_remuneration_declaration_check',
+    );
   });
 });

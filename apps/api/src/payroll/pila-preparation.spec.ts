@@ -2309,6 +2309,58 @@ describe('inspectPilaSnapshotPreparation', () => {
     );
   });
 
+  it('keeps v14 vacation declarations visible without using them as PILA bases', () => {
+    const source = payloadV2() as unknown as {
+      schemaVersion: number;
+      pilaEvents?: unknown;
+      payroll: { pilaEvents?: unknown };
+    };
+    source.schemaVersion = 14;
+    const event = {
+      eventId: 'vac-lr-event-1',
+      codigo: 'VAC_LR',
+      subtipo: 'VACACIONES_DISFRUTADAS',
+      fechaInicio: '2026-10-12',
+      fechaFin: '2026-10-16',
+      dias: null,
+      fuenteUltimoIbcReportado: {
+        estado: 'DECLARADO_NO_VERIFICADO',
+        valor: '2450000.50',
+        periodo: '2026-09',
+        operador: 'SOI',
+        referencia: 'Planilla septiembre 2026, línea 8',
+        confirmadoPorUsuario: true,
+      },
+      fuenteRemuneracionVacaciones: {
+        estado: 'DECLARADO_NO_VERIFICADO',
+        valor: '350000.50',
+        periodoPago: '2026-10',
+        referencia: 'Nómina octubre 2026, concepto vacaciones',
+        confirmadoPorUsuario: true,
+      },
+    };
+    source.pilaEvents = [event];
+    source.payroll.pilaEvents = [event];
+
+    const result = inspectPilaSnapshotPreparation({
+      employeeId: 'employee-1',
+      payloadVersion: 14,
+      payload: source,
+      totalCotizantes: 1,
+    });
+
+    expect(result.issues).not.toContainEqual(
+      expect.objectContaining({ code: 'PILA_SNAPSHOT_VERSION_NO_SOPORTADA' }),
+    );
+    const vacationIssue = result.issues.find(
+      ({ fieldNumber, code }) =>
+        fieldNumber === 27 &&
+        code === 'EVENTO_PILA_VAC_LR_SIN_SEGMENTACION_APROBADA',
+    );
+    expect(vacationIssue?.message).toContain('ambas sin verificar');
+    expect(vacationIssue?.message).toContain('no se usan para calcular bases');
+  });
+
   it('blocks a v2 PILA snapshot that omits its frozen event list', () => {
     const source = payload();
     source.schemaVersion = 2;

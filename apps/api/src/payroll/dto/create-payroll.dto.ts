@@ -164,4 +164,24 @@ export class CreatePayrollPilaEventDto {
   @IsOptional()
   @IsBoolean()
   confirmoFuenteIbc?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^(?=.*[1-9])(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/)
+  remuneracionVacacionesReportada?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/)
+  periodoPagoVacaciones?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/\S/)
+  @MaxLength(160)
+  referenciaFuenteRemuneracion?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  confirmoFuenteRemuneracion?: boolean;
 }

@@ -104,11 +104,12 @@ const RECALCULATE_ALLOWED_STATUSES: PayrollPeriodStatus[] =
 
 const SNAPSHOT_PAYLOAD_VERSION = 1;
 const CALCULATION_TRACE_VERSION = 1;
-const PILA_PAYLOAD_VERSION = 13;
+const PILA_PAYLOAD_VERSION = 14;
 
 function normalizePilaEventIbcAmount<
   T extends {
     ultimoIbcReportado?: Prisma.Decimal | string | number | null;
+    remuneracionVacacionesReportada?: Prisma.Decimal | string | number | null;
   },
 >(event: T) {
   return {
@@ -118,6 +119,11 @@ function normalizePilaEventIbcAmount<
       event.ultimoIbcReportado === undefined
         ? null
         : new Prisma.Decimal(event.ultimoIbcReportado).toFixed(2),
+    remuneracionVacacionesReportada:
+      event.remuneracionVacacionesReportada === null ||
+      event.remuneracionVacacionesReportada === undefined
+        ? null
+        : new Prisma.Decimal(event.remuneracionVacacionesReportada).toFixed(2),
   };
 }
 
@@ -3229,6 +3235,12 @@ export class PayrollService {
           operadorFuenteIbc: dto.operadorFuenteIbc?.trim() || null,
           referenciaFuenteIbc: dto.referenciaFuenteIbc?.trim() || null,
           confirmoFuenteIbc: dto.confirmoFuenteIbc ?? false,
+          remuneracionVacacionesReportada:
+            dto.remuneracionVacacionesReportada ?? null,
+          periodoPagoVacaciones: parsePilaYearMonth(dto.periodoPagoVacaciones),
+          referenciaFuenteRemuneracion:
+            dto.referenciaFuenteRemuneracion?.trim() || null,
+          confirmoFuenteRemuneracion: dto.confirmoFuenteRemuneracion ?? false,
         },
         include: {
           employee: {
@@ -3258,6 +3270,8 @@ export class PayrollService {
             fechaFin: dto.fechaFin ?? null,
             dias: dto.dias ?? null,
             fuenteIbcPreviaDeclarada: created.confirmoFuenteIbc,
+            fuenteRemuneracionVacacionesDeclarada:
+              created.confirmoFuenteRemuneracion,
           },
         },
         tx,
@@ -4496,6 +4510,10 @@ export class PayrollService {
           operadorFuenteIbc: true,
           referenciaFuenteIbc: true,
           confirmoFuenteIbc: true,
+          remuneracionVacacionesReportada: true,
+          periodoPagoVacaciones: true,
+          referenciaFuenteRemuneracion: true,
+          confirmoFuenteRemuneracion: true,
         },
         orderBy: [
           { employeeId: 'asc' },
@@ -4631,6 +4649,10 @@ export class PayrollService {
         operadorFuenteIbc: event.operadorFuenteIbc,
         referenciaFuenteIbc: event.referenciaFuenteIbc,
         confirmoFuenteIbc: event.confirmoFuenteIbc,
+        remuneracionVacacionesReportada: event.remuneracionVacacionesReportada,
+        periodoPagoVacaciones: event.periodoPagoVacaciones,
+        referenciaFuenteRemuneracion: event.referenciaFuenteRemuneracion,
+        confirmoFuenteRemuneracion: event.confirmoFuenteRemuneracion,
       });
       pilaEventsByEmployee.set(event.employeeId, employeeEvents);
     }
@@ -4787,6 +4809,10 @@ export class PayrollService {
         operadorFuenteIbc: true,
         referenciaFuenteIbc: true,
         confirmoFuenteIbc: true,
+        remuneracionVacacionesReportada: true,
+        periodoPagoVacaciones: true,
+        referenciaFuenteRemuneracion: true,
+        confirmoFuenteRemuneracion: true,
       },
       orderBy: [
         { employeeId: 'asc' },
@@ -4812,6 +4838,10 @@ export class PayrollService {
         operadorFuenteIbc: event.operadorFuenteIbc,
         referenciaFuenteIbc: event.referenciaFuenteIbc,
         confirmoFuenteIbc: event.confirmoFuenteIbc,
+        remuneracionVacacionesReportada: event.remuneracionVacacionesReportada,
+        periodoPagoVacaciones: event.periodoPagoVacaciones,
+        referenciaFuenteRemuneracion: event.referenciaFuenteRemuneracion,
+        confirmoFuenteRemuneracion: event.confirmoFuenteRemuneracion,
       });
       eventsByEmployee.set(event.employeeId, employeeEvents);
     }
