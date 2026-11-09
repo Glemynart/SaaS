@@ -72,7 +72,7 @@ propios.
 
 ## Evidencia actual contrastada en `main`
 
-Esta referencia se contrastó por última vez con `main@3247e1a` el 2026-11-08,
+Esta referencia se contrastó por última vez con `main@9eee1aa` el 2026-11-09,
 después de integrar los PR #342–#345, los PR #324, #327, #329, #331, #333,
 #334, #336, #338, #339 y el PR documental #353. Los bloques siguientes conservan las fechas
 históricas de cada revisión. Los PR #267–#269 actualizan guías de snapshots,
@@ -148,10 +148,28 @@ Actualización al 2026-11-08, contrastada con `main@8e9c3b7`: PR #355 añade la
 clasificación explícita de VAC-LR al evento y a snapshots v12; los datos
 históricos conservan subtipo `null`. No cambia el bloqueo de exportación: siguen
 faltando último IBC reportado, pago de vacaciones trazable y segmentación
-aprobada de días/IBC por subsistema. La extensión del preflight en esta rama
-propone mostrar candidatos parciales de campos 27, 30 y 89–90 y elimina
-candidatos de días 36–39 e IBC genéricos cuando hay VAC-LR. La generación sigue
-bloqueada y el cambio de preflight depende de sus verificaciones de CI.
+aprobada de días/IBC por subsistema. El cambio de preflight se registra en la
+actualización siguiente.
+
+Actualización al 2026-11-09, contrastada con `main@9eee1aa`: PR #356 muestra
+candidatos parciales para AT2 27, 30 y 89–90 en un único VAC-LR tipado de un
+dependiente 01/00 de mes completo. Si hay VAC-LR, el mapper ya no reutiliza los
+días genéricos 36–39 ni IBC genéricos 42–45/95. Las dos suites CI y Browser E2E
+(34/34), y Vercel Preview, pasaron antes del merge; después del merge también
+pasaron CI, Browser E2E, publicación de imagen API y Vercel Production. El
+archivo PILA permanece bloqueado por la falta de días/IBC segmentados y
+remuneración trazable; no se acredita aceptación de operador.
+
+Actualización operativa al 2026-11-09: la guía oficial de OCI identifica TLS
+implícito en 465 y remite el endpoint a la configuración regional de Email
+Delivery ([configuración SMTP](https://docs.oracle.com/en-us/iaas/Content/Email/Reference/gettingstarted_topic-Configure_the_SMTP_connection.htm), [TLS 1.2](https://docs.oracle.com/en-us/iaas/Content/Email/Reference/gettingstarted_topic-tls_requirements.htm)). Los puertos 25/587/465
+aparecen para diagnóstico de conectividad [según la guía de OCI](https://docs.oracle.com/en-us/iaas/Content/Email/Concepts/troubleshooting.htm),
+que no reemplaza exigir cifrado. Se recomienda 465 primero o 587 con STARTTLS
+obligatorio tras confirmar endpoint y red del entorno. Cloudflare documenta
+Object Read & Write limitado a bucket para la API S3, endpoint por account ID
+y región `auto`. El código de preflight no cambió; sin acceso a un entorno
+aislado no se acredita configuración efectiva, privacidad del bucket, entrega
+real ni aislamiento tenant. No se accedió a R2, OCI o VPS.
 
 Actualización al 2026-11-07, contrastada con `main@35f2606f`: PR #331 integra
 una ruta de exportación PILA con ING y RET en una sola línea tipo 2 para un

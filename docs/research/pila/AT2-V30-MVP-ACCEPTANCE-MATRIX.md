@@ -658,9 +658,11 @@ pendientes.
 
 ### PILA-AT2-85 — VAC-LR tipado: candidatos normativos parciales, conservar bloqueo
 
-**Hechos del código en `main@8e9c3b7`:** PR #355 incorpora subtipo explícito a
-`VAC_LR` y lo congela en snapshots v12; eventos históricos conservan `null`.
-Payroll todavía no congela el IBC anterior al descanso ni un concepto de
+**Hechos del código en `main@9eee1aa`:** PR #355 incorpora subtipo explícito a
+`VAC_LR` y lo congela en snapshots v12; PR #356 muestra candidatos parciales
+de campo 27, 30 y 89–90 bajo una guarda estricta y suprime días/IBC genéricos
+cuando aparece VAC-LR. Eventos históricos conservan subtipo `null`. Payroll
+todavía no congela el IBC anterior al descanso ni un concepto de
 remuneración de vacaciones trazable; la prueba `blocks vacation amounts until
 Payroll stores a traceable paid-rest concept` confirma ese límite. La
 preparación mantiene bloqueadas las reglas de días/IBC e importes y no se genera

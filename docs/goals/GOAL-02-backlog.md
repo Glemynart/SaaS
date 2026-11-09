@@ -1,10 +1,10 @@
 # Backlog de GOAL-02 — Evolución Financiera y Cumplimiento Electrónico
 
-Actualizado: 2026-11-08. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
+Actualizado: 2026-11-09. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
 no cerrado. Este backlog conserva el resultado completo de GOAL-02 y prioriza
 primero flujos financieros internos que puedan mostrarse a futuros clientes.
 
-## Estado vigente — 2026-11-08
+## Estado vigente — 2026-11-09
 
 - **Ubicación laboral PILA integrada en `main` por PR #338 y #339**
   (`654bebe`): el E2E verifica captura por empleado, aprobación de nómina,
@@ -46,11 +46,12 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   aceptación de SOI, si se obtiene, no implica compatibilidad universal.
 - **PILA VAC-LR — candidatos parciales en preflight:** PR #355 tipa el evento
   como vacaciones disfrutadas o licencia remunerada y lo conserva en snapshots
-  v12. El siguiente incremento muestra los campos AT2 27, 89–90 y cero en el
-  campo 30 únicamente como candidatos, con una única novedad coincidente y
-  cobertura dependiente 01/00 de mes completo. El archivo continúa bloqueado
-  porque aún faltan fuentes aprobadas de días/IBC por subsistema y remuneración
-  trazable. La sentencia del Consejo de Estado, Sección Cuarta, Exp. 26941
+  v12. PR #356 (`9eee1aa`) muestra como candidatos AT2 27, 89–90 y cero en el
+  campo 30 únicamente para una novedad coincidente, con cobertura dependiente
+  01/00 de mes completo. Suprime días/IBC genéricos de los campos 36–39, 42–45
+  y 95 cuando hay VAC-LR; no genera ni descarga archivos. La exportación sigue
+  bloqueada porque faltan fuentes aprobadas de días/IBC por subsistema y una
+  remuneración trazable. La sentencia del Consejo de Estado, Sección Cuarta, Exp. 26941
   (2024-04-04), aclara para vacaciones disfrutadas de trabajadores privados:
   salud y pensión usan el último IBC anterior al descanso, no se cotiza ARL
   durante esos días y el pago de vacaciones integra la base parafiscal. La
@@ -60,7 +61,9 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   exportación se necesitan el último IBC realmente reportado, remuneración de
   vacaciones trazable y días/bases aprobados por subsistema. Licencias,
   concurrencias, segmentos sin fuentes aprobadas y los demás casos fuera de
-  alcance siguen bloqueados.
+  alcance siguen bloqueados. CI, Browser E2E (34/34), Vercel Preview y los
+  checks post-merge de CI, Browser E2E, Vercel Production y publicación de la
+  imagen API pasaron.
 
 - PR #278 se fusionó en main como 0aae82938fe430e258f35861eec944e59a5bde32 y PR #279 como 1b31782257313cc08f150e2f1024df88fe405562. Los checks post-merge de CI, Browser E2E y publicación de la imagen API pasaron en ambos.
 - PR #278 compone localmente archivos AT2 v30 tipo 1 y tipo 2 desde snapshots aprobados; PR #279 añade generación autenticada tenant-scoped, historial append-only, almacenamiento privado, SHA-256, versionamiento, auditoría y descarga protegida. La nueva prueba de navegador de esta continuación cubre generación, persistencia, reintento idempotente y descarga de ambos archivos desde la interfaz.
@@ -2299,9 +2302,9 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   identidad de mínimo privilegio y publicar los registros de autenticación del
   dominio. Oracle exige TLS entre la aplicación y Email Delivery; la consola
   documenta TLS implícito en puerto 465 y su guía de conectividad también
-  enumera 25, 587 y 465. Por ello, el ejemplo `587` + STARTTLS del repositorio
-  debe probarse desde el VPS junto con su configuración Nodemailer, o cambiarse
-  al método que confirme la consola. La aceptación requiere una prueba real de
+  enumera 25, 587 y 465. El ejemplo operativo pasa a usar 465 con TLS
+  implícito; usa 587 solo si OCI Console y la conectividad del entorno lo
+  confirman, con STARTTLS obligatorio. La aceptación requiere una prueba real de
   invitación y recuperación de acceso, no solo `readiness`. Ver
   [configuración SMTP de OCI](https://docs.oracle.com/en-us/iaas/Content/Email/Reference/gettingstarted_topic-Configure_the_SMTP_connection.htm)
   y [diagnóstico de conectividad y entrega](https://docs.oracle.com/en-us/iaas/Content/Email/Concepts/troubleshooting.htm).
@@ -2327,6 +2330,23 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   que el preflight. En desarrollo/pruebas con correo real opcional se permite
   un sink local sin TLS. Esta corrección no acredita conexión ni entrega real
   desde el VPS.
+- Revisión oficial al 2026-11-09: la guía SMTP de OCI indica TLS en puerto 465
+  (implícito) y remite el endpoint público a la configuración regional de
+  Email Delivery. OCI también enumera 25, 587 y 465 al diagnosticar
+  conectividad; eso no reemplaza exigir TLS. Para esta aplicación se recomienda
+  465 con `EMAIL_SMTP_SECURE=true`; usar 587 solo si la consola y la red del
+  entorno lo confirman, con `EMAIL_SMTP_REQUIRE_TLS=true`. El preflight prueba
+  conexión y autenticación, no entrega ni configuración de remitente/SPF/DKIM.
+  Ver [Configuring SMTP Connection](https://docs.oracle.com/en-us/iaas/Content/Email/Reference/gettingstarted_topic-Configure_the_SMTP_connection.htm) y [TLS Requirements](https://docs.oracle.com/en-us/iaas/Content/Email/Reference/gettingstarted_topic-tls_requirements.htm).
+- Cloudflare documenta tokens `Object Read & Write` acotables a buckets
+  concretos para su API S3-compatible; el endpoint se forma con el account ID y
+  la región S3 es `auto` ([autenticación](https://developers.cloudflare.com/r2/api/tokens/), [compatibilidad S3](https://developers.cloudflare.com/r2/api/s3/api/)). La
+  recomendación sigue siendo bucket privado por
+  entorno y token limitado a ese bucket. El round-trip no acredita privacidad
+  ni aislamiento tenant.
+- Esta revisión no cambia secretos, DNS ni servicios alojados. VPS y entornos
+  compartidos permanecen fuera de alcance hasta demostrar aislamiento y
+  recuperación.
 - La implementación se fusionó como PR #333 (`615cbefe`) y el ajuste de
   clasificación de errores como PR #334 (`6319059a`). Los checks post-merge de
   CI, Browser E2E, publicación de imagen API y Vercel terminaron en verde. El

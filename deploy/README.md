@@ -568,12 +568,12 @@ R2_ENDPOINT=https://REPLACE_WITH_ACCOUNT_ID.r2.cloudflarestorage.com
 R2_ACCESS_KEY_ID=<staging-access-key-id>
 R2_SECRET_ACCESS_KEY=<staging-secret-access-key>
 R2_BUCKET=<private-staging-bucket>
-EMAIL_SMTP_HOST=smtp.email.sa-bogota-1.oci.oraclecloud.com
-EMAIL_SMTP_PORT=587
+EMAIL_SMTP_HOST=<regional-smtp-endpoint-from-OCI-console>
+EMAIL_SMTP_PORT=465
 EMAIL_SMTP_USER=<smtp-username>
 EMAIL_SMTP_PASSWORD=<smtp-password>
-EMAIL_SMTP_SECURE=false
-EMAIL_SMTP_REQUIRE_TLS=true
+EMAIL_SMTP_SECURE=true
+EMAIL_SMTP_REQUIRE_TLS=false
 EMAIL_FROM=no-reply@dusema.com
 EMAIL_FROM_NAME=<display-name>
 REQUIRE_REAL_EMAIL=true
@@ -608,9 +608,11 @@ En producción o con `REQUIRE_REAL_EMAIL=true`, el runtime solo inicializa SMTP
 si `EMAIL_SMTP_SECURE=true` (TLS implícito) o
 `EMAIL_SMTP_REQUIRE_TLS=true` (STARTTLS obligatorio), y fija TLS 1.2 como
 versión mínima. En desarrollo/pruebas se puede usar un sink local sin TLS si el
-correo real no es obligatorio. Para OCI, el puerto 465 usa TLS implícito; el
-587 debe probarse con STARTTLS obligatorio desde el VPS. Confirma endpoint y
-puerto en la consola de OCI. El preflight prueba conexión y autenticación, pero
+correo real no es obligatorio. Para OCI, la consola regional publica el endpoint SMTP;
+el puerto 465 ofrece TLS implícito y es el predeterminado de este ejemplo. Usa
+el puerto 587 solo si la consola y la conectividad del entorno lo confirman, con
+STARTTLS obligatorio. OCI exige TLS 1.2. Consulta [Configuring SMTP Connection](https://docs.oracle.com/en-us/iaas/Content/Email/Reference/gettingstarted_topic-Configure_the_SMTP_connection.htm)
+y [TLS Requirements](https://docs.oracle.com/en-us/iaas/Content/Email/Reference/gettingstarted_topic-tls_requirements.htm). El preflight prueba conexión y autenticación, pero
 no envía un correo.
 
 El proveedor de runtime y el preflight aceptan únicamente endpoints HTTPS cuyo

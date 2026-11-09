@@ -2,7 +2,7 @@
 
 # <a name="la-oficina-nítida"></a>La Oficina Nítida
 
-## Última actualización: GOAL-02 activo; GOAL-01 pausado; evidencia financiera sincronizada con main (2026-11-08)
+## Última actualización: GOAL-02 activo; GOAL-01 pausado; evidencia financiera sincronizada con main (2026-11-09)
 
 > Este documento registra contexto y evidencia histórica. No prueba que una capacidad exista o esté terminada. Toda afirmación debe contrastarse con el código y con el recorrido end-to-end. Ver [`docs/goals/README.md`](docs/goals/README.md).
 
@@ -34,15 +34,16 @@
 > bloqueado porque el código no distingue vacaciones de licencias remuneradas
 > ni congela el IBC previo y las bases/días segmentados por subsistema.
 
-> **Actualización 2026-11-08, `main@8e9c3b7`:** PR #355 incorpora subtipo
+> **Actualización 2026-11-09, `main@9eee1aa`:** PR #355 incorpora subtipo
 > explícito `VACACIONES_DISFRUTADAS` / `LICENCIA_REMUNERADA` en eventos PILA y
 > snapshots v12; los eventos históricos siguen sin subtipo. Esto resuelve la
 > clasificación, pero no aporta el último IBC reportado, la remuneración
 > trazable ni los días/IBC por subsistema, por lo que el archivo sigue bloqueado.
-> En esta rama se prepara una extensión del preflight que muestra solo los
-> candidatos AT2 27, 30 y 89–90 bajo una guarda estricta; no añade datos al
-> archivo ni habilita generación o descarga. Sus pruebas de navegador aún deben
-> pasar en CI antes de aceptar el cambio.
+> PR #356 añade candidatos parciales AT2 27, 30 y 89–90 bajo una guarda estricta
+> y suprime días/IBC genéricos cuando hay VAC-LR. CI, Browser E2E (34/34) y
+> Vercel Preview pasaron antes del merge. Después del merge, CI, Browser E2E,
+> publicación de imagen API en GHCR y Vercel Production terminaron en verde.
+> No se generan archivos PILA.
 
 > **Actualización 2026-11-08, contrastada con `main@e98b312`:** PR #342 aprobó
 > ADR-021 para un futuro DSNE mensual por beneficiario; #343 agregó una matriz
