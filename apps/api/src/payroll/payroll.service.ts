@@ -106,6 +106,21 @@ const SNAPSHOT_PAYLOAD_VERSION = 1;
 const CALCULATION_TRACE_VERSION = 1;
 const PILA_PAYLOAD_VERSION = 13;
 
+function normalizePilaEventIbcAmount<
+  T extends {
+    ultimoIbcReportado?: Prisma.Decimal | string | number | null;
+  },
+>(event: T) {
+  return {
+    ...event,
+    ultimoIbcReportado:
+      event.ultimoIbcReportado === null ||
+      event.ultimoIbcReportado === undefined
+        ? null
+        : new Prisma.Decimal(event.ultimoIbcReportado).toFixed(2),
+  };
+}
+
 type PilaSourceData = {
   tenant: PilaSourceContextInput['tenant'];
   employeesById: Map<string, PilaSourceContextInput['employee']>;
@@ -3088,7 +3103,7 @@ export class PayrollService {
     });
     if (!period) throw new NotFoundException('Período no encontrado');
 
-    return this.prisma.payrollPilaEvent.findMany({
+    const events = await this.prisma.payrollPilaEvent.findMany({
       where: {
         tenantId,
         payrollPeriodId: period.id,
@@ -3111,6 +3126,7 @@ export class PayrollService {
         { createdAt: 'asc' },
       ],
     });
+    return events.map(normalizePilaEventIbcAmount);
   }
 
   async createPilaEvent(
@@ -3249,7 +3265,7 @@ export class PayrollService {
       return created;
     });
 
-    return created;
+    return normalizePilaEventIbcAmount(created);
   }
 
   async deletePilaEvent(tenantId: string, userId: string, eventId: string) {
