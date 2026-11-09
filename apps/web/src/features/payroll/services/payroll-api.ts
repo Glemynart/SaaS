@@ -86,12 +86,15 @@ export type PilaEventCode =
   | 'IRL'
   | 'VCT';
 
+export type PilaVacLrSubtype = 'VACACIONES_DISFRUTADAS' | 'LICENCIA_REMUNERADA';
+
 export interface PayrollPilaEvent {
   id: string;
   tenantId: string;
   payrollPeriodId: string;
   employeeId: string;
   codigo: PilaEventCode;
+  subtipo: PilaVacLrSubtype | null;
   fechaInicio: string;
   fechaFin: string | null;
   dias: number | null;
@@ -585,6 +588,7 @@ export const payrollApi = {
     payload: {
       employeeId: string;
       codigo: PilaEventCode;
+      subtipo?: PilaVacLrSubtype;
       fechaInicio: string;
       fechaFin?: string;
       dias?: number;

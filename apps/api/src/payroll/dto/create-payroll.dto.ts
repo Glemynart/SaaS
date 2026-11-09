@@ -15,6 +15,7 @@ import {
   PayrollPilaFspSourceScope,
   PayrollPilaVoluntaryPensionStatus,
   PilaEventCode,
+  PilaVacLrSubtype,
 } from '@prisma/client';
 
 /**
@@ -116,6 +117,10 @@ export class CreatePayrollPilaEventDto {
 
   @IsEnum(PilaEventCode)
   codigo: PilaEventCode;
+
+  @IsOptional()
+  @IsEnum(PilaVacLrSubtype)
+  subtipo?: PilaVacLrSubtype;
 
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)

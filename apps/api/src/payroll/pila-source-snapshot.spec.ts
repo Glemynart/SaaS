@@ -2,6 +2,7 @@ import {
   PayrollPilaFspSourceScope,
   PayrollPilaVoluntaryPensionStatus,
   PilaEventCode,
+  PilaVacLrSubtype,
 } from '@prisma/client';
 import {
   buildPilaSourceContext,
@@ -194,6 +195,16 @@ describe('PILA source snapshot builders', () => {
           vigenteHasta: null,
         },
       ],
+      pilaEvents: [
+        {
+          id: 'vacation-event-1',
+          codigo: PilaEventCode.VAC_LR,
+          subtipo: PilaVacLrSubtype.VACACIONES_DISFRUTADAS,
+          fechaInicio: new Date('2026-10-12T00:00:00.000Z'),
+          fechaFin: new Date('2026-10-16T00:00:00.000Z'),
+          dias: null,
+        },
+      ],
     });
     const snapshot = buildPilaSourceSnapshot({
       context,
@@ -208,8 +219,17 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(context.schemaVersion).toBe(4);
-    expect(snapshot.schemaVersion).toBe(11);
+    expect(context.schemaVersion).toBe(5);
+    expect(snapshot.schemaVersion).toBe(12);
+    expect(context.pilaEvents[0].subtipo).toBe(
+      PilaVacLrSubtype.VACACIONES_DISFRUTADAS,
+    );
+    expect(snapshot.pilaEvents[0].subtipo).toBe(
+      PilaVacLrSubtype.VACACIONES_DISFRUTADAS,
+    );
+    expect(snapshot.payroll.pilaEvents[0].subtipo).toBe(
+      PilaVacLrSubtype.VACACIONES_DISFRUTADAS,
+    );
     expect(snapshot.pilaWorkLocations).toEqual([
       {
         assignmentId: 'work-location-1',
@@ -272,7 +292,7 @@ describe('PILA source snapshot builders', () => {
       });
 
       expect(snapshot).toMatchObject({
-        schemaVersion: 11,
+        schemaVersion: 12,
         affiliations: [{ estadoAfiliacionPensional }],
         payroll: {
           fspSubaccounts: {
@@ -417,7 +437,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(snapshot.schemaVersion).toBe(11);
+    expect(snapshot.schemaVersion).toBe(12);
     expect(snapshot.payroll.payrollCalculationParameters).toEqual({
       sourceVersion: 'PAYROLL_LEGAL_PARAMETERS_V2',
       parametroLegalId: 'legal-2026',
@@ -537,7 +557,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(11);
+    expect(result.schemaVersion).toBe(12);
     expect(result.capturedAt).toBe('2026-11-02T15:00:00.000Z');
     expect(result.employee.fechaIngreso).toBe('2026-01-05');
     expect(result.employee.fechaNacimiento).toBeNull();
@@ -737,7 +757,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(11);
+    expect(result.schemaVersion).toBe(12);
     expect(result.payroll.diasNomina).toBe(21);
     expect(result.payroll.salarioBasicoCampo40).toEqual({
       valor: 5_600_000,
@@ -1051,7 +1071,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(11);
+    expect(result.schemaVersion).toBe(12);
     expect(result.payroll.salarioBasicoCampo40).toEqual({
       valor: 2_933_333,
       reglaVersion: 'PILA_ING_RET_FIELD_40_FROM_APPROVED_BASE_V1',
@@ -1228,6 +1248,7 @@ describe('PILA source snapshot builders', () => {
       {
         eventId: 'pila-event-1',
         codigo: 'IGE',
+        subtipo: null,
         fechaInicio: '2026-10-12',
         fechaFin: '2026-10-14',
         dias: null,

@@ -1,7 +1,8 @@
-import { PilaEventCode } from '@prisma/client';
+import { PilaEventCode, PilaVacLrSubtype } from '@prisma/client';
 
 export type PilaEventDateInput = {
   codigo: PilaEventCode;
+  subtipo?: PilaVacLrSubtype;
   fechaInicio: string;
   fechaFin?: string;
   dias?: number;
@@ -25,6 +26,13 @@ export function validatePilaEventDateRange(
   input: PilaEventDateInput,
   period: { fechaInicio: Date; fechaFin: Date },
 ): string | null {
+  if (input.codigo === PilaEventCode.VAC_LR && !input.subtipo) {
+    return 'La novedad VAC-LR requiere indicar si corresponde a vacaciones disfrutadas o licencia remunerada.';
+  }
+  if (input.codigo !== PilaEventCode.VAC_LR && input.subtipo !== undefined) {
+    return 'El subtipo solo se admite para la novedad VAC-LR.';
+  }
+
   const eventStart = parsePilaCalendarDate(input.fechaInicio);
   if (!eventStart) return 'La fecha inicial debe ser un día calendario válido.';
 

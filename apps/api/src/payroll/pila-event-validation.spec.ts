@@ -1,4 +1,4 @@
-import { PilaEventCode } from '@prisma/client';
+import { PilaEventCode, PilaVacLrSubtype } from '@prisma/client';
 import {
   parsePilaCalendarDate,
   validatePilaEventDateRange,
@@ -75,6 +75,42 @@ describe('PILA event validation', () => {
         period,
       ),
     ).toBeNull();
+  });
+
+  it('requires a VAC-LR subtype and rejects it for other event codes', () => {
+    expect(
+      validatePilaEventDateRange(
+        {
+          codigo: PilaEventCode.VAC_LR,
+          fechaInicio: '2026-10-10',
+          fechaFin: '2026-10-12',
+        },
+        period,
+      ),
+    ).toContain('VAC-LR requiere indicar');
+
+    expect(
+      validatePilaEventDateRange(
+        {
+          codigo: PilaEventCode.VAC_LR,
+          subtipo: PilaVacLrSubtype.VACACIONES_DISFRUTADAS,
+          fechaInicio: '2026-10-10',
+          fechaFin: '2026-10-12',
+        },
+        period,
+      ),
+    ).toBeNull();
+
+    expect(
+      validatePilaEventDateRange(
+        {
+          codigo: PilaEventCode.ING,
+          subtipo: PilaVacLrSubtype.LICENCIA_REMUNERADA,
+          fechaInicio: '2026-10-10',
+        },
+        period,
+      ),
+    ).toContain('solo se admite para la novedad VAC-LR');
   });
 
   it('requires explicit IRL days and rejects day counts for other events', () => {

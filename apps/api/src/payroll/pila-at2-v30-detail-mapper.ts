@@ -392,7 +392,8 @@ export function mapPilaAt2V30DetailCandidate(
       snapshot.payloadVersion === 8 ||
       snapshot.payloadVersion === 9 ||
       snapshot.payloadVersion === 10 ||
-      snapshot.payloadVersion === 11) &&
+      snapshot.payloadVersion === 11 ||
+      snapshot.payloadVersion === 12) &&
     root?.schemaVersion === snapshot.payloadVersion &&
     employee !== null &&
     employer !== null &&
@@ -408,7 +409,7 @@ export function mapPilaAt2V30DetailCandidate(
   if (!supportedSnapshot || !periodStart || !periodEnd) {
     const reason = scopeMismatch
       ? 'El tenant, empleado o período congelado en el snapshot no coincide con el contexto autenticado solicitado.'
-      : 'Se requiere un snapshot PILA v2 a v11 válido y atribuible a un tenant y período.';
+      : 'Se requiere un snapshot PILA v2 a v12 válido y atribuible a un tenant y período.';
     for (const field of PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2
       .fields) {
       unresolved(field.fieldNumber, reason);
@@ -553,7 +554,9 @@ export function mapPilaAt2V30DetailCandidate(
     payrollRetirementEvent.dias === null,
   );
   const approvedSingleVspEvent = Boolean(
-    (snapshot.payloadVersion === 10 || snapshot.payloadVersion === 11) &&
+    (snapshot.payloadVersion === 10 ||
+      snapshot.payloadVersion === 11 ||
+      snapshot.payloadVersion === 12) &&
     rootPilaEvent &&
     payrollPilaEvent &&
     sourceText(rootPilaEvent.eventId) !== null &&
@@ -665,7 +668,9 @@ export function mapPilaAt2V30DetailCandidate(
         )
       : null;
   const standardNewHireEmployee = Boolean(
-    (snapshot.payloadVersion === 10 || snapshot.payloadVersion === 11) &&
+    (snapshot.payloadVersion === 10 ||
+      snapshot.payloadVersion === 11 ||
+      snapshot.payloadVersion === 12) &&
     fullMonth &&
     standardAffiliationIdentity &&
     affiliationCoversNewHireWindow &&
@@ -703,7 +708,9 @@ export function mapPilaAt2V30DetailCandidate(
         )
       : null;
   const standardRetirementEmployee = Boolean(
-    (snapshot.payloadVersion === 10 || snapshot.payloadVersion === 11) &&
+    (snapshot.payloadVersion === 10 ||
+      snapshot.payloadVersion === 11 ||
+      snapshot.payloadVersion === 12) &&
     fullMonth &&
     standardAffiliationIdentity &&
     affiliationCoversRetirementWindow &&
@@ -742,7 +749,7 @@ export function mapPilaAt2V30DetailCandidate(
         )
       : null;
   const standardIngressRetirementEmployee = Boolean(
-    snapshot.payloadVersion === 11 &&
+    (snapshot.payloadVersion === 11 || snapshot.payloadVersion === 12) &&
     fullMonth &&
     standardAffiliationIdentity &&
     affiliationCoversIngressRetirementWindow &&
@@ -1285,7 +1292,9 @@ export function mapPilaAt2V30DetailCandidate(
   ) {
     put(40, salary?.valor as number);
   } else if (
-    (snapshot.payloadVersion === 10 || snapshot.payloadVersion === 11) &&
+    (snapshot.payloadVersion === 10 ||
+      snapshot.payloadVersion === 11 ||
+      snapshot.payloadVersion === 12) &&
     hasPilaEvents &&
     !fullMonthVspPilaInputsApproved
   ) {
@@ -1986,7 +1995,8 @@ export function mapPilaAt2V30DetailCandidate(
       snapshot.payloadVersion !== 8 &&
       snapshot.payloadVersion !== 9 &&
       snapshot.payloadVersion !== 10 &&
-      snapshot.payloadVersion !== 11
+      snapshot.payloadVersion !== 11 &&
+      snapshot.payloadVersion !== 12
     ) {
       const reason =
         'El snapshot PILA histórico anterior a v8 no conserva una declaración AVP compatible y no se completa con datos actuales.';

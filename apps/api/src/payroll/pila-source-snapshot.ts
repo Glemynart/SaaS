@@ -2,6 +2,7 @@ import {
   PayrollPilaFspSourceScope,
   PayrollPilaVoluntaryPensionStatus,
   PilaEventCode,
+  PilaVacLrSubtype,
 } from '@prisma/client';
 import { roundPeso } from './calculator/payroll-calculator';
 import {
@@ -130,6 +131,7 @@ export type PilaSourceContextInput = {
   pilaEvents: Array<{
     id: string;
     codigo: PilaEventCode;
+    subtipo?: PilaVacLrSubtype | null;
     fechaInicio: Date;
     fechaFin: Date | null;
     dias: number | null;
@@ -202,6 +204,7 @@ export type PilaSnapshotNovelty = {
 export type PilaSnapshotEvent = {
   eventId: string;
   codigo: PilaEventCode;
+  subtipo: PilaVacLrSubtype | null;
   fechaInicio: string;
   fechaFin: string | null;
   dias: number | null;
@@ -209,7 +212,7 @@ export type PilaSnapshotEvent = {
 
 export function buildPilaSourceContext(input: PilaSourceContextInput) {
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     capturedAt: input.capturedAt.toISOString(),
     period: {
       payrollPeriodId: input.period.id,
@@ -326,6 +329,7 @@ export function buildPilaSourceContext(input: PilaSourceContextInput) {
     pilaEvents: input.pilaEvents.map((event) => ({
       eventId: event.id,
       codigo: event.codigo,
+      subtipo: event.subtipo ?? null,
       fechaInicio: calendarDate(event.fechaInicio)!,
       fechaFin: calendarDate(event.fechaFin),
       dias: event.dias,
@@ -501,7 +505,7 @@ export function buildPilaSourceSnapshot(input: {
 
   return {
     ...input.context,
-    schemaVersion: 11,
+    schemaVersion: 12,
     pilaRiskAssignments: input.context.pilaRiskAssignments ?? [],
     payroll: {
       payrollRunId: input.payroll.runId,

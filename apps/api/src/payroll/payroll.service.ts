@@ -103,7 +103,7 @@ const RECALCULATE_ALLOWED_STATUSES: PayrollPeriodStatus[] =
 
 const SNAPSHOT_PAYLOAD_VERSION = 1;
 const CALCULATION_TRACE_VERSION = 1;
-const PILA_PAYLOAD_VERSION = 11;
+const PILA_PAYLOAD_VERSION = 12;
 
 type PilaSourceData = {
   tenant: PilaSourceContextInput['tenant'];
@@ -3203,6 +3203,7 @@ export class PayrollService {
           payrollPeriodId: period.id,
           employeeId: employee.id,
           codigo: dto.codigo,
+          subtipo: dto.subtipo ?? null,
           fechaInicio,
           fechaFin,
           dias: dto.dias ?? null,
@@ -3230,6 +3231,7 @@ export class PayrollService {
             payrollPeriodId: periodId,
             employeeId: employee.id,
             codigo: created.codigo,
+            subtipo: created.subtipo,
             fechaInicio: dto.fechaInicio,
             fechaFin: dto.fechaFin ?? null,
             dias: dto.dias ?? null,
@@ -3288,6 +3290,7 @@ export class PayrollService {
             payrollPeriodId: event.payrollPeriodId,
             employeeId: event.employeeId,
             codigo: event.codigo,
+            subtipo: event.subtipo,
             fechaInicio: event.fechaInicio.toISOString().slice(0, 10),
             fechaFin: event.fechaFin?.toISOString().slice(0, 10) ?? null,
             dias: event.dias,
@@ -3783,7 +3786,7 @@ export class PayrollService {
       const pilaSource = pilaSourceContext
         ? {
             ...pilaSourceContext,
-            schemaVersion: 3,
+            schemaVersion: 5,
             pilaRiskAssignments: buildPilaRiskAssignmentsSnapshot(
               riskAssignmentsByEmployee.get(run.employeeId) ?? [],
             ),
@@ -3947,7 +3950,7 @@ export class PayrollService {
     }
     const source = value;
     if (
-      ![1, 2, 3, 4].includes(Number(source.schemaVersion)) ||
+      ![1, 2, 3, 4, 5].includes(Number(source.schemaVersion)) ||
       typeof source.capturedAt !== 'string'
     ) {
       throw new BadRequestException(
@@ -4461,6 +4464,7 @@ export class PayrollService {
           id: true,
           employeeId: true,
           codigo: true,
+          subtipo: true,
           fechaInicio: true,
           fechaFin: true,
           dias: true,
@@ -4590,6 +4594,7 @@ export class PayrollService {
       employeeEvents.push({
         id: event.id,
         codigo: event.codigo,
+        subtipo: event.subtipo,
         fechaInicio: event.fechaInicio,
         fechaFin: event.fechaFin,
         dias: event.dias,
@@ -4740,6 +4745,7 @@ export class PayrollService {
         id: true,
         employeeId: true,
         codigo: true,
+        subtipo: true,
         fechaInicio: true,
         fechaFin: true,
         dias: true,
@@ -4759,6 +4765,7 @@ export class PayrollService {
       employeeEvents.push({
         id: event.id,
         codigo: event.codigo,
+        subtipo: event.subtipo,
         fechaInicio: event.fechaInicio,
         fechaFin: event.fechaFin,
         dias: event.dias,

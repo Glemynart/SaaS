@@ -1105,6 +1105,11 @@ enum PilaEventCode {
   VCT
 }
 
+enum PilaVacLrSubtype {
+  VACACIONES_DISFRUTADAS
+  LICENCIA_REMUNERADA
+}
+
 // =============================================================================
 // PAYROLL BLOCK STATUS — Ciclo de vida de bloqueos fail-secure
 // =============================================================================
@@ -1586,6 +1591,8 @@ model PayrollPilaEvent {
   employee   Empleado @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   codigo     PilaEventCode
+  // Nullable for historical events; new VAC_LR events require explicit subtype.
+  subtipo    PilaVacLrSubtype?
   fechaInicio DateTime @db.Date
   fechaFin    DateTime? @db.Date
   dias        Int?
