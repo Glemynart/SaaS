@@ -1,4 +1,5 @@
 import {
+  Prisma,
   PayrollPilaFspSourceScope,
   PayrollPilaVoluntaryPensionStatus,
   PilaEventCode,
@@ -135,6 +136,11 @@ export type PilaSourceContextInput = {
     fechaInicio: Date;
     fechaFin: Date | null;
     dias: number | null;
+    ultimoIbcReportado?: Prisma.Decimal | string | number | null;
+    periodoIbcReportado?: Date | null;
+    operadorFuenteIbc?: string | null;
+    referenciaFuenteIbc?: string | null;
+    confirmoFuenteIbc?: boolean;
   }>;
   riskAssignments?: Array<{
     id: string;
@@ -208,7 +214,66 @@ export type PilaSnapshotEvent = {
   fechaInicio: string;
   fechaFin: string | null;
   dias: number | null;
+  fuenteUltimoIbcReportado: {
+    estado: 'DECLARADO_NO_VERIFICADO';
+    valor: string;
+    periodo: string;
+    operador: string;
+    referencia: string;
+    confirmadoPorUsuario: true;
+  } | null;
 };
+
+function buildPriorReportedIbcSnapshot(
+  event: PilaSourceContextInput['pilaEvents'][number],
+) {
+  const hasAnyValue = [
+    event.ultimoIbcReportado,
+    event.periodoIbcReportado,
+    event.operadorFuenteIbc,
+    event.referenciaFuenteIbc,
+  ].some((value) => value !== undefined && value !== null);
+  if (!hasAnyValue && event.confirmoFuenteIbc !== true) return null;
+
+  const period = calendarDate(event.periodoIbcReportado ?? null);
+  const amount = event.ultimoIbcReportado;
+  const operator = event.operadorFuenteIbc?.trim();
+  const reference = event.referenciaFuenteIbc?.trim();
+  const eventStart = calendarDate(event.fechaInicio);
+  if (
+    event.codigo !== PilaEventCode.VAC_LR ||
+    event.subtipo !== PilaVacLrSubtype.VACACIONES_DISFRUTADAS ||
+    event.confirmoFuenteIbc !== true ||
+    amount === undefined ||
+    amount === null ||
+    !period ||
+    !operator ||
+    !reference ||
+    !eventStart ||
+    period.slice(0, 7) >= eventStart.slice(0, 7) ||
+    period.slice(8, 10) !== '01'
+  ) {
+    throw new Error(
+      'La fuente del último IBC reportado debe estar completa y confirmada para vacaciones disfrutadas.',
+    );
+  }
+
+  const decimal = new Prisma.Decimal(amount);
+  if (!decimal.isFinite() || decimal.lte(0)) {
+    throw new Error(
+      'El último IBC reportado debe ser un valor positivo válido.',
+    );
+  }
+
+  return {
+    estado: 'DECLARADO_NO_VERIFICADO' as const,
+    valor: decimal.toFixed(2),
+    periodo: period.slice(0, 7),
+    operador: operator,
+    referencia: reference,
+    confirmadoPorUsuario: true as const,
+  };
+}
 
 export function buildPilaSourceContext(input: PilaSourceContextInput) {
   return {
@@ -333,6 +398,7 @@ export function buildPilaSourceContext(input: PilaSourceContextInput) {
       fechaInicio: calendarDate(event.fechaInicio)!,
       fechaFin: calendarDate(event.fechaFin),
       dias: event.dias,
+      fuenteUltimoIbcReportado: buildPriorReportedIbcSnapshot(event),
     })),
     pilaRiskAssignments: buildPilaRiskAssignmentsSnapshot(
       input.riskAssignments,
@@ -505,7 +571,7 @@ export function buildPilaSourceSnapshot(input: {
 
   return {
     ...input.context,
-    schemaVersion: 12,
+    schemaVersion: 13,
     pilaRiskAssignments: input.context.pilaRiskAssignments ?? [],
     payroll: {
       payrollRunId: input.payroll.runId,

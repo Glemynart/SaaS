@@ -203,6 +203,11 @@ describe('PILA source snapshot builders', () => {
           fechaInicio: new Date('2026-10-12T00:00:00.000Z'),
           fechaFin: new Date('2026-10-16T00:00:00.000Z'),
           dias: null,
+          ultimoIbcReportado: '2450000.50',
+          periodoIbcReportado: new Date('2026-09-01T00:00:00.000Z'),
+          operadorFuenteIbc: 'SOI',
+          referenciaFuenteIbc: 'Planilla septiembre 2026, línea 8',
+          confirmoFuenteIbc: true,
         },
       ],
     });
@@ -220,7 +225,7 @@ describe('PILA source snapshot builders', () => {
     });
 
     expect(context.schemaVersion).toBe(5);
-    expect(snapshot.schemaVersion).toBe(12);
+    expect(snapshot.schemaVersion).toBe(13);
     expect(context.pilaEvents[0].subtipo).toBe(
       PilaVacLrSubtype.VACACIONES_DISFRUTADAS,
     );
@@ -229,6 +234,23 @@ describe('PILA source snapshot builders', () => {
     );
     expect(snapshot.payroll.pilaEvents[0].subtipo).toBe(
       PilaVacLrSubtype.VACACIONES_DISFRUTADAS,
+    );
+    const frozenSource = {
+      estado: 'DECLARADO_NO_VERIFICADO',
+      valor: '2450000.50',
+      periodo: '2026-09',
+      operador: 'SOI',
+      referencia: 'Planilla septiembre 2026, línea 8',
+      confirmadoPorUsuario: true,
+    };
+    expect(context.pilaEvents[0].fuenteUltimoIbcReportado).toEqual(
+      frozenSource,
+    );
+    expect(snapshot.pilaEvents[0].fuenteUltimoIbcReportado).toEqual(
+      frozenSource,
+    );
+    expect(snapshot.payroll.pilaEvents[0].fuenteUltimoIbcReportado).toEqual(
+      frozenSource,
     );
     expect(snapshot.pilaWorkLocations).toEqual([
       {
@@ -292,7 +314,7 @@ describe('PILA source snapshot builders', () => {
       });
 
       expect(snapshot).toMatchObject({
-        schemaVersion: 12,
+        schemaVersion: 13,
         affiliations: [{ estadoAfiliacionPensional }],
         payroll: {
           fspSubaccounts: {
@@ -437,7 +459,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(snapshot.schemaVersion).toBe(12);
+    expect(snapshot.schemaVersion).toBe(13);
     expect(snapshot.payroll.payrollCalculationParameters).toEqual({
       sourceVersion: 'PAYROLL_LEGAL_PARAMETERS_V2',
       parametroLegalId: 'legal-2026',
@@ -557,7 +579,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(12);
+    expect(result.schemaVersion).toBe(13);
     expect(result.capturedAt).toBe('2026-11-02T15:00:00.000Z');
     expect(result.employee.fechaIngreso).toBe('2026-01-05');
     expect(result.employee.fechaNacimiento).toBeNull();
@@ -757,7 +779,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(12);
+    expect(result.schemaVersion).toBe(13);
     expect(result.payroll.diasNomina).toBe(21);
     expect(result.payroll.salarioBasicoCampo40).toEqual({
       valor: 5_600_000,
@@ -1071,7 +1093,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(12);
+    expect(result.schemaVersion).toBe(13);
     expect(result.payroll.salarioBasicoCampo40).toEqual({
       valor: 2_933_333,
       reglaVersion: 'PILA_ING_RET_FIELD_40_FROM_APPROVED_BASE_V1',
@@ -1252,6 +1274,7 @@ describe('PILA source snapshot builders', () => {
         fechaInicio: '2026-10-12',
         fechaFin: '2026-10-14',
         dias: null,
+        fuenteUltimoIbcReportado: null,
       },
     ]);
     for (const days of Object.values(

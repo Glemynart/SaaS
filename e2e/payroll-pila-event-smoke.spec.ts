@@ -192,6 +192,11 @@ test('configura los datos PILA y registra, conserva y elimina una novedad del pe
   await pilaPanel.getByLabel('Tipo de VAC-LR').selectOption('VACACIONES_DISFRUTADAS');
   await pilaPanel.getByLabel('Fecha inicial').fill('2026-10-12');
   await pilaPanel.getByLabel('Fecha final').fill('2026-10-16');
+  await pilaPanel.getByLabel(/Registrar el último IBC reportado antes de las vacaciones/).check();
+  await pilaPanel.getByLabel('IBC reportado (COP)').fill('2450000.50');
+  await pilaPanel.getByLabel('Mes reportado').fill('2026-09');
+  await pilaPanel.getByLabel('Operador PILA').fill('SOI');
+  await pilaPanel.getByLabel('Referencia de planilla').fill('Planilla septiembre 2026, línea 8');
   const createVacationResponsePromise = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === `/api/payroll/periods/${periodId}/pila-events` &&
@@ -203,10 +208,28 @@ test('configura los datos PILA y registra, conserva y elimina una novedad del pe
   const createdVacationEvent = (await createVacationResponse.json()) as {
     id: string;
     subtipo: string;
+    ultimoIbcReportado: string;
+    periodoIbcReportado: string;
+    operadorFuenteIbc: string;
+    referenciaFuenteIbc: string;
+    confirmoFuenteIbc: boolean;
   };
   expect(createdVacationEvent.subtipo).toBe('VACACIONES_DISFRUTADAS');
+  expect(createdVacationEvent).toMatchObject({
+    ultimoIbcReportado: '2450000.50',
+    periodoIbcReportado: '2026-09-01T00:00:00.000Z',
+    operadorFuenteIbc: 'SOI',
+    referenciaFuenteIbc: 'Planilla septiembre 2026, línea 8',
+    confirmoFuenteIbc: true,
+  });
+  await expect(
+    pilaPanel.getByText(/Último IBC declarado: COP 2450000\.50 · período 2026-09/),
+  ).toBeVisible();
   await expect(
     pilaPanel.getByText('Vacaciones disfrutadas · 2026-10-12 — 2026-10-16'),
+  ).toBeVisible();
+  await expect(
+    pilaPanel.getByText(/SOI · Planilla septiembre 2026, línea 8 · no verificado con el operador/),
   ).toBeVisible();
   await page.reload();
   await expect(

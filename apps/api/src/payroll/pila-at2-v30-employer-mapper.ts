@@ -67,7 +67,8 @@ function supportedPilaSnapshot(
       payloadVersion === 9 ||
       payloadVersion === 10 ||
       payloadVersion === 11 ||
-      payloadVersion === 12) &&
+      payloadVersion === 12 ||
+      payloadVersion === 13) &&
     root?.schemaVersion === payloadVersion
   );
 }
@@ -115,7 +116,7 @@ function employerPeriod(snapshot: PilaAt2V30EmployerCandidateInput) {
 
 /**
  * Builds source candidates for AT2 v30 employer file fields from one frozen
- * PayrollSnapshot PILA v2–v12 payload. This does not validate or serialize a record.
+ * PayrollSnapshot PILA v2–v13 payload. This does not validate or serialize a record.
  * Fields assigned by the operator are explicit blank-position candidates;
  * sources not frozen in the payload stay unresolved. The candidate input
  * convention still requires operator verification before compatibility claims.
@@ -188,7 +189,7 @@ export function mapPilaAt2V30EmployerCandidate(
     for (let fieldNumber = 1; fieldNumber <= 34; fieldNumber += 1) {
       unresolved(
         fieldNumber,
-        'Se requiere un snapshot PILA v2 a v12 con datos congelados del aportante.',
+        'Se requiere un snapshot PILA v2 a v13 con datos congelados del aportante.',
       );
     }
     return {
@@ -544,7 +545,7 @@ export function mapPilaAt2V30EmployerAggregateCandidate(
     )
   ) {
     scopeReasons.push(
-      'Se requiere un snapshot PILA v2 a v12 con empleado y datos congelados del aportante consistentes.',
+      'Se requiere un snapshot PILA v2 a v13 con empleado y datos congelados del aportante consistentes.',
     );
   }
   if (tenantIds.size !== 1 || parsed.some(({ scope }) => !scope.tenantId)) {

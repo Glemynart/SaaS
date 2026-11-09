@@ -135,4 +135,33 @@ describe('payrollApi PILA events', () => {
       headers: { 'Content-Type': 'application/json' },
     });
   });
+
+  it('sends the explicitly declared prior IBC source for enjoyed vacation', async () => {
+    const payload = {
+      employeeId: 'employee-1',
+      codigo: 'VAC_LR' as const,
+      subtipo: 'VACACIONES_DISFRUTADAS' as const,
+      fechaInicio: '2026-10-10',
+      fechaFin: '2026-10-12',
+      ultimoIbcReportado: '2450000.50',
+      periodoIbcReportado: '2026-09',
+      operadorFuenteIbc: 'SOI',
+      referenciaFuenteIbc: 'Planilla septiembre 2026, línea 8',
+      confirmoFuenteIbc: true,
+    };
+    const created = { id: 'event-1', ...payload };
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => created,
+    });
+    global.fetch = fetchMock;
+
+    await expect(payrollApi.createPilaEvent('period-1', payload)).resolves.toEqual(created);
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/payroll/periods/period-1/pila-events', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
 });

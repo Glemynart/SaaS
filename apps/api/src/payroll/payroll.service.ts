@@ -65,6 +65,7 @@ import {
 import { buildPilaPreparationReport } from './pila-preparation';
 import {
   parsePilaCalendarDate,
+  parsePilaYearMonth,
   validatePilaEventDateRange,
 } from './pila-event-validation';
 import type {
@@ -103,7 +104,22 @@ const RECALCULATE_ALLOWED_STATUSES: PayrollPeriodStatus[] =
 
 const SNAPSHOT_PAYLOAD_VERSION = 1;
 const CALCULATION_TRACE_VERSION = 1;
-const PILA_PAYLOAD_VERSION = 12;
+const PILA_PAYLOAD_VERSION = 13;
+
+function normalizePilaEventIbcAmount<
+  T extends {
+    ultimoIbcReportado?: Prisma.Decimal | string | number | null;
+  },
+>(event: T) {
+  return {
+    ...event,
+    ultimoIbcReportado:
+      event.ultimoIbcReportado === null ||
+      event.ultimoIbcReportado === undefined
+        ? null
+        : new Prisma.Decimal(event.ultimoIbcReportado).toFixed(2),
+  };
+}
 
 type PilaSourceData = {
   tenant: PilaSourceContextInput['tenant'];
@@ -3087,7 +3103,7 @@ export class PayrollService {
     });
     if (!period) throw new NotFoundException('Período no encontrado');
 
-    return this.prisma.payrollPilaEvent.findMany({
+    const events = await this.prisma.payrollPilaEvent.findMany({
       where: {
         tenantId,
         payrollPeriodId: period.id,
@@ -3110,6 +3126,7 @@ export class PayrollService {
         { createdAt: 'asc' },
       ],
     });
+    return events.map(normalizePilaEventIbcAmount);
   }
 
   async createPilaEvent(
@@ -3207,6 +3224,11 @@ export class PayrollService {
           fechaInicio,
           fechaFin,
           dias: dto.dias ?? null,
+          ultimoIbcReportado: dto.ultimoIbcReportado ?? null,
+          periodoIbcReportado: parsePilaYearMonth(dto.periodoIbcReportado),
+          operadorFuenteIbc: dto.operadorFuenteIbc?.trim() || null,
+          referenciaFuenteIbc: dto.referenciaFuenteIbc?.trim() || null,
+          confirmoFuenteIbc: dto.confirmoFuenteIbc ?? false,
         },
         include: {
           employee: {
@@ -3235,6 +3257,7 @@ export class PayrollService {
             fechaInicio: dto.fechaInicio,
             fechaFin: dto.fechaFin ?? null,
             dias: dto.dias ?? null,
+            fuenteIbcPreviaDeclarada: created.confirmoFuenteIbc,
           },
         },
         tx,
@@ -3242,7 +3265,7 @@ export class PayrollService {
       return created;
     });
 
-    return created;
+    return normalizePilaEventIbcAmount(created);
   }
 
   async deletePilaEvent(tenantId: string, userId: string, eventId: string) {
@@ -4468,6 +4491,11 @@ export class PayrollService {
           fechaInicio: true,
           fechaFin: true,
           dias: true,
+          ultimoIbcReportado: true,
+          periodoIbcReportado: true,
+          operadorFuenteIbc: true,
+          referenciaFuenteIbc: true,
+          confirmoFuenteIbc: true,
         },
         orderBy: [
           { employeeId: 'asc' },
@@ -4598,6 +4626,11 @@ export class PayrollService {
         fechaInicio: event.fechaInicio,
         fechaFin: event.fechaFin,
         dias: event.dias,
+        ultimoIbcReportado: event.ultimoIbcReportado,
+        periodoIbcReportado: event.periodoIbcReportado,
+        operadorFuenteIbc: event.operadorFuenteIbc,
+        referenciaFuenteIbc: event.referenciaFuenteIbc,
+        confirmoFuenteIbc: event.confirmoFuenteIbc,
       });
       pilaEventsByEmployee.set(event.employeeId, employeeEvents);
     }
@@ -4749,6 +4782,11 @@ export class PayrollService {
         fechaInicio: true,
         fechaFin: true,
         dias: true,
+        ultimoIbcReportado: true,
+        periodoIbcReportado: true,
+        operadorFuenteIbc: true,
+        referenciaFuenteIbc: true,
+        confirmoFuenteIbc: true,
       },
       orderBy: [
         { employeeId: 'asc' },
@@ -4769,6 +4807,11 @@ export class PayrollService {
         fechaInicio: event.fechaInicio,
         fechaFin: event.fechaFin,
         dias: event.dias,
+        ultimoIbcReportado: event.ultimoIbcReportado,
+        periodoIbcReportado: event.periodoIbcReportado,
+        operadorFuenteIbc: event.operadorFuenteIbc,
+        referenciaFuenteIbc: event.referenciaFuenteIbc,
+        confirmoFuenteIbc: event.confirmoFuenteIbc,
       });
       eventsByEmployee.set(event.employeeId, employeeEvents);
     }

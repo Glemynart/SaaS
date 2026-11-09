@@ -9,6 +9,8 @@ import {
   IsInt,
   Min,
   Max,
+  IsBoolean,
+  MaxLength,
 } from 'class-validator';
 import {
   PayrollPeriodStatus,
@@ -136,4 +138,30 @@ export class CreatePayrollPilaEventDto {
   @Min(1)
   @Max(30)
   dias?: number;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^(?=.*[1-9])(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/)
+  ultimoIbcReportado?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/)
+  periodoIbcReportado?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/\S/)
+  @MaxLength(80)
+  operadorFuenteIbc?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/\S/)
+  @MaxLength(160)
+  referenciaFuenteIbc?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  confirmoFuenteIbc?: boolean;
 }

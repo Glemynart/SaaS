@@ -238,7 +238,8 @@ function summarizePensionTransitionStatus(
         snapshot.payloadVersion === 9 ||
         snapshot.payloadVersion === 10 ||
         snapshot.payloadVersion === 11 ||
-        snapshot.payloadVersion === 12) &&
+        snapshot.payloadVersion === 12 ||
+        snapshot.payloadVersion === 13) &&
       root?.schemaVersion === snapshot.payloadVersion
     ) {
       const employer = nested(root, 'employer');
@@ -340,7 +341,8 @@ export function inspectPilaSnapshotPreparation(
       input.payloadVersion === 9 ||
       input.payloadVersion === 10 ||
       input.payloadVersion === 11 ||
-      input.payloadVersion === 12) &&
+      input.payloadVersion === 12 ||
+      input.payloadVersion === 13) &&
       root?.schemaVersion === input.payloadVersion);
   if (!supportedPayloadVersion) {
     add(
@@ -364,7 +366,8 @@ export function inspectPilaSnapshotPreparation(
   const ingressDetailCandidate =
     (input.payloadVersion === 10 ||
       input.payloadVersion === 11 ||
-      input.payloadVersion === 12) &&
+      input.payloadVersion === 12 ||
+      input.payloadVersion === 13) &&
     periodStart &&
     periodEnd &&
     text(period?.payrollPeriodId) &&
@@ -990,6 +993,7 @@ export function inspectPilaSnapshotPreparation(
       const event = object(eventValue);
       const code = text(event?.codigo);
       const subtype = text(event?.subtipo);
+      const priorIbcSource = object(event?.fuenteUltimoIbcReportado);
       if (!code) {
         add(
           'DETALLE_TIPO_2',
@@ -1069,7 +1073,9 @@ export function inspectPilaSnapshotPreparation(
           ? `La novedad PILA ${code} no pertenece a la matriz del MVP revisada y no tiene una segmentación aprobada.`
           : code === 'VAC_LR'
             ? subtype === 'VACACIONES_DISFRUTADAS'
-              ? 'Las vacaciones disfrutadas están clasificadas en el snapshot, pero aún faltan el último IBC reportado, el pago trazable y los días/bases aprobados por subsistema.'
+              ? priorIbcSource?.estado === 'DECLARADO_NO_VERIFICADO'
+                ? 'El snapshot conserva un IBC previo declarado por el usuario, no verificado con el operador; aún faltan el pago trazable y los días/bases aprobados por subsistema.'
+                : 'Las vacaciones disfrutadas están clasificadas en el snapshot, pero aún faltan el último IBC reportado, el pago trazable y los días/bases aprobados por subsistema.'
               : subtype === 'LICENCIA_REMUNERADA'
                 ? 'La licencia remunerada está clasificada en el snapshot, pero su regla y segmentación no están aprobadas para exportar.'
                 : 'El evento VAC-LR histórico no tiene subtipo; no se puede distinguir vacaciones disfrutadas de licencia remunerada.'
@@ -1603,7 +1609,8 @@ export function inspectPilaSnapshotPreparation(
       source?.reglaVersion === 'CO_PARAFISCAL_BASE_V1' ||
       ((root?.schemaVersion === 10 ||
         root?.schemaVersion === 11 ||
-        root?.schemaVersion === 12) &&
+        root?.schemaVersion === 12 ||
+        root?.schemaVersion === 13) &&
         source?.reglaVersion === 'CO_PARAFISCAL_BASE_V2' &&
         safeInteger(source?.valor) &&
         ingressDetailCandidate?.values[95]?.value === source?.valor);
@@ -2063,7 +2070,7 @@ export function buildPilaPreparationReport(input: {
             },
           ],
           evidence:
-            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots PILA v2–v12 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
+            'AT2 v30, registro 01 del archivo tipo 2: campo 20 es N12 y suma el campo 45 de los detalles aplicables. El candidato solo usa snapshots PILA v2–v13 únicos del mismo tenant/período y afiliación dependiente estándar vigente.',
         }
       : null;
   const readinessBlockers = [
@@ -2242,10 +2249,10 @@ export function buildPilaPreparationReport(input: {
     PILA_AT2_V30_NO_EVENT_NOVELTY_FIELD_NUMBERS,
     detailCandidatesBySnapshot,
     {
-      27: 'Subtipo VAC-LR explícito del snapshot v12: X para vacaciones disfrutadas y L para licencia remunerada; candidato parcial.',
+      27: 'Subtipo VAC-LR explícito del snapshot v12 o v13: X para vacaciones disfrutadas y L para licencia remunerada; candidato parcial.',
       30: 'Días IRL; cero solo cuando el snapshot no contiene incapacidad laboral ni otra novedad concurrente.',
-      89: 'Fecha inicial VAC-LR congelada en las dos copias del evento del snapshot v12.',
-      90: 'Fecha final VAC-LR congelada en las dos copias del evento del snapshot v12.',
+      89: 'Fecha inicial VAC-LR congelada en las dos copias del evento del snapshot v12 o v13.',
+      90: 'Fecha final VAC-LR congelada en las dos copias del evento del snapshot v12 o v13.',
     },
   );
   const detailStandardDependentEmptyCandidates =
