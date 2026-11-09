@@ -3,6 +3,8 @@ import {
   EstadoPeriodo,
   NaturalezaContable,
   PayrollPeriodStatus,
+  PilaEventCode,
+  PilaVacLrSubtype,
   Prisma,
 } from '@prisma/client';
 import { randomUUID } from 'crypto';
@@ -33,6 +35,7 @@ describe('Payroll accounting PostgreSQL integration', () => {
   const snapshotApprovalContractId = randomUUID();
   const snapshotApprovalLegalParamId = randomUUID();
   const pilaWorkLocationId = randomUUID();
+  const pilaVacationEventId = randomUUID();
   const snapshotId = randomUUID();
   const accountingPeriodId = randomUUID();
   const contextService = new TenantContextService();
@@ -368,6 +371,23 @@ describe('Payroll accounting PostgreSQL integration', () => {
           status: PayrollPeriodStatus.EN_REVISION,
         },
       });
+      await tx.payrollPilaEvent.create({
+        data: {
+          id: pilaVacationEventId,
+          tenantId,
+          payrollPeriodId: snapshotApprovalPeriodId,
+          employeeId,
+          codigo: PilaEventCode.VAC_LR,
+          subtipo: PilaVacLrSubtype.VACACIONES_DISFRUTADAS,
+          fechaInicio: new Date('2026-03-12T00:00:00.000Z'),
+          fechaFin: new Date('2026-03-16T00:00:00.000Z'),
+          ultimoIbcReportado: new Prisma.Decimal('2450000.50'),
+          periodoIbcReportado: new Date('2026-02-01T00:00:00.000Z'),
+          operadorFuenteIbc: 'SOI',
+          referenciaFuenteIbc: 'Planilla febrero 2026, línea 8',
+          confirmoFuenteIbc: true,
+        },
+      });
       await tx.payrollRun.create({
         data: {
           id: snapshotApprovalRunId,
@@ -643,9 +663,9 @@ describe('Payroll accounting PostgreSQL integration', () => {
     );
 
     expect(persisted.period?.status).toBe(PayrollPeriodStatus.APROBADA);
-    expect(persisted.snapshot?.pilaPayloadVersion).toBe(12);
+    expect(persisted.snapshot?.pilaPayloadVersion).toBe(13);
     expect(persisted.snapshot?.pilaPayload).toMatchObject({
-      schemaVersion: 12,
+      schemaVersion: 13,
       capturedAt: '2026-03-31T00:00:00.000Z',
       employee: { cedula: '1000000001', primerNombre: 'Ana' },
       affiliations: [
@@ -668,11 +688,37 @@ describe('Payroll accounting PostgreSQL integration', () => {
           vigenteHasta: null,
         },
       ],
+      pilaEvents: [
+        {
+          eventId: pilaVacationEventId,
+          fuenteUltimoIbcReportado: {
+            estado: 'DECLARADO_NO_VERIFICADO',
+            valor: '2450000.50',
+            periodo: '2026-02',
+            operador: 'SOI',
+            referencia: 'Planilla febrero 2026, línea 8',
+            confirmadoPorUsuario: true,
+          },
+        },
+      ],
       payroll: {
         payrollRunId: snapshotApprovalRunId,
         fechaPrevistaPagoPila: '2026-04-05',
         salarioBasico: 1_000_000,
         tipoSalario: 'F',
+        pilaEvents: [
+          {
+            eventId: pilaVacationEventId,
+            fuenteUltimoIbcReportado: {
+              estado: 'DECLARADO_NO_VERIFICADO',
+              valor: '2450000.50',
+              periodo: '2026-02',
+              operador: 'SOI',
+              referencia: 'Planilla febrero 2026, línea 8',
+              confirmadoPorUsuario: true,
+            },
+          },
+        ],
         ibc: 1_000_000,
         novelties: [],
         ibcPorSubsistema: {
@@ -761,4 +807,59 @@ describe('Payroll accounting PostgreSQL integration', () => {
       ),
     ).toEqual([]);
   }, 30000);
+
+  it('database rejects a declared prior IBC attached to a non-vacation event', async () => {
+    await expect(
+      contextService.run(context, () =>
+        tenantPrisma.execute((tx) =>
+          tx.payrollPilaEvent.create({
+            data: {
+              tenantId,
+              payrollPeriodId: snapshotApprovalPeriodId,
+              employeeId,
+              codigo: PilaEventCode.ING,
+              fechaInicio: new Date('2026-03-01T00:00:00.000Z'),
+              ultimoIbcReportado: new Prisma.Decimal('2450000.50'),
+              periodoIbcReportado: new Date('2026-02-01T00:00:00.000Z'),
+              operadorFuenteIbc: 'SOI',
+              referenciaFuenteIbc: 'Planilla febrero 2026, línea 8',
+              confirmoFuenteIbc: true,
+            },
+          }),
+        ),
+      ),
+    ).rejects.toMatchObject({ code: 'P2004' });
+  });
+
+  it('database rejects incomplete prior IBC declarations when nullable amount or subtype is absent', async () => {
+    const declarationBase = {
+      tenantId,
+      payrollPeriodId: snapshotApprovalPeriodId,
+      employeeId,
+      codigo: PilaEventCode.VAC_LR,
+      fechaInicio: new Date('2026-03-12T00:00:00.000Z'),
+      periodoIbcReportado: new Date('2026-02-01T00:00:00.000Z'),
+      operadorFuenteIbc: 'SOI',
+      referenciaFuenteIbc: 'Planilla febrero 2026, línea 8',
+      confirmoFuenteIbc: true,
+    };
+    const createEvent = (data: Prisma.PayrollPilaEventUncheckedCreateInput) =>
+      contextService.run(context, () =>
+        tenantPrisma.execute((tx) => tx.payrollPilaEvent.create({ data })),
+      );
+
+    await expect(
+      createEvent({
+        ...declarationBase,
+        subtipo: PilaVacLrSubtype.VACACIONES_DISFRUTADAS,
+      }),
+    ).rejects.toMatchObject({ code: 'P2004' });
+
+    await expect(
+      createEvent({
+        ...declarationBase,
+        ultimoIbcReportado: new Prisma.Decimal('2450000.50'),
+      }),
+    ).rejects.toMatchObject({ code: 'P2004' });
+  });
 });

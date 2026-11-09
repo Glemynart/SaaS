@@ -163,12 +163,12 @@ describe('AuthorizationSurfaceClassifier', () => {
 
     expect(countBy(operations, 'policy')).toEqual({
       [AuthorizationPolicyKind.UNAUTHENTICATED]: 12,
-      [AuthorizationPolicyKind.AUTHENTICATED]: 67,
-      [AuthorizationPolicyKind.RBAC]: 143,
+      [AuthorizationPolicyKind.AUTHENTICATED]: 66,
+      [AuthorizationPolicyKind.RBAC]: 144,
     });
     expect(countBy(operations, 'source')).toEqual({
-      [AuthorizationClassificationSource.EXPLICIT]: 79,
-      [AuthorizationClassificationSource.EXISTING_RBAC]: 143,
+      [AuthorizationClassificationSource.EXPLICIT]: 78,
+      [AuthorizationClassificationSource.EXISTING_RBAC]: 144,
     });
     expect(
       operations.filter(
@@ -470,7 +470,8 @@ describe('AuthorizationSurfaceClassifier', () => {
     ).toMatchObject({
       requestMethod: 'GET',
       operationPath: 'payroll/periods/:id/pila-events',
-      policy: AuthorizationPolicyKind.AUTHENTICATED,
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN, UserRole.OPERADOR],
       requiresAuthentication: true,
       requiresActiveTenant: true,
       status: AuthorizationClassificationStatus.CLASSIFIED,

@@ -100,6 +100,11 @@ export function PayrollPilaEventsPanel({
   const [employeeId, setEmployeeId] = useState('');
   const [codigo, setCodigo] = useState<PilaEventCode>('ING');
   const [subtipoVacLr, setSubtipoVacLr] = useState<PilaVacLrSubtype | ''>('');
+  const [confirmoFuenteIbc, setConfirmoFuenteIbc] = useState(false);
+  const [ultimoIbcReportado, setUltimoIbcReportado] = useState('');
+  const [periodoIbcReportado, setPeriodoIbcReportado] = useState('');
+  const [operadorFuenteIbc, setOperadorFuenteIbc] = useState('');
+  const [referenciaFuenteIbc, setReferenciaFuenteIbc] = useState('');
   const [eventStart, setEventStart] = useState(fechaInicio.slice(0, 10));
   const [eventEnd, setEventEnd] = useState('');
   const [irlDays, setIrlDays] = useState('');
@@ -135,6 +140,16 @@ export function PayrollPilaEventsPanel({
       toast.error('Selecciona si el evento corresponde a vacaciones o licencia remunerada.');
       return;
     }
+    if (
+      confirmoFuenteIbc &&
+      (!ultimoIbcReportado ||
+        !periodoIbcReportado ||
+        !operadorFuenteIbc.trim() ||
+        !referenciaFuenteIbc.trim())
+    ) {
+      toast.error('Completa el IBC, el mes, el operador y la referencia de la fuente.');
+      return;
+    }
 
     try {
       await createEvent.mutateAsync({
@@ -143,6 +158,15 @@ export function PayrollPilaEventsPanel({
           employeeId,
           codigo,
           ...(codigo === 'VAC_LR' && subtipoVacLr ? { subtipo: subtipoVacLr } : {}),
+          ...(confirmoFuenteIbc
+            ? {
+                ultimoIbcReportado,
+                periodoIbcReportado,
+                operadorFuenteIbc: operadorFuenteIbc.trim(),
+                referenciaFuenteIbc: referenciaFuenteIbc.trim(),
+                confirmoFuenteIbc: true,
+              }
+            : {}),
           fechaInicio: eventStart,
           ...(selectedOption.allowsEndDate && eventEnd ? { fechaFin: eventEnd } : {}),
           ...(codigo === 'IRL' ? { dias: Number(irlDays) } : {}),
@@ -151,6 +175,11 @@ export function PayrollPilaEventsPanel({
       setEventEnd('');
       setIrlDays('');
       setSubtipoVacLr('');
+      setConfirmoFuenteIbc(false);
+      setUltimoIbcReportado('');
+      setPeriodoIbcReportado('');
+      setOperadorFuenteIbc('');
+      setReferenciaFuenteIbc('');
       toast.success('Novedad PILA agregada al período.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo guardar la novedad PILA.');
@@ -251,6 +280,11 @@ export function PayrollPilaEventsPanel({
                   }
                   setCodigo(nextCode);
                   setSubtipoVacLr('');
+                  setConfirmoFuenteIbc(false);
+                  setUltimoIbcReportado('');
+                  setPeriodoIbcReportado('');
+                  setOperadorFuenteIbc('');
+                  setReferenciaFuenteIbc('');
                   setEventEnd('');
                   setIrlDays('');
                   setEventStart(nextCode === 'RET' ? '' : fechaInicio.slice(0, 10));
@@ -269,7 +303,17 @@ export function PayrollPilaEventsPanel({
                 <Select
                   id="pila-event-subtype"
                   value={subtipoVacLr}
-                  onChange={(event) => setSubtipoVacLr(event.target.value as PilaVacLrSubtype | '')}
+                  onChange={(event) => {
+                    const nextSubtype = event.target.value as PilaVacLrSubtype | '';
+                    setSubtipoVacLr(nextSubtype);
+                    if (nextSubtype !== 'VACACIONES_DISFRUTADAS') {
+                      setConfirmoFuenteIbc(false);
+                      setUltimoIbcReportado('');
+                      setPeriodoIbcReportado('');
+                      setOperadorFuenteIbc('');
+                      setReferenciaFuenteIbc('');
+                    }
+                  }}
                   required
                 >
                   <option value="">Seleccionar tipo</option>
@@ -280,6 +324,86 @@ export function PayrollPilaEventsPanel({
                   La clasificación queda en el snapshot. La exportación sigue bloqueada hasta
                   validar días y bases de cotización para este evento.
                 </p>
+              </div>
+            )}
+            {codigo === 'VAC_LR' && subtipoVacLr === 'VACACIONES_DISFRUTADAS' && (
+              <div className="space-y-3 rounded-md border border-border p-3 sm:col-span-2">
+                <label
+                  htmlFor="pila-event-prior-ibc-confirmation"
+                  className="flex items-start gap-2 text-sm text-foreground"
+                >
+                  <input
+                    id="pila-event-prior-ibc-confirmation"
+                    type="checkbox"
+                    checked={confirmoFuenteIbc}
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      setConfirmoFuenteIbc(checked);
+                      if (!checked) {
+                        setUltimoIbcReportado('');
+                        setPeriodoIbcReportado('');
+                        setOperadorFuenteIbc('');
+                        setReferenciaFuenteIbc('');
+                      }
+                    }}
+                    className="mt-0.5 size-4 rounded border-border"
+                  />
+                  <span>
+                    Registrar el último IBC reportado antes de las vacaciones. Confirmo que los
+                    datos se transcriben de la fuente indicada.
+                  </span>
+                </label>
+                {confirmoFuenteIbc && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pila-event-prior-ibc">IBC reportado (COP)</Label>
+                      <Input
+                        id="pila-event-prior-ibc"
+                        type="number"
+                        min="0.01"
+                        max="999999999999.99"
+                        step="0.01"
+                        value={ultimoIbcReportado}
+                        onChange={(event) => setUltimoIbcReportado(event.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pila-event-prior-ibc-period">Mes reportado</Label>
+                      <Input
+                        id="pila-event-prior-ibc-period"
+                        type="month"
+                        value={periodoIbcReportado}
+                        onChange={(event) => setPeriodoIbcReportado(event.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pila-event-prior-ibc-operator">Operador PILA</Label>
+                      <Input
+                        id="pila-event-prior-ibc-operator"
+                        value={operadorFuenteIbc}
+                        maxLength={80}
+                        onChange={(event) => setOperadorFuenteIbc(event.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pila-event-prior-ibc-reference">Referencia de planilla</Label>
+                      <Input
+                        id="pila-event-prior-ibc-reference"
+                        value={referenciaFuenteIbc}
+                        maxLength={160}
+                        onChange={(event) => setReferenciaFuenteIbc(event.target.value)}
+                        required
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground sm:col-span-2">
+                      El dato se conserva como declaración del usuario y no se verifica contra el
+                      operador. No calcula aportes ni habilita la generación de la planilla.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
             <div className="space-y-1.5">
@@ -384,6 +508,16 @@ export function PayrollPilaEventsPanel({
                       {eventLabel} · {eventDate(pilaEvent)}
                       {pilaEvent.dias !== null ? ` · ${pilaEvent.dias} días` : ''}
                     </p>
+                    {pilaEvent.confirmoFuenteIbc &&
+                      pilaEvent.ultimoIbcReportado &&
+                      pilaEvent.periodoIbcReportado && (
+                        <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
+                          Último IBC declarado: COP {pilaEvent.ultimoIbcReportado} · período{' '}
+                          {pilaEvent.periodoIbcReportado.slice(0, 7)} ·{' '}
+                          {pilaEvent.operadorFuenteIbc} · {pilaEvent.referenciaFuenteIbc} · no
+                          verificado con el operador.
+                        </p>
+                      )}
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="neutral">{pilaEvent.codigo.replace('_', '-')}</Badge>

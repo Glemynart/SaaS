@@ -829,8 +829,8 @@ export function PayrollPilaPreparationPanel({
               de ausencia de aportes en el snapshot PILA v8 y período y pago anteriores al
               2027-04-01. Aportes presentes, falta de declaración, snapshots históricos y fechas de
               transición quedan pendientes. El campo 50 también queda pendiente mientras 47–49 no
-              estén resueltos. Para un único VAC-LR tipado en ambas copias de un snapshot v12 de un
-              dependiente 01/00 con cobertura del mes completo, también se muestran candidatos
+              estén resueltos. Para un único VAC-LR tipado en ambas copias de un snapshot v12 o v13
+              de un dependiente 01/00 con cobertura del mes completo, también se muestran candidatos
               parciales: campo 27 (X vacaciones, L licencia), campo 30 en cero para IRL y fechas
               89–90. No se completan días ni IBC por subsistema; la licencia remunerada carece de
               regla de aportes aprobada y el archivo sigue bloqueado. Este informe no habilita la

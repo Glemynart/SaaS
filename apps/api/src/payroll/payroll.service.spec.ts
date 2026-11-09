@@ -856,6 +856,11 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
             fechaInicio,
             fechaFin: null,
             dias: null,
+            ultimoIbcReportado: null,
+            periodoIbcReportado: null,
+            operadorFuenteIbc: null,
+            referenciaFuenteIbc: null,
+            confirmoFuenteIbc: false,
           },
         }),
       );
@@ -865,7 +870,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       );
     });
 
-    it('persiste, devuelve y audita el subtipo de un VAC-LR', async () => {
+    it('persiste el IBC previo declarado en VAC-LR sin copiar el valor sensible a la auditoría', async () => {
       mockEmpleadoFindFirst.mockResolvedValue({
         id: 'emp-1',
         estado: 'ACTIVO',
@@ -883,6 +888,11 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         fechaInicio: new Date('2026-01-10T00:00:00.000Z'),
         fechaFin: new Date('2026-01-12T00:00:00.000Z'),
         dias: null,
+        ultimoIbcReportado: '2450000.50',
+        periodoIbcReportado: new Date('2025-12-01T00:00:00.000Z'),
+        operadorFuenteIbc: 'SOI',
+        referenciaFuenteIbc: 'Planilla dic 2025, línea 8',
+        confirmoFuenteIbc: true,
       });
 
       const result = await service.createPilaEvent(TENANT, USER, PERIOD_ID, {
@@ -891,17 +901,30 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         subtipo: 'VACACIONES_DISFRUTADAS',
         fechaInicio: '2026-01-10',
         fechaFin: '2026-01-12',
+        ultimoIbcReportado: '2450000.50',
+        periodoIbcReportado: '2025-12',
+        operadorFuenteIbc: 'SOI',
+        referenciaFuenteIbc: 'Planilla dic 2025, línea 8',
+        confirmoFuenteIbc: true,
       });
 
       expect(result).toMatchObject({
         codigo: PilaEventCode.VAC_LR,
         subtipo: 'VACACIONES_DISFRUTADAS',
+        ultimoIbcReportado: '2450000.50',
+        operadorFuenteIbc: 'SOI',
+        confirmoFuenteIbc: true,
       });
       expect(mockPayrollPilaEventCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             codigo: PilaEventCode.VAC_LR,
             subtipo: 'VACACIONES_DISFRUTADAS',
+            ultimoIbcReportado: '2450000.50',
+            periodoIbcReportado: new Date('2025-12-01T00:00:00.000Z'),
+            operadorFuenteIbc: 'SOI',
+            referenciaFuenteIbc: 'Planilla dic 2025, línea 8',
+            confirmoFuenteIbc: true,
           }),
         }),
       );
@@ -910,10 +933,17 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           metadata: expect.objectContaining({
             codigo: PilaEventCode.VAC_LR,
             subtipo: 'VACACIONES_DISFRUTADAS',
+            fuenteIbcPreviaDeclarada: true,
           }),
         }),
         mockPrisma,
       );
+      const auditCall = mockAudit.log.mock.calls.at(-1) as unknown as
+        | [{ metadata: Record<string, unknown> }, unknown]
+        | undefined;
+      const auditMetadata = auditCall?.[0].metadata;
+      expect(auditMetadata).not.toHaveProperty('ultimoIbcReportado');
+      expect(auditMetadata).not.toHaveProperty('referenciaFuenteIbc');
     });
 
     it('falla de forma segura si no puede auditar el alta', async () => {
@@ -2756,7 +2786,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       ]);
       const pilaPayload = snapshotCreateData.pilaPayload;
       expect(pilaPayload).toMatchObject({
-        schemaVersion: 12,
+        schemaVersion: 13,
         pilaRiskAssignments: [
           {
             assignmentId: 'risk-assignment-at-approval',
@@ -2814,7 +2844,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         },
       });
       expect(snapshotCreateData).toMatchObject({
-        pilaPayloadVersion: 12,
+        pilaPayloadVersion: 13,
       });
     });
 
@@ -3798,6 +3828,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
                 fechaInicio: '2026-01-12',
                 fechaFin: '2026-01-16',
                 dias: null,
+                fuenteUltimoIbcReportado: null,
               },
             ],
             pilaRiskAssignments: [

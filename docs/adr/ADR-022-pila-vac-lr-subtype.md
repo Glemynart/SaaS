@@ -34,11 +34,14 @@ actuales no es seguro.
    por subsistema se mantienen sin candidato hasta contar con su segmentación
    aprobada. Esto no aprueba IBC, importes, aportes ni compatibilidad de
    operador, y no habilita la generación o descarga del archivo.
-5. La siguiente etapa podrá evaluar únicamente vacaciones disfrutadas cuando
-   Payroll congele la fuente del último IBC realmente reportado, el pago
-   trazable y días/bases por subsistema. Licencias, vacaciones compensadas,
-   concurrencias, cambios salariales y fuentes ausentes o discordantes seguirán
-   bloqueados hasta que tengan reglas y evidencia aprobadas.
+5. Una etapa preparatoria puede capturar la declaración manual de la fuente del
+   último IBC para vacaciones disfrutadas según [ADR-023](ADR-023-pila-vacation-prior-ibc-declaration.md).
+   Esa captura no prueba el reporte del operador, no alimenta campos PILA ni
+   habilita cálculos o exportación. La evaluación posterior de vacaciones
+   requiere además el pago trazable y días/bases aprobados por subsistema.
+   Licencias, vacaciones compensadas, concurrencias, cambios salariales y
+   fuentes ausentes o discordantes seguirán bloqueados hasta que tengan reglas y
+   evidencia aprobadas.
 
 ## Compatibilidad, migración y reversión
 

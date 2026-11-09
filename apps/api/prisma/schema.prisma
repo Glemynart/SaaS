@@ -1597,6 +1597,13 @@ model PayrollPilaEvent {
   fechaFin    DateTime? @db.Date
   dias        Int?
 
+  // Optional user-declared source for the prior IBC before enjoyed vacation.
+  ultimoIbcReportado  Decimal?  @db.Decimal(14, 2)
+  periodoIbcReportado DateTime? @db.Date
+  operadorFuenteIbc   String?   @db.VarChar(80)
+  referenciaFuenteIbc String?   @db.VarChar(160)
+  confirmoFuenteIbc   Boolean   @default(false)
+
   @@index([tenantId, payrollPeriodId, employeeId])
   @@index([tenantId, payrollPeriodId, codigo])
   @@map("payroll_pila_events")

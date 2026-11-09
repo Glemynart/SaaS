@@ -124,6 +124,7 @@ export class PayrollController {
     return this.service.getPilaPreparation(user.tenantId, id);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Get('payroll/periods/:id/pila-events')
   findPilaEvents(
     @CurrentUser() user: CurrentUserPayload,

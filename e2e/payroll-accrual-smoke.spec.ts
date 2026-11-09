@@ -204,9 +204,9 @@ test('genera, aprueba y contabiliza una nómina desde el flujo de usuario', asyn
     expect(approved.snapshots[0].payload.employee).toMatchObject({
       salarioBaseUsado: 8_000_000,
     });
-    expect(approved.snapshots[0].pilaPayloadVersion).toBe(12);
+    expect(approved.snapshots[0].pilaPayloadVersion).toBe(13);
     expect(approved.snapshots[0].pilaPayload).toMatchObject({
-      schemaVersion: 12,
+      schemaVersion: 13,
       payroll: {
         fspSubaccounts: {
           sourceScope: 'SINGLE_SOURCE_CONFIRMED',

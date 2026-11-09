@@ -98,6 +98,11 @@ export interface PayrollPilaEvent {
   fechaInicio: string;
   fechaFin: string | null;
   dias: number | null;
+  ultimoIbcReportado: string | null;
+  periodoIbcReportado: string | null;
+  operadorFuenteIbc: string | null;
+  referenciaFuenteIbc: string | null;
+  confirmoFuenteIbc: boolean;
   createdAt: string;
   employee: {
     id: string;
@@ -592,6 +597,11 @@ export const payrollApi = {
       fechaInicio: string;
       fechaFin?: string;
       dias?: number;
+      ultimoIbcReportado?: string;
+      periodoIbcReportado?: string;
+      operadorFuenteIbc?: string;
+      referenciaFuenteIbc?: string;
+      confirmoFuenteIbc?: boolean;
     },
   ) =>
     req<PayrollPilaEvent>(`/api/payroll/periods/${periodId}/pila-events`, {

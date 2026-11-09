@@ -113,6 +113,64 @@ describe('PILA event validation', () => {
     ).toContain('solo se admite para la novedad VAC-LR');
   });
 
+  it('accepts a complete, explicitly confirmed prior IBC declaration only for enjoyed vacation', () => {
+    expect(
+      validatePilaEventDateRange(
+        {
+          codigo: PilaEventCode.VAC_LR,
+          subtipo: PilaVacLrSubtype.VACACIONES_DISFRUTADAS,
+          fechaInicio: '2026-10-10',
+          fechaFin: '2026-10-12',
+          ultimoIbcReportado: '2450000.50',
+          periodoIbcReportado: '2026-09',
+          operadorFuenteIbc: 'SOI',
+          referenciaFuenteIbc: 'Planilla septiembre 2026, línea 8',
+          confirmoFuenteIbc: true,
+        },
+        period,
+      ),
+    ).toBeNull();
+  });
+
+  it('rejects incomplete, unconfirmed, invalid, or non-prior IBC declarations', () => {
+    const base = {
+      codigo: PilaEventCode.VAC_LR,
+      subtipo: PilaVacLrSubtype.VACACIONES_DISFRUTADAS,
+      fechaInicio: '2026-10-10',
+      fechaFin: '2026-10-12',
+      ultimoIbcReportado: '2450000.50',
+      periodoIbcReportado: '2026-09',
+      operadorFuenteIbc: 'SOI',
+      referenciaFuenteIbc: 'Planilla septiembre 2026, línea 8',
+      confirmoFuenteIbc: true,
+    } as const;
+
+    expect(
+      validatePilaEventDateRange(
+        { ...base, referenciaFuenteIbc: undefined },
+        period,
+      ),
+    ).toContain('completa el valor, mes, operador y referencia');
+    expect(
+      validatePilaEventDateRange({ ...base, confirmoFuenteIbc: false }, period),
+    ).toContain('completa el valor, mes, operador y referencia');
+    expect(
+      validatePilaEventDateRange({ ...base, ultimoIbcReportado: '0' }, period),
+    ).toContain('completa el valor, mes, operador y referencia');
+    expect(
+      validatePilaEventDateRange(
+        { ...base, periodoIbcReportado: '2026-10' },
+        period,
+      ),
+    ).toContain('debe ser anterior');
+    expect(
+      validatePilaEventDateRange(
+        { ...base, subtipo: PilaVacLrSubtype.LICENCIA_REMUNERADA },
+        period,
+      ),
+    ).toContain('solo se admite para vacaciones disfrutadas');
+  });
+
   it('requires explicit IRL days and rejects day counts for other events', () => {
     expect(
       validatePilaEventDateRange(

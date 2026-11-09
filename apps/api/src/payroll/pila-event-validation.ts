@@ -6,6 +6,11 @@ export type PilaEventDateInput = {
   fechaInicio: string;
   fechaFin?: string;
   dias?: number;
+  ultimoIbcReportado?: string | null;
+  periodoIbcReportado?: string | null;
+  operadorFuenteIbc?: string | null;
+  referenciaFuenteIbc?: string | null;
+  confirmoFuenteIbc?: boolean | null;
 };
 
 export function parsePilaCalendarDate(value: string): Date | null {
@@ -20,6 +25,13 @@ export function parsePilaCalendarDate(value: string): Date | null {
   }
 
   return parsed;
+}
+
+export function parsePilaYearMonth(
+  value: string | null | undefined,
+): Date | null {
+  if (!value || !/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) return null;
+  return parsePilaCalendarDate(`${value}-01`);
 }
 
 export function validatePilaEventDateRange(
@@ -77,6 +89,46 @@ export function validatePilaEventDateRange(
   if (!overlapsPeriod) {
     return 'La novedad debe ocurrir dentro del período de nómina.';
   }
+
+  const priorIbcFields = [
+    input.ultimoIbcReportado,
+    input.periodoIbcReportado,
+    input.operadorFuenteIbc,
+    input.referenciaFuenteIbc,
+  ];
+  const hasPriorIbcDeclaration = priorIbcFields.some(
+    (value) => value !== undefined && value !== null,
+  );
+  if (hasPriorIbcDeclaration || input.confirmoFuenteIbc === true) {
+    if (
+      input.codigo !== PilaEventCode.VAC_LR ||
+      input.subtipo !== PilaVacLrSubtype.VACACIONES_DISFRUTADAS
+    ) {
+      return 'El IBC previo declarado solo se admite para vacaciones disfrutadas (VAC-LR).';
+    }
+
+    const amount = input.ultimoIbcReportado;
+    const month = input.periodoIbcReportado;
+    const operator = input.operadorFuenteIbc?.trim();
+    const reference = input.referenciaFuenteIbc?.trim();
+    if (
+      typeof amount !== 'string' ||
+      !/^(?=.*[1-9])(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/.test(amount) ||
+      typeof month !== 'string' ||
+      !/^\d{4}-(0[1-9]|1[0-2])$/.test(month) ||
+      !operator ||
+      operator.length > 80 ||
+      !reference ||
+      reference.length > 160 ||
+      input.confirmoFuenteIbc !== true
+    ) {
+      return 'Para declarar el IBC previo, completa el valor, mes, operador y referencia, y confirma que los transcribiste de la fuente.';
+    }
+    if (month >= input.fechaInicio.slice(0, 7)) {
+      return 'El período del último IBC reportado debe ser anterior al mes de inicio de las vacaciones.';
+    }
+  }
+
   if (
     !rangeCodes.has(input.codigo) &&
     (eventStart < periodStart || eventStart > periodEnd)
