@@ -22,3 +22,4 @@
 | [ADR-021](ADR-021-electronic-payroll-document.md)                   | Documento soporte de pago de nómina electrónica                        | accepted bajo delegación de Producto; implementación pendiente    | 2026-11-08 |
 | [ADR-022](ADR-022-pila-vac-lr-subtype.md)                           | Clasificación explícita del evento PILA VAC-LR                         | aceptada bajo delegación de Producto                              | 2026-11-08 |
 | [ADR-023](ADR-023-pila-vacation-prior-ibc-declaration.md)           | Captura declarada del último IBC reportado antes de vacaciones         | aceptada bajo delegación de Producto / Nómina                     | 2026-11-08 |
+| [ADR-024](ADR-024-pila-vacation-remuneration-declaration.md)        | Captura declarada de remuneración por vacaciones disfrutadas           | aceptada bajo delegación de Producto / Nómina                     | 2026-11-09 |

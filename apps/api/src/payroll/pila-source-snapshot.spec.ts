@@ -208,6 +208,11 @@ describe('PILA source snapshot builders', () => {
           operadorFuenteIbc: 'SOI',
           referenciaFuenteIbc: 'Planilla septiembre 2026, línea 8',
           confirmoFuenteIbc: true,
+          remuneracionVacacionesReportada: '350000.50',
+          periodoPagoVacaciones: new Date('2026-10-01T00:00:00.000Z'),
+          referenciaFuenteRemuneracion:
+            'Nómina octubre 2026, concepto vacaciones',
+          confirmoFuenteRemuneracion: true,
         },
       ],
     });
@@ -225,7 +230,7 @@ describe('PILA source snapshot builders', () => {
     });
 
     expect(context.schemaVersion).toBe(5);
-    expect(snapshot.schemaVersion).toBe(13);
+    expect(snapshot.schemaVersion).toBe(14);
     expect(context.pilaEvents[0].subtipo).toBe(
       PilaVacLrSubtype.VACACIONES_DISFRUTADAS,
     );
@@ -251,6 +256,22 @@ describe('PILA source snapshot builders', () => {
     );
     expect(snapshot.payroll.pilaEvents[0].fuenteUltimoIbcReportado).toEqual(
       frozenSource,
+    );
+    const frozenVacationRemuneration = {
+      estado: 'DECLARADO_NO_VERIFICADO',
+      valor: '350000.50',
+      periodoPago: '2026-10',
+      referencia: 'Nómina octubre 2026, concepto vacaciones',
+      confirmadoPorUsuario: true,
+    };
+    expect(context.pilaEvents[0].fuenteRemuneracionVacaciones).toEqual(
+      frozenVacationRemuneration,
+    );
+    expect(snapshot.pilaEvents[0].fuenteRemuneracionVacaciones).toEqual(
+      frozenVacationRemuneration,
+    );
+    expect(snapshot.payroll.pilaEvents[0].fuenteRemuneracionVacaciones).toEqual(
+      frozenVacationRemuneration,
     );
     expect(snapshot.pilaWorkLocations).toEqual([
       {
@@ -314,7 +335,7 @@ describe('PILA source snapshot builders', () => {
       });
 
       expect(snapshot).toMatchObject({
-        schemaVersion: 13,
+        schemaVersion: 14,
         affiliations: [{ estadoAfiliacionPensional }],
         payroll: {
           fspSubaccounts: {
@@ -459,7 +480,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(snapshot.schemaVersion).toBe(13);
+    expect(snapshot.schemaVersion).toBe(14);
     expect(snapshot.payroll.payrollCalculationParameters).toEqual({
       sourceVersion: 'PAYROLL_LEGAL_PARAMETERS_V2',
       parametroLegalId: 'legal-2026',
@@ -579,7 +600,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(13);
+    expect(result.schemaVersion).toBe(14);
     expect(result.capturedAt).toBe('2026-11-02T15:00:00.000Z');
     expect(result.employee.fechaIngreso).toBe('2026-01-05');
     expect(result.employee.fechaNacimiento).toBeNull();
@@ -779,7 +800,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(13);
+    expect(result.schemaVersion).toBe(14);
     expect(result.payroll.diasNomina).toBe(21);
     expect(result.payroll.salarioBasicoCampo40).toEqual({
       valor: 5_600_000,
@@ -1093,7 +1114,7 @@ describe('PILA source snapshot builders', () => {
       },
     });
 
-    expect(result.schemaVersion).toBe(13);
+    expect(result.schemaVersion).toBe(14);
     expect(result.payroll.salarioBasicoCampo40).toEqual({
       valor: 2_933_333,
       reglaVersion: 'PILA_ING_RET_FIELD_40_FROM_APPROVED_BASE_V1',
@@ -1275,6 +1296,7 @@ describe('PILA source snapshot builders', () => {
         fechaFin: '2026-10-14',
         dias: null,
         fuenteUltimoIbcReportado: null,
+        fuenteRemuneracionVacaciones: null,
       },
     ]);
     for (const days of Object.values(

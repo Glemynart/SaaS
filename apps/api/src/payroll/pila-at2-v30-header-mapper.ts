@@ -105,7 +105,8 @@ function isApprovedSingleIngressSnapshot(
     (snapshot.payloadVersion === 10 ||
       snapshot.payloadVersion === 11 ||
       snapshot.payloadVersion === 12 ||
-      snapshot.payloadVersion === 13) &&
+      snapshot.payloadVersion === 13 ||
+      snapshot.payloadVersion === 14) &&
     root?.schemaVersion === snapshot.payloadVersion &&
     employee &&
     contract &&
@@ -196,7 +197,8 @@ function isApprovedSingleRetirementSnapshot(
     (snapshot.payloadVersion === 10 ||
       snapshot.payloadVersion === 11 ||
       snapshot.payloadVersion === 12 ||
-      snapshot.payloadVersion === 13) &&
+      snapshot.payloadVersion === 13 ||
+      snapshot.payloadVersion === 14) &&
     root?.schemaVersion === snapshot.payloadVersion &&
     employee &&
     contract &&
@@ -301,10 +303,12 @@ function isApprovedSamePeriodIngressRetirementSnapshot(
   return Boolean(
     (snapshot.payloadVersion === 11 ||
       snapshot.payloadVersion === 12 ||
-      snapshot.payloadVersion === 13) &&
+      snapshot.payloadVersion === 13 ||
+      snapshot.payloadVersion === 14) &&
     (root?.schemaVersion === 11 ||
       root?.schemaVersion === 12 ||
-      root?.schemaVersion === 13) &&
+      root?.schemaVersion === 13 ||
+      root?.schemaVersion === 14) &&
     employee &&
     contract &&
     payroll &&
@@ -487,7 +491,8 @@ export function mapPilaAt2V30HeaderCandidate(input: {
           snapshot.payloadVersion === 10 ||
           snapshot.payloadVersion === 11 ||
           snapshot.payloadVersion === 12 ||
-          snapshot.payloadVersion === 13) &&
+          snapshot.payloadVersion === 13 ||
+          snapshot.payloadVersion === 14) &&
         root?.schemaVersion === snapshot.payloadVersion &&
         employer !== null &&
         employerPila !== null &&
@@ -508,7 +513,7 @@ export function mapPilaAt2V30HeaderCandidate(input: {
 
   if (!supportedSnapshots) {
     const reason = expectedTenantId
-      ? 'Se requiere un conjunto de snapshots PILA v2 a v13 que coincida con el tenant autenticado y el período aprobado.'
+      ? 'Se requiere un conjunto de snapshots PILA v2 a v14 que coincida con el tenant autenticado y el período aprobado.'
       : 'Falta el contexto del tenant autenticado para revisar la cabecera PILA.';
     for (let fieldNumber = 1; fieldNumber <= 22; fieldNumber += 1) {
       unresolved(fieldNumber, reason);

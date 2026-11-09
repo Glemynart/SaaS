@@ -132,6 +132,69 @@ describe('PILA event validation', () => {
     ).toBeNull();
   });
 
+  it('accepts a complete, explicitly confirmed vacation remuneration declaration only for enjoyed vacation', () => {
+    expect(
+      validatePilaEventDateRange(
+        {
+          codigo: PilaEventCode.VAC_LR,
+          subtipo: PilaVacLrSubtype.VACACIONES_DISFRUTADAS,
+          fechaInicio: '2026-10-10',
+          fechaFin: '2026-10-12',
+          remuneracionVacacionesReportada: '350000.50',
+          periodoPagoVacaciones: '2026-10',
+          referenciaFuenteRemuneracion:
+            'Nómina octubre 2026, concepto vacaciones',
+          confirmoFuenteRemuneracion: true,
+        },
+        period,
+      ),
+    ).toBeNull();
+  });
+
+  it('rejects incomplete, unconfirmed, invalid, or non-vacation remuneration declarations', () => {
+    const base = {
+      codigo: PilaEventCode.VAC_LR,
+      subtipo: PilaVacLrSubtype.VACACIONES_DISFRUTADAS,
+      fechaInicio: '2026-10-10',
+      fechaFin: '2026-10-12',
+      remuneracionVacacionesReportada: '350000.50',
+      periodoPagoVacaciones: '2026-10',
+      referenciaFuenteRemuneracion: 'Nómina octubre 2026, concepto vacaciones',
+      confirmoFuenteRemuneracion: true,
+    } as const;
+
+    expect(
+      validatePilaEventDateRange(
+        { ...base, referenciaFuenteRemuneracion: undefined },
+        period,
+      ),
+    ).toContain('completa el valor, mes de pago y referencia');
+    expect(
+      validatePilaEventDateRange(
+        { ...base, confirmoFuenteRemuneracion: false },
+        period,
+      ),
+    ).toContain('completa el valor, mes de pago y referencia');
+    expect(
+      validatePilaEventDateRange(
+        { ...base, remuneracionVacacionesReportada: '0' },
+        period,
+      ),
+    ).toContain('completa el valor, mes de pago y referencia');
+    expect(
+      validatePilaEventDateRange(
+        { ...base, periodoPagoVacaciones: '2026-13' },
+        period,
+      ),
+    ).toContain('completa el valor, mes de pago y referencia');
+    expect(
+      validatePilaEventDateRange(
+        { ...base, subtipo: PilaVacLrSubtype.LICENCIA_REMUNERADA },
+        period,
+      ),
+    ).toContain('solo se admite para vacaciones disfrutadas');
+  });
+
   it('rejects incomplete, unconfirmed, invalid, or non-prior IBC declarations', () => {
     const base = {
       codigo: PilaEventCode.VAC_LR,

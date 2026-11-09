@@ -861,6 +861,10 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
             operadorFuenteIbc: null,
             referenciaFuenteIbc: null,
             confirmoFuenteIbc: false,
+            remuneracionVacacionesReportada: null,
+            periodoPagoVacaciones: null,
+            referenciaFuenteRemuneracion: null,
+            confirmoFuenteRemuneracion: false,
           },
         }),
       );
@@ -893,6 +897,11 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         operadorFuenteIbc: 'SOI',
         referenciaFuenteIbc: 'Planilla dic 2025, línea 8',
         confirmoFuenteIbc: true,
+        remuneracionVacacionesReportada: '350000.50',
+        periodoPagoVacaciones: new Date('2025-12-01T00:00:00.000Z'),
+        referenciaFuenteRemuneracion:
+          'Nómina diciembre 2025, concepto vacaciones',
+        confirmoFuenteRemuneracion: true,
       });
 
       const result = await service.createPilaEvent(TENANT, USER, PERIOD_ID, {
@@ -906,6 +915,11 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         operadorFuenteIbc: 'SOI',
         referenciaFuenteIbc: 'Planilla dic 2025, línea 8',
         confirmoFuenteIbc: true,
+        remuneracionVacacionesReportada: '350000.50',
+        periodoPagoVacaciones: '2025-12',
+        referenciaFuenteRemuneracion:
+          'Nómina diciembre 2025, concepto vacaciones',
+        confirmoFuenteRemuneracion: true,
       });
 
       expect(result).toMatchObject({
@@ -914,6 +928,10 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         ultimoIbcReportado: '2450000.50',
         operadorFuenteIbc: 'SOI',
         confirmoFuenteIbc: true,
+        remuneracionVacacionesReportada: '350000.50',
+        referenciaFuenteRemuneracion:
+          'Nómina diciembre 2025, concepto vacaciones',
+        confirmoFuenteRemuneracion: true,
       });
       expect(mockPayrollPilaEventCreate).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -925,6 +943,11 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
             operadorFuenteIbc: 'SOI',
             referenciaFuenteIbc: 'Planilla dic 2025, línea 8',
             confirmoFuenteIbc: true,
+            remuneracionVacacionesReportada: '350000.50',
+            periodoPagoVacaciones: new Date('2025-12-01T00:00:00.000Z'),
+            referenciaFuenteRemuneracion:
+              'Nómina diciembre 2025, concepto vacaciones',
+            confirmoFuenteRemuneracion: true,
           }),
         }),
       );
@@ -934,6 +957,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
             codigo: PilaEventCode.VAC_LR,
             subtipo: 'VACACIONES_DISFRUTADAS',
             fuenteIbcPreviaDeclarada: true,
+            fuenteRemuneracionVacacionesDeclarada: true,
           }),
         }),
         mockPrisma,
@@ -944,6 +968,10 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       const auditMetadata = auditCall?.[0].metadata;
       expect(auditMetadata).not.toHaveProperty('ultimoIbcReportado');
       expect(auditMetadata).not.toHaveProperty('referenciaFuenteIbc');
+      expect(auditMetadata).not.toHaveProperty(
+        'remuneracionVacacionesReportada',
+      );
+      expect(auditMetadata).not.toHaveProperty('referenciaFuenteRemuneracion');
     });
 
     it('falla de forma segura si no puede auditar el alta', async () => {
@@ -2786,7 +2814,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       ]);
       const pilaPayload = snapshotCreateData.pilaPayload;
       expect(pilaPayload).toMatchObject({
-        schemaVersion: 13,
+        schemaVersion: 14,
         pilaRiskAssignments: [
           {
             assignmentId: 'risk-assignment-at-approval',
@@ -2844,7 +2872,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         },
       });
       expect(snapshotCreateData).toMatchObject({
-        pilaPayloadVersion: 13,
+        pilaPayloadVersion: 14,
       });
     });
 
@@ -3829,6 +3857,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
                 fechaFin: '2026-01-16',
                 dias: null,
                 fuenteUltimoIbcReportado: null,
+                fuenteRemuneracionVacaciones: null,
               },
             ],
             pilaRiskAssignments: [

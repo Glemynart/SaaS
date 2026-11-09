@@ -136,7 +136,7 @@ describe('payrollApi PILA events', () => {
     });
   });
 
-  it('sends the explicitly declared prior IBC source for enjoyed vacation', async () => {
+  it('sends declared prior IBC and vacation remuneration sources for enjoyed vacation', async () => {
     const payload = {
       employeeId: 'employee-1',
       codigo: 'VAC_LR' as const,
@@ -148,6 +148,10 @@ describe('payrollApi PILA events', () => {
       operadorFuenteIbc: 'SOI',
       referenciaFuenteIbc: 'Planilla septiembre 2026, línea 8',
       confirmoFuenteIbc: true,
+      remuneracionVacacionesReportada: '350000.50',
+      periodoPagoVacaciones: '2026-10',
+      referenciaFuenteRemuneracion: 'Nómina octubre 2026, concepto vacaciones',
+      confirmoFuenteRemuneracion: true,
     };
     const created = { id: 'event-1', ...payload };
     const fetchMock = jest.fn().mockResolvedValue({

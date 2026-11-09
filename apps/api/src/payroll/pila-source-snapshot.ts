@@ -141,6 +141,10 @@ export type PilaSourceContextInput = {
     operadorFuenteIbc?: string | null;
     referenciaFuenteIbc?: string | null;
     confirmoFuenteIbc?: boolean;
+    remuneracionVacacionesReportada?: Prisma.Decimal | string | number | null;
+    periodoPagoVacaciones?: Date | null;
+    referenciaFuenteRemuneracion?: string | null;
+    confirmoFuenteRemuneracion?: boolean;
   }>;
   riskAssignments?: Array<{
     id: string;
@@ -222,6 +226,13 @@ export type PilaSnapshotEvent = {
     referencia: string;
     confirmadoPorUsuario: true;
   } | null;
+  fuenteRemuneracionVacaciones: {
+    estado: 'DECLARADO_NO_VERIFICADO';
+    valor: string;
+    periodoPago: string;
+    referencia: string;
+    confirmadoPorUsuario: true;
+  } | null;
 };
 
 function buildPriorReportedIbcSnapshot(
@@ -270,6 +281,50 @@ function buildPriorReportedIbcSnapshot(
     valor: decimal.toFixed(2),
     periodo: period.slice(0, 7),
     operador: operator,
+    referencia: reference,
+    confirmadoPorUsuario: true as const,
+  };
+}
+
+function buildDeclaredVacationRemunerationSnapshot(
+  event: PilaSourceContextInput['pilaEvents'][number],
+) {
+  const hasAnyValue = [
+    event.remuneracionVacacionesReportada,
+    event.periodoPagoVacaciones,
+    event.referenciaFuenteRemuneracion,
+  ].some((value) => value !== undefined && value !== null);
+  if (!hasAnyValue && event.confirmoFuenteRemuneracion !== true) return null;
+
+  const paymentMonth = calendarDate(event.periodoPagoVacaciones ?? null);
+  const amount = event.remuneracionVacacionesReportada;
+  const reference = event.referenciaFuenteRemuneracion?.trim();
+  if (
+    event.codigo !== PilaEventCode.VAC_LR ||
+    event.subtipo !== PilaVacLrSubtype.VACACIONES_DISFRUTADAS ||
+    event.confirmoFuenteRemuneracion !== true ||
+    amount === undefined ||
+    amount === null ||
+    !paymentMonth ||
+    paymentMonth.slice(8, 10) !== '01' ||
+    !reference
+  ) {
+    throw new Error(
+      'La declaración de remuneración de vacaciones debe estar completa y confirmada para vacaciones disfrutadas.',
+    );
+  }
+
+  const decimal = new Prisma.Decimal(amount);
+  if (!decimal.isFinite() || decimal.lte(0)) {
+    throw new Error(
+      'La remuneración declarada de vacaciones debe ser un valor positivo válido.',
+    );
+  }
+
+  return {
+    estado: 'DECLARADO_NO_VERIFICADO' as const,
+    valor: decimal.toFixed(2),
+    periodoPago: paymentMonth.slice(0, 7),
     referencia: reference,
     confirmadoPorUsuario: true as const,
   };
@@ -399,6 +454,8 @@ export function buildPilaSourceContext(input: PilaSourceContextInput) {
       fechaFin: calendarDate(event.fechaFin),
       dias: event.dias,
       fuenteUltimoIbcReportado: buildPriorReportedIbcSnapshot(event),
+      fuenteRemuneracionVacaciones:
+        buildDeclaredVacationRemunerationSnapshot(event),
     })),
     pilaRiskAssignments: buildPilaRiskAssignmentsSnapshot(
       input.riskAssignments,
@@ -571,7 +628,7 @@ export function buildPilaSourceSnapshot(input: {
 
   return {
     ...input.context,
-    schemaVersion: 13,
+    schemaVersion: 14,
     pilaRiskAssignments: input.context.pilaRiskAssignments ?? [],
     payroll: {
       payrollRunId: input.payroll.runId,

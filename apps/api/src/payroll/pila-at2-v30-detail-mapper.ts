@@ -409,7 +409,8 @@ export function mapPilaAt2V30DetailCandidate(
       snapshot.payloadVersion === 10 ||
       snapshot.payloadVersion === 11 ||
       snapshot.payloadVersion === 12 ||
-      snapshot.payloadVersion === 13) &&
+      snapshot.payloadVersion === 13 ||
+      snapshot.payloadVersion === 14) &&
     root?.schemaVersion === snapshot.payloadVersion &&
     employee !== null &&
     employer !== null &&
@@ -425,7 +426,7 @@ export function mapPilaAt2V30DetailCandidate(
   if (!supportedSnapshot || !periodStart || !periodEnd) {
     const reason = scopeMismatch
       ? 'El tenant, empleado o período congelado en el snapshot no coincide con el contexto autenticado solicitado.'
-      : 'Se requiere un snapshot PILA v2 a v13 válido y atribuible a un tenant y período.';
+      : 'Se requiere un snapshot PILA v2 a v14 válido y atribuible a un tenant y período.';
     for (const field of PILA_AT2_V30_RECORD_LAYOUTS.contributorDetailType2
       .fields) {
       unresolved(field.fieldNumber, reason);
@@ -577,7 +578,8 @@ export function mapPilaAt2V30DetailCandidate(
     (snapshot.payloadVersion === 10 ||
       snapshot.payloadVersion === 11 ||
       snapshot.payloadVersion === 12 ||
-      snapshot.payloadVersion === 13) &&
+      snapshot.payloadVersion === 13 ||
+      snapshot.payloadVersion === 14) &&
     rootPilaEvent &&
     payrollPilaEvent &&
     sourceText(rootPilaEvent.eventId) !== null &&
@@ -675,7 +677,9 @@ export function mapPilaAt2V30DetailCandidate(
     calendarDate(vacationEnd) === vacationEnd,
   );
   const approvedSingleVacLrEvent = Boolean(
-    (snapshot.payloadVersion === 12 || snapshot.payloadVersion === 13) &&
+    (snapshot.payloadVersion === 12 ||
+      snapshot.payloadVersion === 13 ||
+      snapshot.payloadVersion === 14) &&
     standardFullMonthEmployee &&
     rootEventRows?.length === 1 &&
     payrollEventRows?.length === 1 &&
@@ -729,7 +733,8 @@ export function mapPilaAt2V30DetailCandidate(
     (snapshot.payloadVersion === 10 ||
       snapshot.payloadVersion === 11 ||
       snapshot.payloadVersion === 12 ||
-      snapshot.payloadVersion === 13) &&
+      snapshot.payloadVersion === 13 ||
+      snapshot.payloadVersion === 14) &&
     fullMonth &&
     standardAffiliationIdentity &&
     affiliationCoversNewHireWindow &&
@@ -770,7 +775,8 @@ export function mapPilaAt2V30DetailCandidate(
     (snapshot.payloadVersion === 10 ||
       snapshot.payloadVersion === 11 ||
       snapshot.payloadVersion === 12 ||
-      snapshot.payloadVersion === 13) &&
+      snapshot.payloadVersion === 13 ||
+      snapshot.payloadVersion === 14) &&
     fullMonth &&
     standardAffiliationIdentity &&
     affiliationCoversRetirementWindow &&
@@ -811,7 +817,8 @@ export function mapPilaAt2V30DetailCandidate(
   const standardIngressRetirementEmployee = Boolean(
     (snapshot.payloadVersion === 11 ||
       snapshot.payloadVersion === 12 ||
-      snapshot.payloadVersion === 13) &&
+      snapshot.payloadVersion === 13 ||
+      snapshot.payloadVersion === 14) &&
     fullMonth &&
     standardAffiliationIdentity &&
     affiliationCoversIngressRetirementWindow &&
@@ -1376,7 +1383,8 @@ export function mapPilaAt2V30DetailCandidate(
     (snapshot.payloadVersion === 10 ||
       snapshot.payloadVersion === 11 ||
       snapshot.payloadVersion === 12 ||
-      snapshot.payloadVersion === 13) &&
+      snapshot.payloadVersion === 13 ||
+      snapshot.payloadVersion === 14) &&
     hasPilaEvents &&
     !fullMonthVspPilaInputsApproved
   ) {
@@ -2086,7 +2094,8 @@ export function mapPilaAt2V30DetailCandidate(
       snapshot.payloadVersion !== 10 &&
       snapshot.payloadVersion !== 11 &&
       snapshot.payloadVersion !== 12 &&
-      snapshot.payloadVersion !== 13
+      snapshot.payloadVersion !== 13 &&
+      snapshot.payloadVersion !== 14
     ) {
       const reason =
         'El snapshot PILA histórico anterior a v8 no conserva una declaración AVP compatible y no se completa con datos actuales.';

@@ -103,6 +103,10 @@ export interface PayrollPilaEvent {
   operadorFuenteIbc: string | null;
   referenciaFuenteIbc: string | null;
   confirmoFuenteIbc: boolean;
+  remuneracionVacacionesReportada: string | null;
+  periodoPagoVacaciones: string | null;
+  referenciaFuenteRemuneracion: string | null;
+  confirmoFuenteRemuneracion: boolean;
   createdAt: string;
   employee: {
     id: string;
@@ -602,6 +606,10 @@ export const payrollApi = {
       operadorFuenteIbc?: string;
       referenciaFuenteIbc?: string;
       confirmoFuenteIbc?: boolean;
+      remuneracionVacacionesReportada?: string;
+      periodoPagoVacaciones?: string;
+      referenciaFuenteRemuneracion?: string;
+      confirmoFuenteRemuneracion?: boolean;
     },
   ) =>
     req<PayrollPilaEvent>(`/api/payroll/periods/${periodId}/pila-events`, {

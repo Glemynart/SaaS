@@ -197,6 +197,14 @@ test('configura los datos PILA y registra, conserva y elimina una novedad del pe
   await pilaPanel.getByLabel('Mes reportado').fill('2026-09');
   await pilaPanel.getByLabel('Operador PILA').fill('SOI');
   await pilaPanel.getByLabel('Referencia de planilla').fill('Planilla septiembre 2026, línea 8');
+  await pilaPanel
+    .getByLabel(/Registrar la remuneración de vacaciones indicada en una fuente/)
+    .check();
+  await pilaPanel.getByLabel('Remuneración reportada (COP)').fill('350000.50');
+  await pilaPanel.getByLabel('Mes reportado de pago').fill('2026-10');
+  await pilaPanel
+    .getByLabel('Referencia de la fuente')
+    .fill('Nómina octubre 2026, concepto vacaciones');
   const createVacationResponsePromise = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === `/api/payroll/periods/${periodId}/pila-events` &&
@@ -213,6 +221,10 @@ test('configura los datos PILA y registra, conserva y elimina una novedad del pe
     operadorFuenteIbc: string;
     referenciaFuenteIbc: string;
     confirmoFuenteIbc: boolean;
+    remuneracionVacacionesReportada: string;
+    periodoPagoVacaciones: string;
+    referenciaFuenteRemuneracion: string;
+    confirmoFuenteRemuneracion: boolean;
   };
   expect(createdVacationEvent.subtipo).toBe('VACACIONES_DISFRUTADAS');
   expect(createdVacationEvent).toMatchObject({
@@ -221,6 +233,10 @@ test('configura los datos PILA y registra, conserva y elimina una novedad del pe
     operadorFuenteIbc: 'SOI',
     referenciaFuenteIbc: 'Planilla septiembre 2026, línea 8',
     confirmoFuenteIbc: true,
+    remuneracionVacacionesReportada: '350000.50',
+    periodoPagoVacaciones: '2026-10-01T00:00:00.000Z',
+    referenciaFuenteRemuneracion: 'Nómina octubre 2026, concepto vacaciones',
+    confirmoFuenteRemuneracion: true,
   });
   await expect(
     pilaPanel.getByText(/Último IBC declarado: COP 2450000\.50 · período 2026-09/),
@@ -230,6 +246,12 @@ test('configura los datos PILA y registra, conserva y elimina una novedad del pe
   ).toBeVisible();
   await expect(
     pilaPanel.getByText(/SOI · Planilla septiembre 2026, línea 8 · no verificado con el operador/),
+  ).toBeVisible();
+  await expect(
+    pilaPanel.getByText(/Remuneración de vacaciones declarada: COP 350000\.50 · período 2026-10/),
+  ).toBeVisible();
+  await expect(
+    pilaPanel.getByText(/Nómina octubre 2026, concepto vacaciones · no verificada/),
   ).toBeVisible();
   await page.reload();
   await expect(

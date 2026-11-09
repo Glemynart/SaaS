@@ -261,7 +261,7 @@ test('liquida desde la UI un retiro RET único y lo congela en PayrollSnapshot',
     expect(approved.periodStatus).toBe('APROBADA');
     expect(approved.snapshots).toHaveLength(1);
     expect(approved.snapshots[0].pilaPayload.employee.fechaRetiro).toBe('2026-10-20');
-    expect(approved.snapshots[0].pilaPayloadVersion).toBe(13);
+    expect(approved.snapshots[0].pilaPayloadVersion).toBe(14);
     expect(approved.snapshots[0].pilaPayload.payroll.diasNomina).toBe(20);
     expect(approved.snapshots[0].pilaPayload.pilaEvents).toEqual([
       expect.objectContaining({ codigo: 'RET', fechaInicio: '2026-10-20' }),

@@ -17,6 +17,10 @@ y días/bases aprobados por subsistema. Registrar el dato de origen es una etapa
 de preparación y trazabilidad, no una aprobación normativa ni una regla de
 cálculo.
 
+ADR-024 añade la captura separada de una remuneración declarada para vacaciones
+disfrutadas. Ambas declaraciones permanecen sin verificar; ninguna se usa para
+calcular aportes, completar campos AT2 ni habilitar la exportación.
+
 ## Decisión
 
 1. Agregar a `PayrollPilaEvent` campos nullable para valor del IBC, período
