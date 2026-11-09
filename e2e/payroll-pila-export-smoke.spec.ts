@@ -435,12 +435,13 @@ test('muestra candidatos parciales VAC-LR y mantiene bloqueada la exportación',
     });
     await expect(eventSection.getByText(/Para un único VAC-LR tipado/)).toBeVisible();
     await eventSection.getByText(/Ver estado de \d+ campos/).click();
-    await expect(
-      eventSection.getByText('Campo 27 · Vacaciones o licencia remunerada (VAC-LR)'),
-    ).toBeVisible();
-    await eventSection.getByText('Ver valores de 1 empleado').click();
-    await expect(eventSection.getByText('X', { exact: true })).toBeVisible();
-    await expect(eventSection.getByText('AT2_V30_TYPED_VAC_LR_EVENT_FIELDS_V1')).toBeVisible();
+    const vacationFieldRow = eventSection
+      .getByRole('listitem')
+      .filter({ hasText: 'Campo 27 · Vacaciones o licencia remunerada (VAC-LR)' });
+    await expect(vacationFieldRow).toBeVisible();
+    await vacationFieldRow.getByText('Ver valores de 1 empleado').click();
+    await expect(vacationFieldRow.getByText('X', { exact: true })).toBeVisible();
+    await expect(vacationFieldRow.getByText('AT2_V30_TYPED_VAC_LR_EVENT_FIELDS_V1')).toBeVisible();
   } finally {
     await fixture.disconnect();
   }
