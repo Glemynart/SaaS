@@ -3141,29 +3141,31 @@ export class PayrollService {
     );
     if (!period) throw new NotFoundException('Período no encontrado');
 
-    const events = await this.prisma.payrollPilaEvent.findMany({
-      where: {
-        tenantId,
-        payrollPeriodId: period.id,
-        ...(employeeId ? { employeeId } : {}),
-      },
-      include: {
-        employee: {
-          select: {
-            id: true,
-            primerNombre: true,
-            segundoNombre: true,
-            primerApellido: true,
-            segundoApellido: true,
+    const events = await this.tenantPrisma.execute((tx) =>
+      tx.payrollPilaEvent.findMany({
+        where: {
+          tenantId,
+          payrollPeriodId: period.id,
+          ...(employeeId ? { employeeId } : {}),
+        },
+        include: {
+          employee: {
+            select: {
+              id: true,
+              primerNombre: true,
+              segundoNombre: true,
+              primerApellido: true,
+              segundoApellido: true,
+            },
           },
         },
-      },
-      orderBy: [
-        { employeeId: 'asc' },
-        { fechaInicio: 'asc' },
-        { createdAt: 'asc' },
-      ],
-    });
+        orderBy: [
+          { employeeId: 'asc' },
+          { fechaInicio: 'asc' },
+          { createdAt: 'asc' },
+        ],
+      }),
+    );
     return events.map(normalizePilaEventIbcAmount);
   }
 
