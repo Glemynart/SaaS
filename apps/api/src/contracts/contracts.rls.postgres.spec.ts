@@ -54,9 +54,8 @@ describe('Contract PostgreSQL RLS', () => {
     await prisma.$executeRawUnsafe(
       'CREATE ROLE "' + role + '" NOLOGIN NOSUPERUSER NOBYPASSRLS',
     );
-    await prisma.$executeRawUnsafe(
-      'GRANT USAGE ON SCHEMA public TO "' + role + '"',
-    );
+    // CI's disposable PostgreSQL database grants USAGE on public to PUBLIC.
+    // Avoid mutating the shared schema ACL while RLS suites run concurrently.
     await prisma.$executeRawUnsafe(
       'GRANT SELECT, INSERT, UPDATE ON TABLE "contratos" TO "' + role + '"',
     );
@@ -254,9 +253,6 @@ describe('Contract PostgreSQL RLS', () => {
         role +
         '";\n' +
         '    REVOKE USAGE ON TYPE "ContratoTipo", "ContratoEstado" FROM "' +
-        role +
-        '";\n' +
-        '    REVOKE ALL PRIVILEGES ON SCHEMA public FROM "' +
         role +
         '";\n' +
         '    DROP ROLE "' +
