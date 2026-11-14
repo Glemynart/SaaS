@@ -235,6 +235,7 @@ describe('empleados PostgreSQL RLS', () => {
       { tableName: 'secuencias_comprobante' },
       { tableName: 'service_premium_batches' },
       { tableName: 'service_premium_lines' },
+      { tableName: 'terceros' },
       { tableName: 'transiciones_facturas_electronicas' },
       { tableName: 'transmisiones_facturas_electronicas' },
     ];

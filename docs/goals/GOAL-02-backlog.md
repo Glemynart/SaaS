@@ -2413,3 +2413,22 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   arquitectura para tablas/documentos y una decisión explícita sobre la fuente
   confiable del tenant; no se cambió código, almacenamiento ni ningún entorno.
 - Referencia primaria: [opciones personalizadas de PostgreSQL](https://www.postgresql.org/docs/current/runtime-config-custom.html).
+
+### RLS tenant-scoped para el maestro de terceros contables — candidata GOAL-02
+
+- La nueva cohorte activa y fuerza RLS en `terceros`, que almacena identidad,
+  datos fiscales y contacto de clientes, proveedores y empleados contables.
+- `TercerosService` y las rutas de facturación que leen o devuelven relaciones
+  con terceros ejecutan consultas dentro de `TenantPrismaService`; los filtros
+  `tenantId` se conservan. Los consumidores de Ledger, Payroll y reportes ya
+  usan transacciones tenant-scoped.
+- La migración y la suite PostgreSQL de accounting comprueban lectura por
+  tenant, ausencia de contexto, escritura propia y rechazo/ocultamiento de DML
+  cruzado. La suite Browser E2E de CI debe verificar los recorridos existentes
+  de clientes, facturas y contabilidad.
+- El inventario documentado pasa de 22 a 23 tablas con RLS. El GUC
+  `app.current_tenant_id` sigue sin ser una identidad confiable frente a acceso
+  SQL directo con credenciales; la política ofrece defensa adicional para el
+  flujo de aplicación tenant-scoped y no cierra ese riesgo independiente.
+- Esta candidata no aplica cambios a bases desplegadas ni demuestra el estado
+  de RLS en producción.
