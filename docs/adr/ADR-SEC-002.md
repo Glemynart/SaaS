@@ -373,6 +373,14 @@ prerrequisitos operativos.
   validación de sedes, bloqueo de escrituras sobre registros ajenos, borrado
   lógico idempotente y auditoría. No sustituyen la verificación de RLS en
   PostgreSQL.
+- `AccountingProvisioningService` tiene pruebas unitarias para validar que el
+  tenant exista antes de abrir la transacción, la idempotencia por tenant, la
+  lectura exclusiva de la plantilla PUC global, el clonado de relaciones y
+  mapeos bajo el tenant solicitado, y el alcance tenant-scoped de la
+  desprovisión interna. `AccountingProvisioningController` rechaza el tenant de
+  ruta que no coincide con el usuario autenticado y conserva los guards y el
+  rol ADMIN. Estas pruebas no sustituyen la verificación de rollback
+  transaccional ni las pruebas de RLS en PostgreSQL.
 
 **Pendiente:**
 
