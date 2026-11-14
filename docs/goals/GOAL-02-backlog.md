@@ -14,9 +14,11 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   por prima, PILA y causación contable; permite solo lectura e inserción
   tenant-scoped y bloquea mutaciones históricas. El merge `7d0010e7` pasó CI,
   Browser E2E y Vercel; Browser E2E no subió artefactos.
-- Este incremento añade RLS tenant-scoped a `payroll_novelties`, insumo
-  sensible de los cálculos de nómina. Períodos, ejecuciones, conceptos y
-  correcciones todavía requieren auditoría e incrementos separados.
+- PR #381 añade RLS tenant-scoped a `payroll_novelties`, insumo sensible de los
+  cálculos de nómina; PR #382 protege el ciclo de vida de `payroll_periods`.
+- Este incremento añade RLS tenant-scoped a `payroll_runs` y deriva el
+  aislamiento de `payroll_concepts` desde su ejecución propietaria. Las
+  correcciones de nómina siguen pendientes de auditoría e incremento separado.
 
 ## Estado vigente — 2026-11-09
 
@@ -2528,6 +2530,26 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
 - **Estado operativo:** la migración es aditiva, no reescribe datos y no se
   aplica a bases desplegadas mediante esta tarea. La integración real depende
   de los checks PostgreSQL de CI.
+
+### RLS tenant-scoped para ejecuciones y conceptos de nómina — GOAL-02
+
+- `payroll_runs` almacena valores liquidados y declaraciones PILA de cada
+  empleado. La migración exige que período y empleado relacionados pertenezcan
+  al mismo tenant; solo permite insertar y recalcular en estados editables, y
+  actualizar declaraciones PILA en `CALCULADA` o `EN_REVISION`.
+- `payroll_concepts` no guarda `tenantId`; sus permisos se derivan de
+  `payroll_runs`. Los conceptos son legibles por el tenant propietario, se
+  crean durante cálculo y solo se eliminan durante recálculo editable. No se
+  permite actualizarlos ni borrar datos de períodos aprobados.
+- El inventario de llamadas confirmó que PayrollService y el exportador PILA
+  acceden a runs dentro de `TenantPrismaService`; el resto de accesos de
+  escritura de conceptos corresponde al recálculo de nómina. La prueba
+  PostgreSQL valida el comportamiento con un rol sin `SUPERUSER` ni
+  `BYPASSRLS`, aislamiento de tenant y límites por estado. El seed local de
+  demostración crea la ejecución mientras el período está editable y lo
+  aprueba antes de guardar el snapshot inmutable, sin cambiar su resultado
+  visible. La migración es aditiva y no cambia datos ni comportamiento
+  desplegado hasta ser aplicada.
 
 ### RLS tenant-scoped para novedades de nómina — GOAL-02
 
