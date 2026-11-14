@@ -287,7 +287,10 @@ describe('accounting PostgreSQL RLS', () => {
         () =>
           tenantPrisma.execute((client) =>
             client.movimientoContable.create({
-              data: movementData(randomUUID(), tenantA, voucherAId, accountAId),
+              data: {
+                ...movementData(randomUUID(), tenantA, voucherAId, accountAId),
+                linea: 2,
+              },
             }),
           ),
       ),
