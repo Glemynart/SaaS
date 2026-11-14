@@ -356,8 +356,8 @@ prerrequisitos operativos.
 **Alcance implementado:**
 
 - Existen pruebas unitarias para `JwtAuthGuard`, `ActiveTenantGuard` y
-  `RolesGuard`; en esta rama se completan casos límite de contexto de tenant y
-  ausencia de metadatos de rol.
+  `RolesGuard`, incluidos casos límite de contexto de tenant y ausencia de
+  metadatos de rol. La cobertura de ramas pendiente se conserva abajo.
 - `TercerosService` tiene pruebas unitarias a nivel de servicio para el
   aislamiento en lectura, creación, actualización, borrado lógico y detección de
   documentos duplicados. Un ID de otro tenant no devuelve sus datos ni ejecuta
@@ -369,6 +369,10 @@ prerrequisitos operativos.
   tenant-scoped, la validación de que la cuenta pertenezca al tenant y sea
   imputable, y que las escrituras no se ejecuten al recibir IDs de otro tenant.
   Estas pruebas de servicio no sustituyen las pruebas de integración de RLS.
+- `CentrosCostoService` tiene pruebas unitarias que verifican filtros de tenant,
+  validación de sedes, bloqueo de escrituras sobre registros ajenos, borrado
+  lógico idempotente y auditoría. No sustituyen la verificación de RLS en
+  PostgreSQL.
 
 **Pendiente:**
 
