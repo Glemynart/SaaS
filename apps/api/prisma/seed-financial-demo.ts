@@ -1051,7 +1051,7 @@ export async function seedFinancialDemoScenario(
     const tenantPrisma = new TenantPrismaService(prisma, tenantContext);
     const audit = new AuditService(prisma);
     const ledger = new LedgerService(tenantPrisma, audit);
-    const billing = new BillingService(prisma, tenantPrisma, ledger, audit);
+    const billing = new BillingService(tenantPrisma, ledger, audit);
     const customerReceipts = new CustomerReceiptsService(
       tenantPrisma,
       ledger,
