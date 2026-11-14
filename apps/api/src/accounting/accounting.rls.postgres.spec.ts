@@ -48,7 +48,7 @@ describe('accounting PostgreSQL RLS', () => {
       `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "comprobantes_contables", "movimientos_contables", "secuencias_comprobante" TO "${role}"`,
     );
     await prisma.$executeRawUnsafe(
-      `GRANT SELECT ON TABLE "cuentas_contables" TO "${role}"`,
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "cuentas_contables" TO "${role}"`,
     );
     await prisma.$executeRawUnsafe(
       `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "terceros" TO "${role}"`,
@@ -187,6 +187,7 @@ describe('accounting PostgreSQL RLS', () => {
     const expected = [
       'centros_costo',
       'comprobantes_contables',
+      'cuentas_contables',
       'cuenta_sistema_map',
       'movimientos_contables',
       'secuencias_comprobante',
@@ -241,6 +242,11 @@ describe('accounting PostgreSQL RLS', () => {
           orderBy: { id: 'asc' },
           select: { id: true, tenantId: true },
         }),
+        client.cuentaContable.findMany({
+          where: { id: { in: [globalAccountId, accountAId, accountBId] } },
+          orderBy: [{ tenantId: 'asc' }, { id: 'asc' }],
+          select: { id: true, tenantId: true },
+        }),
       ]);
     const readForTenant = (tenantId: string) =>
       tenantContext.run(
@@ -259,20 +265,200 @@ describe('accounting PostgreSQL RLS', () => {
     ]);
 
     expect(rowsA.map((rows) => rows.map((row) => row.tenantId).sort())).toEqual(
-      [[tenantA], [tenantA], [tenantA], [tenantA], [tenantA], [tenantA]],
+      [
+        [tenantA],
+        [tenantA],
+        [tenantA],
+        [tenantA],
+        [tenantA],
+        [tenantA],
+        [null, tenantA],
+      ],
     );
     expect(rowsB.map((rows) => rows.map((row) => row.tenantId).sort())).toEqual(
-      [[tenantB], [tenantB], [tenantB], [tenantB], [tenantB], [tenantB]],
+      [
+        [tenantB],
+        [tenantB],
+        [tenantB],
+        [tenantB],
+        [tenantB],
+        [tenantB],
+        [null, tenantB],
+      ],
     );
     expect(
       rowsWithoutContext.map((rows) => rows.map((row) => row.tenantId)),
-    ).toEqual([[], [], [], [], [], []]);
+    ).toEqual([[], [], [], [], [], [], [null]]);
     expect(rowsA[3]).toMatchObject([{ id: thirdPartyAId, tenantId: tenantA }]);
     expect(rowsB[3]).toMatchObject([{ id: thirdPartyBId, tenantId: tenantB }]);
     expect(rowsA[4]).toMatchObject([{ id: costCenterAId, tenantId: tenantA }]);
     expect(rowsB[4]).toMatchObject([{ id: costCenterBId, tenantId: tenantB }]);
     expect(rowsA[5]).toMatchObject([{ id: systemMapAId, tenantId: tenantA }]);
     expect(rowsB[5]).toMatchObject([{ id: systemMapBId, tenantId: tenantB }]);
+    expect(rowsA[6]).toEqual(
+      expect.arrayContaining([
+        { id: globalAccountId, tenantId: null },
+        { id: accountAId, tenantId: tenantA },
+      ]),
+    );
+    expect(rowsA[6]).toHaveLength(2);
+    expect(rowsB[6]).toEqual(
+      expect.arrayContaining([
+        { id: globalAccountId, tenantId: null },
+        { id: accountBId, tenantId: tenantB },
+      ]),
+    );
+    expect(rowsB[6]).toHaveLength(2);
+    expect(rowsWithoutContext[6]).toMatchObject([
+      { id: globalAccountId, tenantId: null },
+    ]);
+  });
+
+  it('limits PUC writes to tenant-owned accounts and keeps the global template read-only', async () => {
+    const createdId = randomUUID();
+    const created = await tenantContext.run(
+      {
+        tenantId: tenantA,
+        userId: 'rls-accounting-test-user',
+        rol: 'ADMIN',
+        email: 'rls-accounting-test@example.com',
+      },
+      () =>
+        tenantPrisma.execute((client) =>
+          client.cuentaContable.create({
+            data: accountData(createdId, tenantA, `RLS-${suffix}-CREATED`),
+          }),
+        ),
+    );
+    expect(created.tenantId).toBe(tenantA);
+
+    const updateOwnTenant = await tenantContext.run(
+      {
+        tenantId: tenantA,
+        userId: 'rls-accounting-test-user',
+        rol: 'ADMIN',
+        email: 'rls-accounting-test@example.com',
+      },
+      () =>
+        tenantPrisma.execute((client) =>
+          client.cuentaContable.updateMany({
+            where: { id: createdId },
+            data: { nombre: 'Actualizada dentro del tenant A' },
+          }),
+        ),
+    );
+    expect(updateOwnTenant.count).toBe(1);
+
+    await expect(
+      tenantContext.run(
+        {
+          tenantId: tenantA,
+          userId: 'rls-accounting-test-user',
+          rol: 'ADMIN',
+          email: 'rls-accounting-test@example.com',
+        },
+        () =>
+          tenantPrisma.execute((client) =>
+            client.cuentaContable.create({
+              data: accountData(randomUUID(), tenantB, `RLS-${suffix}-CROSS`),
+            }),
+          ),
+      ),
+    ).rejects.toThrow();
+
+    await expect(
+      tenantContext.run(
+        {
+          tenantId: tenantA,
+          userId: 'rls-accounting-test-user',
+          rol: 'ADMIN',
+          email: 'rls-accounting-test@example.com',
+        },
+        () =>
+          tenantPrisma.execute((client) =>
+            client.cuentaContable.create({
+              data: accountData(randomUUID(), null, `RLS-${suffix}-GLOBAL`),
+            }),
+          ),
+      ),
+    ).rejects.toThrow();
+
+    const updateOtherTenant = await tenantContext.run(
+      {
+        tenantId: tenantA,
+        userId: 'rls-accounting-test-user',
+        rol: 'ADMIN',
+        email: 'rls-accounting-test@example.com',
+      },
+      () =>
+        tenantPrisma.execute((client) =>
+          client.cuentaContable.updateMany({
+            where: { id: accountBId },
+            data: { nombre: 'No debe editarse desde tenant A' },
+          }),
+        ),
+    );
+    const updateGlobal = await tenantContext.run(
+      {
+        tenantId: tenantA,
+        userId: 'rls-accounting-test-user',
+        rol: 'ADMIN',
+        email: 'rls-accounting-test@example.com',
+      },
+      () =>
+        tenantPrisma.execute((client) =>
+          client.cuentaContable.updateMany({
+            where: { id: globalAccountId },
+            data: { nombre: 'No debe editarse desde tenant A' },
+          }),
+        ),
+    );
+    const deleteOtherTenant = await tenantContext.run(
+      {
+        tenantId: tenantA,
+        userId: 'rls-accounting-test-user',
+        rol: 'ADMIN',
+        email: 'rls-accounting-test@example.com',
+      },
+      () =>
+        tenantPrisma.execute((client) =>
+          client.cuentaContable.deleteMany({ where: { id: accountBId } }),
+        ),
+    );
+    const deleteGlobal = await tenantContext.run(
+      {
+        tenantId: tenantA,
+        userId: 'rls-accounting-test-user',
+        rol: 'ADMIN',
+        email: 'rls-accounting-test@example.com',
+      },
+      () =>
+        tenantPrisma.execute((client) =>
+          client.cuentaContable.deleteMany({ where: { id: globalAccountId } }),
+        ),
+    );
+    expect(updateOtherTenant.count).toBe(0);
+    expect(updateGlobal.count).toBe(0);
+    expect(deleteOtherTenant.count).toBe(0);
+    expect(deleteGlobal.count).toBe(0);
+
+    await expect(
+      tenantContext.run(
+        {
+          tenantId: tenantA,
+          userId: 'rls-accounting-test-user',
+          rol: 'ADMIN',
+          email: 'rls-accounting-test@example.com',
+        },
+        () =>
+          tenantPrisma.execute((client) =>
+            client.cuentaContable.updateMany({
+              where: { id: accountAId },
+              data: { tenantId: tenantB },
+            }),
+          ),
+      ),
+    ).rejects.toThrow();
   });
 
   it('serves Ledger reports through the active tenant context', async () => {

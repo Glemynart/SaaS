@@ -2449,7 +2449,7 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
 - PR #375 se fusionó en `main` como
   `45b0fc62ee04df6dd977439b0caa30ec87acdc3a`.
 
-### RLS tenant-scoped para mapeos de cuentas del sistema — candidata GOAL-02
+### RLS tenant-scoped para mapeos de cuentas del sistema — PR #376 integrada
 
 - `cuenta_sistema_map` contiene la configuración tenant-owned que determina
   cuentas para contabilizar nómina, facturación, recaudos y cierre. Hasta esta
@@ -2459,8 +2459,26 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   provisión/desprovisión contable consultaban Prisma directamente; la carga
   sintética financiera y sus pruebas también necesitaban alinearse con el
   contexto tenant.
-- La implementación candidata activa y fuerza RLS, mueve esas rutas a
+- PR #376 activa y fuerza RLS, mueve esas rutas a
   `TenantPrismaService`, conserva los filtros de aplicación y amplía las pruebas
   PostgreSQL para lectura, escritura propia y aislamiento por tenant.
-- El cambio está en una rama local para validación. La migración solo afecta
-  futuras aplicaciones de esquema; no se ejecutó contra ninguna base desplegada.
+- CI y Browser E2E pasaron antes y después del merge. El Browser E2E no publicó
+  artifacts. La migración solo afecta futuras aplicaciones de esquema; no se
+  ejecutó contra ninguna base desplegada.
+- PR #376 se fusionó en `main` como
+  `5cb4ceea95f09e8ba453bdc84188b6371edfd477`.
+
+### RLS tenant-scoped para el plan de cuentas PUC — GOAL-02
+
+- `cuentas_contables` combina filas de plantilla PUC global (`tenantId IS NULL`)
+  con cuentas clonadas y personalizadas por tenant. ADR-001 define la plantilla
+  como lectura compartida y su clonación explícita por tenant; ADR-SEC-002
+  identificaba esta tabla como catálogo aún pendiente de RLS.
+- La política permite leer plantilla global y filas del tenant activo;
+  permite DML únicamente para filas tenant-owned. El CRUD de cuentas se mueve a
+  `TenantPrismaService` con comprobación del tenant del contexto, sin cambiar el
+  alcance existente de la API ni hacer backfill.
+- La prueba PostgreSQL usa un rol `NOSUPERUSER NOBYPASSRLS` y comprueba lectura
+  global/propia, ocultamiento de filas ajenas, DML propio y rechazo de escrituras
+  a la plantilla o a otro tenant. La migración es aditiva y no se aplica a bases
+  desplegadas mediante este cambio.
