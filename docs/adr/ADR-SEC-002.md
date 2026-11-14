@@ -358,9 +358,13 @@ prerrequisitos operativos.
 - Existen pruebas unitarias para `JwtAuthGuard`, `ActiveTenantGuard` y
   `RolesGuard`; en esta rama se completan casos límite de contexto de tenant y
   ausencia de metadatos de rol.
-- `TercerosService` tiene pruebas de aislamiento para lectura, creación,
-  actualización, borrado lógico y detección de documentos duplicados. Un ID de
-  otro tenant no devuelve sus datos ni ejecuta escrituras.
+- `TercerosService` tiene pruebas unitarias a nivel de servicio para el
+  aislamiento en lectura, creación, actualización, borrado lógico y detección de
+  documentos duplicados. Un ID de otro tenant no devuelve sus datos ni ejecuta
+  escrituras.
+- `PeriodosContablesService` tiene pruebas unitarias que verifican el aislamiento
+  en consulta, unicidad de creación, consulta por ID y generación anual
+  idempotente; los períodos generados siempre conservan el tenant autenticado.
 
 **Pendiente:**
 
