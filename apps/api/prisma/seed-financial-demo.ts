@@ -907,9 +907,7 @@ async function ensurePayrollData(
       nombre: periodLabel(accountingPeriod.fechaFin),
       fechaInicio: accountingPeriod.fechaInicio,
       fechaFin: accountingPeriod.fechaFin,
-      status: PayrollPeriodStatus.APROBADA,
-      aprobadoPorId: actorId,
-      aprobadoEn: accountingPeriod.fechaFin,
+      status: PayrollPeriodStatus.BORRADOR,
     },
   });
   created.payrollPeriods += 1;
@@ -955,6 +953,18 @@ async function ensurePayrollData(
     },
   });
   created.payrollRuns += 1;
+
+  // Keep the seed compatible with payroll RLS: a run may only be inserted
+  // while its period is editable. The seeded period becomes approved in this
+  // same tenant transaction before its synthetic immutable snapshot is added.
+  await tx.payrollPeriod.update({
+    where: { id: periodId, tenantId },
+    data: {
+      status: PayrollPeriodStatus.APROBADA,
+      aprobadoPorId: actorId,
+      aprobadoEn: accountingPeriod.fechaFin,
+    },
+  });
 
   const snapshotPayload = {
     demo: {
