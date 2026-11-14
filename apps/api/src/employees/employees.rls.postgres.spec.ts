@@ -219,6 +219,7 @@ describe('empleados PostgreSQL RLS', () => {
       { tableName: 'centros_costo' },
       { tableName: 'comprobantes_contables' },
       { tableName: 'cuenta_sistema_map' },
+      { tableName: 'cuentas_contables' },
       { tableName: 'customer_receipt_reversals' },
       { tableName: 'customer_receipts' },
       { tableName: 'empleados' },

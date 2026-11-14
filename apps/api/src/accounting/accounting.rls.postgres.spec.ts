@@ -295,14 +295,20 @@ describe('accounting PostgreSQL RLS', () => {
     expect(rowsB[4]).toMatchObject([{ id: costCenterBId, tenantId: tenantB }]);
     expect(rowsA[5]).toMatchObject([{ id: systemMapAId, tenantId: tenantA }]);
     expect(rowsB[5]).toMatchObject([{ id: systemMapBId, tenantId: tenantB }]);
-    expect(rowsA[6]).toMatchObject([
-      { id: globalAccountId, tenantId: null },
-      { id: accountAId, tenantId: tenantA },
-    ]);
-    expect(rowsB[6]).toMatchObject([
-      { id: globalAccountId, tenantId: null },
-      { id: accountBId, tenantId: tenantB },
-    ]);
+    expect(rowsA[6]).toEqual(
+      expect.arrayContaining([
+        { id: globalAccountId, tenantId: null },
+        { id: accountAId, tenantId: tenantA },
+      ]),
+    );
+    expect(rowsA[6]).toHaveLength(2);
+    expect(rowsB[6]).toEqual(
+      expect.arrayContaining([
+        { id: globalAccountId, tenantId: null },
+        { id: accountBId, tenantId: tenantB },
+      ]),
+    );
+    expect(rowsB[6]).toHaveLength(2);
     expect(rowsWithoutContext[6]).toMatchObject([
       { id: globalAccountId, tenantId: null },
     ]);
