@@ -3,9 +3,13 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
+import {
+  TenantPrismaClient,
+  TenantPrismaService,
+} from '../../tenant-prisma/tenant-prisma.service';
 import { CreateCuentaSistemaMapDto } from './dto/create-cuenta-sistema-map.dto';
 import { UpdateCuentaSistemaMapDto } from './dto/update-cuenta-sistema-map.dto';
 
@@ -18,7 +22,7 @@ const cuentaSelect = {
 @Injectable()
 export class CuentaSistemaMapService {
   constructor(
-    private prisma: PrismaService,
+    private readonly tenantPrisma: TenantPrismaService,
     private audit: AuditService,
   ) {}
 
@@ -27,18 +31,21 @@ export class CuentaSistemaMapService {
     userId: string,
     dto: CreateCuentaSistemaMapDto,
   ) {
-    await this.ensureRolDisponible(tenantId, dto.rol);
-    await this.ensureCuentaDelTenant(tenantId, dto.cuentaId);
+    const map = await this.tenantPrisma.execute(async (tx, context) => {
+      this.assertTenantContext(tenantId, context.tenantId);
+      await this.ensureRolDisponible(tx, tenantId, dto.rol);
+      await this.ensureCuentaDelTenant(tx, tenantId, dto.cuentaId);
 
-    const map = await this.prisma.cuentaSistemaMap.create({
-      data: {
-        tenantId,
-        rol: dto.rol,
-        cuentaId: dto.cuentaId,
-        descripcion: dto.descripcion,
-        ...(dto.activo !== undefined && { activo: dto.activo }),
-      },
-      include: { cuenta: cuentaSelect },
+      return tx.cuentaSistemaMap.create({
+        data: {
+          tenantId,
+          rol: dto.rol,
+          cuentaId: dto.cuentaId,
+          descripcion: dto.descripcion,
+          ...(dto.activo !== undefined && { activo: dto.activo }),
+        },
+        include: { cuenta: cuentaSelect },
+      });
     });
 
     this.audit
@@ -56,20 +63,26 @@ export class CuentaSistemaMapService {
   }
 
   async findAll(tenantId: string) {
-    return this.prisma.cuentaSistemaMap.findMany({
-      where: { tenantId },
-      orderBy: { rol: 'asc' },
-      include: { cuenta: cuentaSelect },
+    return this.tenantPrisma.execute((tx, context) => {
+      this.assertTenantContext(tenantId, context.tenantId);
+      return tx.cuentaSistemaMap.findMany({
+        where: { tenantId },
+        orderBy: { rol: 'asc' },
+        include: { cuenta: cuentaSelect },
+      });
     });
   }
 
   async findOne(tenantId: string, id: string) {
-    const map = await this.prisma.cuentaSistemaMap.findFirst({
-      where: { id, tenantId },
-      include: { cuenta: cuentaSelect },
+    return this.tenantPrisma.execute(async (tx, context) => {
+      this.assertTenantContext(tenantId, context.tenantId);
+      const map = await tx.cuentaSistemaMap.findFirst({
+        where: { id, tenantId },
+        include: { cuenta: cuentaSelect },
+      });
+      if (!map) throw new NotFoundException('Mapeo de cuenta no encontrado');
+      return map;
     });
-    if (!map) throw new NotFoundException('Mapeo de cuenta no encontrado');
-    return map;
   }
 
   async update(
@@ -78,17 +91,29 @@ export class CuentaSistemaMapService {
     id: string,
     dto: UpdateCuentaSistemaMapDto,
   ) {
-    const current = await this.findOne(tenantId, id);
-    if (dto.cuentaId) await this.ensureCuentaDelTenant(tenantId, dto.cuentaId);
+    const updated = await this.tenantPrisma.execute(async (tx, context) => {
+      this.assertTenantContext(tenantId, context.tenantId);
+      const current = await tx.cuentaSistemaMap.findFirst({
+        where: { id, tenantId },
+        include: { cuenta: cuentaSelect },
+      });
+      if (!current)
+        throw new NotFoundException('Mapeo de cuenta no encontrado');
+      if (dto.cuentaId !== undefined) {
+        await this.ensureCuentaDelTenant(tx, tenantId, dto.cuentaId);
+      }
 
-    const updated = await this.prisma.cuentaSistemaMap.update({
-      where: { id: current.id },
-      data: {
-        ...(dto.cuentaId !== undefined && { cuentaId: dto.cuentaId }),
-        ...(dto.descripcion !== undefined && { descripcion: dto.descripcion }),
-        ...(dto.activo !== undefined && { activo: dto.activo }),
-      },
-      include: { cuenta: cuentaSelect },
+      return tx.cuentaSistemaMap.update({
+        where: { id: current.id },
+        data: {
+          ...(dto.cuentaId !== undefined && { cuentaId: dto.cuentaId }),
+          ...(dto.descripcion !== undefined && {
+            descripcion: dto.descripcion,
+          }),
+          ...(dto.activo !== undefined && { activo: dto.activo }),
+        },
+        include: { cuenta: cuentaSelect },
+      });
     });
 
     this.audit
@@ -105,8 +130,21 @@ export class CuentaSistemaMapService {
     return updated;
   }
 
-  private async ensureRolDisponible(tenantId: string, rol: string) {
-    const existing = await this.prisma.cuentaSistemaMap.findFirst({
+  private assertTenantContext(
+    requestTenantId: string,
+    contextTenantId: string,
+  ) {
+    if (requestTenantId !== contextTenantId) {
+      throw new ForbiddenException('El contexto de tenant no coincide.');
+    }
+  }
+
+  private async ensureRolDisponible(
+    tx: TenantPrismaClient,
+    tenantId: string,
+    rol: string,
+  ) {
+    const existing = await tx.cuentaSistemaMap.findFirst({
       where: { tenantId, rol },
       select: { id: true },
     });
@@ -117,8 +155,12 @@ export class CuentaSistemaMapService {
     }
   }
 
-  private async ensureCuentaDelTenant(tenantId: string, cuentaId: string) {
-    const cuenta = await this.prisma.cuentaContable.findFirst({
+  private async ensureCuentaDelTenant(
+    tx: TenantPrismaClient,
+    tenantId: string,
+    cuentaId: string,
+  ) {
+    const cuenta = await tx.cuentaContable.findFirst({
       where: { id: cuentaId, tenantId, deletedAt: null },
       select: { id: true, imputable: true },
     });

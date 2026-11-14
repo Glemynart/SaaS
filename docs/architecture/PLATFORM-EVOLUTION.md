@@ -52,8 +52,9 @@ También confirma límites que deben respetarse:
 - la facturación activa es interna y no transmite a la DIAN;
 - no existe transmisión de nómina electrónica;
 - el scheduler actual no es una plataforma distribuida de jobs;
-- las migraciones activan y fuerzan RLS tenant-scoped en 19 tablas de empleados,
-  seguridad social, PILA, prima, recaudos y facturación electrónica; el resto
+- las migraciones activan y fuerzan RLS tenant-scoped en 25 tablas de empleados,
+  seguridad social, PILA, prima, recaudos, facturación electrónica y catálogos
+  contables; el resto
   del esquema continúa dependiendo de filtros en la aplicación y no se ha
   verificado el estado operativo de una base desplegada;
 - staging, producción, R2 y correo real todavía requieren evidencia operativa.

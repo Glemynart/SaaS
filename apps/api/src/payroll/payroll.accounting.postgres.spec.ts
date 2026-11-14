@@ -49,7 +49,7 @@ describe('Payroll accounting PostgreSQL integration', () => {
     tenantPrisma,
     audit,
     new LedgerService(tenantPrisma, audit),
-    new PayrollAccountingPreflightService(prisma),
+    new PayrollAccountingPreflightService(tenantPrisma),
   );
   const context = {
     tenantId,

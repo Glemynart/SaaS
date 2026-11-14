@@ -36,10 +36,7 @@ describe('Accounting baseline — C0 a C3 (e2e)', () => {
     log: jest.fn().mockResolvedValue(undefined),
   } as unknown as AuditService;
 
-  const provisioning = new AccountingProvisioningService(
-    prisma as unknown as PrismaService,
-    audit,
-  );
+  const provisioning = new AccountingProvisioningService(tenantPrisma, audit);
   const ledger = new LedgerService(tenantPrisma, audit);
   const manualJournals = new ManualJournalService(ledger, tenantPrisma, audit);
   const reporting = new ReportingService(tenantPrisma);
@@ -85,9 +82,8 @@ describe('Accounting baseline — C0 a C3 (e2e)', () => {
       if (mes === 12) periodoDiciembreId = periodo.id;
     }
 
-    const provisionado = await provisioning.clonarPlanDeCuentas(
-      tenantId,
-      userId,
+    const provisionado = await runAsTenant(() =>
+      provisioning.clonarPlanDeCuentas(tenantId, userId),
     );
     expect(provisionado.status).toBe('provisioned');
 

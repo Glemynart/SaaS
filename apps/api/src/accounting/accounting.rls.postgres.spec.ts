@@ -56,6 +56,9 @@ describe('accounting PostgreSQL RLS', () => {
     await prisma.$executeRawUnsafe(
       `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "centros_costo" TO "${role}"`,
     );
+    await prisma.$executeRawUnsafe(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "cuenta_sistema_map" TO "${role}"`,
+    );
 
     await prisma.tenant.createMany({
       data: [
@@ -184,6 +187,7 @@ describe('accounting PostgreSQL RLS', () => {
     const expected = [
       'centros_costo',
       'comprobantes_contables',
+      'cuenta_sistema_map',
       'movimientos_contables',
       'secuencias_comprobante',
       'terceros',
@@ -232,6 +236,11 @@ describe('accounting PostgreSQL RLS', () => {
           orderBy: { id: 'asc' },
           select: { id: true, tenantId: true },
         }),
+        client.cuentaSistemaMap.findMany({
+          where: { id: { in: [systemMapAId, systemMapBId] } },
+          orderBy: { id: 'asc' },
+          select: { id: true, tenantId: true },
+        }),
       ]);
     const readForTenant = (tenantId: string) =>
       tenantContext.run(
@@ -250,18 +259,20 @@ describe('accounting PostgreSQL RLS', () => {
     ]);
 
     expect(rowsA.map((rows) => rows.map((row) => row.tenantId).sort())).toEqual(
-      [[tenantA], [tenantA], [tenantA], [tenantA], [tenantA]],
+      [[tenantA], [tenantA], [tenantA], [tenantA], [tenantA], [tenantA]],
     );
     expect(rowsB.map((rows) => rows.map((row) => row.tenantId).sort())).toEqual(
-      [[tenantB], [tenantB], [tenantB], [tenantB], [tenantB]],
+      [[tenantB], [tenantB], [tenantB], [tenantB], [tenantB], [tenantB]],
     );
     expect(
       rowsWithoutContext.map((rows) => rows.map((row) => row.tenantId)),
-    ).toEqual([[], [], [], [], []]);
+    ).toEqual([[], [], [], [], [], []]);
     expect(rowsA[3]).toMatchObject([{ id: thirdPartyAId, tenantId: tenantA }]);
     expect(rowsB[3]).toMatchObject([{ id: thirdPartyBId, tenantId: tenantB }]);
     expect(rowsA[4]).toMatchObject([{ id: costCenterAId, tenantId: tenantA }]);
     expect(rowsB[4]).toMatchObject([{ id: costCenterBId, tenantId: tenantB }]);
+    expect(rowsA[5]).toMatchObject([{ id: systemMapAId, tenantId: tenantA }]);
+    expect(rowsB[5]).toMatchObject([{ id: systemMapBId, tenantId: tenantB }]);
   });
 
   it('serves Ledger reports through the active tenant context', async () => {
@@ -504,6 +515,84 @@ describe('accounting PostgreSQL RLS', () => {
       () =>
         tenantPrisma.execute((client) =>
           client.centroCosto.deleteMany({ where: { id: costCenterBId } }),
+        ),
+    );
+    expect(update.count).toBe(0);
+    expect(deletion.count).toBe(0);
+  });
+
+  it('allows system-account mapping DML only for the active tenant', async () => {
+    const createdId = randomUUID();
+    const created = await tenantContext.run(
+      {
+        tenantId: tenantA,
+        userId: 'rls-accounting-test-user',
+        rol: 'ADMIN',
+        email: 'rls-accounting-test@example.com',
+      },
+      () =>
+        tenantPrisma.execute((client) =>
+          client.cuentaSistemaMap.create({
+            data: {
+              id: createdId,
+              tenantId: tenantA,
+              rol: `RLS-${suffix}-CREATED`,
+              cuentaId: accountAId,
+            },
+          }),
+        ),
+    );
+    expect(created.tenantId).toBe(tenantA);
+
+    await expect(
+      tenantContext.run(
+        {
+          tenantId: tenantA,
+          userId: 'rls-accounting-test-user',
+          rol: 'ADMIN',
+          email: 'rls-accounting-test@example.com',
+        },
+        () =>
+          tenantPrisma.execute((client) =>
+            client.cuentaSistemaMap.create({
+              data: {
+                id: randomUUID(),
+                tenantId: tenantB,
+                rol: `RLS-${suffix}-CROSS`,
+                cuentaId: accountBId,
+              },
+            }),
+          ),
+      ),
+    ).rejects.toThrow();
+
+    const update = await tenantContext.run(
+      {
+        tenantId: tenantA,
+        userId: 'rls-accounting-test-user',
+        rol: 'ADMIN',
+        email: 'rls-accounting-test@example.com',
+      },
+      () =>
+        tenantPrisma.execute((client) =>
+          client.cuentaSistemaMap.updateMany({
+            where: { id: systemMapBId },
+            data: { activo: false },
+          }),
+        ),
+    );
+    const deletion = await tenantContext.run(
+      {
+        tenantId: tenantA,
+        userId: 'rls-accounting-test-user',
+        rol: 'ADMIN',
+        email: 'rls-accounting-test@example.com',
+      },
+      () =>
+        tenantPrisma.execute((client) =>
+          client.cuentaSistemaMap.deleteMany({
+            where: { id: systemMapBId },
+          }),
         ),
     );
     expect(update.count).toBe(0);

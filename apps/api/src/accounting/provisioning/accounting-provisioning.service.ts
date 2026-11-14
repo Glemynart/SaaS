@@ -2,10 +2,14 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
   InternalServerErrorException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from '../../prisma/prisma.service';
+import {
+  TenantPrismaClient,
+  TenantPrismaService,
+} from '../../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { DEFAULT_SYSTEM_ACCOUNT_MAPPINGS } from './system-account-mappings';
 
@@ -43,7 +47,7 @@ export interface ProvisioningResult {
 @Injectable()
 export class AccountingProvisioningService {
   constructor(
-    private prisma: PrismaService,
+    private readonly tenantPrisma: TenantPrismaService,
     private audit: AuditService,
   ) {}
 
@@ -55,9 +59,10 @@ export class AccountingProvisioningService {
     tenantId: string,
     userId: string,
   ): Promise<ProvisioningResult> {
-    await this.ensureTenantExists(tenantId);
+    const result = await this.tenantPrisma.execute(async (tx, context) => {
+      this.assertTenantContext(tenantId, context.tenantId);
+      await this.ensureTenantExists(tx, tenantId);
 
-    const result = await this.prisma.$transaction(async (tx) => {
       const yaProvisionado = await tx.cuentaContable.count({
         where: { tenantId },
       });
@@ -167,7 +172,8 @@ export class AccountingProvisioningService {
   ): Promise<{ cuentas: number }> {
     let result: { cuentas: number };
     try {
-      result = await this.prisma.$transaction(async (tx) => {
+      result = await this.tenantPrisma.execute(async (tx, context) => {
+        this.assertTenantContext(tenantId, context.tenantId);
         const cuentasConMovimientos = await tx.cuentaContable.count({
           where: { tenantId, movimientos: { some: {} } },
         });
@@ -204,8 +210,17 @@ export class AccountingProvisioningService {
     return result;
   }
 
-  private async ensureTenantExists(tenantId: string) {
-    const tenant = await this.prisma.tenant.findUnique({
+  private assertTenantContext(
+    requestTenantId: string,
+    contextTenantId: string,
+  ) {
+    if (requestTenantId !== contextTenantId) {
+      throw new ForbiddenException('El contexto de tenant no coincide.');
+    }
+  }
+
+  private async ensureTenantExists(tx: TenantPrismaClient, tenantId: string) {
+    const tenant = await tx.tenant.findUnique({
       where: { id: tenantId },
       select: { id: true },
     });

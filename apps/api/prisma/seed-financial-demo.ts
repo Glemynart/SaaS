@@ -1057,7 +1057,7 @@ export async function seedFinancialDemoScenario(
       ledger,
       audit,
     );
-    const preflight = new PayrollAccountingPreflightService(prisma);
+    const preflight = new PayrollAccountingPreflightService(tenantPrisma);
     const payroll = new PayrollService(
       prisma,
       tenantPrisma,
