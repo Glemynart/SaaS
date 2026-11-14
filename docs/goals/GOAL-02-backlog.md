@@ -10,11 +10,13 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   terceros, centros de costo, mapeo de cuentas, catálogo PUC y períodos
   contables. PR #379 añade RLS a clientes, productos, facturas y líneas
   internas. Los checks post-merge de CI y Browser E2E pasaron.
-- Este incremento añade RLS forzado a PayrollSnapshot, evidencia inmutable
-  consumida por prima, PILA y causación contable; permite solo lectura e
-  inserción tenant-scoped y bloquea mutaciones históricas. Períodos,
-  ejecuciones, novedades y correcciones aún quedan fuera de esta actualización
-  y requieren incrementos separados.
+- PR #380 añade RLS forzado a PayrollSnapshot, evidencia inmutable consumida
+  por prima, PILA y causación contable; permite solo lectura e inserción
+  tenant-scoped y bloquea mutaciones históricas. El merge `7d0010e7` pasó CI,
+  Browser E2E y Vercel; Browser E2E no subió artefactos.
+- Este incremento añade RLS tenant-scoped a `payroll_novelties`, insumo
+  sensible de los cálculos de nómina. Períodos, ejecuciones, conceptos y
+  correcciones todavía requieren auditoría e incrementos separados.
 
 ## Estado vigente — 2026-11-09
 
@@ -2526,3 +2528,18 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
 - **Estado operativo:** la migración es aditiva, no reescribe datos y no se
   aplica a bases desplegadas mediante esta tarea. La integración real depende
   de los checks PostgreSQL de CI.
+
+### RLS tenant-scoped para novedades de nómina — GOAL-02
+
+- `payroll_novelties` contiene novedades por empleado y período que alimentan
+  el cálculo de nómina. El API actual solo las consulta y crea; no expone
+  actualización ni borrado.
+- La política permite leer e insertar dentro del tenant activo. La inserción
+  exige además que el período y el empleado relacionados pertenezcan al mismo
+  tenant; no define permisos RLS de UPDATE ni DELETE.
+- `PayrollService` realiza lectura y creación desde `TenantPrismaService`,
+  incluidas las consultas previas a generar/recalcular y los bloqueos de
+  aprobación. Los filtros existentes `tenantId` se conservan.
+- La prueba PostgreSQL verifica aislamiento de filas, inserción propia,
+  rechazo de contexto/relaciones cruzadas y ausencia de mutaciones. La
+  migración es aditiva y no se aplicó a bases desplegadas durante este cambio.
