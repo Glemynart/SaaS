@@ -2414,7 +2414,7 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   confiable del tenant; no se cambió código, almacenamiento ni ningún entorno.
 - Referencia primaria: [opciones personalizadas de PostgreSQL](https://www.postgresql.org/docs/current/runtime-config-custom.html).
 
-### RLS tenant-scoped para el maestro de terceros contables — candidata GOAL-02
+### RLS tenant-scoped para el maestro de terceros contables — PR #373 integrada
 
 - La nueva cohorte activa y fuerza RLS en `terceros`, que almacena identidad,
   datos fiscales y contacto de clientes, proveedores y empleados contables.
@@ -2424,11 +2424,27 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   usan transacciones tenant-scoped.
 - La migración y la suite PostgreSQL de accounting comprueban lectura por
   tenant, ausencia de contexto, escritura propia y rechazo/ocultamiento de DML
-  cruzado. La suite Browser E2E de CI debe verificar los recorridos existentes
-  de clientes, facturas y contabilidad.
+  cruzado. CI y Browser E2E de PR #373 y los checks post-merge pasaron.
 - El inventario documentado pasa de 22 a 23 tablas con RLS. El GUC
   `app.current_tenant_id` sigue sin ser una identidad confiable frente a acceso
   SQL directo con credenciales; la política ofrece defensa adicional para el
   flujo de aplicación tenant-scoped y no cierra ese riesgo independiente.
-- Esta candidata no aplica cambios a bases desplegadas ni demuestra el estado
+- PR #373 (merge SHA `3354212f`) protege las consultas runtime y preserva los
+  filtros tenant. No aplica cambios a bases desplegadas ni demuestra el estado
   de RLS en producción.
+
+### RLS tenant-scoped para centros de costo — candidata GOAL-02
+
+- `centros_costo` es un catálogo tenant-owned que participa en la atribución
+  analítica del Ledger y en snapshots de Nómina. No contiene plantillas
+  globales.
+- Antes de esta cohorte, el CRUD de `CentrosCostoService` y la resolución
+  Nómina por sede consultaban Prisma directamente. Ledger ya consumía el
+  cliente transaccional tenant-scoped; las lecturas relacionadas de Payroll
+  también deben usarlo para que RLS preserve sus datos asociados.
+- La cohorte propuesta activa y fuerza RLS, adapta esos consumidores y extiende
+  las pruebas PostgreSQL para lectura, escritura propia y aislamiento por
+  tenant, conservando `tenantId` en los filtros de aplicación.
+- La tabla se usa para registrar centros en snapshots y movimientos contables;
+  la migración solo protege acceso futuro y no reescribe datos ni configura una
+  base desplegada.

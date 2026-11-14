@@ -1,14 +1,15 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
-import { PrismaService } from '../../prisma/prisma.service';
+import { TenantPrismaService } from '../../tenant-prisma/tenant-prisma.service';
 import { CentrosCostoService } from './centros-costo.service';
 
 describe('CentrosCostoService tenant isolation', () => {
-  const prisma = {
+  const tx = {
     centroCosto: {
       create: jest.fn(),
       findFirst: jest.fn(),
@@ -18,22 +19,25 @@ describe('CentrosCostoService tenant isolation', () => {
     sede: {
       findFirst: jest.fn(),
     },
-  } as unknown as PrismaService;
+  };
+  const tenantPrisma = { execute: jest.fn() };
   const auditLog = jest.fn();
   const audit = { log: auditLog } as unknown as AuditService;
-  const service = new CentrosCostoService(prisma, audit);
-  const centers = prisma.centroCosto as unknown as {
-    create: jest.Mock;
-    findFirst: jest.Mock;
-    findMany: jest.Mock;
-    update: jest.Mock;
-  };
-  const sites = prisma.sede as unknown as {
-    findFirst: jest.Mock;
-  };
+  const service = new CentrosCostoService(
+    tenantPrisma as unknown as TenantPrismaService,
+    audit,
+  );
+  const centers = tx.centroCosto;
+  const sites = tx.sede;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    tenantPrisma.execute.mockImplementation((work: unknown) =>
+      (work as (client: typeof tx, context: { tenantId: string }) => unknown)(
+        tx,
+        { tenantId: 'tenant-a' },
+      ),
+    );
     centers.findFirst.mockResolvedValue(null);
     centers.findMany.mockResolvedValue([]);
     centers.create.mockResolvedValue({
@@ -265,5 +269,13 @@ describe('CentrosCostoService tenant isolation', () => {
 
     expect(centers.update).not.toHaveBeenCalled();
     expect(auditLog).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the service tenant differs from the active context', async () => {
+    await expect(service.findAll('tenant-b', {})).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+
+    expect(centers.findMany).not.toHaveBeenCalled();
   });
 });
