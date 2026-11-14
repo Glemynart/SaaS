@@ -31,13 +31,14 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   `CALCULADA` o `EN_REVISION`, conserva el ciclo de actualización actual, mantiene
   lectura de historial y no habilita borrado. PR #387 persiste los bloqueos de
   aprobación cuando se rechaza una nómina.
-- Esta cohorte añade RLS a `contratos`, que contienen snapshots de
-  salario y referencias a documentos. La migración valida relaciones históricas
-  tenant-consistentes antes de activarla; los consumidores de contratos en
-  RR. HH., lotes y cálculo de nómina usan `TenantPrismaService`. No protege aún
-  `generated_documents` ni el expediente, y no cierra el riesgo conocido de que
-  una sesión SQL pueda establecer `app.current_tenant_id`. La migración y sus
-  pruebas están en esta rama y no demuestran aplicación en una base desplegada.
+- PR #388 integró RLS a `contratos` en `main@fe51eed`; la tabla contiene
+  snapshots de salario y referencias a documentos. La migración valida
+  relaciones históricas tenant-consistentes antes de activarla; los
+  consumidores de contratos en RR. HH., lotes y cálculo de nómina usan
+  `TenantPrismaService`. No protege aún `generated_documents` ni el expediente,
+  y no cierra el riesgo conocido de que una sesión SQL pueda establecer
+  `app.current_tenant_id`. El merge incorpora la migración y sus pruebas al
+  repositorio, pero no demuestra su aplicación en una base desplegada.
 
 ## Estado vigente — 2026-11-09
 
