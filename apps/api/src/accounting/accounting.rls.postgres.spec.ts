@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextBoundary } from '../tenant-context/tenant-context.boundary';
 import { TenantContextService } from '../tenant-context/tenant-context.service';
+import { ReportingService } from './reporting/reporting.service';
 import {
   TenantPrismaClient,
   TenantPrismaService,
@@ -34,6 +35,7 @@ describe('accounting PostgreSQL RLS', () => {
     { $transaction: runAsRlsRole } as unknown as PrismaService,
     new TenantContextBoundary(tenantContext),
   );
+  const reporting = new ReportingService(tenantPrisma);
 
   beforeAll(async () => {
     await prisma.$connect();
@@ -43,7 +45,10 @@ describe('accounting PostgreSQL RLS', () => {
     );
     await prisma.$executeRawUnsafe(`GRANT USAGE ON SCHEMA public TO "${role}"`);
     await prisma.$executeRawUnsafe(
-      `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "cuentas_contables", "terceros", "periodos_contables", "centros_costo", "cuenta_sistema_map", "comprobantes_contables", "movimientos_contables", "secuencias_comprobante" TO "${role}"`,
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "comprobantes_contables", "movimientos_contables", "secuencias_comprobante" TO "${role}"`,
+    );
+    await prisma.$executeRawUnsafe(
+      `GRANT SELECT ON TABLE "cuentas_contables" TO "${role}"`,
     );
 
     await prisma.tenant.createMany({
@@ -169,16 +174,11 @@ describe('accounting PostgreSQL RLS', () => {
     await prisma.$disconnect();
   });
 
-  it('enables and forces RLS for the complete tenant accounting cohort', async () => {
+  it('enables and forces RLS for the Ledger transaction tables', async () => {
     const expected = [
-      'centros_costo',
       'comprobantes_contables',
-      'cuenta_sistema_map',
-      'cuentas_contables',
       'movimientos_contables',
-      'periodos_contables',
       'secuencias_comprobante',
-      'terceros',
     ];
     const protectedTables = await prisma.$queryRaw<{ tableName: string }[]>`
       SELECT relname AS "tableName" FROM pg_class
@@ -196,34 +196,9 @@ describe('accounting PostgreSQL RLS', () => {
     for (const table of expected) expect(actual).toContain(table);
   });
 
-  it('isolates accounting rows by tenant while exposing only the global chart template', async () => {
+  it('isolates Ledger transaction rows by tenant', async () => {
     const readRows = (client: TenantPrismaClient) =>
       Promise.all([
-        client.cuentaContable.findMany({
-          where: { id: { in: [globalAccountId, accountAId, accountBId] } },
-          orderBy: { id: 'asc' },
-          select: { id: true, tenantId: true },
-        }),
-        client.tercero.findMany({
-          where: { id: { in: [thirdPartyAId, thirdPartyBId] } },
-          orderBy: { id: 'asc' },
-          select: { id: true, tenantId: true },
-        }),
-        client.periodoContable.findMany({
-          where: { id: { in: [periodAId, periodBId] } },
-          orderBy: { id: 'asc' },
-          select: { id: true, tenantId: true },
-        }),
-        client.centroCosto.findMany({
-          where: { id: { in: [costCenterAId, costCenterBId] } },
-          orderBy: { id: 'asc' },
-          select: { id: true, tenantId: true },
-        }),
-        client.cuentaSistemaMap.findMany({
-          where: { id: { in: [systemMapAId, systemMapBId] } },
-          orderBy: { id: 'asc' },
-          select: { id: true, tenantId: true },
-        }),
         client.comprobanteContable.findMany({
           where: { id: { in: [voucherAId, voucherBId] } },
           orderBy: { id: 'asc' },
@@ -257,35 +232,67 @@ describe('accounting PostgreSQL RLS', () => {
     ]);
 
     expect(rowsA.map((rows) => rows.map((row) => row.tenantId).sort())).toEqual(
-      [
-        [null, tenantA],
-        [tenantA],
-        [tenantA],
-        [tenantA],
-        [tenantA],
-        [tenantA],
-        [tenantA],
-        [tenantA],
-      ],
+      [[tenantA], [tenantA], [tenantA]],
     );
     expect(rowsB.map((rows) => rows.map((row) => row.tenantId).sort())).toEqual(
-      [
-        [null, tenantB],
-        [tenantB],
-        [tenantB],
-        [tenantB],
-        [tenantB],
-        [tenantB],
-        [tenantB],
-        [tenantB],
-      ],
+      [[tenantB], [tenantB], [tenantB]],
     );
     expect(
       rowsWithoutContext.map((rows) => rows.map((row) => row.tenantId)),
-    ).toEqual([[null], [], [], [], [], [], [], []]);
+    ).toEqual([[], [], []]);
   });
 
-  it('rejects cross-tenant ledger writes and does not mutate another tenant', async () => {
+  it('serves Ledger reports through the active tenant context', async () => {
+    const readForTenant = (tenantId: string) =>
+      tenantContext.run(
+        {
+          tenantId,
+          userId: 'rls-accounting-test-user',
+          rol: 'ADMIN',
+          email: 'rls-accounting-test@example.com',
+        },
+        () => reporting.obtenerLibroDiario(tenantId, { page: 1, limit: 20 }),
+      );
+
+    const [reportA, reportB] = await Promise.all([
+      readForTenant(tenantA),
+      readForTenant(tenantB),
+    ]);
+
+    expect(reportA.items.map(({ comprobanteId }) => comprobanteId)).toEqual([
+      voucherAId,
+    ]);
+    expect(reportA.items[0].movimientos[0]).toMatchObject({
+      cuentaId: accountAId,
+      cuentaCodigo: '1000',
+    });
+    expect(reportB.items.map(({ comprobanteId }) => comprobanteId)).toEqual([
+      voucherBId,
+    ]);
+    expect(reportB.items[0].movimientos[0]).toMatchObject({
+      cuentaId: accountBId,
+      cuentaCodigo: '1000',
+    });
+  });
+
+  it('allows tenant-owned ledger writes and rejects cross-tenant access', async () => {
+    await expect(
+      tenantContext.run(
+        {
+          tenantId: tenantA,
+          userId: 'rls-accounting-test-user',
+          rol: 'ADMIN',
+          email: 'rls-accounting-test@example.com',
+        },
+        () =>
+          tenantPrisma.execute((client) =>
+            client.movimientoContable.create({
+              data: movementData(randomUUID(), tenantA, voucherAId, accountAId),
+            }),
+          ),
+      ),
+    ).resolves.toMatchObject({ tenantId: tenantA });
+
     await expect(
       tenantContext.run(
         {
@@ -335,77 +342,6 @@ describe('accounting PostgreSQL RLS', () => {
     await expect(
       prisma.movimientoContable.findUnique({ where: { id: movementBId } }),
     ).resolves.toMatchObject({ tenantId: tenantB });
-  });
-
-  it('keeps global chart templates read-only to tenant sessions', async () => {
-    const ownAccountId = randomUUID();
-    const createdTenantAccount = await tenantContext.run(
-      {
-        tenantId: tenantA,
-        userId: 'rls-accounting-test-user',
-        rol: 'ADMIN',
-        email: 'rls-accounting-test@example.com',
-      },
-      () =>
-        tenantPrisma.execute((client) =>
-          client.cuentaContable.create({
-            data: accountData(ownAccountId, tenantA, `9001-${suffix}`),
-            select: { id: true, tenantId: true },
-          }),
-        ),
-    );
-    const visibleTemplate = await tenantContext.run(
-      {
-        tenantId: tenantA,
-        userId: 'rls-accounting-test-user',
-        rol: 'ADMIN',
-        email: 'rls-accounting-test@example.com',
-      },
-      () =>
-        tenantPrisma.execute((client) =>
-          client.cuentaContable.findMany({
-            where: { id: globalAccountId },
-            select: { tenantId: true },
-          }),
-        ),
-    );
-    const update = await tenantContext.run(
-      {
-        tenantId: tenantA,
-        userId: 'rls-accounting-test-user',
-        rol: 'ADMIN',
-        email: 'rls-accounting-test@example.com',
-      },
-      () =>
-        tenantPrisma.execute((client) =>
-          client.cuentaContable.updateMany({
-            where: { id: globalAccountId },
-            data: { nombre: 'No debe poder editarse' },
-          }),
-        ),
-    );
-    expect(createdTenantAccount).toEqual({
-      id: ownAccountId,
-      tenantId: tenantA,
-    });
-    expect(visibleTemplate).toEqual([{ tenantId: null }]);
-    expect(update.count).toBe(0);
-    await expect(
-      tenantContext.run(
-        {
-          tenantId: tenantA,
-          userId: 'rls-accounting-test-user',
-          rol: 'ADMIN',
-          email: 'rls-accounting-test@example.com',
-        },
-        () =>
-          tenantPrisma.execute((client) =>
-            client.cuentaContable.create({
-              data: accountData(randomUUID(), null, `9000-${suffix}`),
-            }),
-          ),
-      ),
-    ).rejects.toThrow();
   });
 
   function runAsRlsRole<T>(
@@ -490,9 +426,14 @@ describe('accounting PostgreSQL RLS', () => {
       tenantId,
       tipoComprobanteId: voucherTypeId,
       periodoId,
+      numero: 1,
       fecha: new Date('2026-11-15T00:00:00.000Z'),
       concepto: 'Comprobante RLS',
+      estado: 'CONTABILIZADO' as const,
+      totalDebito: 100,
+      totalCredito: 100,
       usuarioId: 'rls-accounting-test-user',
+      contabilizadoAt: new Date(),
       updatedAt: new Date(),
     };
   }

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { TenantPrismaService } from '../../tenant-prisma/tenant-prisma.service';
 import {
   SaldosFilters,
   SaldoCuenta,
@@ -97,7 +97,7 @@ const ESTADO_RESULTADOS_SECCIONES: Record<string, SeccionMeta> = {
 
 @Injectable()
 export class ReportingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly tenantPrisma: TenantPrismaService) {}
 
   private async saldos(
     tenantId: string,
@@ -140,14 +140,16 @@ export class ReportingService {
       where.cuenta = cuentaFilter;
     }
 
-    const rows = await this.prisma.movimientoContable.groupBy({
-      by: ['cuentaId'],
-      where: where,
-      _sum: {
-        debito: true,
-        credito: true,
-      },
-    });
+    const rows = await this.tenantPrisma.execute((client) =>
+      client.movimientoContable.groupBy({
+        by: ['cuentaId'],
+        where: where,
+        _sum: {
+          debito: true,
+          credito: true,
+        },
+      }),
+    );
 
     const CERO = new Prisma.Decimal(0);
 
@@ -175,10 +177,12 @@ export class ReportingService {
 
     const cuentaIds = saldosResult.map((s) => s.cuentaId);
 
-    const cuentas = await this.prisma.cuentaContable.findMany({
-      where: { id: { in: cuentaIds } },
-      select: { id: true, codigo: true, nombre: true },
-    });
+    const cuentas = await this.tenantPrisma.execute((client) =>
+      client.cuentaContable.findMany({
+        where: { id: { in: cuentaIds } },
+        select: { id: true, codigo: true, nombre: true },
+      }),
+    );
 
     const cuentaMap = new Map(cuentas.map((c) => [c.id, c]));
 
@@ -309,10 +313,12 @@ export class ReportingService {
       return new Map();
     }
 
-    const rows = await this.prisma.cuentaContable.findMany({
-      where: { tenantId, codigo: { in: [...codigos] } },
-      select: { codigo: true, nombre: true },
-    });
+    const rows = await this.tenantPrisma.execute((client) =>
+      client.cuentaContable.findMany({
+        where: { tenantId, codigo: { in: [...codigos] } },
+        select: { codigo: true, nombre: true },
+      }),
+    );
 
     return new Map(rows.map((row) => [row.codigo, row.nombre]));
   }
@@ -465,24 +471,28 @@ export class ReportingService {
       where.cuenta = cuentaFilter;
     }
 
-    const rows = await this.prisma.movimientoContable.groupBy({
-      by: ['cuentaId', 'terceroId', 'centroCostoId'],
-      where: where,
-      _sum: {
-        debito: true,
-        credito: true,
-      },
-    });
+    const rows = await this.tenantPrisma.execute((client) =>
+      client.movimientoContable.groupBy({
+        by: ['cuentaId', 'terceroId', 'centroCostoId'],
+        where: where,
+        _sum: {
+          debito: true,
+          credito: true,
+        },
+      }),
+    );
 
     if (rows.length === 0) {
       return [];
     }
 
     const cuentaIds = [...new Set(rows.map((r) => r.cuentaId))];
-    const cuentas = await this.prisma.cuentaContable.findMany({
-      where: { id: { in: cuentaIds } },
-      select: { id: true, codigo: true, nombre: true },
-    });
+    const cuentas = await this.tenantPrisma.execute((client) =>
+      client.cuentaContable.findMany({
+        where: { id: { in: cuentaIds } },
+        select: { id: true, codigo: true, nombre: true },
+      }),
+    );
     const cuentaMap = new Map(cuentas.map((c) => [c.id, c]));
 
     const CERO = new Prisma.Decimal(0);
@@ -544,23 +554,27 @@ export class ReportingService {
 
     /* eslint-disable @typescript-eslint/no-unsafe-assignment */
     const [comprobantes, total] = await Promise.all([
-      this.prisma.comprobanteContable.findMany({
-        where: where as any,
-        orderBy: orderBy as any,
-        skip: (page - 1) * limit,
-        take: limit,
-        include: {
-          movimientos: {
-            orderBy: { linea: 'asc' },
-            include: {
-              cuenta: { select: { codigo: true, nombre: true } },
+      this.tenantPrisma.execute((client) =>
+        client.comprobanteContable.findMany({
+          where: where as any,
+          orderBy: orderBy as any,
+          skip: (page - 1) * limit,
+          take: limit,
+          include: {
+            movimientos: {
+              orderBy: { linea: 'asc' },
+              include: {
+                cuenta: { select: { codigo: true, nombre: true } },
+              },
             },
           },
-        },
-      }),
-      this.prisma.comprobanteContable.count({
-        where: where as any,
-      }),
+        }),
+      ),
+      this.tenantPrisma.execute((client) =>
+        client.comprobanteContable.count({
+          where: where as any,
+        }),
+      ),
     ]);
 
     const items: LibroDiarioItem[] = comprobantes.map((c) => ({
@@ -656,11 +670,13 @@ export class ReportingService {
       ];
     }
 
-    const rows = await this.prisma.movimientoContable.groupBy({
-      by: ['cuentaId'],
-      where,
-      _sum: { debito: true, credito: true },
-    });
+    const rows = await this.tenantPrisma.execute((client) =>
+      client.movimientoContable.groupBy({
+        by: ['cuentaId'],
+        where,
+        _sum: { debito: true, credito: true },
+      }),
+    );
 
     if (rows.length === 0) {
       return new Prisma.Decimal(0);
@@ -721,16 +737,20 @@ export class ReportingService {
 
     /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
     const [movimientos, total] = await Promise.all([
-      this.prisma.movimientoContable.findMany({
-        where: where as any,
-        orderBy,
-        skip: (page - 1) * limit,
-        take: limit,
-        include: include as any,
-      }),
-      this.prisma.movimientoContable.count({
-        where: where as any,
-      }),
+      this.tenantPrisma.execute((client) =>
+        client.movimientoContable.findMany({
+          where: where as any,
+          orderBy,
+          skip: (page - 1) * limit,
+          take: limit,
+          include: include as any,
+        }),
+      ),
+      this.tenantPrisma.execute((client) =>
+        client.movimientoContable.count({
+          where: where as any,
+        }),
+      ),
     ]);
 
     if (movimientos.length === 0) {

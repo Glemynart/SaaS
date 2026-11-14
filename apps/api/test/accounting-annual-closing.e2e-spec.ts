@@ -42,7 +42,7 @@ describe('Accounting baseline — C0 a C3 (e2e)', () => {
   );
   const ledger = new LedgerService(tenantPrisma, audit);
   const manualJournals = new ManualJournalService(ledger, tenantPrisma, audit);
-  const reporting = new ReportingService(prisma as unknown as PrismaService);
+  const reporting = new ReportingService(tenantPrisma);
   const closure = new ClosureService(tenantPrisma, reporting, audit, ledger);
   const periodClosures = new PeriodClosureService(closure);
 

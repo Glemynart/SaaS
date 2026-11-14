@@ -216,12 +216,9 @@ describe('empleados PostgreSQL RLS', () => {
 
     const expectedTenantTables = [
       { tableName: 'afiliaciones_seguridad_social' },
-      { tableName: 'centros_costo' },
       { tableName: 'comprobantes_contables' },
       { tableName: 'customer_receipt_reversals' },
       { tableName: 'customer_receipts' },
-      { tableName: 'cuenta_sistema_map' },
-      { tableName: 'cuentas_contables' },
       { tableName: 'empleados' },
       { tableName: 'facturas_electronicas' },
       { tableName: 'intentos_facturas_electronicas' },
@@ -229,7 +226,6 @@ describe('empleados PostgreSQL RLS', () => {
       { tableName: 'lineas_facturas_electronicas' },
       { tableName: 'movimientos_contables' },
       { tableName: 'perfiles_emisor_electronicos' },
-      { tableName: 'periodos_contables' },
       { tableName: 'pila_asignaciones_centro_trabajo' },
       { tableName: 'pila_centros_trabajo' },
       { tableName: 'pila_exports' },
@@ -239,7 +235,6 @@ describe('empleados PostgreSQL RLS', () => {
       { tableName: 'secuencias_comprobante' },
       { tableName: 'service_premium_batches' },
       { tableName: 'service_premium_lines' },
-      { tableName: 'terceros' },
       { tableName: 'transiciones_facturas_electronicas' },
       { tableName: 'transmisiones_facturas_electronicas' },
     ];

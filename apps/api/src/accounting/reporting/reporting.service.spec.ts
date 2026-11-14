@@ -41,7 +41,12 @@ function build() {
     },
   };
 
-  const service = new ReportingService(prisma as any);
+  const tenantPrisma = {
+    execute: jest.fn((work: (client: typeof prisma) => unknown) =>
+      work(prisma),
+    ),
+  };
+  const service = new ReportingService(tenantPrisma as any);
 
   return { service, mocks };
 }
@@ -586,8 +591,10 @@ describe('ReportingService', () => {
         excluirOrigenTipo: 'CIERRE_ANUAL',
       });
 
-      const arg = mocks.movimientosGroupBy.mock.calls[0][0];
-      expect(arg.where.comprobante.OR).toBeUndefined();
+      const [args] = mocks.movimientosGroupBy.mock.calls[0] as unknown as [
+        { where: { comprobante: Record<string, unknown> } },
+      ];
+      expect(args.where.comprobante).not.toHaveProperty('OR');
     });
   });
 
