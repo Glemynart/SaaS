@@ -171,6 +171,47 @@ describe('CuentaSistemaMapService tenant isolation', () => {
     expect(maps.update).not.toHaveBeenCalled();
   });
 
+  it('reassigns an owned mapping only to an active imputable account in the tenant', async () => {
+    maps.findFirst.mockResolvedValueOnce({
+      id: 'map-a',
+      tenantId: 'tenant-a',
+      rol: 'IVA_GENERADO',
+    });
+    accounts.findFirst.mockResolvedValueOnce({
+      id: 'cuenta-nueva',
+      imputable: true,
+    });
+    maps.update.mockResolvedValueOnce({
+      id: 'map-a',
+      tenantId: 'tenant-a',
+      rol: 'IVA_GENERADO',
+      cuentaId: 'cuenta-nueva',
+    });
+
+    await service.update('tenant-a', 'user-a', 'map-a', {
+      cuentaId: 'cuenta-nueva',
+    });
+
+    expect(accounts.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'cuenta-nueva',
+        tenantId: 'tenant-a',
+        deletedAt: null,
+      },
+      select: { id: true, imputable: true },
+    });
+    expect(maps.update).toHaveBeenCalledWith({
+      where: { id: 'map-a' },
+      data: { cuentaId: 'cuenta-nueva' },
+      include: {
+        cuenta: { select: { id: true, codigo: true, nombre: true } },
+      },
+    });
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantId: 'tenant-a', userId: 'user-a' }),
+    );
+  });
+
   it('does not reassign a tenant mapping to another tenant account', async () => {
     maps.findFirst.mockResolvedValueOnce({
       id: 'map-a',
