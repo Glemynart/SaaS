@@ -2590,9 +2590,11 @@ export class PayrollService {
       }),
     );
 
-    const allNovelties = await this.prisma.payrollNovelty.findMany({
-      where: { tenantId, payrollPeriodId: periodId },
-    });
+    const allNovelties = await this.tenantPrisma.execute((tx) =>
+      tx.payrollNovelty.findMany({
+        where: { tenantId, payrollPeriodId: periodId },
+      }),
+    );
     const noveltiesByEmployee = new Map<string, typeof allNovelties>();
     for (const n of allNovelties) {
       const list = noveltiesByEmployee.get(n.employeeId) ?? [];
@@ -2877,9 +2879,11 @@ export class PayrollService {
       }),
     );
 
-    const allNovelties = await this.prisma.payrollNovelty.findMany({
-      where: { tenantId, payrollPeriodId: periodId },
-    });
+    const allNovelties = await this.tenantPrisma.execute((tx) =>
+      tx.payrollNovelty.findMany({
+        where: { tenantId, payrollPeriodId: periodId },
+      }),
+    );
     const noveltiesByEmployee = new Map<string, typeof allNovelties>();
     for (const n of allNovelties) {
       const list = noveltiesByEmployee.get(n.employeeId) ?? [];
@@ -3075,20 +3079,20 @@ export class PayrollService {
     userId: string,
     dto: CreatePayrollNoveltyDto,
   ) {
-    const [emp, period] = await Promise.all([
-      this.tenantPrisma.execute((prisma) =>
-        prisma.empleado.findFirst({
+    const novelty = await this.tenantPrisma.execute(async (tx) => {
+      const [employee, period] = await Promise.all([
+        tx.empleado.findFirst({
           where: { id: dto.employeeId, tenantId, deletedAt: null },
         }),
-      ),
-      this.prisma.payrollPeriod.findFirst({
-        where: { id: dto.payrollPeriodId, tenantId },
-      }),
-    ]);
-    if (!emp) throw new NotFoundException('Empleado no encontrado');
-    if (!period) throw new NotFoundException('Período no encontrado');
-    const novelty = await this.prisma.payrollNovelty.create({
-      data: { ...dto, fecha: new Date(dto.fecha), tenantId },
+        tx.payrollPeriod.findFirst({
+          where: { id: dto.payrollPeriodId, tenantId },
+        }),
+      ]);
+      if (!employee) throw new NotFoundException('Empleado no encontrado');
+      if (!period) throw new NotFoundException('Período no encontrado');
+      return tx.payrollNovelty.create({
+        data: { ...dto, fecha: new Date(dto.fecha), tenantId },
+      });
     });
     this.auditService
       .log({
@@ -3352,21 +3356,23 @@ export class PayrollService {
   }
 
   async findNovelties(tenantId: string, employeeId?: string) {
-    return this.prisma.payrollNovelty.findMany({
-      where: { tenantId, ...(employeeId ? { employeeId } : {}) },
-      include: {
-        employee: {
-          select: {
-            id: true,
-            primerNombre: true,
-            segundoNombre: true,
-            primerApellido: true,
-            segundoApellido: true,
+    return this.tenantPrisma.execute((tx) =>
+      tx.payrollNovelty.findMany({
+        where: { tenantId, ...(employeeId ? { employeeId } : {}) },
+        include: {
+          employee: {
+            select: {
+              id: true,
+              primerNombre: true,
+              segundoNombre: true,
+              primerApellido: true,
+              segundoApellido: true,
+            },
           },
         },
-      },
-      orderBy: { fecha: 'desc' },
-    });
+        orderBy: { fecha: 'desc' },
+      }),
+    );
   }
 
   async getDashboard(tenantId: string) {
