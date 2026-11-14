@@ -36,6 +36,16 @@ describe('Payroll corrections PostgreSQL integration', () => {
     {} as LedgerService,
     {} as PayrollAccountingPreflightService,
   );
+  const withTenantContext = <T>(work: () => Promise<T>) =>
+    tenantContext.run(
+      {
+        tenantId,
+        userId: actorId,
+        rol: 'ADMIN',
+        email: 'payroll-corrections@test.local',
+      },
+      work,
+    );
 
   const legalParams: LegalParamsSnapshot = {
     smmlv: 1_423_500,
@@ -222,11 +232,8 @@ describe('Payroll corrections PostgreSQL integration', () => {
   }, 30000);
 
   it('persists the create-review-approve correction cycle without mutating the approved payroll', async () => {
-    const created = await service.createCorrection(
-      tenantId,
-      actorId,
-      periodId,
-      {
+    const created = await withTenantContext(() =>
+      service.createCorrection(tenantId, actorId, periodId, {
         descripcion: 'Ajuste salarial integración',
         intents: [
           {
@@ -236,21 +243,17 @@ describe('Payroll corrections PostgreSQL integration', () => {
             targetAmount: 2_500_000,
           },
         ],
-      },
+      }),
     );
     expect(created.status).toBe('BORRADOR');
 
-    const submitted = await service.enviarCorrectionARevision(
-      tenantId,
-      actorId,
-      created.id,
+    const submitted = await withTenantContext(() =>
+      service.enviarCorrectionARevision(tenantId, actorId, created.id),
     );
     expect(submitted.status).toBe('EN_REVISION');
 
-    const approved = await service.aprobarCorrection(
-      tenantId,
-      actorId,
-      created.id,
+    const approved = await withTenantContext(() =>
+      service.aprobarCorrection(tenantId, actorId, created.id),
     );
     expect(approved.status).toBe('APROBADA');
     const materialization = approved.materialization as {
@@ -314,7 +317,9 @@ describe('Payroll corrections PostgreSQL integration', () => {
     );
 
     await expect(
-      service.findPeriodCorrections(randomUUID(), periodId),
+      withTenantContext(() =>
+        service.findPeriodCorrections(randomUUID(), periodId),
+      ),
     ).rejects.toThrow('Período no encontrado');
   }, 30000);
 });

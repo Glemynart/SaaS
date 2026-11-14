@@ -33,7 +33,11 @@ export class TenantPrismaService {
       client: TenantPrismaClient,
       context: TenantExecutionContext,
     ) => Promise<T>,
-    options?: { maxWait?: number; timeout?: number },
+    options?: {
+      maxWait?: number;
+      timeout?: number;
+      isolationLevel?: Prisma.TransactionIsolationLevel;
+    },
   ): Promise<T> {
     const active = this.transactions.getStore();
     if (active) {

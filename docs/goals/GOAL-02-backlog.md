@@ -2543,3 +2543,21 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
 - La prueba PostgreSQL verifica aislamiento de filas, inserción propia,
   rechazo de contexto/relaciones cruzadas y ausencia de mutaciones. La
   migración es aditiva y no se aplicó a bases desplegadas durante este cambio.
+
+### RLS tenant-scoped para períodos de nómina — GOAL-02
+
+- `payroll_periods` es el agregado tenant-owned que controla el ciclo de vida
+  de una nómina y vincula runs, snapshots, novedades, eventos PILA,
+  correcciones y contabilización.
+- La migración activa y fuerza RLS. Permite SELECT, INSERT y UPDATE únicamente
+  dentro del tenant contextual; no define DELETE porque el dominio no expone
+  borrado y conserva el período como raíz histórica.
+- Los accesos al período en `PayrollService`, incluidas transiciones,
+  generación, corrección, preparación PILA y dashboard, pasan por
+  `TenantPrismaService`. Las transacciones de correcciones que leen snapshots
+  también conservan el contexto tenant; la aprobación mantiene aislamiento
+  Serializable.
+- La prueba PostgreSQL verifica aislamiento, escrituras propias, rechazo de
+  tenant cruzado, ocultamiento sin contexto y ausencia de DELETE. No modifica
+  datos desplegados ni acredita que la migración ya haya sido aplicada fuera
+  de CI.

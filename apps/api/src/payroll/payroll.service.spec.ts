@@ -1810,7 +1810,7 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
       });
       expect(JSON.stringify(materialization)).not.toContain('before');
       expect(JSON.stringify(materialization)).not.toContain('after');
-      expect(mockPrisma.$transaction).toHaveBeenCalledWith(
+      expect(mockTenantPrisma.execute).toHaveBeenCalledWith(
         expect.any(Function),
         expect.objectContaining({ isolationLevel: 'Serializable' }),
       );
