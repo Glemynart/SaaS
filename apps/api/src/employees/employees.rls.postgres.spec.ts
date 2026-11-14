@@ -232,6 +232,7 @@ describe('empleados PostgreSQL RLS', () => {
       { tableName: 'lineas_facturas_electronicas' },
       { tableName: 'movimientos_contables' },
       { tableName: 'payroll_concepts' },
+      { tableName: 'payroll_corrections' },
       { tableName: 'payroll_novelties' },
       { tableName: 'payroll_periods' },
       { tableName: 'payroll_runs' },

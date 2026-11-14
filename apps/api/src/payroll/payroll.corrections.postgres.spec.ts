@@ -1,4 +1,8 @@
-import { Prisma, PayrollPeriodStatus } from '@prisma/client';
+import {
+  Prisma,
+  PayrollCorrectionStatus,
+  PayrollPeriodStatus,
+} from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { LedgerService } from '../accounting/ledger/ledger.service';
@@ -17,18 +21,39 @@ import {
 
 describe('Payroll corrections PostgreSQL integration', () => {
   const prisma = new PrismaService();
+  const suffix = randomUUID();
+  const role = 'rls_payroll_correction_' + suffix.replaceAll('-', '');
   const tenantContext = new TenantContextService();
+  const rolePrisma = {
+    $transaction: <T>(
+      work: (tx: Prisma.TransactionClient) => Promise<T>,
+      options?: {
+        maxWait?: number;
+        timeout?: number;
+        isolationLevel?: Prisma.TransactionIsolationLevel;
+      },
+    ) =>
+      prisma.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe('SET LOCAL ROLE "' + role + '"');
+        return work(tx);
+      }, options),
+  } as unknown as PrismaService;
   const tenantPrisma = new TenantPrismaService(
-    prisma,
+    rolePrisma,
     new TenantContextBoundary(tenantContext),
   );
-  const suffix = randomUUID();
   const tenantId = randomUUID();
+  const otherTenantId = randomUUID();
   const actorId = randomUUID();
   const employeeId = randomUUID();
   const periodId = randomUUID();
+  const otherPeriodId = randomUUID();
+  const draftPeriodId = randomUUID();
+  const otherCorrectionId = randomUUID();
+  const draftCorrectionId = randomUUID();
   const runId = randomUUID();
   const snapshotId = randomUUID();
+  let createdCorrectionId: string | undefined;
   const service = new PayrollService(
     prisma,
     tenantPrisma,
@@ -143,15 +168,52 @@ describe('Payroll corrections PostgreSQL integration', () => {
 
   beforeAll(async () => {
     await prisma.$connect();
+    await dropTestRole();
+    await prisma.$executeRawUnsafe(
+      'CREATE ROLE "' + role + '" NOLOGIN NOSUPERUSER NOBYPASSRLS',
+    );
+    await prisma.$executeRawUnsafe(
+      'GRANT USAGE ON SCHEMA public TO "' + role + '"',
+    );
+    await prisma.$executeRawUnsafe(
+      'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "payroll_corrections" TO "' +
+        role +
+        '"',
+    );
+    await prisma.$executeRawUnsafe(
+      'GRANT SELECT ON TABLE "payroll_periods", "payroll_snapshots", ' +
+        '"comprobantes_contables", "movimientos_contables", ' +
+        '"cuentas_contables", "centros_costo" TO "' +
+        role +
+        '"',
+    );
+    await prisma.$executeRawUnsafe(
+      'GRANT SELECT, INSERT ON TABLE "audit_logs" TO "' + role + '"',
+    );
+    await prisma.$executeRawUnsafe(
+      'GRANT USAGE ON TYPE "PayrollCorrectionStatus", "PayrollPeriodStatus", ' +
+        '"EstadoComprobante" TO "' +
+        role +
+        '"',
+    );
     await prisma.$transaction(async (tx) => {
-      await tx.tenant.create({
-        data: {
-          id: tenantId,
-          nombre: `Payroll correction integration ${suffix.slice(0, 8)}`,
-          nit: `9${suffix.replaceAll('-', '').slice(0, 9)}`,
-          digitoVerif: '1',
-          razonSocial: 'Payroll Correction Integration S.A.S.',
-        },
+      await tx.tenant.createMany({
+        data: [
+          {
+            id: tenantId,
+            nombre: `Payroll correction integration ${suffix.slice(0, 8)}`,
+            nit: `9${suffix.replaceAll('-', '').slice(0, 9)}`,
+            digitoVerif: '1',
+            razonSocial: 'Payroll Correction Integration S.A.S.',
+          },
+          {
+            id: otherTenantId,
+            nombre: `Payroll correction other tenant ${suffix.slice(0, 8)}`,
+            nit: `8${suffix.replaceAll('-', '').slice(0, 9)}`,
+            digitoVerif: '2',
+            razonSocial: 'Payroll Correction Other Tenant S.A.S.',
+          },
+        ],
       });
       await tx.user.create({
         data: {
@@ -176,17 +238,35 @@ describe('Payroll corrections PostgreSQL integration', () => {
           fechaIngreso: new Date('2025-01-01T00:00:00.000Z'),
         },
       });
-      await tx.payrollPeriod.create({
-        data: {
-          id: periodId,
-          tenantId,
-          nombre: 'Período integración correcciones',
-          fechaInicio: new Date('2026-03-01T00:00:00.000Z'),
-          fechaFin: new Date('2026-03-31T00:00:00.000Z'),
-          status: PayrollPeriodStatus.APROBADA,
-          aprobadoPorId: actorId,
-          aprobadoEn: new Date('2026-03-31T18:00:00.000Z'),
-        },
+      await tx.payrollPeriod.createMany({
+        data: [
+          {
+            id: periodId,
+            tenantId,
+            nombre: 'Período integración correcciones',
+            fechaInicio: new Date('2026-03-01T00:00:00.000Z'),
+            fechaFin: new Date('2026-03-31T00:00:00.000Z'),
+            status: PayrollPeriodStatus.APROBADA,
+            aprobadoPorId: actorId,
+            aprobadoEn: new Date('2026-03-31T18:00:00.000Z'),
+          },
+          {
+            id: otherPeriodId,
+            tenantId: otherTenantId,
+            nombre: 'Período de otro tenant',
+            fechaInicio: new Date('2026-03-01T00:00:00.000Z'),
+            fechaFin: new Date('2026-03-31T00:00:00.000Z'),
+            status: PayrollPeriodStatus.APROBADA,
+          },
+          {
+            id: draftPeriodId,
+            tenantId,
+            nombre: 'Período borrador sin correcciones',
+            fechaInicio: new Date('2026-04-01T00:00:00.000Z'),
+            fechaFin: new Date('2026-04-30T00:00:00.000Z'),
+            status: PayrollPeriodStatus.BORRADOR,
+          },
+        ],
       });
       await tx.payrollRun.create({
         data: {
@@ -213,21 +293,39 @@ describe('Payroll corrections PostgreSQL integration', () => {
           payload: originalPayload,
         },
       });
+      await tx.payrollCorrection.create({
+        data: {
+          id: otherCorrectionId,
+          tenantId: otherTenantId,
+          payrollPeriodId: otherPeriodId,
+          descripcion: 'Acto privado de otro tenant',
+        },
+      });
     });
   }, 30000);
 
   afterAll(async () => {
     try {
-      await prisma.payrollCorrection.deleteMany({ where: { tenantId } });
+      await prisma.payrollCorrection.deleteMany({
+        where: { tenantId: { in: [tenantId, otherTenantId] } },
+      });
       await prisma.payrollSnapshot.deleteMany({ where: { tenantId } });
       await prisma.payrollRun.deleteMany({ where: { tenantId } });
-      await prisma.payrollPeriod.deleteMany({ where: { tenantId } });
+      await prisma.payrollPeriod.deleteMany({
+        where: { tenantId: { in: [tenantId, otherTenantId] } },
+      });
       await prisma.empleado.deleteMany({ where: { tenantId } });
       await prisma.auditLog.deleteMany({ where: { tenantId } });
       await prisma.user.deleteMany({ where: { tenantId } });
-      await prisma.tenant.deleteMany({ where: { id: tenantId } });
+      await prisma.tenant.deleteMany({
+        where: { id: { in: [tenantId, otherTenantId] } },
+      });
     } finally {
-      await prisma.$disconnect();
+      try {
+        await dropTestRole();
+      } finally {
+        await prisma.$disconnect();
+      }
     }
   }, 30000);
 
@@ -245,6 +343,7 @@ describe('Payroll corrections PostgreSQL integration', () => {
         ],
       }),
     );
+    createdCorrectionId = created.id;
     expect(created.status).toBe('BORRADOR');
 
     const submitted = await withTenantContext(() =>
@@ -322,4 +421,198 @@ describe('Payroll corrections PostgreSQL integration', () => {
       ),
     ).rejects.toThrow('Período no encontrado');
   }, 30000);
+
+  it('forces tenant isolation and blocks invalid lifecycle mutations', async () => {
+    if (!createdCorrectionId) {
+      throw new Error('La corrección de integración no se creó correctamente.');
+    }
+
+    const tableState = await prisma.$queryRawUnsafe<
+      { rowSecurity: boolean; forceRowSecurity: boolean }[]
+    >(
+      'SELECT relrowsecurity AS "rowSecurity", ' +
+        'relforcerowsecurity AS "forceRowSecurity" ' +
+        "FROM pg_class WHERE oid = 'public.payroll_corrections'::regclass",
+    );
+    const roleAttributes = await prisma.$queryRaw<
+      { superuser: boolean; bypassRls: boolean; canLogin: boolean }[]
+    >`
+      SELECT rolsuper AS "superuser", rolbypassrls AS "bypassRls",
+        rolcanlogin AS "canLogin" FROM pg_roles WHERE rolname = ${role}
+    `;
+    const policies = await prisma.$queryRaw<
+      { command: string; policy: string }[]
+    >`
+      SELECT cmd AS "command", policyname AS "policy"
+      FROM pg_policies
+      WHERE schemaname = 'public' AND tablename = 'payroll_corrections'
+      ORDER BY cmd, policyname
+    `;
+    expect(tableState).toEqual([{ rowSecurity: true, forceRowSecurity: true }]);
+    expect(roleAttributes).toEqual([
+      { superuser: false, bypassRls: false, canLogin: false },
+    ]);
+    expect(policies).toEqual([
+      { command: 'INSERT', policy: 'payroll_corrections_tenant_insert' },
+      { command: 'SELECT', policy: 'payroll_corrections_tenant_select' },
+      { command: 'UPDATE', policy: 'payroll_corrections_tenant_update' },
+    ]);
+
+    const withoutTenant = await runAsRlsRole((tx) =>
+      tx.payrollCorrection.findMany({ where: { id: otherCorrectionId } }),
+    );
+    const crossTenantRead = await withTenantContext(() =>
+      tenantPrisma.execute((tx) =>
+        tx.payrollCorrection.findMany({ where: { id: otherCorrectionId } }),
+      ),
+    );
+    const ownRead = await withTenantContext(() =>
+      tenantPrisma.execute((tx) =>
+        tx.payrollCorrection.findMany({ where: { id: createdCorrectionId } }),
+      ),
+    );
+    expect(withoutTenant).toEqual([]);
+    expect(crossTenantRead).toEqual([]);
+    expect(ownRead).toHaveLength(1);
+    const otherTenantRead = await withTenant(otherTenantId, () =>
+      tenantPrisma.execute((tx) =>
+        tx.payrollCorrection.findMany({ where: { id: otherCorrectionId } }),
+      ),
+    );
+    expect(otherTenantRead).toHaveLength(1);
+
+    const crossTenantUpdate = await withTenantContext(() =>
+      tenantPrisma.execute((tx) =>
+        tx.payrollCorrection.updateMany({
+          where: { id: otherCorrectionId },
+          data: { descripcion: 'Intento de cambio cruzado' },
+        }),
+      ),
+    );
+    const terminalUpdate = await withTenantContext(() =>
+      tenantPrisma.execute((tx) =>
+        tx.payrollCorrection.updateMany({
+          where: { id: createdCorrectionId },
+          data: { descripcion: 'Intento de mutar acto aprobado' },
+        }),
+      ),
+    );
+    const deleteOwnCorrection = await withTenantContext(() =>
+      tenantPrisma.execute((tx) =>
+        tx.payrollCorrection.deleteMany({
+          where: { id: createdCorrectionId },
+        }),
+      ),
+    );
+    expect(crossTenantUpdate.count).toBe(0);
+    expect(terminalUpdate.count).toBe(0);
+    expect(deleteOwnCorrection.count).toBe(0);
+
+    const ownDraft = await withTenantContext(() =>
+      tenantPrisma.execute((tx) =>
+        tx.payrollCorrection.create({
+          data: {
+            id: draftCorrectionId,
+            tenantId,
+            payrollPeriodId: periodId,
+            descripcion: 'Corrección en borrador',
+          },
+        }),
+      ),
+    );
+    expect(ownDraft.status).toBe(PayrollCorrectionStatus.BORRADOR);
+    const validReviewTransition = await withTenantContext(() =>
+      tenantPrisma.execute((tx) =>
+        tx.payrollCorrection.updateMany({
+          where: { id: draftCorrectionId },
+          data: { status: PayrollCorrectionStatus.EN_REVISION },
+        }),
+      ),
+    );
+    expect(validReviewTransition.count).toBe(1);
+
+    await expect(
+      withTenantContext(() =>
+        tenantPrisma.execute((tx) =>
+          tx.payrollCorrection.create({
+            data: {
+              tenantId,
+              payrollPeriodId: otherPeriodId,
+              descripcion: 'Vínculo a período de otro tenant',
+            },
+          }),
+        ),
+      ),
+    ).rejects.toThrow();
+    await expect(
+      withTenantContext(() =>
+        tenantPrisma.execute((tx) =>
+          tx.payrollCorrection.create({
+            data: {
+              tenantId,
+              payrollPeriodId: periodId,
+              status: PayrollCorrectionStatus.APROBADA,
+              descripcion: 'No se puede insertar aprobada directamente',
+            },
+          }),
+        ),
+      ),
+    ).rejects.toThrow();
+    await expect(
+      withTenantContext(() =>
+        tenantPrisma.execute((tx) =>
+          tx.payrollCorrection.create({
+            data: {
+              tenantId,
+              payrollPeriodId: draftPeriodId,
+              descripcion: 'Período aún no aprobado',
+            },
+          }),
+        ),
+      ),
+    ).rejects.toThrow();
+    await expect(
+      runAsRlsRole((tx) =>
+        tx.payrollCorrection.create({
+          data: {
+            tenantId,
+            payrollPeriodId: periodId,
+            descripcion: 'Inserción sin contexto tenant',
+          },
+        }),
+      ),
+    ).rejects.toThrow();
+  }, 30000);
+
+  function withTenant<T>(id: string, work: () => Promise<T>) {
+    return tenantContext.run(
+      {
+        tenantId: id,
+        userId: actorId,
+        rol: 'ADMIN',
+        email: 'payroll-corrections@test.local',
+      },
+      work,
+    );
+  }
+
+  function runAsRlsRole<T>(work: (tx: Prisma.TransactionClient) => Promise<T>) {
+    return prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe('SET LOCAL ROLE "' + role + '"');
+      return work(tx);
+    });
+  }
+
+  async function dropTestRole() {
+    await prisma.$executeRawUnsafe(
+      `DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN
+          REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM "${role}";
+          REVOKE USAGE ON TYPE "PayrollCorrectionStatus", "PayrollPeriodStatus", "EstadoComprobante" FROM "${role}";
+          REVOKE ALL PRIVILEGES ON SCHEMA public FROM "${role}";
+          DROP ROLE "${role}";
+        END IF;
+      END $$`,
+    );
+  }
 });

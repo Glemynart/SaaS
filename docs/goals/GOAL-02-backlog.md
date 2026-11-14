@@ -16,9 +16,12 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   Browser E2E y Vercel; Browser E2E no subió artefactos.
 - PR #381 añade RLS tenant-scoped a `payroll_novelties`, insumo sensible de los
   cálculos de nómina; PR #382 protege el ciclo de vida de `payroll_periods`.
-- Este incremento añade RLS tenant-scoped a `payroll_runs` y deriva el
-  aislamiento de `payroll_concepts` desde su ejecución propietaria. Las
-  correcciones de nómina siguen pendientes de auditoría e incremento separado.
+- PR #383 añade RLS tenant-scoped a `payroll_runs` y deriva el
+  aislamiento de `payroll_concepts` desde su ejecución propietaria. Al cierre
+  de ese PR, las correcciones seguían pendientes de auditoría e incremento.
+- `payroll_corrections` queda protegida con RLS tenant-scoped, vincula
+  cada acto a un período del mismo tenant y conserva sus registros históricos
+  no eliminables. Sus lecturas usan `TenantPrismaService`.
 
 ## Estado vigente — 2026-11-09
 
