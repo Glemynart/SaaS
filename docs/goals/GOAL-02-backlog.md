@@ -25,11 +25,19 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   evento con un período y un empleado del mismo tenant, permite alta y
   eliminación solo en períodos `BORRADOR`, conserva la lectura histórica y no
   habilita `UPDATE`. La lectura de la lista usa `TenantPrismaService`.
-- Este incremento añade RLS a `payroll_blocks`, que determinan si un empleado
+- PR #386 integró RLS a `payroll_blocks`, que determinan si un empleado
   puede aprobarse en nómina. Verifica la pertenencia del período, empleado y
   usuario excluyente al mismo tenant; permite su estado inicial solo durante
   `CALCULADA` o `EN_REVISION`, conserva el ciclo de actualización actual, mantiene
-  lectura de historial y no habilita borrado.
+  lectura de historial y no habilita borrado. PR #387 persiste los bloqueos de
+  aprobación cuando se rechaza una nómina.
+- Esta cohorte añade RLS a `contratos`, que contienen snapshots de
+  salario y referencias a documentos. La migración valida relaciones históricas
+  tenant-consistentes antes de activarla; los consumidores de contratos en
+  RR. HH., lotes y cálculo de nómina usan `TenantPrismaService`. No protege aún
+  `generated_documents` ni el expediente, y no cierra el riesgo conocido de que
+  una sesión SQL pueda establecer `app.current_tenant_id`. La migración y sus
+  pruebas están en esta rama y no demuestran aplicación en una base desplegada.
 
 ## Estado vigente — 2026-11-09
 
