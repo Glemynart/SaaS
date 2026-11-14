@@ -1,6 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
 import { InvoiceStatus as PrismaInvoiceStatus, Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { LedgerService } from '../accounting/ledger/ledger.service';
 import type { RegistrarComprobanteInput } from '../accounting/ledger/ledger.types';
@@ -8,21 +7,6 @@ import { AuditService } from '../audit/audit.service';
 import { BillingService } from './billing.service';
 
 describe('BillingService', () => {
-  const prismaMock = {
-    customer: {
-      findUnique: jest.fn(),
-      findFirst: jest.fn(),
-      create: jest.fn(),
-    },
-    tercero: { findFirst: jest.fn() },
-    productService: { findMany: jest.fn() },
-    invoice: {
-      create: jest.fn(),
-      findMany: jest.fn(),
-      findFirst: jest.fn(),
-    },
-    comprobanteContable: { findFirst: jest.fn() },
-  };
   const tenantPrismaMock = { execute: jest.fn() };
   const ledgerMock = { registrarComprobante: jest.fn(), anular: jest.fn() };
   const auditMock = { log: jest.fn() };
@@ -40,12 +24,24 @@ describe('BillingService', () => {
       Promise<unknown>,
       [TemplateStringsArray, ...unknown[]]
     >(),
-    invoice: { findFirst: jest.fn(), update: jest.fn() },
+    invoice: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+    },
     customer: {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
       create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    productService: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
       update: jest.fn(),
     },
     tercero: { findFirst: jest.fn() },
@@ -68,32 +64,26 @@ describe('BillingService', () => {
     tenantPrismaMock.execute.mockImplementation((work: unknown) =>
       (work as (client: typeof txMock) => unknown)(txMock),
     );
-    prismaMock.customer.findUnique.mockResolvedValue(null);
-    prismaMock.customer.findFirst.mockResolvedValue({
-      id: 'customer-1',
-      razonSocial: 'Cliente Demo SAS',
-      nit: '900123456-7',
-      status: 'ACTIVE',
-    });
-    prismaMock.tercero.findFirst.mockResolvedValue(null);
-    prismaMock.customer.create.mockImplementation((input: unknown) => {
-      createdCustomerInputs.push(input);
-      return Promise.resolve({ id: 'customer-1' });
-    });
-    prismaMock.productService.findMany.mockResolvedValue([
-      { id: 'product-1', impuesto: new Prisma.Decimal(19) },
-    ]);
-    prismaMock.invoice.create.mockImplementation((input: unknown) => {
+    txMock.invoice.create.mockImplementation((input: unknown) => {
       createdInvoiceInputs.push(input);
       return Promise.resolve({ id: 'invoice-1' });
     });
-    prismaMock.invoice.findMany.mockResolvedValue([]);
-    prismaMock.invoice.findFirst.mockResolvedValue(null);
-    prismaMock.comprobanteContable.findFirst.mockResolvedValue(null);
+    txMock.invoice.findMany.mockResolvedValue([]);
     txMock.invoice.findFirst.mockResolvedValue(null);
     txMock.$queryRaw.mockResolvedValue([]);
     txMock.invoice.update.mockResolvedValue({ id: 'invoice-1' });
-    txMock.customer.findFirst.mockResolvedValue(null);
+    txMock.customer.findFirst.mockImplementation(
+      ({ where }: { where: Record<string, unknown> }) =>
+        where.status === 'ACTIVE'
+          ? {
+              id: 'customer-1',
+              tenantId: 'tenant-1',
+              razonSocial: 'Cliente Demo SAS',
+              nit: '900123456-7',
+              status: 'ACTIVE',
+            }
+          : null,
+    );
     txMock.customer.findUnique.mockResolvedValue(null);
     txMock.customer.findMany.mockResolvedValue([]);
     txMock.customer.create.mockImplementation((input: unknown) => {
@@ -101,6 +91,16 @@ describe('BillingService', () => {
       return Promise.resolve({ id: 'customer-1' });
     });
     txMock.customer.update.mockResolvedValue({ id: 'customer-1' });
+    txMock.customer.delete.mockResolvedValue({ id: 'customer-1' });
+    txMock.productService.findMany.mockResolvedValue([
+      { id: 'product-1', impuesto: new Prisma.Decimal(19) },
+    ]);
+    txMock.productService.findFirst.mockResolvedValue({
+      id: 'product-1',
+      tenantId: 'tenant-1',
+    });
+    txMock.productService.create.mockResolvedValue({ id: 'product-1' });
+    txMock.productService.update.mockResolvedValue({ id: 'product-1' });
     txMock.tercero.findFirst.mockResolvedValue(null);
     txMock.periodoContable.findFirst.mockResolvedValue(null);
     txMock.cuentaSistemaMap.findMany.mockResolvedValue([]);
@@ -122,7 +122,6 @@ describe('BillingService', () => {
       return Promise.resolve(undefined);
     });
     service = new BillingService(
-      prismaMock as unknown as PrismaService,
       tenantPrismaMock as unknown as TenantPrismaService,
       ledgerMock as unknown as LedgerService,
       auditMock as unknown as AuditService,
@@ -229,10 +228,79 @@ describe('BillingService', () => {
     });
   });
 
+  it('deletes only a customer visible inside the active tenant transaction', async () => {
+    txMock.customer.findFirst.mockResolvedValue({ id: 'customer-1' });
+    await service.removeCustomer('tenant-1', 'customer-1');
+
+    expect(tenantPrismaMock.execute).toHaveBeenCalledTimes(1);
+    expect(txMock.customer.findFirst).toHaveBeenCalledWith({
+      where: { id: 'customer-1', tenantId: 'tenant-1' },
+      select: { id: true },
+    });
+    expect(txMock.customer.delete).toHaveBeenCalledWith({
+      where: { id: 'customer-1' },
+    });
+  });
+
+  it('scopes product CRUD to the tenant transaction', async () => {
+    await service.createProduct('tenant-1', {
+      nombre: 'Servicio',
+      precio: 100,
+      impuesto: 19,
+    });
+    await service.findAllProducts('tenant-1', 'serv');
+    await service.findOneProduct('tenant-1', 'product-1');
+    await service.updateProduct('tenant-1', 'product-1', { activo: false });
+
+    expect(tenantPrismaMock.execute).toHaveBeenCalledTimes(4);
+    expect(txMock.productService.create).toHaveBeenCalledWith({
+      data: {
+        nombre: 'Servicio',
+        precio: 100,
+        impuesto: 19,
+        tenantId: 'tenant-1',
+      },
+    });
+    expect(txMock.productService.findMany).toHaveBeenCalledWith({
+      where: {
+        tenantId: 'tenant-1',
+        activo: true,
+        nombre: { contains: 'serv', mode: 'insensitive' },
+      },
+      orderBy: { nombre: 'asc' },
+    });
+    expect(txMock.productService.findFirst).toHaveBeenNthCalledWith(1, {
+      where: { id: 'product-1', tenantId: 'tenant-1' },
+    });
+    expect(txMock.productService.findFirst).toHaveBeenNthCalledWith(2, {
+      where: { id: 'product-1', tenantId: 'tenant-1' },
+      select: { id: true },
+    });
+    expect(txMock.productService.update).toHaveBeenCalledWith({
+      where: { id: 'product-1' },
+      data: { activo: false },
+    });
+  });
+
+  it('does not update a product that is not visible to the active tenant', async () => {
+    txMock.productService.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.updateProduct('tenant-1', 'product-from-other-tenant', {
+        activo: false,
+      }),
+    ).rejects.toThrow('Producto no encontrado');
+
+    expect(txMock.productService.update).not.toHaveBeenCalled();
+  });
+
   it('valida que los productos estén activos y pertenezcan al tenant', async () => {
     await service.createInvoice('tenant-1', invoiceDto);
 
-    expect(prismaMock.productService.findMany).toHaveBeenCalledWith({
+    expect(txMock.customer.findFirst).toHaveBeenCalledWith({
+      where: { id: 'customer-1', tenantId: 'tenant-1', status: 'ACTIVE' },
+    });
+    expect(txMock.productService.findMany).toHaveBeenCalledWith({
       where: {
         tenantId: 'tenant-1',
         id: { in: ['product-1'] },
@@ -240,18 +308,18 @@ describe('BillingService', () => {
       },
       select: { id: true, impuesto: true },
     });
-    expect(prismaMock.invoice.create).toHaveBeenCalledTimes(1);
+    expect(txMock.invoice.create).toHaveBeenCalledTimes(1);
   });
 
   it('rechaza productos ajenos, inexistentes o inactivos antes de crear la factura', async () => {
-    prismaMock.productService.findMany.mockResolvedValue([]);
+    txMock.productService.findMany.mockResolvedValue([]);
 
     await expect(service.createInvoice('tenant-1', invoiceDto)).rejects.toThrow(
       new BadRequestException(
         'Uno o más productos no están disponibles para esta empresa.',
       ),
     );
-    expect(prismaMock.invoice.create).not.toHaveBeenCalled();
+    expect(txMock.invoice.create).not.toHaveBeenCalled();
   });
 
   it('rechaza crear una factura sin líneas', async () => {
@@ -259,8 +327,8 @@ describe('BillingService', () => {
       service.createInvoice('tenant-1', { ...invoiceDto, items: [] }),
     ).rejects.toThrow('La factura debe tener al menos una línea');
 
-    expect(prismaMock.customer.findFirst).not.toHaveBeenCalled();
-    expect(prismaMock.invoice.create).not.toHaveBeenCalled();
+    expect(txMock.customer.findFirst).not.toHaveBeenCalled();
+    expect(txMock.invoice.create).not.toHaveBeenCalled();
   });
 
   it('rechaza una fecha de vencimiento imposible antes de consultar el cliente', async () => {
@@ -270,12 +338,12 @@ describe('BillingService', () => {
         fechaVencimiento: '2026-02-31',
       }),
     ).rejects.toThrow('La fecha de vencimiento no es válida.');
-    expect(prismaMock.customer.findFirst).not.toHaveBeenCalled();
-    expect(prismaMock.invoice.create).not.toHaveBeenCalled();
+    expect(txMock.customer.findFirst).not.toHaveBeenCalled();
+    expect(txMock.invoice.create).not.toHaveBeenCalled();
   });
 
   it('congela el impuesto configurado del producto y redondea cada línea a dos decimales', async () => {
-    prismaMock.productService.findMany.mockResolvedValue([
+    txMock.productService.findMany.mockResolvedValue([
       { id: 'product-1', impuesto: new Prisma.Decimal(5) },
     ]);
     await service.createInvoice('tenant-1', {
@@ -313,7 +381,7 @@ describe('BillingService', () => {
       ],
     });
 
-    expect(prismaMock.productService.findMany).not.toHaveBeenCalled();
+    expect(txMock.productService.findMany).not.toHaveBeenCalled();
     const create = createdInvoiceInputs[0] as {
       data: {
         items: { create: Array<Record<string, unknown>> };
@@ -333,8 +401,8 @@ describe('BillingService', () => {
       items: [invoiceDto.items[0], { ...invoiceDto.items[0] }],
     });
 
-    expect(prismaMock.productService.findMany).toHaveBeenCalledTimes(1);
-    expect(prismaMock.productService.findMany).toHaveBeenCalledWith({
+    expect(txMock.productService.findMany).toHaveBeenCalledTimes(1);
+    expect(txMock.productService.findMany).toHaveBeenCalledWith({
       where: {
         tenantId: 'tenant-1',
         id: { in: ['product-1'] },
@@ -613,7 +681,7 @@ describe('BillingService', () => {
       status: PrismaInvoiceStatus.ISSUED,
       total: new Prisma.Decimal(100_000),
     };
-    prismaMock.invoice.findMany.mockResolvedValue([invoice]);
+    txMock.invoice.findMany.mockResolvedValue([invoice]);
     txMock.invoice.findFirst.mockResolvedValue(invoice);
     txMock.$queryRaw.mockResolvedValue([
       { invoiceId: 'invoice-1', applied: new Prisma.Decimal(25_000) },

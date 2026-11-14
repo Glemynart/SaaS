@@ -2495,3 +2495,22 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   PostgreSQL comprueba el aislamiento y la imposibilidad de borrar períodos.
 - La migración solo cambia el esquema al aplicarse; no incluye backfill ni fue
   ejecutada contra bases desplegadas.
+
+### RLS tenant-scoped para facturación interna — GOAL-02
+
+- **Alcance:** tablas `customers`, `product_services`, `invoices` e
+  `invoice_items`. Las líneas de factura no almacenan `tenantId`; su política
+  deriva el tenant de la factura propietaria. Las líneas son snapshots y no
+  tienen políticas de actualización ni borrado. Las facturas se cancelan por
+  transición de estado y tampoco tienen política de borrado físico.
+- **Aplicación:** el CRUD de clientes, productos y facturas usa
+  `TenantPrismaService`; las validaciones de cliente/producto y la creación de
+  factura ocurren dentro de la misma transacción tenant-scoped. Los flujos de
+  recibos y aplicación de pagos ya operaban dentro de ese contexto.
+- **Validación:** la suite PostgreSQL usa un rol de prueba `NOBYPASSRLS` para
+  comprobar visibilidad por tenant, ausencia de contexto, DML propio y
+  aislamiento de líneas a través de su factura. Las pruebas de servicio
+  comprueban que el CRUD no use Prisma fuera de la transacción tenant-scoped.
+- **Estado operativo:** la migración es aditiva, no reescribe datos y no se
+  aplica a bases desplegadas mediante esta tarea. La integración real depende
+  de los checks PostgreSQL de CI.

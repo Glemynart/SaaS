@@ -5,7 +5,6 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { Prisma, TipoDocIdentidad } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import type { TenantPrismaClient } from '../tenant-prisma/tenant-prisma.service';
 import { LedgerService } from '../accounting/ledger/ledger.service';
@@ -64,10 +63,9 @@ function parseDateOnly(value: string, label: string): Date {
 @Injectable()
 export class BillingService {
   constructor(
-    private prisma: PrismaService,
-    private tenantPrisma: TenantPrismaService,
-    private ledger: LedgerService,
-    private audit: AuditService,
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly ledger: LedgerService,
+    private readonly audit: AuditService,
   ) {}
 
   // --- CUSTOMERS ---
@@ -171,39 +169,57 @@ export class BillingService {
   }
 
   async removeCustomer(tenantId: string, id: string) {
-    await this.findOneCustomer(tenantId, id);
-    return this.prisma.customer.delete({ where: { id } });
+    return this.tenantPrisma.execute(async (tx) => {
+      const customer = await tx.customer.findFirst({
+        where: { id, tenantId },
+        select: { id: true },
+      });
+      if (!customer) throw new NotFoundException('Cliente no encontrado');
+      return tx.customer.delete({ where: { id } });
+    });
   }
 
   // --- PRODUCTS ---
   async createProduct(tenantId: string, dto: CreateProductDto) {
-    return this.prisma.productService.create({ data: { ...dto, tenantId } });
+    return this.tenantPrisma.execute((tx) =>
+      tx.productService.create({ data: { ...dto, tenantId } }),
+    );
   }
 
   async findAllProducts(tenantId: string, search?: string) {
-    return this.prisma.productService.findMany({
-      where: {
-        tenantId,
-        activo: true,
-        ...(search
-          ? { nombre: { contains: search, mode: 'insensitive' } }
-          : {}),
-      },
-      orderBy: { nombre: 'asc' },
-    });
+    return this.tenantPrisma.execute((tx) =>
+      tx.productService.findMany({
+        where: {
+          tenantId,
+          activo: true,
+          ...(search
+            ? { nombre: { contains: search, mode: 'insensitive' } }
+            : {}),
+        },
+        orderBy: { nombre: 'asc' },
+      }),
+    );
   }
 
   async findOneProduct(tenantId: string, id: string) {
-    const product = await this.prisma.productService.findFirst({
-      where: { id, tenantId },
+    return this.tenantPrisma.execute(async (tx) => {
+      const product = await tx.productService.findFirst({
+        where: { id, tenantId },
+      });
+      if (!product) throw new NotFoundException('Producto no encontrado');
+      return product;
     });
-    if (!product) throw new NotFoundException('Producto no encontrado');
-    return product;
   }
 
   async updateProduct(tenantId: string, id: string, dto: UpdateProductDto) {
-    await this.findOneProduct(tenantId, id);
-    return this.prisma.productService.update({ where: { id }, data: dto });
+    return this.tenantPrisma.execute(async (tx) => {
+      const product = await tx.productService.findFirst({
+        where: { id, tenantId },
+        select: { id: true },
+      });
+      if (!product) throw new NotFoundException('Producto no encontrado');
+      return tx.productService.update({ where: { id }, data: dto });
+    });
   }
 
   // --- INVOICES ---
@@ -217,112 +233,117 @@ export class BillingService {
         'La factura debe tener al menos una línea.',
       );
     }
-    const customer = await this.prisma.customer.findFirst({
-      where: { id: dto.customerId, tenantId, status: 'ACTIVE' },
-    });
-    if (!customer) throw new NotFoundException('Cliente activo no encontrado');
-
-    const productRates = await this.validateInvoiceProducts(
-      tenantId,
-      dto.items,
-    );
-    const items = dto.items.map((item) => {
-      const rate = item.productServiceId
-        ? productRates.get(item.productServiceId)
-        : new Prisma.Decimal(item.porcentajeImpuesto);
-      if (!rate) {
-        throw new BadRequestException(
-          'No se pudo determinar la tasa de IVA del producto.',
-        );
+    return this.tenantPrisma.execute(async (tx) => {
+      const customer = await tx.customer.findFirst({
+        where: { id: dto.customerId, tenantId, status: 'ACTIVE' },
+      });
+      if (!customer) {
+        throw new NotFoundException('Cliente activo no encontrado');
       }
-      const porcentajeImpuesto = new Prisma.Decimal(rate);
-      if (!SUPPORTED_IVA_RATES.has(porcentajeImpuesto.toNumber())) {
-        throw new BadRequestException(
-          `La tasa ${porcentajeImpuesto.toString()}% no está soportada para facturas internas. Use 0%, 5% o 19%.`,
-        );
-      }
-      const subtotal = new Prisma.Decimal(item.cantidad)
-        .mul(item.valorUnitario)
-        .toDecimalPlaces(2, COP_ROUNDING);
-      const valorImpuesto = subtotal
-        .mul(porcentajeImpuesto)
-        .div(100)
-        .toDecimalPlaces(2, COP_ROUNDING);
-      return {
-        productServiceId: item.productServiceId ?? null,
-        descripcion: item.descripcion,
-        cantidad: new Prisma.Decimal(item.cantidad),
-        valorUnitario: new Prisma.Decimal(item.valorUnitario),
-        subtotal: subtotal.toFixed(2),
-        porcentajeImpuesto: porcentajeImpuesto.toFixed(2),
-        valorImpuesto: valorImpuesto.toFixed(2),
-      };
-    });
 
-    const subtotal = items.reduce(
-      (sum, item) => sum.plus(item.subtotal),
-      new Prisma.Decimal(0),
-    );
-    const impuestos = items.reduce(
-      (sum, item) => sum.plus(item.valorImpuesto),
-      new Prisma.Decimal(0),
-    );
-    const total = subtotal.plus(impuestos);
-
-    return this.prisma.invoice.create({
-      data: {
+      const productRates = await this.validateInvoiceProducts(
+        tx,
         tenantId,
-        customerId: dto.customerId,
-        numero: dto.numero,
-        fechaVencimiento,
-        customerRazonSocialSnapshot: customer.razonSocial,
-        customerNitSnapshot: customer.nit,
-        subtotal: subtotal.toFixed(2),
-        impuestos: impuestos.toFixed(2),
-        total: total.toFixed(2),
-        items: { create: items },
-      },
-      include: {
-        items: true,
-        customer: { select: { razonSocial: true, nit: true } },
-      },
+        dto.items,
+      );
+      const items = dto.items.map((item) => {
+        const rate = item.productServiceId
+          ? productRates.get(item.productServiceId)
+          : new Prisma.Decimal(item.porcentajeImpuesto);
+        if (!rate) {
+          throw new BadRequestException(
+            'No se pudo determinar la tasa de IVA del producto.',
+          );
+        }
+        const porcentajeImpuesto = new Prisma.Decimal(rate);
+        if (!SUPPORTED_IVA_RATES.has(porcentajeImpuesto.toNumber())) {
+          throw new BadRequestException(
+            `La tasa ${porcentajeImpuesto.toString()}% no está soportada para facturas internas. Use 0%, 5% o 19%.`,
+          );
+        }
+        const subtotal = new Prisma.Decimal(item.cantidad)
+          .mul(item.valorUnitario)
+          .toDecimalPlaces(2, COP_ROUNDING);
+        const valorImpuesto = subtotal
+          .mul(porcentajeImpuesto)
+          .div(100)
+          .toDecimalPlaces(2, COP_ROUNDING);
+        return {
+          productServiceId: item.productServiceId ?? null,
+          descripcion: item.descripcion,
+          cantidad: new Prisma.Decimal(item.cantidad),
+          valorUnitario: new Prisma.Decimal(item.valorUnitario),
+          subtotal: subtotal.toFixed(2),
+          porcentajeImpuesto: porcentajeImpuesto.toFixed(2),
+          valorImpuesto: valorImpuesto.toFixed(2),
+        };
+      });
+
+      const subtotal = items.reduce(
+        (sum, item) => sum.plus(item.subtotal),
+        new Prisma.Decimal(0),
+      );
+      const impuestos = items.reduce(
+        (sum, item) => sum.plus(item.valorImpuesto),
+        new Prisma.Decimal(0),
+      );
+      const total = subtotal.plus(impuestos);
+
+      return tx.invoice.create({
+        data: {
+          tenantId,
+          customerId: dto.customerId,
+          numero: dto.numero,
+          fechaVencimiento,
+          customerRazonSocialSnapshot: customer.razonSocial,
+          customerNitSnapshot: customer.nit,
+          subtotal: subtotal.toFixed(2),
+          impuestos: impuestos.toFixed(2),
+          total: total.toFixed(2),
+          items: { create: items },
+        },
+        include: {
+          items: true,
+          customer: { select: { razonSocial: true, nit: true } },
+        },
+      });
     });
   }
 
   async findAllInvoices(tenantId: string, status?: string) {
-    const invoices = await this.prisma.invoice.findMany({
-      where: {
-        tenantId,
-        ...(status
-          ? { status: status as 'DRAFT' | 'ISSUED' | 'CANCELLED' }
-          : {}),
-      },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        customer: { select: { razonSocial: true, nit: true } },
-        _count: { select: { items: true } },
-      },
-    });
-    const appliedAmounts = invoices.length
-      ? await this.tenantPrisma.execute((tx) =>
-          getActiveReceiptAppliedAmounts(
+    return this.tenantPrisma.execute(async (tx) => {
+      const invoices = await tx.invoice.findMany({
+        where: {
+          tenantId,
+          ...(status
+            ? { status: status as 'DRAFT' | 'ISSUED' | 'CANCELLED' }
+            : {}),
+        },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          customer: { select: { razonSocial: true, nit: true } },
+          _count: { select: { items: true } },
+        },
+      });
+      const appliedAmounts = invoices.length
+        ? await getActiveReceiptAppliedAmounts(
             tx,
             tenantId,
             invoices.map(({ id }) => id),
-          ),
-        )
-      : new Map<string, Prisma.Decimal>();
-    return invoices.map((invoice) => {
-      if (invoice.status !== 'ISSUED') {
-        return { ...invoice, totalPagado: null, saldoPendiente: null };
-      }
-      const totalPagado =
-        appliedAmounts.get(invoice.id) ?? new Prisma.Decimal(0);
-      return {
-        ...invoice,
-        totalPagado,
-        saldoPendiente: new Prisma.Decimal(invoice.total).minus(totalPagado),
-      };
+          )
+        : new Map<string, Prisma.Decimal>();
+      return invoices.map((invoice) => {
+        if (invoice.status !== 'ISSUED') {
+          return { ...invoice, totalPagado: null, saldoPendiente: null };
+        }
+        const totalPagado =
+          appliedAmounts.get(invoice.id) ?? new Prisma.Decimal(0);
+        return {
+          ...invoice,
+          totalPagado,
+          saldoPendiente: new Prisma.Decimal(invoice.total).minus(totalPagado),
+        };
+      });
     });
   }
 
@@ -820,6 +841,7 @@ export class BillingService {
   }
 
   private async validateInvoiceProducts(
+    tx: TenantPrismaClient,
     tenantId: string,
     items: CreateInvoiceDto['items'],
   ): Promise<Map<string, Prisma.Decimal>> {
@@ -832,7 +854,7 @@ export class BillingService {
     ];
     if (productIds.length === 0) return new Map();
 
-    const products = await this.prisma.productService.findMany({
+    const products = await tx.productService.findMany({
       where: { tenantId, id: { in: productIds }, activo: true },
       select: { id: true, impuesto: true },
     });
