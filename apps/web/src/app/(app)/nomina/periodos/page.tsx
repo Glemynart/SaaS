@@ -286,7 +286,10 @@ export default function PeriodosPage() {
                         variant="ghost"
                         size="sm"
                         className="text-xs text-muted-foreground hover:text-foreground"
-                        onClick={() => aprobarMutation.mutate(p.id)}
+                        onClick={() => {
+                          aprobarMutation.reset();
+                          aprobarMutation.mutate(p.id);
+                        }}
                         disabled={aprobarMutation.isPending}
                       >
                         <Check className="size-3.5" /> Aprobar
@@ -301,6 +304,19 @@ export default function PeriodosPage() {
                         <X className="size-3.5" /> Rechazar
                       </Button>
                     </>
+                  )}
+                  {aprobarMutation.isError && aprobarMutation.variables === p.id && (
+                    <p role="alert" className="basis-full text-right text-xs text-destructive">
+                      {aprobarMutation.error instanceof Error
+                        ? aprobarMutation.error.message
+                        : 'No se pudo aprobar el período.'}{' '}
+                      <Link
+                        href={`/nomina/periodos/${p.id}`}
+                        className="underline underline-offset-2"
+                      >
+                        Abrir período
+                      </Link>
+                    </p>
                   )}
                 </div>
               </div>

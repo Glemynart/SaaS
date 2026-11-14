@@ -252,7 +252,7 @@ export function useAprobarPayrollPeriod() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: payrollApi.aprobar,
-    onSuccess: () => qc.invalidateQueries({ queryKey: payrollKeys.all }),
+    onSettled: () => qc.invalidateQueries({ queryKey: payrollKeys.all }),
   });
 }
 export function useContabilizarPayrollPeriod() {

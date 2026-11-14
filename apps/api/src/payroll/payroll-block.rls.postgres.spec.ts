@@ -23,6 +23,7 @@ describe('PayrollBlock PostgreSQL RLS', () => {
   const employeeB = randomUUID();
   const periodA = randomUUID();
   const periodB = randomUUID();
+  const approvalPeriodA = randomUUID();
   const approvedPeriodA = randomUUID();
   const actorA = randomUUID();
   const actorB = randomUUID();
@@ -73,7 +74,9 @@ describe('PayrollBlock PostgreSQL RLS', () => {
         '"',
     );
     await prisma.$executeRawUnsafe(
-      'GRANT SELECT ON TABLE "payroll_periods", "empleados", "users" TO "' +
+      'GRANT SELECT ON TABLE "payroll_periods", "empleados", "users", ' +
+        '"tenants", "parametros_legales_nomina", "payroll_novelties", ' +
+        '"contratos", "payroll_runs", "payroll_concepts" TO "' +
         role +
         '"',
     );
@@ -104,8 +107,12 @@ describe('PayrollBlock PostgreSQL RLS', () => {
         data: [
           periodData(periodA, tenantA, PayrollPeriodStatus.CALCULADA),
           periodData(periodB, tenantB, PayrollPeriodStatus.CALCULADA),
+          periodData(approvalPeriodA, tenantA, PayrollPeriodStatus.EN_REVISION),
           periodData(approvedPeriodA, tenantA, PayrollPeriodStatus.APROBADA),
         ],
+      });
+      await tx.parametroLegalNomina.create({
+        data: legalParamData(tenantA),
       });
       await tx.payrollBlock.createMany({
         data: [
@@ -201,6 +208,34 @@ describe('PayrollBlock PostgreSQL RLS', () => {
       'Se requiere un contexto de tenant válido.',
     );
   });
+
+  it('persists newly detected functional blocks when approval is rejected', async () => {
+    await expect(
+      withTenant(tenantA, () =>
+        service.aprobar(tenantA, actorA, approvalPeriodA),
+      ),
+    ).rejects.toThrow('bloqueos funcionales activos');
+
+    const period = await withTenant(tenantA, () =>
+      tenantPrisma.execute((tx) =>
+        tx.payrollPeriod.findFirstOrThrow({
+          where: { id: approvalPeriodA, tenantId: tenantA },
+          select: { status: true },
+        }),
+      ),
+    );
+    const blocks = await withTenant(tenantA, () =>
+      service.findPeriodBlocks(tenantA, approvalPeriodA),
+    );
+
+    expect(period.status).toBe(PayrollPeriodStatus.EN_REVISION);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({
+      employeeId: employeeA,
+      code: 'MISSING_ACTIVE_CONTRACT',
+      status: PayrollBlockStatus.ACTIVE,
+    });
+  }, 30000);
 
   it('allows editable tenant lifecycle changes and blocks cross-tenant links', async () => {
     const created = await withTenant(tenantA, () =>
@@ -408,6 +443,34 @@ describe('PayrollBlock PostgreSQL RLS', () => {
       fechaInicio: new Date('2026-01-01T00:00:00.000Z'),
       fechaFin: new Date('2026-01-31T00:00:00.000Z'),
       status,
+    };
+  }
+
+  function legalParamData(tenantId: string) {
+    return {
+      tenantId,
+      vigenciaDesde: new Date('2026-01-01T00:00:00.000Z'),
+      anio: 2026,
+      smmlv: 1_423_500,
+      auxilioTransporte: 202_897,
+      uvt: 49_799,
+      pctSaludEmpleado: 0.04,
+      pctPensionEmpleado: 0.04,
+      pctSaludEmpleador: 0.085,
+      pctPensionEmpleador: 0.12,
+      pctCaja: 0.04,
+      pctIcbf: 0.03,
+      pctSena: 0.02,
+      arlClaseI: 0.00522,
+      arlClaseII: 0.01044,
+      arlClaseIII: 0.02436,
+      arlClaseIV: 0.0435,
+      arlClaseV: 0.0696,
+      factorProvPrima: 0.0833,
+      factorProvCesantias: 0.0833,
+      factorProvIntCesantias: 0.01,
+      factorProvVacaciones: 0.0417,
+      fspTramos: [],
     };
   }
 
