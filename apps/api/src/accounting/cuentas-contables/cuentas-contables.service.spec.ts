@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { CuentasContablesService } from './cuentas-contables.service';
 
 // Cubre la protección de cuentas de sistema en update(): sus banderas de control
@@ -12,19 +12,24 @@ describe('CuentasContablesService.update — protección esCuentaSistema', () =>
   };
   const cuentaNormal = { ...cuentaSistema, id: 'c2', esCuentaSistema: false };
 
-  function build(cuenta: Record<string, unknown>) {
-    const prisma = {
+  function build(cuenta: Record<string, unknown>, contextTenantId = 't1') {
+    const tx = {
       cuentaContable: {
         findFirst: jest.fn().mockResolvedValue(cuenta),
         update: jest.fn().mockResolvedValue({ ...cuenta, nombre: 'nuevo' }),
       },
     };
+    const tenantPrisma = {
+      execute: jest.fn((work: (client: unknown, context: unknown) => unknown) =>
+        work(tx, { tenantId: contextTenantId }),
+      ),
+    };
     const audit = { log: jest.fn().mockResolvedValue(undefined) };
     const service = new CuentasContablesService(
-      prisma as never,
+      tenantPrisma as never,
       audit as never,
     );
-    return { service, prisma };
+    return { service, tx, tenantPrisma };
   }
 
   it.each([
@@ -34,22 +39,32 @@ describe('CuentasContablesService.update — protección esCuentaSistema', () =>
     'requiereCentroCosto',
     'requiereBase',
   ])('rechaza modificar "%s" en una cuenta de sistema', async (campo) => {
-    const { service, prisma } = build(cuentaSistema);
+    const { service, tx } = build(cuentaSistema);
     await expect(
       service.update('t1', 'u1', 'c1', { [campo]: true }),
     ).rejects.toBeInstanceOf(ConflictException);
-    expect(prisma.cuentaContable.update).not.toHaveBeenCalled();
+    expect(tx.cuentaContable.update).not.toHaveBeenCalled();
   });
 
   it('permite cambiar solo el nombre en una cuenta de sistema', async () => {
-    const { service, prisma } = build(cuentaSistema);
+    const { service, tx, tenantPrisma } = build(cuentaSistema);
     await service.update('t1', 'u1', 'c1', { nombre: 'nuevo' });
-    expect(prisma.cuentaContable.update).toHaveBeenCalledTimes(1);
+    expect(tenantPrisma.execute).toHaveBeenCalledTimes(1);
+    expect(tx.cuentaContable.update).toHaveBeenCalledTimes(1);
   });
 
   it('permite modificar banderas en una cuenta NO de sistema', async () => {
-    const { service, prisma } = build(cuentaNormal);
+    const { service, tx } = build(cuentaNormal);
     await service.update('t1', 'u1', 'c2', { activa: false });
-    expect(prisma.cuentaContable.update).toHaveBeenCalledTimes(1);
+    expect(tx.cuentaContable.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('rechaza una discrepancia entre el tenant solicitado y el contexto activo', async () => {
+    const { service, tx } = build(cuentaNormal, 't2');
+    await expect(
+      service.update('t1', 'u1', 'c2', { nombre: 'no debe cambiar' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(tx.cuentaContable.findFirst).not.toHaveBeenCalled();
+    expect(tx.cuentaContable.update).not.toHaveBeenCalled();
   });
 });
