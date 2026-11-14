@@ -338,6 +338,22 @@ describe('accounting PostgreSQL RLS', () => {
   });
 
   it('keeps global chart templates read-only to tenant sessions', async () => {
+    const ownAccountId = randomUUID();
+    const createdTenantAccount = await tenantContext.run(
+      {
+        tenantId: tenantA,
+        userId: 'rls-accounting-test-user',
+        rol: 'ADMIN',
+        email: 'rls-accounting-test@example.com',
+      },
+      () =>
+        tenantPrisma.execute((client) =>
+          client.cuentaContable.create({
+            data: accountData(ownAccountId, tenantA, `9001-${suffix}`),
+            select: { id: true, tenantId: true },
+          }),
+        ),
+    );
     const visibleTemplate = await tenantContext.run(
       {
         tenantId: tenantA,
@@ -368,6 +384,10 @@ describe('accounting PostgreSQL RLS', () => {
           }),
         ),
     );
+    expect(createdTenantAccount).toEqual({
+      id: ownAccountId,
+      tenantId: tenantA,
+    });
     expect(visibleTemplate).toEqual([{ tenantId: null }]);
     expect(update.count).toBe(0);
     await expect(
