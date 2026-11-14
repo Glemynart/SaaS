@@ -1084,10 +1084,12 @@ export class PayrollService {
       'Solo se pueden consultar correcciones sobre un período aprobado',
     );
 
-    const corrections = await this.prisma.payrollCorrection.findMany({
-      where: { tenantId, payrollPeriodId: periodId },
-      orderBy: [{ createdAt: 'desc' }],
-    });
+    const corrections = await this.tenantPrisma.execute((tx) =>
+      tx.payrollCorrection.findMany({
+        where: { tenantId, payrollPeriodId: periodId },
+        orderBy: [{ createdAt: 'desc' }],
+      }),
+    );
     if (corrections.length === 0) return [];
 
     const vouchers = await this.tenantPrisma.execute((tx) =>
@@ -1229,10 +1231,12 @@ export class PayrollService {
     correctionId: string,
     motivo?: string,
   ) {
-    const correction = await this.prisma.payrollCorrection.findFirst({
-      where: { id: correctionId, tenantId },
-      select: { status: true },
-    });
+    const correction = await this.tenantPrisma.execute((tx) =>
+      tx.payrollCorrection.findFirst({
+        where: { id: correctionId, tenantId },
+        select: { status: true },
+      }),
+    );
     if (!correction) throw new NotFoundException('Corrección no encontrada');
     if (
       correction.status !== PayrollCorrectionStatus.BORRADOR &&
@@ -1547,10 +1551,12 @@ export class PayrollService {
   ) {
     assertCorrectionTransition(from, to);
 
-    const correction = await this.prisma.payrollCorrection.findFirst({
-      where: { id: correctionId, tenantId },
-      select: { status: true, payrollPeriodId: true },
-    });
+    const correction = await this.tenantPrisma.execute((tx) =>
+      tx.payrollCorrection.findFirst({
+        where: { id: correctionId, tenantId },
+        select: { status: true, payrollPeriodId: true },
+      }),
+    );
     if (!correction) throw new NotFoundException('Corrección no encontrada');
 
     const period = await this.requireApprovedPeriodForCorrections(
