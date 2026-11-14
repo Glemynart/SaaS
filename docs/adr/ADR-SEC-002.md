@@ -124,7 +124,7 @@ El inventario de seguridad actual incluye:
 | Security headers (Helmet)          | Implementado        | —         |
 | Rate limiting global               | Pendiente           | Alta      |
 | RLS en PostgreSQL                  | Parcial (19 tablas) | Media     |
-| Tests de guards de seguridad       | Pendiente           | Alta      |
+| Tests de guards de seguridad       | Parcial (unitarios) | Alta      |
 | Rotación de refresh tokens         | Implementado        | —         |
 | Detección de reuso de tokens       | Implementado        | —         |
 
@@ -365,6 +365,10 @@ prerrequisitos operativos.
 - `PeriodosContablesService` tiene pruebas unitarias que verifican el aislamiento
   en consulta, unicidad de creación, consulta por ID y generación anual
   idempotente; los períodos generados siempre conservan el tenant autenticado.
+- `CuentaSistemaMapService` tiene pruebas unitarias que verifican las consultas
+  tenant-scoped, la validación de que la cuenta pertenezca al tenant y sea
+  imputable, y que las escrituras no se ejecuten al recibir IDs de otro tenant.
+  Estas pruebas de servicio no sustituyen las pruebas de integración de RLS.
 
 **Pendiente:**
 
