@@ -2,6 +2,7 @@ name: Browser E2E
 
 on:
   pull_request:
+    types: [opened, reopened, synchronize]
   push:
     branches:
       - main
@@ -19,6 +20,9 @@ jobs:
     # Keep the browser runner on an OS supported by the Playwright version pinned in pnpm-lock.yaml.
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
     services:
       postgres:
         image: postgres:16
@@ -78,9 +82,35 @@ jobs:
       - name: Run browser smoke
         run: pnpm test:e2e
 
+      - name: Resolve browser evidence policy
+        id: browser-evidence-policy
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${PR_NUMBER:-}" ]]; then
+            printf 'upload=true\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! labels="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.labels[].name' 2>/dev/null)"; then
+            echo "::warning::Could not verify pull request labels; skipping browser evidence upload."
+            printf 'upload=false\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if grep -Fxq 'no-browser-evidence' <<< "$labels"; then
+            printf 'upload=false\n' >> "$GITHUB_OUTPUT"
+          else
+            printf 'upload=true\n' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Upload browser evidence
         if: >-
-          ${{ failure() && !contains(github.event.pull_request.labels.*.name, 'no-browser-evidence') }}
+          ${{ failure() && steps.browser-evidence-policy.outputs.upload == 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: browser-e2e-evidence
