@@ -36,11 +36,17 @@ function makeHarness(
       callback(transactionClient),
   );
   const prisma = { $transaction: transaction } as unknown as PrismaService;
+  const tenantPrisma = {
+    execute: jest.fn(
+      async (callback: (tx: Prisma.TransactionClient) => Promise<unknown>) =>
+        callback(transactionClient),
+    ),
+  } as unknown as TenantPrismaService;
   const auditLog = jest.fn().mockResolvedValue(undefined);
   const audit = { log: auditLog };
   const service = new PayrollService(
     prisma,
-    {} as TenantPrismaService,
+    tenantPrisma,
     audit as unknown as AuditService,
     {} as LedgerService,
     {} as PayrollAccountingPreflightService,

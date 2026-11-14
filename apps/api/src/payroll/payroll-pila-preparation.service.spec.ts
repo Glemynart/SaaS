@@ -14,15 +14,19 @@ const findSnapshots = jest.fn();
 const tenantPrismaExecute = jest.fn(
   (
     work: (client: {
+      payrollPeriod: { findFirst: typeof findPeriod };
+      payrollRun: { findMany: typeof findRuns };
       payrollSnapshot: { findMany: typeof findSnapshots };
     }) => unknown,
-  ) => work({ payrollSnapshot: { findMany: findSnapshots } }),
+  ) =>
+    work({
+      payrollPeriod: { findFirst: findPeriod },
+      payrollRun: { findMany: findRuns },
+      payrollSnapshot: { findMany: findSnapshots },
+    }),
 );
 
-const prisma = {
-  payrollPeriod: { findFirst: findPeriod },
-  payrollRun: { findMany: findRuns },
-};
+const prisma = {};
 
 describe('PayrollService.getPilaPreparation', () => {
   let service: PayrollService;
@@ -86,7 +90,7 @@ describe('PayrollService.getPilaPreparation', () => {
       },
       orderBy: [{ createdAt: 'asc' }, { employeeId: 'asc' }],
     });
-    expect(tenantPrismaExecute).toHaveBeenCalledTimes(1);
+    expect(tenantPrismaExecute).toHaveBeenCalledTimes(3);
     const blockerFor = (code: string) => {
       const blocker = report.exportReadiness.blockers.find(
         (candidate) => candidate.code === code,
@@ -158,7 +162,7 @@ describe('PayrollService.getPilaPreparation', () => {
       service.getPilaPreparation('tenant-1', 'period-1'),
     ).rejects.toThrow(ConflictException);
     expect(findSnapshots).not.toHaveBeenCalled();
-    expect(tenantPrismaExecute).not.toHaveBeenCalled();
+    expect(tenantPrismaExecute).toHaveBeenCalledTimes(1);
     expect(findRuns).not.toHaveBeenCalled();
   });
 
@@ -174,7 +178,7 @@ describe('PayrollService.getPilaPreparation', () => {
       }),
     );
     expect(findSnapshots).not.toHaveBeenCalled();
-    expect(tenantPrismaExecute).not.toHaveBeenCalled();
+    expect(tenantPrismaExecute).toHaveBeenCalledTimes(1);
     expect(findRuns).not.toHaveBeenCalled();
   });
 });

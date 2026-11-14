@@ -322,12 +322,6 @@ export class PayrollService {
         comprobanteId: string;
       }
   > {
-    const period = await this.prisma.payrollPeriod.findFirst({
-      where: { id: periodId, tenantId },
-      select: { id: true, fechaFin: true },
-    });
-    if (!period) throw new NotFoundException('Período de nómina no encontrado');
-
     return this.tenantPrisma.execute(async (tx) => {
       const current = await tx.payrollPeriod.findFirst({
         where: { id: periodId, tenantId },
@@ -588,20 +582,22 @@ export class PayrollService {
     userId: string,
     dto: CreatePayrollPeriodDto,
   ) {
-    const period = await this.prisma.payrollPeriod.create({
-      data: {
-        ...dto,
-        fechaInicio: new Date(dto.fechaInicio),
-        fechaFin: new Date(dto.fechaFin),
-        fechaPrevistaPagoPila: dto.fechaPrevistaPagoPila
-          ? new Date(dto.fechaPrevistaPagoPila)
-          : null,
-        tenantId,
-        // Explícito: no depender del @default de la DB (red de seguridad,
-        // no fuente de verdad). Ver ADR-002 §6 / U1 Fase 1.
-        status: PayrollPeriodStatus.BORRADOR,
-      },
-    });
+    const period = await this.tenantPrisma.execute((tx) =>
+      tx.payrollPeriod.create({
+        data: {
+          ...dto,
+          fechaInicio: new Date(dto.fechaInicio),
+          fechaFin: new Date(dto.fechaFin),
+          fechaPrevistaPagoPila: dto.fechaPrevistaPagoPila
+            ? new Date(dto.fechaPrevistaPagoPila)
+            : null,
+          tenantId,
+          // Explícito: no depender del @default de la DB (red de seguridad,
+          // no fuente de verdad). Ver ADR-002 §6 / U1 Fase 1.
+          status: PayrollPeriodStatus.BORRADOR,
+        },
+      }),
+    );
     this.auditService
       .log({
         tenantId,
@@ -640,7 +636,7 @@ export class PayrollService {
       PayrollPeriodStatus.EN_REVISION,
     ];
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.tenantPrisma.execute(async (tx) => {
       const period = await tx.payrollPeriod.findFirst({
         where: { id: periodId, tenantId },
       });
@@ -882,11 +878,13 @@ export class PayrollService {
   }
 
   async findAllPeriods(tenantId: string) {
-    const periods = await this.prisma.payrollPeriod.findMany({
-      where: { tenantId },
-      orderBy: { createdAt: 'desc' },
-      include: { _count: { select: { runs: true } } },
-    });
+    const periods = await this.tenantPrisma.execute((tx) =>
+      tx.payrollPeriod.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: 'desc' },
+        include: { _count: { select: { runs: true } } },
+      }),
+    );
     return periods.map((p) => ({
       ...p,
       empleadosProcesados: p._count.runs,
@@ -895,9 +893,9 @@ export class PayrollService {
   }
 
   async findOnePeriod(tenantId: string, id: string) {
-    const period = await this.prisma.payrollPeriod.findFirst({
-      where: { id, tenantId },
-    });
+    const period = await this.tenantPrisma.execute((tx) =>
+      tx.payrollPeriod.findFirst({ where: { id, tenantId } }),
+    );
     if (!period) throw new NotFoundException('Período no encontrado');
 
     const snapshotsQuery =
@@ -987,15 +985,17 @@ export class PayrollService {
   }
 
   async getPilaPreparation(tenantId: string, periodId: string) {
-    const period = await this.prisma.payrollPeriod.findFirst({
-      where: { id: periodId, tenantId },
-      select: {
-        id: true,
-        status: true,
-        fechaInicio: true,
-        fechaFin: true,
-      },
-    });
+    const period = await this.tenantPrisma.execute((tx) =>
+      tx.payrollPeriod.findFirst({
+        where: { id: periodId, tenantId },
+        select: {
+          id: true,
+          status: true,
+          fechaInicio: true,
+          fechaFin: true,
+        },
+      }),
+    );
     if (!period) throw new NotFoundException('Período no encontrado');
     if (
       period.status !== PayrollPeriodStatus.APROBADA &&
@@ -1007,11 +1007,13 @@ export class PayrollService {
     }
 
     const [runs, snapshots] = await Promise.all([
-      this.prisma.payrollRun.findMany({
-        where: { tenantId, payrollPeriodId: periodId },
-        select: { employeeId: true },
-        orderBy: { employeeId: 'asc' },
-      }),
+      this.tenantPrisma.execute((tx) =>
+        tx.payrollRun.findMany({
+          where: { tenantId, payrollPeriodId: periodId },
+          select: { employeeId: true },
+          orderBy: { employeeId: 'asc' },
+        }),
+      ),
       this.tenantPrisma.execute((tx) =>
         tx.payrollSnapshot.findMany({
           where: { tenantId, payrollPeriodId: periodId },
@@ -1038,37 +1040,41 @@ export class PayrollService {
   }
 
   async findPeriodBlocks(tenantId: string, periodId: string) {
-    const period = await this.prisma.payrollPeriod.findFirst({
-      where: { id: periodId, tenantId },
-      select: { id: true },
-    });
+    const period = await this.tenantPrisma.execute((tx) =>
+      tx.payrollPeriod.findFirst({
+        where: { id: periodId, tenantId },
+        select: { id: true },
+      }),
+    );
     if (!period) throw new NotFoundException('PerÃ­odo no encontrado');
 
-    return this.prisma.payrollBlock.findMany({
-      where: { tenantId, payrollPeriodId: periodId },
-      include: {
-        employee: {
-          select: {
-            id: true,
-            primerNombre: true,
-            segundoNombre: true,
-            primerApellido: true,
-            segundoApellido: true,
-            cedula: true,
-            cargo: true,
+    return this.tenantPrisma.execute((tx) =>
+      tx.payrollBlock.findMany({
+        where: { tenantId, payrollPeriodId: periodId },
+        include: {
+          employee: {
+            select: {
+              id: true,
+              primerNombre: true,
+              segundoNombre: true,
+              primerApellido: true,
+              segundoApellido: true,
+              cedula: true,
+              cargo: true,
+            },
+          },
+          excludedBy: {
+            select: {
+              id: true,
+              nombre: true,
+              apellido: true,
+              email: true,
+            },
           },
         },
-        excludedBy: {
-          select: {
-            id: true,
-            nombre: true,
-            apellido: true,
-            email: true,
-          },
-        },
-      },
-      orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
-    });
+        orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
+      }),
+    );
   }
 
   async findPeriodCorrections(tenantId: string, periodId: string) {
@@ -1132,7 +1138,7 @@ export class PayrollService {
       'Solo se pueden registrar correcciones sobre un período aprobado',
     );
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.tenantPrisma.execute(async (tx) => {
       await this.validateCorrectionIntentReferences(
         tx,
         tenantId,
@@ -1254,7 +1260,7 @@ export class PayrollService {
     blockId: string,
     motivo?: string,
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.tenantPrisma.execute(async (tx) => {
       const block = await tx.payrollBlock.findFirst({
         where: { id: blockId, tenantId },
       });
@@ -1393,9 +1399,9 @@ export class PayrollService {
       assertTransition(from, PayrollPeriodStatus.APROBADA);
     }
 
-    const period = await this.prisma.payrollPeriod.findFirst({
-      where: { id: periodId, tenantId },
-    });
+    const period = await this.tenantPrisma.execute((tx) =>
+      tx.payrollPeriod.findFirst({ where: { id: periodId, tenantId } }),
+    );
     if (!period) throw new NotFoundException('PerÃ­odo no encontrado');
     if (period.status !== from) {
       throw new BadRequestException(
@@ -1488,10 +1494,12 @@ export class PayrollService {
   ) {
     assertTransition(from, to);
 
-    const period = await this.prisma.payrollPeriod.findFirst({
-      where: { id: periodId, tenantId },
-      select: { status: true },
-    });
+    const period = await this.tenantPrisma.execute((tx) =>
+      tx.payrollPeriod.findFirst({
+        where: { id: periodId, tenantId },
+        select: { status: true },
+      }),
+    );
     if (!period) throw new NotFoundException('Período no encontrado');
     if (period.status !== from) {
       throw new BadRequestException(
@@ -1499,7 +1507,7 @@ export class PayrollService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.tenantPrisma.execute(async (tx) => {
       const result = await tx.payrollPeriod.updateMany({
         where: { id: periodId, tenantId, status: from },
         data: { status: to, ...options?.data },
@@ -1557,7 +1565,7 @@ export class PayrollService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.tenantPrisma.execute(async (tx) => {
       const result = await tx.payrollCorrection.updateMany({
         where: {
           id: correctionId,
@@ -1606,7 +1614,7 @@ export class PayrollService {
     userId: string,
     correctionId: string,
   ) {
-    return this.prisma.$transaction(
+    return this.tenantPrisma.execute(
       async (tx) => {
         const correction = await tx.payrollCorrection.findFirst({
           where: { id: correctionId, tenantId },
@@ -2467,16 +2475,18 @@ export class PayrollService {
     periodId: string,
     notApprovedMessage: string,
   ) {
-    const period = await this.prisma.payrollPeriod.findFirst({
-      where: { id: periodId, tenantId },
-      select: {
-        id: true,
-        nombre: true,
-        status: true,
-        aprobadoPorId: true,
-        aprobadoEn: true,
-      },
-    });
+    const period = await this.tenantPrisma.execute((tx) =>
+      tx.payrollPeriod.findFirst({
+        where: { id: periodId, tenantId },
+        select: {
+          id: true,
+          nombre: true,
+          status: true,
+          aprobadoPorId: true,
+          aprobadoEn: true,
+        },
+      }),
+    );
     if (!period) throw new NotFoundException('Período no encontrado');
 
     if (
@@ -2496,9 +2506,9 @@ export class PayrollService {
   }
 
   async generatePayroll(tenantId: string, userId: string, periodId: string) {
-    const period = await this.prisma.payrollPeriod.findFirst({
-      where: { id: periodId, tenantId },
-    });
+    const period = await this.tenantPrisma.execute((tx) =>
+      tx.payrollPeriod.findFirst({ where: { id: periodId, tenantId } }),
+    );
     if (!period) throw new NotFoundException('Período no encontrado');
     if (!GENERATE_ALLOWED_STATUSES.includes(period.status)) {
       throw new BadRequestException(
@@ -2785,9 +2795,9 @@ export class PayrollService {
   }
 
   async recalculatePayroll(tenantId: string, userId: string, periodId: string) {
-    const period = await this.prisma.payrollPeriod.findFirst({
-      where: { id: periodId, tenantId },
-    });
+    const period = await this.tenantPrisma.execute((tx) =>
+      tx.payrollPeriod.findFirst({ where: { id: periodId, tenantId } }),
+    );
     if (!period) throw new NotFoundException('Período no encontrado');
     if (!RECALCULATE_ALLOWED_STATUSES.includes(period.status)) {
       throw new ConflictException(
@@ -3117,10 +3127,12 @@ export class PayrollService {
     periodId: string,
     employeeId?: string,
   ) {
-    const period = await this.prisma.payrollPeriod.findFirst({
-      where: { id: periodId, tenantId },
-      select: { id: true },
-    });
+    const period = await this.tenantPrisma.execute((tx) =>
+      tx.payrollPeriod.findFirst({
+        where: { id: periodId, tenantId },
+        select: { id: true },
+      }),
+    );
     if (!period) throw new NotFoundException('Período no encontrado');
 
     const events = await this.prisma.payrollPilaEvent.findMany({
@@ -3376,16 +3388,20 @@ export class PayrollService {
   }
 
   async getDashboard(tenantId: string) {
-    const [periods, totalRuns] = await Promise.all([
-      this.prisma.payrollPeriod.count({ where: { tenantId } }),
-      this.prisma.payrollRun.count({ where: { tenantId } }),
-    ]);
-
-    const lastPeriod = await this.prisma.payrollPeriod.findFirst({
-      where: { tenantId },
-      orderBy: { createdAt: 'desc' },
-      select: { id: true, nombre: true, status: true },
-    });
+    const { periods, totalRuns, lastPeriod } = await this.tenantPrisma.execute(
+      async (tx) => {
+        const [periods, totalRuns, lastPeriod] = await Promise.all([
+          tx.payrollPeriod.count({ where: { tenantId } }),
+          tx.payrollRun.count({ where: { tenantId } }),
+          tx.payrollPeriod.findFirst({
+            where: { tenantId },
+            orderBy: { createdAt: 'desc' },
+            select: { id: true, nombre: true, status: true },
+          }),
+        ]);
+        return { periods, totalRuns, lastPeriod };
+      },
+    );
 
     let lastPeriodTotals = {
       totalDevengos: 0,
@@ -3393,9 +3409,11 @@ export class PayrollService {
       totalNeto: 0,
     };
     if (lastPeriod) {
-      const runs = await this.prisma.payrollRun.findMany({
-        where: { tenantId, payrollPeriodId: lastPeriod.id },
-      });
+      const runs = await this.tenantPrisma.execute((tx) =>
+        tx.payrollRun.findMany({
+          where: { tenantId, payrollPeriodId: lastPeriod.id },
+        }),
+      );
       lastPeriodTotals = {
         totalDevengos: runs.reduce((s, r) => s + Number(r.totalDevengos), 0),
         totalDeducciones: runs.reduce(
