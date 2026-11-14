@@ -161,6 +161,30 @@ describe('CentrosCostoService tenant isolation', () => {
     expect(centers.update).not.toHaveBeenCalled();
   });
 
+  it('updates an owned cost center and records a tenant-scoped audit event', async () => {
+    centers.findFirst.mockResolvedValueOnce({
+      id: 'centro-a',
+      tenantId: 'tenant-a',
+      deletedAt: null,
+    });
+
+    await service.update('tenant-a', 'user-a', 'centro-a', {
+      nombre: 'Administración norte',
+    });
+
+    expect(centers.update).toHaveBeenCalledWith({
+      where: { id: 'centro-a' },
+      data: { nombre: 'Administración norte' },
+    });
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: 'tenant-a',
+        userId: 'user-a',
+        action: 'CENTRO_COSTO_UPDATE',
+      }),
+    );
+  });
+
   it('does not reassign a tenant cost center to a site from another tenant', async () => {
     centers.findFirst.mockResolvedValueOnce({
       id: 'centro-a',
