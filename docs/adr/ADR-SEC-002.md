@@ -349,17 +349,31 @@ operativos.
 activación del rate limiting global queda pendiente hasta verificar sus
 prerrequisitos operativos.
 
-### Fase siguiente — Tests de seguridad
+### Fase parcialmente completada — Tests de seguridad
 
-**Estado:** Pendiente
+**Estado:** Parcialmente completada.
 
-**Alcance:**
+**Alcance implementado:**
 
-- Tests unitarios para `JwtAuthGuard`, `ActiveTenantGuard`, `RolesGuard`.
-- Tests de aislamiento de tenant en servicios que aún no los tienen.
-- Tests de validación de entrada para DTOs críticos.
+- Existen pruebas unitarias para `JwtAuthGuard`, `ActiveTenantGuard` y
+  `RolesGuard`; en esta rama se completan casos límite de contexto de tenant y
+  ausencia de metadatos de rol.
+- `TercerosService` tiene pruebas de aislamiento para lectura, creación,
+  actualización, borrado lógico y detección de documentos duplicados. Un ID de
+  otro tenant no devuelve sus datos ni ejecuta escrituras.
 
-**Validación:** cobertura de guards > 90%; tests de aislamiento para todo servicio con datos multi-tenant.
+**Pendiente:**
+
+- Incorporar pruebas de aislamiento en los demás servicios multi-tenant que no
+  las tengan.
+- Añadir validación de entrada para los DTOs críticos aún no cubiertos.
+- Revisar y cerrar las brechas restantes de cobertura de ramas por guard.
+
+**Validación:** las tres suites de guards alcanzan 100% de sentencias y líneas
+en conjunto y 90,62% de ramas; `ActiveTenantGuard` aún tiene una rama
+instrumentada pendiente. Las pruebas de servicio comprueban que las consultas
+incluyan `tenantId` y que las escrituras no ocurran si el registro queda fuera
+del tenant activo.
 
 ### Fase siguiente — Row-Level Security (RLS)
 

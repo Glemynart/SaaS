@@ -13,6 +13,21 @@ describe('RolesGuard authorization contracts', () => {
     restrictedOperation(this: void) {}
   }
 
+  class UnrestrictedController {
+    operation(this: void) {}
+  }
+
+  it('allows operations without role metadata', () => {
+    expect(
+      guard.canActivate(
+        contextFor(
+          UnrestrictedController,
+          UnrestrictedController.prototype.operation,
+        ),
+      ),
+    ).toBe(true);
+  });
+
   it.each([UserRole.ADMIN, UserRole.OPERADOR])(
     'allows the declared role %s',
     (role) => {

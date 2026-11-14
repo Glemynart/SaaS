@@ -21,6 +21,14 @@ describe('ActiveTenantGuard tenant isolation contracts', () => {
     expect(ensureActive).not.toHaveBeenCalled();
   });
 
+  it('rejects an authenticated context with an empty tenant before consulting tenant state', async () => {
+    await expect(
+      guard.canActivate(contextFor({ user: userFor('') })),
+    ).resolves.toBe(false);
+
+    expect(ensureActive).not.toHaveBeenCalled();
+  });
+
   it('validates exactly the tenant from the authenticated request context', async () => {
     const request = {
       headers: { 'x-tenant-id': 'tenant-b' },
