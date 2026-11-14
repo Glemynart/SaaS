@@ -86,6 +86,17 @@ describe('PeriodosContablesService tenant isolation', () => {
     });
   });
 
+  it('returns a period when it belongs to the authenticated tenant', async () => {
+    const ownedPeriod = { id: 'periodo-a', tenantId: 'tenant-a' };
+    periodo.findFirst.mockResolvedValueOnce(ownedPeriod);
+
+    await expect(service.findOne('tenant-a', 'periodo-a')).resolves.toBe(
+      ownedPeriod,
+    );
+    expect(periodo.findFirst).toHaveBeenCalledWith({
+      where: { id: 'periodo-a', tenantId: 'tenant-a' },
+    });
+  });
   it('does not return a period by ID when it belongs to another tenant', async () => {
     await expect(
       service.findOne('tenant-a', 'periodo-b'),
