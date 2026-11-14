@@ -149,6 +149,7 @@ describe('AccountingProvisioningService tenant isolation', () => {
       mapeos: DEFAULT_SYSTEM_ACCOUNT_MAPPINGS.length,
     });
 
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
     expect(tx.cuentaContable.findMany).toHaveBeenCalledWith({
       where: { tenantId: null },
       select: templateSelect,
@@ -253,6 +254,7 @@ describe('AccountingProvisioningService tenant isolation', () => {
       service.desaprovisionar('tenant-a', 'user-a'),
     ).resolves.toEqual({ cuentas: 2 });
 
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
     expect(tx.cuentaSistemaMap.deleteMany).toHaveBeenCalledWith({
       where: { tenantId: 'tenant-a' },
     });
