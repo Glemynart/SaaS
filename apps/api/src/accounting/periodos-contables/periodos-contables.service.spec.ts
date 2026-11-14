@@ -1,48 +1,65 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { EstadoPeriodo } from '@prisma/client';
 import { AuditService } from '../../audit/audit.service';
-import { PrismaService } from '../../prisma/prisma.service';
+import { TenantPrismaService } from '../../tenant-prisma/tenant-prisma.service';
 import { PeriodosContablesService } from './periodos-contables.service';
 
 describe('PeriodosContablesService tenant isolation', () => {
-  const prisma = {
+  const tx = {
     periodoContable: {
       create: jest.fn(),
       createMany: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
     },
-  } as unknown as PrismaService;
+  };
   const auditLog = jest.fn();
   const audit = { log: auditLog } as unknown as AuditService;
-  const service = new PeriodosContablesService(prisma, audit);
-  const periodo = prisma.periodoContable as unknown as {
-    create: jest.Mock;
-    createMany: jest.Mock;
-    findFirst: jest.Mock;
-    findMany: jest.Mock;
-  };
+
+  function build(contextTenantId = 'tenant-a') {
+    const tenantPrisma = {
+      execute: jest.fn((work: (client: unknown, context: unknown) => unknown) =>
+        work(tx, { tenantId: contextTenantId }),
+      ),
+    } as unknown as TenantPrismaService;
+    return {
+      service: new PeriodosContablesService(tenantPrisma, audit),
+      tenantPrisma: tenantPrisma as unknown as {
+        execute: jest.Mock;
+      },
+    };
+  }
 
   beforeEach(() => {
     jest.clearAllMocks();
-    periodo.findFirst.mockResolvedValue(null);
-    periodo.findMany.mockResolvedValue([]);
-    periodo.create.mockResolvedValue({ id: 'periodo-a', anio: 2028, mes: 2 });
-    periodo.createMany.mockResolvedValue({ count: 12 });
+    tx.periodoContable.findFirst.mockResolvedValue(null);
+    tx.periodoContable.findMany.mockResolvedValue([]);
+    tx.periodoContable.create.mockResolvedValue({
+      id: 'periodo-a',
+      anio: 2028,
+      mes: 2,
+    });
+    tx.periodoContable.createMany.mockResolvedValue({ count: 12 });
     auditLog.mockResolvedValue(undefined);
   });
 
   it('creates a period only after checking uniqueness within the tenant', async () => {
+    const { service, tenantPrisma } = build();
     await service.create('tenant-a', 'user-a', {
       anio: 2028,
       mes: 2,
     });
 
-    expect(periodo.findFirst).toHaveBeenCalledWith({
+    expect(tenantPrisma.execute).toHaveBeenCalledTimes(1);
+    expect(tx.periodoContable.findFirst).toHaveBeenCalledWith({
       where: { tenantId: 'tenant-a', anio: 2028, mes: 2 },
       select: { id: true },
     });
-    expect(periodo.create).toHaveBeenCalledWith({
+    expect(tx.periodoContable.create).toHaveBeenCalledWith({
       data: {
         tenantId: 'tenant-a',
         anio: 2028,
@@ -54,7 +71,10 @@ describe('PeriodosContablesService tenant isolation', () => {
   });
 
   it('rejects a duplicate period within the same tenant without creating another', async () => {
-    periodo.findFirst.mockResolvedValueOnce({ id: 'periodo-existente' });
+    const { service } = build();
+    tx.periodoContable.findFirst.mockResolvedValueOnce({
+      id: 'periodo-existente',
+    });
 
     await expect(
       service.create('tenant-a', 'user-a', {
@@ -63,20 +83,17 @@ describe('PeriodosContablesService tenant isolation', () => {
       }),
     ).rejects.toBeInstanceOf(ConflictException);
 
-    expect(periodo.findFirst).toHaveBeenCalledWith({
-      where: { tenantId: 'tenant-a', anio: 2028, mes: 2 },
-      select: { id: true },
-    });
-    expect(periodo.create).not.toHaveBeenCalled();
+    expect(tx.periodoContable.create).not.toHaveBeenCalled();
   });
 
   it('lists periods only for the authenticated tenant and requested filters', async () => {
+    const { service } = build();
     await service.findAll('tenant-a', {
       anio: 2028,
       estado: EstadoPeriodo.ABIERTO,
     });
 
-    expect(periodo.findMany).toHaveBeenCalledWith({
+    expect(tx.periodoContable.findMany).toHaveBeenCalledWith({
       where: {
         tenantId: 'tenant-a',
         anio: 2028,
@@ -87,28 +104,42 @@ describe('PeriodosContablesService tenant isolation', () => {
   });
 
   it('returns a period when it belongs to the authenticated tenant', async () => {
+    const { service } = build();
     const ownedPeriod = { id: 'periodo-a', tenantId: 'tenant-a' };
-    periodo.findFirst.mockResolvedValueOnce(ownedPeriod);
+    tx.periodoContable.findFirst.mockResolvedValueOnce(ownedPeriod);
 
     await expect(service.findOne('tenant-a', 'periodo-a')).resolves.toBe(
       ownedPeriod,
     );
-    expect(periodo.findFirst).toHaveBeenCalledWith({
+    expect(tx.periodoContable.findFirst).toHaveBeenCalledWith({
       where: { id: 'periodo-a', tenantId: 'tenant-a' },
     });
   });
+
   it('does not return a period by ID when it belongs to another tenant', async () => {
+    const { service } = build();
     await expect(
       service.findOne('tenant-a', 'periodo-b'),
     ).rejects.toBeInstanceOf(NotFoundException);
 
-    expect(periodo.findFirst).toHaveBeenCalledWith({
+    expect(tx.periodoContable.findFirst).toHaveBeenCalledWith({
       where: { id: 'periodo-b', tenantId: 'tenant-a' },
     });
   });
 
+  it('rejects a request whose tenant differs from the active transaction context', async () => {
+    const { service } = build('tenant-b');
+
+    await expect(service.findAll('tenant-a', {})).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+
+    expect(tx.periodoContable.findMany).not.toHaveBeenCalled();
+  });
+
   it('generates only missing months for the authenticated tenant', async () => {
-    periodo.findMany
+    const { service } = build();
+    tx.periodoContable.findMany
       .mockResolvedValueOnce([{ mes: 1 }, { mes: 12 }])
       .mockResolvedValueOnce([]);
 
@@ -116,11 +147,12 @@ describe('PeriodosContablesService tenant isolation', () => {
       anio: 2028,
     });
 
-    expect(periodo.findMany).toHaveBeenNthCalledWith(1, {
+    expect(tx.periodoContable.findMany).toHaveBeenNthCalledWith(1, {
       where: { tenantId: 'tenant-a', anio: 2028 },
       select: { mes: true },
     });
-    const createManyCalls = periodo.createMany.mock.calls as unknown as Array<
+    const createManyCalls = tx.periodoContable.createMany.mock
+      .calls as unknown as Array<
       [{ data: Array<{ tenantId: string; anio: number; mes: number }> }]
     >;
     const generated = createManyCalls[0]?.[0]?.data ?? [];
@@ -130,7 +162,7 @@ describe('PeriodosContablesService tenant isolation', () => {
     expect(generated.map((item) => item.mes)).toEqual([
       2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
     ]);
-    expect(periodo.findMany).toHaveBeenNthCalledWith(2, {
+    expect(tx.periodoContable.findMany).toHaveBeenNthCalledWith(2, {
       where: { tenantId: 'tenant-a', anio: 2028 },
       orderBy: { mes: 'asc' },
     });
@@ -140,7 +172,8 @@ describe('PeriodosContablesService tenant isolation', () => {
   });
 
   it('does not create or audit periods when the tenant already has all months', async () => {
-    periodo.findMany
+    const { service } = build();
+    tx.periodoContable.findMany
       .mockResolvedValueOnce(
         Array.from({ length: 12 }, (_, index) => ({ mes: index + 1 })),
       )
@@ -150,7 +183,7 @@ describe('PeriodosContablesService tenant isolation', () => {
       anio: 2028,
     });
 
-    expect(periodo.createMany).not.toHaveBeenCalled();
+    expect(tx.periodoContable.createMany).not.toHaveBeenCalled();
     expect(auditLog).not.toHaveBeenCalled();
   });
 });

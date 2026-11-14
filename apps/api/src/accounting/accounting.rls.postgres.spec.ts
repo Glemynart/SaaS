@@ -59,6 +59,9 @@ describe('accounting PostgreSQL RLS', () => {
     await prisma.$executeRawUnsafe(
       `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "cuenta_sistema_map" TO "${role}"`,
     );
+    await prisma.$executeRawUnsafe(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "periodos_contables" TO "${role}"`,
+    );
 
     await prisma.tenant.createMany({
       data: [
@@ -247,6 +250,11 @@ describe('accounting PostgreSQL RLS', () => {
           orderBy: [{ tenantId: 'asc' }, { id: 'asc' }],
           select: { id: true, tenantId: true },
         }),
+        client.periodoContable.findMany({
+          where: { id: { in: [periodAId, periodBId] } },
+          orderBy: { id: 'asc' },
+          select: { id: true, tenantId: true },
+        }),
       ]);
     const readForTenant = (tenantId: string) =>
       tenantContext.run(
@@ -273,6 +281,7 @@ describe('accounting PostgreSQL RLS', () => {
         [tenantA],
         [tenantA],
         [null, tenantA],
+        [tenantA],
       ],
     );
     expect(rowsB.map((rows) => rows.map((row) => row.tenantId).sort())).toEqual(
@@ -284,11 +293,12 @@ describe('accounting PostgreSQL RLS', () => {
         [tenantB],
         [tenantB],
         [null, tenantB],
+        [tenantB],
       ],
     );
     expect(
       rowsWithoutContext.map((rows) => rows.map((row) => row.tenantId)),
-    ).toEqual([[], [], [], [], [], [], [null]]);
+    ).toEqual([[], [], [], [], [], [], [null], []]);
     expect(rowsA[3]).toMatchObject([{ id: thirdPartyAId, tenantId: tenantA }]);
     expect(rowsB[3]).toMatchObject([{ id: thirdPartyBId, tenantId: tenantB }]);
     expect(rowsA[4]).toMatchObject([{ id: costCenterAId, tenantId: tenantA }]);
@@ -312,6 +322,82 @@ describe('accounting PostgreSQL RLS', () => {
     expect(rowsWithoutContext[6]).toMatchObject([
       { id: globalAccountId, tenantId: null },
     ]);
+    expect(rowsA[7]).toMatchObject([{ id: periodAId, tenantId: tenantA }]);
+    expect(rowsB[7]).toMatchObject([{ id: periodBId, tenantId: tenantB }]);
+    expect(rowsWithoutContext[7]).toEqual([]);
+  });
+
+  it('limits accounting period writes to the active tenant and disallows deletion', async () => {
+    const createdPeriodId = randomUUID();
+    const runForTenant = <T>(tenantId: string, work: () => Promise<T>) =>
+      tenantContext.run(
+        {
+          tenantId,
+          userId: 'rls-accounting-test-user',
+          rol: 'ADMIN',
+          email: 'rls-accounting-test@example.com',
+        },
+        work,
+      );
+
+    const created = await runForTenant(tenantA, () =>
+      tenantPrisma.execute((client) =>
+        client.periodoContable.create({
+          data: periodData(createdPeriodId, tenantA, 2027, 1),
+        }),
+      ),
+    );
+    expect(created.tenantId).toBe(tenantA);
+
+    const updatedOwnTenant = await runForTenant(tenantA, () =>
+      tenantPrisma.execute((client) =>
+        client.periodoContable.updateMany({
+          where: { id: createdPeriodId },
+          data: { estado: 'CERRADO' },
+        }),
+      ),
+    );
+    expect(updatedOwnTenant.count).toBe(1);
+
+    await expect(
+      runForTenant(tenantA, () =>
+        tenantPrisma.execute((client) =>
+          client.periodoContable.create({
+            data: periodData(randomUUID(), tenantB, 2027, 1),
+          }),
+        ),
+      ),
+    ).rejects.toThrow();
+
+    const updatedOtherTenant = await runForTenant(tenantA, () =>
+      tenantPrisma.execute((client) =>
+        client.periodoContable.updateMany({
+          where: { id: periodBId },
+          data: { estado: 'CERRADO' },
+        }),
+      ),
+    );
+    expect(updatedOtherTenant.count).toBe(0);
+
+    await expect(
+      runForTenant(tenantA, () =>
+        tenantPrisma.execute((client) =>
+          client.periodoContable.updateMany({
+            where: { id: createdPeriodId },
+            data: { tenantId: tenantB },
+          }),
+        ),
+      ),
+    ).rejects.toThrow();
+
+    const deletedOwnPeriod = await runForTenant(tenantA, () =>
+      tenantPrisma.execute((client) =>
+        client.periodoContable.deleteMany({
+          where: { id: createdPeriodId },
+        }),
+      ),
+    );
+    expect(deletedOwnPeriod.count).toBe(0);
   });
 
   it('limits PUC writes to tenant-owned accounts and keeps the global template read-only', async () => {
@@ -849,14 +935,14 @@ describe('accounting PostgreSQL RLS', () => {
     };
   }
 
-  function periodData(id: string, tenantId: string) {
+  function periodData(id: string, tenantId: string, anio = 2026, mes = 11) {
     return {
       id,
       tenantId,
-      anio: 2026,
-      mes: 11,
-      fechaInicio: new Date('2026-11-01T00:00:00.000Z'),
-      fechaFin: new Date('2026-11-30T00:00:00.000Z'),
+      anio,
+      mes,
+      fechaInicio: new Date(Date.UTC(anio, mes - 1, 1)),
+      fechaFin: new Date(Date.UTC(anio, mes, 0)),
       updatedAt: new Date(),
     };
   }

@@ -2,10 +2,14 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
+import {
+  TenantPrismaClient,
+  TenantPrismaService,
+} from '../../tenant-prisma/tenant-prisma.service';
 import { CreatePeriodoContableDto } from './dto/create-periodo-contable.dto';
 import { GenerarAnioDto } from './dto/generar-anio.dto';
 import { PeriodoContableQueryDto } from './dto/periodo-contable-query.dto';
@@ -20,8 +24,8 @@ function rangoMes(anio: number, mes: number) {
 @Injectable()
 export class PeriodosContablesService {
   constructor(
-    private prisma: PrismaService,
-    private audit: AuditService,
+    private readonly tenantPrisma: TenantPrismaService,
+    private readonly audit: AuditService,
   ) {}
 
   async create(
@@ -29,11 +33,14 @@ export class PeriodosContablesService {
     userId: string,
     dto: CreatePeriodoContableDto,
   ) {
-    await this.ensureNoExiste(tenantId, dto.anio, dto.mes);
-    const { fechaInicio, fechaFin } = rangoMes(dto.anio, dto.mes);
+    const periodo = await this.tenantPrisma.execute(async (tx, context) => {
+      this.assertTenantContext(tenantId, context.tenantId);
+      await this.ensureNoExiste(tx, tenantId, dto.anio, dto.mes);
+      const { fechaInicio, fechaFin } = rangoMes(dto.anio, dto.mes);
 
-    const periodo = await this.prisma.periodoContable.create({
-      data: { tenantId, anio: dto.anio, mes: dto.mes, fechaInicio, fechaFin },
+      return tx.periodoContable.create({
+        data: { tenantId, anio: dto.anio, mes: dto.mes, fechaInicio, fechaFin },
+      });
     });
 
     this.audit
@@ -54,36 +61,53 @@ export class PeriodosContablesService {
    * Crea los 12 meses de un año. Idempotente: omite los que ya existen.
    */
   async generarAnio(tenantId: string, userId: string, dto: GenerarAnioDto) {
-    const existentes = await this.prisma.periodoContable.findMany({
-      where: { tenantId, anio: dto.anio },
-      select: { mes: true },
+    const result = await this.tenantPrisma.execute(async (tx, context) => {
+      this.assertTenantContext(tenantId, context.tenantId);
+      const existentes = await tx.periodoContable.findMany({
+        where: { tenantId, anio: dto.anio },
+        select: { mes: true },
+      });
+      const yaCreados = new Set(existentes.map((periodo) => periodo.mes));
+
+      const faltantes = [];
+      for (let mes = 1; mes <= 12; mes += 1) {
+        if (yaCreados.has(mes)) continue;
+        const { fechaInicio, fechaFin } = rangoMes(dto.anio, mes);
+        faltantes.push({
+          tenantId,
+          anio: dto.anio,
+          mes,
+          fechaInicio,
+          fechaFin,
+        });
+      }
+
+      if (faltantes.length > 0) {
+        await tx.periodoContable.createMany({ data: faltantes });
+      }
+
+      return {
+        periodos: await tx.periodoContable.findMany({
+          where: { tenantId, anio: dto.anio },
+          orderBy: { mes: 'asc' },
+        }),
+        creados: faltantes.length,
+      };
     });
-    const yaCreados = new Set(existentes.map((p) => p.mes));
 
-    const faltantes = [];
-    for (let mes = 1; mes <= 12; mes += 1) {
-      if (yaCreados.has(mes)) continue;
-      const { fechaInicio, fechaFin } = rangoMes(dto.anio, mes);
-      faltantes.push({ tenantId, anio: dto.anio, mes, fechaInicio, fechaFin });
-    }
-
-    if (faltantes.length > 0) {
-      await this.prisma.periodoContable.createMany({ data: faltantes });
+    if (result.creados > 0) {
       this.audit
         .log({
           tenantId,
           userId,
           action: 'PERIODO_CONTABLE_GENERAR_ANIO',
           entityType: 'PeriodoContable',
-          metadata: { anio: dto.anio, creados: faltantes.length },
+          metadata: { anio: dto.anio, creados: result.creados },
         })
         .catch(() => {});
     }
 
-    return this.prisma.periodoContable.findMany({
-      where: { tenantId, anio: dto.anio },
-      orderBy: { mes: 'asc' },
-    });
+    return result.periodos;
   }
 
   async findAll(tenantId: string, query: PeriodoContableQueryDto) {
@@ -93,22 +117,43 @@ export class PeriodosContablesService {
       ...(query.estado && { estado: query.estado }),
     };
 
-    return this.prisma.periodoContable.findMany({
-      where,
-      orderBy: [{ anio: 'desc' }, { mes: 'asc' }],
+    return this.tenantPrisma.execute((tx, context) => {
+      this.assertTenantContext(tenantId, context.tenantId);
+      return tx.periodoContable.findMany({
+        where,
+        orderBy: [{ anio: 'desc' }, { mes: 'asc' }],
+      });
     });
   }
 
   async findOne(tenantId: string, id: string) {
-    const periodo = await this.prisma.periodoContable.findFirst({
-      where: { id, tenantId },
+    return this.tenantPrisma.execute(async (tx, context) => {
+      this.assertTenantContext(tenantId, context.tenantId);
+      const periodo = await tx.periodoContable.findFirst({
+        where: { id, tenantId },
+      });
+      if (!periodo)
+        throw new NotFoundException('Período contable no encontrado');
+      return periodo;
     });
-    if (!periodo) throw new NotFoundException('Período contable no encontrado');
-    return periodo;
   }
 
-  private async ensureNoExiste(tenantId: string, anio: number, mes: number) {
-    const existing = await this.prisma.periodoContable.findFirst({
+  private assertTenantContext(
+    requestTenantId: string,
+    contextTenantId: string,
+  ) {
+    if (requestTenantId !== contextTenantId) {
+      throw new ForbiddenException('El contexto de tenant no coincide.');
+    }
+  }
+
+  private async ensureNoExiste(
+    tx: TenantPrismaClient,
+    tenantId: string,
+    anio: number,
+    mes: number,
+  ) {
+    const existing = await tx.periodoContable.findFirst({
       where: { tenantId, anio, mes },
       select: { id: true },
     });
