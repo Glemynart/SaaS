@@ -153,14 +153,24 @@ export class AccountingProvisioningService {
 
   /**
    * Reversión de la provisión (proceso explícito, NO expuesto como endpoint).
-   * Solo seguro mientras no existan movimientos (C0 no tiene movimientos; C1
-   * deberá bloquearlo cuando los haya). Reservado para scripts/onboarding/tests.
+   * Rechaza tenants con movimientos antes de borrar; la FK RESTRICT del Ledger
+   * conserva una barrera de integridad adicional. Reservado para procesos
+   * internos de onboarding/tests.
    */
   async desaprovisionar(
     tenantId: string,
     userId: string,
   ): Promise<{ cuentas: number }> {
     const result = await this.prisma.$transaction(async (tx) => {
+      const cuentasConMovimientos = await tx.cuentaContable.count({
+        where: { tenantId, movimientos: { some: {} } },
+      });
+      if (cuentasConMovimientos > 0) {
+        throw new ConflictException(
+          'No se puede desprovisionar la contabilidad de un tenant con movimientos contables.',
+        );
+      }
+
       await tx.cuentaSistemaMap.deleteMany({ where: { tenantId } });
       const { count } = await tx.cuentaContable.deleteMany({
         where: { tenantId },

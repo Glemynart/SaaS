@@ -249,12 +249,31 @@ describe('AccountingProvisioningService tenant isolation', () => {
     expect(auditLog).not.toHaveBeenCalled();
   });
 
+  it('blocks deprovisioning when tenant accounts have ledger movements', async () => {
+    tx.cuentaContable.count.mockResolvedValueOnce(1);
+
+    await expect(
+      service.desaprovisionar('tenant-a', 'user-a'),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.cuentaContable.count).toHaveBeenCalledWith({
+      where: { tenantId: 'tenant-a', movimientos: { some: {} } },
+    });
+    expect(tx.cuentaSistemaMap.deleteMany).not.toHaveBeenCalled();
+    expect(tx.cuentaContable.deleteMany).not.toHaveBeenCalled();
+    expect(auditLog).not.toHaveBeenCalled();
+  });
+
   it('restricts internal deprovisioning deletes and audit data to the requested tenant', async () => {
     await expect(
       service.desaprovisionar('tenant-a', 'user-a'),
     ).resolves.toEqual({ cuentas: 2 });
 
     expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.cuentaContable.count).toHaveBeenCalledWith({
+      where: { tenantId: 'tenant-a', movimientos: { some: {} } },
+    });
     expect(tx.cuentaSistemaMap.deleteMany).toHaveBeenCalledWith({
       where: { tenantId: 'tenant-a' },
     });
