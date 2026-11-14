@@ -235,6 +235,7 @@ describe('empleados PostgreSQL RLS', () => {
       { tableName: 'payroll_corrections' },
       { tableName: 'payroll_novelties' },
       { tableName: 'payroll_periods' },
+      { tableName: 'payroll_pila_events' },
       { tableName: 'payroll_runs' },
       { tableName: 'payroll_snapshots' },
       { tableName: 'perfiles_emisor_electronicos' },

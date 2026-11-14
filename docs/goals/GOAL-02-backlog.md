@@ -17,11 +17,14 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
 - PR #381 añade RLS tenant-scoped a `payroll_novelties`, insumo sensible de los
   cálculos de nómina; PR #382 protege el ciclo de vida de `payroll_periods`.
 - PR #383 añade RLS tenant-scoped a `payroll_runs` y deriva el
-  aislamiento de `payroll_concepts` desde su ejecución propietaria. Al cierre
-  de ese PR, las correcciones seguían pendientes de auditoría e incremento.
-- `payroll_corrections` queda protegida con RLS tenant-scoped, vincula
-  cada acto a un período del mismo tenant y conserva sus registros históricos
-  no eliminables. Sus lecturas usan `TenantPrismaService`.
+  aislamiento de `payroll_concepts` desde su ejecución propietaria. PR #384
+  añade RLS tenant-scoped a `payroll_corrections`, vincula cada acto a un
+  período del mismo tenant y conserva sus registros históricos no eliminables.
+- Este incremento añade RLS a `payroll_pila_events`, cuyos eventos contienen
+  declaraciones regulatorias por empleado. Vincula cada evento con un período
+  y un empleado del mismo tenant, permite alta y eliminación solo en períodos
+  `BORRADOR`, conserva la lectura histórica y no habilita `UPDATE`. La lectura
+  de la lista usa `TenantPrismaService`.
 
 ## Estado vigente — 2026-11-09
 
