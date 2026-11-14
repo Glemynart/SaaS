@@ -229,6 +229,7 @@ describe('empleados PostgreSQL RLS', () => {
       { tableName: 'lineas_facturas_electronicas' },
       { tableName: 'movimientos_contables' },
       { tableName: 'perfiles_emisor_electronicos' },
+      { tableName: 'periodos_contables' },
       { tableName: 'pila_asignaciones_centro_trabajo' },
       { tableName: 'pila_centros_trabajo' },
       { tableName: 'pila_exports' },

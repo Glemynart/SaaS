@@ -2482,3 +2482,16 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   global/propia, ocultamiento de filas ajenas, DML propio y rechazo de escrituras
   a la plantilla o a otro tenant. La migración es aditiva y no se aplica a bases
   desplegadas mediante este cambio.
+
+### RLS tenant-scoped para períodos contables — GOAL-02
+
+- `periodos_contables` solo contiene períodos de un tenant y mantiene la
+  unicidad `(tenantId, anio, mes)`. El dominio no permite borrar períodos.
+- La política permite leer, insertar y actualizar filas del tenant activo; no
+  define política `DELETE`. El servicio CRUD y la generación anual usan
+  `TenantPrismaService` y rechazan un tenant explícito distinto del contexto.
+- Los consumidores de cierre, Ledger, facturación, recaudos y preflight de
+  nómina ya realizan sus lecturas desde transacciones tenant-scoped. La prueba
+  PostgreSQL comprueba el aislamiento y la imposibilidad de borrar períodos.
+- La migración solo cambia el esquema al aplicarse; no incluye backfill ni fue
+  ejecutada contra bases desplegadas.
