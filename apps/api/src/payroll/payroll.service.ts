@@ -903,51 +903,55 @@ export class PayrollService {
     const snapshotsQuery =
       period.status === PayrollPeriodStatus.APROBADA ||
       period.status === PayrollPeriodStatus.CAUSADA
-        ? this.prisma.payrollSnapshot.findMany({
-            where: { tenantId, payrollPeriodId: id },
-            select: {
-              id: true,
-              employeeId: true,
-              centroCostoId: true,
-              employee: {
-                select: {
-                  id: true,
-                  primerNombre: true,
-                  segundoNombre: true,
-                  primerApellido: true,
-                  segundoApellido: true,
+        ? this.tenantPrisma.execute((tx) =>
+            tx.payrollSnapshot.findMany({
+              where: { tenantId, payrollPeriodId: id },
+              select: {
+                id: true,
+                employeeId: true,
+                centroCostoId: true,
+                employee: {
+                  select: {
+                    id: true,
+                    primerNombre: true,
+                    segundoNombre: true,
+                    primerApellido: true,
+                    segundoApellido: true,
+                  },
+                },
+                centroCosto: {
+                  select: { id: true, codigo: true, nombre: true },
                 },
               },
-              centroCosto: {
-                select: { id: true, codigo: true, nombre: true },
-              },
-            },
-            orderBy: [{ createdAt: 'asc' }, { employeeId: 'asc' }],
-          })
+              orderBy: [{ createdAt: 'asc' }, { employeeId: 'asc' }],
+            }),
+          )
         : Promise.resolve([]);
 
     const [runs, voucher, snapshots] = await Promise.all([
-      this.prisma.payrollRun.findMany({
-        where: { tenantId, payrollPeriodId: id },
-        include: {
-          employee: {
-            select: {
-              id: true,
-              primerNombre: true,
-              segundoNombre: true,
-              primerApellido: true,
-              segundoApellido: true,
-              cedula: true,
-              cargo: true,
+      this.tenantPrisma.execute((tx) =>
+        tx.payrollRun.findMany({
+          where: { tenantId, payrollPeriodId: id },
+          include: {
+            employee: {
+              select: {
+                id: true,
+                primerNombre: true,
+                segundoNombre: true,
+                primerApellido: true,
+                segundoApellido: true,
+                cedula: true,
+                cargo: true,
+              },
             },
+            centroCosto: {
+              select: { id: true, codigo: true, nombre: true, sedeId: true },
+            },
+            concepts: true,
           },
-          centroCosto: {
-            select: { id: true, codigo: true, nombre: true, sedeId: true },
-          },
-          concepts: true,
-        },
-        orderBy: { createdAt: 'desc' },
-      }),
+          orderBy: { createdAt: 'desc' },
+        }),
+      ),
       this.tenantPrisma.execute((tx) =>
         tx.comprobanteContable.findFirst({
           where: {
@@ -4974,16 +4978,18 @@ export class PayrollService {
     if (sedeIds.length === 0)
       return new Map<string, CostCenterForPayrollTrace>();
 
-    const centros = await this.prisma.centroCosto.findMany({
-      where: {
-        tenantId,
-        sedeId: { in: sedeIds },
-        activo: true,
-        deletedAt: null,
-      },
-      select: { id: true, codigo: true, nombre: true, sedeId: true },
-      orderBy: { createdAt: 'asc' },
-    });
+    const centros = await this.tenantPrisma.execute((tx) =>
+      tx.centroCosto.findMany({
+        where: {
+          tenantId,
+          sedeId: { in: sedeIds },
+          activo: true,
+          deletedAt: null,
+        },
+        select: { id: true, codigo: true, nombre: true, sedeId: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+    );
 
     const bySede = new Map<string, CostCenterForPayrollTrace>();
     for (const centro of centros) {

@@ -53,6 +53,9 @@ describe('accounting PostgreSQL RLS', () => {
     await prisma.$executeRawUnsafe(
       `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "terceros" TO "${role}"`,
     );
+    await prisma.$executeRawUnsafe(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "centros_costo" TO "${role}"`,
+    );
 
     await prisma.tenant.createMany({
       data: [
@@ -177,8 +180,9 @@ describe('accounting PostgreSQL RLS', () => {
     await prisma.$disconnect();
   });
 
-  it('enables and forces RLS for the Ledger cohort and third parties', async () => {
+  it('enables and forces RLS for the Ledger cohort and tenant catalogs', async () => {
     const expected = [
+      'centros_costo',
       'comprobantes_contables',
       'movimientos_contables',
       'secuencias_comprobante',
@@ -200,7 +204,7 @@ describe('accounting PostgreSQL RLS', () => {
     for (const table of expected) expect(actual).toContain(table);
   });
 
-  it('isolates Ledger and third-party rows by tenant', async () => {
+  it('isolates Ledger and accounting catalog rows by tenant', async () => {
     const readRows = (client: TenantPrismaClient) =>
       Promise.all([
         client.comprobanteContable.findMany({
@@ -223,6 +227,11 @@ describe('accounting PostgreSQL RLS', () => {
           orderBy: { id: 'asc' },
           select: { id: true, tenantId: true },
         }),
+        client.centroCosto.findMany({
+          where: { id: { in: [costCenterAId, costCenterBId] } },
+          orderBy: { id: 'asc' },
+          select: { id: true, tenantId: true },
+        }),
       ]);
     const readForTenant = (tenantId: string) =>
       tenantContext.run(
@@ -241,16 +250,18 @@ describe('accounting PostgreSQL RLS', () => {
     ]);
 
     expect(rowsA.map((rows) => rows.map((row) => row.tenantId).sort())).toEqual(
-      [[tenantA], [tenantA], [tenantA], [tenantA]],
+      [[tenantA], [tenantA], [tenantA], [tenantA], [tenantA]],
     );
     expect(rowsB.map((rows) => rows.map((row) => row.tenantId).sort())).toEqual(
-      [[tenantB], [tenantB], [tenantB], [tenantB]],
+      [[tenantB], [tenantB], [tenantB], [tenantB], [tenantB]],
     );
     expect(
       rowsWithoutContext.map((rows) => rows.map((row) => row.tenantId)),
-    ).toEqual([[], [], [], []]);
+    ).toEqual([[], [], [], [], []]);
     expect(rowsA[3]).toMatchObject([{ id: thirdPartyAId, tenantId: tenantA }]);
     expect(rowsB[3]).toMatchObject([{ id: thirdPartyBId, tenantId: tenantB }]);
+    expect(rowsA[4]).toMatchObject([{ id: costCenterAId, tenantId: tenantA }]);
+    expect(rowsB[4]).toMatchObject([{ id: costCenterBId, tenantId: tenantB }]);
   });
 
   it('serves Ledger reports through the active tenant context', async () => {
@@ -417,6 +428,82 @@ describe('accounting PostgreSQL RLS', () => {
       () =>
         tenantPrisma.execute((client) =>
           client.tercero.deleteMany({ where: { id: thirdPartyBId } }),
+        ),
+    );
+    expect(update.count).toBe(0);
+    expect(deletion.count).toBe(0);
+  });
+
+  it('allows cost-center DML only for the active tenant', async () => {
+    const createdId = randomUUID();
+    const created = await tenantContext.run(
+      {
+        tenantId: tenantA,
+        userId: 'rls-accounting-test-user',
+        rol: 'ADMIN',
+        email: 'rls-accounting-test@example.com',
+      },
+      () =>
+        tenantPrisma.execute((client) =>
+          client.centroCosto.create({
+            data: {
+              id: createdId,
+              tenantId: tenantA,
+              codigo: `RLS-${suffix}-CREATED`,
+              nombre: 'Centro creado en tenant A',
+            },
+          }),
+        ),
+    );
+    expect(created.tenantId).toBe(tenantA);
+
+    await expect(
+      tenantContext.run(
+        {
+          tenantId: tenantA,
+          userId: 'rls-accounting-test-user',
+          rol: 'ADMIN',
+          email: 'rls-accounting-test@example.com',
+        },
+        () =>
+          tenantPrisma.execute((client) =>
+            client.centroCosto.create({
+              data: {
+                id: randomUUID(),
+                tenantId: tenantB,
+                codigo: `RLS-${suffix}-CROSS`,
+                nombre: 'No debe cruzar tenant',
+              },
+            }),
+          ),
+      ),
+    ).rejects.toThrow();
+
+    const update = await tenantContext.run(
+      {
+        tenantId: tenantA,
+        userId: 'rls-accounting-test-user',
+        rol: 'ADMIN',
+        email: 'rls-accounting-test@example.com',
+      },
+      () =>
+        tenantPrisma.execute((client) =>
+          client.centroCosto.updateMany({
+            where: { id: costCenterBId },
+            data: { nombre: 'No debe editarse desde tenant A' },
+          }),
+        ),
+    );
+    const deletion = await tenantContext.run(
+      {
+        tenantId: tenantA,
+        userId: 'rls-accounting-test-user',
+        rol: 'ADMIN',
+        email: 'rls-accounting-test@example.com',
+      },
+      () =>
+        tenantPrisma.execute((client) =>
+          client.centroCosto.deleteMany({ where: { id: costCenterBId } }),
         ),
     );
     expect(update.count).toBe(0);

@@ -3198,6 +3198,25 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
 
     it('persiste centroCostoId resuelto desde Contrato.sedeId -> CentroCosto.sedeId', async () => {
       setupPayrollGeneration();
+      let tenantTransactionActive = false;
+      mockTenantPrisma.execute.mockImplementation((work) => {
+        const previous = tenantTransactionActive;
+        tenantTransactionActive = true;
+        return Promise.resolve(work(mockPrisma)).finally(() => {
+          tenantTransactionActive = previous;
+        });
+      });
+      mockCentroCostoFindMany.mockImplementationOnce(() => {
+        expect(tenantTransactionActive).toBe(true);
+        return Promise.resolve([
+          {
+            id: 'cc-1',
+            codigo: 'SEDE-1',
+            nombre: 'Sede norte',
+            sedeId: 'sede-1',
+          },
+        ]);
+      });
 
       await service.generatePayroll(TENANT, USER, PERIOD_ID);
 
@@ -3923,6 +3942,30 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
           }),
         }),
       );
+    });
+
+    it('consulta centros relacionados dentro del contexto tenant', async () => {
+      let tenantTransactionDepth = 0;
+      mockTenantPrisma.execute.mockImplementation((work) => {
+        tenantTransactionDepth += 1;
+        return Promise.resolve(work(mockPrisma)).finally(() => {
+          tenantTransactionDepth -= 1;
+        });
+      });
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CAUSADA'));
+      mockPayrollRunFindMany.mockImplementation(() => {
+        expect(tenantTransactionDepth).toBeGreaterThan(0);
+        return Promise.resolve([]);
+      });
+      mockPayrollSnapshotFindMany.mockImplementation(() => {
+        expect(tenantTransactionDepth).toBeGreaterThan(0);
+        return Promise.resolve([]);
+      });
+
+      await service.findOnePeriod(TENANT, PERIOD_ID);
+
+      expect(mockPayrollRunFindMany).toHaveBeenCalledTimes(1);
+      expect(mockPayrollSnapshotFindMany).toHaveBeenCalledTimes(1);
     });
 
     it('no expone la captura PILA previa a la aprobación', async () => {
