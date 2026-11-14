@@ -589,7 +589,7 @@ describe('BillingService', () => {
     const listed = await service.findAllInvoices('tenant-1');
     const detail = await service.findOneInvoice('tenant-1', 'invoice-1');
 
-    expect(tenantPrismaMock.execute).toHaveBeenCalledTimes(2);
+    expect(tenantPrismaMock.execute).toHaveBeenCalledTimes(3);
     expect(listed[0].totalPagado).toEqual(new Prisma.Decimal(25_000));
     expect(listed[0].saldoPendiente).toEqual(new Prisma.Decimal(75_000));
     expect(detail.totalPagado).toEqual(new Prisma.Decimal(25_000));

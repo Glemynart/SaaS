@@ -317,10 +317,8 @@ export class BillingService {
       include: { items: true, customer: true, tercero: true },
     });
     if (!invoice) throw new NotFoundException('Factura no encontrada');
-    const comprobanteContable = await this.findInvoiceVoucher(
-      this.prisma,
-      tenantId,
-      invoice.id,
+    const comprobanteContable = await this.tenantPrisma.execute((tx) =>
+      this.findInvoiceVoucher(tx, tenantId, invoice.id),
     );
     const appliedAmounts = await this.tenantPrisma.execute((tx) =>
       getActiveReceiptAppliedAmounts(tx, tenantId, [invoice.id]),
@@ -699,7 +697,7 @@ export class BillingService {
   }
 
   private async findInvoiceVoucher(
-    client: PrismaService | TenantPrismaClient,
+    client: TenantPrismaClient,
     tenantId: string,
     invoiceId: string,
   ) {

@@ -948,15 +948,17 @@ export class PayrollService {
         },
         orderBy: { createdAt: 'desc' },
       }),
-      this.prisma.comprobanteContable.findFirst({
-        where: {
-          tenantId,
-          origenTipo: 'PAYROLL',
-          origenId: id,
-          origenEvento: 'CAUSACION',
-        },
-        select: PAYROLL_ACCOUNTING_VOUCHER_SELECT,
-      }),
+      this.tenantPrisma.execute((tx) =>
+        tx.comprobanteContable.findFirst({
+          where: {
+            tenantId,
+            origenTipo: 'PAYROLL',
+            origenId: id,
+            origenEvento: 'CAUSACION',
+          },
+          select: PAYROLL_ACCOUNTING_VOUCHER_SELECT,
+        }),
+      ),
       snapshotsQuery,
     ]);
 
@@ -1076,15 +1078,17 @@ export class PayrollService {
     });
     if (corrections.length === 0) return [];
 
-    const vouchers = await this.prisma.comprobanteContable.findMany({
-      where: {
-        tenantId,
-        origenTipo: 'PAYROLL_CORRECTION',
-        origenId: { in: corrections.map((correction) => correction.id) },
-        origenEvento: 'AJUSTE',
-      },
-      select: { ...PAYROLL_ACCOUNTING_VOUCHER_SELECT, origenId: true },
-    });
+    const vouchers = await this.tenantPrisma.execute((tx) =>
+      tx.comprobanteContable.findMany({
+        where: {
+          tenantId,
+          origenTipo: 'PAYROLL_CORRECTION',
+          origenId: { in: corrections.map((correction) => correction.id) },
+          origenEvento: 'AJUSTE',
+        },
+        select: { ...PAYROLL_ACCOUNTING_VOUCHER_SELECT, origenId: true },
+      }),
+    );
     const voucherByCorrectionId = new Map(
       vouchers
         .filter((voucher) => voucher.origenId !== null)

@@ -205,17 +205,18 @@ describe('empleados PostgreSQL RLS', () => {
       SELECT relname AS "tableName"
       FROM pg_class
       WHERE relkind = 'r' AND relrowsecurity
-      ORDER BY relname
+      ORDER BY relname COLLATE "C"
     `;
     const forcedTables = await prisma.$queryRaw<{ tableName: string }[]>`
       SELECT relname AS "tableName"
       FROM pg_class
       WHERE relkind = 'r' AND relforcerowsecurity
-      ORDER BY relname
+      ORDER BY relname COLLATE "C"
     `;
 
     const expectedTenantTables = [
       { tableName: 'afiliaciones_seguridad_social' },
+      { tableName: 'comprobantes_contables' },
       { tableName: 'customer_receipt_reversals' },
       { tableName: 'customer_receipts' },
       { tableName: 'empleados' },
@@ -223,6 +224,7 @@ describe('empleados PostgreSQL RLS', () => {
       { tableName: 'intentos_facturas_electronicas' },
       { tableName: 'invoice_receipt_allocations' },
       { tableName: 'lineas_facturas_electronicas' },
+      { tableName: 'movimientos_contables' },
       { tableName: 'perfiles_emisor_electronicos' },
       { tableName: 'pila_asignaciones_centro_trabajo' },
       { tableName: 'pila_centros_trabajo' },
@@ -230,6 +232,7 @@ describe('empleados PostgreSQL RLS', () => {
       { tableName: 'pila_ubicaciones_laborales' },
       { tableName: 'rangos_numeracion_electronica' },
       { tableName: 'resultados_intentos_facturas_electronicas' },
+      { tableName: 'secuencias_comprobante' },
       { tableName: 'service_premium_batches' },
       { tableName: 'service_premium_lines' },
       { tableName: 'transiciones_facturas_electronicas' },

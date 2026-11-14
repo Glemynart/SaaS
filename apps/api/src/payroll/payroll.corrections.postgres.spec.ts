@@ -5,6 +5,8 @@ import { LedgerService } from '../accounting/ledger/ledger.service';
 import { PayrollAccountingPreflightService } from './accounting-preflight/payroll-accounting-preflight.service';
 import { PayrollService } from './payroll.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantContextBoundary } from '../tenant-context/tenant-context.boundary';
+import { TenantContextService } from '../tenant-context/tenant-context.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { calculate } from './calculator/payroll-calculator';
 import { LegalParamsSnapshot } from './calculator/payroll-types';
@@ -15,6 +17,11 @@ import {
 
 describe('Payroll corrections PostgreSQL integration', () => {
   const prisma = new PrismaService();
+  const tenantContext = new TenantContextService();
+  const tenantPrisma = new TenantPrismaService(
+    prisma,
+    new TenantContextBoundary(tenantContext),
+  );
   const suffix = randomUUID();
   const tenantId = randomUUID();
   const actorId = randomUUID();
@@ -24,7 +31,7 @@ describe('Payroll corrections PostgreSQL integration', () => {
   const snapshotId = randomUUID();
   const service = new PayrollService(
     prisma,
-    {} as TenantPrismaService,
+    tenantPrisma,
     new AuditService(prisma),
     {} as LedgerService,
     {} as PayrollAccountingPreflightService,
@@ -267,7 +274,15 @@ describe('Payroll corrections PostgreSQL integration', () => {
       delta: 500_000,
     });
 
-    const persisted = await service.findPeriodCorrections(tenantId, periodId);
+    const persisted = await tenantContext.run(
+      {
+        tenantId,
+        userId: actorId,
+        rol: 'ADMIN',
+        email: 'payroll-corrections@test.local',
+      },
+      () => service.findPeriodCorrections(tenantId, periodId),
+    );
     expect(persisted).toHaveLength(1);
     expect(persisted[0]).toMatchObject({
       id: created.id,
