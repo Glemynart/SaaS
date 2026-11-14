@@ -61,6 +61,10 @@ export interface ContractCreationOptions {
   historicalSnapshot?: ContractPlanSnapshot;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 @Injectable()
 export class ContractsService {
   constructor(
@@ -411,7 +415,7 @@ export class ContractsService {
   ) {
     const contract = await this.findOne(tenantId, id);
 
-    const estadoAnterior = contract.estado;
+    const estadoAnterior = contract.estado as ContratoEstadoEnum;
     const estadoNuevo = dto.estado;
 
     if (estadoAnterior === estadoNuevo) {
@@ -420,9 +424,15 @@ export class ContractsService {
       );
     }
 
-    const VALID_TRANSITIONS: Record<string, string[]> = {
-      VIGENTE: ['VENCIDO', 'TERMINADO', 'RENOVADO'],
-      VENCIDO: ['RENOVADO'],
+    const VALID_TRANSITIONS: Partial<
+      Record<ContratoEstadoEnum, ContratoEstadoEnum[]>
+    > = {
+      [ContratoEstadoEnum.VIGENTE]: [
+        ContratoEstadoEnum.VENCIDO,
+        ContratoEstadoEnum.TERMINADO,
+        ContratoEstadoEnum.RENOVADO,
+      ],
+      [ContratoEstadoEnum.VENCIDO]: [ContratoEstadoEnum.RENOVADO],
     };
 
     const allowed = VALID_TRANSITIONS[estadoAnterior];
@@ -441,12 +451,14 @@ export class ContractsService {
       );
     }
 
-    const updated = await this.prisma.contrato.update({
-      where: { id, tenantId },
-      data: {
-        estado: estadoNuevo as 'VIGENTE' | 'VENCIDO' | 'TERMINADO' | 'RENOVADO',
-      },
-    });
+    const updated = await this.tenantPrisma.execute((prisma) =>
+      prisma.contrato.update({
+        where: { id, tenantId },
+        data: {
+          estado: estadoNuevo,
+        },
+      }),
+    );
 
     this.auditService
       .log({
@@ -470,20 +482,22 @@ export class ContractsService {
     );
     if (!employee) throw new NotFoundException('Empleado no encontrado.');
 
-    return this.prisma.contrato.findMany({
-      where: { tenantId, empleadoId: employeeId },
-      select: {
-        id: true,
-        tipo: true,
-        estado: true,
-        cargo: true,
-        salario: true,
-        fechaInicio: true,
-        fechaFin: true,
-        createdAt: true,
-      },
-      orderBy: { fechaInicio: 'desc' },
-    });
+    return this.tenantPrisma.execute((prisma) =>
+      prisma.contrato.findMany({
+        where: { tenantId, empleadoId: employeeId },
+        select: {
+          id: true,
+          tipo: true,
+          estado: true,
+          cargo: true,
+          salario: true,
+          fechaInicio: true,
+          fechaFin: true,
+          createdAt: true,
+        },
+        orderBy: { fechaInicio: 'desc' },
+      }),
+    );
   }
 
   /**
@@ -716,16 +730,19 @@ export class ContractsService {
   }
 
   private validateSnapshot(snapshot: unknown, contratoId: string): void {
-    const s = snapshot as Record<string, unknown> | null | undefined;
+    const s = isRecord(snapshot) ? snapshot : undefined;
+    const metadata = isRecord(s?.metadata) ? s.metadata : undefined;
+    const employee = isRecord(s?.empleado) ? s.empleado : undefined;
+    const contract = isRecord(s?.contrato) ? s.contrato : undefined;
+    const company = isRecord(s?.empresa) ? s.empresa : undefined;
     const hasShape =
       s &&
-      typeof s === 'object' &&
-      typeof (s as any).metadata?.version === 'number' &&
-      typeof (s as any).empleado?.nombreCompleto === 'string' &&
-      typeof (s as any).empleado?.cedula === 'string' &&
-      typeof (s as any).contrato?.cargo === 'string' &&
-      typeof (s as any).contrato?.salario === 'string' &&
-      typeof (s as any).empresa?.nit === 'string';
+      typeof metadata?.version === 'number' &&
+      typeof employee?.nombreCompleto === 'string' &&
+      typeof employee.cedula === 'string' &&
+      typeof contract?.cargo === 'string' &&
+      typeof contract.salario === 'string' &&
+      typeof company?.nit === 'string';
 
     if (!hasShape) {
       throw new BadRequestException(

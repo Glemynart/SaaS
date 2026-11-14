@@ -76,7 +76,8 @@ describe('PayrollBlock PostgreSQL RLS', () => {
     await prisma.$executeRawUnsafe(
       'GRANT SELECT ON TABLE "payroll_periods", "empleados", "users", ' +
         '"tenants", "parametros_legales_nomina", "payroll_novelties", ' +
-        '"contratos", "payroll_runs", "payroll_concepts" TO "' +
+        '"contratos", "payroll_runs", "payroll_concepts", "sedes", ' +
+        '"plantillas", "lotes_contrato", "perfiles_contractuales" TO "' +
         role +
         '"',
     );

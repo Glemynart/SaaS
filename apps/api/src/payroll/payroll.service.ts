@@ -2637,21 +2637,23 @@ export class PayrollService {
     }
 
     const employeeIds = employees.map((e) => e.id);
-    const allContracts = await this.prisma.contrato.findMany({
-      where: { tenantId, empleadoId: { in: employeeIds } },
-      select: {
-        id: true,
-        empleadoId: true,
-        tipo: true,
-        estado: true,
-        fechaInicio: true,
-        fechaFin: true,
-        sedeId: true,
-        salario: true,
-        claseRiesgoArl: true,
-      },
-      orderBy: { fechaInicio: 'desc' },
-    });
+    const allContracts = await this.tenantPrisma.execute((tx) =>
+      tx.contrato.findMany({
+        where: { tenantId, empleadoId: { in: employeeIds } },
+        select: {
+          id: true,
+          empleadoId: true,
+          tipo: true,
+          estado: true,
+          fechaInicio: true,
+          fechaFin: true,
+          sedeId: true,
+          salario: true,
+          claseRiesgoArl: true,
+        },
+        orderBy: { fechaInicio: 'desc' },
+      }),
+    );
     const pilaSourceData = await this.loadPilaSourceData(
       tenant,
       period,
@@ -2926,21 +2928,23 @@ export class PayrollService {
     }
 
     const employeeIds = employees.map((e) => e.id);
-    const allContracts = await this.prisma.contrato.findMany({
-      where: { tenantId, empleadoId: { in: employeeIds } },
-      select: {
-        id: true,
-        empleadoId: true,
-        tipo: true,
-        estado: true,
-        fechaInicio: true,
-        fechaFin: true,
-        sedeId: true,
-        salario: true,
-        claseRiesgoArl: true,
-      },
-      orderBy: { fechaInicio: 'desc' },
-    });
+    const allContracts = await this.tenantPrisma.execute((tx) =>
+      tx.contrato.findMany({
+        where: { tenantId, empleadoId: { in: employeeIds } },
+        select: {
+          id: true,
+          empleadoId: true,
+          tipo: true,
+          estado: true,
+          fechaInicio: true,
+          fechaFin: true,
+          sedeId: true,
+          salario: true,
+          claseRiesgoArl: true,
+        },
+        orderBy: { fechaInicio: 'desc' },
+      }),
+    );
     const pilaSourceData = await this.loadPilaSourceData(
       tenant,
       period,

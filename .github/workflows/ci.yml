@@ -114,7 +114,9 @@ jobs:
         run: pnpm typecheck
 
       - name: API tests
-        run: pnpm --filter @saas/api exec jest --maxWorkers=2
+        # PostgreSQL RLS integration suites create roles and change shared ACLs.
+        # Serial execution avoids concurrent pg_catalog updates in the shared CI database.
+        run: pnpm --filter @saas/api exec jest --runInBand
 
       - name: Validate Prisma schema
         run: pnpm --filter @saas/api exec prisma validate

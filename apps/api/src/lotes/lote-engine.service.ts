@@ -375,10 +375,12 @@ export class LoteEngineService {
     empleadoId: string,
     plan?: ConfirmedContractPlan,
   ): Promise<Pick<Contrato, 'id' | 'empleadoId'>> {
-    const existing = await this.prisma.contrato.findFirst({
-      where: { tenantId, loteId: lote.id, empleadoId },
-      select: { id: true, empleadoId: true },
-    });
+    const existing = await this.tenantPrisma.execute((prisma) =>
+      prisma.contrato.findFirst({
+        where: { tenantId, loteId: lote.id, empleadoId },
+        select: { id: true, empleadoId: true },
+      }),
+    );
     if (existing) {
       return existing;
     }
@@ -450,10 +452,12 @@ export class LoteEngineService {
         (error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === 'P2002')
       ) {
-        const concurrentContract = await this.prisma.contrato.findFirst({
-          where: { tenantId, loteId: lote.id, empleadoId },
-          select: { id: true, empleadoId: true },
-        });
+        const concurrentContract = await this.tenantPrisma.execute((prisma) =>
+          prisma.contrato.findFirst({
+            where: { tenantId, loteId: lote.id, empleadoId },
+            select: { id: true, empleadoId: true },
+          }),
+        );
         if (concurrentContract) {
           return concurrentContract;
         }
@@ -505,10 +509,12 @@ export class LoteEngineService {
       return Array.from(new Set(fromConfig));
     }
 
-    const contratos = await this.prisma.contrato.findMany({
-      where: { tenantId: lote.tenantId, loteId: lote.id },
-      select: { empleadoId: true },
-    });
+    const contratos = await this.tenantPrisma.execute((prisma) =>
+      prisma.contrato.findMany({
+        where: { tenantId: lote.tenantId, loteId: lote.id },
+        select: { empleadoId: true },
+      }),
+    );
     return Array.from(new Set(contratos.map((c) => c.empleadoId)));
   }
 
