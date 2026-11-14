@@ -1,8 +1,20 @@
 # Backlog de GOAL-02 — Evolución Financiera y Cumplimiento Electrónico
 
-Actualizado: 2026-11-09. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
+Actualizado: 2026-11-14. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
 no cerrado. Este backlog conserva el resultado completo de GOAL-02 y prioriza
 primero flujos financieros internos que puedan mostrarse a futuros clientes.
+
+## Aislamiento financiero — actualización 2026-11-14
+
+- PR #372 añade RLS forzado a comprobantes y movimientos contables, secuencias,
+  terceros, centros de costo, mapeo de cuentas, catálogo PUC y períodos
+  contables. PR #379 añade RLS a clientes, productos, facturas y líneas
+  internas. Los checks post-merge de CI y Browser E2E pasaron.
+- Este incremento añade RLS forzado a PayrollSnapshot, evidencia inmutable
+  consumida por prima, PILA y causación contable; permite solo lectura e
+  inserción tenant-scoped y bloquea mutaciones históricas. Períodos,
+  ejecuciones, novedades y correcciones aún quedan fuera de esta actualización
+  y requieren incrementos separados.
 
 ## Estado vigente — 2026-11-09
 

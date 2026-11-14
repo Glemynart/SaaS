@@ -11,11 +11,17 @@ import { PayrollService } from './payroll.service';
 const findPeriod = jest.fn();
 const findRuns = jest.fn();
 const findSnapshots = jest.fn();
+const tenantPrismaExecute = jest.fn(
+  (
+    work: (client: {
+      payrollSnapshot: { findMany: typeof findSnapshots };
+    }) => unknown,
+  ) => work({ payrollSnapshot: { findMany: findSnapshots } }),
+);
 
 const prisma = {
   payrollPeriod: { findFirst: findPeriod },
   payrollRun: { findMany: findRuns },
-  payrollSnapshot: { findMany: findSnapshots },
 };
 
 describe('PayrollService.getPilaPreparation', () => {
@@ -27,7 +33,10 @@ describe('PayrollService.getPilaPreparation', () => {
       providers: [
         PayrollService,
         { provide: PrismaService, useValue: prisma },
-        { provide: TenantPrismaService, useValue: {} },
+        {
+          provide: TenantPrismaService,
+          useValue: { execute: tenantPrismaExecute },
+        },
         { provide: AuditService, useValue: {} },
         { provide: LedgerService, useValue: {} },
         { provide: PayrollAccountingPreflightService, useValue: {} },
@@ -77,6 +86,14 @@ describe('PayrollService.getPilaPreparation', () => {
       },
       orderBy: [{ createdAt: 'asc' }, { employeeId: 'asc' }],
     });
+    expect(tenantPrismaExecute).toHaveBeenCalledTimes(1);
+    const blockerFor = (code: string) => {
+      const blocker = report.exportReadiness.blockers.find(
+        (candidate) => candidate.code === code,
+      );
+      if (!blocker) throw new Error(`Expected PILA blocker ${code}.`);
+      return blocker;
+    };
     expect(report).toMatchObject({
       formatVersion: null,
       normativeSourceStatus: 'RECONCILIATION_PENDING',
@@ -85,44 +102,6 @@ describe('PayrollService.getPilaPreparation', () => {
         fileGenerationStatus: 'IMPLEMENTED',
         localValidationStatus: 'PER_EXPORT',
         operatorAcceptanceStatus: 'NOT_VERIFIED',
-        blockers: expect.arrayContaining([
-          expect.objectContaining({
-            code: 'SOI_OPERATOR_FIELDS_UNCONFIRMED',
-            fields: [
-              { record: 'APORTANTE_TIPO_1', fieldNumbers: [28, 29] },
-              {
-                record: 'CABECERA_TIPO_2',
-                fieldNumbers: [2, 15, 17, 18, 22],
-              },
-            ],
-          }),
-          expect.objectContaining({
-            code: 'OPERATOR_UPLOAD_NOT_VERIFIED',
-            scope: 'OPERATOR_COMPATIBILITY',
-          }),
-          expect.objectContaining({
-            code: 'PILA_PAYMENT_DATE_REQUIRED',
-            scope: 'FILE_GENERATION',
-          }),
-          expect.objectContaining({
-            code: 'AT2_V30_SERIALIZATION_FIELDS_PENDING',
-            scope: 'FILE_GENERATION',
-            fields: expect.arrayContaining([
-              {
-                record: 'APORTANTE_TIPO_1',
-                fieldNumbers: expect.any(Array),
-              },
-              {
-                record: 'CABECERA_TIPO_2',
-                fieldNumbers: expect.any(Array),
-              },
-              {
-                record: 'DETALLE_TIPO_2',
-                fieldNumbers: expect.any(Array),
-              },
-            ]),
-          }),
-        ]),
       },
       period: { fechaPrevistaPagoPila: null },
       snapshotsRevisados: 1,
@@ -135,6 +114,36 @@ describe('PayrollService.getPilaPreparation', () => {
         ruleVersion: null,
       },
     });
+    expect(blockerFor('SOI_OPERATOR_FIELDS_UNCONFIRMED')).toMatchObject({
+      fields: [
+        { record: 'APORTANTE_TIPO_1', fieldNumbers: [28, 29] },
+        {
+          record: 'CABECERA_TIPO_2',
+          fieldNumbers: [2, 15, 17, 18, 22],
+        },
+      ],
+    });
+    expect(blockerFor('OPERATOR_UPLOAD_NOT_VERIFIED').scope).toBe(
+      'OPERATOR_COMPATIBILITY',
+    );
+    expect(blockerFor('PILA_PAYMENT_DATE_REQUIRED').scope).toBe(
+      'FILE_GENERATION',
+    );
+    const serializationBlocker = blockerFor(
+      'AT2_V30_SERIALIZATION_FIELDS_PENDING',
+    );
+    expect(serializationBlocker.scope).toBe('FILE_GENERATION');
+    expect(serializationBlocker.fields.map(({ record }) => record)).toEqual([
+      'APORTANTE_TIPO_1',
+      'CABECERA_TIPO_2',
+      'DETALLE_TIPO_2',
+    ]);
+    expect(
+      serializationBlocker.fields.every(
+        ({ fieldNumbers }) =>
+          fieldNumbers.length > 0 && fieldNumbers.every(Number.isInteger),
+      ),
+    ).toBe(true);
   });
 
   it('rechaza el período antes de leer snapshots si la nómina no está aprobada', async () => {
@@ -149,6 +158,7 @@ describe('PayrollService.getPilaPreparation', () => {
       service.getPilaPreparation('tenant-1', 'period-1'),
     ).rejects.toThrow(ConflictException);
     expect(findSnapshots).not.toHaveBeenCalled();
+    expect(tenantPrismaExecute).not.toHaveBeenCalled();
     expect(findRuns).not.toHaveBeenCalled();
   });
 
@@ -164,6 +174,7 @@ describe('PayrollService.getPilaPreparation', () => {
       }),
     );
     expect(findSnapshots).not.toHaveBeenCalled();
+    expect(tenantPrismaExecute).not.toHaveBeenCalled();
     expect(findRuns).not.toHaveBeenCalled();
   });
 });

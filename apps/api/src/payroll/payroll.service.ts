@@ -1012,15 +1012,17 @@ export class PayrollService {
         select: { employeeId: true },
         orderBy: { employeeId: 'asc' },
       }),
-      this.prisma.payrollSnapshot.findMany({
-        where: { tenantId, payrollPeriodId: periodId },
-        select: {
-          employeeId: true,
-          pilaPayloadVersion: true,
-          pilaPayload: true,
-        },
-        orderBy: [{ createdAt: 'asc' }, { employeeId: 'asc' }],
-      }),
+      this.tenantPrisma.execute((tx) =>
+        tx.payrollSnapshot.findMany({
+          where: { tenantId, payrollPeriodId: periodId },
+          select: {
+            employeeId: true,
+            pilaPayloadVersion: true,
+            pilaPayload: true,
+          },
+          orderBy: [{ createdAt: 'asc' }, { employeeId: 'asc' }],
+        }),
+      ),
     ]);
 
     return buildPilaPreparationReport({
