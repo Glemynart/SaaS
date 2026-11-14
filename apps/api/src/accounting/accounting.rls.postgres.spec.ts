@@ -50,6 +50,9 @@ describe('accounting PostgreSQL RLS', () => {
     await prisma.$executeRawUnsafe(
       `GRANT SELECT ON TABLE "cuentas_contables" TO "${role}"`,
     );
+    await prisma.$executeRawUnsafe(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "terceros" TO "${role}"`,
+    );
 
     await prisma.tenant.createMany({
       data: [
@@ -174,11 +177,12 @@ describe('accounting PostgreSQL RLS', () => {
     await prisma.$disconnect();
   });
 
-  it('enables and forces RLS for the Ledger transaction tables', async () => {
+  it('enables and forces RLS for the Ledger cohort and third parties', async () => {
     const expected = [
       'comprobantes_contables',
       'movimientos_contables',
       'secuencias_comprobante',
+      'terceros',
     ];
     const protectedTables = await prisma.$queryRaw<{ tableName: string }[]>`
       SELECT relname AS "tableName" FROM pg_class
@@ -196,7 +200,7 @@ describe('accounting PostgreSQL RLS', () => {
     for (const table of expected) expect(actual).toContain(table);
   });
 
-  it('isolates Ledger transaction rows by tenant', async () => {
+  it('isolates Ledger and third-party rows by tenant', async () => {
     const readRows = (client: TenantPrismaClient) =>
       Promise.all([
         client.comprobanteContable.findMany({
@@ -213,6 +217,11 @@ describe('accounting PostgreSQL RLS', () => {
           where: { tenantId: { in: [tenantA, tenantB] } },
           orderBy: { tenantId: 'asc' },
           select: { tenantId: true },
+        }),
+        client.tercero.findMany({
+          where: { id: { in: [thirdPartyAId, thirdPartyBId] } },
+          orderBy: { id: 'asc' },
+          select: { id: true, tenantId: true },
         }),
       ]);
     const readForTenant = (tenantId: string) =>
@@ -232,14 +241,16 @@ describe('accounting PostgreSQL RLS', () => {
     ]);
 
     expect(rowsA.map((rows) => rows.map((row) => row.tenantId).sort())).toEqual(
-      [[tenantA], [tenantA], [tenantA]],
+      [[tenantA], [tenantA], [tenantA], [tenantA]],
     );
     expect(rowsB.map((rows) => rows.map((row) => row.tenantId).sort())).toEqual(
-      [[tenantB], [tenantB], [tenantB]],
+      [[tenantB], [tenantB], [tenantB], [tenantB]],
     );
     expect(
       rowsWithoutContext.map((rows) => rows.map((row) => row.tenantId)),
-    ).toEqual([[], [], []]);
+    ).toEqual([[], [], [], []]);
+    expect(rowsA[3]).toMatchObject([{ id: thirdPartyAId, tenantId: tenantA }]);
+    expect(rowsB[3]).toMatchObject([{ id: thirdPartyBId, tenantId: tenantB }]);
   });
 
   it('serves Ledger reports through the active tenant context', async () => {
@@ -345,6 +356,71 @@ describe('accounting PostgreSQL RLS', () => {
     await expect(
       prisma.movimientoContable.findUnique({ where: { id: movementBId } }),
     ).resolves.toMatchObject({ tenantId: tenantB });
+  });
+
+  it('allows third-party DML only for the active tenant', async () => {
+    const created = await tenantContext.run(
+      {
+        tenantId: tenantA,
+        userId: 'rls-accounting-test-user',
+        rol: 'ADMIN',
+        email: 'rls-accounting-test@example.com',
+      },
+      () =>
+        tenantPrisma.execute((client) =>
+          client.tercero.create({
+            data: thirdPartyData(randomUUID(), tenantA, `300${suffix}`),
+          }),
+        ),
+    );
+    expect(created.tenantId).toBe(tenantA);
+
+    await expect(
+      tenantContext.run(
+        {
+          tenantId: tenantA,
+          userId: 'rls-accounting-test-user',
+          rol: 'ADMIN',
+          email: 'rls-accounting-test@example.com',
+        },
+        () =>
+          tenantPrisma.execute((client) =>
+            client.tercero.create({
+              data: thirdPartyData(randomUUID(), tenantB, `400${suffix}`),
+            }),
+          ),
+      ),
+    ).rejects.toThrow();
+
+    const update = await tenantContext.run(
+      {
+        tenantId: tenantA,
+        userId: 'rls-accounting-test-user',
+        rol: 'ADMIN',
+        email: 'rls-accounting-test@example.com',
+      },
+      () =>
+        tenantPrisma.execute((client) =>
+          client.tercero.updateMany({
+            where: { id: thirdPartyBId },
+            data: { razonSocial: 'No debe cruzar tenant' },
+          }),
+        ),
+    );
+    const deletion = await tenantContext.run(
+      {
+        tenantId: tenantA,
+        userId: 'rls-accounting-test-user',
+        rol: 'ADMIN',
+        email: 'rls-accounting-test@example.com',
+      },
+      () =>
+        tenantPrisma.execute((client) =>
+          client.tercero.deleteMany({ where: { id: thirdPartyBId } }),
+        ),
+    );
+    expect(update.count).toBe(0);
+    expect(deletion.count).toBe(0);
   });
 
   function runAsRlsRole<T>(

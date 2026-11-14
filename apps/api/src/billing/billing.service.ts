@@ -72,86 +72,101 @@ export class BillingService {
 
   // --- CUSTOMERS ---
   async createCustomer(tenantId: string, dto: CreateCustomerDto) {
-    const exists = await this.prisma.customer.findUnique({
-      where: { tenantId_nit: { tenantId, nit: dto.nit } },
-    });
-    if (exists)
-      throw new BadRequestException('Ya existe un cliente con este NIT');
-    if (dto.terceroId) {
-      await this.validateCustomerThirdParty(tenantId, dto.nit, dto.terceroId);
-    }
-    return this.prisma.customer.create({
-      data: { ...dto, terceroId: dto.terceroId || null, tenantId },
-      include: {
-        tercero: {
-          select: { id: true, razonSocial: true, numeroDocumento: true },
+    return this.tenantPrisma.execute(async (tx) => {
+      const exists = await tx.customer.findUnique({
+        where: { tenantId_nit: { tenantId, nit: dto.nit } },
+      });
+      if (exists)
+        throw new BadRequestException('Ya existe un cliente con este NIT');
+      if (dto.terceroId) {
+        await this.validateCustomerThirdParty(
+          tenantId,
+          dto.nit,
+          dto.terceroId,
+          tx,
+        );
+      }
+      return tx.customer.create({
+        data: { ...dto, terceroId: dto.terceroId || null, tenantId },
+        include: {
+          tercero: {
+            select: { id: true, razonSocial: true, numeroDocumento: true },
+          },
         },
-      },
+      });
     });
   }
 
   async findAllCustomers(tenantId: string, search?: string) {
-    return this.prisma.customer.findMany({
-      where: {
-        tenantId,
-        ...(search
-          ? {
-              OR: [
-                { razonSocial: { contains: search, mode: 'insensitive' } },
-                { nit: { contains: search } },
-              ],
-            }
-          : {}),
-      },
-      orderBy: { razonSocial: 'asc' },
-      include: {
-        tercero: {
-          select: { id: true, razonSocial: true, numeroDocumento: true },
+    return this.tenantPrisma.execute((tx) =>
+      tx.customer.findMany({
+        where: {
+          tenantId,
+          ...(search
+            ? {
+                OR: [
+                  { razonSocial: { contains: search, mode: 'insensitive' } },
+                  { nit: { contains: search } },
+                ],
+              }
+            : {}),
         },
-      },
-    });
+        orderBy: { razonSocial: 'asc' },
+        include: {
+          tercero: {
+            select: { id: true, razonSocial: true, numeroDocumento: true },
+          },
+        },
+      }),
+    );
   }
 
   async findOneCustomer(tenantId: string, id: string) {
-    const customer = await this.prisma.customer.findFirst({
-      where: { id, tenantId },
-      include: {
-        tercero: {
-          select: { id: true, razonSocial: true, numeroDocumento: true },
+    return this.tenantPrisma.execute(async (tx) => {
+      const customer = await tx.customer.findFirst({
+        where: { id, tenantId },
+        include: {
+          tercero: {
+            select: { id: true, razonSocial: true, numeroDocumento: true },
+          },
         },
-      },
+      });
+      if (!customer) throw new NotFoundException('Cliente no encontrado');
+      return customer;
     });
-    if (!customer) throw new NotFoundException('Cliente no encontrado');
-    return customer;
   }
 
   async updateCustomer(tenantId: string, id: string, dto: UpdateCustomerDto) {
-    const current = await this.findOneCustomer(tenantId, id);
-    const nit = dto.nit ?? current.nit;
-    const terceroId =
-      dto.terceroId === undefined ? current.terceroId : dto.terceroId;
-    if (terceroId) {
-      await this.validateCustomerThirdParty(
-        tenantId,
-        nit,
-        terceroId,
-        this.prisma,
-        id,
-      );
-    }
-    return this.prisma.customer.update({
-      where: { id },
-      data: {
-        ...dto,
-        ...(dto.terceroId !== undefined && {
-          terceroId: dto.terceroId || null,
-        }),
-      },
-      include: {
-        tercero: {
-          select: { id: true, razonSocial: true, numeroDocumento: true },
+    return this.tenantPrisma.execute(async (tx) => {
+      const current = await tx.customer.findFirst({
+        where: { id, tenantId },
+        include: {
+          tercero: {
+            select: { id: true, razonSocial: true, numeroDocumento: true },
+          },
         },
-      },
+      });
+      if (!current) throw new NotFoundException('Cliente no encontrado');
+      const nit = dto.nit ?? current.nit;
+      const terceroId =
+        dto.terceroId === undefined ? current.terceroId : dto.terceroId;
+      if (terceroId) {
+        await this.validateCustomerThirdParty(tenantId, nit, terceroId, tx, id);
+      }
+      return tx.customer.update({
+        where: { id },
+        data: {
+          ...dto,
+          ...(dto.terceroId !== undefined && {
+            terceroId: dto.terceroId || null,
+          }),
+        },
+        include: {
+          tercero: {
+            select: { id: true, razonSocial: true, numeroDocumento: true },
+          },
+        },
+      });
     });
   }
 
@@ -312,26 +327,32 @@ export class BillingService {
   }
 
   async findOneInvoice(tenantId: string, id: string) {
-    const invoice = await this.prisma.invoice.findFirst({
-      where: { id, tenantId },
-      include: { items: true, customer: true, tercero: true },
+    return this.tenantPrisma.execute(async (tx) => {
+      const invoice = await tx.invoice.findFirst({
+        where: { id, tenantId },
+        include: { items: true, customer: true, tercero: true },
+      });
+      if (!invoice) throw new NotFoundException('Factura no encontrada');
+      const comprobanteContable = await this.findInvoiceVoucher(
+        tx,
+        tenantId,
+        invoice.id,
+      );
+      const appliedAmounts = await getActiveReceiptAppliedAmounts(
+        tx,
+        tenantId,
+        [invoice.id],
+      );
+      const totalPagado =
+        invoice.status === 'ISSUED'
+          ? (appliedAmounts.get(invoice.id) ?? new Prisma.Decimal(0))
+          : null;
+      const saldoPendiente =
+        invoice.status === 'ISSUED'
+          ? new Prisma.Decimal(invoice.total).minus(totalPagado!)
+          : null;
+      return { ...invoice, totalPagado, saldoPendiente, comprobanteContable };
     });
-    if (!invoice) throw new NotFoundException('Factura no encontrada');
-    const comprobanteContable = await this.tenantPrisma.execute((tx) =>
-      this.findInvoiceVoucher(tx, tenantId, invoice.id),
-    );
-    const appliedAmounts = await this.tenantPrisma.execute((tx) =>
-      getActiveReceiptAppliedAmounts(tx, tenantId, [invoice.id]),
-    );
-    const totalPagado =
-      invoice.status === 'ISSUED'
-        ? (appliedAmounts.get(invoice.id) ?? new Prisma.Decimal(0))
-        : null;
-    const saldoPendiente =
-      invoice.status === 'ISSUED'
-        ? new Prisma.Decimal(invoice.total).minus(totalPagado!)
-        : null;
-    return { ...invoice, totalPagado, saldoPendiente, comprobanteContable };
   }
 
   async updateInvoiceStatus(
@@ -726,7 +747,7 @@ export class BillingService {
     tenantId: string,
     customerNit: string,
     terceroId: string,
-    client: PrismaService | TenantPrismaClient = this.prisma,
+    client: TenantPrismaClient,
     excludeCustomerId?: string,
   ) {
     const thirdParty = await client.tercero.findFirst({

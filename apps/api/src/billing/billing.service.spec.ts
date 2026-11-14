@@ -41,7 +41,13 @@ describe('BillingService', () => {
       [TemplateStringsArray, ...unknown[]]
     >(),
     invoice: { findFirst: jest.fn(), update: jest.fn() },
-    customer: { findFirst: jest.fn() },
+    customer: {
+      findFirst: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
     tercero: { findFirst: jest.fn() },
     periodoContable: { findFirst: jest.fn() },
     cuentaSistemaMap: { findMany: jest.fn() },
@@ -88,6 +94,13 @@ describe('BillingService', () => {
     txMock.$queryRaw.mockResolvedValue([]);
     txMock.invoice.update.mockResolvedValue({ id: 'invoice-1' });
     txMock.customer.findFirst.mockResolvedValue(null);
+    txMock.customer.findUnique.mockResolvedValue(null);
+    txMock.customer.findMany.mockResolvedValue([]);
+    txMock.customer.create.mockImplementation((input: unknown) => {
+      createdCustomerInputs.push(input);
+      return Promise.resolve({ id: 'customer-1' });
+    });
+    txMock.customer.update.mockResolvedValue({ id: 'customer-1' });
     txMock.tercero.findFirst.mockResolvedValue(null);
     txMock.periodoContable.findFirst.mockResolvedValue(null);
     txMock.cuentaSistemaMap.findMany.mockResolvedValue([]);
@@ -136,8 +149,8 @@ describe('BillingService', () => {
   };
 
   it('vincula un cliente al tercero activo del mismo tenant con NIT coincidente', async () => {
-    prismaMock.customer.findFirst.mockResolvedValue(null);
-    prismaMock.tercero.findFirst.mockResolvedValue({
+    txMock.customer.findUnique.mockResolvedValue(null);
+    txMock.tercero.findFirst.mockResolvedValue({
       id: 'third-party-1',
       tenantId: 'tenant-1',
       tipoDocumento: 'NIT',
@@ -154,7 +167,7 @@ describe('BillingService', () => {
       terceroId: 'third-party-1',
     });
 
-    expect(prismaMock.tercero.findFirst).toHaveBeenCalledWith({
+    expect(txMock.tercero.findFirst).toHaveBeenCalledWith({
       where: {
         id: 'third-party-1',
         tenantId: 'tenant-1',
@@ -174,8 +187,8 @@ describe('BillingService', () => {
   });
 
   it('rechaza vincular un tercero cuyo NIT no coincide con el cliente', async () => {
-    prismaMock.customer.findFirst.mockResolvedValue(null);
-    prismaMock.tercero.findFirst.mockResolvedValue({
+    txMock.customer.findUnique.mockResolvedValue(null);
+    txMock.tercero.findFirst.mockResolvedValue({
       id: 'third-party-1',
       tenantId: 'tenant-1',
       tipoDocumento: 'NIT',
@@ -193,7 +206,27 @@ describe('BillingService', () => {
         terceroId: 'third-party-1',
       }),
     ).rejects.toThrow('no coincide con el documento del tercero');
-    expect(prismaMock.customer.create).not.toHaveBeenCalled();
+    expect(txMock.customer.create).not.toHaveBeenCalled();
+  });
+
+  it('loads customer and third-party relations inside the tenant transaction', async () => {
+    const customer = { id: 'customer-1', tenantId: 'tenant-1' };
+    txMock.customer.findMany.mockResolvedValue([customer]);
+
+    await expect(service.findAllCustomers('tenant-1')).resolves.toEqual([
+      customer,
+    ]);
+
+    expect(tenantPrismaMock.execute).toHaveBeenCalledTimes(1);
+    expect(txMock.customer.findMany).toHaveBeenCalledWith({
+      where: { tenantId: 'tenant-1' },
+      orderBy: { razonSocial: 'asc' },
+      include: {
+        tercero: {
+          select: { id: true, razonSocial: true, numeroDocumento: true },
+        },
+      },
+    });
   });
 
   it('valida que los productos estén activos y pertenezcan al tenant', async () => {
@@ -581,7 +614,7 @@ describe('BillingService', () => {
       total: new Prisma.Decimal(100_000),
     };
     prismaMock.invoice.findMany.mockResolvedValue([invoice]);
-    prismaMock.invoice.findFirst.mockResolvedValue(invoice);
+    txMock.invoice.findFirst.mockResolvedValue(invoice);
     txMock.$queryRaw.mockResolvedValue([
       { invoiceId: 'invoice-1', applied: new Prisma.Decimal(25_000) },
     ]);
@@ -589,7 +622,7 @@ describe('BillingService', () => {
     const listed = await service.findAllInvoices('tenant-1');
     const detail = await service.findOneInvoice('tenant-1', 'invoice-1');
 
-    expect(tenantPrismaMock.execute).toHaveBeenCalledTimes(3);
+    expect(tenantPrismaMock.execute).toHaveBeenCalledTimes(2);
     expect(listed[0].totalPagado).toEqual(new Prisma.Decimal(25_000));
     expect(listed[0].saldoPendiente).toEqual(new Prisma.Decimal(75_000));
     expect(detail.totalPagado).toEqual(new Prisma.Decimal(25_000));
