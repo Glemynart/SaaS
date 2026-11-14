@@ -1,10 +1,11 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
-import { PrismaService } from '../../prisma/prisma.service';
+import { TenantPrismaService } from '../../tenant-prisma/tenant-prisma.service';
 import { CuentaSistemaMapService } from './cuenta-sistema-map.service';
 
 describe('CuentaSistemaMapService tenant isolation', () => {
@@ -18,22 +19,27 @@ describe('CuentaSistemaMapService tenant isolation', () => {
     cuentaContable: {
       findFirst: jest.fn(),
     },
-  } as unknown as PrismaService;
+  };
+  const tenantPrisma = { execute: jest.fn() };
   const auditLog = jest.fn();
   const audit = { log: auditLog } as unknown as AuditService;
-  const service = new CuentaSistemaMapService(prisma, audit);
-  const maps = prisma.cuentaSistemaMap as unknown as {
-    create: jest.Mock;
-    findFirst: jest.Mock;
-    findMany: jest.Mock;
-    update: jest.Mock;
-  };
-  const accounts = prisma.cuentaContable as unknown as {
-    findFirst: jest.Mock;
-  };
+  const service = new CuentaSistemaMapService(
+    tenantPrisma as unknown as TenantPrismaService,
+    audit,
+  );
+  const maps = prisma.cuentaSistemaMap;
+  const accounts = prisma.cuentaContable;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    tenantPrisma.execute.mockImplementation((work: unknown) =>
+      (
+        work as (
+          client: typeof prisma,
+          context: { tenantId: string },
+        ) => unknown
+      )(prisma, { tenantId: 'tenant-a' }),
+    );
     maps.findFirst.mockResolvedValue(null);
     maps.findMany.mockResolvedValue([]);
     maps.create.mockResolvedValue({
@@ -62,6 +68,14 @@ describe('CuentaSistemaMapService tenant isolation', () => {
         cuenta: { select: { id: true, codigo: true, nombre: true } },
       },
     });
+  });
+
+  it('rejects a tenant argument that differs from the active tenant context', async () => {
+    await expect(service.findAll('tenant-b')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+
+    expect(maps.findMany).not.toHaveBeenCalled();
   });
 
   it('does not return a mapping by ID when it belongs to another tenant', async () => {

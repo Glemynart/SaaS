@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { ForbiddenException, Injectable } from '@nestjs/common';
+import { TenantPrismaService } from '../../tenant-prisma/tenant-prisma.service';
 
 /**
  * Roles mínimos que la futura causación de nómina necesita resolver. Este
@@ -222,54 +222,60 @@ function resolveStatus(
  */
 @Injectable()
 export class PayrollAccountingPreflightService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly tenantPrisma: TenantPrismaService) {}
 
   async validate(
     tenantId: string,
     input: PayrollAccountingPreflightInput,
   ): Promise<PayrollAccountingPreflightResult> {
-    const [company, accountCount, maps, period] = await Promise.all([
-      this.prisma.tenant.findFirst({
-        where: { id: tenantId, activo: true },
-        select: { id: true },
-      }),
-      this.prisma.cuentaContable.count({
-        where: { tenantId, deletedAt: null },
-      }),
-      this.prisma.cuentaSistemaMap.findMany({
-        where: {
-          tenantId,
-          rol: { in: [...PAYROLL_ACCOUNTING_REQUIRED_ROLES] },
-        },
-        select: {
-          rol: true,
-          activo: true,
-          cuenta: {
-            select: {
-              codigo: true,
-              activa: true,
-              imputable: true,
-              deletedAt: true,
+    return this.tenantPrisma.execute(async (tx, context) => {
+      if (context.tenantId !== tenantId) {
+        throw new ForbiddenException('El contexto de tenant no coincide.');
+      }
+
+      const [company, accountCount, maps, period] = await Promise.all([
+        tx.tenant.findFirst({
+          where: { id: tenantId, activo: true },
+          select: { id: true },
+        }),
+        tx.cuentaContable.count({
+          where: { tenantId, deletedAt: null },
+        }),
+        tx.cuentaSistemaMap.findMany({
+          where: {
+            tenantId,
+            rol: { in: [...PAYROLL_ACCOUNTING_REQUIRED_ROLES] },
+          },
+          select: {
+            rol: true,
+            activo: true,
+            cuenta: {
+              select: {
+                codigo: true,
+                activa: true,
+                imputable: true,
+                deletedAt: true,
+              },
             },
           },
-        },
-      }),
-      this.prisma.periodoContable.findFirst({
-        where: {
-          tenantId,
-          fechaInicio: { lte: input.fechaCausacion },
-          fechaFin: { gte: input.fechaCausacion },
-        },
-        select: { estado: true },
-      }),
-    ]);
+        }),
+        tx.periodoContable.findFirst({
+          where: {
+            tenantId,
+            fechaInicio: { lte: input.fechaCausacion },
+            fechaFin: { gte: input.fechaCausacion },
+          },
+          select: { estado: true },
+        }),
+      ]);
 
-    const validations = [
-      ...validateCompanyConfiguration(Boolean(company), accountCount),
-      ...validateSystemAccountMaps(maps),
-      validateAccountingPeriod(period),
-    ];
+      const validations = [
+        ...validateCompanyConfiguration(Boolean(company), accountCount),
+        ...validateSystemAccountMaps(maps),
+        validateAccountingPeriod(period),
+      ];
 
-    return { status: resolveStatus(validations), validations };
+      return { status: resolveStatus(validations), validations };
+    });
   }
 }

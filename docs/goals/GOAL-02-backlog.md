@@ -2433,18 +2433,34 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   filtros tenant. No aplica cambios a bases desplegadas ni demuestra el estado
   de RLS en producción.
 
-### RLS tenant-scoped para centros de costo — candidata GOAL-02
+### RLS tenant-scoped para centros de costo — PR #375 integrada
 
 - `centros_costo` es un catálogo tenant-owned que participa en la atribución
   analítica del Ledger y en snapshots de Nómina. No contiene plantillas
   globales.
-- Antes de esta cohorte, el CRUD de `CentrosCostoService` y la resolución
-  Nómina por sede consultaban Prisma directamente. Ledger ya consumía el
-  cliente transaccional tenant-scoped; las lecturas relacionadas de Payroll
-  también deben usarlo para que RLS preserve sus datos asociados.
-- La cohorte propuesta activa y fuerza RLS, adapta esos consumidores y extiende
-  las pruebas PostgreSQL para lectura, escritura propia y aislamiento por
-  tenant, conservando `tenantId` en los filtros de aplicación.
-- La tabla se usa para registrar centros en snapshots y movimientos contables;
-  la migración solo protege acceso futuro y no reescribe datos ni configura una
-  base desplegada.
+- PR #375 activa y fuerza RLS; adapta el CRUD de `CentrosCostoService` y la
+  resolución de Nómina por sede y mantiene las lecturas relacionadas de Payroll
+  dentro de transacciones tenant-scoped.
+- La suite PostgreSQL prueba lectura, escritura propia y aislamiento por tenant,
+  conservando los filtros `tenantId` de aplicación. CI, Browser E2E y checks
+  post-merge pasaron; Browser E2E no publicó artifacts.
+- La tabla participa en snapshots y movimientos contables. La migración es
+  aditiva: no reescribe datos ni acredita aplicación en una base desplegada.
+- PR #375 se fusionó en `main` como
+  `45b0fc62ee04df6dd977439b0caa30ec87acdc3a`.
+
+### RLS tenant-scoped para mapeos de cuentas del sistema — candidata GOAL-02
+
+- `cuenta_sistema_map` contiene la configuración tenant-owned que determina
+  cuentas para contabilizar nómina, facturación, recaudos y cierre. Hasta esta
+  cohorte dependía de filtros explícitos `tenantId`, sin política RLS.
+- Los consumidores de Payroll, Billing, recaudos y cierre ya usan clientes
+  transaccionales tenant-scoped. El CRUD, el preflight contable de Nómina y la
+  provisión/desprovisión contable consultaban Prisma directamente; la carga
+  sintética financiera y sus pruebas también necesitaban alinearse con el
+  contexto tenant.
+- La implementación candidata activa y fuerza RLS, mueve esas rutas a
+  `TenantPrismaService`, conserva los filtros de aplicación y amplía las pruebas
+  PostgreSQL para lectura, escritura propia y aislamiento por tenant.
+- El cambio está en una rama local para validación. La migración solo afecta
+  futuras aplicaciones de esquema; no se ejecutó contra ninguna base desplegada.

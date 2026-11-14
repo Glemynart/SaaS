@@ -1,16 +1,18 @@
 import {
   ConflictException,
+  ForbiddenException,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AuditService } from '../../audit/audit.service';
-import { PrismaService } from '../../prisma/prisma.service';
+import { TenantPrismaService } from '../../tenant-prisma/tenant-prisma.service';
 import { DEFAULT_SYSTEM_ACCOUNT_MAPPINGS } from './system-account-mappings';
 import { AccountingProvisioningService } from './accounting-provisioning.service';
 
 describe('AccountingProvisioningService tenant isolation', () => {
   const tx = {
+    tenant: { findUnique: jest.fn() },
     cuentaContable: {
       count: jest.fn(),
       create: jest.fn(),
@@ -37,20 +39,24 @@ describe('AccountingProvisioningService tenant isolation', () => {
     requiereCentroCosto: true,
     requiereBase: true,
   };
-  const prismaMock = {
-    tenant: { findUnique: jest.fn() },
-    $transaction: jest.fn(),
-  };
-  const prisma = prismaMock as unknown as PrismaService;
+  const tenantPrismaMock = { execute: jest.fn() };
+  let contextTenantId = 'tenant-a';
   const auditLog = jest.fn();
   const audit = { log: auditLog } as unknown as AuditService;
-  const service = new AccountingProvisioningService(prisma, audit);
+  const service = new AccountingProvisioningService(
+    tenantPrismaMock as unknown as TenantPrismaService,
+    audit,
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();
-    prismaMock.tenant.findUnique.mockResolvedValue({ id: 'tenant-a' });
-    prismaMock.$transaction.mockImplementation(
-      (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
+    contextTenantId = 'tenant-a';
+    tx.tenant.findUnique.mockResolvedValue({ id: 'tenant-a' });
+    tenantPrismaMock.execute.mockImplementation((work: unknown) =>
+      (work as (client: typeof tx, context: { tenantId: string }) => unknown)(
+        tx,
+        { tenantId: contextTenantId },
+      ),
     );
     tx.cuentaContable.count.mockResolvedValue(0);
     tx.cuentaContable.findMany.mockResolvedValue([]);
@@ -66,19 +72,32 @@ describe('AccountingProvisioningService tenant isolation', () => {
     auditLog.mockResolvedValue(undefined);
   });
 
-  it('rejects an unknown tenant before opening a transaction', async () => {
-    prismaMock.tenant.findUnique.mockResolvedValueOnce(null);
+  it('rejects an unknown tenant inside the active tenant transaction', async () => {
+    contextTenantId = 'tenant-missing';
+    tx.tenant.findUnique.mockResolvedValueOnce(null);
 
     await expect(
       service.clonarPlanDeCuentas('tenant-missing', 'user-a'),
     ).rejects.toBeInstanceOf(NotFoundException);
 
-    expect(prismaMock.tenant.findUnique).toHaveBeenCalledWith({
+    expect(tx.tenant.findUnique).toHaveBeenCalledWith({
       where: { id: 'tenant-missing' },
       select: { id: true },
     });
-    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(tenantPrismaMock.execute).toHaveBeenCalledTimes(1);
     expect(auditLog).not.toHaveBeenCalled();
+  });
+
+  it('rejects provisioning when the requested and active tenants differ', async () => {
+    contextTenantId = 'tenant-b';
+
+    await expect(
+      service.clonarPlanDeCuentas('tenant-a', 'user-a'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(tx.tenant.findUnique).not.toHaveBeenCalled();
+    expect(tx.cuentaContable.create).not.toHaveBeenCalled();
+    expect(tx.cuentaSistemaMap.create).not.toHaveBeenCalled();
   });
 
   it('is idempotent when the tenant already has a chart of accounts', async () => {
@@ -150,7 +169,7 @@ describe('AccountingProvisioningService tenant isolation', () => {
       mapeos: DEFAULT_SYSTEM_ACCOUNT_MAPPINGS.length,
     });
 
-    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(tenantPrismaMock.execute).toHaveBeenCalledTimes(1);
     expect(tx.cuentaContable.findMany).toHaveBeenCalledWith({
       where: { tenantId: null },
       select: templateSelect,
@@ -257,7 +276,7 @@ describe('AccountingProvisioningService tenant isolation', () => {
       service.desaprovisionar('tenant-a', 'user-a'),
     ).rejects.toBeInstanceOf(ConflictException);
 
-    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(tenantPrismaMock.execute).toHaveBeenCalledTimes(1);
     expect(tx.cuentaContable.count).toHaveBeenCalledWith({
       where: { tenantId: 'tenant-a', movimientos: { some: {} } },
     });
@@ -278,7 +297,7 @@ describe('AccountingProvisioningService tenant isolation', () => {
       service.desaprovisionar('tenant-a', 'user-a'),
     ).rejects.toBeInstanceOf(ConflictException);
 
-    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(tenantPrismaMock.execute).toHaveBeenCalledTimes(1);
     expect(tx.cuentaSistemaMap.deleteMany).toHaveBeenCalledWith({
       where: { tenantId: 'tenant-a' },
     });
@@ -293,7 +312,7 @@ describe('AccountingProvisioningService tenant isolation', () => {
       service.desaprovisionar('tenant-a', 'user-a'),
     ).resolves.toEqual({ cuentas: 2 });
 
-    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(tenantPrismaMock.execute).toHaveBeenCalledTimes(1);
     expect(tx.cuentaContable.count).toHaveBeenCalledWith({
       where: { tenantId: 'tenant-a', movimientos: { some: {} } },
     });

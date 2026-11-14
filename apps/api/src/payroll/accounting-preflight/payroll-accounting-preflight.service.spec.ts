@@ -1,4 +1,4 @@
-import { PrismaService } from '../../prisma/prisma.service';
+import { TenantPrismaService } from '../../tenant-prisma/tenant-prisma.service';
 import {
   PAYROLL_ACCOUNTING_REQUIRED_ROLES,
   PayrollAccountingPreflightService,
@@ -18,6 +18,7 @@ const client = {
   cuentaSistemaMap: { findMany: cuentaSistemaMapFindMany },
   periodoContable: { findFirst: periodoContableFindFirst },
 };
+const tenantPrisma = { execute: jest.fn() };
 
 function makeMap(
   rol: string,
@@ -59,9 +60,30 @@ describe('PayrollAccountingPreflightService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     configureValidReadModel();
-    service = new PayrollAccountingPreflightService(
-      client as unknown as PrismaService,
+    tenantPrisma.execute.mockImplementation((work: unknown) =>
+      (work as (tx: typeof client, context: { tenantId: string }) => unknown)(
+        client,
+        { tenantId: TENANT_ID },
+      ),
     );
+    service = new PayrollAccountingPreflightService(
+      tenantPrisma as unknown as TenantPrismaService,
+    );
+  });
+
+  it('rejects a preflight request for a different tenant context', async () => {
+    tenantPrisma.execute.mockImplementationOnce((work: unknown) =>
+      (work as (tx: typeof client, context: { tenantId: string }) => unknown)(
+        client,
+        { tenantId: 'tenant-other' },
+      ),
+    );
+
+    await expect(
+      service.validate(TENANT_ID, { fechaCausacion: FECHA_CAUSACION }),
+    ).rejects.toThrow('El contexto de tenant no coincide.');
+
+    expect(cuentaSistemaMapFindMany).not.toHaveBeenCalled();
   });
 
   it('reports a valid accounting configuration without writing data', async () => {
