@@ -378,7 +378,8 @@ prerrequisitos operativos.
   lectura exclusiva de la plantilla PUC global, el clonado de relaciones y
   mapeos bajo el tenant solicitado, y el alcance tenant-scoped de la
   desprovisión interna, que ahora rechaza borrar cuentas referenciadas por
-  movimientos del Ledger. `AccountingProvisioningController` rechaza el tenant de
+  movimientos del Ledger y normaliza una restricción FK concurrente como
+  conflicto de dominio. `AccountingProvisioningController` rechaza el tenant de
   ruta que no coincide con el usuario autenticado y conserva los guards y el
   rol ADMIN. Estas pruebas no sustituyen la verificación de rollback
   transaccional ni las pruebas de RLS en PostgreSQL.
