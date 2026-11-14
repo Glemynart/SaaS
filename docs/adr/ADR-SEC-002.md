@@ -258,6 +258,9 @@ POST /auth/login ──► { accessToken, refreshToken }
   `EN_REVISION`; conserva las actualizaciones tenant-scoped que permite el
   servicio existente y no tiene política de borrado. Sus lecturas, exclusiones
   y sincronización de aprobación usan transacciones de `TenantPrismaService`.
+  Si la aprobación detecta bloqueos activos, confirma la sincronización de esos
+  bloqueos y mantiene el período sin aprobar antes de devolver el rechazo; no
+  crea snapshots ni registra auditoría de aprobación en ese intento.
 - La política de `cuentas_contables` deja leer la plantilla PUC global y las
   cuentas propias del tenant; solo permite insertar, actualizar o borrar filas
   del tenant activo. La suite `employees.rls.postgres.spec.ts` comprueba la lista de tablas con

@@ -1413,8 +1413,18 @@ export class PayrollService {
       );
     }
 
-    return this.tenantPrisma.execute(async (tx) => {
-      await this.assertNoFunctionalBlocksForApproval(tx, tenantId, period);
+    const approvalResult = await this.tenantPrisma.execute(async (tx) => {
+      const blockedEmployees =
+        await this.syncFunctionalBlocksAndCountForApproval(
+          tx,
+          tenantId,
+          period,
+        );
+      if (blockedEmployees > 0) {
+        // Commit the refreshed blockers so the user can see and resolve them.
+        // Approval, snapshots, and audit remain untouched in this transaction.
+        return { kind: 'blocked' as const, blockedEmployees };
+      }
 
       const result = await tx.payrollPeriod.updateMany({
         where: { id: periodId, tenantId, status: from },
@@ -1459,8 +1469,16 @@ export class PayrollService {
         tx,
       );
 
-      return approvedPeriod;
+      return { kind: 'approved' as const, period: approvedPeriod };
     });
+
+    if (approvalResult.kind === 'blocked') {
+      throw new BadRequestException(
+        `No se puede aprobar la nomina: existen ${approvalResult.blockedEmployees} empleado(s) con bloqueos funcionales activos`,
+      );
+    }
+
+    return approvalResult.period;
   }
 
   /**
@@ -3442,7 +3460,7 @@ export class PayrollService {
 
   // ── Helpers privados ───────────────────────────────────────────────────────
 
-  private async assertNoFunctionalBlocksForApproval(
+  private async syncFunctionalBlocksAndCountForApproval(
     tx: Prisma.TransactionClient,
     tenantId: string,
     period: {
@@ -3450,7 +3468,7 @@ export class PayrollService {
       fechaInicio: Date;
       fechaFin: Date;
     },
-  ) {
+  ): Promise<number> {
     const blocks = await this.collectFunctionalBlocksForPeriod(
       tx,
       tenantId,
@@ -3470,11 +3488,7 @@ export class PayrollService {
       activeBlocks.map((block) => block.employeeId),
     );
 
-    if (blockedEmployees.size > 0) {
-      throw new BadRequestException(
-        `No se puede aprobar la nomina: existen ${blockedEmployees.size} empleado(s) con bloqueos funcionales activos`,
-      );
-    }
+    return blockedEmployees.size;
   }
 
   private async collectFunctionalBlocksForPeriod(
