@@ -3,6 +3,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { AuditService } from '../../audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DEFAULT_SYSTEM_ACCOUNT_MAPPINGS } from './system-account-mappings';
@@ -249,12 +250,53 @@ describe('AccountingProvisioningService tenant isolation', () => {
     expect(auditLog).not.toHaveBeenCalled();
   });
 
+  it('blocks deprovisioning when tenant accounts have ledger movements', async () => {
+    tx.cuentaContable.count.mockResolvedValueOnce(1);
+
+    await expect(
+      service.desaprovisionar('tenant-a', 'user-a'),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.cuentaContable.count).toHaveBeenCalledWith({
+      where: { tenantId: 'tenant-a', movimientos: { some: {} } },
+    });
+    expect(tx.cuentaSistemaMap.deleteMany).not.toHaveBeenCalled();
+    expect(tx.cuentaContable.deleteMany).not.toHaveBeenCalled();
+    expect(auditLog).not.toHaveBeenCalled();
+  });
+
+  it('maps a restrictive foreign-key conflict to a domain conflict without auditing', async () => {
+    tx.cuentaContable.deleteMany.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError('Foreign key constraint', {
+        code: 'P2003',
+        clientVersion: 'test',
+      }),
+    );
+
+    await expect(
+      service.desaprovisionar('tenant-a', 'user-a'),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.cuentaSistemaMap.deleteMany).toHaveBeenCalledWith({
+      where: { tenantId: 'tenant-a' },
+    });
+    expect(tx.cuentaContable.deleteMany).toHaveBeenCalledWith({
+      where: { tenantId: 'tenant-a' },
+    });
+    expect(auditLog).not.toHaveBeenCalled();
+  });
+
   it('restricts internal deprovisioning deletes and audit data to the requested tenant', async () => {
     await expect(
       service.desaprovisionar('tenant-a', 'user-a'),
     ).resolves.toEqual({ cuentas: 2 });
 
     expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.cuentaContable.count).toHaveBeenCalledWith({
+      where: { tenantId: 'tenant-a', movimientos: { some: {} } },
+    });
     expect(tx.cuentaSistemaMap.deleteMany).toHaveBeenCalledWith({
       where: { tenantId: 'tenant-a' },
     });

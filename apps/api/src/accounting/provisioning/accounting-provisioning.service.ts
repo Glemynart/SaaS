@@ -4,6 +4,7 @@ import {
   ConflictException,
   InternalServerErrorException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { DEFAULT_SYSTEM_ACCOUNT_MAPPINGS } from './system-account-mappings';
@@ -22,6 +23,9 @@ const CLONE_SELECT = {
   requiereCentroCosto: true,
   requiereBase: true,
 } as const;
+
+const DEPROVISION_CONFLICT_MESSAGE =
+  'No se puede desprovisionar mientras existan movimientos contables asociados.';
 
 export interface ProvisioningResult {
   status: 'provisioned' | 'already_provisioned';
@@ -153,20 +157,39 @@ export class AccountingProvisioningService {
 
   /**
    * Reversión de la provisión (proceso explícito, NO expuesto como endpoint).
-   * Solo seguro mientras no existan movimientos (C0 no tiene movimientos; C1
-   * deberá bloquearlo cuando los haya). Reservado para scripts/onboarding/tests.
+   * Rechaza tenants con movimientos antes de borrar; la FK RESTRICT del Ledger
+   * conserva una barrera de integridad adicional. Reservado para procesos
+   * internos de onboarding/tests.
    */
   async desaprovisionar(
     tenantId: string,
     userId: string,
   ): Promise<{ cuentas: number }> {
-    const result = await this.prisma.$transaction(async (tx) => {
-      await tx.cuentaSistemaMap.deleteMany({ where: { tenantId } });
-      const { count } = await tx.cuentaContable.deleteMany({
-        where: { tenantId },
+    let result: { cuentas: number };
+    try {
+      result = await this.prisma.$transaction(async (tx) => {
+        const cuentasConMovimientos = await tx.cuentaContable.count({
+          where: { tenantId, movimientos: { some: {} } },
+        });
+        if (cuentasConMovimientos > 0) {
+          throw new ConflictException(DEPROVISION_CONFLICT_MESSAGE);
+        }
+
+        await tx.cuentaSistemaMap.deleteMany({ where: { tenantId } });
+        const { count } = await tx.cuentaContable.deleteMany({
+          where: { tenantId },
+        });
+        return { cuentas: count };
       });
-      return { cuentas: count };
-    });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2003'
+      ) {
+        throw new ConflictException(DEPROVISION_CONFLICT_MESSAGE);
+      }
+      throw error;
+    }
 
     this.audit
       .log({
