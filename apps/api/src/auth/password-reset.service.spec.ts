@@ -117,7 +117,9 @@ describe('PasswordResetService reset token validation', () => {
     service = new PasswordResetService(
       prisma as unknown as PrismaService,
       {} as ConfigService,
-      {} as AuditService,
+      {
+        log: jest.fn().mockResolvedValue(undefined),
+      } as unknown as AuditService,
       {} as EmailService,
     );
   });
@@ -181,5 +183,38 @@ describe('PasswordResetService reset token validation', () => {
       valid: false,
     });
     expect(findToken).not.toHaveBeenCalled();
+  });
+
+  it('scopes the password update to the tenant recorded on the reset token', async () => {
+    const tokenUpdate = jest.fn().mockResolvedValue({ count: 1 });
+    let userUpdateWhere: { id: string; tenantId?: string } | undefined;
+    updateUser.mockImplementation(
+      (args: {
+        where: { id: string; tenantId?: string };
+        data: { passwordHash: string };
+      }) => {
+        userUpdateWhere = args.where;
+        return Promise.resolve({ id: args.where.id });
+      },
+    );
+    revokeSessions.mockResolvedValue({ count: 1 });
+    transaction.mockImplementation(
+      async (work: (tx: unknown) => Promise<unknown>) =>
+        work({
+          passwordResetToken: { updateMany: tokenUpdate },
+          user: { update: updateUser },
+          refreshToken: { updateMany: revokeSessions },
+        }),
+    );
+
+    await expect(
+      service.consumeReset({ token, newPassword: 'new secure password' }),
+    ).resolves.toEqual({ message: 'Contraseña actualizada exitosamente.' });
+
+    expect(updateUser).toHaveBeenCalledTimes(1);
+    expect(userUpdateWhere).toEqual({
+      id: validRecord.userId,
+      tenantId: validRecord.tenantId,
+    });
   });
 });

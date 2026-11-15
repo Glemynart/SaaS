@@ -2640,18 +2640,18 @@ cohorte dejó nueve modelos con RLS forzado. La siguiente protege también
 los 21 modelos iniciales. Las migraciones son aditivas y todavía no se han
 aplicado en staging ni producción.
 
-| Modelo al corte inicial    | Evidencia de código y decisión                                                                                                                                                                                             |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `User`                     | Login y recuperación identifican el tenant antes de establecer el contexto de sesión; el lookup combina tenant y correo. RLS genérico no es compatible con este punto de entrada sin una ruta de autenticación específica. |
-| `PasswordResetToken`       | El inicio de recuperación es público y consume un token opaco antes de autenticarse; los servicios restringen por tenant, usuario e identidad/hash del token. Una política requiere un contexto preautenticado seguro.     |
-| `UserInvitation`           | La aceptación parte de un token opaco sin sesión; consultas y cambios atan ID, tenant y hash. No añadir RLS genérico sin un bootstrap de identidad para el token.                                                          |
-| `Plantilla`                | Modelo legado DOCX; no se encontraron lecturas/escrituras mediante el delegate en los servicios activos. La generación vigente usa `DocumentTemplate`, ya protegido.                                                       |
-| `AlertGenerationRunTenant` | Resuelto en la cohorte de aislamiento de resultados del scheduler descrita abajo; RLS se instala con contexto explícito por tenant.                                                                                        |
-| `AuditLog`                 | `AuditService` escribe por Prisma directo sin instalar/verificar contexto tenant; recibe llamadas de flujos tenant, autenticación pública y scheduler. Centralizar el contexto antes de RLS.                               |
-| `Alerta`                   | Tabla legado sin consumidores activos identificados; el módulo vigente usa `alerts_new`, que ya tiene RLS.                                                                                                                 |
-| `ClienteFE`                | Tabla legado sin consumidores activos identificados; facturación interna usa `customers`.                                                                                                                                  |
-| `Producto`                 | Tabla legado sin consumidores activos identificados; facturación interna usa `product_services`.                                                                                                                           |
-| `Factura`                  | Tabla legado sin consumidores activos identificados; facturación interna usa `invoices`.                                                                                                                                   |
+| Modelo al corte inicial    | Evidencia de código y decisión                                                                                                                                                                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `User`                     | Login y recuperación identifican el tenant antes de establecer el contexto de sesión; el lookup combina tenant y correo. RLS genérico no es compatible con este punto de entrada sin una ruta de autenticación específica.                                               |
+| `PasswordResetToken`       | El inicio de recuperación es público y consume un token opaco antes de autenticarse; por eso no se añadió RLS genérico. Una FK compuesta `tenantId + userId` ahora impide asociarlo a un usuario de otra empresa y el cambio de contraseña repite ambos identificadores. |
+| `UserInvitation`           | La aceptación parte de un token opaco sin sesión; consultas y cambios atan ID, tenant y hash. No añadir RLS genérico sin un bootstrap de identidad para el token.                                                                                                        |
+| `Plantilla`                | Modelo legado DOCX; no se encontraron lecturas/escrituras mediante el delegate en los servicios activos. La generación vigente usa `DocumentTemplate`, ya protegido.                                                                                                     |
+| `AlertGenerationRunTenant` | Resuelto en la cohorte de aislamiento de resultados del scheduler descrita abajo; RLS se instala con contexto explícito por tenant.                                                                                                                                      |
+| `AuditLog`                 | `AuditService` escribe por Prisma directo sin instalar/verificar contexto tenant; recibe llamadas de flujos tenant, autenticación pública y scheduler. Centralizar el contexto antes de RLS.                                                                             |
+| `Alerta`                   | Tabla legado sin consumidores activos identificados; el módulo vigente usa `alerts_new`, que ya tiene RLS.                                                                                                                                                               |
+| `ClienteFE`                | Tabla legado sin consumidores activos identificados; facturación interna usa `customers`.                                                                                                                                                                                |
+| `Producto`                 | Tabla legado sin consumidores activos identificados; facturación interna usa `product_services`.                                                                                                                                                                         |
+| `Factura`                  | Tabla legado sin consumidores activos identificados; facturación interna usa `invoices`.                                                                                                                                                                                 |
 
 Al corte inicial, la ausencia de RLS en estos diez modelos no demostraba por sí
 sola una fuga: los modelos de autenticación usan rutas de identidad
@@ -2667,6 +2667,13 @@ el scheduler multiempresa. No se encontraron lecturas productivas de esta
 tabla. El riesgo demostrado es de integridad y atribución de auditoría, no una
 ruta de lectura cruzada. RLS genérico rompería escritores válidos hasta
 centralizar el contexto y distinguir la identidad de sistema.
+
+La migración `20261116080000_password_reset_tenant_integrity` valida los datos
+existentes y aborta si encuentra un token asociado a otro tenant; luego reemplaza
+la FK por una relación compuesta con `users(tenantId, id)`. La suite PostgreSQL
+17.11 desechable confirma que el vínculo del mismo tenant se acepta y el
+cruzado se rechaza. El modelo sigue sin RLS genérico porque recuperación y
+consumo son entradas preautenticadas.
 
 La protección de `parametros_legales_nomina` permite SELECT de filas
 globales y del override propio y no autoriza DML al runtime; el seed actual

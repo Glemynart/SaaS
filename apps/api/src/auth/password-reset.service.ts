@@ -129,7 +129,7 @@ export class PasswordResetService {
       }
 
       await tx.user.update({
-        where: { id: dbToken.userId },
+        where: { id: dbToken.userId, tenantId: dbToken.tenantId },
         data: { passwordHash: newPasswordHash },
       });
       await tx.refreshToken.updateMany({

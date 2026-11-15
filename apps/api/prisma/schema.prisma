@@ -426,6 +426,7 @@ model User {
   bloqueosNominaExcluidos  PayrollBlock[]       @relation("PayrollBlockExcludedBy")
 
   @@unique([tenantId, email]) // Un email es único por empresa, no globalmente
+  @@unique([tenantId, id], map: "users_tenantId_id_key")
   @@index([tenantId, activo])
   @@index([tenantId, rol])
   @@map("users")
@@ -471,8 +472,8 @@ model PasswordResetToken {
   createdAt DateTime @default(now())
 
   userId   String
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   tenantId String
+  user     User   @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: Cascade, map: "password_reset_tokens_tenantId_userId_fkey")
 
   tokenHash String    @unique
   expiresAt DateTime
