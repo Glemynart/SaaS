@@ -75,9 +75,11 @@ export class GeneratedDocumentsService {
       throw new NotFoundException('Empleado no encontrado');
     }
 
-    const template = await this.prisma.documentTemplate.findFirst({
-      where: { id: dto.templateId, tenantId, deletedAt: null },
-    });
+    const template = await this.tenantPrisma.execute((prisma) =>
+      prisma.documentTemplate.findFirst({
+        where: { id: dto.templateId, tenantId, deletedAt: null },
+      }),
+    );
     if (!template) {
       throw new NotFoundException('Plantilla no encontrada');
     }

@@ -209,10 +209,12 @@ export class ContractsService {
     }
 
     if (options?.perfilContractualId) {
-      const profile = await this.prisma.perfilContractual.findFirst({
-        where: { id: options.perfilContractualId, tenantId },
-        select: { id: true },
-      });
+      const profile = await this.tenantPrisma.execute((prisma) =>
+        prisma.perfilContractual.findFirst({
+          where: { id: options.perfilContractualId, tenantId },
+          select: { id: true },
+        }),
+      );
       if (!profile) {
         throw new BadRequestException(
           'El perfil contractual no existe o no pertenece a esta empresa.',
@@ -592,9 +594,11 @@ export class ContractsService {
 
   private async resolveTemplate(tenantId: string, templateId?: string) {
     if (templateId) {
-      const template = await this.prisma.documentTemplate.findFirst({
-        where: { id: templateId, tenantId, deletedAt: null },
-      });
+      const template = await this.tenantPrisma.execute((prisma) =>
+        prisma.documentTemplate.findFirst({
+          where: { id: templateId, tenantId, deletedAt: null },
+        }),
+      );
       if (!template) {
         throw new NotFoundException('Plantilla no encontrada');
       }
@@ -607,9 +611,11 @@ export class ContractsService {
       return template;
     }
 
-    const templates = await this.prisma.documentTemplate.findMany({
-      where: { tenantId, tipo: 'CONTRACT', activo: true, deletedAt: null },
-    });
+    const templates = await this.tenantPrisma.execute((prisma) =>
+      prisma.documentTemplate.findMany({
+        where: { tenantId, tipo: 'CONTRACT', activo: true, deletedAt: null },
+      }),
+    );
     if (templates.length === 0) {
       throw new NotFoundException(
         'No hay plantilla de contrato activa para esta empresa',
@@ -777,10 +783,12 @@ export class ContractsService {
   }
 
   private async validateSede(tenantId: string, sedeId: string) {
-    const sede = await this.prisma.sede.findFirst({
-      where: { id: sedeId, tenantId },
-      select: { id: true, nombre: true },
-    });
+    const sede = await this.tenantPrisma.execute((prisma) =>
+      prisma.sede.findFirst({
+        where: { id: sedeId, tenantId },
+        select: { id: true, nombre: true },
+      }),
+    );
     if (!sede)
       throw new BadRequestException(
         'La sede no existe o no pertenece a esta empresa.',

@@ -55,10 +55,12 @@ export class LotesService {
     }
 
     if (dto.templateId) {
-      const template = await this.prisma.documentTemplate.findFirst({
-        where: { id: dto.templateId, tenantId, deletedAt: null },
-        select: { id: true, tipo: true, activo: true },
-      });
+      const template = await this.tenantPrisma.execute((prisma) =>
+        prisma.documentTemplate.findFirst({
+          where: { id: dto.templateId, tenantId, deletedAt: null },
+          select: { id: true, tipo: true, activo: true },
+        }),
+      );
       if (!template) {
         throw new BadRequestException(
           'La plantilla no existe o no pertenece a esta empresa.',

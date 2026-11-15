@@ -3719,7 +3719,7 @@ export class PayrollService {
   private async resolveLegalParams(
     tenantId: string,
     periodStart: Date,
-    db: Prisma.TransactionClient | PrismaService = this.prisma,
+    db?: Prisma.TransactionClient,
   ) {
     // Normalizar a fecha UTC pura (sin componente horario) para comparar con @db.Date
     const d = periodStart;
@@ -3727,34 +3727,40 @@ export class PayrollService {
       Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
     );
 
-    // 1. Override específico del tenant
-    const tenantParam = await db.parametroLegalNomina.findFirst({
-      where: {
-        tenantId,
-        vigenciaDesde: { lte: periodDate },
-        OR: [{ vigenciaHasta: null }, { vigenciaHasta: { gte: periodDate } }],
-      },
-      orderBy: { vigenciaDesde: 'desc' },
-    });
-    if (tenantParam) return tenantParam;
+    const resolve = async (client: Prisma.TransactionClient) => {
+      // 1. Override específico del tenant
+      const tenantParam = await client.parametroLegalNomina.findFirst({
+        where: {
+          tenantId,
+          vigenciaDesde: { lte: periodDate },
+          OR: [{ vigenciaHasta: null }, { vigenciaHasta: { gte: periodDate } }],
+        },
+        orderBy: { vigenciaDesde: 'desc' },
+      });
+      if (tenantParam) return tenantParam;
 
-    // 2. Global de plataforma (tenantId IS NULL)
-    const globalParam = await db.parametroLegalNomina.findFirst({
-      where: {
-        tenantId: null,
-        vigenciaDesde: { lte: periodDate },
-        OR: [{ vigenciaHasta: null }, { vigenciaHasta: { gte: periodDate } }],
-      },
-      orderBy: { vigenciaDesde: 'desc' },
-    });
-    if (!globalParam) {
-      const iso = periodDate.toISOString().slice(0, 10);
-      throw new NotFoundException(
-        `No existe parámetro legal de nómina vigente para ${iso}. ` +
-          `Verifique que el seed haya corrido o defina un override para este tenant.`,
-      );
-    }
-    return globalParam;
+      // 2. Global de plataforma (tenantId IS NULL)
+      const globalParam = await client.parametroLegalNomina.findFirst({
+        where: {
+          tenantId: null,
+          vigenciaDesde: { lte: periodDate },
+          OR: [{ vigenciaHasta: null }, { vigenciaHasta: { gte: periodDate } }],
+        },
+        orderBy: { vigenciaDesde: 'desc' },
+      });
+      if (!globalParam) {
+        const iso = periodDate.toISOString().slice(0, 10);
+        throw new NotFoundException(
+          `No existe parámetro legal de nómina vigente para ${iso}. ` +
+            `Verifique que el seed haya corrido o defina un override para este tenant.`,
+        );
+      }
+      return globalParam;
+    };
+
+    return db
+      ? resolve(db)
+      : this.tenantPrisma.execute((client) => resolve(client));
   }
 
   /**
@@ -4664,22 +4670,24 @@ export class PayrollService {
     const sites =
       siteIds.length === 0
         ? []
-        : await this.prisma.sede.findMany({
-            where: { tenantId: tenant.id, id: { in: siteIds } },
-            select: {
-              id: true,
-              nombre: true,
-              direccion: true,
-              municipio: {
-                select: {
-                  id: true,
-                  codigo: true,
-                  nombre: true,
-                  departamento: true,
+        : await this.tenantPrisma.execute((prisma) =>
+            prisma.sede.findMany({
+              where: { tenantId: tenant.id, id: { in: siteIds } },
+              select: {
+                id: true,
+                nombre: true,
+                direccion: true,
+                municipio: {
+                  select: {
+                    id: true,
+                    codigo: true,
+                    nombre: true,
+                    departamento: true,
+                  },
                 },
               },
-            },
-          });
+            }),
+          );
 
     const affiliationsByEmployee = new Map<
       string,

@@ -134,6 +134,7 @@ describe('GeneratedDocumentsService.generatePdf', () => {
                 : invokeMock(mockExpedienteDocFindFirst, args),
           },
           empleado: { findFirst: jest.fn() },
+          documentTemplate: { findFirst: mockDocumentTemplateFindFirst },
           $queryRaw: mockTxQueryRaw,
         }),
       );
@@ -365,6 +366,7 @@ describe('GeneratedDocumentsService.generatePdf', () => {
     mockTenantPrismaExecute.mockImplementation((callback) =>
       callback({
         empleado: { findFirst: jest.fn().mockResolvedValue(employee) },
+        documentTemplate: { findFirst: mockDocumentTemplateFindFirst },
         generatedDocument: { create: mockTxCreate },
       }),
     );
