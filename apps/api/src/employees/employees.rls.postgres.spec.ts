@@ -216,6 +216,7 @@ describe('empleados PostgreSQL RLS', () => {
 
     const expectedTenantTables = [
       { tableName: 'afiliaciones_seguridad_social' },
+      { tableName: 'alerts_new' },
       { tableName: 'centros_costo' },
       { tableName: 'comprobantes_contables' },
       { tableName: 'contratos' },
