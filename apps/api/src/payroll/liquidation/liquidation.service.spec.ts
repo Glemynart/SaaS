@@ -455,6 +455,7 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
       where: { id: LIQ_ID, tenantId: TENANT, status: 'DRAFT' },
       data: { status: 'APPROVED' },
     });
+    expect(mockTenantPrisma.execute).toHaveBeenCalledTimes(1);
   });
 
   it('DRAFT → APPROVED: registra auditoría LIQUIDATION_APPROVED', async () => {
@@ -913,6 +914,7 @@ describe('LiquidationService — concurrencia y lectura (N2D.6)', () => {
         take: 10,
       }),
     );
+    expect(mockTenantPrisma.execute).toHaveBeenCalledTimes(1);
   });
 
   it('findAll: aplica filtros de status y empleadoId', async () => {
@@ -947,6 +949,7 @@ describe('LiquidationService — concurrencia y lectura (N2D.6)', () => {
       where: { id: LIQ_ID, tenantId: TENANT },
       include: { concepts: true },
     });
+    expect(mockTenantPrisma.execute).toHaveBeenCalledTimes(1);
   });
 
   it('findOne: inexistente o de otro tenant → NotFoundException', async () => {
