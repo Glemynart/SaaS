@@ -2675,6 +2675,11 @@ la FK por una relación compuesta con `users(tenantId, id)`. La suite PostgreSQL
 cruzado se rechaza. El modelo sigue sin RLS genérico porque recuperación y
 consumo son entradas preautenticadas.
 
+El login consulta por `tenantId + email`, y el método de búsqueda interna por
+ID en `UsersService` también exige ahora `tenantId`. La auditoría no encontró
+llamadas actuales a ese método, pero se cerró para evitar añadir en el futuro
+una búsqueda global a partir de un ID aislado.
+
 La protección de `parametros_legales_nomina` permite SELECT de filas
 globales y del override propio y no autoriza DML al runtime; el seed actual
 requiere una identidad privilegiada y el runbook de staging quedó corregido

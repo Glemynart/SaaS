@@ -42,9 +42,9 @@ export class UsersService {
     });
   }
 
-  async findById(id: string) {
+  async findById(tenantId: string, id: string) {
     return this.prisma.user.findUnique({
-      where: { id },
+      where: { id, tenantId },
     });
   }
 
