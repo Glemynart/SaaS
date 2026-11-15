@@ -301,6 +301,53 @@ describe('GeneratedDocumentsService.generatePdf', () => {
     expect(mockGeneratedDocumentCreate).not.toHaveBeenCalled();
   });
 
+  it('escapa valores variables de datos antes de conservar el HTML del documento', async () => {
+    const employee = {
+      primerNombre: '<img src=x onerror=alert(1)>$&',
+      segundoNombre: null,
+      primerApellido: 'Tester',
+      segundoApellido: null,
+      tipoDocumento: 'CC',
+      cedula: '123',
+      cargo: '<strong>Administrador</strong>',
+      salario: 1000000,
+      tipoContrato: 'TERMINO_INDEFINIDO',
+      fechaIngreso: new Date('2025-01-01'),
+      sedeRef: null,
+    };
+    mockTenantPrismaExecute.mockImplementationOnce(
+      (callback: (prisma: object) => unknown) =>
+        callback({
+          empleado: { findFirst: jest.fn().mockResolvedValue(employee) },
+        }),
+    );
+    mockDocumentTemplateFindFirst.mockResolvedValue({
+      id: 'template-certification',
+      tipo: 'CERTIFICATION',
+      activo: true,
+      contenido: '<p>{{NOMBRE_COMPLETO}}|{{CARGO}}|{{EMPRESA}}</p>',
+    });
+    mockTenantFindUnique.mockResolvedValue({
+      id: 't1',
+      razonSocial: '<svg onload=alert(1)>',
+      nombre: 'Empresa',
+      logoUrl: null,
+    });
+
+    await service.generate('t1', 'u1', {
+      employeeId: 'employee-001',
+      templateId: 'template-certification',
+      nombre: 'Certificación',
+    });
+
+    const createCalls = mockTxCreate.mock.calls as unknown as Array<
+      [{ data: { contenidoFinal: string } }]
+    >;
+    expect(createCalls[0]?.[0].data.contenidoFinal).toBe(
+      '<p>&lt;img src=x onerror=alert(1)&gt;$&amp; Tester|&lt;strong&gt;Administrador&lt;/strong&gt;|&lt;svg onload=alert(1)&gt;</p>',
+    );
+  });
+
   it('crea un nuevo GeneratedDocument por cada solicitud explícita de CERTIFICATION', async () => {
     const employee = {
       primerNombre: 'Ana',

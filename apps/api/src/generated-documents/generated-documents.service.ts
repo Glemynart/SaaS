@@ -41,6 +41,23 @@ export interface PdfMaterializationResult {
   materialized: boolean;
 }
 
+const TRUSTED_HTML_PLACEHOLDERS = new Set([
+  'LOGO_EMPRESA',
+  'FIRMA_REPRESENTANTE',
+]);
+
+function escapeHtml(value: string): string {
+  const entities: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+
+  return value.replace(/[&<>"']/g, (character) => entities[character]);
+}
+
 @Injectable()
 export class GeneratedDocumentsService {
   private readonly logger = new Logger(GeneratedDocumentsService.name);
@@ -122,10 +139,10 @@ export class GeneratedDocumentsService {
       NIT: tenant.nit,
       REPRESENTANTE_LEGAL: tenant.representanteLegal ?? 'No definido',
       LOGO_EMPRESA: tenant.logoUrl
-        ? `<img src="${tenant.logoUrl}" alt="Logo ${tenant.nombre}" style="max-width:200px;height:auto;" />`
+        ? `<img src="${escapeHtml(tenant.logoUrl)}" alt="Logo ${escapeHtml(tenant.nombre)}" style="max-width:200px;height:auto;" />`
         : '',
       FIRMA_REPRESENTANTE: tenant.firmaRepresentanteUrl
-        ? `<img src="${tenant.firmaRepresentanteUrl}" alt="Firma representante legal" style="max-width:180px;height:auto;" />`
+        ? `<img src="${escapeHtml(tenant.firmaRepresentanteUrl)}" alt="Firma representante legal" style="max-width:180px;height:auto;" />`
         : '',
     };
 
@@ -572,7 +589,7 @@ export class GeneratedDocumentsService {
   ) {
     const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:4000';
     const logoHtml = tenant.logoUrl
-      ? `<img src="${backendUrl}${tenant.logoUrl}" alt="${tenant.nombre}" />`
+      ? `<img src="${escapeHtml(`${backendUrl}${tenant.logoUrl}`)}" alt="${escapeHtml(tenant.nombre)}" />`
       : '';
     return `<!DOCTYPE html>
 <html>
@@ -603,8 +620,8 @@ export class GeneratedDocumentsService {
   <div class="header">
     ${logoHtml}
     <div class="header-info">
-      <h1>${tenant.razonSocial ?? tenant.nombre}</h1>
-      <p>Documento generado para: ${formatNombreCompleto({ primerNombre: employee.primerNombre, segundoNombre: employee.segundoNombre, primerApellido: employee.primerApellido, segundoApellido: employee.segundoApellido })} — ${employee.cedula}</p>
+      <h1>${escapeHtml(tenant.razonSocial ?? tenant.nombre)}</h1>
+      <p>Documento generado para: ${escapeHtml(formatNombreCompleto({ primerNombre: employee.primerNombre, segundoNombre: employee.segundoNombre, primerApellido: employee.primerApellido, segundoApellido: employee.segundoApellido }))} — ${escapeHtml(employee.cedula)}</p>
     </div>
   </div>
   ${content}
@@ -690,9 +707,10 @@ export class GeneratedDocumentsService {
   ): string {
     let result = template;
     for (const [key, value] of Object.entries(context)) {
-      result = result.replace(
-        new RegExp(`\\{\\{${key}\\}\\}`, 'g'),
-        String(value),
+      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), () =>
+        TRUSTED_HTML_PLACEHOLDERS.has(key)
+          ? String(value)
+          : escapeHtml(String(value)),
       );
     }
     return result;
