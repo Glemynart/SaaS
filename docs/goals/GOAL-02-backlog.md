@@ -2607,3 +2607,26 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   tenant cruzado, ocultamiento sin contexto y ausencia de DELETE. No modifica
   datos desplegados ni acredita que la migración ya haya sido aplicada fuera
   de CI.
+
+### RLS tenant-scoped para expediente digital — GOAL-02
+
+- `expediente_doc_families` y `expediente_docs` contienen identidad del empleado,
+  contratos y documentos PDF publicados, incluida la prima de servicios.
+- La migración habilita y fuerza RLS: familias solo admiten lectura e inserción;
+  documentos admiten lectura, inserción y actualización, sin política de DELETE.
+  Las políticas validan empleado, familia y referencias opcionales a contrato,
+  documento generado y línea de prima dentro del mismo tenant. Una FK compuesta
+  `(reemplazaId, tenantId)` protege la cadena de revisiones ante referencias
+  cruzadas.
+- `ExpedienteDocsService`, los accesos al índice desde generación documental y
+  las consultas de alertas que devuelven documentos utilizan
+  `TenantPrismaService`; se conservan los filtros tenant de aplicación y la
+  inmutabilidad de las revisiones.
+- La prueba PostgreSQL con rol `NOSUPERUSER NOBYPASSRLS` verifica ausencia de
+  contexto, ocultamiento de otro tenant, lectura de historial y descarga,
+  carga manual tenant-scoped, referencias cruzadas rechazadas y que RLS bloquea
+  el borrado aun con el privilegio SQL `DELETE` concedido. La cadena de
+  migraciones y la integración se validaron en PostgreSQL 16 y 17 desechables.
+- La migración es aditiva y no se ejecutó en bases desplegadas. El código y las
+  pruebas de esta cohorte no demuestran el estado de RLS en staging ni
+  producción.

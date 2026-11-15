@@ -23,7 +23,6 @@ describe('ExpedienteDocsService prima de servicios publication', () => {
     work(transaction),
   );
   const service = new ExpedienteDocsService(
-    {} as never,
     { execute: tenantExecute } as never,
     { log: auditLog } as never,
     {} as never,

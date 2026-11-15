@@ -1,7 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
-import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { ExpedienteDocsService } from './expediente-docs.service';
@@ -12,6 +11,17 @@ describe('ExpedienteDocsService document history and download', () => {
   const documentFindMany = jest.fn();
   const getObject = jest.fn();
   const auditLog = jest.fn();
+  const transaction = {
+    expedienteDoc: {
+      findFirst: documentFindFirst,
+      findMany: documentFindMany,
+    },
+    expedienteDocFamily: { findFirst: familyFindFirst },
+  };
+  const tenantExecute = jest.fn(
+    async (work: (client: typeof transaction) => Promise<unknown>) =>
+      work(transaction),
+  );
 
   let service: ExpedienteDocsService;
 
@@ -23,21 +33,8 @@ describe('ExpedienteDocsService document history and download', () => {
       providers: [
         ExpedienteDocsService,
         {
-          provide: PrismaService,
-          useValue: {
-            expedienteDoc: {
-              findFirst: documentFindFirst,
-              findMany: documentFindMany,
-            },
-            expedienteDocFamily: { findFirst: familyFindFirst },
-          },
-        },
-        {
           provide: TenantPrismaService,
-          useValue: {
-            execute: (work: (client: object) => unknown) =>
-              work({ expedienteDoc: { findMany: documentFindMany } }),
-          },
+          useValue: { execute: tenantExecute },
         },
         { provide: AuditService, useValue: { log: auditLog } },
         { provide: StorageService, useValue: { getObject } },

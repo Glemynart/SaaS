@@ -439,10 +439,12 @@ export class GeneratedDocumentsService {
 
     const html = this.buildPdfHtml(doc.contenidoFinal, tenant, doc.employee);
     const storageKey = this.getCanonicalPdfStorageKey(tenantId, id);
-    const publishedIndexHint = await this.prisma.expedienteDoc.findFirst({
-      where: { tenantId, generatedDocumentId: id },
-      select: { id: true },
-    });
+    const publishedIndexHint = await this.tenantPrisma.execute((tx) =>
+      tx.expedienteDoc.findFirst({
+        where: { tenantId, generatedDocumentId: id },
+        select: { id: true },
+      }),
+    );
     let renderedPdf: Buffer | undefined;
 
     // Use preflight reads only as hints. The transaction repeats every check

@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AlertQueryDto } from './dto/alert-query.dto';
@@ -9,7 +8,6 @@ import { formatNombreCompleto } from '@saas/types';
 @Injectable()
 export class AlertsService {
   constructor(
-    private prisma: PrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private readonly auditService: AuditService,
   ) {}
@@ -24,12 +22,49 @@ export class AlertsService {
       ...(severity && { severity }),
     };
 
-    const [data, total] = await Promise.all([
-      this.prisma.alert.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
+    const { data, total, stats } = await this.tenantPrisma.execute(
+      async (prisma) => {
+        const [data, total, stats] = await Promise.all([
+          prisma.alert.findMany({
+            where,
+            skip,
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+            include: {
+              employee: {
+                select: {
+                  id: true,
+                  primerNombre: true,
+                  segundoNombre: true,
+                  primerApellido: true,
+                  segundoApellido: true,
+                  cedula: true,
+                  cargo: true,
+                },
+              },
+              expedienteDoc: {
+                select: { id: true, nombre: true, categoria: true },
+              },
+            },
+          }),
+          prisma.alert.count({ where }),
+          this.buildStats(tenantId, prisma),
+        ]);
+        return { data, total, stats };
+      },
+    );
+
+    return {
+      data,
+      stats,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async findOne(tenantId: string, id: string) {
+    const alert = await this.tenantPrisma.execute((prisma) =>
+      prisma.alert.findFirst({
+        where: { id, tenantId },
         include: {
           employee: {
             select: {
@@ -47,42 +82,13 @@ export class AlertsService {
           },
         },
       }),
-      this.prisma.alert.count({ where }),
-    ]);
-
-    const stats = await this.buildStats(tenantId);
-
-    return {
-      data,
-      stats,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
-    };
-  }
-
-  async findOne(tenantId: string, id: string) {
-    const alert = await this.prisma.alert.findFirst({
-      where: { id, tenantId },
-      include: {
-        employee: {
-          select: {
-            id: true,
-            primerNombre: true,
-            segundoNombre: true,
-            primerApellido: true,
-            segundoApellido: true,
-            cedula: true,
-            cargo: true,
-          },
-        },
-        expedienteDoc: { select: { id: true, nombre: true, categoria: true } },
-      },
-    });
+    );
     if (!alert) throw new NotFoundException('Alerta no encontrada');
     return alert;
   }
 
   async resolve(tenantId: string, id: string, userId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.tenantPrisma.execute(async (tx) => {
       const alert = await tx.alert.findFirst({
         where: { id, tenantId },
       });
@@ -302,11 +308,11 @@ export class AlertsService {
     };
   }
 
-  private async buildStats(tenantId: string) {
+  private async buildStats(tenantId: string, prisma: Prisma.TransactionClient) {
     const [openCount, resolvedCount, criticalCount] = await Promise.all([
-      this.prisma.alert.count({ where: { tenantId, status: 'OPEN' } }),
-      this.prisma.alert.count({ where: { tenantId, status: 'RESOLVED' } }),
-      this.prisma.alert.count({
+      prisma.alert.count({ where: { tenantId, status: 'OPEN' } }),
+      prisma.alert.count({ where: { tenantId, status: 'RESOLVED' } }),
+      prisma.alert.count({
         where: { tenantId, severity: 'CRITICAL', status: 'OPEN' },
       }),
     ]);

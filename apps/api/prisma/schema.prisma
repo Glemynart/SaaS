@@ -2522,7 +2522,7 @@ model ExpedienteDoc {
   familia   ExpedienteDocFamily @relation(fields: [familiaId], references: [id], onDelete: Restrict)
 
   reemplazaId String? @unique
-  reemplaza ExpedienteDoc? @relation("ExpedienteDocRevision", fields: [reemplazaId], references: [id], onDelete: Restrict)
+  reemplaza ExpedienteDoc? @relation("ExpedienteDocRevision", fields: [reemplazaId, tenantId], references: [id, tenantId], onDelete: Restrict)
   reemplazadoPor ExpedienteDoc? @relation("ExpedienteDocRevision")
 
   contratoId String?
@@ -2562,6 +2562,8 @@ model ExpedienteDoc {
   @@index([tenantId, empleadoId, categoria])
   @@index([tenantId, categoria])
   @@index([tenantId, familiaId, vigente])
+  @@unique([id, tenantId])
+  @@unique([reemplazaId, tenantId])
   @@unique([familiaId, version])
   @@unique([servicePremiumLineId, tenantId])
   @@map("expediente_docs")
