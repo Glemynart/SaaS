@@ -77,7 +77,8 @@ describe('PayrollBlock PostgreSQL RLS', () => {
       'GRANT SELECT ON TABLE "payroll_periods", "empleados", "users", ' +
         '"tenants", "parametros_legales_nomina", "payroll_novelties", ' +
         '"contratos", "payroll_runs", "payroll_concepts", "sedes", ' +
-        '"plantillas", "lotes_contrato", "perfiles_contractuales" TO "' +
+        '"plantillas", "lotes_contrato", "perfiles_contractuales", ' +
+        '"document_templates" TO "' +
         role +
         '"',
     );

@@ -61,7 +61,8 @@ describe('Contract PostgreSQL RLS', () => {
     );
     await prisma.$executeRawUnsafe(
       'GRANT SELECT ON TABLE "empleados", "sedes", "plantillas", ' +
-        '"lotes_contrato", "perfiles_contractuales" TO "' +
+        '"lotes_contrato", "perfiles_contractuales", ' +
+        '"document_templates", "users" TO "' +
         role +
         '"',
     );

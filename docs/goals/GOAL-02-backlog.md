@@ -2634,45 +2634,53 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
 ### Auditoría de RLS laboral, documental y de nómina — GOAL-02 (2026-11-15)
 
 El inventario inicial de 21 modelos sin RLS fue contrastado contra Prisma, los
-consumidores del API y el catálogo PostgreSQL de una base desechable. Esta
-cohorte deja nueve de esos 21 modelos con RLS forzado: `document_templates`,
-`alerts_new`, `liquidations`, `sedes`, `perfiles_contractuales`,
-`vinculos_laborales`, `configuraciones_documentales_perfil`,
-`batch_document_generation_exclusions` y `parametros_legales_nomina`. Las
-migraciones son aditivas y todavía no se han aplicado en staging ni producción.
+consumidores del API y el catálogo PostgreSQL de una base desechable. La primera
+cohorte dejó nueve modelos con RLS forzado. La siguiente protege también
+`lotes_contrato` y `batch_document_generation_plans`, para un total de once de
+los 21 modelos iniciales. Las migraciones son aditivas y todavía no se han
+aplicado en staging ni producción.
 
-| Modelo restante               | Evidencia de código y decisión                                                                                                                                                                                             |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `User`                        | Login y recuperación identifican el tenant antes de establecer el contexto de sesión; el lookup combina tenant y correo. RLS genérico no es compatible con este punto de entrada sin una ruta de autenticación específica. |
-| `PasswordResetToken`          | El inicio de recuperación es público y consume un token opaco antes de autenticarse; los servicios restringen por tenant, usuario e identidad/hash del token. Una política requiere un contexto preautenticado seguro.     |
-| `UserInvitation`              | La aceptación parte de un token opaco sin sesión; consultas y cambios atan ID, tenant y hash. No añadir RLS genérico sin un bootstrap de identidad para el token.                                                          |
-| `Plantilla`                   | Modelo legado DOCX; no se encontraron lecturas/escrituras mediante el delegate en los servicios activos. La generación vigente usa `DocumentTemplate`, ya protegido.                                                       |
-| `AlertGenerationRunTenant`    | El scheduler mantiene resultados por tenant desde un coordinador que procesa varias empresas. Requiere separar y autenticar el contexto de sistema antes de RLS.                                                           |
-| `AuditLog`                    | `AuditService` recibe `tenantId`, pero hay escrituras dentro y fuera de transacciones y algunas son fire-and-forget. Centralizar el contexto y resolver escritores del sistema antes de RLS.                               |
-| `BatchDocumentGenerationPlan` | Contiene snapshots de empleado, contrato y plantilla; el motor de lotes tiene accesos directos a Prisma. Convertir de forma completa el procesamiento y su contexto tenant antes de protegerlo.                            |
-| `LoteContrato`                | Las rutas HTTP verifican tenant, pero el motor de reconciliación lee/actualiza por ID directamente. Propagar y usar contexto tenant en todo el worker antes de RLS.                                                        |
-| `Alerta`                      | Tabla legado sin consumidores activos identificados; el módulo vigente usa `alerts_new`, que ya tiene RLS.                                                                                                                 |
-| `ClienteFE`                   | Tabla legado sin consumidores activos identificados; facturación interna usa `customers`.                                                                                                                                  |
-| `Producto`                    | Tabla legado sin consumidores activos identificados; facturación interna usa `product_services`.                                                                                                                           |
-| `Factura`                     | Tabla legado sin consumidores activos identificados; facturación interna usa `invoices`.                                                                                                                                   |
+| Modelo restante            | Evidencia de código y decisión                                                                                                                                                                                             |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `User`                     | Login y recuperación identifican el tenant antes de establecer el contexto de sesión; el lookup combina tenant y correo. RLS genérico no es compatible con este punto de entrada sin una ruta de autenticación específica. |
+| `PasswordResetToken`       | El inicio de recuperación es público y consume un token opaco antes de autenticarse; los servicios restringen por tenant, usuario e identidad/hash del token. Una política requiere un contexto preautenticado seguro.     |
+| `UserInvitation`           | La aceptación parte de un token opaco sin sesión; consultas y cambios atan ID, tenant y hash. No añadir RLS genérico sin un bootstrap de identidad para el token.                                                          |
+| `Plantilla`                | Modelo legado DOCX; no se encontraron lecturas/escrituras mediante el delegate en los servicios activos. La generación vigente usa `DocumentTemplate`, ya protegido.                                                       |
+| `AlertGenerationRunTenant` | El scheduler mantiene resultados por tenant desde un coordinador que procesa varias empresas. Requiere separar y autenticar el contexto de sistema antes de RLS.                                                           |
+| `AuditLog`                 | `AuditService` recibe `tenantId`, pero hay escrituras dentro y fuera de transacciones y algunas son fire-and-forget. Centralizar el contexto y resolver escritores del sistema antes de RLS.                               |
+| `Alerta`                   | Tabla legado sin consumidores activos identificados; el módulo vigente usa `alerts_new`, que ya tiene RLS.                                                                                                                 |
+| `ClienteFE`                | Tabla legado sin consumidores activos identificados; facturación interna usa `customers`.                                                                                                                                  |
+| `Producto`                 | Tabla legado sin consumidores activos identificados; facturación interna usa `product_services`.                                                                                                                           |
+| `Factura`                  | Tabla legado sin consumidores activos identificados; facturación interna usa `invoices`.                                                                                                                                   |
 
-La ausencia de RLS en estos 12 modelos no demuestra por sí sola una fuga: los
-modelos de autenticación usan rutas de identidad precontexto, el coordinador y
-los workers tienen requisitos especiales aún no cubiertos, y cuatro modelos
-de negocio son legado sin uso activo detectado. No se les aplicó una política
-genérica. La protección de `parametros_legales_nomina` permite SELECT de filas
+La ausencia de RLS en estos diez modelos no demuestra por sí sola una fuga: los
+modelos de autenticación usan rutas de identidad precontexto, el coordinador
+de alertas requiere un contexto de sistema, y cuatro modelos de negocio son
+legado sin uso activo detectado. No se les aplicó una política genérica. La
+protección de `parametros_legales_nomina` permite SELECT de filas
 globales y del override propio y no autoriza DML al runtime; el seed actual
 requiere una identidad privilegiada y el runbook de staging quedó corregido
 para no ejecutarlo con `staging_runtime`. Sigue pendiente definir una ruta de
 seed con privilegio mínimo.
 
-La cadena completa de 117 migraciones y las suites PostgreSQL RLS pasaron en
-PostgreSQL 17.11 desechable (170 suites/2.114 pruebas). Typecheck y build de API
-pasaron; el lint del spec de documentos conserva 16 errores `no-unsafe-*` que
-ya estaban presentes en el `HEAD` base de esta rama y no fueron introducidos
-por esta cohorte. No se ejecutaron migraciones en bases desplegadas. La
-publicación del PR queda retenida hasta poder verificar el riesgo de Preview y
-el límite de presupuesto de Vercel.
+La auditoría encontró que el comentario Prisma de `LoteContrato` describía un
+worker BullMQ y descarga ZIP, mientras el código actual procesa el lote de
+forma síncrona desde la petición HTTP y no registra consumidores BullMQ activos.
+El comentario del modelo quedó alineado con el flujo observado. El motor y
+`LotesService` ahora ejecutan sus accesos directos mediante
+`TenantPrismaService`; las políticas de lote y plan también verifican que sus
+referencias existan dentro del mismo tenant. Cualquier futuro consumidor en
+segundo plano deberá instalar un contexto tenant autenticado antes de usar
+estas rutas.
+
+La cadena completa de 118 migraciones se aplicó en PostgreSQL 17.11 desechable.
+En esta cohorte pasaron las 18 suites PostgreSQL RLS afectadas (83 pruebas) y
+cuatro suites unitarias de lotes y resolución documental (75 pruebas). También
+pasaron ESLint de todos los TypeScript modificados, typecheck y build de API.
+El resultado anterior de 170 suites/2.114 pruebas corresponde al corte previo
+y no se volvió a ejecutar en esta cohorte. No se ejecutaron migraciones en bases
+desplegadas. La publicación del PR queda retenida hasta poder verificar el
+riesgo de Preview y el límite de presupuesto de Vercel.
 
 La auditoría de generación documental localizó cuatro rutas de renderizado:
 documentos laborales individuales y por lote, expediente de documentos y

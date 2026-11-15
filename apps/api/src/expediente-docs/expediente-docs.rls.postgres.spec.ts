@@ -98,7 +98,9 @@ describe('ExpedienteDoc PostgreSQL RLS', () => {
         '"document_templates", "generated_documents", ' +
         '"batch_document_generation_plans", "service_premium_lines", ' +
         '"service_premium_batches", ' +
-        '"lotes_contrato", "perfiles_contractuales", "alerts_new" TO "' +
+        '"lotes_contrato", "perfiles_contractuales", ' +
+        '"vinculos_laborales", "configuraciones_documentales_perfil", ' +
+        '"users", "alerts_new" TO "' +
         role +
         '"',
     );

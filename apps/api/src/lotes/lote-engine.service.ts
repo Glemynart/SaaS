@@ -12,7 +12,6 @@ import {
   Prisma,
 } from '@prisma/client';
 import { BatchDocumentGenerationService } from '../batch-document-generation/batch-document-generation.service';
-import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { ContractsService } from '../contracts/contracts.service';
 import { GeneratedDocumentsService } from '../generated-documents/generated-documents.service';
@@ -67,7 +66,6 @@ export class LoteEngineService {
   private readonly logger = new Logger(LoteEngineService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private readonly contractsService: ContractsService,
     private readonly generatedDocumentsService: GeneratedDocumentsService,
@@ -80,9 +78,11 @@ export class LoteEngineService {
    * lote ya procesado delega en la idempotencia de cada etapa documental.
    */
   async procesarLote(loteId: string, options: ProcessLoteOptions = {}) {
-    const lote = await this.prisma.loteContrato.findUnique({
-      where: { id: loteId },
-    });
+    const lote = await this.tenantPrisma.execute((prisma, context) =>
+      prisma.loteContrato.findFirst({
+        where: { id: loteId, tenantId: context.tenantId },
+      }),
+    );
     if (!lote) {
       throw new NotFoundException('Lote no encontrado');
     }
@@ -115,28 +115,38 @@ export class LoteEngineService {
 
     const previousErrors = this.parseErrorLog(lote.erroresLog);
     const retryEmployeeIds = requestedRetryIds ? new Set(empleadoIds) : null;
-    const acquired = await this.prisma.loteContrato.updateMany({
-      where: { id: loteId, estado: lote.estado },
-      data: {
-        estado: 'EN_PROCESO',
-        total: isRetry ? lote.total : empleadoIds.length,
-        iniciadoAt: new Date(),
-        completadoAt: null,
-        ...(isRetry
-          ? {}
-          : {
-              procesados: 0,
-              fallidos: 0,
-              erroresLog: [],
-            }),
-      },
-    });
+    const acquired = await this.tenantPrisma.execute((prisma, context) =>
+      prisma.loteContrato.updateMany({
+        where: {
+          id: loteId,
+          tenantId: context.tenantId,
+          estado: lote.estado,
+        },
+        data: {
+          estado: 'EN_PROCESO',
+          total: isRetry ? lote.total : empleadoIds.length,
+          iniciadoAt: new Date(),
+          completadoAt: null,
+          ...(isRetry
+            ? {}
+            : {
+                procesados: 0,
+                fallidos: 0,
+                erroresLog: [],
+              }),
+        },
+      }),
+    );
 
     if (acquired.count === 0) {
       this.logger.log(
         `Lote ${loteId} ya está EN_PROCESO, omitiendo re-ejecución`,
       );
-      return this.prisma.loteContrato.findUnique({ where: { id: loteId } });
+      return this.tenantPrisma.execute((prisma, context) =>
+        prisma.loteContrato.findFirst({
+          where: { id: loteId, tenantId: context.tenantId },
+        }),
+      );
     }
 
     const userId = lote.creadoPorId ?? 'system';
@@ -163,10 +173,12 @@ export class LoteEngineService {
 
         // Incremento atómico → progreso visible en tiempo real para polling.
         if (!isRetry) {
-          await this.prisma.loteContrato.update({
-            where: { id: loteId },
-            data: { procesados: { increment: 1 } },
-          });
+          await this.tenantPrisma.execute((prisma, context) =>
+            prisma.loteContrato.update({
+              where: { id: loteId, tenantId: context.tenantId },
+              data: { procesados: { increment: 1 } },
+            }),
+          );
         }
       } catch (error) {
         const mensaje =
@@ -180,10 +192,12 @@ export class LoteEngineService {
           error: mensaje,
         });
         if (!isRetry) {
-          await this.prisma.loteContrato.update({
-            where: { id: loteId },
-            data: { fallidos: { increment: 1 } },
-          });
+          await this.tenantPrisma.execute((prisma, context) =>
+            prisma.loteContrato.update({
+              where: { id: loteId, tenantId: context.tenantId },
+              data: { fallidos: { increment: 1 } },
+            }),
+          );
         }
       }
     }
@@ -224,23 +238,25 @@ export class LoteEngineService {
             : batchTotal;
         const batchProcessed = Math.max(batchTotal - batchFailed, 0);
 
-        return this.prisma.loteContrato.update({
-          where: { id: loteId },
-          data: {
-            estado: batchProcessed > 0 ? 'COMPLETADO_CON_ERRORES' : 'FALLIDO',
-            completadoAt: new Date(),
-            procesados: batchProcessed,
-            fallidos: batchFailed,
-            erroresLog: [
-              ...retainedBatchErrors,
-              {
-                empleadoId: 'BATCH_DOCUMENT_GENERATION',
-                cedula: null,
-                error: mensaje,
-              },
-            ] as unknown as Prisma.InputJsonValue,
-          },
-        });
+        return this.tenantPrisma.execute((prisma, context) =>
+          prisma.loteContrato.update({
+            where: { id: loteId, tenantId: context.tenantId },
+            data: {
+              estado: batchProcessed > 0 ? 'COMPLETADO_CON_ERRORES' : 'FALLIDO',
+              completadoAt: new Date(),
+              procesados: batchProcessed,
+              fallidos: batchFailed,
+              erroresLog: [
+                ...retainedBatchErrors,
+                {
+                  empleadoId: 'BATCH_DOCUMENT_GENERATION',
+                  cedula: null,
+                  error: mensaje,
+                },
+              ] as unknown as Prisma.InputJsonValue,
+            },
+          }),
+        );
       }
     }
 
@@ -267,16 +283,18 @@ export class LoteEngineService {
           ? 'COMPLETADO_CON_ERRORES'
           : 'FALLIDO';
 
-    return this.prisma.loteContrato.update({
-      where: { id: loteId },
-      data: {
-        estado,
-        procesados,
-        fallidos,
-        completadoAt: new Date(),
-        erroresLog: finalErrors as unknown as Prisma.InputJsonValue,
-      },
-    });
+    return this.tenantPrisma.execute((prisma, context) =>
+      prisma.loteContrato.update({
+        where: { id: loteId, tenantId: context.tenantId },
+        data: {
+          estado,
+          procesados,
+          fallidos,
+          completadoAt: new Date(),
+          erroresLog: finalErrors as unknown as Prisma.InputJsonValue,
+        },
+      }),
+    );
   }
 
   private parseErrorLog(value: Prisma.JsonValue | null): LoteErrorEntry[] {
@@ -318,24 +336,26 @@ export class LoteEngineService {
     hasDocumentGenerationPlans: boolean;
     plansByEmployee: Map<string, ConfirmedContractPlan>;
   }> {
-    const plans = await this.prisma.batchDocumentGenerationPlan.findMany({
-      where: {
-        tenantId: lote.tenantId,
-        loteId: lote.id,
-        estado: {
-          in: [
-            BatchDocumentGenerationPlanStatus.CONFIRMADO,
-            BatchDocumentGenerationPlanStatus.CONSUMIDO,
-          ],
+    const plans = await this.tenantPrisma.execute((prisma, context) =>
+      prisma.batchDocumentGenerationPlan.findMany({
+        where: {
+          tenantId: context.tenantId,
+          loteId: lote.id,
+          estado: {
+            in: [
+              BatchDocumentGenerationPlanStatus.CONFIRMADO,
+              BatchDocumentGenerationPlanStatus.CONSUMIDO,
+            ],
+          },
         },
-      },
-      select: {
-        empleadoId: true,
-        perfilContractualId: true,
-        empleadoSnapshot: true,
-        contratoSnapshot: true,
-      },
-    });
+        select: {
+          empleadoId: true,
+          perfilContractualId: true,
+          empleadoSnapshot: true,
+          contratoSnapshot: true,
+        },
+      }),
+    );
 
     if (!lote.documentTemplateId) {
       if (lote.proposito !== LoteProposito.CONTRATACION) {

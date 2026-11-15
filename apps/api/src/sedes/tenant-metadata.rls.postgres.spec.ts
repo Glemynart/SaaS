@@ -26,8 +26,12 @@ describe('site and labor metadata PostgreSQL RLS', () => {
   const relationshipB = randomUUID();
   const configurationA = randomUUID();
   const configurationB = randomUUID();
+  const userA = randomUUID();
+  const userB = randomUUID();
   const batchA = randomUUID();
   const batchB = randomUUID();
+  const planA = randomUUID();
+  const planB = randomUUID();
   const exclusionA = randomUUID();
   const exclusionB = randomUUID();
   const newTemplateId = randomUUID();
@@ -35,6 +39,8 @@ describe('site and labor metadata PostgreSQL RLS', () => {
   const newProfileId = randomUUID();
   const newRelationshipId = randomUUID();
   const newConfigurationId = randomUUID();
+  const newBatchId = randomUUID();
+  const newPlanId = randomUUID();
   const newExclusionId = randomUUID();
   const tenantContext = new TenantContextService();
   const prisma = new PrismaService();
@@ -73,6 +79,7 @@ describe('site and labor metadata PostgreSQL RLS', () => {
       `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ` +
         `"sedes", "perfiles_contractuales", "vinculos_laborales", ` +
         `"configuraciones_documentales_perfil", ` +
+        `"lotes_contrato", "batch_document_generation_plans", ` +
         `"batch_document_generation_exclusions", "document_templates" ` +
         `TO "${role}"`,
     );
@@ -108,10 +115,27 @@ describe('site and labor metadata PostgreSQL RLS', () => {
         templateData(templateB, tenantB, 'Template B'),
       ],
     });
+    await prisma.user.createMany({
+      data: [userData(userA, tenantA), userData(userB, tenantB)],
+    });
     await prisma.loteContrato.createMany({
       data: [
-        { id: batchA, tenantId: tenantA, total: 1 },
-        { id: batchB, tenantId: tenantB, total: 1 },
+        {
+          id: batchA,
+          tenantId: tenantA,
+          total: 1,
+          documentTemplateId: templateA,
+          sedeId: siteA,
+          creadoPorId: userA,
+        },
+        {
+          id: batchB,
+          tenantId: tenantB,
+          total: 1,
+          documentTemplateId: templateB,
+          sedeId: siteB,
+          creadoPorId: userB,
+        },
       ],
     });
     await prisma.vinculoLaboral.createMany({
@@ -126,6 +150,30 @@ describe('site and labor metadata PostgreSQL RLS', () => {
         configurationData(configurationB, tenantB, profileB, templateB),
       ],
     });
+    await prisma.batchDocumentGenerationPlan.createMany({
+      data: [
+        planData(
+          planA,
+          tenantA,
+          batchA,
+          employeeA,
+          relationshipA,
+          profileA,
+          configurationA,
+          templateA,
+        ),
+        planData(
+          planB,
+          tenantB,
+          batchB,
+          employeeB,
+          relationshipB,
+          profileB,
+          configurationB,
+          templateB,
+        ),
+      ],
+    });
     await prisma.batchDocumentGenerationExclusion.createMany({
       data: [
         exclusionData(exclusionA, tenantA, batchA),
@@ -136,6 +184,9 @@ describe('site and labor metadata PostgreSQL RLS', () => {
 
   afterAll(async () => {
     try {
+      await prisma.batchDocumentGenerationPlan.deleteMany({
+        where: { id: { in: [planA, planB, newPlanId] } },
+      });
       await prisma.configuracionDocumentalPerfil.deleteMany({
         where: {
           id: {
@@ -146,6 +197,9 @@ describe('site and labor metadata PostgreSQL RLS', () => {
       await prisma.batchDocumentGenerationExclusion.deleteMany({
         where: { id: { in: [exclusionA, exclusionB, newExclusionId] } },
       });
+      await prisma.loteContrato.deleteMany({
+        where: { id: { in: [batchA, batchB, newBatchId] } },
+      });
       await prisma.vinculoLaboral.deleteMany({
         where: {
           id: { in: [relationshipA, relationshipB, newRelationshipId] },
@@ -153,9 +207,6 @@ describe('site and labor metadata PostgreSQL RLS', () => {
       });
       await prisma.documentTemplate.deleteMany({
         where: { id: { in: [templateA, templateB, newTemplateId] } },
-      });
-      await prisma.loteContrato.deleteMany({
-        where: { id: { in: [batchA, batchB] } },
       });
       await prisma.perfilContractual.deleteMany({
         where: { id: { in: [profileA, profileB, newProfileId] } },
@@ -166,6 +217,7 @@ describe('site and labor metadata PostgreSQL RLS', () => {
       await prisma.sede.deleteMany({
         where: { id: { in: [siteA, siteB, newSiteId] } },
       });
+      await prisma.user.deleteMany({ where: { id: { in: [userA, userB] } } });
       await prisma.tenant.deleteMany({
         where: { id: { in: [tenantA, tenantB] } },
       });
@@ -188,6 +240,8 @@ describe('site and labor metadata PostgreSQL RLS', () => {
         'public.perfiles_contractuales'::regclass,
         'public.vinculos_laborales'::regclass,
         'public.configuraciones_documentales_perfil'::regclass,
+        'public.lotes_contrato'::regclass,
+        'public.batch_document_generation_plans'::regclass,
         'public.batch_document_generation_exclusions'::regclass,
         'public.document_templates'::regclass
       ])
@@ -204,8 +258,10 @@ describe('site and labor metadata PostgreSQL RLS', () => {
     expect(protectedTables).toEqual(
       [
         'batch_document_generation_exclusions',
+        'batch_document_generation_plans',
         'configuraciones_documentales_perfil',
         'document_templates',
+        'lotes_contrato',
         'perfiles_contractuales',
         'sedes',
         'vinculos_laborales',
@@ -236,6 +292,8 @@ describe('site and labor metadata PostgreSQL RLS', () => {
       configurations: [configurationA],
       exclusions: [exclusionA],
       templates: [templateA],
+      batches: [batchA],
+      plans: [planA],
     });
     expect(tenantBResult).toEqual({
       sites: [siteB],
@@ -244,6 +302,8 @@ describe('site and labor metadata PostgreSQL RLS', () => {
       configurations: [configurationB],
       exclusions: [exclusionB],
       templates: [templateB],
+      batches: [batchB],
+      plans: [planB],
     });
     expect(noContext).toEqual({
       sites: [],
@@ -252,6 +312,8 @@ describe('site and labor metadata PostgreSQL RLS', () => {
       configurations: [],
       exclusions: [],
       templates: [],
+      batches: [],
+      plans: [],
     });
   });
 
@@ -287,6 +349,32 @@ describe('site and labor metadata PostgreSQL RLS', () => {
         await client.batchDocumentGenerationExclusion.create({
           data: exclusionData(newExclusionId, tenantId, batchA),
         });
+        await client.loteContrato.create({
+          data: {
+            id: newBatchId,
+            tenantId,
+            total: 1,
+            documentTemplateId: templateA,
+            sedeId: siteA,
+            creadoPorId: userA,
+          },
+        });
+        await client.batchDocumentGenerationPlan.create({
+          data: planData(
+            newPlanId,
+            tenantId,
+            newBatchId,
+            employeeA,
+            relationshipA,
+            profileA,
+            configurationA,
+            templateA,
+          ),
+        });
+        await client.batchDocumentGenerationPlan.update({
+          where: { id: newPlanId },
+          data: { estado: 'CONSUMIDO' },
+        });
         await client.documentTemplate.create({
           data: templateData(newTemplateId, tenantId, 'Template nueva A'),
         });
@@ -307,6 +395,68 @@ describe('site and labor metadata PostgreSQL RLS', () => {
         ),
       ),
     ).rejects.toThrow();
+    await expect(
+      withTenant(tenantA, () =>
+        tenantPrisma.execute((client, { tenantId }) =>
+          client.loteContrato.create({
+            data: {
+              id: randomUUID(),
+              tenantId,
+              total: 1,
+              documentTemplateId: templateA,
+              sedeId: siteB,
+              creadoPorId: userA,
+            },
+          }),
+        ),
+      ),
+    ).rejects.toThrow();
+    await expect(
+      withTenant(tenantA, () =>
+        tenantPrisma.execute((client, { tenantId }) =>
+          client.loteContrato.create({
+            data: {
+              id: randomUUID(),
+              tenantId,
+              total: 1,
+              documentTemplateId: templateA,
+              sedeId: siteA,
+              creadoPorId: userB,
+            },
+          }),
+        ),
+      ),
+    ).rejects.toThrow();
+    for (const override of [
+      { loteId: batchB },
+      { empleadoId: employeeB },
+      { vinculoLaboralId: relationshipB },
+      { perfilContractualId: profileB },
+      { configuracionDocumentalPerfilId: configurationB },
+      { plantillaId: templateB },
+    ]) {
+      await expect(
+        withTenant(tenantA, () =>
+          tenantPrisma.execute((client) =>
+            client.batchDocumentGenerationPlan.create({
+              data: {
+                ...planData(
+                  randomUUID(),
+                  tenantA,
+                  batchA,
+                  employeeA,
+                  relationshipA,
+                  profileA,
+                  configurationA,
+                  templateA,
+                ),
+                ...override,
+              },
+            }),
+          ),
+        ),
+      ).rejects.toThrow();
+    }
     await expect(
       withTenant(tenantA, () =>
         tenantPrisma.execute((client, { tenantId }) =>
@@ -377,6 +527,8 @@ describe('site and labor metadata PostgreSQL RLS', () => {
           configurations,
           exclusions,
           templates,
+          batches,
+          plans,
         ] = await Promise.all([
           client.sede.deleteMany({ where: { id: siteA } }),
           client.perfilContractual.deleteMany({ where: { id: profileA } }),
@@ -388,6 +540,10 @@ describe('site and labor metadata PostgreSQL RLS', () => {
             where: { id: exclusionA },
           }),
           client.documentTemplate.deleteMany({ where: { id: templateA } }),
+          client.loteContrato.deleteMany({ where: { id: batchA } }),
+          client.batchDocumentGenerationPlan.deleteMany({
+            where: { id: planA },
+          }),
         ]);
         expect(sites.count).toBe(0);
         expect(profiles.count).toBe(0);
@@ -395,6 +551,8 @@ describe('site and labor metadata PostgreSQL RLS', () => {
         expect(configurations.count).toBe(0);
         expect(exclusions.count).toBe(0);
         expect(templates.count).toBe(0);
+        expect(batches.count).toBe(0);
+        expect(plans.count).toBe(0);
       }),
     );
   });
@@ -435,6 +593,16 @@ describe('site and labor metadata PostgreSQL RLS', () => {
         select: { id: true },
         orderBy: { id: 'asc' },
       }),
+      client.loteContrato.findMany({
+        where: { id: { in: [batchA, batchB] } },
+        select: { id: true },
+        orderBy: { id: 'asc' },
+      }),
+      client.batchDocumentGenerationPlan.findMany({
+        where: { id: { in: [planA, planB] } },
+        select: { id: true },
+        orderBy: { id: 'asc' },
+      }),
     ]).then(
       ([
         sites,
@@ -443,6 +611,8 @@ describe('site and labor metadata PostgreSQL RLS', () => {
         configurations,
         exclusions,
         templates,
+        batches,
+        plans,
       ]) => ({
         sites: sites.map(({ id }) => id),
         profiles: profiles.map(({ id }) => id),
@@ -450,6 +620,8 @@ describe('site and labor metadata PostgreSQL RLS', () => {
         configurations: configurations.map(({ id }) => id),
         exclusions: exclusions.map(({ id }) => id),
         templates: templates.map(({ id }) => id),
+        batches: batches.map(({ id }) => id),
+        plans: plans.map(({ id }) => id),
       }),
     );
   }
@@ -581,6 +753,48 @@ describe('site and labor metadata PostgreSQL RLS', () => {
       tipoDocumental: 'CONTRACT' as const,
       fechaEvaluacion: new Date('2026-01-01T00:00:00.000Z'),
       motivoBloqueo: 'SIN_VINCULO_VIGENTE',
+    };
+  }
+
+  function userData(id: string, tenantId: string) {
+    return {
+      id,
+      tenantId,
+      email: `${id}@example.test`,
+      passwordHash: 'test-only-hash',
+      nombre: 'Usuario',
+      apellido: 'Prueba',
+      rol: 'ADMIN' as const,
+    };
+  }
+
+  function planData(
+    id: string,
+    tenantId: string,
+    loteId: string,
+    empleadoId: string,
+    vinculoLaboralId: string,
+    perfilContractualId: string,
+    configuracionDocumentalPerfilId: string,
+    plantillaId: string,
+  ) {
+    const at = new Date('2026-01-15T00:00:00.000Z');
+    return {
+      id,
+      tenantId,
+      loteId,
+      empleadoId,
+      tipoDocumental: 'CONTRACT' as const,
+      fechaProceso: at,
+      vinculoLaboralId,
+      perfilContractualId,
+      configuracionDocumentalPerfilId,
+      plantillaId,
+      perfilSnapshot: { codigo: 'PROFILE' },
+      configuracionSnapshot: { id: configuracionDocumentalPerfilId },
+      plantillaSnapshot: { id: plantillaId },
+      motivoResolucion: 'Configuración vigente',
+      resueltoAt: at,
     };
   }
 });

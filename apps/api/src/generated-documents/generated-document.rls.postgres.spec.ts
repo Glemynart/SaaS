@@ -64,7 +64,9 @@ describe('GeneratedDocument PostgreSQL RLS', () => {
     await prisma.$executeRawUnsafe(
       'GRANT SELECT ON TABLE "empleados", "document_templates", "contratos", ' +
         '"batch_document_generation_plans", "sedes", "plantillas", ' +
-        '"lotes_contrato", "perfiles_contractuales" TO "' +
+        '"lotes_contrato", "perfiles_contractuales", ' +
+        '"vinculos_laborales", "configuraciones_documentales_perfil", ' +
+        '"users" TO "' +
         role +
         '"',
     );
