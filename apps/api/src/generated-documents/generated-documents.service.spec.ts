@@ -40,6 +40,9 @@ describe('GeneratedDocumentsService.generatePdf', () => {
   const mockGetObject = jest.fn();
   const mockRenderPdf = jest.fn();
 
+  const invokeMock = (mock: jest.Mock, ...args: unknown[]): unknown =>
+    (mock as unknown as (...values: unknown[]) => unknown)(...args);
+
   beforeEach(async () => {
     mockFindFirst.mockReset().mockResolvedValue({
       id: 'd1',
@@ -111,7 +114,27 @@ describe('GeneratedDocumentsService.generatePdf', () => {
             findFirst: mockFindFirst,
             findMany: mockFindMany,
             count: mockCount,
+            create: mockTxCreate,
+            update: (...args: unknown[]): unknown => {
+              const input = args[0];
+              const isTransactionalUpdate =
+                typeof input === 'object' &&
+                input !== null &&
+                'select' in input;
+              return isTransactionalUpdate
+                ? invokeMock(mockTxUpdate, ...args)
+                : invokeMock(mockGeneratedDocumentUpdate, ...args);
+            },
+            delete: mockGeneratedDocumentDelete,
           },
+          expedienteDoc: {
+            findFirst: (args: { select?: Record<string, unknown> }): unknown =>
+              args.select?.storageKey
+                ? invokeMock(mockTxExpedienteDocFindFirst, args)
+                : invokeMock(mockExpedienteDocFindFirst, args),
+          },
+          empleado: { findFirst: jest.fn() },
+          $queryRaw: mockTxQueryRaw,
         }),
       );
 
@@ -202,7 +225,7 @@ describe('GeneratedDocumentsService.generatePdf', () => {
   });
 
   it('rechaza generar CONTRACT mediante el flujo legacy', async () => {
-    mockTenantPrismaExecute.mockImplementation((callback) =>
+    mockTenantPrismaExecute.mockImplementationOnce((callback) =>
       callback({ empleado: { findFirst: jest.fn().mockResolvedValue({}) } }),
     );
     mockDocumentTemplateFindFirst.mockResolvedValue({
@@ -238,7 +261,7 @@ describe('GeneratedDocumentsService.generatePdf', () => {
       fechaIngreso: new Date('2025-01-01'),
       sedeRef: null,
     };
-    mockTenantPrismaExecute.mockImplementation((callback) =>
+    mockTenantPrismaExecute.mockImplementationOnce((callback) =>
       callback({
         empleado: { findFirst: jest.fn().mockResolvedValue(employee) },
       }),
@@ -295,6 +318,7 @@ describe('GeneratedDocumentsService.generatePdf', () => {
     mockTenantPrismaExecute.mockImplementation((callback) =>
       callback({
         empleado: { findFirst: jest.fn().mockResolvedValue(employee) },
+        generatedDocument: { create: mockTxCreate },
       }),
     );
     mockDocumentTemplateFindFirst.mockResolvedValue({

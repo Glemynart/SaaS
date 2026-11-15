@@ -64,16 +64,20 @@ export class ExpedienteDocsService {
     );
     if (!employee) throw new NotFoundException('Empleado no encontrado');
 
-    const docs = await this.prisma.expedienteDoc.findMany({
-      where: { tenantId, empleadoId: employeeId, vigente: true },
-      orderBy: { version: 'desc' },
-      include: {
-        familia: {
-          select: { id: true, nombre: true, categoria: true },
+    const docs = await this.tenantPrisma.execute((prisma) =>
+      prisma.expedienteDoc.findMany({
+        where: { tenantId, empleadoId: employeeId, vigente: true },
+        orderBy: { version: 'desc' },
+        include: {
+          familia: {
+            select: { id: true, nombre: true, categoria: true },
+          },
+          generatedDocument: {
+            select: { id: true, nombre: true, tipo: true },
+          },
         },
-        generatedDocument: { select: { id: true, nombre: true, tipo: true } },
-      },
-    });
+      }),
+    );
 
     const stats = await this.buildStats(tenantId, employeeId);
 
@@ -134,13 +138,17 @@ export class ExpedienteDocsService {
       throw new NotFoundException('Familia documental no encontrada');
     }
 
-    const revisions = await this.prisma.expedienteDoc.findMany({
-      where: { tenantId, familiaId: family.id },
-      orderBy: { version: 'desc' },
-      include: {
-        generatedDocument: { select: { id: true, nombre: true, tipo: true } },
-      },
-    });
+    const revisions = await this.tenantPrisma.execute((prisma) =>
+      prisma.expedienteDoc.findMany({
+        where: { tenantId, familiaId: family.id },
+        orderBy: { version: 'desc' },
+        include: {
+          generatedDocument: {
+            select: { id: true, nombre: true, tipo: true },
+          },
+        },
+      }),
+    );
 
     return { family, revisions };
   }
@@ -405,17 +413,19 @@ export class ExpedienteDocsService {
     generatedDocumentId: string,
     materialization: PdfMaterializationResult,
   ): Promise<PublishGeneratedDocumentResult> {
-    const generatedDocument = await this.prisma.generatedDocument.findFirst({
-      where: { id: generatedDocumentId, tenantId },
-      select: {
-        id: true,
-        tenantId: true,
-        employeeId: true,
-        contratoId: true,
-        nombre: true,
-        tipo: true,
-      },
-    });
+    const generatedDocument = await this.tenantPrisma.execute((tx) =>
+      tx.generatedDocument.findFirst({
+        where: { id: generatedDocumentId, tenantId },
+        select: {
+          id: true,
+          tenantId: true,
+          employeeId: true,
+          contratoId: true,
+          nombre: true,
+          tipo: true,
+        },
+      }),
+    );
     if (!generatedDocument) {
       throw new NotFoundException('Documento generado no encontrado');
     }
@@ -447,7 +457,7 @@ export class ExpedienteDocsService {
     const familiaId = randomUUID();
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await this.tenantPrisma.execute(async (tx) => {
         const existing = await tx.expedienteDoc.findFirst({
           where: { tenantId, generatedDocumentId },
           select: { id: true },
@@ -530,10 +540,12 @@ export class ExpedienteDocsService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        const existing = await this.prisma.expedienteDoc.findFirst({
-          where: { tenantId, generatedDocumentId },
-          select: { id: true },
-        });
+        const existing = await this.tenantPrisma.execute((tx) =>
+          tx.expedienteDoc.findFirst({
+            where: { tenantId, generatedDocumentId },
+            select: { id: true },
+          }),
+        );
         if (existing) {
           return {
             outcome: 'EXISTING',

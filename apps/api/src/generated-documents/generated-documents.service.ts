@@ -141,10 +141,12 @@ export class GeneratedDocumentsService {
     };
 
     if (template.tipo !== 'CERTIFICATION') {
-      return this.prisma.generatedDocument.create({ data });
+      return this.tenantPrisma.execute((tx) =>
+        tx.generatedDocument.create({ data }),
+      );
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.tenantPrisma.execute(async (tx) => {
       const document = await tx.generatedDocument.create({ data });
 
       await this.auditService.log(
@@ -256,15 +258,17 @@ export class GeneratedDocumentsService {
   }
 
   async getPdfForDownload(tenantId: string, id: string) {
-    const doc = await this.prisma.generatedDocument.findFirst({
-      where: { id, tenantId },
-      select: {
-        id: true,
-        nombre: true,
-        pdfStorageKey: true,
-        pdfUrl: true,
-      },
-    });
+    const doc = await this.tenantPrisma.execute((tx) =>
+      tx.generatedDocument.findFirst({
+        where: { id, tenantId },
+        select: {
+          id: true,
+          nombre: true,
+          pdfStorageKey: true,
+          pdfUrl: true,
+        },
+      }),
+    );
 
     if (!doc) {
       throw new NotFoundException('Documento generado no encontrado');
@@ -293,25 +297,34 @@ export class GeneratedDocumentsService {
   }
 
   async remove(tenantId: string, id: string) {
-    const doc = await this.findOne(tenantId, id);
-    const isPublishedCertification =
-      doc.tipo === 'CERTIFICATION' &&
-      Boolean(
-        await this.prisma.expedienteDoc.findFirst({
-          where: { tenantId, generatedDocumentId: doc.id },
-          select: { id: true },
-        }),
-      );
+    return this.tenantPrisma.execute(async (tx) => {
+      const doc = await tx.generatedDocument.findFirst({
+        where: { id, tenantId },
+        select: { id: true, tipo: true },
+      });
+      if (!doc) {
+        throw new NotFoundException('Documento generado no encontrado');
+      }
 
-    if (
-      isImmutablePublishedDocumentType(doc.tipo) &&
-      (doc.tipo === 'CONTRACT' || isPublishedCertification)
-    ) {
-      throw new BadRequestException(
-        `Los documentos ${doc.tipo} publicados son inmutables y no se pueden eliminar.`,
-      );
-    }
-    return this.prisma.generatedDocument.delete({ where: { id } });
+      const isPublishedCertification =
+        doc.tipo === 'CERTIFICATION' &&
+        Boolean(
+          await tx.expedienteDoc.findFirst({
+            where: { tenantId, generatedDocumentId: doc.id },
+            select: { id: true },
+          }),
+        );
+
+      if (
+        isImmutablePublishedDocumentType(doc.tipo) &&
+        (doc.tipo === 'CONTRACT' || isPublishedCertification)
+      ) {
+        throw new BadRequestException(
+          `Los documentos ${doc.tipo} publicados son inmutables y no se pueden eliminar.`,
+        );
+      }
+      return tx.generatedDocument.delete({ where: { id: doc.id } });
+    });
   }
 
   /**
@@ -322,18 +335,20 @@ export class GeneratedDocumentsService {
     tenantId: string,
     id: string,
   ): Promise<PdfMaterializationResult> {
-    const doc = await this.prisma.generatedDocument.findFirst({
-      where: { id, tenantId },
-      select: {
-        id: true,
-        tenantId: true,
-        contenidoFinal: true,
-        pdfStorageKey: true,
-        pdfSizeBytes: true,
-        pdfUrl: true,
-        estado: true,
-      },
-    });
+    const doc = await this.tenantPrisma.execute((tx) =>
+      tx.generatedDocument.findFirst({
+        where: { id, tenantId },
+        select: {
+          id: true,
+          tenantId: true,
+          contenidoFinal: true,
+          pdfStorageKey: true,
+          pdfSizeBytes: true,
+          pdfUrl: true,
+          estado: true,
+        },
+      }),
+    );
     if (!doc) {
       throw new NotFoundException('Documento generado no encontrado');
     }
@@ -361,15 +376,17 @@ export class GeneratedDocumentsService {
       doc.pdfUrl !== pdfUrl ||
       doc.estado !== 'MATERIALIZADO'
     ) {
-      await this.prisma.generatedDocument.update({
-        where: { id: doc.id },
-        data: {
-          pdfStorageKey: storageKey,
-          pdfSizeBytes,
-          pdfUrl,
-          estado: 'MATERIALIZADO',
-        },
-      });
+      await this.tenantPrisma.execute((tx) =>
+        tx.generatedDocument.update({
+          where: { id: doc.id },
+          data: {
+            pdfStorageKey: storageKey,
+            pdfSizeBytes,
+            pdfUrl,
+            estado: 'MATERIALIZADO',
+          },
+        }),
+      );
     }
 
     return {
@@ -382,10 +399,12 @@ export class GeneratedDocumentsService {
   }
 
   async generatePdf(tenantId: string, userId: string, id: string) {
-    const documentReference = await this.prisma.generatedDocument.findFirst({
-      where: { id, tenantId },
-      select: { id: true, nombre: true, tipo: true },
-    });
+    const documentReference = await this.tenantPrisma.execute((tx) =>
+      tx.generatedDocument.findFirst({
+        where: { id, tenantId },
+        select: { id: true, nombre: true, tipo: true },
+      }),
+    );
     if (!documentReference) {
       throw new NotFoundException('Documento no encontrado');
     }
@@ -432,7 +451,7 @@ export class GeneratedDocumentsService {
       renderedPdf = Buffer.from(await this.pdfRender.renderPdf(html));
     }
 
-    const updated = await this.prisma.$transaction(
+    const updated = await this.tenantPrisma.execute(
       async (tx) => {
         // Serialize generation for this document before writing to its canonical
         // storage key. A retry must reuse the published artifact rather than

@@ -19,6 +19,9 @@ describe('ExpedienteDocsService generated document indexing', () => {
   const mockTransaction = jest.fn();
   const mockAuditLog = jest.fn();
   const mockTenantPrismaExecute = jest.fn();
+  const executeMockTransaction = mockTransaction as unknown as (
+    work: (tx: unknown) => unknown,
+  ) => unknown;
 
   const tenantId = 'tenant-001';
   const userId = 'user-001';
@@ -58,21 +61,22 @@ describe('ExpedienteDocsService generated document indexing', () => {
     mockExpedienteDocCreate.mockResolvedValue({ id: 'expediente-001' });
     mockExpedienteDocFamilyCreate.mockResolvedValue({ id: 'family-001' });
     mockExpedienteDocDelete.mockReset();
-    mockTenantPrismaExecute.mockImplementation((work) =>
-      work({
-        expedienteDoc: { findFirst: mockExpedienteDocFindFirst },
-      }),
-    );
     mockAuditLog.mockResolvedValue(undefined);
-    mockTransaction.mockImplementation((work) =>
+    mockTransaction.mockImplementation((work: (tx: unknown) => unknown) =>
       work({
-        generatedDocument: { update: mockGeneratedDocumentUpdate },
+        generatedDocument: {
+          findFirst: mockGeneratedDocumentFindFirst,
+          update: mockGeneratedDocumentUpdate,
+        },
         expedienteDoc: {
           findFirst: mockExpedienteDocFindFirst,
           create: mockExpedienteDocCreate,
         },
         expedienteDocFamily: { create: mockExpedienteDocFamilyCreate },
       }),
+    );
+    mockTenantPrismaExecute.mockImplementation(
+      (work: (tx: unknown) => unknown) => executeMockTransaction(work),
     );
 
     const moduleRef = await Test.createTestingModule({
@@ -275,7 +279,8 @@ describe('ExpedienteDocsService generated document indexing', () => {
       ),
     ).rejects.toThrow('Los documentos CONTRACT requieren un contrato');
 
-    expect(mockTransaction).not.toHaveBeenCalled();
+    expect(mockGeneratedDocumentUpdate).not.toHaveBeenCalled();
+    expect(mockExpedienteDocCreate).not.toHaveBeenCalled();
   });
 
   it('mantiene fuera de publicación los tipos no aprobados', async () => {
@@ -294,7 +299,8 @@ describe('ExpedienteDocsService generated document indexing', () => {
       'Solo se pueden publicar documentos CONTRACT o CERTIFICATION',
     );
 
-    expect(mockTransaction).not.toHaveBeenCalled();
+    expect(mockGeneratedDocumentUpdate).not.toHaveBeenCalled();
+    expect(mockExpedienteDocCreate).not.toHaveBeenCalled();
   });
 
   it('devuelve el índice existente sin crear ni auditar otra publicación', async () => {
@@ -327,7 +333,8 @@ describe('ExpedienteDocsService generated document indexing', () => {
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(mockTransaction).not.toHaveBeenCalled();
+    expect(mockGeneratedDocumentUpdate).not.toHaveBeenCalled();
+    expect(mockExpedienteDocCreate).not.toHaveBeenCalled();
   });
 
   it('mantiene el aislamiento tenant al buscar el documento a publicar', async () => {
@@ -346,7 +353,8 @@ describe('ExpedienteDocsService generated document indexing', () => {
       where: { id: generatedDocumentId, tenantId: 'tenant-otro' },
       select: expect.any(Object),
     });
-    expect(mockTransaction).not.toHaveBeenCalled();
+    expect(mockGeneratedDocumentUpdate).not.toHaveBeenCalled();
+    expect(mockExpedienteDocCreate).not.toHaveBeenCalled();
   });
 
   it('converge al índice ganador si una creación concurrente viola la unicidad', async () => {
@@ -402,6 +410,7 @@ describe('ExpedienteDocsService generated document indexing', () => {
         let stagedExpediente = persistedExpediente;
         const result = await work({
           generatedDocument: {
+            findFirst: mockGeneratedDocumentFindFirst,
             update: async ({ data }: { data: PersistedMetadata }) => {
               stagedMetadata = data;
               return { id: generatedDocumentId };

@@ -520,9 +520,11 @@ export class ContractsService {
       throw new NotFoundException('Contrato no encontrado');
     }
 
-    const existing = await this.prisma.generatedDocument.findFirst({
-      where: { contratoId: contract.id, tenantId },
-    });
+    const existing = await this.tenantPrisma.execute((prisma) =>
+      prisma.generatedDocument.findFirst({
+        where: { contratoId: contract.id, tenantId },
+      }),
+    );
     if (existing) {
       return { outcome: 'EXISTING', document: existing };
     }
@@ -545,10 +547,11 @@ export class ContractsService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        const concurrentDocument =
-          await this.prisma.generatedDocument.findFirst({
+        const concurrentDocument = await this.tenantPrisma.execute((prisma) =>
+          prisma.generatedDocument.findFirst({
             where: { contratoId: contract.id, tenantId },
-          });
+          }),
+        );
         if (concurrentDocument) {
           return { outcome: 'EXISTING', document: concurrentDocument };
         }
@@ -632,20 +635,22 @@ export class ContractsService {
     const snapshot =
       contract.variablesSnapshot as unknown as ContractVariablesSnapshot;
 
-    return this.prisma.generatedDocument.create({
-      data: {
-        tenantId,
-        employeeId: contract.empleadoId,
-        templateId: template.id,
-        contratoId: contract.id,
-        nombre: `Contrato — ${snapshot.empleado.nombreCompleto}`,
-        contenidoFinal: this.buildContentFromSnapshot(
-          template.contenido,
-          snapshot,
-        ),
-        tipo: template.tipo,
-      },
-    });
+    return this.tenantPrisma.execute((prisma) =>
+      prisma.generatedDocument.create({
+        data: {
+          tenantId,
+          employeeId: contract.empleadoId,
+          templateId: template.id,
+          contratoId: contract.id,
+          nombre: `Contrato — ${snapshot.empleado.nombreCompleto}`,
+          contenidoFinal: this.buildContentFromSnapshot(
+            template.contenido,
+            snapshot,
+          ),
+          tipo: template.tipo,
+        },
+      }),
+    );
   }
 
   private assertDocumentEligibility(contract: {

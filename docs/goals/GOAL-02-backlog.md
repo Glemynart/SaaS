@@ -35,10 +35,14 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   snapshots de salario y referencias a documentos. La migración valida
   relaciones históricas tenant-consistentes antes de activarla; los
   consumidores de contratos en RR. HH., lotes y cálculo de nómina usan
-  `TenantPrismaService`. No protege aún `generated_documents` ni el expediente,
-  y no cierra el riesgo conocido de que una sesión SQL pueda establecer
-  `app.current_tenant_id`. El merge incorpora la migración y sus pruebas al
-  repositorio, pero no demuestra su aplicación en una base desplegada.
+  `TenantPrismaService`. Esta siguiente cohorte añade RLS a
+  `generated_documents`, sus referencias laborales tenant-consistentes y el
+  uso de `TenantPrismaService` en generación individual, por lotes, contratos,
+  descarga y publicación. La migración y sus pruebas en el repositorio no
+  demuestran que ya se hayan aplicado en una base desplegada.
+  `expediente_doc_families` y `expediente_docs` siguen dependiendo del filtro
+  de la aplicación. Tampoco se cierra el riesgo conocido de que una sesión SQL
+  pueda establecer `app.current_tenant_id`.
 
 ## Estado vigente — 2026-11-09
 

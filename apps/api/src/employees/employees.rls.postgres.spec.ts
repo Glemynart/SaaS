@@ -226,6 +226,7 @@ describe('empleados PostgreSQL RLS', () => {
       { tableName: 'customers' },
       { tableName: 'empleados' },
       { tableName: 'facturas_electronicas' },
+      { tableName: 'generated_documents' },
       { tableName: 'intentos_facturas_electronicas' },
       { tableName: 'invoice_items' },
       { tableName: 'invoice_receipt_allocations' },

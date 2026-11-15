@@ -32,7 +32,13 @@ describe('ExpedienteDocsService document history and download', () => {
             expedienteDocFamily: { findFirst: familyFindFirst },
           },
         },
-        { provide: TenantPrismaService, useValue: {} },
+        {
+          provide: TenantPrismaService,
+          useValue: {
+            execute: (work: (client: object) => unknown) =>
+              work({ expedienteDoc: { findMany: documentFindMany } }),
+          },
+        },
         { provide: AuditService, useValue: { log: auditLog } },
         { provide: StorageService, useValue: { getObject } },
       ],

@@ -1,7 +1,6 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
-import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { GeneratedDocumentAccessService } from './generated-document-access.service';
@@ -18,7 +17,6 @@ describe('GeneratedDocumentAccessService', () => {
   const getObject = jest.fn();
   const auditLog = jest.fn();
   const service = new GeneratedDocumentAccessService(
-    { generatedDocument: { findFirst } } as unknown as PrismaService,
     { execute } as unknown as TenantPrismaService,
     { getObject } as unknown as StorageService,
     { log: auditLog } as unknown as AuditService,
