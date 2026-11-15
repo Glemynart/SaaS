@@ -2772,3 +2772,15 @@ tenants participantes.
   forzadas y nueve pendientes. `AuditLog` conserva su evaluación aparte: no se
   añadió RLS genérico porque el escritor también atiende flujos públicos y de
   sistema sin un contexto tenant centralizado.
+
+### Integridad de claves privadas de exportaciones PILA — GOAL-02 (2026-11-15)
+
+La descarga ya buscaba el registro `PilaExport` con tenant, período e ID, y
+verificaba el SHA-256 del objeto. La revisión detectó que el metadato
+`storageKey` se usaba para leer Storage sin comprobar que su ruta coincidiera
+con el tenant, la exportación y el tipo solicitados. Ahora la descarga exige la
+ruta canónica `tenants/{tenantId}/pila-exports/{exportId}/{type-1|type-2}.txt`
+antes de leer el objeto. Las regresiones para ambos tipos confirman que una
+ruta de otro tenant produce conflicto sin invocar Storage ni registrar la
+descarga. La validación de hash se conserva como control adicional de
+integridad; no se modificó el esquema ni se ejecutaron migraciones.

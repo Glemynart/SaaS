@@ -502,6 +502,12 @@ export class PilaExportService {
       fileType === 'type-1' ? record.type1StorageKey : record.type2StorageKey;
     const expectedSha256 =
       fileType === 'type-1' ? record.type1Sha256 : record.type2Sha256;
+    const expectedStorageKey = `tenants/${tenantId}/pila-exports/${record.id}/${fileType}.txt`;
+    if (storageKey !== expectedStorageKey) {
+      throw new ConflictException(
+        'La ruta del archivo almacenado no corresponde a la exportación solicitada.',
+      );
+    }
     const body = await this.storage.getObject(storageKey);
     if (sha256(body) !== expectedSha256.trim()) {
       throw new ConflictException(
