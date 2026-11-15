@@ -2647,7 +2647,7 @@ aplicado en staging ni producción.
 | `UserInvitation`           | La aceptación parte de un token opaco sin sesión; consultas y cambios atan ID, tenant y hash. No añadir RLS genérico sin un bootstrap de identidad para el token.                                                          |
 | `Plantilla`                | Modelo legado DOCX; no se encontraron lecturas/escrituras mediante el delegate en los servicios activos. La generación vigente usa `DocumentTemplate`, ya protegido.                                                       |
 | `AlertGenerationRunTenant` | El scheduler mantiene resultados por tenant desde un coordinador que procesa varias empresas. Requiere separar y autenticar el contexto de sistema antes de RLS.                                                           |
-| `AuditLog`                 | `AuditService` recibe `tenantId`, pero hay escrituras dentro y fuera de transacciones y algunas son fire-and-forget. Centralizar el contexto y resolver escritores del sistema antes de RLS.                               |
+| `AuditLog`                 | `AuditService` escribe por Prisma directo sin instalar/verificar contexto tenant; recibe llamadas de flujos tenant, autenticación pública y scheduler. Centralizar el contexto antes de RLS.                               |
 | `Alerta`                   | Tabla legado sin consumidores activos identificados; el módulo vigente usa `alerts_new`, que ya tiene RLS.                                                                                                                 |
 | `ClienteFE`                | Tabla legado sin consumidores activos identificados; facturación interna usa `customers`.                                                                                                                                  |
 | `Producto`                 | Tabla legado sin consumidores activos identificados; facturación interna usa `product_services`.                                                                                                                           |
@@ -2656,8 +2656,17 @@ aplicado en staging ni producción.
 La ausencia de RLS en estos diez modelos no demuestra por sí sola una fuga: los
 modelos de autenticación usan rutas de identidad precontexto, el coordinador
 de alertas requiere un contexto de sistema, y cuatro modelos de negocio son
-legado sin uso activo detectado. No se les aplicó una política genérica. La
-protección de `parametros_legales_nomina` permite SELECT de filas
+legado sin uso activo detectado. No se les aplicó una política genérica.
+
+En `AuditLog`, la búsqueda de código confirma que el único escritor productivo
+es `AuditService`, que no instala ni verifica el GUC tenant; sus llamadores
+incluyen operaciones autenticadas, login/recuperación/invitaciones públicas y
+el scheduler multiempresa. No se encontraron lecturas productivas de esta
+tabla. El riesgo demostrado es de integridad y atribución de auditoría, no una
+ruta de lectura cruzada. RLS genérico rompería escritores válidos hasta
+centralizar el contexto y distinguir la identidad de sistema.
+
+La protección de `parametros_legales_nomina` permite SELECT de filas
 globales y del override propio y no autoriza DML al runtime; el seed actual
 requiere una identidad privilegiada y el runbook de staging quedó corregido
 para no ejecutarlo con `staging_runtime`. Sigue pendiente definir una ruta de
