@@ -22,7 +22,7 @@ El inventario de seguridad actual incluye:
 
 - **Autenticación:** JWT (HS256, 15 min) + refresh tokens rotativos con detección de reuso.
 - **Autorización:** RBAC plano de 3 roles (`ADMIN`, `OPERADOR`, `VIEWER`).
-- **Aislamiento multi-tenant:** filtros `tenantId` en consultas de aplicación; `TenantPrismaService` instala el tenant en la transacción. Las migraciones activan y fuerzan RLS en una cohorte de 43 tablas, no en todo el esquema.
+- **Aislamiento multi-tenant:** filtros `tenantId` en consultas de aplicación; `TenantPrismaService` instala el tenant en la transacción. Al 2026-11-15, las migraciones del repositorio activan y fuerzan RLS en 56 tablas, no en todo el esquema; esto no demuestra que las migraciones estén aplicadas en entornos desplegados.
 - **Validación de entrada:** `ValidationPipe` global con `whitelist` + `forbidNonWhitelisted`.
 - **Rate limiting:** Solo en endpoints de auth (`@nestjs/throttler`); el límite
   global permanece deliberadamente sin activar hasta resolver sus prerrequisitos
@@ -38,7 +38,9 @@ El inventario de seguridad actual incluye:
   contables, los centros de costo, los mapeos de cuentas del sistema, el plan
   de cuentas compartido/tenant-owned, los períodos contables y la facturación
   interna, `generated_documents`, `expediente_doc_families` y
-  `expediente_docs`. El inventario exacto de las 43 tablas se mantiene en §6.1.
+  `expediente_docs`. El listado de 43 tablas de §6.1 corresponde al corte
+  inicial de esa sección; el inventario vigente de 56 se contrasta con la
+  prueba PostgreSQL `employees.rls.postgres.spec.ts` y las migraciones.
   La cohorte incluye `contratos`. Esto
   describe migraciones del repositorio, no un estado operativo de una base
   desplegada.
@@ -108,7 +110,7 @@ El inventario de seguridad actual incluye:
 ### 2.3 Sesgo arquitectónico
 
 - **Stateless siempre que sea posible.** El access token JWT es stateless; no se consulta la base de datos en cada request para autorización básica.
-- **Application-layer y DB-layer para tenant isolation.** La disciplina de `tenantId` en cada `WHERE` se conserva en todo el esquema. RLS protege 43 tablas mediante migraciones independientes; la expansión al resto requiere migraciones y pruebas por cohorte. Las políticas usan `app.current_tenant_id`, instalado por `TenantPrismaService` dentro de la transacción.
+- **Application-layer y DB-layer para tenant isolation.** La disciplina de `tenantId` en cada `WHERE` se conserva en todo el esquema. RLS protege 56 tablas al 2026-11-15 mediante migraciones independientes; la expansión al resto requiere migraciones y pruebas por cohorte. Las políticas usan `app.current_tenant_id`, instalado por `TenantPrismaService` dentro de la transacción.
 - **Rate limiting progresivo.** Auth tiene throttling estricto; los endpoints de datos se protegen con throttling global moderado en una fase posterior.
 
 ---
@@ -117,21 +119,21 @@ El inventario de seguridad actual incluye:
 
 ### 3.1 Pertenece a la arquitectura de seguridad
 
-| Capacidad                          | Estado actual       | Prioridad |
-| ---------------------------------- | ------------------- | --------- |
-| Autenticación JWT + refresh tokens | Implementado        | —         |
-| RBAC de 3 roles                    | Implementado        | —         |
-| Aislamiento multi-tenant           | Implementado (app)  | —         |
-| Validación de entrada (DTOs)       | Implementado        | —         |
-| Rate limiting en auth              | Implementado        | —         |
-| Auditoría centralizada             | Implementado        | —         |
-| CORS configurable                  | Implementado        | —         |
-| Security headers (Helmet)          | Implementado        | —         |
-| Rate limiting global               | Pendiente           | Alta      |
-| RLS en PostgreSQL                  | Parcial (43 tablas) | Media     |
-| Tests de guards de seguridad       | Parcial (unitarios) | Alta      |
-| Rotación de refresh tokens         | Implementado        | —         |
-| Detección de reuso de tokens       | Implementado        | —         |
+| Capacidad                          | Estado actual                     | Prioridad |
+| ---------------------------------- | --------------------------------- | --------- |
+| Autenticación JWT + refresh tokens | Implementado                      | —         |
+| RBAC de 3 roles                    | Implementado                      | —         |
+| Aislamiento multi-tenant           | Implementado (app)                | —         |
+| Validación de entrada (DTOs)       | Implementado                      | —         |
+| Rate limiting en auth              | Implementado                      | —         |
+| Auditoría centralizada             | Implementado                      | —         |
+| CORS configurable                  | Implementado                      | —         |
+| Security headers (Helmet)          | Implementado                      | —         |
+| Rate limiting global               | Pendiente                         | Alta      |
+| RLS en PostgreSQL                  | Parcial (56 tablas al 2026-11-15) | Media     |
+| Tests de guards de seguridad       | Parcial (unitarios)               | Alta      |
+| Rotación de refresh tokens         | Implementado                      | —         |
+| Detección de reuso de tokens       | Implementado                      | —         |
 
 ### 3.2 NO pertenece a SEC (se difiere o vive en otro ámbito)
 
@@ -227,7 +229,8 @@ POST /auth/login ──► { accessToken, refreshToken }
 - **`ActiveTenantGuard`** verifica que el tenant existe y está activo antes de ejecutar el handler.
 - No existe `$use` middleware global de Prisma. `TenantPrismaService` instala
   `app.current_tenant_id` con alcance local a la transacción. Las migraciones
-  activan y fuerzan RLS en estas 43 tablas: `afiliaciones_seguridad_social`,
+  activan y fuerzan RLS en las 43 tablas que componían el inventario inicial de
+  esta sección: `afiliaciones_seguridad_social`,
   `centros_costo`, `comprobantes_contables`, `contratos`, `cuenta_sistema_map`,
   `cuentas_contables`,
   `customer_receipt_reversals`, `customer_receipts`, `customers`, `empleados`,
@@ -247,7 +250,10 @@ POST /auth/login ──► { accessToken, refreshToken }
   `secuencias_comprobante`, `service_premium_batches`, `service_premium_lines`,
   `terceros`,
   `transiciones_facturas_electronicas` y
-  `transmisiones_facturas_electronicas`.
+  `transmisiones_facturas_electronicas`. Las migraciones posteriores ampliaron
+  el inventario; al 2026-11-15 la prueba de inventario confirma 56 tablas con
+  `ENABLE` y `FORCE`, incluidas las tablas de lotes y resultados tenant-scoped
+  del scheduler de alertas.
 - `payroll_pila_events` permite lectura tenant-scoped cuando el período y el
   empleado relacionados pertenecen al mismo tenant; insertar y eliminar solo
   mientras el período está en `BORRADOR`; no tiene política de `UPDATE`. La
@@ -316,7 +322,7 @@ POST /auth/login ──► { accessToken, refreshToken }
 
 ### 6.2 Riesgo aceptado
 
-- Un bug de omisión de `tenantId` en una tabla sin RLS puede exponer datos entre tenants. La mitigación actual combina **disciplina de código + revisión en PR + tests de aislamiento** con políticas RLS en las 43 tablas listadas en §6.1. Para esas políticas, la protección depende de que la consulta use el contexto instalado por la ruta de aplicación: `app.current_tenant_id` es un parámetro PostgreSQL personalizado aceptado por nombre de dos partes y no constituye por sí solo una identidad de tenant confiable frente a una sesión SQL con credenciales. RLS reduce omisiones de filtro en la ruta normal; no protege contra credenciales SQL comprometidas ni cubre las tablas sin política. Ver [opciones de configuración personalizadas de PostgreSQL](https://www.postgresql.org/docs/current/runtime-config-custom.html). La expansión y la revisión de la fuente confiable del tenant requieren unidades independientes.
+- Un bug de omisión de `tenantId` en una tabla sin RLS puede exponer datos entre tenants. La mitigación actual combina **disciplina de código + revisión en PR + tests de aislamiento** con políticas RLS en 56 tablas según el inventario verificado al 2026-11-15. Para esas políticas, la protección depende de que la consulta use el contexto instalado por la ruta de aplicación: `app.current_tenant_id` es un parámetro PostgreSQL personalizado aceptado por nombre de dos partes y no constituye por sí solo una identidad de tenant confiable frente a una sesión SQL con credenciales. RLS reduce omisiones de filtro en la ruta normal; no protege contra credenciales SQL comprometidas ni cubre las tablas sin política. Ver [opciones de configuración personalizadas de PostgreSQL](https://www.postgresql.org/docs/current/runtime-config-custom.html). La expansión y la revisión de la fuente confiable del tenant requieren unidades independientes.
 
 ### 6.3 Soft delete
 
@@ -478,7 +484,7 @@ del tenant activo.
 
 **Alcance:**
 
-- Completar la expansión progresiva de RLS a tablas multi-tenant adicionales mediante migraciones y pruebas independientes; hoy hay políticas en las 43 tablas enumeradas en §6.1.
+- Completar la expansión progresiva de RLS a tablas multi-tenant adicionales mediante migraciones y pruebas independientes; al 2026-11-15 el inventario del repositorio registra 56 tablas con políticas `ENABLE` y `FORCE`, sin afirmar que estén desplegadas.
 - Revisar por separado una fuente de identidad de tenant confiable frente a SQL arbitrario con el rol de aplicación; el parámetro `app.current_tenant_id` actual no cubre ese escenario.
 - Mantener el `tenantId` en las consultas de aplicación (doble capa).
 

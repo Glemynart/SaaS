@@ -216,6 +216,7 @@ describe('empleados PostgreSQL RLS', () => {
 
     const expectedTenantTables = [
       { tableName: 'afiliaciones_seguridad_social' },
+      { tableName: 'alert_generation_run_tenants' },
       { tableName: 'alerts_new' },
       { tableName: 'batch_document_generation_exclusions' },
       { tableName: 'batch_document_generation_plans' },

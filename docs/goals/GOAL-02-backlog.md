@@ -2640,23 +2640,25 @@ cohorte dejó nueve modelos con RLS forzado. La siguiente protege también
 los 21 modelos iniciales. Las migraciones son aditivas y todavía no se han
 aplicado en staging ni producción.
 
-| Modelo restante            | Evidencia de código y decisión                                                                                                                                                                                             |
+| Modelo al corte inicial    | Evidencia de código y decisión                                                                                                                                                                                             |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `User`                     | Login y recuperación identifican el tenant antes de establecer el contexto de sesión; el lookup combina tenant y correo. RLS genérico no es compatible con este punto de entrada sin una ruta de autenticación específica. |
 | `PasswordResetToken`       | El inicio de recuperación es público y consume un token opaco antes de autenticarse; los servicios restringen por tenant, usuario e identidad/hash del token. Una política requiere un contexto preautenticado seguro.     |
 | `UserInvitation`           | La aceptación parte de un token opaco sin sesión; consultas y cambios atan ID, tenant y hash. No añadir RLS genérico sin un bootstrap de identidad para el token.                                                          |
 | `Plantilla`                | Modelo legado DOCX; no se encontraron lecturas/escrituras mediante el delegate en los servicios activos. La generación vigente usa `DocumentTemplate`, ya protegido.                                                       |
-| `AlertGenerationRunTenant` | El scheduler mantiene resultados por tenant desde un coordinador que procesa varias empresas. Requiere separar y autenticar el contexto de sistema antes de RLS.                                                           |
+| `AlertGenerationRunTenant` | Resuelto en la cohorte de aislamiento de resultados del scheduler descrita abajo; RLS se instala con contexto explícito por tenant.                                                                                        |
 | `AuditLog`                 | `AuditService` escribe por Prisma directo sin instalar/verificar contexto tenant; recibe llamadas de flujos tenant, autenticación pública y scheduler. Centralizar el contexto antes de RLS.                               |
 | `Alerta`                   | Tabla legado sin consumidores activos identificados; el módulo vigente usa `alerts_new`, que ya tiene RLS.                                                                                                                 |
 | `ClienteFE`                | Tabla legado sin consumidores activos identificados; facturación interna usa `customers`.                                                                                                                                  |
 | `Producto`                 | Tabla legado sin consumidores activos identificados; facturación interna usa `product_services`.                                                                                                                           |
 | `Factura`                  | Tabla legado sin consumidores activos identificados; facturación interna usa `invoices`.                                                                                                                                   |
 
-La ausencia de RLS en estos diez modelos no demuestra por sí sola una fuga: los
-modelos de autenticación usan rutas de identidad precontexto, el coordinador
-de alertas requiere un contexto de sistema, y cuatro modelos de negocio son
-legado sin uso activo detectado. No se les aplicó una política genérica.
+Al corte inicial, la ausencia de RLS en estos diez modelos no demostraba por sí
+sola una fuga: los modelos de autenticación usan rutas de identidad
+precontexto; cuatro modelos de negocio son legado sin uso activo detectado; y
+`AuditLog` necesita resolver su atribución de sistema y tenant. El caso del
+coordinador de alertas se resolvió con la política específica documentada al
+final de esta sección; no se aplicó una política genérica a todos los modelos.
 
 En `AuditLog`, la búsqueda de código confirma que el único escritor productivo
 es `AuditService`, que no instala ni verifica el GUC tenant; sus llamadores
@@ -2711,3 +2713,36 @@ almacenamiento documental. También se confirmó que las URLs HTTP del logo de
 empresa son bloqueadas por el renderer junto con las demás solicitudes remotas;
 por tanto, pueden no aparecer en el PDF. No se abrió el acceso de red para
 resolverlo, pues requeriría un mecanismo seguro de carga local del activo.
+
+### Aislamiento de resultados del scheduler de alertas — GOAL-02 (2026-11-15)
+
+La auditoría detectó que la respuesta de `GET /alerts/generation-runs/latest`
+devolvía el estado y los contadores del coordinador global junto con el
+resultado del tenant. Aunque las alertas y el resultado hijo ya tenían filtro
+por tenant, los agregados del padre revelaban actividad de otras empresas. El
+endpoint también exponía el mismo identificador de ejecución global a todos los
+tenants participantes.
+
+- `alert_generation_runs` sigue siendo el registro global que coordina y
+  agrega la ejecución. `alert_generation_run_tenants` ahora tiene RLS `ENABLE`
+  y `FORCE`, con `SELECT`, `INSERT` y `UPDATE` tenant-scoped y sin política de
+  borrado físico. La migración aborta si encuentra un resultado sin tenant o
+  ejecución padre.
+- El scheduler instala el contexto tenant en cada lectura y escritura del
+  resultado, incluida la recuperación de ejecuciones vencidas. El endpoint
+  devuelve el identificador del resultado hijo para que un tenant no pueda
+  correlacionar la misma ejecución con los demás. Los reintentos aceptan ese
+  identificador o el ID de padre heredado por pestañas ya abiertas; ambos se
+  buscan bajo el tenant autenticado, y solo el backend resuelve el padre.
+- La retención conserva la eliminación global del padre y el borrado en
+  cascada de sus filas hijas; la prueba PostgreSQL verifica el comportamiento
+  con un rol `NOSUPERUSER NOBYPASSRLS` sin política `DELETE` sobre la tabla
+  hija.
+- Validación local: 119 migraciones aplicadas en PostgreSQL 17.11 temporal;
+  18 suites RLS PostgreSQL y 87 pruebas, además de las pruebas unitarias del
+  scheduler, typecheck y lint de API/Web. La migración no se aplicó en staging
+  ni producción.
+- El inventario de los 21 modelos sin RLS queda en 12 protegidos por políticas
+  forzadas y nueve pendientes. `AuditLog` conserva su evaluación aparte: no se
+  añadió RLS genérico porque el escritor también atiende flujos públicos y de
+  sistema sin un contexto tenant centralizado.
