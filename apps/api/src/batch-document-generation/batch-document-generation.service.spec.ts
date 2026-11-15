@@ -396,6 +396,51 @@ describe('BatchDocumentGenerationService', () => {
     );
   });
 
+  it('escapa valores de snapshots y conserva literalmente secuencias de reemplazo', async () => {
+    const expected =
+      '<p>&lt;img src=x onerror=1&gt; $&amp;|&lt;b&gt;Empresa&lt;/b&gt;</p>';
+    planFindFirst.mockResolvedValue({
+      ...plan,
+      plantillaSnapshot: {
+        ...plan.plantillaSnapshot,
+        contenido: '<p>{{NOMBRE_COMPLETO}}|{{EMPRESA}}</p>',
+      },
+    });
+    contractFindFirst.mockResolvedValue({
+      id: 'contrato-001',
+      estado: 'VIGENTE',
+      variablesSnapshot: {
+        ...contractVariablesSnapshot,
+        empleado: {
+          ...contractVariablesSnapshot.empleado,
+          nombreCompleto: '<img src=x onerror=1> $&',
+        },
+        empresa: {
+          ...contractVariablesSnapshot.empresa,
+          razonSocial: '<b>Empresa</b>',
+        },
+      },
+    });
+    documentCreate.mockResolvedValueOnce({
+      id: DOCUMENT,
+      estado: GeneratedDocumentStatus.PENDIENTE_MATERIALIZACION,
+      contratoId: 'contrato-001',
+      pdfStorageKey: null,
+      pdfSizeBytes: null,
+      pdfUrl: null,
+      contenidoFinal: expected,
+    });
+
+    await service.start(LOTE);
+
+    expect(documentCreate).toHaveBeenCalledWith(
+      objectContaining({
+        data: objectContaining({ contenidoFinal: expected }),
+      }),
+    );
+    expect(renderPdf).toHaveBeenCalledWith(expect.stringContaining(expected));
+  });
+
   it('renderiza usando los snapshots confirmados aunque cambie el empleado', async () => {
     const historicalPlan = {
       ...plan,

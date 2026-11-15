@@ -15,6 +15,7 @@ import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.servic
 import { StorageService } from '../storage/storage.service';
 import { StorageObjectNotFoundError } from '../storage/storage.types';
 import { PdfRenderService } from '../pdf-render/pdf-render.service';
+import { escapeHtml } from '../pdf-render/template-html';
 import { formatNombreCompleto } from '@saas/types';
 import { isImmutablePublishedDocumentType } from './document-invariants';
 
@@ -45,18 +46,6 @@ const TRUSTED_HTML_PLACEHOLDERS = new Set([
   'LOGO_EMPRESA',
   'FIRMA_REPRESENTANTE',
 ]);
-
-function escapeHtml(value: string): string {
-  const entities: Record<string, string> = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  };
-
-  return value.replace(/[&<>"']/g, (character) => entities[character]);
-}
 
 @Injectable()
 export class GeneratedDocumentsService {

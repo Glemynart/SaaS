@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { GeneratedDocumentsService } from '../generated-documents/generated-documents.service';
+import { replaceHtmlTemplateVariables } from '../pdf-render/template-html';
 import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
 import { ContractQueryDto } from './dto/contract-query.dto';
 import { CreateContractDto } from './dto/create-contract.dto';
@@ -727,11 +728,7 @@ export class ContractsService {
       FIRMA_REPRESENTANTE: '',
     };
 
-    let result = templateContent;
-    for (const [key, value] of Object.entries(variables)) {
-      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
-    }
-    return result;
+    return replaceHtmlTemplateVariables(templateContent, variables);
   }
 
   private validateSnapshot(snapshot: unknown, contratoId: string): void {

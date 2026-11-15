@@ -17,6 +17,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { AuditService } from '../../audit/audit.service';
 import { ExpedienteDocsService } from '../../expediente-docs/expediente-docs.service';
 import { PdfRenderService } from '../../pdf-render/pdf-render.service';
+import { escapeHtml } from '../../pdf-render/template-html';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { TenantContextService } from '../../tenant-context/tenant-context.service';
@@ -29,15 +30,6 @@ import {
 import { CreateServicePremiumBatchDto } from './service-premium.dto';
 
 const LEASE_MS = 5 * 60_000;
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
 
 function formatCop(value: unknown): string {
   const amount = typeof value === 'number' ? value : Number(value);

@@ -1154,6 +1154,38 @@ describe('ContractsService', () => {
       expect(createCall.data.contenidoFinal).not.toContain('{{CARGO}}');
     });
 
+    it('escapa valores del snapshot para que no inyecten HTML en el contrato', async () => {
+      setupSuccessful();
+      mockContratoFindFirst.mockResolvedValue(
+        makeContractWithSnapshot({
+          variablesSnapshot: {
+            ...SNAPSHOT,
+            empleado: {
+              ...SNAPSHOT.empleado,
+              nombreCompleto: '<img src=x onerror=1> $&',
+            },
+            contrato: {
+              ...SNAPSHOT.contrato,
+              cargo: '<script>cargo</script>',
+            },
+          },
+        }),
+      );
+      mockDocumentTemplateFindMany.mockResolvedValue([
+        makeTemplate({
+          contenido: '<p>{{NOMBRE_COMPLETO}}|{{CARGO}}</p>',
+        }),
+      ]);
+
+      await service.generateDocument(TENANT_ID, USER_ID, 'contract-001');
+
+      const createCalls = mockGeneratedDocumentCreate.mock
+        .calls as unknown as Array<[{ data: { contenidoFinal: string } }]>;
+      expect(createCalls.at(-1)?.[0].data.contenidoFinal).toBe(
+        '<p>&lt;img src=x onerror=1&gt; $&amp;|&lt;script&gt;cargo&lt;/script&gt;</p>',
+      );
+    });
+
     it('reutiliza exactamente la materialización y publicación del flujo unificado', async () => {
       setupSuccessful();
 

@@ -11,6 +11,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { PdfRenderService } from '../pdf-render/pdf-render.service';
+import { replaceHtmlTemplateVariables } from '../pdf-render/template-html';
 import { StorageService } from '../storage/storage.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { parseContractPlanSnapshot } from '../contracts/contract-plan-snapshot';
@@ -636,11 +637,7 @@ img { max-width: 100%; height: auto; }
     template: string,
     variables: Record<string, string>,
   ): string {
-    let result = template;
-    for (const [key, value] of Object.entries(variables)) {
-      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
-    }
-    return result;
+    return replaceHtmlTemplateVariables(template, variables);
   }
 
   private formatTipoContrato(tipo: string): string {
