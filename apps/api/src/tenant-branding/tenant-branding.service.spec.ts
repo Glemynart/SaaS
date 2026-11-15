@@ -169,7 +169,7 @@ describe('TenantBrandingService', () => {
   it('lee la firma privada mediante StorageService', async () => {
     const body = Buffer.from('firma privada');
     mockTenantFindUnique.mockResolvedValue({
-      firmaRepresentanteUrl: '/uploads/firmas/t1-firma.png',
+      firmaRepresentanteUrl: '/uploads/firmas/t1-firma-1730000000000.png',
     });
     mockGetObject.mockResolvedValue(body);
 
@@ -181,20 +181,34 @@ describe('TenantBrandingService', () => {
       where: { id: 't1' },
       select: { firmaRepresentanteUrl: true },
     });
-    expect(mockGetObject).toHaveBeenCalledWith('firmas/t1-firma.png');
+    expect(mockGetObject).toHaveBeenCalledWith(
+      'firmas/t1-firma-1730000000000.png',
+    );
   });
 
   it('no expone una firma inexistente', async () => {
     mockTenantFindUnique.mockResolvedValue({
-      firmaRepresentanteUrl: '/uploads/firmas/missing.png',
+      firmaRepresentanteUrl: '/uploads/firmas/t1-firma-1730000000000.png',
     });
     mockGetObject.mockRejectedValue(
-      new StorageObjectNotFoundError('firmas/missing.png'),
+      new StorageObjectNotFoundError('firmas/t1-firma-1730000000000.png'),
     );
 
     await expect(service.getFirma('t1')).rejects.toThrow(
       'Archivo de firma no encontrado',
     );
+  });
+
+  it('no lee firmas cuya ruta almacenada no pertenece al tenant', async () => {
+    mockTenantFindUnique.mockResolvedValue({
+      firmaRepresentanteUrl: '/uploads/firmas/t2-firma-1730000000000.png',
+    });
+
+    await expect(service.getFirma('t1')).rejects.toThrow(
+      'Firma no configurada',
+    );
+
+    expect(mockGetObject).not.toHaveBeenCalled();
   });
 
   it('lee un logo público mediante StorageService', async () => {

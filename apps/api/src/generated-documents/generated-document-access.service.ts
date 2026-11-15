@@ -9,6 +9,7 @@ import type { CurrentUserPayload } from '../auth/decorators/current-user.decorat
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { StorageObjectNotFoundError } from '../storage/storage.types';
+import { getCanonicalGeneratedDocumentStorageKey } from './generated-document-storage-key';
 
 export interface GeneratedDocumentMetadata {
   id: string;
@@ -167,11 +168,19 @@ export class GeneratedDocumentAccessService {
     },
   ): Promise<Buffer> {
     const candidates = new Set<string>();
-    if (document.pdfStorageKey) candidates.add(document.pdfStorageKey);
-    candidates.add(`pdfs/${tenantId}-${document.id}.pdf`);
+    const canonicalStorageKey = getCanonicalGeneratedDocumentStorageKey(
+      tenantId,
+      document.id,
+    );
+    if (document.pdfStorageKey === canonicalStorageKey) {
+      candidates.add(document.pdfStorageKey);
+    }
+    candidates.add(canonicalStorageKey);
 
     const legacyStorageKey = this.getStorageKeyFromLegacyUrl(document.pdfUrl);
-    if (legacyStorageKey) candidates.add(legacyStorageKey);
+    if (legacyStorageKey === canonicalStorageKey) {
+      candidates.add(legacyStorageKey);
+    }
 
     for (const storageKey of candidates) {
       try {

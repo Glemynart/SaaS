@@ -192,6 +192,7 @@ export class TenantBrandingService {
 
     const storageKey = this.getStorageKeyFromPrivateUrl(
       tenant.firmaRepresentanteUrl,
+      tenantId,
     );
     if (!storageKey) throw new NotFoundException('Firma no configurada');
 
@@ -263,12 +264,19 @@ export class TenantBrandingService {
     });
   }
 
-  private getStorageKeyFromPrivateUrl(url: string | null): string | null {
+  private getStorageKeyFromPrivateUrl(
+    url: string | null,
+    tenantId: string,
+  ): string | null {
     const prefix = '/uploads/';
     if (!url?.startsWith(prefix)) return null;
 
     const storageKey = url.slice(prefix.length);
-    return storageKey || null;
+    const filenamePrefix = `firmas/${tenantId}-firma-`;
+    if (!storageKey.startsWith(filenamePrefix)) return null;
+
+    const filename = storageKey.slice(filenamePrefix.length);
+    return /^\d+\.(?:png|jpe?g|webp|svg)$/i.test(filename) ? storageKey : null;
   }
 
   private getImageContentType(storageKey: string): string {

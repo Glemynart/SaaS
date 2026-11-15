@@ -12,7 +12,12 @@ import { StorageService } from '../storage/storage.service';
 import { StorageObjectNotFoundError } from '../storage/storage.types';
 import type { StorageObjectMetadata } from '../storage/storage.types';
 import type { PdfMaterializationResult } from '../generated-documents/generated-documents.service';
+import { getCanonicalGeneratedDocumentStorageKey } from '../generated-documents/generated-document-storage-key';
 import { validateManualDocument } from './manual-document-validation';
+import {
+  isExpedienteStorageKeyOwnedByIdentity,
+  isServicePremiumStorageKeyOwnedByLine,
+} from './expediente-storage-key';
 import { randomUUID } from 'node:crypto';
 
 const TIPO_TO_CATEGORIA: Record<string, ExpedienteCategoria> = {
@@ -161,6 +166,7 @@ export class ExpedienteDocsService {
         where: { id, tenantId },
         select: {
           id: true,
+          empleadoId: true,
           nombre: true,
           mimeType: true,
           storageKey: true,
@@ -168,12 +174,24 @@ export class ExpedienteDocsService {
           version: true,
           categoria: true,
           generatedDocumentId: true,
+          servicePremiumLineId: true,
           contratoId: true,
         },
       }),
     );
     if (!document) {
       throw new NotFoundException('Documento no encontrado en el expediente');
+    }
+    if (
+      !isExpedienteStorageKeyOwnedByIdentity({
+        tenantId,
+        employeeId: document.empleadoId,
+        generatedDocumentId: document.generatedDocumentId,
+        servicePremiumLineId: document.servicePremiumLineId,
+        storageKey: document.storageKey,
+      })
+    ) {
+      throw new NotFoundException('Archivo de expediente no encontrado');
     }
 
     let body: Buffer;
@@ -379,6 +397,15 @@ export class ExpedienteDocsService {
     tx: Prisma.TransactionClient,
     contratoId?: string | null,
   ) {
+    if (
+      storageMetadata.key !==
+      getCanonicalGeneratedDocumentStorageKey(tenantId, generatedDocId)
+    ) {
+      throw new BadRequestException(
+        'La clave del PDF no corresponde al documento y empresa indicados.',
+      );
+    }
+
     const categoria = TIPO_TO_CATEGORIA[tipo] ?? ExpedienteCategoria.OTRO;
     const familiaId = randomUUID();
 
@@ -454,9 +481,17 @@ export class ExpedienteDocsService {
       );
     }
 
-    if (materialization.id !== generatedDocument.id) {
+    const canonicalStorageKey = getCanonicalGeneratedDocumentStorageKey(
+      tenantId,
+      generatedDocument.id,
+    );
+    if (
+      materialization.id !== generatedDocument.id ||
+      materialization.pdfStorageKey !== canonicalStorageKey ||
+      materialization.pdfUrl !== `/uploads/${canonicalStorageKey}`
+    ) {
       throw new BadRequestException(
-        'La materialización no corresponde al documento a publicar.',
+        'La materialización no corresponde al documento y empresa a publicar.',
       );
     }
 
@@ -599,6 +634,13 @@ export class ExpedienteDocsService {
         });
         if (!line)
           throw new NotFoundException('Liquidación de prima no encontrada.');
+        if (
+          !isServicePremiumStorageKeyOwnedByLine(tenantId, lineId, storageKey)
+        ) {
+          throw new BadRequestException(
+            'La clave del PDF no corresponde a la línea y empresa indicadas.',
+          );
+        }
         const existing = await tx.expedienteDoc.findFirst({
           where: { tenantId, servicePremiumLineId: lineId },
           select: { id: true, storageKey: true, tamanoBytes: true },

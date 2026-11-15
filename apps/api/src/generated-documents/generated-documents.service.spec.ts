@@ -1032,26 +1032,41 @@ describe('GeneratedDocumentsService.generatePdf', () => {
       expect(mockGetObject).not.toHaveBeenCalled();
     });
 
-    it('usa la clave canónica como fallback para documentos existentes', async () => {
-      const body = Buffer.from('PDF legado');
+    it('ignora metadata cruzada y recupera únicamente la clave canónica propia', async () => {
+      const body = Buffer.from('PDF del tenant propio');
       mockFindFirst.mockResolvedValue({
         id: 'd1',
         nombre: 'Documento legado',
-        pdfStorageKey: 'legacy/missing.pdf',
-        pdfUrl: '/uploads/pdfs/t1-d1.pdf',
+        pdfStorageKey: 'pdfs/tenant-otro-d2.pdf',
+        pdfUrl: '/uploads/pdfs/tenant-otro-d2.pdf',
       });
-      mockGetObject
-        .mockRejectedValueOnce(
-          new StorageObjectNotFoundError('legacy/missing.pdf'),
-        )
-        .mockResolvedValueOnce(body);
+      mockGetObject.mockResolvedValue(body);
 
       await expect(service.getPdfForDownload('t1', 'd1')).resolves.toEqual({
         nombre: 'Documento legado',
         body,
       });
-      expect(mockGetObject).toHaveBeenNthCalledWith(1, 'legacy/missing.pdf');
-      expect(mockGetObject).toHaveBeenNthCalledWith(2, 'pdfs/t1-d1.pdf');
+      expect(mockGetObject).toHaveBeenCalledTimes(1);
+      expect(mockGetObject).toHaveBeenCalledWith('pdfs/t1-d1.pdf');
+    });
+
+    it('no intenta leer claves cruzadas cuando falta el PDF canónico', async () => {
+      mockFindFirst.mockResolvedValue({
+        id: 'd1',
+        nombre: 'Documento',
+        pdfStorageKey: 'pdfs/tenant-otro-d2.pdf',
+        pdfUrl: '/uploads/pdfs/tenant-otro-d2.pdf',
+      });
+      mockGetObject.mockRejectedValue(
+        new StorageObjectNotFoundError('pdfs/t1-d1.pdf'),
+      );
+
+      await expect(service.getPdfForDownload('t1', 'd1')).rejects.toThrow(
+        'Archivo PDF no encontrado',
+      );
+
+      expect(mockGetObject).toHaveBeenCalledTimes(1);
+      expect(mockGetObject).toHaveBeenCalledWith('pdfs/t1-d1.pdf');
     });
 
     it('traduce la ausencia del archivo a NotFound', async () => {

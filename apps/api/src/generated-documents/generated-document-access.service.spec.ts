@@ -3,6 +3,7 @@ import { UserRole } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { StorageObjectNotFoundError } from '../storage/storage.types';
 import { GeneratedDocumentAccessService } from './generated-document-access.service';
 
 describe('GeneratedDocumentAccessService', () => {
@@ -92,5 +93,52 @@ describe('GeneratedDocumentAccessService', () => {
       }),
     );
     expect(findFirst).not.toHaveBeenCalled();
+  });
+
+  it('ignora claves PDF que no pertenecen al documento y tenant consultados', async () => {
+    const documentId = 'document-a';
+    const canonicalKey = `pdfs/${viewer.tenantId}-${documentId}.pdf`;
+    findFirst.mockResolvedValue({
+      id: documentId,
+      nombre: 'Contrato',
+      tipo: 'CONTRACT',
+      pdfStorageKey: 'pdfs/tenant-b-document-b.pdf',
+      pdfUrl: '/uploads/pdfs/tenant-b-document-b.pdf',
+    });
+    getObject.mockImplementation((key: string) => {
+      if (key === canonicalKey) return Buffer.from('PDF del tenant propio');
+      return Promise.reject(new StorageObjectNotFoundError(key));
+    });
+
+    await expect(
+      service.getDownload({ ...viewer, rol: UserRole.OPERADOR }, documentId),
+    ).resolves.toMatchObject({ body: Buffer.from('PDF del tenant propio') });
+
+    expect(getObject).toHaveBeenCalledTimes(1);
+    expect(getObject).toHaveBeenCalledWith(canonicalKey);
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ entityId: documentId }),
+    );
+  });
+
+  it('no accede a una clave cruzada si el PDF canónico tampoco existe', async () => {
+    const documentId = 'document-a';
+    const canonicalKey = `pdfs/${viewer.tenantId}-${documentId}.pdf`;
+    findFirst.mockResolvedValue({
+      id: documentId,
+      nombre: 'Contrato',
+      tipo: 'CONTRACT',
+      pdfStorageKey: 'pdfs/tenant-b-document-b.pdf',
+      pdfUrl: '/uploads/pdfs/tenant-b-document-b.pdf',
+    });
+    getObject.mockRejectedValue(new StorageObjectNotFoundError(canonicalKey));
+
+    await expect(
+      service.getDownload({ ...viewer, rol: UserRole.OPERADOR }, documentId),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(getObject).toHaveBeenCalledTimes(1);
+    expect(getObject).toHaveBeenCalledWith(canonicalKey);
+    expect(auditLog).not.toHaveBeenCalled();
   });
 });

@@ -19,6 +19,7 @@ describe('ExpedienteDocsService generated document indexing', () => {
   const mockTransaction = jest.fn();
   const mockAuditLog = jest.fn();
   const mockTenantPrismaExecute = jest.fn();
+  const mockStorageGetObject = jest.fn();
   const executeMockTransaction = mockTransaction as unknown as (
     work: (tx: unknown) => unknown,
   ) => unknown;
@@ -62,6 +63,7 @@ describe('ExpedienteDocsService generated document indexing', () => {
     mockExpedienteDocFamilyCreate.mockResolvedValue({ id: 'family-001' });
     mockExpedienteDocDelete.mockReset();
     mockAuditLog.mockResolvedValue(undefined);
+    mockStorageGetObject.mockReset().mockResolvedValue(Buffer.from('PDF'));
     mockTransaction.mockImplementation((work: (tx: unknown) => unknown) =>
       work({
         generatedDocument: {
@@ -104,7 +106,11 @@ describe('ExpedienteDocsService generated document indexing', () => {
         { provide: AuditService, useValue: { log: mockAuditLog } },
         {
           provide: StorageService,
-          useValue: { putObject: jest.fn(), deleteObject: jest.fn() },
+          useValue: {
+            putObject: jest.fn(),
+            getObject: mockStorageGetObject,
+            deleteObject: jest.fn(),
+          },
         },
       ],
     }).compile();
@@ -136,6 +142,54 @@ describe('ExpedienteDocsService generated document indexing', () => {
     );
 
     expect(mockExpedienteDocDelete).not.toHaveBeenCalled();
+  });
+
+  it('descarga documentos manuales solo desde la ruta de su tenant y empleado', async () => {
+    mockExpedienteDocFindFirst.mockResolvedValue({
+      id: 'expediente-001',
+      empleadoId: 'employee-001',
+      nombre: 'documento.pdf',
+      mimeType: 'application/pdf',
+      storageKey:
+        'tenant-001/expediente/employee-001/OTRO/family_v1_document-001.pdf',
+      familiaId: 'family-001',
+      version: 1,
+      categoria: 'OTRO',
+      generatedDocumentId: null,
+      servicePremiumLineId: null,
+      contratoId: null,
+    });
+
+    await expect(
+      service.download(tenantId, userId, 'expediente-001'),
+    ).resolves.toMatchObject({ body: Buffer.from('PDF') });
+
+    expect(mockStorageGetObject).toHaveBeenCalledWith(
+      'tenant-001/expediente/employee-001/OTRO/family_v1_document-001.pdf',
+    );
+  });
+
+  it('no lee claves de otros tenants desde metadata de expediente inconsistente', async () => {
+    mockExpedienteDocFindFirst.mockResolvedValue({
+      id: 'expediente-001',
+      empleadoId: 'employee-001',
+      nombre: 'documento.pdf',
+      mimeType: 'application/pdf',
+      storageKey: 'tenant-002/expediente/employee-002/OTRO/private.pdf',
+      familiaId: 'family-001',
+      version: 1,
+      categoria: 'OTRO',
+      generatedDocumentId: null,
+      servicePremiumLineId: null,
+      contratoId: null,
+    });
+
+    await expect(
+      service.download(tenantId, userId, 'expediente-001'),
+    ).rejects.toThrow('Archivo de expediente no encontrado');
+
+    expect(mockStorageGetObject).not.toHaveBeenCalled();
+    expect(mockAuditLog).not.toHaveBeenCalled();
   });
 
   it('crea el índice con la clave y tamaño canónicos dentro de la transacción', async () => {
@@ -225,6 +279,28 @@ describe('ExpedienteDocsService generated document indexing', () => {
     },
   );
 
+  it('rechaza indexar un PDF generado cuya clave no es canónica para su tenant', async () => {
+    const tx = {
+      expedienteDocFamily: { create: mockExpedienteDocFamilyCreate },
+      expedienteDoc: { create: mockExpedienteDocCreate },
+    } as unknown as Prisma.TransactionClient;
+
+    await expect(
+      service.createFromGeneratedDoc(
+        tenantId,
+        generatedDocumentId,
+        'employee-001',
+        'Documento generado',
+        'CERTIFICATION',
+        { key: 'pdfs/tenant-002-other-document.pdf', size: 10 },
+        tx,
+      ),
+    ).rejects.toThrow('La clave del PDF no corresponde');
+
+    expect(mockExpedienteDocFamilyCreate).not.toHaveBeenCalled();
+    expect(mockExpedienteDocCreate).not.toHaveBeenCalled();
+  });
+
   it('publica CERTIFICATION con categoría CERTIFICADO sin requerir contrato', async () => {
     mockGeneratedDocumentFindFirst.mockResolvedValue(
       makeGeneratedDocument({
@@ -263,6 +339,24 @@ describe('ExpedienteDocsService generated document indexing', () => {
       }),
       expect.anything(),
     );
+  });
+
+  it('rechaza publicar metadata PDF que no corresponde al documento y tenant', async () => {
+    await expect(
+      service.publishGeneratedDocument(
+        tenantId,
+        userId,
+        generatedDocumentId,
+        makeMaterialization({
+          pdfStorageKey: 'pdfs/tenant-002-other-document.pdf',
+          pdfUrl: '/uploads/pdfs/tenant-002-other-document.pdf',
+        }),
+      ),
+    ).rejects.toThrow('La materialización no corresponde');
+
+    expect(mockTransaction).toHaveBeenCalledTimes(1);
+    expect(mockGeneratedDocumentUpdate).not.toHaveBeenCalled();
+    expect(mockExpedienteDocCreate).not.toHaveBeenCalled();
   });
 
   it('mantiene el requisito de contrato para publicar CONTRACT', async () => {

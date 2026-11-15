@@ -2706,13 +2706,27 @@ La entrega de documentos generados y del expediente pasa por controladores con
 JWT, tenant activo y roles; las búsquedas incluyen tenant y las respuestas PDF
 usan `Cache-Control: private, no-store`. La asociación de cada registro con su
 `storageKey` se mantiene por los servicios que construyen claves con el tenant;
-no existe una restricción de base que valide el prefijo/identificador del objeto
-frente al tenant del registro. No se demostró una clave cruzada, pero conviene
-añadir esa comprobación como defensa en profundidad antes de ampliar más el
-almacenamiento documental. También se confirmó que las URLs HTTP del logo de
-empresa son bloqueadas por el renderer junto con las demás solicitudes remotas;
-por tanto, pueden no aparecer en el PDF. No se abrió el acceso de red para
-resolverlo, pues requeriría un mecanismo seguro de carga local del activo.
+no existe una restricción de base que valide la identidad del objeto frente al
+tenant del registro. No se reprodujo una clave cruzada desde una ruta HTTP, y
+los DTOs no permiten que el cliente envíe `storageKey`; el riesgo observado era
+de metadata inconsistente. Como defensa en profundidad, las descargas ahora
+aceptan solo la clave canónica generada para el tenant/documento, o la ruta
+tenant/empleado o tenant/línea de prima correspondiente; la publicación valida
+las mismas identidades antes de guardar referencias. La firma privada también
+debe tener la ruta y el nombre generados para el tenant antes de leer Storage.
+La clave histórica canónica `pdfs/{tenantId}-{documentId}.pdf` sigue siendo
+válida. Estas comprobaciones no sustituyen una futura restricción relacional de
+base ni demuestran el estado de datos desplegados. También se confirmó que las
+URLs HTTP del logo de empresa son bloqueadas por el renderer junto con las
+demás solicitudes remotas; por tanto, pueden no aparecer en el PDF. No se abrió
+el acceso de red para resolverlo, pues requeriría un mecanismo seguro de carga
+local del activo. Validación posterior de la defensa de claves: 7 suites
+unitarias/HTTP (87 pruebas), typecheck y build de API aprobados; las fuentes
+modificadas y las specs nuevas pasan ESLint. Dos specs extensas conservan los
+mismos hallazgos ESLint que su versión base. En una base temporal PostgreSQL
+17.11 se aplicaron las 119 migraciones y la suite real de RLS de expediente
+pasó 5/5; el contenedor usó una red dedicada y volumen temporal en RAM, y se
+retiró al finalizar. Ninguna base desplegada fue modificada.
 
 ### Aislamiento de resultados del scheduler de alertas — GOAL-02 (2026-11-15)
 

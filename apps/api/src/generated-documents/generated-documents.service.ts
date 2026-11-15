@@ -18,6 +18,7 @@ import { PdfRenderService } from '../pdf-render/pdf-render.service';
 import { escapeHtml } from '../pdf-render/template-html';
 import { formatNombreCompleto } from '@saas/types';
 import { isImmutablePublishedDocumentType } from './document-invariants';
+import { getCanonicalGeneratedDocumentStorageKey } from './generated-document-storage-key';
 
 interface ReplacementContext {
   NOMBRE_COMPLETO: string;
@@ -286,11 +287,19 @@ export class GeneratedDocumentsService {
     }
 
     const candidates = new Set<string>();
-    if (doc.pdfStorageKey) candidates.add(doc.pdfStorageKey);
-    candidates.add(this.getCanonicalPdfStorageKey(tenantId, doc.id));
+    const canonicalStorageKey = getCanonicalGeneratedDocumentStorageKey(
+      tenantId,
+      doc.id,
+    );
+    if (doc.pdfStorageKey === canonicalStorageKey) {
+      candidates.add(doc.pdfStorageKey);
+    }
+    candidates.add(canonicalStorageKey);
 
     const legacyStorageKey = this.getStorageKeyFromLegacyUrl(doc.pdfUrl);
-    if (legacyStorageKey) candidates.add(legacyStorageKey);
+    if (legacyStorageKey === canonicalStorageKey) {
+      candidates.add(legacyStorageKey);
+    }
 
     for (const storageKey of candidates) {
       try {
@@ -361,7 +370,10 @@ export class GeneratedDocumentsService {
       throw new NotFoundException('Documento generado no encontrado');
     }
 
-    const storageKey = this.getCanonicalPdfStorageKey(doc.tenantId, doc.id);
+    const storageKey = getCanonicalGeneratedDocumentStorageKey(
+      doc.tenantId,
+      doc.id,
+    );
     const pdfUrl = this.getPdfUrl(storageKey);
     let pdfSizeBytes: number;
     let materialized = false;
@@ -446,7 +458,7 @@ export class GeneratedDocumentsService {
     if (!tenant) throw new NotFoundException('Empresa no encontrada');
 
     const html = this.buildPdfHtml(doc.contenidoFinal, tenant, doc.employee);
-    const storageKey = this.getCanonicalPdfStorageKey(tenantId, id);
+    const storageKey = getCanonicalGeneratedDocumentStorageKey(tenantId, id);
     const publishedIndexHint = await this.tenantPrisma.execute((tx) =>
       tx.expedienteDoc.findFirst({
         where: { tenantId, generatedDocumentId: id },
@@ -663,7 +675,10 @@ export class GeneratedDocumentsService {
     documentId: string,
     pdfBuffer: Buffer,
   ) {
-    const storageKey = this.getCanonicalPdfStorageKey(tenantId, documentId);
+    const storageKey = getCanonicalGeneratedDocumentStorageKey(
+      tenantId,
+      documentId,
+    );
     const stored = await this.storage.putObject({
       key: storageKey,
       body: pdfBuffer,
@@ -671,13 +686,6 @@ export class GeneratedDocumentsService {
     });
 
     return { ...stored, storageKey, pdfUrl: this.getPdfUrl(storageKey) };
-  }
-
-  private getCanonicalPdfStorageKey(
-    tenantId: string,
-    documentId: string,
-  ): string {
-    return `pdfs/${tenantId}-${documentId}.pdf`;
   }
 
   private getPdfUrl(storageKey: string): string {
