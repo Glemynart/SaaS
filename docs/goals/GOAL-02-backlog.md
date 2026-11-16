@@ -2663,10 +2663,15 @@ final de esta sección; no se aplicó una política genérica a todos los modelo
 En `AuditLog`, la búsqueda de código confirma que el único escritor productivo
 es `AuditService`, que no instala ni verifica el GUC tenant; sus llamadores
 incluyen operaciones autenticadas, login/recuperación/invitaciones públicas y
-el scheduler multiempresa. No se encontraron lecturas productivas de esta
-tabla. El riesgo demostrado es de integridad y atribución de auditoría, no una
-ruta de lectura cruzada. RLS genérico rompería escritores válidos hasta
-centralizar el contexto y distinguir la identidad de sistema.
+el scheduler multiempresa. `userId` es obligatorio y no tiene FK: el scheduler
+registra el actor sintético `system:alerts-scheduler` y el worker de prima usa
+`service-premium-worker`, ninguno de los cuales es una fila de `users`. Por eso
+una FK compuesta genérica a usuario tampoco sería compatible. No se encontraron
+lecturas productivas de esta tabla. El riesgo demostrado es de integridad y
+atribución de auditoría, no una ruta de lectura cruzada. Antes de RLS se debe
+definir cómo representar actores de sistema y validar el par tenant/actor en
+un punto central; la política no debe convertir identificadores sintéticos en
+usuarios ficticios.
 
 La migración `20261116080000_password_reset_tenant_integrity` valida los datos
 existentes y aborta si encuentra un token asociado a otro tenant; luego reemplaza
