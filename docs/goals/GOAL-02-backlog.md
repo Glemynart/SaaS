@@ -2713,11 +2713,13 @@ de errores. No se añadieron pruebas PostgreSQL específicas de rollback para
 cada mutación.
 
 La búsqueda global de llamadas best-effort encontró además flujos de
-importación de empleados, contratos, lotes, documentos generados y sedes. El
-CRUD de empleados ya trasladó sus tres auditorías a la transacción que escribe
-el empleado y, en creación, su afiliación PILA inicial. Cada ruta tiene una
-prueba unitaria de propagación del fallo. Los demás call sites deben revisarse
-por método antes de clasificarlos: los registros de fallo, acceso y telemetría
+importación de empleados, contratos, lotes y documentos generados. La creación
+y actualización de sedes ya auditan con actor dentro de su transacción; la
+actualización ahora recibe el usuario autenticado desde el controlador. El CRUD
+de empleados trasladó sus tres auditorías a la transacción que escribe el
+empleado y, al crear, su afiliación PILA inicial. Cada una de estas rutas tiene
+pruebas unitarias de cliente transaccional y propagación del fallo. Los demás
+call sites deben revisarse por método: registros de fallo, acceso y telemetría
 no son por sí mismos una mutación exitosa sin auditoría.
 
 La migración `20261116080000_password_reset_tenant_integrity` valida los datos

@@ -43,7 +43,11 @@ export class SedesController {
 
   @Roles(UserRole.ADMIN)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateSedeDto) {
-    return this.sedesService.update(id, dto);
+  update(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateSedeDto,
+  ) {
+    return this.sedesService.update(user.userId, id, dto);
   }
 }
