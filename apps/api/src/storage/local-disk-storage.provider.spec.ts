@@ -62,6 +62,29 @@ describe('LocalDiskStorageProvider', () => {
     expect(await provider.exists(key)).toBe(true);
   });
 
+  it('lista recursivamente solo los objetos del prefijo solicitado', async () => {
+    await provider.put({ key, body: Buffer.from('x') });
+    await provider.put({
+      key: 'tenant-1/expediente/otro.pdf',
+      body: Buffer.from('longer'),
+    });
+    await provider.put({
+      key: 'tenant-2/expediente/otro.pdf',
+      body: Buffer.from('y'),
+    });
+
+    await expect(provider.list('tenant-1/expediente/')).resolves.toEqual([
+      { key: 'tenant-1/expediente/emp-1/CONTRATO/doc_v1.pdf', size: 1 },
+      { key: 'tenant-1/expediente/otro.pdf', size: 6 },
+    ]);
+  });
+
+  it('devuelve una lista vacía si el prefijo aún no existe', async () => {
+    await expect(provider.list('tenant-absent/pila-exports/')).resolves.toEqual(
+      [],
+    );
+  });
+
   it('confirma que el root local está disponible para el runtime', async () => {
     await expect(provider.checkReadiness()).resolves.toBeUndefined();
   });

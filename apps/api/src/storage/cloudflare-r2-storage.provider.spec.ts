@@ -172,6 +172,29 @@ describe('CloudflareR2StorageProvider', () => {
     await expect(provider.checkReadiness()).resolves.toBeUndefined();
     expect(send).toHaveBeenCalledTimes(1);
   });
+
+  it('lista todas las páginas dentro del prefijo sin salir de su namespace', async () => {
+    send
+      .mockResolvedValueOnce({
+        Contents: [
+          { Key: 'tenants/t1/pila-exports/a/type-1.txt', Size: 10 },
+          { Key: 'tenants/t2/pila-exports/b/type-1.txt', Size: 20 },
+        ],
+        IsTruncated: true,
+        NextContinuationToken: 'next-page',
+      })
+      .mockResolvedValueOnce({
+        Contents: [{ Key: 'tenants/t1/pila-exports/a/type-2.txt', Size: 12 }],
+        IsTruncated: false,
+      });
+    const provider = new CloudflareR2StorageProvider();
+
+    await expect(provider.list('tenants/t1/pila-exports/')).resolves.toEqual([
+      { key: 'tenants/t1/pila-exports/a/type-1.txt', size: 10 },
+      { key: 'tenants/t1/pila-exports/a/type-2.txt', size: 12 },
+    ]);
+    expect(send).toHaveBeenCalledTimes(2);
+  });
 });
 
 function s3Error(name: string, statusCode?: number): Error {

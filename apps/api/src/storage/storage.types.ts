@@ -36,6 +36,8 @@ export interface StorageProvider {
   get(key: string): Promise<Buffer>;
   delete(key: string): Promise<void>;
   exists(key: string): Promise<boolean>;
+  /** Lista objetos bajo un prefijo lógico, sin recorrer otros tenants. */
+  list(prefix: string): Promise<StorageObjectMetadata[]>;
   /** Comprueba que el backend está disponible para el runtime. */
   checkReadiness?(): Promise<void>;
 }

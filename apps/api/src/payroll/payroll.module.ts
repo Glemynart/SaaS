@@ -10,16 +10,24 @@ import { PayrollCorrectionAccountingService } from './accounting/payroll-correct
 import { ServicePremiumModule } from './service-premium/service-premium.module';
 import { PilaExportController } from './pila-export.controller';
 import { PilaExportService } from './pila-export.service';
+import { PilaExportReconciliationController } from './pila-export-reconciliation.controller';
+import { PilaExportReconciliationService } from './pila-export-reconciliation.service';
 
 @Module({
   imports: [TenantsModule, AccountingModule, ServicePremiumModule],
-  controllers: [PayrollController, LiquidationController, PilaExportController],
+  controllers: [
+    PayrollController,
+    LiquidationController,
+    PilaExportController,
+    PilaExportReconciliationController,
+  ],
   providers: [
     PayrollService,
     LiquidationService,
     PayrollAccountingPreflightService,
     PayrollCorrectionAccountingService,
     PilaExportService,
+    PilaExportReconciliationService,
   ],
 })
 export class PayrollModule {}

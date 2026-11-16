@@ -9,6 +9,7 @@ describe('StorageService', () => {
   const mockGet = jest.fn();
   const mockDelete = jest.fn();
   const mockExists = jest.fn();
+  const mockList = jest.fn();
   const mockCheckReadiness = jest.fn();
 
   beforeEach(async () => {
@@ -16,6 +17,7 @@ describe('StorageService', () => {
     mockGet.mockReset();
     mockDelete.mockReset();
     mockExists.mockReset();
+    mockList.mockReset();
     mockCheckReadiness.mockReset();
 
     const provider: StorageProvider = {
@@ -23,6 +25,7 @@ describe('StorageService', () => {
       get: mockGet,
       delete: mockDelete,
       exists: mockExists,
+      list: mockList,
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -70,12 +73,23 @@ describe('StorageService', () => {
     expect(mockExists).toHaveBeenCalledWith('k');
   });
 
+  it('delega listObjects en el proveedor', async () => {
+    const result = [{ key: 'tenants/a/pila-exports/x/type-1.txt', size: 3 }];
+    mockList.mockResolvedValue(result);
+
+    await expect(service.listObjects('tenants/a/pila-exports/')).resolves.toBe(
+      result,
+    );
+    expect(mockList).toHaveBeenCalledWith('tenants/a/pila-exports/');
+  });
+
   it('delega checkReadiness en el proveedor cuando está disponible', async () => {
     const provider: StorageProvider = {
       put: mockPut,
       get: mockGet,
       delete: mockDelete,
       exists: mockExists,
+      list: mockList,
       checkReadiness: mockCheckReadiness,
     };
     const moduleRef = await Test.createTestingModule({

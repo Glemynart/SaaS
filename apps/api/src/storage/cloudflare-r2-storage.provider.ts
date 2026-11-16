@@ -2,6 +2,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -178,6 +179,36 @@ export class CloudflareR2StorageProvider implements StorageProvider {
       if (this.isMissingObject(error)) return false;
       throw this.translateError(error, key);
     }
+  }
+
+  async list(prefix: string): Promise<StorageObjectMetadata[]> {
+    this.validateConfiguration();
+    this.validateKey(prefix);
+
+    const results: StorageObjectMetadata[] = [];
+    let continuationToken: string | undefined;
+    do {
+      try {
+        const page = await this.client.send(
+          new ListObjectsV2Command({
+            Bucket: process.env.R2_BUCKET,
+            Prefix: prefix,
+            ContinuationToken: continuationToken,
+          }),
+        );
+        for (const object of page.Contents ?? []) {
+          if (!object.Key?.startsWith(prefix)) continue;
+          results.push({ key: object.Key, size: object.Size ?? 0 });
+        }
+        continuationToken = page.IsTruncated
+          ? page.NextContinuationToken
+          : undefined;
+      } catch (error) {
+        throw this.translateError(error, prefix);
+      }
+    } while (continuationToken);
+
+    return results.sort((left, right) => left.key.localeCompare(right.key));
   }
 
   async checkReadiness(): Promise<void> {

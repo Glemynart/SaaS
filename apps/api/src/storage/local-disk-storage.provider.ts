@@ -74,6 +74,38 @@ export class LocalDiskStorageProvider implements StorageProvider {
     }
   }
 
+  async list(prefix: string): Promise<StorageObjectMetadata[]> {
+    const directory = this.resolveKey(prefix);
+    const results: StorageObjectMetadata[] = [];
+
+    const visit = async (currentPath: string): Promise<void> => {
+      let entries: import('fs').Dirent[];
+      try {
+        entries = await fs.readdir(currentPath, { withFileTypes: true });
+      } catch (error: unknown) {
+        if (this.isNotFound(error)) return;
+        throw error;
+      }
+
+      for (const entry of entries) {
+        const entryPath = path.join(currentPath, entry.name);
+        if (entry.isDirectory()) {
+          await visit(entryPath);
+        } else if (entry.isFile()) {
+          const stat = await fs.stat(entryPath);
+          const relative = path.relative(this.root, entryPath);
+          results.push({
+            key: relative.split(path.sep).join('/'),
+            size: stat.size,
+          });
+        }
+      }
+    };
+
+    await visit(directory);
+    return results.sort((left, right) => left.key.localeCompare(right.key));
+  }
+
   async checkReadiness(): Promise<void> {
     await fs.mkdir(this.root, { recursive: true });
     await fs.access(this.root);

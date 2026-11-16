@@ -122,7 +122,13 @@ function memoryStorage(initial: Array<[string, Buffer]> = []): {
   });
 
   const memory = {
-    storage: { put, get, delete: remove, exists } as StorageProvider,
+    storage: {
+      put,
+      get,
+      delete: remove,
+      exists,
+      list: jest.fn().mockResolvedValue([]),
+    } as StorageProvider,
     put,
     putIfAbsent: jest.fn(),
     objects,
@@ -146,6 +152,7 @@ function memoryStorage(initial: Array<[string, Buffer]> = []): {
     get,
     delete: remove,
     exists,
+    list: jest.fn().mockResolvedValue([]),
     putIfAbsent: memory.putIfAbsent,
   } as unknown as StorageProvider;
   return memory;
