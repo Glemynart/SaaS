@@ -43,7 +43,7 @@ describe('Payroll accounting PostgreSQL integration', () => {
     prisma,
     new TenantContextBoundary(contextService),
   );
-  const audit = new AuditService(prisma);
+  const audit = new AuditService(prisma, tenantPrisma, contextService);
   const service = new PayrollService(
     prisma,
     tenantPrisma,

@@ -15,6 +15,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../tenant-context/tenant-context.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
+import {
+  AuditActor,
+  SYSTEM_AUDIT_ACTORS,
+  SystemAuditActorId,
+} from '../audit/audit-actor';
 import { AlertsService } from './alerts.service';
 
 const ALERTS_SCHEDULER_KEY = 'alerts-daily-generation';
@@ -22,15 +27,14 @@ const MAX_ATTEMPTS = 2;
 const RETENTION_DAYS = 180;
 const STALE_RUN_HOURS = 2;
 const SCHEDULER_CONTEXT = {
-  userId: 'system:alerts-scheduler',
+  userId: SYSTEM_AUDIT_ACTORS.ALERTS_SCHEDULER,
   rol: 'SYSTEM',
   email: 'alerts-scheduler@internal.invalid',
 } as const;
 
-type RunActor = {
-  userId: string;
-  role: string;
-};
+type RunActor =
+  | { kind: 'HUMAN'; userId: string; role: string }
+  | { kind: 'SYSTEM'; userId: SystemAuditActorId; role: string };
 
 type RunClaim = {
   run: {
@@ -97,7 +101,11 @@ export class AlertsSchedulerService {
   async runDailyGeneration(): Promise<DailyAlertGenerationSummary> {
     return this.executeRun({
       trigger: AlertGenerationRunTrigger.SCHEDULED,
-      actor: { userId: SCHEDULER_CONTEXT.userId, role: SCHEDULER_CONTEXT.rol },
+      actor: {
+        kind: 'SYSTEM',
+        userId: SCHEDULER_CONTEXT.userId,
+        role: SCHEDULER_CONTEXT.rol,
+      },
     });
   }
 
@@ -155,7 +163,7 @@ export class AlertsSchedulerService {
   ): Promise<DailyAlertGenerationSummary> {
     const failedResult = await this.withTenantActorContext(
       tenantId,
-      { userId, role: 'ADMIN' },
+      { kind: 'HUMAN', userId, role: 'ADMIN' },
       () =>
         this.tenantPrisma.execute((prisma, context) =>
           prisma.alertGenerationRunTenant.findFirst({
@@ -183,7 +191,7 @@ export class AlertsSchedulerService {
       trigger: AlertGenerationRunTrigger.MANUAL_RETRY,
       parentRunId: failedResult.runId,
       tenantIds: [tenantId],
-      actor: { userId, role: 'ADMIN' },
+      actor: { kind: 'HUMAN', userId, role: 'ADMIN' },
     });
 
     if (result.skipped) {
@@ -313,7 +321,7 @@ export class AlertsSchedulerService {
           await this.auditService.log(
             {
               tenantId,
-              userId: actor.userId,
+              actor: this.toAuditActor(actor),
               action: 'ALERT_GENERATION_FINISHED',
               entityType: 'AlertGenerationRun',
               entityId: runId,
@@ -535,7 +543,7 @@ export class AlertsSchedulerService {
       return this.auditService.log(
         {
           tenantId,
-          userId: actor.userId,
+          actor: this.toAuditActor(actor),
           action,
           entityType: 'AlertGenerationRun',
           entityId:
@@ -608,6 +616,12 @@ export class AlertsSchedulerService {
       },
       work,
     );
+  }
+
+  private toAuditActor(actor: RunActor): AuditActor {
+    return actor.kind === 'SYSTEM'
+      ? { kind: 'SYSTEM', id: actor.userId }
+      : { kind: 'HUMAN', id: actor.userId };
   }
 
   private async purgeExpiredRuns(tx: Prisma.TransactionClient) {

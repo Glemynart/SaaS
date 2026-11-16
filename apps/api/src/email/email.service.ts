@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createTransport, type Transporter } from 'nodemailer';
 import { AuditService } from '../audit/audit.service';
+import { AuditActor } from '../audit/audit-actor';
 import { passwordResetTemplate } from './templates/password-reset.template';
 import { userInvitationTemplate } from './templates/user-invitation.template';
 
@@ -38,10 +39,10 @@ interface SendParams<T extends EmailType> {
   type: T;
   to: string;
   payload: EmailPayloadMap[T];
-  auditContext: {
-    tenantId: string;
-    userId: string;
-  };
+  auditContext: { tenantId: string } & (
+    | { actor: AuditActor; userId?: never }
+    | { userId: string; actor?: never }
+  );
 }
 
 @Injectable()
@@ -146,7 +147,9 @@ export class EmailService implements OnModuleInit {
       await this.audit
         .log({
           tenantId: auditContext.tenantId,
-          userId: auditContext.userId,
+          ...('actor' in auditContext && auditContext.actor
+            ? { actor: auditContext.actor }
+            : { userId: auditContext.userId }),
           action: 'EMAIL_FAILED',
           entityType: 'Email',
           metadata: {

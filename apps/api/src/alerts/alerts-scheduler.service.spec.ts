@@ -3,6 +3,7 @@ import {
   AlertGenerationRunTenantStatus,
   Prisma,
 } from '@prisma/client';
+import { SYSTEM_AUDIT_ACTORS } from '../audit/audit-actor';
 import { AlertsSchedulerService } from './alerts-scheduler.service';
 
 describe('AlertsSchedulerService', () => {
@@ -211,7 +212,10 @@ describe('AlertsSchedulerService', () => {
       expect.anything(),
     );
     expect(auditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'ALERT_GENERATION_STARTED' }),
+      expect.objectContaining({
+        action: 'ALERT_GENERATION_STARTED',
+        actor: { kind: 'SYSTEM', id: SYSTEM_AUDIT_ACTORS.ALERTS_SCHEDULER },
+      }),
       expect.anything(),
     );
     expect(auditLog).toHaveBeenCalledWith(
@@ -306,6 +310,12 @@ describe('AlertsSchedulerService', () => {
     expect(generateForTenant).toHaveBeenNthCalledWith(
       1,
       tenantB,
+      expect.anything(),
+    );
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: { kind: 'HUMAN', id: 'admin-1' },
+      }),
       expect.anything(),
     );
   });

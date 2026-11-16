@@ -2903,3 +2903,32 @@ de clave foránea hacia `User` ni RLS genérico; esa restricción histórica se
 mantiene pendiente de una decisión global de atribución para actores públicos
 y de sistema. Validación local: 10 suites focalizadas y 127 pruebas aprobadas,
 typecheck, ESLint de los archivos de autenticación y build de API aprobados.
+
+### Atribución explícita y RLS de AuditLog — GOAL-02 (2026-11-16)
+
+ADR-025, aceptada bajo delegación de Producto, resuelve la diferencia entre
+usuarios humanos, solicitudes públicas y workers. La columna física histórica
+`userId` se conserva, mientras Prisma la expone como `actorId` junto con
+`actorKind` (`HUMAN` / `SYSTEM`). Las solicitudes públicas de restablecimiento
+se registran con el actor de sistema `system:password-reset` y guardan el usuario
+objetivo por separado; el scheduler y el worker de prima usan identidades
+permitidas explícitamente. Los reintentos manuales siguen atribuidos al admin.
+
+`AuditService` verifica tenant y actor contra el contexto autenticado; las
+escrituras humanas sin contexto comprueban que el actor exista en ese tenant.
+Las transacciones validan el GUC existente o instalan el tenant solo para esa
+transacción. La nueva migración habilita y fuerza RLS en `audit_logs`, con
+lectura e inserción por tenant y sin políticas de actualización o eliminación.
+El permiso `TRUNCATE` no se concede al rol runtime en el bootstrap administrado;
+los roles de aplicación deben permanecer sin ownership, `SUPERUSER` ni
+`BYPASSRLS`.
+
+En la rama aislada `codex/goal02-auditlog-actor-attribution`, las 121
+migraciones y las 174 suites/2.204 pruebas de API pasan contra PostgreSQL
+16.15 desechable. La prueba específica verifica aislamiento entre tenants,
+ausencia de acceso sin contexto, rechazo de inserción cruzada y bloqueo de
+update/delete con un rol no propietario `NOSUPERUSER NOBYPASSRLS`. Typecheck,
+build y ESLint de los archivos modificados también pasan. El cambio todavía no
+está en `main` y no se ha aplicado a staging ni producción. Antes de cualquier
+despliegue debe confirmarse el rol real de conexión de producción y su ausencia
+de `BYPASSRLS`, ownership y `TRUNCATE`; no se comprobó desde este worktree.

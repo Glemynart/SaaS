@@ -1059,7 +1059,7 @@ export async function seedFinancialDemoScenario(
     const contextService = new TenantContextService();
     const tenantContext = new TenantContextBoundary(contextService);
     const tenantPrisma = new TenantPrismaService(prisma, tenantContext);
-    const audit = new AuditService(prisma);
+    const audit = new AuditService(prisma, tenantPrisma, contextService);
     const ledger = new LedgerService(tenantPrisma, audit);
     const billing = new BillingService(tenantPrisma, ledger, audit);
     const customerReceipts = new CustomerReceiptsService(

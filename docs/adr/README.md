@@ -23,3 +23,4 @@
 | [ADR-022](ADR-022-pila-vac-lr-subtype.md)                           | Clasificación explícita del evento PILA VAC-LR                         | aceptada bajo delegación de Producto                              | 2026-11-08 |
 | [ADR-023](ADR-023-pila-vacation-prior-ibc-declaration.md)           | Captura declarada del último IBC reportado antes de vacaciones         | aceptada bajo delegación de Producto / Nómina                     | 2026-11-08 |
 | [ADR-024](ADR-024-pila-vacation-remuneration-declaration.md)        | Captura declarada de remuneración por vacaciones disfrutadas           | aceptada bajo delegación de Producto / Nómina                     | 2026-11-09 |
+| [ADR-025](ADR-025-audit-actor-attribution-and-rls.md)               | Atribución de actores y aislamiento de AuditLog                        | aceptada bajo delegación de Producto                              | 2026-11-16 |

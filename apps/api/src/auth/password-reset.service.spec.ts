@@ -1,9 +1,19 @@
 import * as bcrypt from 'bcrypt';
 import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
+import { SYSTEM_AUDIT_ACTORS } from '../audit/audit-actor';
 import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PasswordResetService } from './password-reset.service';
+
+type PasswordResetAuditCall = [
+  {
+    actor: { kind: string; id: string };
+    action: string;
+    metadata: Record<string, unknown>;
+  },
+  unknown,
+];
 
 describe('PasswordResetService reset link delivery', () => {
   it('does not send a reset email if the token audit fails', async () => {
@@ -52,10 +62,17 @@ describe('PasswordResetService reset link delivery', () => {
       }),
     ).rejects.toThrow('audit unavailable');
 
-    expect(auditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'PASSWORD_RESET_REQUESTED' }),
-      tx,
-    );
+    const [auditInput, auditTransaction] = auditLog.mock
+      .calls[0] as unknown as PasswordResetAuditCall;
+    expect(auditInput).toMatchObject({
+      actor: { kind: 'SYSTEM', id: SYSTEM_AUDIT_ACTORS.PASSWORD_RESET },
+      action: 'PASSWORD_RESET_REQUESTED',
+      metadata: {
+        requester: 'UNAUTHENTICATED',
+        subjectUserId: 'user-1',
+      },
+    });
+    expect(auditTransaction).toBe(tx);
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
@@ -112,9 +129,27 @@ describe('PasswordResetService reset link delivery', () => {
       'Si el correo existe, recibirás instrucciones para restablecer tu contraseña.',
     );
     expect(sendEmail).toHaveBeenCalledTimes(1);
-    expect(auditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'PASSWORD_RESET_REQUESTED' }),
-      tx,
+    const [auditInput, auditTransaction] = auditLog.mock
+      .calls[0] as unknown as PasswordResetAuditCall;
+    expect(auditInput).toMatchObject({
+      actor: { kind: 'SYSTEM', id: SYSTEM_AUDIT_ACTORS.PASSWORD_RESET },
+      action: 'PASSWORD_RESET_REQUESTED',
+      metadata: {
+        requester: 'UNAUTHENTICATED',
+        subjectUserId: 'user-1',
+      },
+    });
+    expect(auditTransaction).toBe(tx);
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auditContext: {
+          tenantId: 'tenant-1',
+          actor: {
+            kind: 'SYSTEM',
+            id: SYSTEM_AUDIT_ACTORS.PASSWORD_RESET,
+          },
+        },
+      }),
     );
     expect(sentResetUrl).toBeDefined();
     if (!sentResetUrl) throw new Error('Reset email was not sent');

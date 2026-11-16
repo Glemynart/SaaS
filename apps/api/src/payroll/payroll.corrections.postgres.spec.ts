@@ -57,7 +57,7 @@ describe('Payroll corrections PostgreSQL integration', () => {
   const service = new PayrollService(
     prisma,
     tenantPrisma,
-    new AuditService(prisma),
+    new AuditService(prisma, tenantPrisma, tenantContext),
     {} as LedgerService,
     {} as PayrollAccountingPreflightService,
   );
