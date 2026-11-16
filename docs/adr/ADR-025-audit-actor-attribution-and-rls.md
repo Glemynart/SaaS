@@ -31,8 +31,13 @@ modelos que no comparten un patrón tenant-scoped compatible.
    una lista central. El scheduler registra `system:alerts-scheduler`; el
    worker de prima registra `system:service-premium-worker`; una solicitud
    anónima de restablecimiento registra `system:password-reset` y conserva el
-   usuario objetivo como sujeto, no como actor. El reintento manual del
-   scheduler sigue atribuido al administrador autenticado.
+   usuario objetivo como sujeto, no como actor. La finalización mediante el
+   token de restablecimiento también registra al sistema como actor y conserva
+   el usuario objetivo como sujeto. La aceptación de una invitación se atribuye
+   al usuario creado por el token de invitación y registra explícitamente
+   `authenticationMethod=INVITATION_TOKEN`; esto no afirma que hubiera una
+   sesión autenticada. El reintento manual del scheduler sigue atribuido al
+   administrador autenticado.
 4. Para una transacción existente, el servicio comprueba que el GUC de tenant
    coincida con el evento. Cuando falta contexto en una ruta pública, instala
    el GUC con alcance local a la transacción y aplica RLS antes de insertar.
@@ -66,6 +71,18 @@ La migración y el comportamiento se probaron contra PostgreSQL desechable
 `NOSUPERUSER NOBYPASSRLS` que no es propietario: sin contexto no lee filas; con
 un tenant ve solo sus eventos; el tenant incorrecto no puede insertar; no puede
 actualizar ni borrar y no tiene `TRUNCATE`. Las suites completas de API pasan.
+
+La revisión del 2026-11-16 inicializó una base desechable PostgreSQL 17.11 con
+las 120 migraciones de `main` y aplicó la migración 121 de esta rama mediante
+Prisma Migrate; después ejecutó la prueba RLS con el rol restringido. La prueba
+ahora cubre también que un restablecimiento por token se registra como actor
+`SYSTEM`, que una aceptación preautenticada de invitación se atribuye al usuario
+creado con el método `INVITATION_TOKEN`, y que una identidad humana de otro
+tenant se rechaza. Las cuatro suites enfocadas (RLS PostgreSQL, servicio de
+auditoría, restablecimiento e invitaciones) pasaron con 30 pruebas; typecheck,
+ESLint y `git diff --check` también pasaron. La suite PostgreSQL aborta antes de
+conectar o limpiar si el host no es loopback o el nombre de base no identifica
+un entorno de test, CI o descartable.
 
 La identidad y los privilegios del usuario de base de datos realmente usado
 por producción no se comprobaron y esta migración todavía no se aplicó allí.

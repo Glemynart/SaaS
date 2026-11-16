@@ -10,6 +10,7 @@ type PasswordResetAuditCall = [
   {
     actor: { kind: string; id: string };
     action: string;
+    entityId?: string;
     metadata: Record<string, unknown>;
   },
   unknown,
@@ -317,10 +318,23 @@ describe('PasswordResetService reset token validation', () => {
       id: validRecord.userId,
       tenantId: validRecord.tenantId,
     });
-    expect(auditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'PASSWORD_RESET_COMPLETED' }),
-      transactionClient,
-    );
+    const [auditInput, auditTransaction] = auditLog.mock.calls[
+      auditLog.mock.calls.length - 1
+    ] as unknown as PasswordResetAuditCall;
+    expect(auditInput).toMatchObject({
+      actor: {
+        kind: 'SYSTEM',
+        id: SYSTEM_AUDIT_ACTORS.PASSWORD_RESET,
+      },
+      action: 'PASSWORD_RESET_COMPLETED',
+      entityId: validRecord.userId,
+      metadata: {
+        requester: 'UNAUTHENTICATED',
+        authenticationMethod: 'PASSWORD_RESET_TOKEN',
+        subjectUserId: validRecord.userId,
+      },
+    });
+    expect(auditTransaction).toBe(transactionClient);
   });
 
   it('rejects password reset when its audit event cannot be recorded', async () => {

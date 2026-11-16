@@ -1,6 +1,7 @@
 import { Prisma, UserRole } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { AuditService } from './audit.service';
+import { SYSTEM_AUDIT_ACTORS } from './audit-actor';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextBoundary } from '../tenant-context/tenant-context.boundary';
 import { TenantContextService } from '../tenant-context/tenant-context.service';
@@ -15,6 +16,7 @@ describe('AuditLog PostgreSQL RLS', () => {
   const actorB = randomUUID();
   const auditA = randomUUID();
   const auditB = randomUUID();
+  let connected = false;
   const tenantContext = new TenantContextService();
   const prisma = new PrismaService();
   const rolePrisma = {
@@ -42,7 +44,9 @@ describe('AuditLog PostgreSQL RLS', () => {
   );
 
   beforeAll(async () => {
+    assertDisposableDatabase();
     await prisma.$connect();
+    connected = true;
     await dropTestRole();
     await prisma.$executeRawUnsafe(
       'CREATE ROLE "' + role + '" NOLOGIN NOSUPERUSER NOBYPASSRLS',
@@ -55,6 +59,9 @@ describe('AuditLog PostgreSQL RLS', () => {
         role +
         '"',
     );
+    await prisma.$executeRawUnsafe(
+      'GRANT SELECT ON TABLE "users" TO "' + role + '"',
+    );
     await prisma.tenant.createMany({
       data: [tenantData(tenantA, 'a'), tenantData(tenantB, 'b')],
     });
@@ -64,6 +71,7 @@ describe('AuditLog PostgreSQL RLS', () => {
   }, 30000);
 
   afterAll(async () => {
+    if (!connected) return;
     try {
       await prisma.auditLog.deleteMany({
         where: { tenantId: { in: [tenantA, tenantB] } },
@@ -170,6 +178,89 @@ describe('AuditLog PostgreSQL RLS', () => {
     ).toEqual([{ entityId: auditA, actorId: actorA, actorKind: 'HUMAN' }]);
   });
 
+  it('records a token reset as a system actor and scopes the event to its tenant', async () => {
+    await auditService.log({
+      tenantId: tenantA,
+      actor: { kind: 'SYSTEM', id: SYSTEM_AUDIT_ACTORS.PASSWORD_RESET },
+      action: 'PASSWORD_RESET_COMPLETED',
+      entityType: 'Auth',
+      entityId: actorA,
+      metadata: {
+        requester: 'UNAUTHENTICATED',
+        authenticationMethod: 'PASSWORD_RESET_TOKEN',
+        subjectUserId: actorA,
+      },
+    });
+
+    const visibleToTenantA = await runAsRole(tenantA, (tx) =>
+      tx.auditLog.findFirst({
+        where: {
+          entityId: actorA,
+          action: 'PASSWORD_RESET_COMPLETED',
+        },
+      }),
+    );
+    const visibleToTenantB = await runAsRole(tenantB, (tx) =>
+      tx.auditLog.findFirst({
+        where: {
+          entityId: actorA,
+          action: 'PASSWORD_RESET_COMPLETED',
+        },
+      }),
+    );
+
+    expect(visibleToTenantA).toMatchObject({
+      tenantId: tenantA,
+      actorId: SYSTEM_AUDIT_ACTORS.PASSWORD_RESET,
+      actorKind: 'SYSTEM',
+      action: 'PASSWORD_RESET_COMPLETED',
+      entityType: 'Auth',
+      entityId: actorA,
+      metadata: {
+        requester: 'UNAUTHENTICATED',
+        authenticationMethod: 'PASSWORD_RESET_TOKEN',
+        subjectUserId: actorA,
+      },
+    });
+    expect(visibleToTenantB).toBeNull();
+  });
+
+  it('validates a pre-authenticated human against the tenant before auditing', async () => {
+    const invitationEventId = randomUUID();
+    await auditService.log({
+      tenantId: tenantA,
+      userId: actorA,
+      action: 'USER_INVITATION_ACCEPTED',
+      entityType: 'UserInvitation',
+      entityId: invitationEventId,
+      metadata: { authenticationMethod: 'INVITATION_TOKEN' },
+    });
+
+    await expect(
+      auditService.log({
+        tenantId: tenantA,
+        userId: actorB,
+        action: 'USER_INVITATION_ACCEPTED',
+        entityType: 'UserInvitation',
+        entityId: randomUUID(),
+      }),
+    ).rejects.toThrow('El actor humano no pertenece al tenant');
+
+    const stored = await runAsRole(tenantA, (tx) =>
+      tx.auditLog.findFirst({ where: { entityId: invitationEventId } }),
+    );
+    expect(stored).toMatchObject({
+      tenantId: tenantA,
+      actorId: actorA,
+      actorKind: 'HUMAN',
+      action: 'USER_INVITATION_ACCEPTED',
+      metadata: { authenticationMethod: 'INVITATION_TOKEN' },
+    });
+    await expect(
+      prisma.auditLog.count({ where: { entityId: invitationEventId } }),
+    ).resolves.toBe(1);
+  });
+
   it('rejects cross-tenant inserts and prevents runtime updates and deletes', async () => {
     await expect(
       runAsRole(tenantA, (tx) =>
@@ -273,6 +364,30 @@ describe('AuditLog PostgreSQL RLS', () => {
       digitoVerif: '1',
       razonSocial: `Tenant audit log ${suffix}`,
     };
+  }
+
+  function assertDisposableDatabase() {
+    const value = process.env.DATABASE_URL;
+    if (!value)
+      throw new Error('DATABASE_URL is required for PostgreSQL tests.');
+
+    let parsed: URL;
+    try {
+      parsed = new URL(value);
+    } catch {
+      throw new Error('PostgreSQL tests require a valid DATABASE_URL.');
+    }
+
+    const loopbackHosts = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+    const databaseName = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
+    if (
+      !loopbackHosts.has(parsed.hostname) ||
+      !/(test|ci|disposable)/i.test(databaseName)
+    ) {
+      throw new Error(
+        'PostgreSQL RLS tests require a loopback database whose name identifies it as test, CI, or disposable.',
+      );
+    }
   }
 
   function actorData(id: string, tenantId: string, suffix: string) {

@@ -153,11 +153,20 @@ export class PasswordResetService {
       await this.auditService.log(
         {
           tenantId: dbToken.tenantId,
-          userId: dbToken.userId,
+          actor: {
+            kind: 'SYSTEM',
+            id: SYSTEM_AUDIT_ACTORS.PASSWORD_RESET,
+          },
           action: 'PASSWORD_RESET_COMPLETED',
           entityType: 'Auth',
           entityId: dbToken.userId,
-          metadata: { ip: ipAddress ?? null, userAgent: userAgent ?? null },
+          metadata: {
+            requester: 'UNAUTHENTICATED',
+            authenticationMethod: 'PASSWORD_RESET_TOKEN',
+            subjectUserId: dbToken.userId,
+            ip: ipAddress ?? null,
+            userAgent: userAgent ?? null,
+          },
         },
         tx,
       );

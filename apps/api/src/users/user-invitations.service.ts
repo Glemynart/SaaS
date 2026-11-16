@@ -356,6 +356,7 @@ export class UserInvitationsService {
             entityId: invitation.id,
             metadata: {
               rol: invitation.rol,
+              authenticationMethod: 'INVITATION_TOKEN',
               ip: params.ipAddress ?? null,
               userAgent: params.userAgent ?? null,
             },
