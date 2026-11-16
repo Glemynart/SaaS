@@ -2673,6 +2673,17 @@ definir cómo representar actores de sistema y validar el par tenant/actor en
 un punto central; la política no debe convertir identificadores sintéticos en
 usuarios ficticios.
 
+La revisión del Ledger encontró además que `registrarComprobante`, la
+anulación en período abierto y la creación de reverso invocaban `AuditService`
+sin esperar el resultado y descartaban errores, pese a que ADR-001 I9 exige
+auditar esas transiciones. Ahora las tres operaciones esperan el registro y le
+pasan su cliente transaccional; un fallo de auditoría se propaga y la
+transacción de `TenantPrismaService` no confirma el asiento o cambio de estado.
+Las pruebas unitarias verifican el cliente transaccional y la propagación del
+fallo para las tres rutas. Queda pendiente extender la revisión a los eventos
+de nómina y otros escritores que todavía usan auditoría asíncrona no
+transaccional; no se generalizó el cambio fuera de este límite financiero.
+
 La migración `20261116080000_password_reset_tenant_integrity` valida los datos
 existentes y aborta si encuentra un token asociado a otro tenant; luego reemplaza
 la FK por una relación compuesta con `users(tenantId, id)`. La suite PostgreSQL
