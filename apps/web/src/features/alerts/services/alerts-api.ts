@@ -40,7 +40,7 @@ export type AlertGenerationRunStatus = 'RUNNING' | 'SUCCEEDED' | 'PARTIAL' | 'FA
 export interface AlertGenerationRun {
   id: string;
   trigger: 'SCHEDULED' | 'MANUAL_RETRY';
-  status: AlertGenerationTenantStatus;
+  status: AlertGenerationRunStatus;
   startedAt: string;
   finishedAt: string | null;
   tenantResult: {

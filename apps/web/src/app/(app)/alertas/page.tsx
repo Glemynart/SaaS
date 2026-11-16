@@ -135,7 +135,7 @@ export default function AlertasPage() {
               </p>
             )}
           </div>
-          {latestRun && <StatusBadge domain="alertGenerationTenant" estado={latestRun.status} />}
+          {latestRun && <StatusBadge domain="alertGenerationRun" estado={latestRun.status} />}
         </div>
 
         {latestRun?.tenantResult?.status === 'FAILED' && (
