@@ -69,9 +69,8 @@ export class LiquidationService {
     // Serialize liquidation creation with RET capture and payroll generation.
     // All three paths lock this tenant-owned employee row before checking the
     // cross-module state that could otherwise pay the retirement month twice.
-    let liquidation;
     try {
-      const outcome = await this.tenantPrisma.execute(async (tx) => {
+      return await this.tenantPrisma.execute(async (tx) => {
         await tx.$queryRaw<Array<{ id: string }>>`
           SELECT "id" FROM "empleados"
           WHERE "tenantId" = ${tenantId} AND "id" = ${empleadoId}
@@ -151,29 +150,25 @@ export class LiquidationService {
           ),
           include: { concepts: true },
         });
-        return { liquidation, emp, diasLiquidados, result };
-      });
-      liquidation = outcome.liquidation;
-
-      // ── 7. Auditoría ───────────────────────────────────────────────────────
-      this.audit
-        .log({
-          tenantId,
-          userId,
-          action: 'LIQUIDATION_CREATED',
-          entityType: 'Liquidation',
-          entityId: liquidation.id,
-          metadata: {
-            empleadoId,
-            fechaRetiro: outcome.emp.fechaRetiro!.toISOString().slice(0, 10),
-            diasLiquidados: outcome.diasLiquidados,
-            totalLiquidacion: outcome.result.totalLiquidacion,
-            conceptosGenerados: outcome.result.conceptos.length,
+        await this.audit.log(
+          {
+            tenantId,
+            userId,
+            action: 'LIQUIDATION_CREATED',
+            entityType: 'Liquidation',
+            entityId: liquidation.id,
+            metadata: {
+              empleadoId,
+              fechaRetiro: emp.fechaRetiro.toISOString().slice(0, 10),
+              diasLiquidados,
+              totalLiquidacion: result.totalLiquidacion,
+              conceptosGenerados: result.conceptos.length,
+            },
           },
-        })
-        .catch(() => {});
-
-      return liquidation;
+          tx,
+        );
+        return liquidation;
+      });
     } catch (e) {
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&
@@ -370,53 +365,49 @@ export class LiquidationService {
     target: LiquidationStatus,
     auditAction: string,
   ) {
-    const { liquidation, empleadoId } = await this.tenantPrisma.execute(
-      async (tx) => {
-        const liq = await tx.liquidation.findFirst({
-          where: { id: liquidationId, tenantId },
-          select: { id: true, status: true, empleadoId: true },
-        });
+    return this.tenantPrisma.execute(async (tx) => {
+      const liq = await tx.liquidation.findFirst({
+        where: { id: liquidationId, tenantId },
+        select: { id: true, status: true, empleadoId: true },
+      });
 
-        if (!liq) {
-          throw new NotFoundException('Liquidación no encontrada');
-        }
+      if (!liq) {
+        throw new NotFoundException('Liquidación no encontrada');
+      }
 
-        this.assertTransition(liq.status, target);
+      this.assertTransition(liq.status, target);
 
-        const { count } = await tx.liquidation.updateMany({
-          where: { id: liquidationId, tenantId, status: liq.status },
-          data: { status: target },
-        });
+      const { count } = await tx.liquidation.updateMany({
+        where: { id: liquidationId, tenantId, status: liq.status },
+        data: { status: target },
+      });
 
-        if (count === 0) {
-          throw new ConflictException(
-            'La liquidación cambió de estado de forma concurrente. ' +
-              'Recargue e intente de nuevo.',
-          );
-        }
+      if (count === 0) {
+        throw new ConflictException(
+          'La liquidación cambió de estado de forma concurrente. ' +
+            'Recargue e intente de nuevo.',
+        );
+      }
 
-        const liquidation = await tx.liquidation.findFirst({
-          where: { id: liquidationId, tenantId },
-          include: { concepts: true },
-        });
-        if (!liquidation) {
-          throw new NotFoundException('Liquidación no encontrada');
-        }
-        return { liquidation, empleadoId: liq.empleadoId };
-      },
-    );
-
-    this.audit
-      .log({
-        tenantId,
-        userId,
-        action: auditAction,
-        entityType: 'Liquidation',
-        entityId: liquidationId,
-        metadata: { empleadoId },
-      })
-      .catch(() => {});
-
-    return liquidation;
+      const liquidation = await tx.liquidation.findFirst({
+        where: { id: liquidationId, tenantId },
+        include: { concepts: true },
+      });
+      if (!liquidation) {
+        throw new NotFoundException('Liquidación no encontrada');
+      }
+      await this.audit.log(
+        {
+          tenantId,
+          userId,
+          action: auditAction,
+          entityType: 'Liquidation',
+          entityId: liquidationId,
+          metadata: { empleadoId: liq.empleadoId },
+        },
+        tx,
+      );
+      return liquidation;
+    });
   }
 }

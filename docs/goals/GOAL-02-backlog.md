@@ -2698,9 +2698,16 @@ provoca un fallo de auditoría al crear un período y comprueba que la fila no s
 persista. Esa prueba representa el límite real de rollback para el patrón; la
 suite no introduce un caso PostgreSQL separado para cada operación de cálculo.
 
+El mismo límite transaccional se aplicó a crear una liquidación laboral y a
+aprobarla, marcarla pagada o anularla. Las cuatro rutas entregan el mismo
+cliente Prisma a `AuditService.log`; un error se propaga para revertir el cambio
+de estado y la auditoría queda obligatoria para la operación. La suite unitaria
+de liquidaciones verifica el cliente y la propagación. No se añadió una prueba
+PostgreSQL específica para cada transición.
+
 La búsqueda estática posterior también encontró escrituras exitosas con
 auditoría best-effort en cuentas contables, mapeos del sistema, terceros,
-centros y períodos contables, provisión/desprovisión y liquidaciones laborales.
+centros y períodos contables y provisión/desprovisión.
 Las llamadas que solo intentan registrar un fallo ya ocurrido se clasifican
 aparte: su auditoría no precede ni acompaña una mutación exitosa. Estos flujos
 son la siguiente cohorte de integridad; requieren revisar sus límites

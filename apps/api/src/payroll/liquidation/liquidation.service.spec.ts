@@ -140,6 +140,32 @@ describe('LiquidationService — validaciones de dominio', () => {
     await expect(
       service.createLiquidacion('tenant-1', 'user-1', 'emp-001'),
     ).resolves.toBeDefined();
+    expect(mockAudit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'LIQUIDATION_CREATED',
+        entityId: 'liq-001',
+      }),
+      mockPrisma,
+    );
+  });
+
+  it('no confirma la liquidación si falla su registro de auditoría', async () => {
+    mockEmpleadoFindFirst.mockResolvedValue(makeEmp());
+    mockLiquidationFindFirst.mockResolvedValue(null);
+    mockPayrollPeriodFindFirst.mockResolvedValue(null);
+    mockPrisma.liquidation.create.mockResolvedValue({
+      id: 'liq-001',
+      concepts: [],
+    });
+    mockAudit.log.mockRejectedValueOnce(new Error('audit down'));
+
+    await expect(
+      service.createLiquidacion('tenant-1', 'user-1', 'emp-001'),
+    ).rejects.toThrow('audit down');
+    expect(mockAudit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'LIQUIDATION_CREATED' }),
+      mockPrisma,
+    );
   });
 
   it('bloquea crear liquidación si ya existe cualquier evento RET del empleado', async () => {
@@ -472,6 +498,23 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
         entityType: 'Liquidation',
         entityId: LIQ_ID,
       }),
+      mockPrisma,
+    );
+  });
+
+  it('no confirma una transición si falla su registro de auditoría', async () => {
+    mockLiquidationFindFirst
+      .mockResolvedValueOnce(makeLiq('DRAFT'))
+      .mockResolvedValueOnce(makeLiq('APPROVED'));
+    mockLiquidationUpdateMany.mockResolvedValue({ count: 1 });
+    mockAudit.log.mockRejectedValueOnce(new Error('audit down'));
+
+    await expect(
+      service.approveLiquidation(TENANT, USER, LIQ_ID),
+    ).rejects.toThrow('audit down');
+    expect(mockAudit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'LIQUIDATION_APPROVED' }),
+      mockPrisma,
     );
   });
 
@@ -545,6 +588,7 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
         entityType: 'Liquidation',
         entityId: LIQ_ID,
       }),
+      mockPrisma,
     );
   });
 
@@ -629,6 +673,7 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
         entityType: 'Liquidation',
         entityId: LIQ_ID,
       }),
+      mockPrisma,
     );
   });
 
