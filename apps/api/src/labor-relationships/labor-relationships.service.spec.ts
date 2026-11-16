@@ -49,6 +49,7 @@ function relationship(overrides: Record<string, unknown> = {}) {
 
 describe('LaborRelationshipsService', () => {
   let service: LaborRelationshipsService;
+  let transactionClient: MockTenantClient;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -56,26 +57,23 @@ describe('LaborRelationshipsService', () => {
     employeeFindFirst.mockResolvedValue({ id: EMPLOYEE_ID });
     profileFindFirst.mockResolvedValue({ id: PROFILE_ID });
     relationshipFindFirst.mockResolvedValue(null);
+    transactionClient = {
+      empleado: { findFirst: employeeFindFirst },
+      perfilContractual: { findFirst: profileFindFirst },
+      vinculoLaboral: {
+        findFirst: relationshipFindFirst,
+        findMany: relationshipFindMany,
+        create: relationshipCreate,
+        update: relationshipUpdate,
+      },
+    };
     execute.mockImplementation(
       (
         work: (
           client: MockTenantClient,
           context: { tenantId: string },
         ) => unknown,
-      ) =>
-        work(
-          {
-            empleado: { findFirst: employeeFindFirst },
-            perfilContractual: { findFirst: profileFindFirst },
-            vinculoLaboral: {
-              findFirst: relationshipFindFirst,
-              findMany: relationshipFindMany,
-              create: relationshipCreate,
-              update: relationshipUpdate,
-            },
-          },
-          { tenantId: TENANT_ID },
-        ),
+      ) => work(transactionClient, { tenantId: TENANT_ID }),
     );
     service = new LaborRelationshipsService(
       { execute } as unknown as TenantPrismaService,
@@ -104,6 +102,25 @@ describe('LaborRelationshipsService', () => {
     );
     expect(auditLog).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'LABOR_RELATIONSHIP_CREATE' }),
+      transactionClient,
+    );
+  });
+
+  it('propaga fallos de auditoría al crear dentro de la transacción', async () => {
+    relationshipCreate.mockResolvedValue(relationship());
+    auditLog.mockRejectedValueOnce(new Error('audit down'));
+
+    await expect(
+      service.create(USER_ID, {
+        empleadoId: EMPLOYEE_ID,
+        perfilContractualId: PROFILE_ID,
+        vigenteDesde: '2026-01-01',
+      }),
+    ).rejects.toThrow('audit down');
+
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'LABOR_RELATIONSHIP_CREATE' }),
+      transactionClient,
     );
   });
 
@@ -124,6 +141,10 @@ describe('LaborRelationshipsService', () => {
         where: { id: RELATIONSHIP_ID },
         data: objectContaining({ perfilContractualId: 'profile-new' }),
       }),
+    );
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'LABOR_RELATIONSHIP_UPDATE' }),
+      transactionClient,
     );
   });
 

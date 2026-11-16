@@ -22,29 +22,33 @@ export class ContractualProfilesService {
   ) {}
 
   async create(userId: string, dto: CreateContractualProfileDto) {
-    const { profile, tenantId } = await this.tenantPrisma.execute(
-      async (prisma, context) => {
-        const existing = await prisma.perfilContractual.findFirst({
-          where: { tenantId: context.tenantId, codigo: dto.codigo },
-          select: { id: true },
-        });
-        if (existing) {
-          throw new BadRequestException(
-            'Ya existe un perfil contractual con este código.',
-          );
-        }
+    return this.tenantPrisma.execute(async (prisma, context) => {
+      const existing = await prisma.perfilContractual.findFirst({
+        where: { tenantId: context.tenantId, codigo: dto.codigo },
+        select: { id: true },
+      });
+      if (existing) {
+        throw new BadRequestException(
+          'Ya existe un perfil contractual con este código.',
+        );
+      }
 
-        const profile = await prisma.perfilContractual.create({
-          data: { ...dto, tenantId: context.tenantId },
-        });
-        return { profile, tenantId: context.tenantId };
-      },
-    );
-
-    this.log(userId, tenantId, 'CONTRACTUAL_PROFILE_CREATE', profile.id, {
-      codigo: profile.codigo,
+      const profile = await prisma.perfilContractual.create({
+        data: { ...dto, tenantId: context.tenantId },
+      });
+      await this.auditService.log(
+        {
+          tenantId: context.tenantId,
+          userId,
+          action: 'CONTRACTUAL_PROFILE_CREATE',
+          entityType: 'PerfilContractual',
+          entityId: profile.id,
+          metadata: { codigo: profile.codigo },
+        },
+        prisma,
+      );
+      return profile;
     });
-    return profile;
   }
 
   async findAll(query: ContractualProfileQueryDto) {
@@ -72,21 +76,25 @@ export class ContractualProfilesService {
   }
 
   async update(userId: string, id: string, dto: UpdateContractualProfileDto) {
-    const { profile, tenantId } = await this.tenantPrisma.execute(
-      async (prisma, context) => {
-        await this.findOneInTenant(prisma, context.tenantId, id);
-        const profile = await prisma.perfilContractual.update({
-          where: { id },
-          data: dto,
-        });
-        return { profile, tenantId: context.tenantId };
-      },
-    );
-
-    this.log(userId, tenantId, 'CONTRACTUAL_PROFILE_UPDATE', id, {
-      fields: Object.keys(dto),
+    return this.tenantPrisma.execute(async (prisma, context) => {
+      await this.findOneInTenant(prisma, context.tenantId, id);
+      const profile = await prisma.perfilContractual.update({
+        where: { id },
+        data: dto,
+      });
+      await this.auditService.log(
+        {
+          tenantId: context.tenantId,
+          userId,
+          action: 'CONTRACTUAL_PROFILE_UPDATE',
+          entityType: 'PerfilContractual',
+          entityId: id,
+          metadata: { fields: Object.keys(dto) },
+        },
+        prisma,
+      );
+      return profile;
     });
-    return profile;
   }
 
   async updateStatus(
@@ -94,29 +102,25 @@ export class ContractualProfilesService {
     id: string,
     dto: UpdateContractualProfileStatusDto,
   ) {
-    const { profile, tenantId, previousActive } =
-      await this.tenantPrisma.execute(async (prisma, context) => {
-        const current = await this.findOneInTenant(
-          prisma,
-          context.tenantId,
-          id,
-        );
-        const profile = await prisma.perfilContractual.update({
-          where: { id },
-          data: { activo: dto.activo },
-        });
-        return {
-          profile,
-          tenantId: context.tenantId,
-          previousActive: current.activo,
-        };
+    return this.tenantPrisma.execute(async (prisma, context) => {
+      const current = await this.findOneInTenant(prisma, context.tenantId, id);
+      const profile = await prisma.perfilContractual.update({
+        where: { id },
+        data: { activo: dto.activo },
       });
-
-    this.log(userId, tenantId, 'CONTRACTUAL_PROFILE_STATUS_CHANGE', id, {
-      previousActive,
-      active: profile.activo,
+      await this.auditService.log(
+        {
+          tenantId: context.tenantId,
+          userId,
+          action: 'CONTRACTUAL_PROFILE_STATUS_CHANGE',
+          entityType: 'PerfilContractual',
+          entityId: id,
+          metadata: { previousActive: current.activo, active: profile.activo },
+        },
+        prisma,
+      );
+      return profile;
     });
-    return profile;
   }
 
   async assignToContract(
@@ -124,40 +128,44 @@ export class ContractualProfilesService {
     contractId: string,
     dto: AssignContractualProfileDto,
   ) {
-    const { contract, tenantId } = await this.tenantPrisma.execute(
-      async (prisma, context) => {
-        const profile = await prisma.perfilContractual.findFirst({
-          where: {
-            id: dto.perfilContractualId,
-            tenantId: context.tenantId,
-            activo: true,
-          },
-          select: { id: true },
-        });
-        if (!profile) {
-          throw new BadRequestException(
-            'El perfil contractual no existe, no pertenece a la empresa o está inactivo.',
-          );
-        }
+    return this.tenantPrisma.execute(async (prisma, context) => {
+      const profile = await prisma.perfilContractual.findFirst({
+        where: {
+          id: dto.perfilContractualId,
+          tenantId: context.tenantId,
+          activo: true,
+        },
+        select: { id: true },
+      });
+      if (!profile) {
+        throw new BadRequestException(
+          'El perfil contractual no existe, no pertenece a la empresa o está inactivo.',
+        );
+      }
 
-        const contract = await prisma.contrato.findFirst({
-          where: { id: contractId, tenantId: context.tenantId },
-          select: { id: true, perfilContractualId: true },
-        });
-        if (!contract) throw new NotFoundException('Contrato no encontrado');
+      const contract = await prisma.contrato.findFirst({
+        where: { id: contractId, tenantId: context.tenantId },
+        select: { id: true, perfilContractualId: true },
+      });
+      if (!contract) throw new NotFoundException('Contrato no encontrado');
 
-        const updated = await prisma.contrato.update({
-          where: { id: contract.id },
-          data: { perfilContractualId: profile.id },
-        });
-        return { contract: updated, tenantId: context.tenantId };
-      },
-    );
-
-    this.log(userId, tenantId, 'CONTRACTUAL_PROFILE_ASSIGN', contract.id, {
-      perfilContractualId: dto.perfilContractualId,
+      const updated = await prisma.contrato.update({
+        where: { id: contract.id },
+        data: { perfilContractualId: profile.id },
+      });
+      await this.auditService.log(
+        {
+          tenantId: context.tenantId,
+          userId,
+          action: 'CONTRACTUAL_PROFILE_ASSIGN',
+          entityType: 'PerfilContractual',
+          entityId: updated.id,
+          metadata: { perfilContractualId: dto.perfilContractualId },
+        },
+        prisma,
+      );
+      return updated;
     });
-    return contract;
   }
 
   private async findOneInTenant(
@@ -171,24 +179,5 @@ export class ContractualProfilesService {
     if (!profile)
       throw new NotFoundException('Perfil contractual no encontrado');
     return profile;
-  }
-
-  private log(
-    userId: string,
-    tenantId: string,
-    action: string,
-    entityId: string,
-    metadata: Record<string, unknown>,
-  ) {
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action,
-        entityType: 'PerfilContractual',
-        entityId,
-        metadata,
-      })
-      .catch(() => {});
   }
 }

@@ -501,10 +501,23 @@ export class GeneratedDocumentsService {
             );
           }
 
+          const pdfUrl = this.getPdfUrl(existingExpedienteDoc.storageKey);
+          await this.auditService.log(
+            {
+              tenantId,
+              userId,
+              action: 'PDF_GENERATE',
+              entityType: 'GeneratedDocument',
+              entityId: documentReference.id,
+              metadata: { pdfUrl },
+            },
+            tx,
+          );
+
           return {
             id: documentReference.id,
             tenantId,
-            pdfUrl: this.getPdfUrl(existingExpedienteDoc.storageKey),
+            pdfUrl,
             nombre: documentReference.nombre,
           };
         }
@@ -555,22 +568,22 @@ export class GeneratedDocumentsService {
           tx,
           result.contratoId,
         );
+        await this.auditService.log(
+          {
+            tenantId: result.tenantId,
+            userId,
+            action: 'PDF_GENERATE',
+            entityType: 'GeneratedDocument',
+            entityId: result.id,
+            metadata: { pdfUrl: result.pdfUrl },
+          },
+          tx,
+        );
 
         return result;
       },
       { maxWait: 10_000, timeout: 30_000 },
     );
-
-    this.auditService
-      .log({
-        tenantId: updated.tenantId,
-        userId,
-        action: 'PDF_GENERATE',
-        entityType: 'GeneratedDocument',
-        entityId: updated.id,
-        metadata: { pdfUrl: updated.pdfUrl },
-      })
-      .catch(() => {});
 
     return { id: updated.id, pdfUrl: updated.pdfUrl, nombre: updated.nombre };
   }

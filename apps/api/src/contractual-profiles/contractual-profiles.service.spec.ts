@@ -48,32 +48,30 @@ function makeProfile(overrides: Record<string, unknown> = {}) {
 
 describe('ContractualProfilesService', () => {
   let service: ContractualProfilesService;
+  let transactionClient: MockTenantClient;
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockAuditLog.mockResolvedValue(undefined);
+    transactionClient = {
+      perfilContractual: {
+        findFirst: mockProfileFindFirst,
+        findMany: mockProfileFindMany,
+        create: mockProfileCreate,
+        update: mockProfileUpdate,
+      },
+      contrato: {
+        findFirst: mockContractFindFirst,
+        update: mockContractUpdate,
+      },
+    };
     mockExecute.mockImplementation(
       (
         work: (
           client: MockTenantClient,
           context: { tenantId: string },
         ) => unknown,
-      ) =>
-        work(
-          {
-            perfilContractual: {
-              findFirst: mockProfileFindFirst,
-              findMany: mockProfileFindMany,
-              create: mockProfileCreate,
-              update: mockProfileUpdate,
-            },
-            contrato: {
-              findFirst: mockContractFindFirst,
-              update: mockContractUpdate,
-            },
-          },
-          { tenantId: TENANT_ID },
-        ),
+      ) => work(transactionClient, { tenantId: TENANT_ID }),
     );
     service = new ContractualProfilesService(
       { execute: mockExecute } as unknown as TenantPrismaService,
@@ -97,6 +95,22 @@ describe('ContractualProfilesService', () => {
         action: 'CONTRACTUAL_PROFILE_CREATE',
         entityId: PROFILE_ID,
       }),
+      transactionClient,
+    );
+  });
+
+  it('propaga fallos de auditoría al crear dentro de la transacción', async () => {
+    mockProfileFindFirst.mockResolvedValue(null);
+    mockProfileCreate.mockResolvedValue(makeProfile());
+    mockAuditLog.mockRejectedValueOnce(new Error('audit down'));
+
+    await expect(
+      service.create(USER_ID, { codigo: 'DOCENTE', nombre: 'Docente' }),
+    ).rejects.toThrow('audit down');
+
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'CONTRACTUAL_PROFILE_CREATE' }),
+      transactionClient,
     );
   });
 
@@ -124,6 +138,10 @@ describe('ContractualProfilesService', () => {
       where: { id: PROFILE_ID },
       data: { nombre: 'Docente titular', descripcion: 'Escalafón base' },
     });
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'CONTRACTUAL_PROFILE_UPDATE' }),
+      transactionClient,
+    );
   });
 
   it('activa o inactiva el perfil y conserva la asignación histórica', async () => {
@@ -141,6 +159,7 @@ describe('ContractualProfilesService', () => {
         action: 'CONTRACTUAL_PROFILE_STATUS_CHANGE',
         metadata: { previousActive: true, active: false },
       }),
+      transactionClient,
     );
   });
 
@@ -165,6 +184,7 @@ describe('ContractualProfilesService', () => {
         action: 'CONTRACTUAL_PROFILE_ASSIGN',
         entityId: CONTRACT_ID,
       }),
+      transactionClient,
     );
   });
 

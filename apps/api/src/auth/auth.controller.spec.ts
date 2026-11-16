@@ -10,6 +10,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { PasswordResetService } from './password-reset.service';
 import { UserInvitationsService } from '../users/user-invitations.service';
+import type { Request } from 'express';
 
 describe('AuthController reset token validation', () => {
   let app: INestApplication<App>;
@@ -68,5 +69,56 @@ describe('AuthController reset token validation', () => {
       .expect(200, { valid: false });
 
     expect(validateResetToken).toHaveBeenCalledWith(undefined);
+  });
+});
+
+describe('AuthController login audit', () => {
+  const user = {
+    id: 'user-1',
+    tenantId: 'tenant-1',
+    email: 'user@example.test',
+    nombre: 'Ada',
+    apellido: 'Lovelace',
+    rol: 'ADMIN',
+  };
+  const login = jest.fn();
+  const auditLog = jest.fn();
+  const controller = new AuthController(
+    { login } as unknown as AuthService,
+    {} as PasswordResetService,
+    { log: auditLog } as unknown as AuditService,
+    {} as UserInvitationsService,
+  );
+  const request = { headers: { 'user-agent': 'test-agent' } } as Request;
+  const dto = {
+    tenantNit: '900123456',
+    email: user.email,
+    passwordPlain: 'irrelevant-in-controller-test',
+  };
+
+  beforeEach(() => {
+    login.mockReset().mockResolvedValue({ accessToken: 'token', user });
+    auditLog.mockReset().mockResolvedValue(undefined);
+  });
+
+  it('espera el evento de auditoría antes de devolver el resultado del login', async () => {
+    const result = await controller.login(dto, request, '127.0.0.1');
+
+    expect(result).toEqual({ accessToken: 'token', user });
+    expect(auditLog).toHaveBeenCalledWith({
+      tenantId: user.tenantId,
+      userId: user.id,
+      action: 'LOGIN',
+      entityType: 'Auth',
+      metadata: { ip: '127.0.0.1', userAgent: 'test-agent' },
+    });
+  });
+
+  it('propaga el fallo de auditoría y no informa el login como exitoso', async () => {
+    auditLog.mockRejectedValue(new Error('audit unavailable'));
+
+    await expect(controller.login(dto, request, '127.0.0.1')).rejects.toThrow(
+      'audit unavailable',
+    );
   });
 });

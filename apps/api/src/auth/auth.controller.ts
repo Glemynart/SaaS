@@ -70,15 +70,13 @@ export class AuthController {
       ipAddress: ip,
     });
     if (result?.user) {
-      await this.auditService
-        .log({
-          tenantId: result.user.tenantId,
-          userId: result.user.id,
-          action: 'LOGIN',
-          entityType: 'Auth',
-          metadata: { ip, userAgent: String(userAgent ?? '') },
-        })
-        .catch(() => {});
+      await this.auditService.log({
+        tenantId: result.user.tenantId,
+        userId: result.user.id,
+        action: 'LOGIN',
+        entityType: 'Auth',
+        metadata: { ip, userAgent: String(userAgent ?? '') },
+      });
     }
     return result;
   }

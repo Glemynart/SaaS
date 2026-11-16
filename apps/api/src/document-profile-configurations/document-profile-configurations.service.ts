@@ -20,59 +20,58 @@ export class DocumentProfileConfigurationsService {
 
   async create(userId: string, dto: CreateDocumentProfileConfigurationDto) {
     this.validateDates(dto.vigenteDesde, dto.vigenteHasta);
-    const { configuration, tenantId } = await this.tenantPrisma.execute(
-      async (prisma, context) => {
-        await this.ensureActiveProfile(
-          prisma,
-          context.tenantId,
-          dto.perfilContractualId,
-        );
-        await this.ensureCompatibleTemplate(
-          prisma,
-          context.tenantId,
-          dto.plantillaId,
-          dto.tipoDocumental,
-        );
-        await this.ensureNoOverlappingConfiguration(
-          prisma,
-          context.tenantId,
-          dto.perfilContractualId,
-          dto.tipoDocumental,
-          dto.vigenteDesde,
-          dto.vigenteHasta,
-          dto.activo ?? true,
-        );
-        const configuration = await prisma.configuracionDocumentalPerfil.create(
-          {
-            data: {
-              tenantId: context.tenantId,
-              perfilContractualId: dto.perfilContractualId,
-              tipoDocumental: dto.tipoDocumental,
-              plantillaId: dto.plantillaId,
-              vigenteDesde: new Date(dto.vigenteDesde),
-              ...(dto.vigenteHasta && {
-                vigenteHasta: new Date(dto.vigenteHasta),
-              }),
-              activo: dto.activo ?? true,
-            },
-            include: { perfilContractual: true, plantilla: true },
+    return this.tenantPrisma.execute(async (prisma, context) => {
+      await this.ensureActiveProfile(
+        prisma,
+        context.tenantId,
+        dto.perfilContractualId,
+      );
+      await this.ensureCompatibleTemplate(
+        prisma,
+        context.tenantId,
+        dto.plantillaId,
+        dto.tipoDocumental,
+      );
+      await this.ensureNoOverlappingConfiguration(
+        prisma,
+        context.tenantId,
+        dto.perfilContractualId,
+        dto.tipoDocumental,
+        dto.vigenteDesde,
+        dto.vigenteHasta,
+        dto.activo ?? true,
+      );
+      const configuration = await prisma.configuracionDocumentalPerfil.create({
+        data: {
+          tenantId: context.tenantId,
+          perfilContractualId: dto.perfilContractualId,
+          tipoDocumental: dto.tipoDocumental,
+          plantillaId: dto.plantillaId,
+          vigenteDesde: new Date(dto.vigenteDesde),
+          ...(dto.vigenteHasta && {
+            vigenteHasta: new Date(dto.vigenteHasta),
+          }),
+          activo: dto.activo ?? true,
+        },
+        include: { perfilContractual: true, plantilla: true },
+      });
+      await this.auditService.log(
+        {
+          tenantId: context.tenantId,
+          userId,
+          action: 'DOCUMENT_PROFILE_CONFIGURATION_CREATE',
+          entityType: 'ConfiguracionDocumentalPerfil',
+          entityId: configuration.id,
+          metadata: {
+            perfilContractualId: configuration.perfilContractualId,
+            plantillaId: configuration.plantillaId,
+            tipoDocumental: configuration.tipoDocumental,
           },
-        );
-        return { configuration, tenantId: context.tenantId };
-      },
-    );
-    this.log(
-      userId,
-      tenantId,
-      'DOCUMENT_PROFILE_CONFIGURATION_CREATE',
-      configuration.id,
-      {
-        perfilContractualId: configuration.perfilContractualId,
-        plantillaId: configuration.plantillaId,
-        tipoDocumental: configuration.tipoDocumental,
-      },
-    );
-    return configuration;
+        },
+        prisma,
+      );
+      return configuration;
+    });
   }
 
   async findAll() {
@@ -100,61 +99,58 @@ export class DocumentProfileConfigurationsService {
     id: string,
     dto: UpdateDocumentProfileConfigurationDto,
   ) {
-    const { configuration, tenantId } = await this.tenantPrisma.execute(
-      async (prisma, context) => {
-        const current = await this.findOneInTenant(
+    return this.tenantPrisma.execute(async (prisma, context) => {
+      const current = await this.findOneInTenant(prisma, context.tenantId, id);
+      const vigenteDesde = dto.vigenteDesde ?? current.vigenteDesde;
+      const vigenteHasta =
+        dto.vigenteHasta !== undefined
+          ? dto.vigenteHasta
+          : current.vigenteHasta;
+      this.validateDates(vigenteDesde, vigenteHasta);
+      if (dto.plantillaId)
+        await this.ensureCompatibleTemplate(
           prisma,
           context.tenantId,
-          id,
-        );
-        const vigenteDesde = dto.vigenteDesde ?? current.vigenteDesde;
-        const vigenteHasta =
-          dto.vigenteHasta !== undefined
-            ? dto.vigenteHasta
-            : current.vigenteHasta;
-        this.validateDates(vigenteDesde, vigenteHasta);
-        if (dto.plantillaId)
-          await this.ensureCompatibleTemplate(
-            prisma,
-            context.tenantId,
-            dto.plantillaId,
-            current.tipoDocumental,
-          );
-        await this.ensureNoOverlappingConfiguration(
-          prisma,
-          context.tenantId,
-          current.perfilContractualId,
+          dto.plantillaId,
           current.tipoDocumental,
-          vigenteDesde,
-          vigenteHasta,
-          dto.activo ?? current.activo,
-          id,
         );
-        const configuration = await prisma.configuracionDocumentalPerfil.update(
-          {
-            where: { id },
-            data: {
-              ...(dto.plantillaId && { plantillaId: dto.plantillaId }),
-              ...(dto.vigenteDesde && {
-                vigenteDesde: new Date(dto.vigenteDesde),
-              }),
-              ...(dto.vigenteHasta !== undefined && {
-                vigenteHasta: dto.vigenteHasta
-                  ? new Date(dto.vigenteHasta)
-                  : null,
-              }),
-              ...(dto.activo !== undefined && { activo: dto.activo }),
-            },
-            include: { perfilContractual: true, plantilla: true },
-          },
-        );
-        return { configuration, tenantId: context.tenantId };
-      },
-    );
-    this.log(userId, tenantId, 'DOCUMENT_PROFILE_CONFIGURATION_UPDATE', id, {
-      fields: Object.keys(dto),
+      await this.ensureNoOverlappingConfiguration(
+        prisma,
+        context.tenantId,
+        current.perfilContractualId,
+        current.tipoDocumental,
+        vigenteDesde,
+        vigenteHasta,
+        dto.activo ?? current.activo,
+        id,
+      );
+      const configuration = await prisma.configuracionDocumentalPerfil.update({
+        where: { id },
+        data: {
+          ...(dto.plantillaId && { plantillaId: dto.plantillaId }),
+          ...(dto.vigenteDesde && {
+            vigenteDesde: new Date(dto.vigenteDesde),
+          }),
+          ...(dto.vigenteHasta !== undefined && {
+            vigenteHasta: dto.vigenteHasta ? new Date(dto.vigenteHasta) : null,
+          }),
+          ...(dto.activo !== undefined && { activo: dto.activo }),
+        },
+        include: { perfilContractual: true, plantilla: true },
+      });
+      await this.auditService.log(
+        {
+          tenantId: context.tenantId,
+          userId,
+          action: 'DOCUMENT_PROFILE_CONFIGURATION_UPDATE',
+          entityType: 'ConfiguracionDocumentalPerfil',
+          entityId: id,
+          metadata: { fields: Object.keys(dto) },
+        },
+        prisma,
+      );
+      return configuration;
     });
-    return configuration;
   }
 
   private async findOneInTenant(
@@ -245,23 +241,5 @@ export class DocumentProfileConfigurationsService {
       throw new BadRequestException(
         'La vigencia final no puede ser anterior a la vigencia inicial.',
       );
-  }
-  private log(
-    userId: string,
-    tenantId: string,
-    action: string,
-    entityId: string,
-    metadata: Record<string, unknown>,
-  ) {
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action,
-        entityType: 'ConfiguracionDocumentalPerfil',
-        entityId,
-        metadata,
-      })
-      .catch(() => {});
   }
 }

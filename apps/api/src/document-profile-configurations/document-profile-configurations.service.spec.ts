@@ -28,32 +28,30 @@ type MockTenantClient = {
 
 describe('DocumentProfileConfigurationsService', () => {
   let service: DocumentProfileConfigurationsService;
+  let transactionClient: MockTenantClient;
   beforeEach(() => {
     jest.clearAllMocks();
     profileFindFirst.mockResolvedValue({ id: PROFILE });
     templateFindFirst.mockResolvedValue({ id: TEMPLATE });
     configurationFindFirst.mockResolvedValue(null);
     auditLog.mockResolvedValue(undefined);
+    transactionClient = {
+      perfilContractual: { findFirst: profileFindFirst },
+      documentTemplate: { findFirst: templateFindFirst },
+      configuracionDocumentalPerfil: {
+        findFirst: configurationFindFirst,
+        create: configurationCreate,
+        update: configurationUpdate,
+        findMany: jest.fn(),
+      },
+    };
     execute.mockImplementation(
       (
         work: (
           client: MockTenantClient,
           context: { tenantId: string },
         ) => unknown,
-      ) =>
-        work(
-          {
-            perfilContractual: { findFirst: profileFindFirst },
-            documentTemplate: { findFirst: templateFindFirst },
-            configuracionDocumentalPerfil: {
-              findFirst: configurationFindFirst,
-              create: configurationCreate,
-              update: configurationUpdate,
-              findMany: jest.fn(),
-            },
-          },
-          { tenantId: TENANT },
-        ),
+      ) => work(transactionClient, { tenantId: TENANT }),
     );
     service = new DocumentProfileConfigurationsService(
       { execute } as unknown as TenantPrismaService,
@@ -74,6 +72,21 @@ describe('DocumentProfileConfigurationsService', () => {
       expect.objectContaining({
         action: 'DOCUMENT_PROFILE_CONFIGURATION_CREATE',
       }),
+      transactionClient,
+    );
+  });
+
+  it('propaga fallos de auditoría al crear dentro de la transacción', async () => {
+    configurationCreate.mockResolvedValue({ id: CONFIG, ...dto });
+    auditLog.mockRejectedValueOnce(new Error('audit down'));
+
+    await expect(service.create('user', dto)).rejects.toThrow('audit down');
+
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'DOCUMENT_PROFILE_CONFIGURATION_CREATE',
+      }),
+      transactionClient,
     );
   });
   it('rechaza perfil inactivo o de otro tenant', async () => {
@@ -122,6 +135,13 @@ describe('DocumentProfileConfigurationsService', () => {
     });
 
     await service.update('user', CONFIG, { vigenteHasta: null });
+
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'DOCUMENT_PROFILE_CONFIGURATION_UPDATE',
+      }),
+      transactionClient,
+    );
 
     const lastUpdateCall = configurationUpdate.mock.calls.at(-1) as
       | [{ data: { vigenteHasta: Date | null } }]

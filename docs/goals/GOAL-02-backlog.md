@@ -2840,3 +2840,46 @@ antes de leer el objeto. Las regresiones para ambos tipos confirman que una
 ruta de otro tenant produce conflicto sin invocar Storage ni registrar la
 descarga. La validación de hash se conserva como control adicional de
 integridad; no se modificó el esquema ni se ejecutaron migraciones.
+
+### Trazabilidad transaccional de operaciones sensibles — GOAL-02 (2026-11-15)
+
+Se cerró una cohorte adicional de eventos `AuditLog` que podían fallar en
+silencio o quedar fuera de la transacción de negocio. La importación masiva de
+empleados, la generación de PDF, el CRUD de perfiles contractuales y
+configuraciones documentales, los vínculos laborales y los cambios de
+restablecimiento de contraseña ahora esperan su evento de auditoría con el
+mismo cliente transaccional que persiste la operación. Si falla el evento,
+Prisma revierte el cambio. El evento de importación conserva sus contadores y
+dejó de almacenar la lista de cédulas.
+
+La descarga del expediente espera un evento tenant-scoped de acceso después de
+leer el objeto; si no puede registrarlo, la API no devuelve el contenido. El
+login también dejó de ignorar fallos del evento `LOGIN` y la API no informa
+éxito si no puede guardarlo. Los registros de fallo de operaciones que vuelven
+a lanzar la excepción original y los eventos de correo fallido permanecen
+como telemetría de error; no representan escrituras exitosas sin auditoría.
+
+Validación local de esta rama: 120 migraciones aplicadas en PostgreSQL 17.11
+desechable; 24 suites PostgreSQL y 104 pruebas pasaron. Las nueve suites
+unitarias y de contrato enfocadas en importación, documentos, perfiles,
+vínculos, restablecimiento y acceso documental pasaron con 117 pruebas.
+Typecheck y build de API, ESLint de los archivos modificados, Prettier y
+`git diff --check` también pasaron. No se modificaron migraciones ni se accedió
+a bases desplegadas. El inventario RLS de los 21 modelos sigue en 12 con RLS
+forzada y nueve excepciones documentadas; esta cohorte no añade políticas
+genéricas.
+
+La lectura del proyecto Vercel `saa-s-web` confirma plan Hobby, repositorio
+`Glemynart/SaaS`, rama de producción `main`, Root Directory `apps/web` y
+creación Git de deployments habilitada. El proyecto reporta
+`enableAffectedProjectsDeployments=true`, pero la API de Vercel no muestra un
+`ignoreCommand` configurado; el script `apps/web/scripts/vercel-ignore-build.sh`
+no puede considerarse activo. Esta rama sí cambia archivos de `apps/web`, por
+lo que el filtrado automático del monorepo no basta para evitar un Preview.
+La consulta de Usage no entregó datos de facturación para el período actual y
+las métricas actuales de Functions Storage y Deployment Storage no estuvieron
+disponibles por CLI/API. La producción más reciente consultada permanece
+`READY` en `main@f38a1fb` con el alias `staging.dusema.com`; no hubo deployments
+en las 24 horas previas a la consulta. Presupuesto y almacenamiento siguen sin
+verificarse: no se publica esta rama ni se abre PR hasta obtener esos datos,
+sin deshabilitar checks ni alterar despliegues existentes.

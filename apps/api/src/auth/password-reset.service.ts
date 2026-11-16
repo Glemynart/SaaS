@@ -46,20 +46,40 @@ export class PasswordResetService {
       return { message: GENERIC_RESPONSE };
     }
 
-    // Invalidar tokens pendientes anteriores del mismo usuario
-    await this.prisma.passwordResetToken.updateMany({
-      where: { userId: user.id, usedAt: null },
-      data: { usedAt: new Date() },
-    });
-
-    // Crear token nuevo — mismo patrón que RefreshToken
     const secret = crypto.randomUUID();
     const tokenHash = await bcrypt.hash(secret, 10);
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + RESET_EXPIRY_HOURS);
 
-    const dbToken = await this.prisma.passwordResetToken.create({
-      data: { userId: user.id, tenantId: tenant.id, tokenHash, expiresAt },
+    const dbToken = await this.prisma.$transaction(async (tx) => {
+      // Keep token invalidation, creation and its audit event atomic.
+      await tx.passwordResetToken.updateMany({
+        where: { userId: user.id, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+
+      const createdToken = await tx.passwordResetToken.create({
+        data: { userId: user.id, tenantId: tenant.id, tokenHash, expiresAt },
+      });
+
+      const emailObfuscated = email.replace(/^(.).*?(@.*)$/, '$1***$2');
+      await this.auditService.log(
+        {
+          tenantId: tenant.id,
+          userId: user.id,
+          action: 'PASSWORD_RESET_REQUESTED',
+          entityType: 'Auth',
+          entityId: user.id,
+          metadata: {
+            ip: ipAddress ?? null,
+            userAgent: userAgent ?? null,
+            email: emailObfuscated,
+          },
+        },
+        tx,
+      );
+
+      return createdToken;
     });
 
     const tokenEncoded = Buffer.from(`${dbToken.id}:${secret}`).toString(
@@ -81,22 +101,6 @@ export class PasswordResetService {
       },
       auditContext: { tenantId: tenant.id, userId: user.id },
     });
-
-    const emailObfuscated = email.replace(/^(.).*?(@.*)$/, '$1***$2');
-    await this.auditService
-      .log({
-        tenantId: tenant.id,
-        userId: user.id,
-        action: 'PASSWORD_RESET_REQUESTED',
-        entityType: 'Auth',
-        entityId: user.id,
-        metadata: {
-          ip: ipAddress ?? null,
-          userAgent: userAgent ?? null,
-          email: emailObfuscated,
-        },
-      })
-      .catch(() => {});
 
     return { message: GENERIC_RESPONSE };
   }
@@ -136,18 +140,19 @@ export class PasswordResetService {
         where: { userId: dbToken.userId, revokedAt: null },
         data: { revokedAt: consumedAt },
       });
-    });
 
-    await this.auditService
-      .log({
-        tenantId: dbToken.tenantId,
-        userId: dbToken.userId,
-        action: 'PASSWORD_RESET_COMPLETED',
-        entityType: 'Auth',
-        entityId: dbToken.userId,
-        metadata: { ip: ipAddress ?? null, userAgent: userAgent ?? null },
-      })
-      .catch(() => {});
+      await this.auditService.log(
+        {
+          tenantId: dbToken.tenantId,
+          userId: dbToken.userId,
+          action: 'PASSWORD_RESET_COMPLETED',
+          entityType: 'Auth',
+          entityId: dbToken.userId,
+          metadata: { ip: ipAddress ?? null, userAgent: userAgent ?? null },
+        },
+        tx,
+      );
+    });
 
     return { message: 'Contraseña actualizada exitosamente.' };
   }

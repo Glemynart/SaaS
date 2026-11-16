@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import * as fs from 'fs';
 import { join } from 'path';
 import { GeneratedDocumentsService } from './generated-documents.service';
@@ -14,28 +15,49 @@ import { PdfRenderService } from '../pdf-render/pdf-render.service';
 describe('GeneratedDocumentsService.generatePdf', () => {
   let service: GeneratedDocumentsService;
 
-  const mockFindFirst = jest.fn();
+  const mockFindFirst = jest.fn<
+    Promise<unknown>,
+    [Prisma.GeneratedDocumentFindFirstArgs]
+  >();
   const mockFindMany = jest.fn();
   const mockCount = jest.fn();
   const mockDocumentTemplateFindFirst = jest.fn();
-  const mockGeneratedDocumentCreate = jest.fn();
+  const mockGeneratedDocumentCreate = jest.fn<
+    Promise<unknown>,
+    [Prisma.GeneratedDocumentCreateArgs]
+  >();
   const mockGeneratedDocumentDelete = jest.fn();
-  const mockTenantPrismaExecute = jest.fn();
+  const mockTenantPrismaExecute = jest.fn<
+    unknown,
+    [callback: (prisma: object) => unknown, options?: unknown]
+  >();
   const mockTenantFindUnique = jest.fn();
   const mockTransaction = jest.fn();
   const mockTxQueryRaw = jest.fn<
     Promise<Array<{ id: string }>>,
     [TemplateStringsArray, ...unknown[]]
   >();
-  const mockTxCreate = jest.fn();
-  const mockTxUpdate = jest.fn();
+  const mockTxCreate = jest.fn<
+    Promise<unknown>,
+    [Prisma.GeneratedDocumentCreateArgs]
+  >();
+  const mockTxUpdate = jest.fn<
+    Promise<unknown>,
+    [Prisma.GeneratedDocumentUpdateArgs]
+  >();
   const mockTxExpedienteDocFindFirst = jest.fn();
-  const mockGeneratedDocumentUpdate = jest.fn();
+  const mockGeneratedDocumentUpdate = jest.fn<
+    Promise<unknown>,
+    [Prisma.GeneratedDocumentUpdateArgs]
+  >();
   const mockExpedienteDocFindFirst = jest.fn();
   const mockCreateFromGeneratedDoc = jest.fn();
   const mockPublishGeneratedDocument = jest.fn();
   const mockAuditLog = jest.fn();
-  const mockPutObject = jest.fn();
+  const mockPutObject = jest.fn<
+    Promise<{ key: string; size: number; contentType?: string }>,
+    [{ key: string; body: Buffer; contentType: string }]
+  >();
   const mockObjectExists = jest.fn();
   const mockGetObject = jest.fn();
   const mockRenderPdf = jest.fn();
@@ -282,11 +304,11 @@ describe('GeneratedDocumentsService.generatePdf', () => {
       }),
     ).resolves.toEqual({ id: 'd-certification' });
 
-    expect(mockTxCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+    expect(mockTxCreate.mock.calls[0]?.[0]).toMatchObject({
+      data: {
         contenidoFinal: '<p>Ana Gómez — Analista — Razón Social</p>',
         tipo: 'CERTIFICATION',
-      }),
+      },
     });
     expect(mockAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -622,14 +644,12 @@ describe('GeneratedDocumentsService.generatePdf', () => {
       expect(mockRenderPdf.mock.invocationCallOrder[0]).toBeLessThan(
         mockTxQueryRaw.mock.invocationCallOrder[0],
       );
-      expect(mockTxUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            pdfStorageKey: storageKey,
-            pdfSizeBytes: pdfBytes.length,
-          }),
-        }),
-      );
+      expect(mockTxUpdate.mock.calls[0]?.[0]).toMatchObject({
+        data: {
+          pdfStorageKey: storageKey,
+          pdfSizeBytes: pdfBytes.length,
+        },
+      });
       expect(mockCreateFromGeneratedDoc).toHaveBeenCalledWith(
         't1',
         'd1',
@@ -642,9 +662,48 @@ describe('GeneratedDocumentsService.generatePdf', () => {
       );
       expect(mockAuditLog).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'PDF_GENERATE' }),
+        expect.anything(),
       );
     },
   );
+
+  it('propaga un fallo de auditoría al generar el PDF dentro de la transacción', async () => {
+    mockFindFirst
+      .mockResolvedValueOnce({
+        id: 'd1',
+        tenantId: 't1',
+        nombre: 'Documento',
+        tipo: 'LETTER',
+      })
+      .mockResolvedValueOnce({
+        id: 'd1',
+        tenantId: 't1',
+        contenidoFinal: '<p>Contenido</p>',
+        employee: {
+          primerNombre: 'Ana',
+          segundoNombre: null,
+          primerApellido: 'Gómez',
+          segundoApellido: null,
+          cedula: '123',
+        },
+        tipo: 'LETTER',
+        contratoId: null,
+      });
+    mockAuditLog.mockRejectedValueOnce(new Error('audit down'));
+
+    await expect(service.generatePdf('t1', 'u1', 'd1')).rejects.toThrow(
+      'audit down',
+    );
+
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'PDF_GENERATE',
+        tenantId: 't1',
+        userId: 'u1',
+      }),
+      expect.anything(),
+    );
+  });
 
   it.each(['LETTER', 'MEMO'] as const)(
     'reutiliza el PDF publicado en un retry de %s sin volver a escribirlo',
@@ -693,6 +752,10 @@ describe('GeneratedDocumentsService.generatePdf', () => {
       expect(mockPutObject).not.toHaveBeenCalled();
       expect(mockTxUpdate).not.toHaveBeenCalled();
       expect(mockCreateFromGeneratedDoc).not.toHaveBeenCalled();
+      expect(mockAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PDF_GENERATE' }),
+        expect.anything(),
+      );
     },
   );
 
@@ -970,9 +1033,8 @@ describe('GeneratedDocumentsService.generatePdf', () => {
         'Documento generado no encontrado',
       );
 
-      expect(mockFindFirst).toHaveBeenCalledWith({
+      expect(mockFindFirst.mock.calls[0]?.[0]).toMatchObject({
         where: { id: 'd1', tenantId: 'tenant-otro' },
-        select: expect.any(Object),
       });
     });
 

@@ -204,23 +204,26 @@ export class ExpedienteDocsService {
       throw error;
     }
 
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'EXPEDIENTE_DOCUMENT_ACCESS_GRANTED',
-        entityType: 'ExpedienteDoc',
-        entityId: document.id,
-        metadata: {
-          delivery: 'DOWNLOAD',
-          familiaId: document.familiaId,
-          version: document.version,
-          categoria: document.categoria,
-          generatedDocumentId: document.generatedDocumentId,
-          contratoId: document.contratoId,
+    await this.tenantPrisma.execute((tx) =>
+      this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'EXPEDIENTE_DOCUMENT_ACCESS_GRANTED',
+          entityType: 'ExpedienteDoc',
+          entityId: document.id,
+          metadata: {
+            delivery: 'DOWNLOAD',
+            familiaId: document.familiaId,
+            version: document.version,
+            categoria: document.categoria,
+            generatedDocumentId: document.generatedDocumentId,
+            contratoId: document.contratoId,
+          },
         },
-      })
-      .catch(() => {});
+        tx,
+      ),
+    );
 
     return { nombre: document.nombre, mimeType: document.mimeType, body };
   }
