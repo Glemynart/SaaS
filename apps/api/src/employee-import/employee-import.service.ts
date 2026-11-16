@@ -1573,7 +1573,11 @@ export class EmployeeImportService {
       throw new UnprocessableEntityException({ errors });
     }
 
-    // Atomic import
+    const affiliationsCreated = validatedRows.filter(
+      (row) => row.initialPilaAffiliation,
+    ).length;
+
+    // Keep the imported employees, initial affiliations and operation event atomic.
     await this.tenantPrisma.execute(async (prisma) => {
       for (const row of validatedRows) {
         const employee = await prisma.empleado.create({ data: row.employee });
@@ -1612,25 +1616,20 @@ export class EmployeeImportService {
           );
         }
       }
-    });
-
-    const affiliationsCreated = validatedRows.filter(
-      (row) => row.initialPilaAffiliation,
-    ).length;
-
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'EMPLOYEE_BULK_IMPORT',
-        entityType: 'Empleado',
-        metadata: {
-          importados: validatedRows.length,
-          cedulas: validatedRows.map((r) => r.employee.cedula),
-          afiliacionesPilaIniciales: affiliationsCreated,
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'EMPLOYEE_BULK_IMPORT',
+          entityType: 'Empleado',
+          metadata: {
+            importados: validatedRows.length,
+            afiliacionesPilaIniciales: affiliationsCreated,
+          },
         },
-      })
-      .catch(() => {});
+        prisma,
+      );
+    });
 
     return {
       imported: validatedRows.length,

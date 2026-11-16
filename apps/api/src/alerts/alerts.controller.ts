@@ -40,12 +40,16 @@ export class AlertsController {
   }
 
   @Roles(UserRole.ADMIN)
-  @Post('generation-runs/:runId/retry')
+  @Post('generation-runs/:runOrTenantResultId/retry')
   retryGenerationRun(
     @CurrentUser() user: CurrentUserPayload,
-    @Param('runId') runId: string,
+    @Param('runOrTenantResultId') runOrTenantResultId: string,
   ) {
-    return this.scheduler.retryFailedTenant(user.tenantId, runId, user.userId);
+    return this.scheduler.retryFailedTenant(
+      user.tenantId,
+      runOrTenantResultId,
+      user.userId,
+    );
   }
 
   @Get(':id')

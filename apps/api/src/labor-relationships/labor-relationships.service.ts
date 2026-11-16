@@ -21,47 +21,54 @@ export class LaborRelationshipsService {
 
   async create(userId: string, dto: CreateLaborRelationshipDto) {
     this.validateDates(dto.vigenteDesde, dto.vigenteHasta);
-    const { relationship, tenantId } = await this.tenantPrisma.execute(
-      async (prisma, context) => {
-        await this.ensureEmployeeInTenant(
+    return this.tenantPrisma.execute(async (prisma, context) => {
+      await this.ensureEmployeeInTenant(
+        prisma,
+        context.tenantId,
+        dto.empleadoId,
+      );
+      await this.ensureActiveProfileInTenant(
+        prisma,
+        context.tenantId,
+        dto.perfilContractualId,
+      );
+      const activo = dto.activo ?? true;
+      if (activo) {
+        await this.ensureNoActiveRelationship(
           prisma,
           context.tenantId,
           dto.empleadoId,
         );
-        await this.ensureActiveProfileInTenant(
-          prisma,
-          context.tenantId,
-          dto.perfilContractualId,
-        );
-        const activo = dto.activo ?? true;
-        if (activo) {
-          await this.ensureNoActiveRelationship(
-            prisma,
-            context.tenantId,
-            dto.empleadoId,
-          );
-        }
-        const relationship = await prisma.vinculoLaboral.create({
-          data: {
-            tenantId: context.tenantId,
-            empleadoId: dto.empleadoId,
-            perfilContractualId: dto.perfilContractualId,
-            vigenteDesde: new Date(dto.vigenteDesde),
-            ...(dto.vigenteHasta && {
-              vigenteHasta: new Date(dto.vigenteHasta),
-            }),
-            activo,
+      }
+      const relationship = await prisma.vinculoLaboral.create({
+        data: {
+          tenantId: context.tenantId,
+          empleadoId: dto.empleadoId,
+          perfilContractualId: dto.perfilContractualId,
+          vigenteDesde: new Date(dto.vigenteDesde),
+          ...(dto.vigenteHasta && {
+            vigenteHasta: new Date(dto.vigenteHasta),
+          }),
+          activo,
+        },
+        include: { perfilContractual: true },
+      });
+      await this.auditService.log(
+        {
+          tenantId: context.tenantId,
+          userId,
+          action: 'LABOR_RELATIONSHIP_CREATE',
+          entityType: 'VinculoLaboral',
+          entityId: relationship.id,
+          metadata: {
+            empleadoId: relationship.empleadoId,
+            perfilContractualId: relationship.perfilContractualId,
           },
-          include: { perfilContractual: true },
-        });
-        return { relationship, tenantId: context.tenantId };
-      },
-    );
-    this.log(userId, tenantId, 'LABOR_RELATIONSHIP_CREATE', relationship.id, {
-      empleadoId: relationship.empleadoId,
-      perfilContractualId: relationship.perfilContractualId,
+        },
+        prisma,
+      );
+      return relationship;
     });
-    return relationship;
   }
 
   async findAll(query: LaborRelationshipQueryDto) {
@@ -101,54 +108,55 @@ export class LaborRelationshipsService {
   }
 
   async update(userId: string, id: string, dto: UpdateLaborRelationshipDto) {
-    const { relationship, tenantId } = await this.tenantPrisma.execute(
-      async (prisma, context) => {
-        const current = await this.findOneInTenant(
+    return this.tenantPrisma.execute(async (prisma, context) => {
+      const current = await this.findOneInTenant(prisma, context.tenantId, id);
+      const vigenteDesde = dto.vigenteDesde ?? current.vigenteDesde;
+      const vigenteHasta = dto.vigenteHasta ?? current.vigenteHasta;
+      this.validateDates(vigenteDesde, vigenteHasta);
+      if (dto.perfilContractualId) {
+        await this.ensureActiveProfileInTenant(
           prisma,
           context.tenantId,
+          dto.perfilContractualId,
+        );
+      }
+      if (dto.activo ?? current.activo) {
+        await this.ensureNoActiveRelationship(
+          prisma,
+          context.tenantId,
+          current.empleadoId,
           id,
         );
-        const vigenteDesde = dto.vigenteDesde ?? current.vigenteDesde;
-        const vigenteHasta = dto.vigenteHasta ?? current.vigenteHasta;
-        this.validateDates(vigenteDesde, vigenteHasta);
-        if (dto.perfilContractualId) {
-          await this.ensureActiveProfileInTenant(
-            prisma,
-            context.tenantId,
-            dto.perfilContractualId,
-          );
-        }
-        if (dto.activo ?? current.activo) {
-          await this.ensureNoActiveRelationship(
-            prisma,
-            context.tenantId,
-            current.empleadoId,
-            id,
-          );
-        }
-        const relationship = await prisma.vinculoLaboral.update({
-          where: { id },
-          data: {
-            ...(dto.perfilContractualId && {
-              perfilContractualId: dto.perfilContractualId,
-            }),
-            ...(dto.vigenteDesde && {
-              vigenteDesde: new Date(dto.vigenteDesde),
-            }),
-            ...(dto.vigenteHasta && {
-              vigenteHasta: new Date(dto.vigenteHasta),
-            }),
-            ...(dto.activo !== undefined && { activo: dto.activo }),
-          },
-          include: { perfilContractual: true },
-        });
-        return { relationship, tenantId: context.tenantId };
-      },
-    );
-    this.log(userId, tenantId, 'LABOR_RELATIONSHIP_UPDATE', id, {
-      fields: Object.keys(dto),
+      }
+      const relationship = await prisma.vinculoLaboral.update({
+        where: { id },
+        data: {
+          ...(dto.perfilContractualId && {
+            perfilContractualId: dto.perfilContractualId,
+          }),
+          ...(dto.vigenteDesde && {
+            vigenteDesde: new Date(dto.vigenteDesde),
+          }),
+          ...(dto.vigenteHasta && {
+            vigenteHasta: new Date(dto.vigenteHasta),
+          }),
+          ...(dto.activo !== undefined && { activo: dto.activo }),
+        },
+        include: { perfilContractual: true },
+      });
+      await this.auditService.log(
+        {
+          tenantId: context.tenantId,
+          userId,
+          action: 'LABOR_RELATIONSHIP_UPDATE',
+          entityType: 'VinculoLaboral',
+          entityId: id,
+          metadata: { fields: Object.keys(dto) },
+        },
+        prisma,
+      );
+      return relationship;
     });
-    return relationship;
   }
 
   private async findOneInTenant(
@@ -228,24 +236,5 @@ export class LaborRelationshipsService {
         'La vigencia final no puede ser anterior a la vigencia inicial.',
       );
     }
-  }
-
-  private log(
-    userId: string,
-    tenantId: string,
-    action: string,
-    entityId: string,
-    metadata: Record<string, unknown>,
-  ) {
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action,
-        entityType: 'VinculoLaboral',
-        entityId,
-        metadata,
-      })
-      .catch(() => {});
   }
 }

@@ -6,14 +6,18 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ExpedienteCategoria, Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { StorageService } from '../storage/storage.service';
 import { StorageObjectNotFoundError } from '../storage/storage.types';
 import type { StorageObjectMetadata } from '../storage/storage.types';
 import type { PdfMaterializationResult } from '../generated-documents/generated-documents.service';
+import { getCanonicalGeneratedDocumentStorageKey } from '../generated-documents/generated-document-storage-key';
 import { validateManualDocument } from './manual-document-validation';
+import {
+  isExpedienteStorageKeyOwnedByIdentity,
+  isServicePremiumStorageKeyOwnedByLine,
+} from './expediente-storage-key';
 import { randomUUID } from 'node:crypto';
 
 const TIPO_TO_CATEGORIA: Record<string, ExpedienteCategoria> = {
@@ -50,7 +54,6 @@ export class ExpedienteDocsService {
   private readonly logger = new Logger(ExpedienteDocsService.name);
 
   constructor(
-    private prisma: PrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private readonly auditService: AuditService,
     private readonly storage: StorageService,
@@ -64,16 +67,20 @@ export class ExpedienteDocsService {
     );
     if (!employee) throw new NotFoundException('Empleado no encontrado');
 
-    const docs = await this.prisma.expedienteDoc.findMany({
-      where: { tenantId, empleadoId: employeeId, vigente: true },
-      orderBy: { version: 'desc' },
-      include: {
-        familia: {
-          select: { id: true, nombre: true, categoria: true },
+    const docs = await this.tenantPrisma.execute((prisma) =>
+      prisma.expedienteDoc.findMany({
+        where: { tenantId, empleadoId: employeeId, vigente: true },
+        orderBy: { version: 'desc' },
+        include: {
+          familia: {
+            select: { id: true, nombre: true, categoria: true },
+          },
+          generatedDocument: {
+            select: { id: true, nombre: true, tipo: true },
+          },
         },
-        generatedDocument: { select: { id: true, nombre: true, tipo: true } },
-      },
-    });
+      }),
+    );
 
     const stats = await this.buildStats(tenantId, employeeId);
 
@@ -107,61 +114,84 @@ export class ExpedienteDocsService {
   }
 
   async findHistory(tenantId: string, id: string) {
-    const document = await this.prisma.expedienteDoc.findFirst({
-      where: { id, tenantId },
-      select: { familiaId: true, empleadoId: true },
+    const { document, family } = await this.tenantPrisma.execute(async (tx) => {
+      const document = await tx.expedienteDoc.findFirst({
+        where: { id, tenantId },
+        select: { familiaId: true, empleadoId: true },
+      });
+      if (!document) return { document: null, family: null };
+
+      const family = await tx.expedienteDocFamily.findFirst({
+        where: {
+          id: document.familiaId,
+          tenantId,
+          empleadoId: document.empleadoId,
+        },
+        select: {
+          id: true,
+          tenantId: true,
+          empleadoId: true,
+          categoria: true,
+          nombre: true,
+          descripcion: true,
+        },
+      });
+      return { document, family };
     });
     if (!document) {
       throw new NotFoundException('Documento no encontrado en el expediente');
     }
-
-    const family = await this.prisma.expedienteDocFamily.findFirst({
-      where: {
-        id: document.familiaId,
-        tenantId,
-        empleadoId: document.empleadoId,
-      },
-      select: {
-        id: true,
-        tenantId: true,
-        empleadoId: true,
-        categoria: true,
-        nombre: true,
-        descripcion: true,
-      },
-    });
     if (!family) {
       throw new NotFoundException('Familia documental no encontrada');
     }
 
-    const revisions = await this.prisma.expedienteDoc.findMany({
-      where: { tenantId, familiaId: family.id },
-      orderBy: { version: 'desc' },
-      include: {
-        generatedDocument: { select: { id: true, nombre: true, tipo: true } },
-      },
-    });
+    const revisions = await this.tenantPrisma.execute((prisma) =>
+      prisma.expedienteDoc.findMany({
+        where: { tenantId, familiaId: family.id },
+        orderBy: { version: 'desc' },
+        include: {
+          generatedDocument: {
+            select: { id: true, nombre: true, tipo: true },
+          },
+        },
+      }),
+    );
 
     return { family, revisions };
   }
 
   async download(tenantId: string, userId: string, id: string) {
-    const document = await this.prisma.expedienteDoc.findFirst({
-      where: { id, tenantId },
-      select: {
-        id: true,
-        nombre: true,
-        mimeType: true,
-        storageKey: true,
-        familiaId: true,
-        version: true,
-        categoria: true,
-        generatedDocumentId: true,
-        contratoId: true,
-      },
-    });
+    const document = await this.tenantPrisma.execute((tx) =>
+      tx.expedienteDoc.findFirst({
+        where: { id, tenantId },
+        select: {
+          id: true,
+          empleadoId: true,
+          nombre: true,
+          mimeType: true,
+          storageKey: true,
+          familiaId: true,
+          version: true,
+          categoria: true,
+          generatedDocumentId: true,
+          servicePremiumLineId: true,
+          contratoId: true,
+        },
+      }),
+    );
     if (!document) {
       throw new NotFoundException('Documento no encontrado en el expediente');
+    }
+    if (
+      !isExpedienteStorageKeyOwnedByIdentity({
+        tenantId,
+        employeeId: document.empleadoId,
+        generatedDocumentId: document.generatedDocumentId,
+        servicePremiumLineId: document.servicePremiumLineId,
+        storageKey: document.storageKey,
+      })
+    ) {
+      throw new NotFoundException('Archivo de expediente no encontrado');
     }
 
     let body: Buffer;
@@ -174,23 +204,26 @@ export class ExpedienteDocsService {
       throw error;
     }
 
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'EXPEDIENTE_DOCUMENT_ACCESS_GRANTED',
-        entityType: 'ExpedienteDoc',
-        entityId: document.id,
-        metadata: {
-          delivery: 'DOWNLOAD',
-          familiaId: document.familiaId,
-          version: document.version,
-          categoria: document.categoria,
-          generatedDocumentId: document.generatedDocumentId,
-          contratoId: document.contratoId,
+    await this.tenantPrisma.execute((tx) =>
+      this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'EXPEDIENTE_DOCUMENT_ACCESS_GRANTED',
+          entityType: 'ExpedienteDoc',
+          entityId: document.id,
+          metadata: {
+            delivery: 'DOWNLOAD',
+            familiaId: document.familiaId,
+            version: document.version,
+            categoria: document.categoria,
+            generatedDocumentId: document.generatedDocumentId,
+            contratoId: document.contratoId,
+          },
         },
-      })
-      .catch(() => {});
+        tx,
+      ),
+    );
 
     return { nombre: document.nombre, mimeType: document.mimeType, body };
   }
@@ -219,12 +252,28 @@ export class ExpedienteDocsService {
     );
     if (!employee) throw new NotFoundException('Empleado no encontrado');
 
-    const family = familiaId
-      ? await this.prisma.expedienteDocFamily.findFirst({
-          where: { id: familiaId, tenantId, empleadoId: employeeId },
-          select: { id: true, categoria: true },
-        })
-      : null;
+    const { family, currentRevision } = await this.tenantPrisma.execute(
+      async (tx) => {
+        const family = familiaId
+          ? await tx.expedienteDocFamily.findFirst({
+              where: { id: familiaId, tenantId, empleadoId: employeeId },
+              select: { id: true, categoria: true },
+            })
+          : null;
+        const currentRevision = family
+          ? await tx.expedienteDoc.findFirst({
+              where: {
+                tenantId,
+                empleadoId: employeeId,
+                familiaId: family.id,
+                vigente: true,
+              },
+              select: { id: true, version: true, generatedDocumentId: true },
+            })
+          : null;
+        return { family, currentRevision };
+      },
+    );
     if (familiaId && !family) {
       throw new NotFoundException('Familia documental no encontrada');
     }
@@ -234,17 +283,6 @@ export class ExpedienteDocsService {
       );
     }
 
-    const currentRevision = family
-      ? await this.prisma.expedienteDoc.findFirst({
-          where: {
-            tenantId,
-            empleadoId: employeeId,
-            familiaId: family.id,
-            vigente: true,
-          },
-          select: { id: true, version: true, generatedDocumentId: true },
-        })
-      : null;
     if (family && !currentRevision) {
       throw new ConflictException(
         'La familia documental no tiene una revisión vigente.',
@@ -274,7 +312,7 @@ export class ExpedienteDocsService {
     });
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await this.tenantPrisma.execute(async (tx) => {
         if (!family) {
           await tx.expedienteDocFamily.create({
             data: {
@@ -359,9 +397,18 @@ export class ExpedienteDocsService {
     nombre: string,
     tipo: string,
     storageMetadata: Pick<StorageObjectMetadata, 'key' | 'size'>,
-    tx: Prisma.TransactionClient = this.prisma,
+    tx: Prisma.TransactionClient,
     contratoId?: string | null,
   ) {
+    if (
+      storageMetadata.key !==
+      getCanonicalGeneratedDocumentStorageKey(tenantId, generatedDocId)
+    ) {
+      throw new BadRequestException(
+        'La clave del PDF no corresponde al documento y empresa indicados.',
+      );
+    }
+
     const categoria = TIPO_TO_CATEGORIA[tipo] ?? ExpedienteCategoria.OTRO;
     const familiaId = randomUUID();
 
@@ -405,17 +452,19 @@ export class ExpedienteDocsService {
     generatedDocumentId: string,
     materialization: PdfMaterializationResult,
   ): Promise<PublishGeneratedDocumentResult> {
-    const generatedDocument = await this.prisma.generatedDocument.findFirst({
-      where: { id: generatedDocumentId, tenantId },
-      select: {
-        id: true,
-        tenantId: true,
-        employeeId: true,
-        contratoId: true,
-        nombre: true,
-        tipo: true,
-      },
-    });
+    const generatedDocument = await this.tenantPrisma.execute((tx) =>
+      tx.generatedDocument.findFirst({
+        where: { id: generatedDocumentId, tenantId },
+        select: {
+          id: true,
+          tenantId: true,
+          employeeId: true,
+          contratoId: true,
+          nombre: true,
+          tipo: true,
+        },
+      }),
+    );
     if (!generatedDocument) {
       throw new NotFoundException('Documento generado no encontrado');
     }
@@ -435,9 +484,17 @@ export class ExpedienteDocsService {
       );
     }
 
-    if (materialization.id !== generatedDocument.id) {
+    const canonicalStorageKey = getCanonicalGeneratedDocumentStorageKey(
+      tenantId,
+      generatedDocument.id,
+    );
+    if (
+      materialization.id !== generatedDocument.id ||
+      materialization.pdfStorageKey !== canonicalStorageKey ||
+      materialization.pdfUrl !== `/uploads/${canonicalStorageKey}`
+    ) {
       throw new BadRequestException(
-        'La materialización no corresponde al documento a publicar.',
+        'La materialización no corresponde al documento y empresa a publicar.',
       );
     }
 
@@ -447,7 +504,7 @@ export class ExpedienteDocsService {
     const familiaId = randomUUID();
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await this.tenantPrisma.execute(async (tx) => {
         const existing = await tx.expedienteDoc.findFirst({
           where: { tenantId, generatedDocumentId },
           select: { id: true },
@@ -530,10 +587,12 @@ export class ExpedienteDocsService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        const existing = await this.prisma.expedienteDoc.findFirst({
-          where: { tenantId, generatedDocumentId },
-          select: { id: true },
-        });
+        const existing = await this.tenantPrisma.execute((tx) =>
+          tx.expedienteDoc.findFirst({
+            where: { tenantId, generatedDocumentId },
+            select: { id: true },
+          }),
+        );
         if (existing) {
           return {
             outcome: 'EXISTING',
@@ -578,6 +637,13 @@ export class ExpedienteDocsService {
         });
         if (!line)
           throw new NotFoundException('Liquidación de prima no encontrada.');
+        if (
+          !isServicePremiumStorageKeyOwnedByLine(tenantId, lineId, storageKey)
+        ) {
+          throw new BadRequestException(
+            'La clave del PDF no corresponde a la línea y empresa indicadas.',
+          );
+        }
         const existing = await tx.expedienteDoc.findFirst({
           where: { tenantId, servicePremiumLineId: lineId },
           select: { id: true, storageKey: true, tamanoBytes: true },
@@ -717,11 +783,13 @@ export class ExpedienteDocsService {
   }
 
   private async buildStats(tenantId: string, employeeId: string) {
-    const docs = await this.prisma.expedienteDoc.findMany({
-      where: { tenantId, empleadoId: employeeId, vigente: true },
-      select: { categoria: true, createdAt: true },
-      orderBy: { createdAt: 'desc' },
-    });
+    const docs = await this.tenantPrisma.execute((tx) =>
+      tx.expedienteDoc.findMany({
+        where: { tenantId, empleadoId: employeeId, vigente: true },
+        select: { categoria: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+    );
 
     const byCategory: Record<string, number> = {};
     for (const d of docs) {

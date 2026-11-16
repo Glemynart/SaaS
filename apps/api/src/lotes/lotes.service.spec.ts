@@ -7,7 +7,6 @@ import {
 import { LoteProposito } from '@prisma/client';
 import { LotesService } from './lotes.service';
 import { LoteEngineService } from './lote-engine.service';
-import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateLoteDto } from './dto/create-lote.dto';
@@ -71,6 +70,10 @@ function makeLote(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function objectContaining<T extends object>(expected: T): T {
+  return expect.objectContaining(expected) as T;
+}
+
 // ── Setup ────────────────────────────────────────────────────────────────────
 
 describe('LotesService', () => {
@@ -78,6 +81,8 @@ describe('LotesService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockAudit.log.mockResolvedValue(undefined);
+    mockEngine.procesarLote.mockReset();
     mockPrisma.empleado.findMany.mockResolvedValue([
       {
         id: 'emp-001',
@@ -93,7 +98,6 @@ describe('LotesService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LotesService,
-        { provide: PrismaService, useValue: mockPrisma },
         { provide: TenantPrismaService, useValue: mockTenantPrisma },
         { provide: AuditService, useValue: mockAudit },
         { provide: LoteEngineService, useValue: mockEngine },
@@ -118,8 +122,8 @@ describe('LotesService', () => {
         select: { id: true, tipo: true, activo: true },
       });
       expect(mockPrisma.loteContrato.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
+        objectContaining({
+          data: objectContaining({
             documentTemplateId: TEMPLATE_ID,
             tenantId: TENANT_ID,
           }),
@@ -147,8 +151,8 @@ describe('LotesService', () => {
 
       expect(mockPrisma.documentTemplate.findFirst).not.toHaveBeenCalled();
       expect(mockPrisma.loteContrato.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
+        objectContaining({
+          data: objectContaining({
             documentTemplateId: null,
             proposito: LoteProposito.CONTRATACION,
           }),
@@ -223,8 +227,8 @@ describe('LotesService', () => {
       ).rejects.toThrow(BadRequestException);
 
       expect(mockPrisma.documentTemplate.findFirst).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ tenantId: 'tenant-OTHER' }),
+        objectContaining({
+          where: objectContaining({ tenantId: 'tenant-OTHER' }),
         }),
       );
     });
@@ -308,11 +312,18 @@ describe('LotesService', () => {
         }),
       );
 
-      const createCall = mockPrisma.loteContrato.create.mock.calls[0][0];
-      const config = createCall.data.configuracion;
-      expect(config.empleadoIds).toEqual(['emp-001', 'emp-002']);
-      expect(createCall.data.total).toBe(2);
-      expect(createCall.data.sedeId).toBeNull();
+      expect(mockPrisma.loteContrato.create).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.loteContrato.create).toHaveBeenCalledWith(
+        objectContaining({
+          data: objectContaining({
+            configuracion: objectContaining({
+              empleadoIds: ['emp-001', 'emp-002'],
+            }),
+            total: 2,
+            sedeId: null,
+          }),
+        }),
+      );
     });
 
     it('emite auditoría LOTE_CREATE', async () => {
@@ -328,6 +339,22 @@ describe('LotesService', () => {
           action: 'LOTE_CREATE',
           entityType: 'LoteContrato',
         }),
+        mockPrisma,
+      );
+    });
+
+    it('propaga el fallo de auditoría de la creación transaccional', async () => {
+      mockPrisma.documentTemplate.findFirst.mockResolvedValue(makeTemplate());
+      mockPrisma.loteContrato.create.mockResolvedValue(makeLote());
+      mockAudit.log.mockRejectedValueOnce(new Error('audit down'));
+
+      await expect(
+        service.create(TENANT_ID, USER_ID, makeDto()),
+      ).rejects.toThrow('audit down');
+
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'LOTE_CREATE' }),
+        mockPrisma,
       );
     });
   });
@@ -348,8 +375,8 @@ describe('LotesService', () => {
         meta: { total: 1, page: 1, limit: 10, totalPages: 1 },
       });
       expect(mockPrisma.loteContrato.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ tenantId: TENANT_ID }),
+        objectContaining({
+          where: objectContaining({ tenantId: TENANT_ID }),
         }),
       );
     });
@@ -445,6 +472,18 @@ describe('LotesService', () => {
       await expect(
         service.process(TENANT_ID, USER_ID, 'lote-inexistente'),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('no inicia el motor si no puede guardar la auditoría del procesamiento', async () => {
+      mockPrisma.loteContrato.findFirst.mockResolvedValue(
+        makeLote({ estado: 'PENDIENTE' }),
+      );
+      mockAudit.log.mockRejectedValueOnce(new Error('audit down'));
+
+      await expect(
+        service.process(TENANT_ID, USER_ID, 'lote-001'),
+      ).rejects.toThrow('audit down');
+      expect(mockEngine.procesarLote).not.toHaveBeenCalled();
     });
   });
 
@@ -543,6 +582,18 @@ describe('LotesService', () => {
       await expect(
         service.retry(TENANT_ID, USER_ID, 'lote-inexistente'),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('no reintenta el lote si no puede guardar la auditoría del intento', async () => {
+      mockPrisma.loteContrato.findFirst.mockResolvedValue(
+        makeLote({ estado: 'FALLIDO' }),
+      );
+      mockAudit.log.mockRejectedValueOnce(new Error('audit down'));
+
+      await expect(
+        service.retry(TENANT_ID, USER_ID, 'lote-001'),
+      ).rejects.toThrow('audit down');
+      expect(mockEngine.procesarLote).not.toHaveBeenCalled();
     });
   });
 });

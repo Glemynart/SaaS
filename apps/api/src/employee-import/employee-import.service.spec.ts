@@ -689,6 +689,50 @@ describe('EmployeeImportService', () => {
         userId: USER_ID,
         action: 'EMPLOYEE_BULK_IMPORT',
       }),
+      mockPrismaClient,
+    );
+    const [auditCall] = mockAuditLog.mock.calls as [
+      [{ metadata: Record<string, unknown> }, unknown],
+    ];
+    expect(auditCall?.[0].metadata).not.toHaveProperty('cedulas');
+  });
+
+  it('propaga el fallo de auditoría y la ejecuta en la transacción de importación', async () => {
+    mockAuditLog.mockRejectedValueOnce(new Error('audit down'));
+
+    await expect(
+      service.importFromBuffer(
+        TENANT_ID,
+        USER_ID,
+        workbookBuffer([
+          [
+            '1001',
+            'CC',
+            'Ana',
+            '',
+            'Gómez',
+            '',
+            'ana@example.com',
+            '',
+            'Docente',
+            2500000,
+            'TERMINO_FIJO',
+            '2025-01-15',
+            'ACTIVO',
+            'Sede Principal',
+            '',
+            'F',
+            'COMPLETA',
+            '',
+            '',
+          ],
+        ]),
+      ),
+    ).rejects.toThrow('audit down');
+
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'EMPLOYEE_BULK_IMPORT' }),
+      mockPrismaClient,
     );
   });
 

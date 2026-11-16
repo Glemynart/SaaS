@@ -6,7 +6,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { LoteEstado, LoteProposito, Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { LoteEngineService } from './lote-engine.service';
@@ -29,7 +28,6 @@ export class LotesService {
   private readonly logger = new Logger(LotesService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private readonly auditService: AuditService,
     private readonly engine: LoteEngineService,
@@ -55,10 +53,12 @@ export class LotesService {
     }
 
     if (dto.templateId) {
-      const template = await this.prisma.documentTemplate.findFirst({
-        where: { id: dto.templateId, tenantId, deletedAt: null },
-        select: { id: true, tipo: true, activo: true },
-      });
+      const template = await this.tenantPrisma.execute((prisma) =>
+        prisma.documentTemplate.findFirst({
+          where: { id: dto.templateId, tenantId, deletedAt: null },
+          select: { id: true, tipo: true, activo: true },
+        }),
+      );
       if (!template) {
         throw new BadRequestException(
           'La plantilla no existe o no pertenece a esta empresa.',
@@ -127,41 +127,42 @@ export class LotesService {
       fechaFinContrato: dto.fechaFin ?? null,
     };
 
-    const lote = await this.prisma.loteContrato.create({
-      data: {
-        tenantId,
-        documentTemplateId: dto.templateId ?? null,
-        creadoPorId: userId,
-        nombreLote: dto.nombre,
-        proposito: dto.proposito ?? null,
-        tipoContrato: dto.tipoContrato ?? null,
-        fechaInicioContrato: new Date(dto.fechaInicio),
-        fechaFinContrato: dto.fechaFin ? new Date(dto.fechaFin) : null,
-        // La sede de cada contrato se toma de la ficha de su empleado.
-        sedeId: null,
-        estado: LoteEstado.PENDIENTE,
-        total: empleadoIds.length,
-        configuracion: configuracion,
-      },
-    });
-
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'LOTE_CREATE',
-        entityType: 'LoteContrato',
-        entityId: lote.id,
-        metadata: {
-          nombre: dto.nombre,
+    return this.tenantPrisma.execute(async (prisma) => {
+      const lote = await prisma.loteContrato.create({
+        data: {
+          tenantId,
           documentTemplateId: dto.templateId ?? null,
+          creadoPorId: userId,
+          nombreLote: dto.nombre,
           proposito: dto.proposito ?? null,
+          tipoContrato: dto.tipoContrato ?? null,
+          fechaInicioContrato: new Date(dto.fechaInicio),
+          fechaFinContrato: dto.fechaFin ? new Date(dto.fechaFin) : null,
+          // La sede de cada contrato se toma de la ficha de su empleado.
+          sedeId: null,
+          estado: LoteEstado.PENDIENTE,
           total: empleadoIds.length,
+          configuracion: configuracion,
         },
-      })
-      .catch(() => {});
-
-    return lote;
+      });
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'LOTE_CREATE',
+          entityType: 'LoteContrato',
+          entityId: lote.id,
+          metadata: {
+            nombre: dto.nombre,
+            documentTemplateId: dto.templateId ?? null,
+            proposito: dto.proposito ?? null,
+            total: empleadoIds.length,
+          },
+        },
+        prisma,
+      );
+      return lote;
+    });
   }
 
   async findAll(tenantId: string, query: LoteQueryDto) {
@@ -176,37 +177,41 @@ export class LotesService {
       }),
     };
 
-    const [data, total] = await Promise.all([
-      this.prisma.loteContrato.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          documentTemplate: { select: { id: true, nombre: true } },
-          sede: { select: { id: true, nombre: true } },
-          _count: { select: { contratos: true } },
-        },
-      }),
-      this.prisma.loteContrato.count({ where }),
-    ]);
+    return this.tenantPrisma.execute(async (prisma) => {
+      const [data, total] = await Promise.all([
+        prisma.loteContrato.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            documentTemplate: { select: { id: true, nombre: true } },
+            sede: { select: { id: true, nombre: true } },
+            _count: { select: { contratos: true } },
+          },
+        }),
+        prisma.loteContrato.count({ where }),
+      ]);
 
-    return {
-      data,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
-    };
+      return {
+        data,
+        meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      };
+    });
   }
 
   async findOne(tenantId: string, id: string) {
-    const lote = await this.prisma.loteContrato.findFirst({
-      where: { id, tenantId },
-      include: {
-        documentTemplate: { select: { id: true, nombre: true } },
-        sede: { select: { id: true, nombre: true } },
-        creadoPor: { select: { id: true, nombre: true, email: true } },
-        _count: { select: { contratos: true } },
-      },
-    });
+    const lote = await this.tenantPrisma.execute((prisma) =>
+      prisma.loteContrato.findFirst({
+        where: { id, tenantId },
+        include: {
+          documentTemplate: { select: { id: true, nombre: true } },
+          sede: { select: { id: true, nombre: true } },
+          creadoPor: { select: { id: true, nombre: true, email: true } },
+          _count: { select: { contratos: true } },
+        },
+      }),
+    );
     if (!lote) {
       throw new NotFoundException('Lote no encontrado');
     }
@@ -217,19 +222,21 @@ export class LotesService {
    * Progreso liviano del lote para polling. No incluye relaciones pesadas.
    */
   async getProgress(tenantId: string, id: string) {
-    const lote = await this.prisma.loteContrato.findFirst({
-      where: { id, tenantId },
-      select: {
-        id: true,
-        estado: true,
-        total: true,
-        procesados: true,
-        fallidos: true,
-        iniciadoAt: true,
-        completadoAt: true,
-        erroresLog: true,
-      },
-    });
+    const lote = await this.tenantPrisma.execute((prisma) =>
+      prisma.loteContrato.findFirst({
+        where: { id, tenantId },
+        select: {
+          id: true,
+          estado: true,
+          total: true,
+          procesados: true,
+          fallidos: true,
+          iniciadoAt: true,
+          completadoAt: true,
+          erroresLog: true,
+        },
+      }),
+    );
     if (!lote) {
       throw new NotFoundException('Lote no encontrado');
     }
@@ -257,16 +264,14 @@ export class LotesService {
       );
     }
 
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'LOTE_PROCESS',
-        entityType: 'LoteContrato',
-        entityId: id,
-        metadata: { estadoPrevio: lote.estado },
-      })
-      .catch(() => {});
+    await this.auditService.log({
+      tenantId,
+      userId,
+      action: 'LOTE_PROCESS',
+      entityType: 'LoteContrato',
+      entityId: id,
+      metadata: { estadoPrevio: lote.estado },
+    });
 
     return this.engine.procesarLote(id);
   }
@@ -290,16 +295,14 @@ export class LotesService {
       );
     }
 
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'LOTE_RETRY',
-        entityType: 'LoteContrato',
-        entityId: id,
-        metadata: { estadoPrevio: lote.estado },
-      })
-      .catch(() => {});
+    await this.auditService.log({
+      tenantId,
+      userId,
+      action: 'LOTE_RETRY',
+      entityType: 'LoteContrato',
+      entityId: id,
+      metadata: { estadoPrevio: lote.estado },
+    });
 
     const retryEmployeeIds = this.getRetryEmployeeIds(lote.erroresLog);
     return this.engine.procesarLote(id, {
@@ -310,10 +313,12 @@ export class LotesService {
 
   /** Carga el lote validando pertenencia al tenant. */
   private async ensureTenantLote(tenantId: string, id: string) {
-    const lote = await this.prisma.loteContrato.findFirst({
-      where: { id, tenantId },
-      select: { id: true, estado: true, erroresLog: true },
-    });
+    const lote = await this.tenantPrisma.execute((prisma) =>
+      prisma.loteContrato.findFirst({
+        where: { id, tenantId },
+        select: { id: true, estado: true, erroresLog: true },
+      }),
+    );
     if (!lote) {
       throw new NotFoundException('Lote no encontrado');
     }

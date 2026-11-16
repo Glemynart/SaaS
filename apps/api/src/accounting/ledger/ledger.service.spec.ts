@@ -155,7 +155,7 @@ describe('LedgerService', () => {
 
   describe('registrarComprobante()', () => {
     it('crea un comprobante balanceado', async () => {
-      const { service, mocks, tenantPrisma, mockTx } = build();
+      const { service, mocks, tenantPrisma, mockTx, audit } = build();
 
       mocks.periodoFindFirst.mockResolvedValue({
         id: PERIODO_ID,
@@ -178,6 +178,37 @@ describe('LedgerService', () => {
       expect(result.numero).toBe(1);
       expect(mocks.comprobanteCreate).toHaveBeenCalledTimes(1);
       expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'COMPROBANTE_CONTABILIZADO',
+          entityId: 'comp-001',
+        }),
+        mockTx,
+      );
+    });
+
+    it('propaga el fallo de auditoría al contabilizar', async () => {
+      const { service, mocks, audit, mockTx } = build();
+      audit.log.mockRejectedValue(new Error('audit unavailable'));
+
+      mocks.periodoFindFirst.mockResolvedValue({
+        id: PERIODO_ID,
+        estado: 'ABIERTO',
+      });
+      mocks.cuentaFindMany.mockResolvedValue([
+        cuenta({ id: 'cuenta-001' }),
+        cuenta({ id: 'cuenta-002' }),
+      ]);
+      mocks.secuenciaUpsert.mockResolvedValue({ ultimoNumero: 1 });
+      mocks.comprobanteCreate.mockResolvedValue(comprobanteCreado());
+
+      await expect(
+        service.registrarComprobante(comprobanteInput()),
+      ).rejects.toThrow('audit unavailable');
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'COMPROBANTE_CONTABILIZADO' }),
+        mockTx,
+      );
     });
 
     it('rechaza comprobante desbalanceado', async () => {
@@ -587,7 +618,7 @@ describe('LedgerService', () => {
     });
 
     it('anula comprobante CONTABILIZADO con período ABIERTO', async () => {
-      const { service, mocks } = build();
+      const { service, mocks, audit, mockTx } = build();
 
       mocks.comprobanteFindFirst
         .mockResolvedValueOnce(comprobanteCreado({ estado: 'CONTABILIZADO' }))
@@ -616,6 +647,37 @@ describe('LedgerService', () => {
       // No debe crear reverso
       expect(mocks.movimientoFindMany).not.toHaveBeenCalled();
       expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'COMPROBANTE_ANULADO',
+          entityId: 'comp-001',
+        }),
+        mockTx,
+      );
+    });
+
+    it('propaga el fallo de auditoría al anular en un período abierto', async () => {
+      const { service, mocks, audit, mockTx } = build();
+      audit.log.mockRejectedValue(new Error('audit unavailable'));
+
+      mocks.comprobanteFindFirst
+        .mockResolvedValueOnce(comprobanteCreado({ estado: 'CONTABILIZADO' }))
+        .mockResolvedValue(null);
+      mocks.periodoFindUniqueOrThrow.mockResolvedValue({
+        id: PERIODO_ID,
+        estado: 'ABIERTO',
+      });
+      mocks.comprobanteUpdate.mockResolvedValue(
+        comprobanteCreado({ estado: 'ANULADO' }),
+      );
+
+      await expect(
+        service.anular(TENANT_ID, USER_ID, 'comp-001', 'error'),
+      ).rejects.toThrow('audit unavailable');
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'COMPROBANTE_ANULADO' }),
+        mockTx,
+      );
     });
 
     it('bloquea la corrección antes de anular un ajuste de nómina', async () => {
@@ -644,7 +706,7 @@ describe('LedgerService', () => {
     });
 
     it('crea reverso con período CERRADO (append-only)', async () => {
-      const { service, mocks } = build();
+      const { service, mocks, audit, mockTx } = build();
 
       const original = comprobanteCreado({
         estado: 'CONTABILIZADO',
@@ -719,6 +781,10 @@ describe('LedgerService', () => {
       expect(call.data.movimientos.create[0].credito.toString()).toBe('100000');
       expect(call.data.movimientos.create[1].debito.toString()).toBe('100000');
       expect(call.data.movimientos.create[1].credito.toString()).toBe('0');
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'COMPROBANTE_REVERSO' }),
+        mockTx,
+      );
     });
 
     it('no crea reverso si el período destino se cierra mientras espera su lock', async () => {
@@ -753,8 +819,9 @@ describe('LedgerService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('lleva audit en reverso', async () => {
-      const { service, mocks, audit } = build();
+    it('propaga el fallo de auditoría al crear un reverso', async () => {
+      const { service, mocks, audit, mockTx } = build();
+      audit.log.mockRejectedValue(new Error('audit unavailable'));
 
       const original = comprobanteCreado({
         estado: 'CONTABILIZADO',
@@ -803,7 +870,9 @@ describe('LedgerService', () => {
         }),
       );
 
-      await service.anular(TENANT_ID, USER_ID, 'comp-001', 'error detectado');
+      await expect(
+        service.anular(TENANT_ID, USER_ID, 'comp-001', 'error detectado'),
+      ).rejects.toThrow('audit unavailable');
 
       expect(audit.log).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -814,6 +883,7 @@ describe('LedgerService', () => {
             originalId: 'comp-001',
           }),
         }),
+        mockTx,
       );
     });
 

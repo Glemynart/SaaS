@@ -4,12 +4,12 @@ import { Test } from '@nestjs/testing';
 import { ThrottlerModule } from '@nestjs/throttler';
 import request from 'supertest';
 import type { App } from 'supertest/types';
-import { AuditService } from '../audit/audit.service';
 import { TenantsService } from '../tenants/tenants.service';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { PasswordResetService } from './password-reset.service';
 import { UserInvitationsService } from '../users/user-invitations.service';
+import type { Request } from 'express';
 
 describe('AuthController reset token validation', () => {
   let app: INestApplication<App>;
@@ -31,7 +31,6 @@ describe('AuthController reset token validation', () => {
           provide: PasswordResetService,
           useValue: { validateResetToken },
         },
-        { provide: AuditService, useValue: {} },
         { provide: UserInvitationsService, useValue: {} },
       ],
     }).compile();
@@ -68,5 +67,43 @@ describe('AuthController reset token validation', () => {
       .expect(200, { valid: false });
 
     expect(validateResetToken).toHaveBeenCalledWith(undefined);
+  });
+});
+
+describe('AuthController login audit', () => {
+  const user = {
+    id: 'user-1',
+    tenantId: 'tenant-1',
+    email: 'user@example.test',
+    nombre: 'Ada',
+    apellido: 'Lovelace',
+    rol: 'ADMIN',
+  };
+  const login = jest.fn();
+  const controller = new AuthController(
+    { login } as unknown as AuthService,
+    {} as PasswordResetService,
+    {} as UserInvitationsService,
+  );
+  const request = { headers: { 'user-agent': 'test-agent' } } as Request;
+  const dto = {
+    tenantNit: '900123456',
+    email: user.email,
+    passwordPlain: 'irrelevant-in-controller-test',
+  };
+
+  beforeEach(() => {
+    login.mockReset().mockResolvedValue({ accessToken: 'token', user });
+  });
+
+  it('delegates successful login auditing to the transactional auth service', async () => {
+    const result = await controller.login(dto, request, '127.0.0.1');
+
+    expect(result).toEqual({ accessToken: 'token', user });
+    expect(login).toHaveBeenCalledWith({
+      ...dto,
+      userAgent: 'test-agent',
+      ipAddress: '127.0.0.1',
+    });
   });
 });

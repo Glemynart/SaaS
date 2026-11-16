@@ -6,10 +6,10 @@ import {
 import { UserRole } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
-import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { StorageObjectNotFoundError } from '../storage/storage.types';
+import { getCanonicalGeneratedDocumentStorageKey } from './generated-document-storage-key';
 
 export interface GeneratedDocumentMetadata {
   id: string;
@@ -49,7 +49,6 @@ const DOCUMENT_READ_ROLES = new Set<string>([
 @Injectable()
 export class GeneratedDocumentAccessService {
   constructor(
-    private readonly prisma: PrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private readonly storage: StorageService,
     private readonly auditService: AuditService,
@@ -118,16 +117,18 @@ export class GeneratedDocumentAccessService {
   ): Promise<GeneratedDocumentDownload> {
     this.assertReadPermission(user);
 
-    const document = await this.prisma.generatedDocument.findFirst({
-      where: { id, tenantId: user.tenantId },
-      select: {
-        id: true,
-        nombre: true,
-        tipo: true,
-        pdfStorageKey: true,
-        pdfUrl: true,
-      },
-    });
+    const document = await this.tenantPrisma.execute((prisma) =>
+      prisma.generatedDocument.findFirst({
+        where: { id, tenantId: user.tenantId },
+        select: {
+          id: true,
+          nombre: true,
+          tipo: true,
+          pdfStorageKey: true,
+          pdfUrl: true,
+        },
+      }),
+    );
 
     if (!document) {
       throw new NotFoundException('Documento generado no encontrado');
@@ -167,11 +168,19 @@ export class GeneratedDocumentAccessService {
     },
   ): Promise<Buffer> {
     const candidates = new Set<string>();
-    if (document.pdfStorageKey) candidates.add(document.pdfStorageKey);
-    candidates.add(`pdfs/${tenantId}-${document.id}.pdf`);
+    const canonicalStorageKey = getCanonicalGeneratedDocumentStorageKey(
+      tenantId,
+      document.id,
+    );
+    if (document.pdfStorageKey === canonicalStorageKey) {
+      candidates.add(document.pdfStorageKey);
+    }
+    candidates.add(canonicalStorageKey);
 
     const legacyStorageKey = this.getStorageKeyFromLegacyUrl(document.pdfUrl);
-    if (legacyStorageKey) candidates.add(legacyStorageKey);
+    if (legacyStorageKey === canonicalStorageKey) {
+      candidates.add(legacyStorageKey);
+    }
 
     for (const storageKey of candidates) {
       try {

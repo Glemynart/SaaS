@@ -25,42 +25,38 @@ export class SedesService {
   ) {}
 
   async create(userId: string, dto: CreateSedeDto) {
-    const { sede, tenantId } = await this.tenantPrisma.execute(
-      async (prisma, context) => {
-        const tenantId = context.tenantId;
-        await this.ensureMunicipioExists(prisma, dto.municipioId);
+    const sede = await this.tenantPrisma.execute(async (prisma, context) => {
+      const tenantId = context.tenantId;
+      await this.ensureMunicipioExists(prisma, dto.municipioId);
 
-        const willBeActive = dto.activo ?? true;
-        if (willBeActive) {
-          await this.ensureNombreDisponible(prisma, tenantId, dto.nombre);
-        }
+      const willBeActive = dto.activo ?? true;
+      if (willBeActive) {
+        await this.ensureNombreDisponible(prisma, tenantId, dto.nombre);
+      }
 
-        const sede = await prisma.sede.create({
-          data: {
-            tenantId,
-            nombre: dto.nombre,
-            direccion: dto.direccion,
-            municipioId: dto.municipioId,
-            ...(dto.activo !== undefined && { activo: dto.activo }),
-          },
-          include: { municipio: municipioSelect },
-        });
-
-        return { sede, tenantId };
-      },
-    );
-
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'SEDE_CREATE',
-        entityType: 'Sede',
-        entityId: sede.id,
-        metadata: { nombre: sede.nombre },
-      })
-      .catch(() => {});
-
+      const sede = await prisma.sede.create({
+        data: {
+          tenantId,
+          nombre: dto.nombre,
+          direccion: dto.direccion,
+          municipioId: dto.municipioId,
+          ...(dto.activo !== undefined && { activo: dto.activo }),
+        },
+        include: { municipio: municipioSelect },
+      });
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'SEDE_CREATE',
+          entityType: 'Sede',
+          entityId: sede.id,
+          metadata: { nombre: sede.nombre },
+        },
+        prisma,
+      );
+      return sede;
+    });
     return sede;
   }
 
@@ -89,7 +85,7 @@ export class SedesService {
     );
   }
 
-  async update(id: string, dto: UpdateSedeDto) {
+  async update(userId: string, id: string, dto: UpdateSedeDto) {
     return this.tenantPrisma.execute(async (prisma, context) => {
       const tenantId = context.tenantId;
       const current = await this.findOneInTenant(prisma, tenantId, id);
@@ -107,7 +103,7 @@ export class SedesService {
         await this.ensureNombreDisponible(prisma, tenantId, nextNombre, id);
       }
 
-      return prisma.sede.update({
+      const sede = await prisma.sede.update({
         where: { id, tenantId },
         data: {
           ...(dto.nombre !== undefined && { nombre: dto.nombre }),
@@ -119,6 +115,18 @@ export class SedesService {
         },
         include: { municipio: municipioSelect },
       });
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'SEDE_UPDATE',
+          entityType: 'Sede',
+          entityId: sede.id,
+          metadata: { fields: Object.keys(dto) },
+        },
+        prisma,
+      );
+      return sede;
     });
   }
 

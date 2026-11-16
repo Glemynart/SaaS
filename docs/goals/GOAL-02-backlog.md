@@ -35,10 +35,14 @@ primero flujos financieros internos que puedan mostrarse a futuros clientes.
   snapshots de salario y referencias a documentos. La migración valida
   relaciones históricas tenant-consistentes antes de activarla; los
   consumidores de contratos en RR. HH., lotes y cálculo de nómina usan
-  `TenantPrismaService`. No protege aún `generated_documents` ni el expediente,
-  y no cierra el riesgo conocido de que una sesión SQL pueda establecer
-  `app.current_tenant_id`. El merge incorpora la migración y sus pruebas al
-  repositorio, pero no demuestra su aplicación en una base desplegada.
+  `TenantPrismaService`. Esta siguiente cohorte añade RLS a
+  `generated_documents`, sus referencias laborales tenant-consistentes y el
+  uso de `TenantPrismaService` en generación individual, por lotes, contratos,
+  descarga y publicación. La migración y sus pruebas en el repositorio no
+  demuestran que ya se hayan aplicado en una base desplegada.
+  `expediente_doc_families` y `expediente_docs` siguen dependiendo del filtro
+  de la aplicación. Tampoco se cierra el riesgo conocido de que una sesión SQL
+  pueda establecer `app.current_tenant_id`.
 
 ## Estado vigente — 2026-11-09
 
@@ -2603,3 +2607,299 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   tenant cruzado, ocultamiento sin contexto y ausencia de DELETE. No modifica
   datos desplegados ni acredita que la migración ya haya sido aplicada fuera
   de CI.
+
+### RLS tenant-scoped para expediente digital — GOAL-02
+
+- `expediente_doc_families` y `expediente_docs` contienen identidad del empleado,
+  contratos y documentos PDF publicados, incluida la prima de servicios.
+- La migración habilita y fuerza RLS: familias solo admiten lectura e inserción;
+  documentos admiten lectura, inserción y actualización, sin política de DELETE.
+  Las políticas validan empleado, familia y referencias opcionales a contrato,
+  documento generado y línea de prima dentro del mismo tenant. Una FK compuesta
+  `(reemplazaId, tenantId)` protege la cadena de revisiones ante referencias
+  cruzadas.
+- `ExpedienteDocsService`, los accesos al índice desde generación documental y
+  las consultas de alertas que devuelven documentos utilizan
+  `TenantPrismaService`; se conservan los filtros tenant de aplicación y la
+  inmutabilidad de las revisiones.
+- La prueba PostgreSQL con rol `NOSUPERUSER NOBYPASSRLS` verifica ausencia de
+  contexto, ocultamiento de otro tenant, lectura de historial y descarga,
+  carga manual tenant-scoped, referencias cruzadas rechazadas y que RLS bloquea
+  el borrado aun con el privilegio SQL `DELETE` concedido. La cadena de
+  migraciones y la integración se validaron en PostgreSQL 16 y 17 desechables.
+- La migración es aditiva y no se ejecutó en bases desplegadas. El código y las
+  pruebas de esta cohorte no demuestran el estado de RLS en staging ni
+  producción.
+
+### Auditoría de RLS laboral, documental y de nómina — GOAL-02 (2026-11-15)
+
+El inventario inicial de 21 modelos tenant-scoped sin RLS fue contrastado con
+Prisma, los consumidores del API y el catálogo PostgreSQL de una base
+desechable. En el HEAD auditado, 12 de esos modelos tienen RLS forzado; los
+nueve restantes se explican en la tabla y no deben recibir una política
+genérica sin resolver sus rutas preautenticadas, su condición de legado o la
+identidad de auditoría. Algunas políticas abarcan tablas dependientes, por lo
+que el total de tablas protegidas no equivale al número de modelos del
+inventario. Las migraciones son aditivas y todavía no se han aplicado en
+staging ni producción.
+
+| Modelo al corte inicial    | Evidencia de código y decisión                                                                                                                                                                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `User`                     | Login y recuperación identifican el tenant antes de establecer el contexto de sesión; el lookup combina tenant y correo. RLS genérico no es compatible con este punto de entrada sin una ruta de autenticación específica.                                               |
+| `PasswordResetToken`       | El inicio de recuperación es público y consume un token opaco antes de autenticarse; por eso no se añadió RLS genérico. Una FK compuesta `tenantId + userId` ahora impide asociarlo a un usuario de otra empresa y el cambio de contraseña repite ambos identificadores. |
+| `UserInvitation`           | La aceptación parte de un token opaco sin sesión; consultas y cambios atan ID, tenant y hash. No añadir RLS genérico sin un bootstrap de identidad para el token.                                                                                                        |
+| `Plantilla`                | Modelo legado DOCX; no se encontraron lecturas/escrituras mediante el delegate en los servicios activos. La generación vigente usa `DocumentTemplate`, ya protegido.                                                                                                     |
+| `AlertGenerationRunTenant` | Resuelto en la cohorte de aislamiento de resultados del scheduler descrita abajo; RLS se instala con contexto explícito por tenant.                                                                                                                                      |
+| `AuditLog`                 | `AuditService` escribe por Prisma directo sin instalar/verificar contexto tenant; recibe llamadas de flujos tenant, autenticación pública y scheduler. Centralizar el contexto antes de RLS.                                                                             |
+| `Alerta`                   | Tabla legado sin consumidores activos identificados; el módulo vigente usa `alerts_new`, que ya tiene RLS.                                                                                                                                                               |
+| `ClienteFE`                | Tabla legado sin consumidores activos identificados; facturación interna usa `customers`.                                                                                                                                                                                |
+| `Producto`                 | Tabla legado sin consumidores activos identificados; facturación interna usa `product_services`.                                                                                                                                                                         |
+| `Factura`                  | Tabla legado sin consumidores activos identificados; facturación interna usa `invoices`.                                                                                                                                                                                 |
+
+Al corte inicial, la ausencia de RLS en estos diez modelos no demostraba por sí
+sola una fuga: los modelos de autenticación usan rutas de identidad
+precontexto; cuatro modelos de negocio son legado sin uso activo detectado; y
+`AuditLog` necesita resolver su atribución de sistema y tenant. El caso del
+coordinador de alertas se resolvió con la política específica documentada al
+final de esta sección; no se aplicó una política genérica a todos los modelos.
+
+En `AuditLog`, la búsqueda de código confirma que el único escritor productivo
+es `AuditService`, que no instala ni verifica el GUC tenant; sus llamadores
+incluyen operaciones autenticadas, login/recuperación/invitaciones públicas y
+el scheduler multiempresa. `userId` es obligatorio y no tiene FK: el scheduler
+registra el actor sintético `system:alerts-scheduler` y el worker de prima usa
+`service-premium-worker`, ninguno de los cuales es una fila de `users`. Por eso
+una FK compuesta genérica a usuario tampoco sería compatible. No se encontraron
+lecturas productivas de esta tabla. El riesgo demostrado es de integridad y
+atribución de auditoría, no una ruta de lectura cruzada. Antes de RLS se debe
+definir cómo representar actores de sistema y validar el par tenant/actor en
+un punto central; la política no debe convertir identificadores sintéticos en
+usuarios ficticios.
+
+La revisión del Ledger encontró además que `registrarComprobante`, la
+anulación en período abierto y la creación de reverso invocaban `AuditService`
+sin esperar el resultado y descartaban errores, pese a que ADR-001 I9 exige
+auditar esas transiciones. Ahora las tres operaciones esperan el registro y le
+pasan su cliente transaccional; un fallo de auditoría se propaga y la
+transacción de `TenantPrismaService` no confirma el asiento o cambio de estado.
+El mismo control se aplicó al cierre de período, reapertura y cierre anual:
+el registro se espera dentro de la transacción de la transición. Las pruebas
+unitarias verifican el cliente transaccional y la propagación de fallos para
+estas seis rutas.
+
+Una revisión posterior encontró cuatro rutas de nómina con el mismo problema:
+crear período, generar nómina, reliquidar y crear novedad descartaban errores
+de auditoría después de confirmar la operación. Las cuatro ahora esperan
+`AuditService.log` dentro de la transacción tenant-scoped, usando su mismo
+cliente Prisma. Si la auditoría falla, el error se propaga para que la
+transacción revierta los cambios de nómina. Las pruebas unitarias verifican el
+cliente transaccional y la propagación; se añade una prueba PostgreSQL que
+provoca un fallo de auditoría al crear un período y comprueba que la fila no se
+persista. Esa prueba representa el límite real de rollback para el patrón; la
+suite no introduce un caso PostgreSQL separado para cada operación de cálculo.
+
+El mismo límite transaccional se aplicó a crear una liquidación laboral y a
+aprobarla, marcarla pagada o anularla. Las cuatro rutas entregan el mismo
+cliente Prisma a `AuditService.log`; un error se propaga para revertir el cambio
+de estado y la auditoría queda obligatoria para la operación. La suite unitaria
+de liquidaciones verifica el cliente y la propagación. No se añadió una prueba
+PostgreSQL específica para cada transición.
+
+Otra cohorte hizo obligatoria y transaccional la auditoría de cuentas
+contables, terceros, centros de costo, mapeos de cuentas, períodos contables y
+provisión/desprovisión. Cada escritura entrega el mismo cliente Prisma a
+`AuditService.log`; las pruebas unitarias verifican el cliente y la propagación
+de errores. No se añadieron pruebas PostgreSQL específicas de rollback para
+cada mutación.
+
+La revisión de esos flujos cerró otra cohorte. La creación de contratos y el
+cambio de su estado guardan auditoría con la escritura dentro de la misma
+transacción tenant-scoped. La creación de lotes también es atómica con su
+auditoría; las solicitudes para procesar y reintentar guardan el evento antes
+de iniciar el motor, de modo que un fallo de auditoría no despacha el trabajo.
+Las pruebas unitarias verifican que se usa el cliente transaccional y que se
+propagan fallos; las de lotes comprueban además que el motor no se inicia si no
+se registra la solicitud. El CRUD de sedes y empleados tiene el mismo patrón.
+Siguen pendientes la importación de empleados y documentos generados. Cada
+call site restante debe revisarse por método: registros de fallo, acceso y
+telemetría no son por sí mismos una mutación exitosa sin auditoría.
+
+La migración `20261116080000_password_reset_tenant_integrity` valida los datos
+existentes y aborta si encuentra un token asociado a otro tenant; luego reemplaza
+la FK por una relación compuesta con `users(tenantId, id)`. La suite PostgreSQL
+17.11 desechable confirma que el vínculo del mismo tenant se acepta y el
+cruzado se rechaza. El modelo sigue sin RLS genérico porque recuperación y
+consumo son entradas preautenticadas.
+
+El login consulta por `tenantId + email`, y el método de búsqueda interna por
+ID en `UsersService` también exige ahora `tenantId`. La auditoría no encontró
+llamadas actuales a ese método, pero se cerró para evitar añadir en el futuro
+una búsqueda global a partir de un ID aislado.
+
+La protección de `parametros_legales_nomina` permite SELECT de filas
+globales y del override propio y no autoriza DML al runtime; el seed actual
+requiere una identidad privilegiada y el runbook de staging quedó corregido
+para no ejecutarlo con `staging_runtime`. Sigue pendiente definir una ruta de
+seed con privilegio mínimo.
+
+La auditoría encontró que el comentario Prisma de `LoteContrato` describía un
+worker BullMQ y descarga ZIP, mientras el código actual procesa el lote de
+forma síncrona desde la petición HTTP y no registra consumidores BullMQ activos.
+El comentario del modelo quedó alineado con el flujo observado. El motor y
+`LotesService` ahora ejecutan sus accesos directos mediante
+`TenantPrismaService`; las políticas de lote y plan también verifican que sus
+referencias existan dentro del mismo tenant. Cualquier futuro consumidor en
+segundo plano deberá instalar un contexto tenant autenticado antes de usar
+estas rutas.
+
+La cadena completa de 118 migraciones se aplicó en PostgreSQL 17.11 desechable.
+En esta cohorte pasaron las 18 suites PostgreSQL RLS afectadas (83 pruebas) y
+cuatro suites unitarias de lotes y resolución documental (75 pruebas). También
+pasaron ESLint de todos los TypeScript modificados, typecheck y build de API.
+El resultado anterior de 170 suites/2.114 pruebas corresponde al corte previo
+y no se volvió a ejecutar en esta cohorte. No se ejecutaron migraciones en bases
+desplegadas. La publicación del PR queda retenida hasta poder verificar el
+riesgo de Preview y el límite de presupuesto de Vercel.
+
+La auditoría de generación documental localizó cuatro rutas de renderizado:
+documentos laborales individuales y por lote, expediente de documentos y
+liquidación de prima. Todas delegan el PDF a `PdfRenderService`. Los valores
+dinámicos de plantillas se escapan con `escapeHtml`/`replaceHtmlTemplateVariables`;
+prima también escapa los datos textuales. El cuerpo de la plantilla se conserva
+como HTML porque el producto admite formato enriquecido, pero el renderer
+deshabilita JavaScript y bloquea solicitudes que no sean `data:`, `blob:` o
+`about:`. No se reprodujo ejecución de script ni lectura cruzada de PDFs.
+
+La entrega de documentos generados y del expediente pasa por controladores con
+JWT, tenant activo y roles; las búsquedas incluyen tenant y las respuestas PDF
+usan `Cache-Control: private, no-store`. La asociación de cada registro con su
+`storageKey` se mantiene por los servicios que construyen claves con el tenant;
+no existe una restricción de base que valide la identidad del objeto frente al
+tenant del registro. No se reprodujo una clave cruzada desde una ruta HTTP, y
+los DTOs no permiten que el cliente envíe `storageKey`; el riesgo observado era
+de metadata inconsistente. Como defensa en profundidad, las descargas ahora
+aceptan solo la clave canónica generada para el tenant/documento, o la ruta
+tenant/empleado o tenant/línea de prima correspondiente; la publicación valida
+las mismas identidades antes de guardar referencias. La firma privada también
+debe tener la ruta y el nombre generados para el tenant antes de leer Storage.
+La clave histórica canónica `pdfs/{tenantId}-{documentId}.pdf` sigue siendo
+válida. Estas comprobaciones no sustituyen una futura restricción relacional de
+base ni demuestran el estado de datos desplegados. También se confirmó que las
+URLs HTTP del logo de empresa son bloqueadas por el renderer junto con las
+demás solicitudes remotas; por tanto, pueden no aparecer en el PDF. No se abrió
+el acceso de red para resolverlo, pues requeriría un mecanismo seguro de carga
+local del activo. Validación posterior de la defensa de claves: 7 suites
+unitarias/HTTP (87 pruebas), typecheck y build de API aprobados; las fuentes
+modificadas y las specs nuevas pasan ESLint. Dos specs extensas conservan los
+mismos hallazgos ESLint que su versión base. En una base temporal PostgreSQL
+17.11 se aplicaron las 119 migraciones y la suite real de RLS de expediente
+pasó 5/5; el contenedor usó una red dedicada y volumen temporal en RAM, y se
+retiró al finalizar. Ninguna base desplegada fue modificada.
+
+### Aislamiento de resultados del scheduler de alertas — GOAL-02 (2026-11-15)
+
+La auditoría detectó que la respuesta de `GET /alerts/generation-runs/latest`
+devolvía el estado y los contadores del coordinador global junto con el
+resultado del tenant. Aunque las alertas y el resultado hijo ya tenían filtro
+por tenant, los agregados del padre revelaban actividad de otras empresas. El
+endpoint también exponía el mismo identificador de ejecución global a todos los
+tenants participantes.
+
+- `alert_generation_runs` sigue siendo el registro global que coordina y
+  agrega la ejecución. `alert_generation_run_tenants` ahora tiene RLS `ENABLE`
+  y `FORCE`, con `SELECT`, `INSERT` y `UPDATE` tenant-scoped y sin política de
+  borrado físico. La migración aborta si encuentra un resultado sin tenant o
+  ejecución padre.
+- El scheduler instala el contexto tenant en cada lectura y escritura del
+  resultado, incluida la recuperación de ejecuciones vencidas. El endpoint
+  devuelve el identificador del resultado hijo para que un tenant no pueda
+  correlacionar la misma ejecución con los demás. Los reintentos aceptan ese
+  identificador o el ID de padre heredado por pestañas ya abiertas; ambos se
+  buscan bajo el tenant autenticado, y solo el backend resuelve el padre.
+- La retención conserva la eliminación global del padre y el borrado en
+  cascada de sus filas hijas; la prueba PostgreSQL verifica el comportamiento
+  con un rol `NOSUPERUSER NOBYPASSRLS` sin política `DELETE` sobre la tabla
+  hija.
+- Validación local: 119 migraciones aplicadas en PostgreSQL 17.11 temporal;
+  18 suites RLS PostgreSQL y 87 pruebas, además de las pruebas unitarias del
+  scheduler, typecheck y lint de API/Web. La migración no se aplicó en staging
+  ni producción.
+- El inventario de los 21 modelos sin RLS queda en 12 protegidos por políticas
+  forzadas y nueve pendientes. `AuditLog` conserva su evaluación aparte: no se
+  añadió RLS genérico porque el escritor también atiende flujos públicos y de
+  sistema sin un contexto tenant centralizado.
+
+### Integridad de claves privadas de exportaciones PILA — GOAL-02 (2026-11-15)
+
+La descarga ya buscaba el registro `PilaExport` con tenant, período e ID, y
+verificaba el SHA-256 del objeto. La revisión detectó que el metadato
+`storageKey` se usaba para leer Storage sin comprobar que su ruta coincidiera
+con el tenant, la exportación y el tipo solicitados. Ahora la descarga exige la
+ruta canónica `tenants/{tenantId}/pila-exports/{exportId}/{type-1|type-2}.txt`
+antes de leer el objeto. Las regresiones para ambos tipos confirman que una
+ruta de otro tenant produce conflicto sin invocar Storage ni registrar la
+descarga. La validación de hash se conserva como control adicional de
+integridad; no se modificó el esquema ni se ejecutaron migraciones.
+
+### Trazabilidad transaccional de operaciones sensibles — GOAL-02 (2026-11-15)
+
+Se cerró una cohorte adicional de eventos `AuditLog` que podían fallar en
+silencio o quedar fuera de la transacción de negocio. La importación masiva de
+empleados, la generación de PDF, el CRUD de perfiles contractuales y
+configuraciones documentales, los vínculos laborales y los cambios de
+restablecimiento de contraseña ahora esperan su evento de auditoría con el
+mismo cliente transaccional que persiste la operación. Si falla el evento,
+Prisma revierte el cambio. El evento de importación conserva sus contadores y
+dejó de almacenar la lista de cédulas.
+
+La descarga del expediente espera un evento tenant-scoped de acceso después de
+leer el objeto; si no puede registrarlo, la API no devuelve el contenido. El
+evento `LOGIN` ahora comparte transacción con `lastLoginAt` y la creación del
+refresh token. El registro público de empresa también escribe
+`TENANT_REGISTERED` dentro de la transacción que crea el tenant y su primer
+usuario administrador. Un fallo de auditoría revierte esos cambios junto con
+la operación y no devuelve tokens. Los registros de fallo de operaciones que
+vuelven a lanzar la excepción original y los eventos de correo fallido
+permanecen como telemetría de error; no representan escrituras exitosas sin
+auditoría.
+
+Validación local de esta rama: 120 migraciones aplicadas en PostgreSQL 17.11
+desechable; 24 suites PostgreSQL y 104 pruebas pasaron. Las nueve suites
+unitarias y de contrato enfocadas en importación, documentos, perfiles,
+vínculos, restablecimiento y acceso documental pasaron con 117 pruebas.
+Typecheck y build de API, ESLint de los archivos modificados, Prettier y
+`git diff --check` también pasaron. No se modificaron migraciones ni se accedió
+a bases desplegadas. El inventario RLS de los 21 modelos sigue en 12 con RLS
+forzada y nueve excepciones documentadas; esta cohorte no añade políticas
+genéricas.
+
+La lectura del proyecto Vercel `saa-s-web` confirma plan Hobby, repositorio
+`Glemynart/SaaS`, rama de producción `main`, Root Directory `apps/web` y
+creación Git de deployments habilitada. El proyecto reporta
+`enableAffectedProjectsDeployments=true`, pero la API de Vercel no muestra un
+`ignoreCommand` configurado; el script `apps/web/scripts/vercel-ignore-build.sh`
+no puede considerarse activo. Esta rama sí cambia archivos de `apps/web`, por
+lo que el filtrado automático del monorepo no basta para evitar un Preview.
+La consulta de Usage no entregó datos de facturación para el período actual y
+las métricas actuales de Functions Storage y Deployment Storage no estuvieron
+disponibles por CLI/API. La producción más reciente consultada permanece
+`READY` en `main@f38a1fb` con el alias `staging.dusema.com`; no hubo deployments
+en las 24 horas previas a la consulta. Presupuesto y almacenamiento siguen sin
+verificarse: no se publica esta rama ni se abre PR hasta obtener esos datos,
+sin deshabilitar checks ni alterar despliegues existentes.
+
+### Auditoría atómica de autenticación — GOAL-02 (2026-11-15)
+
+La revisión de atribución encontró dos brechas en los flujos públicos de
+autenticación. El login registraba su evento después de persistir
+`lastLoginAt` y el refresh token; el registro inicial de una empresa no tenía
+evento de auditoría. Ahora `LOGIN` comparte el cliente transaccional con la
+marca de último acceso y el refresh token, y `TENANT_REGISTERED` comparte la
+transacción que crea el tenant y al primer usuario administrador. Si falla el
+registro de auditoría, la transacción aborta y no se devuelve una sesión.
+
+El endpoint conserva la misma respuesta. El `AuditLog` sigue sin una relación
+de clave foránea hacia `User` ni RLS genérico; esa restricción histórica se
+mantiene pendiente de una decisión global de atribución para actores públicos
+y de sistema. Validación local: 10 suites focalizadas y 127 pruebas aprobadas,
+typecheck, ESLint de los archivos de autenticación y build de API aprobados.

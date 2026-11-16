@@ -138,25 +138,23 @@ export class AccountingProvisioningService {
         mapeos += 1;
       }
 
-      return {
+      const result = {
         status: 'provisioned' as const,
         cuentas: idNuevoPorCodigo.size,
         mapeos,
       };
-    });
-
-    if (result.status === 'provisioned') {
-      this.audit
-        .log({
+      await this.audit.log(
+        {
           tenantId,
           userId,
           action: 'ACCOUNTING_PROVISIONED',
           entityType: 'CuentaContable',
           metadata: { cuentas: result.cuentas, mapeos: result.mapeos },
-        })
-        .catch(() => {});
-    }
-
+        },
+        tx,
+      );
+      return result;
+    });
     return result;
   }
 
@@ -185,7 +183,18 @@ export class AccountingProvisioningService {
         const { count } = await tx.cuentaContable.deleteMany({
           where: { tenantId },
         });
-        return { cuentas: count };
+        const result = { cuentas: count };
+        await this.audit.log(
+          {
+            tenantId,
+            userId,
+            action: 'ACCOUNTING_DEPROVISIONED',
+            entityType: 'CuentaContable',
+            metadata: { cuentas: result.cuentas },
+          },
+          tx,
+        );
+        return result;
       });
     } catch (error) {
       if (
@@ -196,16 +205,6 @@ export class AccountingProvisioningService {
       }
       throw error;
     }
-
-    this.audit
-      .log({
-        tenantId,
-        userId,
-        action: 'ACCOUNTING_DEPROVISIONED',
-        entityType: 'CuentaContable',
-        metadata: { cuentas: result.cuentas },
-      })
-      .catch(() => {});
 
     return result;
   }

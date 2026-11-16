@@ -58,7 +58,7 @@ export class EmployeesService {
       ? tipoSalarioPila === TipoSalarioPila.INTEGRAL
       : (createDto.salarioIntegral ?? false);
 
-    const { employee, tenantId } = await this.tenantPrisma.execute(
+    const employee = await this.tenantPrisma.execute(
       async (prisma, context) => {
         const tenantId = context.tenantId;
         const existing = await prisma.empleado.findUnique({
@@ -109,20 +109,21 @@ export class EmployeesService {
           );
         }
 
-        return { employee, tenantId };
+        await this.auditService.log(
+          {
+            tenantId,
+            userId,
+            action: 'EMPLOYEE_CREATE',
+            entityType: 'Employee',
+            entityId: employee.id,
+            metadata: { cedula: employee.cedula },
+          },
+          prisma,
+        );
+
+        return employee;
       },
     );
-
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'EMPLOYEE_CREATE',
-        entityType: 'Employee',
-        entityId: employee.id,
-        metadata: { cedula: employee.cedula },
-      })
-      .catch(() => {});
     return employee;
   }
 
@@ -184,7 +185,7 @@ export class EmployeesService {
   }
 
   async update(userId: string, id: string, updateDto: UpdateEmployeeDto) {
-    const { employee, tenantId } = await this.tenantPrisma.execute(
+    const employee = await this.tenantPrisma.execute(
       async (prisma, context) => {
         const tenantId = context.tenantId;
         const currentEmployee = await this.findOneInTenant(
@@ -286,25 +287,25 @@ export class EmployeesService {
           where: { id, tenantId },
           data: dataToUpdate,
         });
-        return { employee, tenantId };
+        await this.auditService.log(
+          {
+            tenantId,
+            userId,
+            action: 'EMPLOYEE_UPDATE',
+            entityType: 'Employee',
+            entityId: employee.id,
+            metadata: { fields: Object.keys(updateDto) },
+          },
+          prisma,
+        );
+        return employee;
       },
     );
-
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'EMPLOYEE_UPDATE',
-        entityType: 'Employee',
-        entityId: employee.id,
-        metadata: { fields: Object.keys(updateDto) },
-      })
-      .catch(() => {});
     return employee;
   }
 
   async remove(userId: string, id: string) {
-    const { employee, tenantId } = await this.tenantPrisma.execute(
+    const employee = await this.tenantPrisma.execute(
       async (prisma, context) => {
         const tenantId = context.tenantId;
         await this.findOneInTenant(prisma, tenantId, id);
@@ -316,19 +317,19 @@ export class EmployeesService {
             estado: 'INACTIVO',
           },
         });
-        return { employee, tenantId };
+        await this.auditService.log(
+          {
+            tenantId,
+            userId,
+            action: 'EMPLOYEE_DELETE',
+            entityType: 'Employee',
+            entityId: employee.id,
+          },
+          prisma,
+        );
+        return employee;
       },
     );
-
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'EMPLOYEE_DELETE',
-        entityType: 'Employee',
-        entityId: employee.id,
-      })
-      .catch(() => {});
     return employee;
   }
 

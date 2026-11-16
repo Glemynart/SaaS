@@ -15,8 +15,10 @@ import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.servic
 import { StorageService } from '../storage/storage.service';
 import { StorageObjectNotFoundError } from '../storage/storage.types';
 import { PdfRenderService } from '../pdf-render/pdf-render.service';
+import { escapeHtml } from '../pdf-render/template-html';
 import { formatNombreCompleto } from '@saas/types';
 import { isImmutablePublishedDocumentType } from './document-invariants';
+import { getCanonicalGeneratedDocumentStorageKey } from './generated-document-storage-key';
 
 interface ReplacementContext {
   NOMBRE_COMPLETO: string;
@@ -40,6 +42,11 @@ export interface PdfMaterializationResult {
   pdfUrl: string;
   materialized: boolean;
 }
+
+const TRUSTED_HTML_PLACEHOLDERS = new Set([
+  'LOGO_EMPRESA',
+  'FIRMA_REPRESENTANTE',
+]);
 
 @Injectable()
 export class GeneratedDocumentsService {
@@ -69,9 +76,11 @@ export class GeneratedDocumentsService {
       throw new NotFoundException('Empleado no encontrado');
     }
 
-    const template = await this.prisma.documentTemplate.findFirst({
-      where: { id: dto.templateId, tenantId, deletedAt: null },
-    });
+    const template = await this.tenantPrisma.execute((prisma) =>
+      prisma.documentTemplate.findFirst({
+        where: { id: dto.templateId, tenantId, deletedAt: null },
+      }),
+    );
     if (!template) {
       throw new NotFoundException('Plantilla no encontrada');
     }
@@ -122,10 +131,10 @@ export class GeneratedDocumentsService {
       NIT: tenant.nit,
       REPRESENTANTE_LEGAL: tenant.representanteLegal ?? 'No definido',
       LOGO_EMPRESA: tenant.logoUrl
-        ? `<img src="${tenant.logoUrl}" alt="Logo ${tenant.nombre}" style="max-width:200px;height:auto;" />`
+        ? `<img src="${escapeHtml(tenant.logoUrl)}" alt="Logo ${escapeHtml(tenant.nombre)}" style="max-width:200px;height:auto;" />`
         : '',
       FIRMA_REPRESENTANTE: tenant.firmaRepresentanteUrl
-        ? `<img src="${tenant.firmaRepresentanteUrl}" alt="Firma representante legal" style="max-width:180px;height:auto;" />`
+        ? `<img src="${escapeHtml(tenant.firmaRepresentanteUrl)}" alt="Firma representante legal" style="max-width:180px;height:auto;" />`
         : '',
     };
 
@@ -141,10 +150,12 @@ export class GeneratedDocumentsService {
     };
 
     if (template.tipo !== 'CERTIFICATION') {
-      return this.prisma.generatedDocument.create({ data });
+      return this.tenantPrisma.execute((tx) =>
+        tx.generatedDocument.create({ data }),
+      );
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.tenantPrisma.execute(async (tx) => {
       const document = await tx.generatedDocument.create({ data });
 
       await this.auditService.log(
@@ -256,15 +267,17 @@ export class GeneratedDocumentsService {
   }
 
   async getPdfForDownload(tenantId: string, id: string) {
-    const doc = await this.prisma.generatedDocument.findFirst({
-      where: { id, tenantId },
-      select: {
-        id: true,
-        nombre: true,
-        pdfStorageKey: true,
-        pdfUrl: true,
-      },
-    });
+    const doc = await this.tenantPrisma.execute((tx) =>
+      tx.generatedDocument.findFirst({
+        where: { id, tenantId },
+        select: {
+          id: true,
+          nombre: true,
+          pdfStorageKey: true,
+          pdfUrl: true,
+        },
+      }),
+    );
 
     if (!doc) {
       throw new NotFoundException('Documento generado no encontrado');
@@ -274,11 +287,19 @@ export class GeneratedDocumentsService {
     }
 
     const candidates = new Set<string>();
-    if (doc.pdfStorageKey) candidates.add(doc.pdfStorageKey);
-    candidates.add(this.getCanonicalPdfStorageKey(tenantId, doc.id));
+    const canonicalStorageKey = getCanonicalGeneratedDocumentStorageKey(
+      tenantId,
+      doc.id,
+    );
+    if (doc.pdfStorageKey === canonicalStorageKey) {
+      candidates.add(doc.pdfStorageKey);
+    }
+    candidates.add(canonicalStorageKey);
 
     const legacyStorageKey = this.getStorageKeyFromLegacyUrl(doc.pdfUrl);
-    if (legacyStorageKey) candidates.add(legacyStorageKey);
+    if (legacyStorageKey === canonicalStorageKey) {
+      candidates.add(legacyStorageKey);
+    }
 
     for (const storageKey of candidates) {
       try {
@@ -293,25 +314,34 @@ export class GeneratedDocumentsService {
   }
 
   async remove(tenantId: string, id: string) {
-    const doc = await this.findOne(tenantId, id);
-    const isPublishedCertification =
-      doc.tipo === 'CERTIFICATION' &&
-      Boolean(
-        await this.prisma.expedienteDoc.findFirst({
-          where: { tenantId, generatedDocumentId: doc.id },
-          select: { id: true },
-        }),
-      );
+    return this.tenantPrisma.execute(async (tx) => {
+      const doc = await tx.generatedDocument.findFirst({
+        where: { id, tenantId },
+        select: { id: true, tipo: true },
+      });
+      if (!doc) {
+        throw new NotFoundException('Documento generado no encontrado');
+      }
 
-    if (
-      isImmutablePublishedDocumentType(doc.tipo) &&
-      (doc.tipo === 'CONTRACT' || isPublishedCertification)
-    ) {
-      throw new BadRequestException(
-        `Los documentos ${doc.tipo} publicados son inmutables y no se pueden eliminar.`,
-      );
-    }
-    return this.prisma.generatedDocument.delete({ where: { id } });
+      const isPublishedCertification =
+        doc.tipo === 'CERTIFICATION' &&
+        Boolean(
+          await tx.expedienteDoc.findFirst({
+            where: { tenantId, generatedDocumentId: doc.id },
+            select: { id: true },
+          }),
+        );
+
+      if (
+        isImmutablePublishedDocumentType(doc.tipo) &&
+        (doc.tipo === 'CONTRACT' || isPublishedCertification)
+      ) {
+        throw new BadRequestException(
+          `Los documentos ${doc.tipo} publicados son inmutables y no se pueden eliminar.`,
+        );
+      }
+      return tx.generatedDocument.delete({ where: { id: doc.id } });
+    });
   }
 
   /**
@@ -322,23 +352,28 @@ export class GeneratedDocumentsService {
     tenantId: string,
     id: string,
   ): Promise<PdfMaterializationResult> {
-    const doc = await this.prisma.generatedDocument.findFirst({
-      where: { id, tenantId },
-      select: {
-        id: true,
-        tenantId: true,
-        contenidoFinal: true,
-        pdfStorageKey: true,
-        pdfSizeBytes: true,
-        pdfUrl: true,
-        estado: true,
-      },
-    });
+    const doc = await this.tenantPrisma.execute((tx) =>
+      tx.generatedDocument.findFirst({
+        where: { id, tenantId },
+        select: {
+          id: true,
+          tenantId: true,
+          contenidoFinal: true,
+          pdfStorageKey: true,
+          pdfSizeBytes: true,
+          pdfUrl: true,
+          estado: true,
+        },
+      }),
+    );
     if (!doc) {
       throw new NotFoundException('Documento generado no encontrado');
     }
 
-    const storageKey = this.getCanonicalPdfStorageKey(doc.tenantId, doc.id);
+    const storageKey = getCanonicalGeneratedDocumentStorageKey(
+      doc.tenantId,
+      doc.id,
+    );
     const pdfUrl = this.getPdfUrl(storageKey);
     let pdfSizeBytes: number;
     let materialized = false;
@@ -361,15 +396,17 @@ export class GeneratedDocumentsService {
       doc.pdfUrl !== pdfUrl ||
       doc.estado !== 'MATERIALIZADO'
     ) {
-      await this.prisma.generatedDocument.update({
-        where: { id: doc.id },
-        data: {
-          pdfStorageKey: storageKey,
-          pdfSizeBytes,
-          pdfUrl,
-          estado: 'MATERIALIZADO',
-        },
-      });
+      await this.tenantPrisma.execute((tx) =>
+        tx.generatedDocument.update({
+          where: { id: doc.id },
+          data: {
+            pdfStorageKey: storageKey,
+            pdfSizeBytes,
+            pdfUrl,
+            estado: 'MATERIALIZADO',
+          },
+        }),
+      );
     }
 
     return {
@@ -382,10 +419,12 @@ export class GeneratedDocumentsService {
   }
 
   async generatePdf(tenantId: string, userId: string, id: string) {
-    const documentReference = await this.prisma.generatedDocument.findFirst({
-      where: { id, tenantId },
-      select: { id: true, nombre: true, tipo: true },
-    });
+    const documentReference = await this.tenantPrisma.execute((tx) =>
+      tx.generatedDocument.findFirst({
+        where: { id, tenantId },
+        select: { id: true, nombre: true, tipo: true },
+      }),
+    );
     if (!documentReference) {
       throw new NotFoundException('Documento no encontrado');
     }
@@ -419,11 +458,13 @@ export class GeneratedDocumentsService {
     if (!tenant) throw new NotFoundException('Empresa no encontrada');
 
     const html = this.buildPdfHtml(doc.contenidoFinal, tenant, doc.employee);
-    const storageKey = this.getCanonicalPdfStorageKey(tenantId, id);
-    const publishedIndexHint = await this.prisma.expedienteDoc.findFirst({
-      where: { tenantId, generatedDocumentId: id },
-      select: { id: true },
-    });
+    const storageKey = getCanonicalGeneratedDocumentStorageKey(tenantId, id);
+    const publishedIndexHint = await this.tenantPrisma.execute((tx) =>
+      tx.expedienteDoc.findFirst({
+        where: { tenantId, generatedDocumentId: id },
+        select: { id: true },
+      }),
+    );
     let renderedPdf: Buffer | undefined;
 
     // Use preflight reads only as hints. The transaction repeats every check
@@ -432,7 +473,7 @@ export class GeneratedDocumentsService {
       renderedPdf = Buffer.from(await this.pdfRender.renderPdf(html));
     }
 
-    const updated = await this.prisma.$transaction(
+    const updated = await this.tenantPrisma.execute(
       async (tx) => {
         // Serialize generation for this document before writing to its canonical
         // storage key. A retry must reuse the published artifact rather than
@@ -460,10 +501,23 @@ export class GeneratedDocumentsService {
             );
           }
 
+          const pdfUrl = this.getPdfUrl(existingExpedienteDoc.storageKey);
+          await this.auditService.log(
+            {
+              tenantId,
+              userId,
+              action: 'PDF_GENERATE',
+              entityType: 'GeneratedDocument',
+              entityId: documentReference.id,
+              metadata: { pdfUrl },
+            },
+            tx,
+          );
+
           return {
             id: documentReference.id,
             tenantId,
-            pdfUrl: this.getPdfUrl(existingExpedienteDoc.storageKey),
+            pdfUrl,
             nombre: documentReference.nombre,
           };
         }
@@ -514,22 +568,22 @@ export class GeneratedDocumentsService {
           tx,
           result.contratoId,
         );
+        await this.auditService.log(
+          {
+            tenantId: result.tenantId,
+            userId,
+            action: 'PDF_GENERATE',
+            entityType: 'GeneratedDocument',
+            entityId: result.id,
+            metadata: { pdfUrl: result.pdfUrl },
+          },
+          tx,
+        );
 
         return result;
       },
       { maxWait: 10_000, timeout: 30_000 },
     );
-
-    this.auditService
-      .log({
-        tenantId: updated.tenantId,
-        userId,
-        action: 'PDF_GENERATE',
-        entityType: 'GeneratedDocument',
-        entityId: updated.id,
-        metadata: { pdfUrl: updated.pdfUrl },
-      })
-      .catch(() => {});
 
     return { id: updated.id, pdfUrl: updated.pdfUrl, nombre: updated.nombre };
   }
@@ -551,7 +605,7 @@ export class GeneratedDocumentsService {
   ) {
     const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:4000';
     const logoHtml = tenant.logoUrl
-      ? `<img src="${backendUrl}${tenant.logoUrl}" alt="${tenant.nombre}" />`
+      ? `<img src="${escapeHtml(`${backendUrl}${tenant.logoUrl}`)}" alt="${escapeHtml(tenant.nombre)}" />`
       : '';
     return `<!DOCTYPE html>
 <html>
@@ -582,8 +636,8 @@ export class GeneratedDocumentsService {
   <div class="header">
     ${logoHtml}
     <div class="header-info">
-      <h1>${tenant.razonSocial ?? tenant.nombre}</h1>
-      <p>Documento generado para: ${formatNombreCompleto({ primerNombre: employee.primerNombre, segundoNombre: employee.segundoNombre, primerApellido: employee.primerApellido, segundoApellido: employee.segundoApellido })} — ${employee.cedula}</p>
+      <h1>${escapeHtml(tenant.razonSocial ?? tenant.nombre)}</h1>
+      <p>Documento generado para: ${escapeHtml(formatNombreCompleto({ primerNombre: employee.primerNombre, segundoNombre: employee.segundoNombre, primerApellido: employee.primerApellido, segundoApellido: employee.segundoApellido }))} — ${escapeHtml(employee.cedula)}</p>
     </div>
   </div>
   ${content}
@@ -634,7 +688,10 @@ export class GeneratedDocumentsService {
     documentId: string,
     pdfBuffer: Buffer,
   ) {
-    const storageKey = this.getCanonicalPdfStorageKey(tenantId, documentId);
+    const storageKey = getCanonicalGeneratedDocumentStorageKey(
+      tenantId,
+      documentId,
+    );
     const stored = await this.storage.putObject({
       key: storageKey,
       body: pdfBuffer,
@@ -642,13 +699,6 @@ export class GeneratedDocumentsService {
     });
 
     return { ...stored, storageKey, pdfUrl: this.getPdfUrl(storageKey) };
-  }
-
-  private getCanonicalPdfStorageKey(
-    tenantId: string,
-    documentId: string,
-  ): string {
-    return `pdfs/${tenantId}-${documentId}.pdf`;
   }
 
   private getPdfUrl(storageKey: string): string {
@@ -669,9 +719,10 @@ export class GeneratedDocumentsService {
   ): string {
     let result = template;
     for (const [key, value] of Object.entries(context)) {
-      result = result.replace(
-        new RegExp(`\\{\\{${key}\\}\\}`, 'g'),
-        String(value),
+      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), () =>
+        TRUSTED_HTML_PLACEHOLDERS.has(key)
+          ? String(value)
+          : escapeHtml(String(value)),
       );
     }
     return result;

@@ -35,7 +35,7 @@ export class TercerosService {
       );
       await this.ensureMunicipio(tx, dto.municipioId);
 
-      return tx.tercero.create({
+      const tercero = await tx.tercero.create({
         data: {
           tenantId,
           tipoDocumento: dto.tipoDocumento,
@@ -63,22 +63,22 @@ export class TercerosService {
           ...(dto.activo !== undefined && { activo: dto.activo }),
         },
       });
-    });
-
-    this.audit
-      .log({
-        tenantId,
-        userId,
-        action: 'TERCERO_CREATE',
-        entityType: 'Tercero',
-        entityId: tercero.id,
-        metadata: {
-          tipoDocumento: tercero.tipoDocumento,
-          numeroDocumento: tercero.numeroDocumento,
+      await this.audit.log(
+        {
+          tenantId,
+          userId,
+          action: 'TERCERO_CREATE',
+          entityType: 'Tercero',
+          entityId: tercero.id,
+          metadata: {
+            tipoDocumento: tercero.tipoDocumento,
+            numeroDocumento: tercero.numeroDocumento,
+          },
         },
-      })
-      .catch(() => {});
-
+        tx,
+      );
+      return tercero;
+    });
     return tercero;
   }
 
@@ -144,7 +144,7 @@ export class TercerosService {
       });
       if (dto.municipioId) await this.ensureMunicipio(tx, dto.municipioId);
 
-      return tx.tercero.update({
+      const updated = await tx.tercero.update({
         where: { id: current.id },
         data: {
           ...(dto.digitoVerificacion !== undefined && {
@@ -198,18 +198,18 @@ export class TercerosService {
           ...(dto.activo !== undefined && { activo: dto.activo }),
         },
       });
+      await this.audit.log(
+        {
+          tenantId,
+          userId,
+          action: 'TERCERO_UPDATE',
+          entityType: 'Tercero',
+          entityId: updated.id,
+        },
+        tx,
+      );
+      return updated;
     });
-
-    this.audit
-      .log({
-        tenantId,
-        userId,
-        action: 'TERCERO_UPDATE',
-        entityType: 'Tercero',
-        entityId: updated.id,
-      })
-      .catch(() => {});
-
     return updated;
   }
 
@@ -222,27 +222,22 @@ export class TercerosService {
       if (!tercero) throw new NotFoundException('Tercero no encontrado');
       if (tercero.deletedAt) return { tercero, changed: false };
 
-      return {
-        tercero: await tx.tercero.update({
-          where: { id: tercero.id },
-          data: { deletedAt: new Date(), activo: false },
-        }),
-        changed: true,
-      };
-    });
-
-    if (result.changed) {
-      this.audit
-        .log({
+      const deleted = await tx.tercero.update({
+        where: { id: tercero.id },
+        data: { deletedAt: new Date(), activo: false },
+      });
+      await this.audit.log(
+        {
           tenantId,
           userId,
           action: 'TERCERO_DELETE',
           entityType: 'Tercero',
-          entityId: result.tercero.id,
-        })
-        .catch(() => {});
-    }
-
+          entityId: deleted.id,
+        },
+        tx,
+      );
+      return { tercero: deleted, changed: true };
+    });
     return result.tercero;
   }
 

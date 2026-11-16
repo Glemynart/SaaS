@@ -141,6 +141,40 @@ describe('EmployeesService tenant isolation contracts', () => {
     expect(createQuery?.[0].data).toEqual(
       expect.objectContaining({ tipoSalarioPila: 'V', salarioIntegral: false }),
     );
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'EMPLOYEE_CREATE' }),
+      mockTransactionClient,
+    );
+  });
+
+  it('rejects employee creation when its transactional audit fails', async () => {
+    mockEmpleadoFindUnique.mockResolvedValue(null);
+    mockSedeFindFirst.mockResolvedValue({ id: 'sede-a' });
+    mockEmpleadoCreate.mockImplementation(
+      (args: { data: Record<string, unknown> }) => ({
+        id: 'employee-a',
+        ...args.data,
+      }),
+    );
+    mockAuditLog.mockRejectedValueOnce(new Error('audit down'));
+
+    await expect(
+      service.create(USER_A, {
+        cedula: '1001',
+        tipoDocumento: 'CC',
+        primerNombre: 'Ana',
+        primerApellido: 'Gómez',
+        cargo: 'Docente',
+        salario: 2_000_000,
+        tipoContrato: 'TERMINO_FIJO',
+        fechaIngreso: '2026-01-01',
+        sedeId: 'sede-a',
+      } as never),
+    ).rejects.toThrow('audit down');
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'EMPLOYEE_CREATE' }),
+      mockTransactionClient,
+    );
   });
 
   it('creates an initial PILA affiliation with the employee in the same tenant transaction', async () => {
@@ -319,7 +353,7 @@ describe('EmployeesService tenant isolation contracts', () => {
     expect(mockEmpleadoUpdate).not.toHaveBeenCalled();
   });
 
-  it('audits an update after the tenant-scoped write succeeds', async () => {
+  it('audits an update in the tenant-scoped transaction', async () => {
     mockEmpleadoFindFirst.mockResolvedValue({ id: 'employee-a' });
     mockEmpleadoUpdate.mockResolvedValue({ id: 'employee-a' });
 
@@ -334,6 +368,21 @@ describe('EmployeesService tenant isolation contracts', () => {
         entityId: 'employee-a',
         metadata: { fields: ['cargo'] },
       }),
+      mockTransactionClient,
+    );
+  });
+
+  it('rejects an employee update when its transactional audit fails', async () => {
+    mockEmpleadoFindFirst.mockResolvedValue({ id: 'employee-a' });
+    mockEmpleadoUpdate.mockResolvedValue({ id: 'employee-a' });
+    mockAuditLog.mockRejectedValueOnce(new Error('audit down'));
+
+    await expect(
+      service.update(USER_A, 'employee-a', { cargo: 'Coordinador' }),
+    ).rejects.toThrow('audit down');
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'EMPLOYEE_UPDATE' }),
+      mockTransactionClient,
     );
   });
 
@@ -430,7 +479,7 @@ describe('EmployeesService tenant isolation contracts', () => {
     expect(updateQuery?.[0].data.municipioExpedicionDocId).toBeNull();
   });
 
-  it('audits a soft delete after the tenant-scoped write succeeds', async () => {
+  it('audits a soft delete in the tenant-scoped transaction', async () => {
     mockEmpleadoFindFirst.mockResolvedValue({ id: 'employee-a' });
     mockEmpleadoUpdate.mockResolvedValue({ id: 'employee-a' });
 
@@ -444,6 +493,21 @@ describe('EmployeesService tenant isolation contracts', () => {
         entityType: 'Employee',
         entityId: 'employee-a',
       }),
+      mockTransactionClient,
+    );
+  });
+
+  it('rejects an employee soft delete when its transactional audit fails', async () => {
+    mockEmpleadoFindFirst.mockResolvedValue({ id: 'employee-a' });
+    mockEmpleadoUpdate.mockResolvedValue({ id: 'employee-a' });
+    mockAuditLog.mockRejectedValueOnce(new Error('audit down'));
+
+    await expect(service.remove(USER_A, 'employee-a')).rejects.toThrow(
+      'audit down',
+    );
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'EMPLOYEE_DELETE' }),
+      mockTransactionClient,
     );
   });
 });

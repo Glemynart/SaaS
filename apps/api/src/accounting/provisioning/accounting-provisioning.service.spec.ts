@@ -236,6 +236,38 @@ describe('AccountingProvisioningService tenant isolation', () => {
           mapeos: DEFAULT_SYSTEM_ACCOUNT_MAPPINGS.length,
         },
       }),
+      tx,
+    );
+  });
+
+  it('rejects provisioning when its transactional audit fails', async () => {
+    const codes = [
+      ...new Set(DEFAULT_SYSTEM_ACCOUNT_MAPPINGS.map(({ codigo }) => codigo)),
+    ];
+    tx.cuentaContable.findMany.mockResolvedValueOnce(
+      codes.map((codigo) => ({
+        id: `template-${codigo}`,
+        codigo,
+        nombre: `Cuenta ${codigo}`,
+        claseContable: 'ACTIVO',
+        naturaleza: 'DEBITO',
+        nivel: codigo.length,
+        cuentaPadreId: null,
+        imputable: true,
+        esCuentaSistema: true,
+        requiereTercero: false,
+        requiereCentroCosto: false,
+        requiereBase: false,
+      })),
+    );
+    auditLog.mockRejectedValueOnce(new Error('audit down'));
+
+    await expect(
+      service.clonarPlanDeCuentas('tenant-a', 'user-a'),
+    ).rejects.toThrow('audit down');
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'ACCOUNTING_PROVISIONED' }),
+      tx,
     );
   });
 
@@ -329,6 +361,19 @@ describe('AccountingProvisioningService tenant isolation', () => {
         action: 'ACCOUNTING_DEPROVISIONED',
         metadata: { cuentas: 2 },
       }),
+      tx,
+    );
+  });
+
+  it('rejects deprovisioning when its transactional audit fails', async () => {
+    auditLog.mockRejectedValueOnce(new Error('audit down'));
+
+    await expect(service.desaprovisionar('tenant-a', 'user-a')).rejects.toThrow(
+      'audit down',
+    );
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'ACCOUNTING_DEPROVISIONED' }),
+      tx,
     );
   });
 });

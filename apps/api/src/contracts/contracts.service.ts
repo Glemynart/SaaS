@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { GeneratedDocumentsService } from '../generated-documents/generated-documents.service';
+import { replaceHtmlTemplateVariables } from '../pdf-render/template-html';
 import { ExpedienteDocsService } from '../expediente-docs/expediente-docs.service';
 import { ContractQueryDto } from './dto/contract-query.dto';
 import { CreateContractDto } from './dto/create-contract.dto';
@@ -208,10 +209,12 @@ export class ContractsService {
     }
 
     if (options?.perfilContractualId) {
-      const profile = await this.prisma.perfilContractual.findFirst({
-        where: { id: options.perfilContractualId, tenantId },
-        select: { id: true },
-      });
+      const profile = await this.tenantPrisma.execute((prisma) =>
+        prisma.perfilContractual.findFirst({
+          where: { id: options.perfilContractualId, tenantId },
+          select: { id: true },
+        }),
+      );
       if (!profile) {
         throw new BadRequestException(
           'El perfil contractual no existe o no pertenece a esta empresa.',
@@ -352,7 +355,7 @@ export class ContractsService {
       variablesSnapshot: snapshot as unknown as Prisma.JsonValue,
     } as Prisma.ContratoUncheckedCreateInput;
 
-    const contract = await this.createContractRecord(data).catch(
+    const contract = await this.createContractRecord(data, userId).catch(
       (error: unknown) => {
         const target =
           error instanceof Prisma.PrismaClientKnownRequestError
@@ -374,23 +377,15 @@ export class ContractsService {
       },
     );
 
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'CONTRACT_CREATE',
-        entityType: 'Contrato',
-        entityId: contract.id,
-        metadata: { cargo: contract.cargo, tipo: contract.tipo },
-      })
-      .catch(() => {});
-
     return contract;
   }
 
-  private createContractRecord(data: Prisma.ContratoUncheckedCreateInput) {
-    return this.tenantPrisma.execute((prisma) =>
-      prisma.contrato.create({
+  private createContractRecord(
+    data: Prisma.ContratoUncheckedCreateInput,
+    userId: string,
+  ) {
+    return this.tenantPrisma.execute(async (prisma) => {
+      const contract = await prisma.contrato.create({
         data,
         include: {
           empleado: {
@@ -403,8 +398,20 @@ export class ContractsService {
           },
           sede: { select: { id: true, nombre: true } },
         },
-      }),
-    );
+      });
+      await this.auditService.log(
+        {
+          tenantId: data.tenantId,
+          userId,
+          action: 'CONTRACT_CREATE',
+          entityType: 'Contrato',
+          entityId: contract.id,
+          metadata: { cargo: contract.cargo, tipo: contract.tipo },
+        },
+        prisma,
+      );
+      return contract;
+    });
   }
 
   async updateStatus(
@@ -451,27 +458,26 @@ export class ContractsService {
       );
     }
 
-    const updated = await this.tenantPrisma.execute((prisma) =>
-      prisma.contrato.update({
+    return this.tenantPrisma.execute(async (prisma) => {
+      const updated = await prisma.contrato.update({
         where: { id, tenantId },
         data: {
           estado: estadoNuevo,
         },
-      }),
-    );
-
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'CONTRACT_STATUS_CHANGE',
-        entityType: 'Contrato',
-        entityId: id,
-        metadata: { estadoAnterior, estadoNuevo },
-      })
-      .catch(() => {});
-
-    return updated;
+      });
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'CONTRACT_STATUS_CHANGE',
+          entityType: 'Contrato',
+          entityId: id,
+          metadata: { estadoAnterior, estadoNuevo },
+        },
+        prisma,
+      );
+      return updated;
+    });
   }
 
   async findByEmployee(tenantId: string, employeeId: string) {
@@ -520,9 +526,11 @@ export class ContractsService {
       throw new NotFoundException('Contrato no encontrado');
     }
 
-    const existing = await this.prisma.generatedDocument.findFirst({
-      where: { contratoId: contract.id, tenantId },
-    });
+    const existing = await this.tenantPrisma.execute((prisma) =>
+      prisma.generatedDocument.findFirst({
+        where: { contratoId: contract.id, tenantId },
+      }),
+    );
     if (existing) {
       return { outcome: 'EXISTING', document: existing };
     }
@@ -545,10 +553,11 @@ export class ContractsService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        const concurrentDocument =
-          await this.prisma.generatedDocument.findFirst({
+        const concurrentDocument = await this.tenantPrisma.execute((prisma) =>
+          prisma.generatedDocument.findFirst({
             where: { contratoId: contract.id, tenantId },
-          });
+          }),
+        );
         if (concurrentDocument) {
           return { outcome: 'EXISTING', document: concurrentDocument };
         }
@@ -588,9 +597,11 @@ export class ContractsService {
 
   private async resolveTemplate(tenantId: string, templateId?: string) {
     if (templateId) {
-      const template = await this.prisma.documentTemplate.findFirst({
-        where: { id: templateId, tenantId, deletedAt: null },
-      });
+      const template = await this.tenantPrisma.execute((prisma) =>
+        prisma.documentTemplate.findFirst({
+          where: { id: templateId, tenantId, deletedAt: null },
+        }),
+      );
       if (!template) {
         throw new NotFoundException('Plantilla no encontrada');
       }
@@ -603,9 +614,11 @@ export class ContractsService {
       return template;
     }
 
-    const templates = await this.prisma.documentTemplate.findMany({
-      where: { tenantId, tipo: 'CONTRACT', activo: true, deletedAt: null },
-    });
+    const templates = await this.tenantPrisma.execute((prisma) =>
+      prisma.documentTemplate.findMany({
+        where: { tenantId, tipo: 'CONTRACT', activo: true, deletedAt: null },
+      }),
+    );
     if (templates.length === 0) {
       throw new NotFoundException(
         'No hay plantilla de contrato activa para esta empresa',
@@ -632,20 +645,22 @@ export class ContractsService {
     const snapshot =
       contract.variablesSnapshot as unknown as ContractVariablesSnapshot;
 
-    return this.prisma.generatedDocument.create({
-      data: {
-        tenantId,
-        employeeId: contract.empleadoId,
-        templateId: template.id,
-        contratoId: contract.id,
-        nombre: `Contrato — ${snapshot.empleado.nombreCompleto}`,
-        contenidoFinal: this.buildContentFromSnapshot(
-          template.contenido,
-          snapshot,
-        ),
-        tipo: template.tipo,
-      },
-    });
+    return this.tenantPrisma.execute((prisma) =>
+      prisma.generatedDocument.create({
+        data: {
+          tenantId,
+          employeeId: contract.empleadoId,
+          templateId: template.id,
+          contratoId: contract.id,
+          nombre: `Contrato — ${snapshot.empleado.nombreCompleto}`,
+          contenidoFinal: this.buildContentFromSnapshot(
+            template.contenido,
+            snapshot,
+          ),
+          tipo: template.tipo,
+        },
+      }),
+    );
   }
 
   private assertDocumentEligibility(contract: {
@@ -722,11 +737,7 @@ export class ContractsService {
       FIRMA_REPRESENTANTE: '',
     };
 
-    let result = templateContent;
-    for (const [key, value] of Object.entries(variables)) {
-      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
-    }
-    return result;
+    return replaceHtmlTemplateVariables(templateContent, variables);
   }
 
   private validateSnapshot(snapshot: unknown, contratoId: string): void {
@@ -775,10 +786,12 @@ export class ContractsService {
   }
 
   private async validateSede(tenantId: string, sedeId: string) {
-    const sede = await this.prisma.sede.findFirst({
-      where: { id: sedeId, tenantId },
-      select: { id: true, nombre: true },
-    });
+    const sede = await this.tenantPrisma.execute((prisma) =>
+      prisma.sede.findFirst({
+        where: { id: sedeId, tenantId },
+        select: { id: true, nombre: true },
+      }),
+    );
     if (!sede)
       throw new BadRequestException(
         'La sede no existe o no pertenece a esta empresa.',

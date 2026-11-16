@@ -36,7 +36,7 @@ export class CuentaSistemaMapService {
       await this.ensureRolDisponible(tx, tenantId, dto.rol);
       await this.ensureCuentaDelTenant(tx, tenantId, dto.cuentaId);
 
-      return tx.cuentaSistemaMap.create({
+      const map = await tx.cuentaSistemaMap.create({
         data: {
           tenantId,
           rol: dto.rol,
@@ -46,19 +46,19 @@ export class CuentaSistemaMapService {
         },
         include: { cuenta: cuentaSelect },
       });
+      await this.audit.log(
+        {
+          tenantId,
+          userId,
+          action: 'CUENTA_SISTEMA_MAP_CREATE',
+          entityType: 'CuentaSistemaMap',
+          entityId: map.id,
+          metadata: { rol: map.rol, cuentaId: map.cuentaId },
+        },
+        tx,
+      );
+      return map;
     });
-
-    this.audit
-      .log({
-        tenantId,
-        userId,
-        action: 'CUENTA_SISTEMA_MAP_CREATE',
-        entityType: 'CuentaSistemaMap',
-        entityId: map.id,
-        metadata: { rol: map.rol, cuentaId: map.cuentaId },
-      })
-      .catch(() => {});
-
     return map;
   }
 
@@ -103,7 +103,7 @@ export class CuentaSistemaMapService {
         await this.ensureCuentaDelTenant(tx, tenantId, dto.cuentaId);
       }
 
-      return tx.cuentaSistemaMap.update({
+      const updated = await tx.cuentaSistemaMap.update({
         where: { id: current.id },
         data: {
           ...(dto.cuentaId !== undefined && { cuentaId: dto.cuentaId }),
@@ -114,19 +114,19 @@ export class CuentaSistemaMapService {
         },
         include: { cuenta: cuentaSelect },
       });
+      await this.audit.log(
+        {
+          tenantId,
+          userId,
+          action: 'CUENTA_SISTEMA_MAP_UPDATE',
+          entityType: 'CuentaSistemaMap',
+          entityId: updated.id,
+          metadata: { rol: updated.rol, cuentaId: updated.cuentaId },
+        },
+        tx,
+      );
+      return updated;
     });
-
-    this.audit
-      .log({
-        tenantId,
-        userId,
-        action: 'CUENTA_SISTEMA_MAP_UPDATE',
-        entityType: 'CuentaSistemaMap',
-        entityId: updated.id,
-        metadata: { rol: updated.rol, cuentaId: updated.cuentaId },
-      })
-      .catch(() => {});
-
     return updated;
   }
 

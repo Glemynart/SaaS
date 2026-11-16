@@ -6,7 +6,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PasswordResetService } from './password-reset.service';
 
 describe('PasswordResetService reset link delivery', () => {
-  it('puts new reset tokens in a URL fragment and keeps the generic response', async () => {
+  it('does not send a reset email if the token audit fails', async () => {
+    const updateMany = jest.fn().mockResolvedValue({ count: 0 });
+    const create = jest.fn().mockResolvedValue({ id: 'reset-token-id' });
+    const tx = { passwordResetToken: { updateMany, create } };
+    const sendEmail = jest.fn().mockResolvedValue(undefined);
+    const auditLog = jest
+      .fn()
+      .mockRejectedValue(new Error('audit unavailable'));
     const prisma = {
       tenant: {
         findUnique: jest.fn().mockResolvedValue({
@@ -25,10 +32,61 @@ describe('PasswordResetService reset link delivery', () => {
           activo: true,
         }),
       },
+      $transaction: jest.fn((work: (client: unknown) => Promise<unknown>) =>
+        work(tx),
+      ),
+    };
+    const service = new PasswordResetService(
+      prisma as unknown as PrismaService,
+      {
+        get: jest.fn().mockReturnValue('https://staging.example.test'),
+      } as unknown as ConfigService,
+      { log: auditLog } as unknown as AuditService,
+      { send: sendEmail } as unknown as EmailService,
+    );
+
+    await expect(
+      service.requestReset({
+        tenantNit: '900123456',
+        email: 'admin@example.test',
+      }),
+    ).rejects.toThrow('audit unavailable');
+
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'PASSWORD_RESET_REQUESTED' }),
+      tx,
+    );
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('puts new reset tokens in a URL fragment and keeps the generic response', async () => {
+    const tx = {
       passwordResetToken: {
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         create: jest.fn().mockResolvedValue({ id: 'reset-token-id' }),
       },
+    };
+    const prisma = {
+      tenant: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'tenant-1',
+          nit: '900123456',
+          activo: true,
+        }),
+      },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'user-1',
+          tenantId: 'tenant-1',
+          email: 'admin@example.test',
+          nombre: 'Ada',
+          apellido: 'Lovelace',
+          activo: true,
+        }),
+      },
+      $transaction: jest.fn((work: (client: unknown) => Promise<unknown>) =>
+        work(tx),
+      ),
     };
     let sentResetUrl: string | undefined;
     const sendEmail = jest.fn((params: { payload: { resetUrl: string } }) => {
@@ -54,6 +112,10 @@ describe('PasswordResetService reset link delivery', () => {
       'Si el correo existe, recibirás instrucciones para restablecer tu contraseña.',
     );
     expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'PASSWORD_RESET_REQUESTED' }),
+      tx,
+    );
     expect(sentResetUrl).toBeDefined();
     if (!sentResetUrl) throw new Error('Reset email was not sent');
 
@@ -80,6 +142,8 @@ describe('PasswordResetService reset token validation', () => {
   let transaction: jest.Mock;
   let updateUser: jest.Mock;
   let revokeSessions: jest.Mock;
+  let auditLog: jest.Mock;
+  let transactionClient: Record<string, unknown>;
   let validRecord: {
     id: string;
     userId: string;
@@ -104,6 +168,12 @@ describe('PasswordResetService reset token validation', () => {
     transaction = jest.fn();
     updateUser = jest.fn();
     revokeSessions = jest.fn();
+    auditLog = jest.fn().mockResolvedValue(undefined);
+    transactionClient = {
+      passwordResetToken: { updateMany: updateToken },
+      user: { update: updateUser },
+      refreshToken: { updateMany: revokeSessions },
+    };
     const prisma = {
       passwordResetToken: {
         findUnique: findToken,
@@ -117,7 +187,9 @@ describe('PasswordResetService reset token validation', () => {
     service = new PasswordResetService(
       prisma as unknown as PrismaService,
       {} as ConfigService,
-      {} as AuditService,
+      {
+        log: auditLog,
+      } as unknown as AuditService,
       {} as EmailService,
     );
   });
@@ -181,5 +253,53 @@ describe('PasswordResetService reset token validation', () => {
       valid: false,
     });
     expect(findToken).not.toHaveBeenCalled();
+  });
+
+  it('scopes the password update to the tenant recorded on the reset token', async () => {
+    updateToken.mockResolvedValue({ count: 1 });
+    let userUpdateWhere: { id: string; tenantId?: string } | undefined;
+    updateUser.mockImplementation(
+      (args: {
+        where: { id: string; tenantId?: string };
+        data: { passwordHash: string };
+      }) => {
+        userUpdateWhere = args.where;
+        return Promise.resolve({ id: args.where.id });
+      },
+    );
+    revokeSessions.mockResolvedValue({ count: 1 });
+    transaction.mockImplementation(
+      async (work: (tx: unknown) => Promise<unknown>) =>
+        work(transactionClient),
+    );
+
+    await expect(
+      service.consumeReset({ token, newPassword: 'new secure password' }),
+    ).resolves.toEqual({ message: 'Contraseña actualizada exitosamente.' });
+
+    expect(updateUser).toHaveBeenCalledTimes(1);
+    expect(userUpdateWhere).toEqual({
+      id: validRecord.userId,
+      tenantId: validRecord.tenantId,
+    });
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'PASSWORD_RESET_COMPLETED' }),
+      transactionClient,
+    );
+  });
+
+  it('rejects password reset when its audit event cannot be recorded', async () => {
+    updateToken.mockResolvedValue({ count: 1 });
+    updateUser.mockResolvedValue({ id: validRecord.userId });
+    revokeSessions.mockResolvedValue({ count: 1 });
+    transaction.mockImplementation(
+      async (work: (tx: unknown) => Promise<unknown>) =>
+        work(transactionClient),
+    );
+    auditLog.mockRejectedValue(new Error('audit unavailable'));
+
+    await expect(
+      service.consumeReset({ token, newPassword: 'new secure password' }),
+    ).rejects.toThrow('audit unavailable');
   });
 });

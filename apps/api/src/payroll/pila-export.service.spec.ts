@@ -296,4 +296,39 @@ describe('PilaExportService', () => {
       tx,
     );
   });
+
+  it.each(['type-1', 'type-2'] as const)(
+    'rejects a %s storage key that does not belong to the requested tenant export before reading storage',
+    async (fileType) => {
+      tx.pilaExport.findFirst.mockResolvedValue({
+        id: 'export-1',
+        status: PilaExportStatus.LOCAL_VALIDATED,
+        fechaInicioPeriodo: period.fechaInicio,
+        fechaFinPeriodo: period.fechaFin,
+        type1StorageKey:
+          fileType === 'type-1'
+            ? 'tenants/tenant-2/pila-exports/export-1/type-1.txt'
+            : 'tenants/tenant-1/pila-exports/export-1/type-1.txt',
+        type1Sha256: 'a'.repeat(64),
+        type2StorageKey:
+          fileType === 'type-2'
+            ? 'tenants/tenant-2/pila-exports/export-1/type-2.txt'
+            : 'tenants/tenant-1/pila-exports/export-1/type-2.txt',
+        type2Sha256: 'b'.repeat(64),
+      });
+
+      await expect(
+        service.download(
+          'tenant-1',
+          'user-1',
+          'period-1',
+          'export-1',
+          fileType,
+        ),
+      ).rejects.toThrow(ConflictException);
+
+      expect(storage.getObject).not.toHaveBeenCalled();
+      expect(audit.log).not.toHaveBeenCalled();
+    },
+  );
 });

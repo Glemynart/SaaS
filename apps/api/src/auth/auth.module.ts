@@ -6,9 +6,11 @@ import { AuthController } from './auth.controller';
 import { PasswordResetService } from './password-reset.service';
 import { UsersModule } from '../users/users.module';
 import { TenantsModule } from '../tenants/tenants.module';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
+    AuditModule,
     UsersModule,
     TenantsModule,
     JwtModule.registerAsync({

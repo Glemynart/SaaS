@@ -19,10 +19,20 @@ describe('ExpedienteDocsService generated document indexing', () => {
   const mockTransaction = jest.fn();
   const mockAuditLog = jest.fn();
   const mockTenantPrismaExecute = jest.fn();
+  const mockStorageGetObject = jest.fn();
+  const executeMockTransaction = mockTransaction as unknown as (
+    work: (tx: unknown) => unknown,
+  ) => unknown;
 
   const tenantId = 'tenant-001';
   const userId = 'user-001';
   const generatedDocumentId = 'generated-document-001';
+
+  function firstCallArgument<T>(mock: jest.Mock): T {
+    const calls = mock.mock.calls as unknown[][];
+    const argument = calls[0]?.[0];
+    return argument as T;
+  }
 
   function makeGeneratedDocument(overrides: Record<string, unknown> = {}) {
     return {
@@ -58,21 +68,23 @@ describe('ExpedienteDocsService generated document indexing', () => {
     mockExpedienteDocCreate.mockResolvedValue({ id: 'expediente-001' });
     mockExpedienteDocFamilyCreate.mockResolvedValue({ id: 'family-001' });
     mockExpedienteDocDelete.mockReset();
-    mockTenantPrismaExecute.mockImplementation((work) =>
-      work({
-        expedienteDoc: { findFirst: mockExpedienteDocFindFirst },
-      }),
-    );
     mockAuditLog.mockResolvedValue(undefined);
-    mockTransaction.mockImplementation((work) =>
+    mockStorageGetObject.mockReset().mockResolvedValue(Buffer.from('PDF'));
+    mockTransaction.mockImplementation((work: (tx: unknown) => unknown) =>
       work({
-        generatedDocument: { update: mockGeneratedDocumentUpdate },
+        generatedDocument: {
+          findFirst: mockGeneratedDocumentFindFirst,
+          update: mockGeneratedDocumentUpdate,
+        },
         expedienteDoc: {
           findFirst: mockExpedienteDocFindFirst,
           create: mockExpedienteDocCreate,
         },
         expedienteDocFamily: { create: mockExpedienteDocFamilyCreate },
       }),
+    );
+    mockTenantPrismaExecute.mockImplementation(
+      (work: (tx: unknown) => unknown) => executeMockTransaction(work),
     );
 
     const moduleRef = await Test.createTestingModule({
@@ -100,7 +112,11 @@ describe('ExpedienteDocsService generated document indexing', () => {
         { provide: AuditService, useValue: { log: mockAuditLog } },
         {
           provide: StorageService,
-          useValue: { putObject: jest.fn(), deleteObject: jest.fn() },
+          useValue: {
+            putObject: jest.fn(),
+            getObject: mockStorageGetObject,
+            deleteObject: jest.fn(),
+          },
         },
       ],
     }).compile();
@@ -134,6 +150,85 @@ describe('ExpedienteDocsService generated document indexing', () => {
     expect(mockExpedienteDocDelete).not.toHaveBeenCalled();
   });
 
+  it('descarga documentos manuales solo desde la ruta de su tenant y empleado', async () => {
+    mockExpedienteDocFindFirst.mockResolvedValue({
+      id: 'expediente-001',
+      empleadoId: 'employee-001',
+      nombre: 'documento.pdf',
+      mimeType: 'application/pdf',
+      storageKey:
+        'tenant-001/expediente/employee-001/OTRO/family_v1_document-001.pdf',
+      familiaId: 'family-001',
+      version: 1,
+      categoria: 'OTRO',
+      generatedDocumentId: null,
+      servicePremiumLineId: null,
+      contratoId: null,
+    });
+
+    await expect(
+      service.download(tenantId, userId, 'expediente-001'),
+    ).resolves.toMatchObject({ body: Buffer.from('PDF') });
+
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'EXPEDIENTE_DOCUMENT_ACCESS_GRANTED',
+        entityId: 'expediente-001',
+      }),
+      expect.anything(),
+    );
+
+    expect(mockStorageGetObject).toHaveBeenCalledWith(
+      'tenant-001/expediente/employee-001/OTRO/family_v1_document-001.pdf',
+    );
+  });
+
+  it('no devuelve el archivo si falla la auditoría de acceso', async () => {
+    mockExpedienteDocFindFirst.mockResolvedValue({
+      id: 'expediente-001',
+      empleadoId: 'employee-001',
+      nombre: 'documento.pdf',
+      mimeType: 'application/pdf',
+      storageKey:
+        'tenant-001/expediente/employee-001/OTRO/family_v1_document-001.pdf',
+      familiaId: 'family-001',
+      version: 1,
+      categoria: 'OTRO',
+      generatedDocumentId: null,
+      servicePremiumLineId: null,
+      contratoId: null,
+    });
+    mockAuditLog.mockRejectedValue(new Error('audit unavailable'));
+
+    await expect(
+      service.download(tenantId, userId, 'expediente-001'),
+    ).rejects.toThrow('audit unavailable');
+    expect(mockStorageGetObject).toHaveBeenCalledTimes(1);
+  });
+
+  it('no lee claves de otros tenants desde metadata de expediente inconsistente', async () => {
+    mockExpedienteDocFindFirst.mockResolvedValue({
+      id: 'expediente-001',
+      empleadoId: 'employee-001',
+      nombre: 'documento.pdf',
+      mimeType: 'application/pdf',
+      storageKey: 'tenant-002/expediente/employee-002/OTRO/private.pdf',
+      familiaId: 'family-001',
+      version: 1,
+      categoria: 'OTRO',
+      generatedDocumentId: null,
+      servicePremiumLineId: null,
+      contratoId: null,
+    });
+
+    await expect(
+      service.download(tenantId, userId, 'expediente-001'),
+    ).rejects.toThrow('Archivo de expediente no encontrado');
+
+    expect(mockStorageGetObject).not.toHaveBeenCalled();
+    expect(mockAuditLog).not.toHaveBeenCalled();
+  });
+
   it('crea el índice con la clave y tamaño canónicos dentro de la transacción', async () => {
     const result = await service.publishGeneratedDocument(
       tenantId,
@@ -142,18 +237,20 @@ describe('ExpedienteDocsService generated document indexing', () => {
       makeMaterialization(),
     );
 
-    expect(mockExpedienteDocCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        tenantId,
-        empleadoId: 'employee-001',
-        contratoId: 'contract-001',
-        generatedDocumentId,
-        categoria: 'CONTRATO',
-        storageKey: 'pdfs/tenant-001-generated-document-001.pdf',
-        tamanoBytes: 1234,
-      }),
-      select: { id: true },
+    const createArgs = firstCallArgument<{
+      data: Record<string, unknown>;
+      select: { id: true };
+    }>(mockExpedienteDocCreate);
+    expect(createArgs.data).toMatchObject({
+      tenantId,
+      empleadoId: 'employee-001',
+      contratoId: 'contract-001',
+      generatedDocumentId,
+      categoria: 'CONTRATO',
+      storageKey: 'pdfs/tenant-001-generated-document-001.pdf',
+      tamanoBytes: 1234,
     });
+    expect(createArgs.select).toEqual({ id: true });
     expect(mockGeneratedDocumentUpdate).toHaveBeenCalledWith({
       where: { id: generatedDocumentId },
       data: {
@@ -199,27 +296,51 @@ describe('ExpedienteDocsService generated document indexing', () => {
         tx,
       );
 
-      expect(mockExpedienteDocFamilyCreate).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          tenantId,
-          empleadoId: 'employee-001',
-          categoria: 'OTRO',
-          nombre: 'Documento generado',
-        }),
+      const familyArgs = firstCallArgument<{
+        data: Record<string, unknown>;
+      }>(mockExpedienteDocFamilyCreate);
+      expect(familyArgs.data).toMatchObject({
+        tenantId,
+        empleadoId: 'employee-001',
+        categoria: 'OTRO',
+        nombre: 'Documento generado',
       });
-      expect(mockExpedienteDocCreate).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          tenantId,
-          empleadoId: 'employee-001',
-          generatedDocumentId,
-          categoria: 'OTRO',
-          storageKey: storageMetadata.key,
-          mimeType: 'application/pdf',
-          tamanoBytes: storageMetadata.size,
-        }),
+      const documentArgs = firstCallArgument<{
+        data: Record<string, unknown>;
+      }>(mockExpedienteDocCreate);
+      expect(documentArgs.data).toMatchObject({
+        tenantId,
+        empleadoId: 'employee-001',
+        generatedDocumentId,
+        categoria: 'OTRO',
+        storageKey: storageMetadata.key,
+        mimeType: 'application/pdf',
+        tamanoBytes: storageMetadata.size,
       });
     },
   );
+
+  it('rechaza indexar un PDF generado cuya clave no es canónica para su tenant', async () => {
+    const tx = {
+      expedienteDocFamily: { create: mockExpedienteDocFamilyCreate },
+      expedienteDoc: { create: mockExpedienteDocCreate },
+    } as unknown as Prisma.TransactionClient;
+
+    await expect(
+      service.createFromGeneratedDoc(
+        tenantId,
+        generatedDocumentId,
+        'employee-001',
+        'Documento generado',
+        'CERTIFICATION',
+        { key: 'pdfs/tenant-002-other-document.pdf', size: 10 },
+        tx,
+      ),
+    ).rejects.toThrow('La clave del PDF no corresponde');
+
+    expect(mockExpedienteDocFamilyCreate).not.toHaveBeenCalled();
+    expect(mockExpedienteDocCreate).not.toHaveBeenCalled();
+  });
 
   it('publica CERTIFICATION con categoría CERTIFICADO sin requerir contrato', async () => {
     mockGeneratedDocumentFindFirst.mockResolvedValue(
@@ -243,15 +364,17 @@ describe('ExpedienteDocsService generated document indexing', () => {
       generatedDocumentId,
     });
 
-    expect(mockExpedienteDocCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        contratoId: null,
-        categoria: 'CERTIFICADO',
-        generatedDocumentId,
-        storageKey: 'pdfs/tenant-001-generated-document-001.pdf',
-      }),
-      select: { id: true },
+    const createArgs = firstCallArgument<{
+      data: Record<string, unknown>;
+      select: { id: true };
+    }>(mockExpedienteDocCreate);
+    expect(createArgs.data).toMatchObject({
+      contratoId: null,
+      categoria: 'CERTIFICADO',
+      generatedDocumentId,
+      storageKey: 'pdfs/tenant-001-generated-document-001.pdf',
     });
+    expect(createArgs.select).toEqual({ id: true });
     expect(mockAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'CERTIFICATION_DOCUMENT_PUBLISHED',
@@ -259,6 +382,24 @@ describe('ExpedienteDocsService generated document indexing', () => {
       }),
       expect.anything(),
     );
+  });
+
+  it('rechaza publicar metadata PDF que no corresponde al documento y tenant', async () => {
+    await expect(
+      service.publishGeneratedDocument(
+        tenantId,
+        userId,
+        generatedDocumentId,
+        makeMaterialization({
+          pdfStorageKey: 'pdfs/tenant-002-other-document.pdf',
+          pdfUrl: '/uploads/pdfs/tenant-002-other-document.pdf',
+        }),
+      ),
+    ).rejects.toThrow('La materialización no corresponde');
+
+    expect(mockTransaction).toHaveBeenCalledTimes(1);
+    expect(mockGeneratedDocumentUpdate).not.toHaveBeenCalled();
+    expect(mockExpedienteDocCreate).not.toHaveBeenCalled();
   });
 
   it('mantiene el requisito de contrato para publicar CONTRACT', async () => {
@@ -275,7 +416,8 @@ describe('ExpedienteDocsService generated document indexing', () => {
       ),
     ).rejects.toThrow('Los documentos CONTRACT requieren un contrato');
 
-    expect(mockTransaction).not.toHaveBeenCalled();
+    expect(mockGeneratedDocumentUpdate).not.toHaveBeenCalled();
+    expect(mockExpedienteDocCreate).not.toHaveBeenCalled();
   });
 
   it('mantiene fuera de publicación los tipos no aprobados', async () => {
@@ -294,7 +436,8 @@ describe('ExpedienteDocsService generated document indexing', () => {
       'Solo se pueden publicar documentos CONTRACT o CERTIFICATION',
     );
 
-    expect(mockTransaction).not.toHaveBeenCalled();
+    expect(mockGeneratedDocumentUpdate).not.toHaveBeenCalled();
+    expect(mockExpedienteDocCreate).not.toHaveBeenCalled();
   });
 
   it('devuelve el índice existente sin crear ni auditar otra publicación', async () => {
@@ -327,7 +470,8 @@ describe('ExpedienteDocsService generated document indexing', () => {
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(mockTransaction).not.toHaveBeenCalled();
+    expect(mockGeneratedDocumentUpdate).not.toHaveBeenCalled();
+    expect(mockExpedienteDocCreate).not.toHaveBeenCalled();
   });
 
   it('mantiene el aislamiento tenant al buscar el documento a publicar', async () => {
@@ -342,11 +486,15 @@ describe('ExpedienteDocsService generated document indexing', () => {
       ),
     ).rejects.toThrow('Documento generado no encontrado');
 
-    expect(mockGeneratedDocumentFindFirst).toHaveBeenCalledWith({
-      where: { id: generatedDocumentId, tenantId: 'tenant-otro' },
-      select: expect.any(Object),
+    const findArgs = firstCallArgument<{
+      where: Record<string, unknown>;
+    }>(mockGeneratedDocumentFindFirst);
+    expect(findArgs.where).toEqual({
+      id: generatedDocumentId,
+      tenantId: 'tenant-otro',
     });
-    expect(mockTransaction).not.toHaveBeenCalled();
+    expect(mockGeneratedDocumentUpdate).not.toHaveBeenCalled();
+    expect(mockExpedienteDocCreate).not.toHaveBeenCalled();
   });
 
   it('converge al índice ganador si una creación concurrente viola la unicidad', async () => {
@@ -387,13 +535,15 @@ describe('ExpedienteDocsService generated document indexing', () => {
     let persistedMetadata: PersistedMetadata | null = null;
     let persistedExpediente: { id: string } | null = null;
 
-    mockGeneratedDocumentFindFirst.mockImplementation(async () =>
-      makeGeneratedDocument(
-        persistedMetadata ?? {
-          pdfStorageKey: null,
-          pdfSizeBytes: null,
-          pdfUrl: null,
-        },
+    mockGeneratedDocumentFindFirst.mockImplementation(() =>
+      Promise.resolve(
+        makeGeneratedDocument(
+          persistedMetadata ?? {
+            pdfStorageKey: null,
+            pdfSizeBytes: null,
+            pdfUrl: null,
+          },
+        ),
       ),
     );
     mockTransaction.mockImplementation(
@@ -402,19 +552,22 @@ describe('ExpedienteDocsService generated document indexing', () => {
         let stagedExpediente = persistedExpediente;
         const result = await work({
           generatedDocument: {
-            update: async ({ data }: { data: PersistedMetadata }) => {
+            findFirst: mockGeneratedDocumentFindFirst,
+            update: ({ data }: { data: PersistedMetadata }) => {
               stagedMetadata = data;
-              return { id: generatedDocumentId };
+              return Promise.resolve({ id: generatedDocumentId });
             },
           },
           expedienteDoc: {
-            findFirst: async () => stagedExpediente,
-            create: async () => {
+            findFirst: () => Promise.resolve(stagedExpediente),
+            create: () => {
               stagedExpediente = { id: 'expediente-001' };
-              return stagedExpediente;
+              return Promise.resolve(stagedExpediente);
             },
           },
-          expedienteDocFamily: { create: async () => ({ id: 'family-001' }) },
+          expedienteDocFamily: {
+            create: () => Promise.resolve({ id: 'family-001' }),
+          },
         });
         persistedMetadata = stagedMetadata;
         persistedExpediente = stagedExpediente;

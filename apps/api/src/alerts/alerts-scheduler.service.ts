@@ -6,13 +6,14 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import {
-  AlertGenerationRunStatus,
   AlertGenerationRunTrigger,
+  AlertGenerationRunStatus,
   AlertGenerationRunTenantStatus,
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../tenant-context/tenant-context.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AlertsService } from './alerts.service';
 
@@ -56,19 +57,16 @@ export interface DailyAlertGenerationSummary {
 
 export interface AlertGenerationRunView {
   id: string;
-  schedulerKey: string;
   trigger: AlertGenerationRunTrigger;
-  parentRunId: string | null;
-  status: AlertGenerationRunStatus;
+  status: AlertGenerationRunTenantStatus;
   startedAt: Date;
   finishedAt: Date | null;
-  tenantsProcessed: number;
-  tenantsFailed: number;
-  contractAlertsCreated: number;
-  missingDocAlertsCreated: number;
   tenantResult: {
+    id: string;
     status: AlertGenerationRunTenantStatus;
     attemptCount: number;
+    contractAlertsCreated: number;
+    missingDocAlertsCreated: number;
     lastErrorCode: string | null;
     startedAt: Date;
     finishedAt: Date | null;
@@ -81,6 +79,7 @@ export class AlertsSchedulerService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly tenantPrisma: TenantPrismaService,
     private readonly alertsService: AlertsService,
     private readonly tenantContext: TenantContextService,
     private readonly auditService: AuditService,
@@ -105,59 +104,74 @@ export class AlertsSchedulerService {
   async getLatestForTenant(
     tenantId: string,
   ): Promise<AlertGenerationRunView | null> {
-    const run = await this.prisma.alertGenerationRun.findFirst({
-      where: {
-        schedulerKey: ALERTS_SCHEDULER_KEY,
-        tenantResults: { some: { tenantId } },
-      },
-      orderBy: [{ startedAt: 'desc' }, { createdAt: 'desc' }],
-      include: {
-        tenantResults: {
-          where: { tenantId },
-          select: {
-            status: true,
-            attemptCount: true,
-            lastErrorCode: true,
-            startedAt: true,
-            finishedAt: true,
+    const run = await this.tenantPrisma.execute(async (prisma, context) => {
+      if (context.tenantId !== tenantId) return null;
+
+      return prisma.alertGenerationRun.findFirst({
+        where: {
+          schedulerKey: ALERTS_SCHEDULER_KEY,
+          tenantResults: { some: { tenantId: context.tenantId } },
+        },
+        orderBy: [{ startedAt: 'desc' }, { createdAt: 'desc' }],
+        select: {
+          id: true,
+          trigger: true,
+          tenantResults: {
+            where: { tenantId: context.tenantId },
+            select: {
+              id: true,
+              status: true,
+              attemptCount: true,
+              contractAlertsCreated: true,
+              missingDocAlertsCreated: true,
+              lastErrorCode: true,
+              startedAt: true,
+              finishedAt: true,
+            },
           },
         },
-      },
+      });
     });
 
     if (!run) return null;
 
     const tenantResult = run.tenantResults[0] ?? null;
+    if (!tenantResult) return null;
+
     return {
-      id: run.id,
-      schedulerKey: run.schedulerKey,
+      id: tenantResult.id,
       trigger: run.trigger,
-      parentRunId: run.parentRunId,
-      status: run.status,
-      startedAt: run.startedAt,
-      finishedAt: run.finishedAt,
-      tenantsProcessed: run.tenantsProcessed,
-      tenantsFailed: run.tenantsFailed,
-      contractAlertsCreated: run.contractAlertsCreated,
-      missingDocAlertsCreated: run.missingDocAlertsCreated,
+      status: tenantResult.status,
+      startedAt: tenantResult.startedAt,
+      finishedAt: tenantResult.finishedAt,
       tenantResult,
     };
   }
 
   async retryFailedTenant(
     tenantId: string,
-    failedRunId: string,
+    failedRunOrTenantResultId: string,
     userId: string,
   ): Promise<DailyAlertGenerationSummary> {
-    const failedResult = await this.prisma.alertGenerationRunTenant.findFirst({
-      where: {
-        runId: failedRunId,
-        tenantId,
-        status: AlertGenerationRunTenantStatus.FAILED,
-        run: { schedulerKey: ALERTS_SCHEDULER_KEY },
-      },
-      select: { id: true },
-    });
+    const failedResult = await this.withTenantActorContext(
+      tenantId,
+      { userId, role: 'ADMIN' },
+      () =>
+        this.tenantPrisma.execute((prisma, context) =>
+          prisma.alertGenerationRunTenant.findFirst({
+            where: {
+              OR: [
+                { id: failedRunOrTenantResultId },
+                { runId: failedRunOrTenantResultId },
+              ],
+              tenantId: context.tenantId,
+              status: AlertGenerationRunTenantStatus.FAILED,
+              run: { schedulerKey: ALERTS_SCHEDULER_KEY },
+            },
+            select: { runId: true },
+          }),
+        ),
+    );
 
     if (!failedResult) {
       throw new NotFoundException(
@@ -167,7 +181,7 @@ export class AlertsSchedulerService {
 
     const result = await this.executeRun({
       trigger: AlertGenerationRunTrigger.MANUAL_RETRY,
-      parentRunId: failedRunId,
+      parentRunId: failedResult.runId,
       tenantIds: [tenantId],
       actor: { userId, role: 'ADMIN' },
     });
@@ -197,7 +211,7 @@ export class AlertsSchedulerService {
       await this.processTenant(claim.run.id, tenantId, input.actor);
     }
 
-    return this.finishRun(claim.run.id);
+    return this.finishRun(claim.run.id, claim.tenantIds, input.actor);
   }
 
   private async claimRun(input: {
@@ -235,12 +249,14 @@ export class AlertsSchedulerService {
         });
 
         if (tenantIds.length > 0) {
-          await tx.alertGenerationRunTenant.createMany({
-            data: tenantIds.map((tenantId) => ({
-              runId: run.id,
-              tenantId,
-            })),
-          });
+          for (const tenantId of tenantIds) {
+            await tx.$executeRaw`
+              SELECT set_config('app.current_tenant_id', ${tenantId}, true)
+            `;
+            await tx.alertGenerationRunTenant.create({
+              data: { runId: run.id, tenantId },
+            });
+          }
         }
 
         return { run, tenantIds, skipped: false };
@@ -277,7 +293,7 @@ export class AlertsSchedulerService {
   ): Promise<void> {
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
       try {
-        await this.startTenantAttempt(runId, tenantId);
+        await this.startTenantAttempt(runId, tenantId, actor);
         await this.recordAudit(tenantId, 'ALERT_GENERATION_STARTED', actor, {
           runId,
           attempt,
@@ -288,16 +304,9 @@ export class AlertsSchedulerService {
             SELECT set_config('app.current_tenant_id', ${tenantId}, true)
           `;
 
-          const result = await this.tenantContext.run(
-            {
-              tenantId,
-              userId: actor.userId,
-              rol: actor.role,
-              email:
-                actor.userId === SCHEDULER_CONTEXT.userId
-                  ? SCHEDULER_CONTEXT.email
-                  : 'operator@internal.invalid',
-            },
+          const result = await this.withTenantActorContext(
+            tenantId,
+            actor,
             () => this.alertsService.generateForTenant(tenantId, tx),
           );
 
@@ -350,6 +359,7 @@ export class AlertsSchedulerService {
         await this.markTenantFailure(
           runId,
           tenantId,
+          actor,
           errorCode,
           isFinalAttempt,
         );
@@ -409,52 +419,80 @@ export class AlertsSchedulerService {
     }
   }
 
-  private async startTenantAttempt(runId: string, tenantId: string) {
-    await this.prisma.alertGenerationRunTenant.update({
-      where: { runId_tenantId: { runId, tenantId } },
-      data: {
-        status: AlertGenerationRunTenantStatus.RUNNING,
-        attemptCount: { increment: 1 },
-        lastErrorCode: null,
-        startedAt: new Date(),
-        finishedAt: null,
-      },
-    });
+  private async startTenantAttempt(
+    runId: string,
+    tenantId: string,
+    actor: RunActor,
+  ) {
+    await this.withTenantActorContext(tenantId, actor, () =>
+      this.tenantPrisma.execute((prisma, context) =>
+        prisma.alertGenerationRunTenant.update({
+          where: {
+            runId_tenantId: { runId, tenantId: context.tenantId },
+          },
+          data: {
+            status: AlertGenerationRunTenantStatus.RUNNING,
+            attemptCount: { increment: 1 },
+            lastErrorCode: null,
+            startedAt: new Date(),
+            finishedAt: null,
+          },
+        }),
+      ),
+    );
   }
 
   private async markTenantFailure(
     runId: string,
     tenantId: string,
+    actor: RunActor,
     errorCode: string,
     finalAttempt: boolean,
   ) {
-    await this.prisma.$transaction(async (tx) => {
-      await tx.alertGenerationRunTenant.update({
-        where: { runId_tenantId: { runId, tenantId } },
-        data: {
-          status: AlertGenerationRunTenantStatus.FAILED,
-          lastErrorCode: errorCode,
-          ...(finalAttempt ? { finishedAt: new Date() } : {}),
-        },
-      });
-
-      if (finalAttempt) {
-        await tx.alertGenerationRun.update({
-          where: { id: runId },
+    await this.withTenantActorContext(tenantId, actor, () =>
+      this.prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`
+          SELECT set_config('app.current_tenant_id', ${tenantId}, true)
+        `;
+        await tx.alertGenerationRunTenant.update({
+          where: { runId_tenantId: { runId, tenantId } },
           data: {
-            tenantsProcessed: { increment: 1 },
-            tenantsFailed: { increment: 1 },
+            status: AlertGenerationRunTenantStatus.FAILED,
+            lastErrorCode: errorCode,
+            ...(finalAttempt ? { finishedAt: new Date() } : {}),
           },
         });
-      }
-    });
+
+        if (finalAttempt) {
+          await tx.alertGenerationRun.update({
+            where: { id: runId },
+            data: {
+              tenantsProcessed: { increment: 1 },
+              tenantsFailed: { increment: 1 },
+            },
+          });
+        }
+      }),
+    );
   }
 
-  private async finishRun(runId: string): Promise<DailyAlertGenerationSummary> {
-    const tenantResults = await this.prisma.alertGenerationRunTenant.findMany({
-      where: { runId },
-      select: { status: true },
-    });
+  private async finishRun(
+    runId: string,
+    tenantIds: string[],
+    actor: RunActor,
+  ): Promise<DailyAlertGenerationSummary> {
+    const tenantResults: { status: AlertGenerationRunTenantStatus }[] = [];
+    for (const tenantId of tenantIds) {
+      const results = await this.withTenantActorContext(tenantId, actor, () =>
+        this.tenantPrisma.execute((prisma, context) =>
+          prisma.alertGenerationRunTenant.findMany({
+            where: { runId, tenantId: context.tenantId },
+            select: { status: true },
+          }),
+        ),
+      );
+      tenantResults.push(...results);
+    }
     const failed = tenantResults.filter(
       (result) => result.status === AlertGenerationRunTenantStatus.FAILED,
     ).length;
@@ -517,21 +555,20 @@ export class AlertsSchedulerService {
         status: AlertGenerationRunStatus.RUNNING,
         startedAt: { lt: cutoff },
       },
-      select: {
-        id: true,
-        tenantResults: {
-          where: { status: AlertGenerationRunTenantStatus.RUNNING },
-          select: { id: true },
-        },
-      },
+      select: { id: true },
     });
+    const tenants = await tx.tenant.findMany({ select: { id: true } });
 
     for (const run of staleRuns) {
-      const staleTenantCount = run.tenantResults.length;
-      if (staleTenantCount > 0) {
-        await tx.alertGenerationRunTenant.updateMany({
+      let staleTenantCount = 0;
+      for (const tenant of tenants) {
+        await tx.$executeRaw`
+          SELECT set_config('app.current_tenant_id', ${tenant.id}, true)
+        `;
+        const result = await tx.alertGenerationRunTenant.updateMany({
           where: {
-            id: { in: run.tenantResults.map((result) => result.id) },
+            runId: run.id,
+            tenantId: tenant.id,
             status: AlertGenerationRunTenantStatus.RUNNING,
           },
           data: {
@@ -540,6 +577,7 @@ export class AlertsSchedulerService {
             finishedAt: new Date(),
           },
         });
+        staleTenantCount += result.count;
       }
       await tx.alertGenerationRun.update({
         where: { id: run.id },
@@ -551,6 +589,25 @@ export class AlertsSchedulerService {
         },
       });
     }
+  }
+
+  private withTenantActorContext<T>(
+    tenantId: string,
+    actor: RunActor,
+    work: () => T,
+  ): T {
+    return this.tenantContext.run(
+      {
+        tenantId,
+        userId: actor.userId,
+        rol: actor.role,
+        email:
+          actor.userId === SCHEDULER_CONTEXT.userId
+            ? SCHEDULER_CONTEXT.email
+            : 'operator@internal.invalid',
+      },
+      work,
+    );
   }
 
   private async purgeExpiredRuns(tx: Prisma.TransactionClient) {

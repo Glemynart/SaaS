@@ -23,7 +23,6 @@ describe('ExpedienteDocsService prima de servicios publication', () => {
     work(transaction),
   );
   const service = new ExpedienteDocsService(
-    {} as never,
     { execute: tenantExecute } as never,
     { log: auditLog } as never,
     {} as never,
@@ -121,5 +120,23 @@ describe('ExpedienteDocsService prima de servicios publication', () => {
     });
     expect(documentCreate).not.toHaveBeenCalled();
     expect(familyCreate).not.toHaveBeenCalled();
+  });
+
+  it('rechaza claves de almacenamiento de otra empresa antes de publicar', async () => {
+    await expect(
+      service.publishServicePremiumDocument({
+        tenantId: 'tenant-a',
+        userId: 'user-a',
+        lineId: 'line-a',
+        storageKey: 'tenant-b/nomina/prima/2026/S1/v1/line-b.pdf',
+        sizeBytes: 1024,
+        sha256: 'pdf-sha256',
+      }),
+    ).rejects.toThrow('La clave del PDF no corresponde');
+
+    expect(documentFindFirst).not.toHaveBeenCalled();
+    expect(documentCreate).not.toHaveBeenCalled();
+    expect(familyCreate).not.toHaveBeenCalled();
+    expect(lineUpdate).not.toHaveBeenCalled();
   });
 });

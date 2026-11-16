@@ -39,24 +39,23 @@ export type AlertGenerationRunStatus = 'RUNNING' | 'SUCCEEDED' | 'PARTIAL' | 'FA
 
 export interface AlertGenerationRun {
   id: string;
-  schedulerKey: string;
   trigger: 'SCHEDULED' | 'MANUAL_RETRY';
-  parentRunId: string | null;
   status: AlertGenerationRunStatus;
   startedAt: string;
   finishedAt: string | null;
-  tenantsProcessed: number;
-  tenantsFailed: number;
-  contractAlertsCreated: number;
-  missingDocAlertsCreated: number;
   tenantResult: {
-    status: 'RUNNING' | 'SUCCEEDED' | 'FAILED';
+    id: string;
+    status: AlertGenerationTenantStatus;
     attemptCount: number;
+    contractAlertsCreated: number;
+    missingDocAlertsCreated: number;
     lastErrorCode: string | null;
     startedAt: string;
     finishedAt: string | null;
   } | null;
 }
+
+export type AlertGenerationTenantStatus = 'RUNNING' | 'SUCCEEDED' | 'FAILED';
 
 type ApiEnvelope = { message?: string };
 
@@ -107,7 +106,7 @@ export const alertsApi = {
   getLatestGenerationRun: async () =>
     request<AlertGenerationRun | null>('/api/alerts/generation-runs/latest'),
 
-  retryGenerationRun: async (runId: string) =>
+  retryGenerationRun: async (tenantResultId: string) =>
     request<{
       runId: string;
       status: AlertGenerationRunStatus;
@@ -116,7 +115,7 @@ export const alertsApi = {
       tenantsFailed: number;
       contractAlertsCreated: number;
       missingDocAlertsCreated: number;
-    }>(`/api/alerts/generation-runs/${runId}/retry`, {
+    }>(`/api/alerts/generation-runs/${tenantResultId}/retry`, {
       method: 'POST',
       body: '{}',
     }),

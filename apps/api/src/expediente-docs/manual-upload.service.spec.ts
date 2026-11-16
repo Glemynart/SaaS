@@ -1,6 +1,5 @@
 import { ExpedienteCategoria, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
-import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import type {
   PutObjectInput,
@@ -16,7 +15,15 @@ type EmployeeFindFirstArgs = {
 type EmployeeFindFirst = (
   args: EmployeeFindFirstArgs,
 ) => Promise<{ id: string } | null>;
-type TenantClientMock = { empleado: { findFirst: EmployeeFindFirst } };
+type TenantClientMock = {
+  empleado: { findFirst: EmployeeFindFirst };
+  expedienteDocFamily: { findFirst: FamilyFindFirst; create: ExpedienteCreate };
+  expedienteDoc: {
+    findFirst: DocumentFindFirst;
+    create: ExpedienteCreate;
+    update: (args: unknown) => Promise<unknown>;
+  };
+};
 type TenantExecute = (
   work: (client: TenantClientMock) => Promise<unknown>,
 ) => Promise<unknown>;
@@ -33,16 +40,6 @@ type DocumentFindFirst = (args: unknown) => Promise<{
   version: number;
   generatedDocumentId: string | null;
 } | null>;
-type TransactionClientMock = {
-  expedienteDocFamily: { create: ExpedienteCreate };
-  expedienteDoc: {
-    create: ExpedienteCreate;
-    update: (args: unknown) => Promise<unknown>;
-  };
-};
-type Transaction = (
-  work: (client: TransactionClientMock) => Promise<unknown>,
-) => Promise<unknown>;
 type AuditLog = (params: unknown, tx?: unknown) => Promise<unknown>;
 
 describe('ExpedienteDocsService.uploadManual', () => {
@@ -63,7 +60,6 @@ describe('ExpedienteDocsService.uploadManual', () => {
   let expedienteDocUpdate: jest.MockedFunction<
     (args: unknown) => Promise<unknown>
   >;
-  let transaction: jest.MockedFunction<Transaction>;
   let auditLog: jest.MockedFunction<AuditLog>;
   let putObject: jest.MockedFunction<
     (input: PutObjectInput) => Promise<StorageObjectMetadata>
@@ -103,13 +99,14 @@ describe('ExpedienteDocsService.uploadManual', () => {
     deleteObject.mockResolvedValue(undefined);
     tenantExecute = jest.fn() as jest.MockedFunction<TenantExecute>;
     tenantExecute.mockImplementation((work) =>
-      work({ empleado: { findFirst: employeeFindFirst } }),
-    );
-    transaction = jest.fn() as jest.MockedFunction<Transaction>;
-    transaction.mockImplementation((work) =>
       work({
-        expedienteDocFamily: { create: expedienteDocFamilyCreate },
+        empleado: { findFirst: employeeFindFirst },
+        expedienteDocFamily: {
+          findFirst: familyFindFirst,
+          create: expedienteDocFamilyCreate,
+        },
         expedienteDoc: {
+          findFirst: documentFindFirst,
           create: expedienteDocCreate,
           update: expedienteDocUpdate,
         },
@@ -117,11 +114,6 @@ describe('ExpedienteDocsService.uploadManual', () => {
     );
 
     service = new ExpedienteDocsService(
-      {
-        $transaction: transaction,
-        expedienteDocFamily: { findFirst: familyFindFirst },
-        expedienteDoc: { findFirst: documentFindFirst },
-      } as unknown as PrismaService,
       { execute: tenantExecute } as unknown as TenantPrismaService,
       { log: auditLog } as unknown as AuditService,
       { putObject, deleteObject } as unknown as StorageService,
@@ -207,7 +199,6 @@ describe('ExpedienteDocsService.uploadManual', () => {
     ).rejects.toThrow('Empleado no encontrado');
 
     expect(putObject).not.toHaveBeenCalled();
-    expect(transaction).not.toHaveBeenCalled();
   });
 
   it('creates the next immutable revision in the same document family', async () => {
@@ -273,7 +264,6 @@ describe('ExpedienteDocsService.uploadManual', () => {
     ).rejects.toThrow('Una revisión debe conservar la familia documental');
 
     expect(putObject).not.toHaveBeenCalled();
-    expect(transaction).not.toHaveBeenCalled();
   });
 
   it('removes the stored object when persistence or audit fails', async () => {

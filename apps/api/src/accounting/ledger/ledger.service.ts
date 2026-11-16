@@ -110,16 +110,17 @@ export class LedgerService {
         include: { movimientos: { orderBy: { linea: 'asc' } } },
       });
 
-      this.audit
-        .log({
+      await this.audit.log(
+        {
           tenantId: input.tenantId,
           userId: input.userId,
           action: 'COMPROBANTE_CONTABILIZADO',
           entityType: 'ComprobanteContable',
           entityId: comprobante.id,
           metadata: { numero, tipo: input.tipoComprobanteId },
-        })
-        .catch(() => {});
+        },
+        tx,
+      );
 
       return comprobante;
     };
@@ -203,16 +204,17 @@ export class LedgerService {
           include: { movimientos: { orderBy: { linea: 'asc' } } },
         });
 
-        this.audit
-          .log({
+        await this.audit.log(
+          {
             tenantId,
             userId,
             action: 'COMPROBANTE_ANULADO',
             entityType: 'ComprobanteContable',
             entityId: anulado.id,
             metadata: { motivo, numero: anulado.numero },
-          })
-          .catch(() => {});
+          },
+          tx,
+        );
 
         return anulado;
       }
@@ -302,8 +304,8 @@ export class LedgerService {
       include: { movimientos: { orderBy: { linea: 'asc' } } },
     });
 
-    this.audit
-      .log({
+    await this.audit.log(
+      {
         tenantId,
         userId,
         action: 'COMPROBANTE_REVERSO',
@@ -314,8 +316,9 @@ export class LedgerService {
           originalId: original.id,
           numero: reverso.numero,
         },
-      })
-      .catch(() => {});
+      },
+      tx,
+    );
 
     return reverso;
   }

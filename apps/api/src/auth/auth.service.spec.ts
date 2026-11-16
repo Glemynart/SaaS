@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Prisma, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { TenantsService } from '../tenants/tenants.service';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
@@ -13,17 +14,23 @@ describe('AuthService authentication security contracts', () => {
   let prisma: ReturnType<typeof prismaMock>;
   let jwtService: { signAsync: jest.Mock };
   let usersService: { findByEmail: jest.Mock };
+  let auditService: { log: jest.Mock };
   let service: AuthService;
 
   beforeEach(() => {
     prisma = prismaMock();
     jwtService = { signAsync: jest.fn().mockResolvedValue('access-token') };
     usersService = { findByEmail: jest.fn() };
+    auditService = { log: jest.fn().mockResolvedValue(undefined) };
+    prisma.$transaction.mockImplementation(
+      (callback: (transaction: typeof prisma) => unknown) => callback(prisma),
+    );
     service = new AuthService(
       prisma as unknown as PrismaService,
       usersService as unknown as UsersService,
       {} as TenantsService,
       jwtService as unknown as JwtService,
+      auditService as unknown as AuditService,
     );
   });
 
@@ -133,6 +140,39 @@ describe('AuthService authentication security contracts', () => {
         tenantNombre: tenant.nombre,
       });
       expect(prisma.user.update).toHaveBeenCalledTimes(1);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(auditService.log).toHaveBeenCalledWith(
+        {
+          tenantId: tenant.id,
+          userId: user.id,
+          action: 'LOGIN',
+          entityType: 'Auth',
+          metadata: { ip: credentials.ipAddress, userAgent: 'test-agent' },
+        },
+        prisma,
+      );
+    });
+
+    it('propagates an AuditLog failure from the login transaction', async () => {
+      const passwordPlain = 'valid-password';
+      prisma.tenant.findUnique.mockResolvedValue(tenant);
+      usersService.findByEmail.mockResolvedValue({
+        ...user,
+        passwordHash: await bcrypt.hash(passwordPlain, APPROVED_BCRYPT_ROUNDS),
+      });
+      prisma.user.update.mockResolvedValue({});
+      prisma.refreshToken.create.mockResolvedValue({ id: 'refresh-1' });
+      auditService.log.mockRejectedValue(new Error('audit unavailable'));
+      await expect(
+        service.login({ ...credentials, passwordPlain }),
+      ).rejects.toThrow('audit unavailable');
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.user.update).toHaveBeenCalledTimes(1);
+      expect(prisma.refreshToken.create).toHaveBeenCalledTimes(1);
+      expect(auditService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'LOGIN' }),
+        prisma,
+      );
     });
   });
 
@@ -189,6 +229,17 @@ describe('AuthService authentication security contracts', () => {
     expect(persistedPassword).toBeDefined();
     if (!persistedPassword) throw new Error('Password hash not persisted');
     expect(persistedPassword.passwordPlain).toBeUndefined();
+    expect(auditService.log).toHaveBeenCalledWith(
+      {
+        tenantId: 'tenant-1',
+        userId: 'user-1',
+        action: 'TENANT_REGISTERED',
+        entityType: 'Tenant',
+        entityId: 'tenant-1',
+        metadata: { onboarding: 'SELF_SERVICE' },
+      },
+      tx,
+    );
     await expect(
       bcrypt.compare(passwordPlain, persistedPassword.passwordHash),
     ).resolves.toBe(true);

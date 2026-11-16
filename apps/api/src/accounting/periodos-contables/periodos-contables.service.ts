@@ -38,22 +38,22 @@ export class PeriodosContablesService {
       await this.ensureNoExiste(tx, tenantId, dto.anio, dto.mes);
       const { fechaInicio, fechaFin } = rangoMes(dto.anio, dto.mes);
 
-      return tx.periodoContable.create({
+      const periodo = await tx.periodoContable.create({
         data: { tenantId, anio: dto.anio, mes: dto.mes, fechaInicio, fechaFin },
       });
+      await this.audit.log(
+        {
+          tenantId,
+          userId,
+          action: 'PERIODO_CONTABLE_CREATE',
+          entityType: 'PeriodoContable',
+          entityId: periodo.id,
+          metadata: { anio: periodo.anio, mes: periodo.mes },
+        },
+        tx,
+      );
+      return periodo;
     });
-
-    this.audit
-      .log({
-        tenantId,
-        userId,
-        action: 'PERIODO_CONTABLE_CREATE',
-        entityType: 'PeriodoContable',
-        entityId: periodo.id,
-        metadata: { anio: periodo.anio, mes: periodo.mes },
-      })
-      .catch(() => {});
-
     return periodo;
   }
 
@@ -86,27 +86,24 @@ export class PeriodosContablesService {
         await tx.periodoContable.createMany({ data: faltantes });
       }
 
-      return {
-        periodos: await tx.periodoContable.findMany({
-          where: { tenantId, anio: dto.anio },
-          orderBy: { mes: 'asc' },
-        }),
-        creados: faltantes.length,
-      };
+      const periodos = await tx.periodoContable.findMany({
+        where: { tenantId, anio: dto.anio },
+        orderBy: { mes: 'asc' },
+      });
+      if (faltantes.length > 0) {
+        await this.audit.log(
+          {
+            tenantId,
+            userId,
+            action: 'PERIODO_CONTABLE_GENERAR_ANIO',
+            entityType: 'PeriodoContable',
+            metadata: { anio: dto.anio, creados: faltantes.length },
+          },
+          tx,
+        );
+      }
+      return { periodos, creados: faltantes.length };
     });
-
-    if (result.creados > 0) {
-      this.audit
-        .log({
-          tenantId,
-          userId,
-          action: 'PERIODO_CONTABLE_GENERAR_ANIO',
-          entityType: 'PeriodoContable',
-          metadata: { anio: dto.anio, creados: result.creados },
-        })
-        .catch(() => {});
-    }
-
     return result.periodos;
   }
 

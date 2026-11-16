@@ -426,6 +426,7 @@ model User {
   bloqueosNominaExcluidos  PayrollBlock[]       @relation("PayrollBlockExcludedBy")
 
   @@unique([tenantId, email]) // Un email es único por empresa, no globalmente
+  @@unique([tenantId, id], map: "users_tenantId_id_key")
   @@index([tenantId, activo])
   @@index([tenantId, rol])
   @@map("users")
@@ -471,8 +472,8 @@ model PasswordResetToken {
   createdAt DateTime @default(now())
 
   userId   String
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   tenantId String
+  user     User   @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: Cascade, map: "password_reset_tokens_tenantId_userId_fkey")
 
   tokenHash String    @unique
   expiresAt DateTime
@@ -2420,10 +2421,11 @@ model BatchDocumentGenerationExclusion {
 // =============================================================================
 // LOTE CONTRATO — Proceso de generación masiva de contratos
 // =============================================================================
-// Representa un job de generación masiva procesado por BullMQ.
-// El cliente crea el lote → recibe el loteId → consulta el progreso
-// → descarga el ZIP cuando el estado es COMPLETADO.
-// Los campos `procesados` y `fallidos` se actualizan en tiempo real.
+// Representa una solicitud tenant-scoped de generación masiva. El endpoint
+// autenticado procesa el lote de forma síncrona y el cliente consulta progreso.
+// BullMQ/Redis y la descarga ZIP no forman parte del flujo implementado actual;
+// `zipKey` se conserva como campo legado sin consumidor activo identificado.
+// Los campos `procesados` y `fallidos` se actualizan durante el procesamiento.
 // =============================================================================
 
 model LoteContrato {
@@ -2522,7 +2524,7 @@ model ExpedienteDoc {
   familia   ExpedienteDocFamily @relation(fields: [familiaId], references: [id], onDelete: Restrict)
 
   reemplazaId String? @unique
-  reemplaza ExpedienteDoc? @relation("ExpedienteDocRevision", fields: [reemplazaId], references: [id], onDelete: Restrict)
+  reemplaza ExpedienteDoc? @relation("ExpedienteDocRevision", fields: [reemplazaId, tenantId], references: [id, tenantId], onDelete: Restrict)
   reemplazadoPor ExpedienteDoc? @relation("ExpedienteDocRevision")
 
   contratoId String?
@@ -2562,6 +2564,8 @@ model ExpedienteDoc {
   @@index([tenantId, empleadoId, categoria])
   @@index([tenantId, categoria])
   @@index([tenantId, familiaId, vigente])
+  @@unique([id, tenantId])
+  @@unique([reemplazaId, tenantId])
   @@unique([familiaId, version])
   @@unique([servicePremiumLineId, tenantId])
   @@map("expediente_docs")

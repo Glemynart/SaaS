@@ -582,8 +582,8 @@ export class PayrollService {
     userId: string,
     dto: CreatePayrollPeriodDto,
   ) {
-    const period = await this.tenantPrisma.execute((tx) =>
-      tx.payrollPeriod.create({
+    return this.tenantPrisma.execute(async (tx) => {
+      const period = await tx.payrollPeriod.create({
         data: {
           ...dto,
           fechaInicio: new Date(dto.fechaInicio),
@@ -596,24 +596,25 @@ export class PayrollService {
           // no fuente de verdad). Ver ADR-002 §6 / U1 Fase 1.
           status: PayrollPeriodStatus.BORRADOR,
         },
-      }),
-    );
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'PAYROLL_PERIOD_CREATED',
-        entityType: 'PayrollPeriod',
-        entityId: period.id,
-        metadata: {
-          periodName: period.nombre,
-          payrollPeriodId: period.id,
-          fechaPrevistaPagoPila:
-            period.fechaPrevistaPagoPila?.toISOString().slice(0, 10) ?? null,
+      });
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'PAYROLL_PERIOD_CREATED',
+          entityType: 'PayrollPeriod',
+          entityId: period.id,
+          metadata: {
+            periodName: period.nombre,
+            payrollPeriodId: period.id,
+            fechaPrevistaPagoPila:
+              period.fechaPrevistaPagoPila?.toISOString().slice(0, 10) ?? null,
+          },
         },
-      })
-      .catch(() => {});
-    return period;
+        tx,
+      );
+      return period;
+    });
   }
 
   async updatePilaPaymentDate(
@@ -2776,6 +2777,26 @@ export class PayrollService {
               'El período fue modificado durante la generación de nómina.',
             );
           }
+
+          await this.auditService.log(
+            {
+              tenantId,
+              userId,
+              action: 'PAYROLL_GENERATED',
+              entityType: 'PayrollPeriod',
+              entityId: periodId,
+              metadata: {
+                periodName: period.nombre,
+                payrollPeriodId: periodId,
+                parametroLegalId: legalParam.id,
+                runsCreated: created,
+                skipped: employees.length - created,
+                warningsCount: Object.keys(runWarnings).length,
+                blocksCount: Object.keys(runBlocks).length,
+              },
+            },
+            tx,
+          );
         },
         { timeout: 30000 },
       );
@@ -2790,25 +2811,6 @@ export class PayrollService {
       }
       throw e;
     }
-
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'PAYROLL_GENERATED',
-        entityType: 'PayrollPeriod',
-        entityId: periodId,
-        metadata: {
-          periodName: period.nombre,
-          payrollPeriodId: periodId,
-          parametroLegalId: legalParam.id,
-          runsCreated: created,
-          skipped: employees.length - created,
-          warningsCount: Object.keys(runWarnings).length,
-          blocksCount: Object.keys(runBlocks).length,
-        },
-      })
-      .catch(() => {});
 
     return {
       created,
@@ -3070,6 +3072,26 @@ export class PayrollService {
               'El período fue modificado durante el recálculo de nómina.',
             );
           }
+
+          await this.auditService.log(
+            {
+              tenantId,
+              userId,
+              action: 'PAYROLL_RECALCULATED',
+              entityType: 'PayrollPeriod',
+              entityId: periodId,
+              metadata: {
+                periodName: period.nombre,
+                payrollPeriodId: periodId,
+                parametroLegalId: legalParam.id,
+                runsDeleted: summary.runsDeleted,
+                runsCreated: summary.runsCreated,
+                warningsCount: Object.keys(runWarnings).length,
+                blocksCount: Object.keys(runBlocks).length,
+              },
+            },
+            tx,
+          );
         },
         { timeout: 30000 },
       );
@@ -3082,25 +3104,6 @@ export class PayrollService {
       }
       throw e;
     }
-
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'PAYROLL_RECALCULATED',
-        entityType: 'PayrollPeriod',
-        entityId: periodId,
-        metadata: {
-          periodName: period.nombre,
-          payrollPeriodId: periodId,
-          parametroLegalId: legalParam.id,
-          runsDeleted: summary.runsDeleted,
-          runsCreated: summary.runsCreated,
-          warningsCount: Object.keys(runWarnings).length,
-          blocksCount: Object.keys(runBlocks).length,
-        },
-      })
-      .catch(() => {});
 
     return {
       recalculated: employees.length,
@@ -3117,7 +3120,7 @@ export class PayrollService {
     userId: string,
     dto: CreatePayrollNoveltyDto,
   ) {
-    const novelty = await this.tenantPrisma.execute(async (tx) => {
+    return this.tenantPrisma.execute(async (tx) => {
       const [employee, period] = await Promise.all([
         tx.empleado.findFirst({
           where: { id: dto.employeeId, tenantId, deletedAt: null },
@@ -3128,26 +3131,27 @@ export class PayrollService {
       ]);
       if (!employee) throw new NotFoundException('Empleado no encontrado');
       if (!period) throw new NotFoundException('Período no encontrado');
-      return tx.payrollNovelty.create({
+      const novelty = await tx.payrollNovelty.create({
         data: { ...dto, fecha: new Date(dto.fecha), tenantId },
       });
-    });
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'PAYROLL_NOVELTY_CREATED',
-        entityType: 'PayrollNovelty',
-        entityId: novelty.id,
-        metadata: {
-          employeeId: dto.employeeId,
-          payrollPeriodId: dto.payrollPeriodId,
-          tipo: dto.tipo,
-          valor: dto.valor ?? null,
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'PAYROLL_NOVELTY_CREATED',
+          entityType: 'PayrollNovelty',
+          entityId: novelty.id,
+          metadata: {
+            employeeId: dto.employeeId,
+            payrollPeriodId: dto.payrollPeriodId,
+            tipo: dto.tipo,
+            valor: dto.valor ?? null,
+          },
         },
-      })
-      .catch(() => {});
-    return novelty;
+        tx,
+      );
+      return novelty;
+    });
   }
 
   async findPilaEvents(
@@ -3719,7 +3723,7 @@ export class PayrollService {
   private async resolveLegalParams(
     tenantId: string,
     periodStart: Date,
-    db: Prisma.TransactionClient | PrismaService = this.prisma,
+    db?: Prisma.TransactionClient,
   ) {
     // Normalizar a fecha UTC pura (sin componente horario) para comparar con @db.Date
     const d = periodStart;
@@ -3727,34 +3731,40 @@ export class PayrollService {
       Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
     );
 
-    // 1. Override específico del tenant
-    const tenantParam = await db.parametroLegalNomina.findFirst({
-      where: {
-        tenantId,
-        vigenciaDesde: { lte: periodDate },
-        OR: [{ vigenciaHasta: null }, { vigenciaHasta: { gte: periodDate } }],
-      },
-      orderBy: { vigenciaDesde: 'desc' },
-    });
-    if (tenantParam) return tenantParam;
+    const resolve = async (client: Prisma.TransactionClient) => {
+      // 1. Override específico del tenant
+      const tenantParam = await client.parametroLegalNomina.findFirst({
+        where: {
+          tenantId,
+          vigenciaDesde: { lte: periodDate },
+          OR: [{ vigenciaHasta: null }, { vigenciaHasta: { gte: periodDate } }],
+        },
+        orderBy: { vigenciaDesde: 'desc' },
+      });
+      if (tenantParam) return tenantParam;
 
-    // 2. Global de plataforma (tenantId IS NULL)
-    const globalParam = await db.parametroLegalNomina.findFirst({
-      where: {
-        tenantId: null,
-        vigenciaDesde: { lte: periodDate },
-        OR: [{ vigenciaHasta: null }, { vigenciaHasta: { gte: periodDate } }],
-      },
-      orderBy: { vigenciaDesde: 'desc' },
-    });
-    if (!globalParam) {
-      const iso = periodDate.toISOString().slice(0, 10);
-      throw new NotFoundException(
-        `No existe parámetro legal de nómina vigente para ${iso}. ` +
-          `Verifique que el seed haya corrido o defina un override para este tenant.`,
-      );
-    }
-    return globalParam;
+      // 2. Global de plataforma (tenantId IS NULL)
+      const globalParam = await client.parametroLegalNomina.findFirst({
+        where: {
+          tenantId: null,
+          vigenciaDesde: { lte: periodDate },
+          OR: [{ vigenciaHasta: null }, { vigenciaHasta: { gte: periodDate } }],
+        },
+        orderBy: { vigenciaDesde: 'desc' },
+      });
+      if (!globalParam) {
+        const iso = periodDate.toISOString().slice(0, 10);
+        throw new NotFoundException(
+          `No existe parámetro legal de nómina vigente para ${iso}. ` +
+            `Verifique que el seed haya corrido o defina un override para este tenant.`,
+        );
+      }
+      return globalParam;
+    };
+
+    return db
+      ? resolve(db)
+      : this.tenantPrisma.execute((client) => resolve(client));
   }
 
   /**
@@ -4664,22 +4674,24 @@ export class PayrollService {
     const sites =
       siteIds.length === 0
         ? []
-        : await this.prisma.sede.findMany({
-            where: { tenantId: tenant.id, id: { in: siteIds } },
-            select: {
-              id: true,
-              nombre: true,
-              direccion: true,
-              municipio: {
-                select: {
-                  id: true,
-                  codigo: true,
-                  nombre: true,
-                  departamento: true,
+        : await this.tenantPrisma.execute((prisma) =>
+            prisma.sede.findMany({
+              where: { tenantId: tenant.id, id: { in: siteIds } },
+              select: {
+                id: true,
+                nombre: true,
+                direccion: true,
+                municipio: {
+                  select: {
+                    id: true,
+                    codigo: true,
+                    nombre: true,
+                    departamento: true,
+                  },
                 },
               },
-            },
-          });
+            }),
+          );
 
     const affiliationsByEmployee = new Map<
       string,

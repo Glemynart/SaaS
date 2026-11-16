@@ -23,16 +23,27 @@ describe('AlertsSchedulerService', () => {
   const staleRuns = jest.fn();
   const deleteExpiredRuns = jest.fn();
   const createRun = jest.fn();
-  const createRunTenants = jest.fn();
+  const createRunTenant = jest.fn();
   const updateRunTenant = jest.fn();
   const findRunTenants = jest.fn();
+  const findLatestRun = jest.fn();
   const updateRun = jest.fn();
   const executeRaw = jest.fn();
   const generateForTenant = jest.fn();
   const auditLog = jest.fn();
   const findFailedRunTenant = jest.fn();
-  const tenantContextRun = jest.fn((_: unknown, callback: () => unknown) =>
-    callback(),
+  let createdParentRunId: string | undefined;
+  let currentTenantId = tenantA;
+  const tenantContextRun = jest.fn(
+    async (context: { tenantId: string }, callback: () => unknown) => {
+      const previousTenantId = currentTenantId;
+      currentTenantId = context.tenantId;
+      try {
+        return await callback();
+      } finally {
+        currentTenantId = previousTenantId;
+      }
+    },
   );
   let currentRun: {
     id: string;
@@ -56,7 +67,7 @@ describe('AlertsSchedulerService', () => {
       update: updateRun,
     },
     alertGenerationRunTenant: {
-      createMany: createRunTenants,
+      create: createRunTenant,
       update: updateRunTenant,
     },
   };
@@ -64,6 +75,7 @@ describe('AlertsSchedulerService', () => {
   const prisma = {
     $transaction: transaction,
     alertGenerationRun: {
+      findFirst: findLatestRun,
       create: createRun,
       update: updateRun,
     },
@@ -73,9 +85,16 @@ describe('AlertsSchedulerService', () => {
       update: updateRunTenant,
     },
   };
+  const tenantPrisma = {
+    execute: jest.fn(
+      (work: (client: unknown, context: { tenantId: string }) => unknown) =>
+        work(prisma, { tenantId: currentTenantId }),
+    ),
+  };
 
   const service = new AlertsSchedulerService(
     prisma as never,
+    tenantPrisma as never,
     { generateForTenant } as never,
     { run: tenantContextRun } as never,
     { log: auditLog } as never,
@@ -83,18 +102,25 @@ describe('AlertsSchedulerService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    currentTenantId = tenantA;
     transaction.mockImplementation((callback: (client: typeof tx) => unknown) =>
       callback(tx),
     );
     findManyTenants.mockResolvedValue([{ id: tenantA }, { id: tenantB }]);
     staleRuns.mockResolvedValue([]);
     deleteExpiredRuns.mockResolvedValue({ count: 0 });
-    createRun.mockResolvedValue({ ...run });
+    createdParentRunId = undefined;
+    createRun.mockImplementation(
+      (args: { data?: { parentRunId?: string } }) => {
+        createdParentRunId = args.data?.parentRunId;
+        return Promise.resolve({ ...run });
+      },
+    );
     currentRun = {
       ...run,
       status: run.status,
     };
-    createRunTenants.mockResolvedValue({ count: 2 });
+    createRunTenant.mockResolvedValue({});
     updateRunTenant.mockResolvedValue({});
     updateRun.mockImplementation(
       (args: {
@@ -125,11 +151,28 @@ describe('AlertsSchedulerService', () => {
         return Promise.resolve({ ...currentRun });
       },
     );
-    findRunTenants.mockResolvedValue([
-      { status: AlertGenerationRunTenantStatus.SUCCEEDED },
-      { status: AlertGenerationRunTenantStatus.SUCCEEDED },
-    ]);
-    findFailedRunTenant.mockResolvedValue({ id: 'failed-result' });
+    findRunTenants.mockImplementation(() =>
+      Promise.resolve([{ status: AlertGenerationRunTenantStatus.SUCCEEDED }]),
+    );
+    findLatestRun.mockImplementation(() =>
+      Promise.resolve({
+        id: 'shared-parent-run',
+        trigger: 'SCHEDULED',
+        tenantResults: [
+          {
+            id: `tenant-result-${currentTenantId}`,
+            status: AlertGenerationRunTenantStatus.SUCCEEDED,
+            attemptCount: 1,
+            contractAlertsCreated: 2,
+            missingDocAlertsCreated: 1,
+            lastErrorCode: null,
+            startedAt: new Date('2026-11-15T10:00:00.000Z'),
+            finishedAt: new Date('2026-11-15T10:01:00.000Z'),
+          },
+        ],
+      }),
+    );
+    findFailedRunTenant.mockResolvedValue({ runId: 'failed-parent-run' });
     executeRaw.mockResolvedValue(0);
     generateForTenant.mockResolvedValue({
       contractAlerts: { created: 2 },
@@ -150,11 +193,11 @@ describe('AlertsSchedulerService', () => {
       contractAlertsCreated: 4,
       missingDocAlertsCreated: 2,
     });
-    expect(createRunTenants).toHaveBeenCalledWith({
-      data: [
-        { runId, tenantId: tenantA },
-        { runId, tenantId: tenantB },
-      ],
+    expect(createRunTenant).toHaveBeenNthCalledWith(1, {
+      data: { runId, tenantId: tenantA },
+    });
+    expect(createRunTenant).toHaveBeenNthCalledWith(2, {
+      data: { runId, tenantId: tenantB },
     });
     expect(generateForTenant).toHaveBeenCalledTimes(2);
     expect(generateForTenant).toHaveBeenNthCalledWith(
@@ -185,10 +228,13 @@ describe('AlertsSchedulerService', () => {
       })
       .mockRejectedValueOnce(new Error('transient failure'))
       .mockRejectedValueOnce(new Error('permanent failure'));
-    findRunTenants.mockResolvedValue([
-      { status: AlertGenerationRunTenantStatus.SUCCEEDED },
-      { status: AlertGenerationRunTenantStatus.FAILED },
-    ]);
+    findRunTenants
+      .mockResolvedValueOnce([
+        { status: AlertGenerationRunTenantStatus.SUCCEEDED },
+      ])
+      .mockResolvedValueOnce([
+        { status: AlertGenerationRunTenantStatus.FAILED },
+      ]);
 
     const result = await service.runDailyGeneration();
 
@@ -242,9 +288,19 @@ describe('AlertsSchedulerService', () => {
     );
 
     expect(result.status).toBe(AlertGenerationRunStatus.SUCCEEDED);
-    expect(createRun).toHaveBeenCalled();
-    expect(createRunTenants).toHaveBeenCalledWith({
-      data: [{ runId, tenantId: tenantB }],
+    expect(findFailedRunTenant).toHaveBeenCalledWith({
+      where: {
+        OR: [{ id: 'failed-run' }, { runId: 'failed-run' }],
+        tenantId: tenantB,
+        status: AlertGenerationRunTenantStatus.FAILED,
+        run: { schedulerKey: 'alerts-daily-generation' },
+      },
+      select: { runId: true },
+    });
+    expect(createRun).toHaveBeenCalledTimes(1);
+    expect(createdParentRunId).toBe('failed-parent-run');
+    expect(createRunTenant).toHaveBeenCalledWith({
+      data: { runId, tenantId: tenantB },
     });
     expect(generateForTenant).toHaveBeenCalledTimes(1);
     expect(generateForTenant).toHaveBeenNthCalledWith(
@@ -252,5 +308,41 @@ describe('AlertsSchedulerService', () => {
       tenantB,
       expect.anything(),
     );
+  });
+
+  it('returns only the tenant result identifier and status from the shared run', async () => {
+    const result = await tenantContextRun({ tenantId: tenantA }, () =>
+      service.getLatestForTenant(tenantA),
+    );
+
+    expect(result).toEqual({
+      id: `tenant-result-${tenantA}`,
+      trigger: 'SCHEDULED',
+      status: AlertGenerationRunTenantStatus.SUCCEEDED,
+      startedAt: new Date('2026-11-15T10:00:00.000Z'),
+      finishedAt: new Date('2026-11-15T10:01:00.000Z'),
+      tenantResult: {
+        id: `tenant-result-${tenantA}`,
+        status: AlertGenerationRunTenantStatus.SUCCEEDED,
+        attemptCount: 1,
+        contractAlertsCreated: 2,
+        missingDocAlertsCreated: 1,
+        lastErrorCode: null,
+        startedAt: new Date('2026-11-15T10:00:00.000Z'),
+        finishedAt: new Date('2026-11-15T10:01:00.000Z'),
+      },
+    });
+    expect(result).not.toHaveProperty('tenantsProcessed');
+    expect(result).not.toHaveProperty('tenantsFailed');
+    expect(result).not.toMatchObject({ id: 'shared-parent-run' });
+  });
+
+  it('does not query a latest result when the requested tenant mismatches context', async () => {
+    const result = await tenantContextRun({ tenantId: tenantA }, () =>
+      service.getLatestForTenant(tenantB),
+    );
+
+    expect(result).toBeNull();
+    expect(findLatestRun).not.toHaveBeenCalled();
   });
 });

@@ -18,6 +18,21 @@ const managedUser = {
 };
 
 describe('UsersService management', () => {
+  it('scopes an ID lookup to the requesting tenant', async () => {
+    const findUnique = jest.fn().mockResolvedValue(managedUser);
+    const service = new UsersService(
+      { user: { findUnique } } as unknown as PrismaService,
+      {} as AuditService,
+    );
+
+    await expect(service.findById('tenant-1', 'user-2')).resolves.toEqual(
+      managedUser,
+    );
+    expect(findUnique).toHaveBeenCalledWith({
+      where: { id: 'user-2', tenantId: 'tenant-1' },
+    });
+  });
+
   it('lists only tenant-scoped public user fields', async () => {
     let findManyArgs: { select?: Record<string, boolean> } | undefined;
     const findMany = jest.fn((args: { select?: Record<string, boolean> }) => {

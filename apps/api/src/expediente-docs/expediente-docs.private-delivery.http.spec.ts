@@ -7,7 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import type { Request } from 'express';
-import { UserRole } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import request from 'supertest';
 import type { App } from 'supertest/types';
 import { AuditService } from '../audit/audit.service';
@@ -15,7 +15,6 @@ import type { CurrentUserPayload } from '../auth/decorators/current-user.decorat
 import { ActiveTenantGuard } from '../auth/guards/active-tenant.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { TenantsService } from '../tenants/tenants.service';
@@ -55,10 +54,11 @@ class TestAuthGuard implements CanActivate {
 describe('Expediente document private delivery', () => {
   let app: INestApplication<App>;
 
-  const storageKey = 'tenant-a/expediente/employee-a/family-a_v1.pdf';
+  const storageKey = 'tenant-a/expediente/employee-a/OTRO/family-a_v1.pdf';
   const document = {
     id: 'doc-a',
     tenantId: 'tenant-a',
+    empleadoId: 'employee-a',
     nombre: 'Acta.pdf',
     mimeType: 'application/pdf',
     storageKey,
@@ -77,6 +77,13 @@ describe('Expediente document private delivery', () => {
           : null,
       ),
   );
+  const transaction = {
+    expedienteDoc: { findFirst },
+  } as unknown as Prisma.TransactionClient;
+  const tenantPrismaExecute = jest.fn(
+    async <T>(work: (prisma: Prisma.TransactionClient) => Promise<T>) =>
+      work(transaction),
+  );
   const getObject = jest.fn(() =>
     Promise.resolve(Buffer.from('%PDF-1.7 test')),
   );
@@ -89,10 +96,9 @@ describe('Expediente document private delivery', () => {
       providers: [
         ExpedienteDocsService,
         {
-          provide: PrismaService,
-          useValue: { expedienteDoc: { findFirst } },
+          provide: TenantPrismaService,
+          useValue: { execute: tenantPrismaExecute },
         },
-        { provide: TenantPrismaService, useValue: {} },
         { provide: AuditService, useValue: { log: auditLog } },
         { provide: StorageService, useValue: { getObject } },
         { provide: TenantsService, useValue: { ensureActive } },
@@ -142,6 +148,7 @@ describe('Expediente document private delivery', () => {
         action: 'EXPEDIENTE_DOCUMENT_ACCESS_GRANTED',
         entityId: 'doc-a',
       }),
+      transaction,
     );
   });
 

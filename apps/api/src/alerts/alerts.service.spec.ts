@@ -2,36 +2,75 @@ import { Prisma } from '@prisma/client';
 import { NotFoundException } from '@nestjs/common';
 import { AlertsService } from './alerts.service';
 import { AuditService } from '../audit/audit.service';
-import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 
-describe('AlertsService.resolve', () => {
+describe('AlertsService tenant-scoped persistence', () => {
   const tenantId = 'tenant-1';
   const alertId = 'alert-1';
   const userId = 'user-1';
 
   let findFirst: jest.Mock;
+  let findMany: jest.Mock;
+  let count: jest.Mock;
   let updateMany: jest.Mock;
-  let transaction: jest.Mock;
+  let execute: jest.Mock;
   let auditLog: jest.Mock;
   let service: AlertsService;
   let tx: Prisma.TransactionClient;
 
   beforeEach(() => {
     findFirst = jest.fn();
+    findMany = jest.fn();
+    count = jest.fn();
     updateMany = jest.fn();
     auditLog = jest.fn().mockResolvedValue(undefined);
     tx = {
-      alert: { findFirst, updateMany },
+      alert: { findFirst, findMany, count, updateMany },
     } as unknown as Prisma.TransactionClient;
-    transaction = jest.fn(
-      (work: (client: Prisma.TransactionClient) => unknown) => work(tx),
+    execute = jest.fn((work: (client: Prisma.TransactionClient) => unknown) =>
+      work(tx),
     );
 
     service = new AlertsService(
-      { $transaction: transaction } as unknown as PrismaService,
-      {} as TenantPrismaService,
+      { execute } as unknown as TenantPrismaService,
       { log: auditLog } as unknown as AuditService,
+    );
+  });
+
+  it('reads alert rows, document links, and stats through one tenant transaction', async () => {
+    const alert = { id: alertId, tenantId, expedienteDoc: { id: 'doc-1' } };
+    findMany.mockResolvedValue([alert]);
+    count
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(1);
+
+    await expect(service.findAll(tenantId, {})).resolves.toEqual({
+      data: [alert],
+      stats: { open: 1, resolved: 0, critical: 1 },
+      meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+    });
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId },
+      }),
+    );
+  });
+
+  it('reads a single alert and its document link through tenant context', async () => {
+    const alert = { id: alertId, tenantId, expedienteDoc: { id: 'doc-1' } };
+    findFirst.mockResolvedValue(alert);
+
+    await expect(service.findOne(tenantId, alertId)).resolves.toBe(alert);
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: alertId, tenantId },
+      }),
     );
   });
 

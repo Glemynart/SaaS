@@ -1057,17 +1057,15 @@ const prisma = new PrismaClient();
 )
 ```
 
-El seed es también explícito y usa la conexión runtime:
-
-```bash
-docker compose \
-  --project-name dusema-staging-isolated \
-  --env-file /home/ubuntu/la-oficina-nitida/staging-isolated/.env \
-  -f /home/ubuntu/la-oficina-nitida/staging-isolated/docker-compose.staging.yml \
-  run --rm --no-deps \
-  --entrypoint sh api \
-  -lc 'cd /app/apps/api && npm run prisma:seed'
-```
+El seed no debe ejecutarse con la conexión `staging_runtime` de la API. El
+seed versionado actual actualiza o crea parámetros legales globales y otros
+catálogos; las políticas RLS del runtime prohíben esas escrituras. El intento
+fallará y no constituye un procedimiento de inicialización válido para
+staging. Este runbook todavía no define una identidad de seed de privilegio
+mínimo ni un mecanismo temporal aprobado. Hasta que se documente y pruebe ese
+flujo, no ejecutes el seed en staging; tampoco reutilices
+`staging_migrator` ni agregues credenciales elevadas al entorno permanente de
+la API.
 
 No guardes `DATABASE_URL_MIGRATION` en el `.env` permanente de la API.
 
