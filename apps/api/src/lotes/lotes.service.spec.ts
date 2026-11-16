@@ -81,6 +81,8 @@ describe('LotesService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockAudit.log.mockResolvedValue(undefined);
+    mockEngine.procesarLote.mockReset();
     mockPrisma.empleado.findMany.mockResolvedValue([
       {
         id: 'emp-001',
@@ -337,6 +339,22 @@ describe('LotesService', () => {
           action: 'LOTE_CREATE',
           entityType: 'LoteContrato',
         }),
+        mockPrisma,
+      );
+    });
+
+    it('propaga el fallo de auditoría de la creación transaccional', async () => {
+      mockPrisma.documentTemplate.findFirst.mockResolvedValue(makeTemplate());
+      mockPrisma.loteContrato.create.mockResolvedValue(makeLote());
+      mockAudit.log.mockRejectedValueOnce(new Error('audit down'));
+
+      await expect(
+        service.create(TENANT_ID, USER_ID, makeDto()),
+      ).rejects.toThrow('audit down');
+
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'LOTE_CREATE' }),
+        mockPrisma,
       );
     });
   });
@@ -455,6 +473,18 @@ describe('LotesService', () => {
         service.process(TENANT_ID, USER_ID, 'lote-inexistente'),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it('no inicia el motor si no puede guardar la auditoría del procesamiento', async () => {
+      mockPrisma.loteContrato.findFirst.mockResolvedValue(
+        makeLote({ estado: 'PENDIENTE' }),
+      );
+      mockAudit.log.mockRejectedValueOnce(new Error('audit down'));
+
+      await expect(
+        service.process(TENANT_ID, USER_ID, 'lote-001'),
+      ).rejects.toThrow('audit down');
+      expect(mockEngine.procesarLote).not.toHaveBeenCalled();
+    });
   });
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -552,6 +582,18 @@ describe('LotesService', () => {
       await expect(
         service.retry(TENANT_ID, USER_ID, 'lote-inexistente'),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('no reintenta el lote si no puede guardar la auditoría del intento', async () => {
+      mockPrisma.loteContrato.findFirst.mockResolvedValue(
+        makeLote({ estado: 'FALLIDO' }),
+      );
+      mockAudit.log.mockRejectedValueOnce(new Error('audit down'));
+
+      await expect(
+        service.retry(TENANT_ID, USER_ID, 'lote-001'),
+      ).rejects.toThrow('audit down');
+      expect(mockEngine.procesarLote).not.toHaveBeenCalled();
     });
   });
 });

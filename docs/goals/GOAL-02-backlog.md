@@ -2712,15 +2712,17 @@ provisión/desprovisión. Cada escritura entrega el mismo cliente Prisma a
 de errores. No se añadieron pruebas PostgreSQL específicas de rollback para
 cada mutación.
 
-La búsqueda global de llamadas best-effort encontró además flujos de
-importación de empleados, contratos, lotes y documentos generados. La creación
-y actualización de sedes ya auditan con actor dentro de su transacción; la
-actualización ahora recibe el usuario autenticado desde el controlador. El CRUD
-de empleados trasladó sus tres auditorías a la transacción que escribe el
-empleado y, al crear, su afiliación PILA inicial. Cada una de estas rutas tiene
-pruebas unitarias de cliente transaccional y propagación del fallo. Los demás
-call sites deben revisarse por método: registros de fallo, acceso y telemetría
-no son por sí mismos una mutación exitosa sin auditoría.
+La revisión de esos flujos cerró otra cohorte. La creación de contratos y el
+cambio de su estado guardan auditoría con la escritura dentro de la misma
+transacción tenant-scoped. La creación de lotes también es atómica con su
+auditoría; las solicitudes para procesar y reintentar guardan el evento antes
+de iniciar el motor, de modo que un fallo de auditoría no despacha el trabajo.
+Las pruebas unitarias verifican que se usa el cliente transaccional y que se
+propagan fallos; las de lotes comprueban además que el motor no se inicia si no
+se registra la solicitud. El CRUD de sedes y empleados tiene el mismo patrón.
+Siguen pendientes la importación de empleados y documentos generados. Cada
+call site restante debe revisarse por método: registros de fallo, acceso y
+telemetría no son por sí mismos una mutación exitosa sin auditoría.
 
 La migración `20261116080000_password_reset_tenant_integrity` valida los datos
 existentes y aborta si encuentra un token asociado a otro tenant; luego reemplaza

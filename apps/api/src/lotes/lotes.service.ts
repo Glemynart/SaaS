@@ -127,8 +127,8 @@ export class LotesService {
       fechaFinContrato: dto.fechaFin ?? null,
     };
 
-    const lote = await this.tenantPrisma.execute((prisma) =>
-      prisma.loteContrato.create({
+    return this.tenantPrisma.execute(async (prisma) => {
+      const lote = await prisma.loteContrato.create({
         data: {
           tenantId,
           documentTemplateId: dto.templateId ?? null,
@@ -144,26 +144,25 @@ export class LotesService {
           total: empleadoIds.length,
           configuracion: configuracion,
         },
-      }),
-    );
-
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'LOTE_CREATE',
-        entityType: 'LoteContrato',
-        entityId: lote.id,
-        metadata: {
-          nombre: dto.nombre,
-          documentTemplateId: dto.templateId ?? null,
-          proposito: dto.proposito ?? null,
-          total: empleadoIds.length,
+      });
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'LOTE_CREATE',
+          entityType: 'LoteContrato',
+          entityId: lote.id,
+          metadata: {
+            nombre: dto.nombre,
+            documentTemplateId: dto.templateId ?? null,
+            proposito: dto.proposito ?? null,
+            total: empleadoIds.length,
+          },
         },
-      })
-      .catch(() => {});
-
-    return lote;
+        prisma,
+      );
+      return lote;
+    });
   }
 
   async findAll(tenantId: string, query: LoteQueryDto) {
@@ -265,16 +264,14 @@ export class LotesService {
       );
     }
 
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'LOTE_PROCESS',
-        entityType: 'LoteContrato',
-        entityId: id,
-        metadata: { estadoPrevio: lote.estado },
-      })
-      .catch(() => {});
+    await this.auditService.log({
+      tenantId,
+      userId,
+      action: 'LOTE_PROCESS',
+      entityType: 'LoteContrato',
+      entityId: id,
+      metadata: { estadoPrevio: lote.estado },
+    });
 
     return this.engine.procesarLote(id);
   }
@@ -298,16 +295,14 @@ export class LotesService {
       );
     }
 
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'LOTE_RETRY',
-        entityType: 'LoteContrato',
-        entityId: id,
-        metadata: { estadoPrevio: lote.estado },
-      })
-      .catch(() => {});
+    await this.auditService.log({
+      tenantId,
+      userId,
+      action: 'LOTE_RETRY',
+      entityType: 'LoteContrato',
+      entityId: id,
+      metadata: { estadoPrevio: lote.estado },
+    });
 
     const retryEmployeeIds = this.getRetryEmployeeIds(lote.erroresLog);
     return this.engine.procesarLote(id, {

@@ -355,7 +355,7 @@ export class ContractsService {
       variablesSnapshot: snapshot as unknown as Prisma.JsonValue,
     } as Prisma.ContratoUncheckedCreateInput;
 
-    const contract = await this.createContractRecord(data).catch(
+    const contract = await this.createContractRecord(data, userId).catch(
       (error: unknown) => {
         const target =
           error instanceof Prisma.PrismaClientKnownRequestError
@@ -377,23 +377,15 @@ export class ContractsService {
       },
     );
 
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'CONTRACT_CREATE',
-        entityType: 'Contrato',
-        entityId: contract.id,
-        metadata: { cargo: contract.cargo, tipo: contract.tipo },
-      })
-      .catch(() => {});
-
     return contract;
   }
 
-  private createContractRecord(data: Prisma.ContratoUncheckedCreateInput) {
-    return this.tenantPrisma.execute((prisma) =>
-      prisma.contrato.create({
+  private createContractRecord(
+    data: Prisma.ContratoUncheckedCreateInput,
+    userId: string,
+  ) {
+    return this.tenantPrisma.execute(async (prisma) => {
+      const contract = await prisma.contrato.create({
         data,
         include: {
           empleado: {
@@ -406,8 +398,20 @@ export class ContractsService {
           },
           sede: { select: { id: true, nombre: true } },
         },
-      }),
-    );
+      });
+      await this.auditService.log(
+        {
+          tenantId: data.tenantId,
+          userId,
+          action: 'CONTRACT_CREATE',
+          entityType: 'Contrato',
+          entityId: contract.id,
+          metadata: { cargo: contract.cargo, tipo: contract.tipo },
+        },
+        prisma,
+      );
+      return contract;
+    });
   }
 
   async updateStatus(
@@ -454,27 +458,26 @@ export class ContractsService {
       );
     }
 
-    const updated = await this.tenantPrisma.execute((prisma) =>
-      prisma.contrato.update({
+    return this.tenantPrisma.execute(async (prisma) => {
+      const updated = await prisma.contrato.update({
         where: { id, tenantId },
         data: {
           estado: estadoNuevo,
         },
-      }),
-    );
-
-    this.auditService
-      .log({
-        tenantId,
-        userId,
-        action: 'CONTRACT_STATUS_CHANGE',
-        entityType: 'Contrato',
-        entityId: id,
-        metadata: { estadoAnterior, estadoNuevo },
-      })
-      .catch(() => {});
-
-    return updated;
+      });
+      await this.auditService.log(
+        {
+          tenantId,
+          userId,
+          action: 'CONTRACT_STATUS_CHANGE',
+          entityType: 'Contrato',
+          entityId: id,
+          metadata: { estadoAnterior, estadoNuevo },
+        },
+        prisma,
+      );
+      return updated;
+    });
   }
 
   async findByEmployee(tenantId: string, employeeId: string) {

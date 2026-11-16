@@ -20,18 +20,30 @@ import { ContratoEstado } from './dto/update-contract-status.dto';
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 const mockEmpleadoFindFirst = jest.fn();
-const mockContratoCreate = jest.fn();
-const mockContratoFindFirst = jest.fn();
+const mockContratoCreate = jest.fn<
+  Promise<unknown>,
+  [Prisma.ContratoCreateArgs]
+>();
+const mockContratoFindFirst = jest.fn<
+  Promise<unknown>,
+  [Prisma.ContratoFindFirstArgs]
+>();
 const mockContratoFindMany = jest.fn();
 const mockContratoCount = jest.fn();
-const mockContratoUpdate = jest.fn();
+const mockContratoUpdate = jest.fn<
+  Promise<unknown>,
+  [Prisma.ContratoUpdateArgs]
+>();
 const mockTenantFindUnique = jest.fn();
 const mockSedeFindFirst = jest.fn();
 const mockPerfilContractualFindFirst = jest.fn();
 const mockDocumentTemplateFindFirst = jest.fn();
 const mockDocumentTemplateFindMany = jest.fn();
 const mockGeneratedDocumentFindFirst = jest.fn();
-const mockGeneratedDocumentCreate = jest.fn();
+const mockGeneratedDocumentCreate = jest.fn<
+  Promise<unknown>,
+  [Prisma.GeneratedDocumentCreateArgs]
+>();
 const mockGeneratedDocumentDelete = jest.fn();
 
 const mockPrisma = {
@@ -142,6 +154,18 @@ function makeContract(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function lastContractCreateArgs() {
+  const call = mockContratoCreate.mock.calls[0];
+  if (!call) throw new Error('No se creó un contrato en esta prueba.');
+  return call[0];
+}
+
+function lastGeneratedDocumentCreateArgs() {
+  const call = mockGeneratedDocumentCreate.mock.calls[0];
+  if (!call) throw new Error('No se creó un documento en esta prueba.');
+  return call[0];
+}
+
 // ── Suite ─────────────────────────────────────────────────────────────────────
 
 describe('ContractsService', () => {
@@ -149,6 +173,7 @@ describe('ContractsService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockAudit.log.mockResolvedValue(undefined);
     mockContratoFindFirst.mockResolvedValue(null);
     mockGeneratedDocumentFindFirst.mockResolvedValue(null);
     mockMaterializePdf.mockResolvedValue({
@@ -226,17 +251,16 @@ describe('ContractsService', () => {
         pdfStorageKey: 'pdfs/tenant-001-gendoc-001.pdf',
         expedienteDocId: 'expediente-001',
       });
-      expect(mockContratoFindFirst).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'contract-001', tenantId: TENANT_ID },
-          include: expect.objectContaining({
-            generatedDocuments: expect.objectContaining({
-              where: { tenantId: TENANT_ID, tipo: 'CONTRACT' },
-              take: 1,
-            }),
-          }),
-        }),
-      );
+      const findCall = mockContratoFindFirst.mock.calls[0];
+      expect(findCall?.[0]).toMatchObject({
+        where: { id: 'contract-001', tenantId: TENANT_ID },
+        include: {
+          generatedDocuments: {
+            where: { tenantId: TENANT_ID, tipo: 'CONTRACT' },
+            take: 1,
+          },
+        },
+      });
     });
 
     it('rejects a cross-tenant status update before issuing a write', async () => {
@@ -274,9 +298,9 @@ describe('ContractsService', () => {
 
       await service.create(TENANT_ID, USER_ID, dto);
 
-      const createCall = mockContratoCreate.mock.calls[0][0];
-      const snapshot: ContractVariablesSnapshot =
-        createCall.data.variablesSnapshot;
+      const createCall = lastContractCreateArgs();
+      const snapshot = createCall.data
+        .variablesSnapshot as unknown as ContractVariablesSnapshot;
 
       expect(snapshot.empleado).toEqual({
         nombreCompleto: 'María Elena García López',
@@ -352,14 +376,9 @@ describe('ContractsService', () => {
         },
       );
 
-      const createCalls = mockContratoCreate.mock.calls as unknown as Array<
-        unknown[]
-      >;
-      const createCall = createCalls[0]?.[0] as {
-        data: Record<string, unknown> & {
-          variablesSnapshot: ContractVariablesSnapshot;
-        };
-      };
+      const createCall = lastContractCreateArgs();
+      const snapshot = createCall.data
+        .variablesSnapshot as unknown as ContractVariablesSnapshot;
       expect(createCall.data).toEqual(
         expect.objectContaining({
           perfilContractualId: 'profile-001',
@@ -369,13 +388,13 @@ describe('ContractsService', () => {
           fechaFin: new Date('2026-12-15T00:00:00.000Z'),
         }),
       );
-      expect(createCall.data.variablesSnapshot.empleado).toEqual(
+      expect(snapshot.empleado).toEqual(
         expect.objectContaining({
           nombreCompleto: 'Nombre confirmado Apellido confirmado',
           cedula: '111222333',
         }),
       );
-      expect(createCall.data.variablesSnapshot.contrato).toEqual(
+      expect(snapshot.contrato).toEqual(
         expect.objectContaining({
           cargo: 'Cargo confirmado',
           salario: '3200000',
@@ -411,8 +430,8 @@ describe('ContractsService', () => {
 
       await service.create(TENANT_ID, USER_ID, makeCreateDto());
 
-      const snapshot: ContractVariablesSnapshot =
-        mockContratoCreate.mock.calls[0][0].data.variablesSnapshot;
+      const snapshot = lastContractCreateArgs().data
+        .variablesSnapshot as unknown as ContractVariablesSnapshot;
       expect(snapshot.sede).toBeNull();
     });
 
@@ -428,8 +447,8 @@ describe('ContractsService', () => {
 
       await service.create(TENANT_ID, USER_ID, dto);
 
-      const snapshot: ContractVariablesSnapshot =
-        mockContratoCreate.mock.calls[0][0].data.variablesSnapshot;
+      const snapshot = lastContractCreateArgs().data
+        .variablesSnapshot as unknown as ContractVariablesSnapshot;
       expect(snapshot.contrato.fechaFin).toBeNull();
       expect(snapshot.contrato.tipo).toBe('TERMINO_INDEFINIDO');
     });
@@ -446,8 +465,8 @@ describe('ContractsService', () => {
 
       await service.create(TENANT_ID, USER_ID, makeCreateDto());
 
-      const snapshot: ContractVariablesSnapshot =
-        mockContratoCreate.mock.calls[0][0].data.variablesSnapshot;
+      const snapshot = lastContractCreateArgs().data
+        .variablesSnapshot as unknown as ContractVariablesSnapshot;
       expect(snapshot.empleado.nombreCompleto).toBe('María García');
       expect(snapshot.empleado.segundoNombre).toBeNull();
       expect(snapshot.empleado.segundoApellido).toBeNull();
@@ -462,8 +481,8 @@ describe('ContractsService', () => {
 
       await service.create(TENANT_ID, USER_ID, makeCreateDto());
 
-      const snapshot: ContractVariablesSnapshot =
-        mockContratoCreate.mock.calls[0][0].data.variablesSnapshot;
+      const snapshot = lastContractCreateArgs().data
+        .variablesSnapshot as unknown as ContractVariablesSnapshot;
       expect(snapshot.empresa.representanteLegal).toBeNull();
     });
 
@@ -478,8 +497,8 @@ describe('ContractsService', () => {
         makeCreateDto({ salario: 1423000.5 }),
       );
 
-      const snapshot: ContractVariablesSnapshot =
-        mockContratoCreate.mock.calls[0][0].data.variablesSnapshot;
+      const snapshot = lastContractCreateArgs().data
+        .variablesSnapshot as unknown as ContractVariablesSnapshot;
       expect(snapshot.contrato.salario).toBe('1423000.5');
       expect(typeof snapshot.contrato.salario).toBe('string');
     });
@@ -581,10 +600,11 @@ describe('ContractsService', () => {
       });
 
       await service.updateStatus(TENANT_ID, USER_ID, 'contract-001', {
-        estado: 'TERMINADO' as any,
+        estado: ContratoEstado.TERMINADO,
       });
 
-      const updateCall = mockContratoUpdate.mock.calls[0][0];
+      const updateCall = mockContratoUpdate.mock.calls[0]?.[0];
+      expect(updateCall).toBeDefined();
       expect(updateCall.data).not.toHaveProperty('variablesSnapshot');
     });
   });
@@ -640,7 +660,9 @@ describe('ContractsService', () => {
     it('permite crear otro contrato del mismo empleado en un año posterior', async () => {
       mockEmpleadoFindFirst.mockResolvedValue(makeEmployee());
       mockContratoFindFirst.mockImplementation(({ where }) =>
-        where.anioContrato === 2026 ? { id: 'contrato-2026' } : null,
+        Promise.resolve(
+          where?.anioContrato === 2026 ? { id: 'contrato-2026' } : null,
+        ),
       );
       mockTenantFindUnique.mockResolvedValue(makeTenant());
       mockContratoCreate.mockResolvedValue(makeContract());
@@ -662,9 +684,7 @@ describe('ContractsService', () => {
         },
         select: { id: true },
       });
-      expect(mockContratoCreate.mock.calls[0]?.[0].data.anioContrato).toBe(
-        2027,
-      );
+      expect(lastContractCreateArgs().data.anioContrato).toBe(2027);
     });
 
     it('rechaza un segundo contrato del empleado en el mismo año', async () => {
@@ -691,8 +711,8 @@ describe('ContractsService', () => {
 
       await service.create(TENANT_ID, USER_ID, makeCreateDto());
 
-      const snapshot: ContractVariablesSnapshot =
-        mockContratoCreate.mock.calls[0][0].data.variablesSnapshot;
+      const snapshot = lastContractCreateArgs().data
+        .variablesSnapshot as unknown as ContractVariablesSnapshot;
       const parsed = new Date(snapshot.metadata.generatedAt);
       expect(parsed.toISOString()).toBe(snapshot.metadata.generatedAt);
     });
@@ -704,8 +724,8 @@ describe('ContractsService', () => {
 
       await service.create(TENANT_ID, USER_ID, makeCreateDto());
 
-      const snapshot: ContractVariablesSnapshot =
-        mockContratoCreate.mock.calls[0][0].data.variablesSnapshot;
+      const snapshot = lastContractCreateArgs().data
+        .variablesSnapshot as unknown as ContractVariablesSnapshot;
       expect(snapshot.metadata.version).toBe(1);
     });
   });
@@ -725,8 +745,8 @@ describe('ContractsService', () => {
 
       await service.create(TENANT_ID, USER_ID, dto);
 
-      const snapshot: ContractVariablesSnapshot =
-        mockContratoCreate.mock.calls[0][0].data.variablesSnapshot;
+      const snapshot = lastContractCreateArgs().data
+        .variablesSnapshot as unknown as ContractVariablesSnapshot;
       expect(snapshot.contrato.cargo).toBe('Rector');
       expect(snapshot.contrato.salario).toBe('8000000');
     });
@@ -738,8 +758,8 @@ describe('ContractsService', () => {
 
       await service.create(TENANT_ID, USER_ID, makeCreateDto());
 
-      const snapshot =
-        mockContratoCreate.mock.calls[0][0].data.variablesSnapshot;
+      const snapshot = lastContractCreateArgs().data
+        .variablesSnapshot as unknown as ContractVariablesSnapshot;
       const flatJson = JSON.stringify(snapshot);
       expect(flatJson).not.toContain('eps');
       expect(flatJson).not.toContain('arl');
@@ -770,6 +790,61 @@ describe('ContractsService', () => {
           entityType: 'Contrato',
           entityId: contract.id,
         }),
+        mockPrisma,
+      );
+    });
+
+    it('propaga el fallo de auditoría de la creación transaccional', async () => {
+      mockEmpleadoFindFirst.mockResolvedValue(makeEmployee());
+      mockTenantFindUnique.mockResolvedValue(makeTenant());
+      mockContratoCreate.mockResolvedValue(makeContract());
+      mockAudit.log.mockRejectedValueOnce(new Error('audit down'));
+
+      await expect(
+        service.create(TENANT_ID, USER_ID, makeCreateDto()),
+      ).rejects.toThrow('audit down');
+
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'CONTRACT_CREATE' }),
+        mockPrisma,
+      );
+    });
+  });
+
+  describe('updateStatus — auditoría', () => {
+    it('usa la transacción para auditar el cambio y propaga sus fallos', async () => {
+      const contract = makeContract({
+        generatedDocuments: [
+          {
+            id: 'gendoc-001',
+            pdfUrl: '/uploads/pdfs/tenant-001-gendoc-001.pdf',
+            pdfStorageKey: 'pdfs/tenant-001-gendoc-001.pdf',
+            expedienteDocs: [{ id: 'expediente-001' }],
+          },
+        ],
+      });
+      mockContratoFindFirst.mockResolvedValue(contract);
+      mockContratoUpdate.mockResolvedValue({ ...contract, estado: 'VENCIDO' });
+      mockAudit.log.mockRejectedValueOnce(new Error('audit down'));
+
+      await expect(
+        service.updateStatus(TENANT_ID, USER_ID, 'contract-001', {
+          estado: ContratoEstado.VENCIDO,
+        }),
+      ).rejects.toThrow('audit down');
+
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenantId: TENANT_ID,
+          userId: USER_ID,
+          action: 'CONTRACT_STATUS_CHANGE',
+          entityId: 'contract-001',
+          metadata: {
+            estadoAnterior: 'VIGENTE',
+            estadoNuevo: ContratoEstado.VENCIDO,
+          },
+        }),
+        mockPrisma,
       );
     });
   });
@@ -845,12 +920,12 @@ describe('ContractsService', () => {
         outcome: 'CREATED',
         document: { id: 'gendoc-001' },
       });
-      expect(mockGeneratedDocumentCreate).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(lastGeneratedDocumentCreateArgs()).toMatchObject({
+        data: {
           contratoId: 'contract-001',
           contenidoFinal:
             '<p>María Elena García López — Docente de Matemáticas</p>',
-        }),
+        },
       });
       expect(mockMaterializePdf).not.toHaveBeenCalled();
     });
@@ -871,7 +946,7 @@ describe('ContractsService', () => {
     it('lee la relación del empleado dentro del contexto tenant', async () => {
       const existing = { id: 'gendoc-existing', contratoId: 'contract-001' };
       const scopedFindFirst = jest
-        .fn()
+        .fn<Promise<unknown>, [Prisma.ContratoFindFirstArgs]>()
         .mockResolvedValue(makeDocumentContract());
       mockContratoFindFirst.mockRejectedValue(
         new Error('La relación empleado no es visible fuera del tenant'),
@@ -1125,14 +1200,14 @@ describe('ContractsService', () => {
 
       await service.generateDocument(TENANT_ID, USER_ID, 'contract-001');
 
-      expect(mockGeneratedDocumentCreate).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(lastGeneratedDocumentCreateArgs()).toMatchObject({
+        data: {
           tenantId: TENANT_ID,
           employeeId: 'emp-001',
           templateId: 'template-001',
           contratoId: 'contract-001',
           tipo: 'CONTRACT',
-        }),
+        },
       });
     });
 
@@ -1141,7 +1216,7 @@ describe('ContractsService', () => {
 
       await service.generateDocument(TENANT_ID, USER_ID, 'contract-001');
 
-      const createCall = mockGeneratedDocumentCreate.mock.calls[0][0];
+      const createCall = lastGeneratedDocumentCreateArgs();
       expect(createCall.data.contenidoFinal).toContain(
         'María Elena García López',
       );
@@ -1235,7 +1310,7 @@ describe('ContractsService', () => {
 
       await service.generateDocument(TENANT_ID, USER_ID, 'contract-001');
 
-      const createCall = mockGeneratedDocumentCreate.mock.calls[0][0];
+      const createCall = lastGeneratedDocumentCreateArgs();
       expect(createCall.data.nombre).toBe(
         'Contrato — María Elena García López',
       );
