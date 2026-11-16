@@ -265,13 +265,17 @@ describe('LedgerService.anular PostgreSQL concurrency', () => {
   }
 
   async function createVoucher(periodoId: string, concepto: string) {
+    const period = await prisma.periodoContable.findUniqueOrThrow({
+      where: { id: periodoId },
+      select: { fechaInicio: true },
+    });
     return runAsTenant(() =>
       ledger.registrarComprobante({
         tenantId,
         userId,
         tipoComprobanteId: voucherTypeId,
         periodoId,
-        fecha: new Date('2026-01-15T00:00:00.000Z'),
+        fecha: period.fechaInicio,
         concepto,
         lineas: [
           { cuentaId: debitAccountId, debito: 100, credito: 0 },
