@@ -68,6 +68,23 @@ describe('PeriodosContablesService tenant isolation', () => {
         fechaFin: new Date('2028-02-29T00:00:00.000Z'),
       },
     });
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'PERIODO_CONTABLE_CREATE' }),
+      tx,
+    );
+  });
+
+  it('rejects period creation if its transactional audit fails', async () => {
+    const { service } = build();
+    auditLog.mockRejectedValueOnce(new Error('audit down'));
+
+    await expect(
+      service.create('tenant-a', 'user-a', { anio: 2028, mes: 2 }),
+    ).rejects.toThrow('audit down');
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'PERIODO_CONTABLE_CREATE' }),
+      tx,
+    );
   });
 
   it('rejects a duplicate period within the same tenant without creating another', async () => {
@@ -168,6 +185,23 @@ describe('PeriodosContablesService tenant isolation', () => {
     });
     expect(auditLog).toHaveBeenCalledWith(
       expect.objectContaining({ tenantId: 'tenant-a', userId: 'user-a' }),
+      tx,
+    );
+  });
+
+  it('rejects year generation if its transactional audit fails', async () => {
+    const { service } = build();
+    tx.periodoContable.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    auditLog.mockRejectedValueOnce(new Error('audit down'));
+
+    await expect(
+      service.generarAnio('tenant-a', 'user-a', { anio: 2028 }),
+    ).rejects.toThrow('audit down');
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'PERIODO_CONTABLE_GENERAR_ANIO' }),
+      tx,
     );
   });
 

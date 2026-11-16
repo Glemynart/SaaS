@@ -28,7 +28,7 @@ export class CentrosCostoService {
       await this.ensureCodigoDisponible(tx, tenantId, dto.codigo);
       await this.ensureSede(tx, tenantId, dto.sedeId);
 
-      return tx.centroCosto.create({
+      const centro = await tx.centroCosto.create({
         data: {
           tenantId,
           codigo: dto.codigo,
@@ -37,19 +37,19 @@ export class CentrosCostoService {
           ...(dto.activo !== undefined && { activo: dto.activo }),
         },
       });
+      await this.audit.log(
+        {
+          tenantId,
+          userId,
+          action: 'CENTRO_COSTO_CREATE',
+          entityType: 'CentroCosto',
+          entityId: centro.id,
+          metadata: { codigo: centro.codigo },
+        },
+        tx,
+      );
+      return centro;
     });
-
-    this.audit
-      .log({
-        tenantId,
-        userId,
-        action: 'CENTRO_COSTO_CREATE',
-        entityType: 'CentroCosto',
-        entityId: centro.id,
-        metadata: { codigo: centro.codigo },
-      })
-      .catch(() => {});
-
     return centro;
   }
 
@@ -103,7 +103,7 @@ export class CentrosCostoService {
       if (dto.sedeId !== undefined)
         await this.ensureSede(tx, tenantId, dto.sedeId);
 
-      return tx.centroCosto.update({
+      const updated = await tx.centroCosto.update({
         where: { id: current.id },
         data: {
           ...(dto.nombre !== undefined && { nombre: dto.nombre }),
@@ -111,18 +111,18 @@ export class CentrosCostoService {
           ...(dto.activo !== undefined && { activo: dto.activo }),
         },
       });
+      await this.audit.log(
+        {
+          tenantId,
+          userId,
+          action: 'CENTRO_COSTO_UPDATE',
+          entityType: 'CentroCosto',
+          entityId: updated.id,
+        },
+        tx,
+      );
+      return updated;
     });
-
-    this.audit
-      .log({
-        tenantId,
-        userId,
-        action: 'CENTRO_COSTO_UPDATE',
-        entityType: 'CentroCosto',
-        entityId: updated.id,
-      })
-      .catch(() => {});
-
     return updated;
   }
 
@@ -135,27 +135,22 @@ export class CentrosCostoService {
       if (!centro) throw new NotFoundException('Centro de costo no encontrado');
       if (centro.deletedAt) return { centro, changed: false };
 
-      return {
-        centro: await tx.centroCosto.update({
-          where: { id: centro.id },
-          data: { deletedAt: new Date(), activo: false },
-        }),
-        changed: true,
-      };
-    });
-
-    if (result.changed) {
-      this.audit
-        .log({
+      const deleted = await tx.centroCosto.update({
+        where: { id: centro.id },
+        data: { deletedAt: new Date(), activo: false },
+      });
+      await this.audit.log(
+        {
           tenantId,
           userId,
           action: 'CENTRO_COSTO_DELETE',
           entityType: 'CentroCosto',
-          entityId: result.centro.id,
-        })
-        .catch(() => {});
-    }
-
+          entityId: deleted.id,
+        },
+        tx,
+      );
+      return { centro: deleted, changed: true };
+    });
     return result.centro;
   }
 

@@ -2705,19 +2705,17 @@ de estado y la auditoría queda obligatoria para la operación. La suite unitari
 de liquidaciones verifica el cliente y la propagación. No se añadió una prueba
 PostgreSQL específica para cada transición.
 
-La siguiente cohorte hizo obligatoria y transaccional la auditoría de crear,
-actualizar y eliminar cuentas contables y terceros. Cada mutación entrega el
-mismo cliente Prisma a `AuditService.log`; las pruebas unitarias verifican el
-cliente y la propagación de errores. No se añadió una prueba PostgreSQL
-específica de rollback para cada mutación.
+Otra cohorte hizo obligatoria y transaccional la auditoría de cuentas
+contables, terceros, centros de costo, mapeos de cuentas, períodos contables y
+provisión/desprovisión. Cada escritura entrega el mismo cliente Prisma a
+`AuditService.log`; las pruebas unitarias verifican el cliente y la propagación
+de errores. No se añadieron pruebas PostgreSQL específicas de rollback para
+cada mutación.
 
-La búsqueda estática posterior todavía encuentra escrituras exitosas con
-auditoría best-effort en mapeos del sistema, centros y períodos contables y
-provisión/desprovisión.
-Las llamadas que solo intentan registrar un fallo ya ocurrido se clasifican
-aparte: su auditoría no precede ni acompaña una mutación exitosa. Estos flujos
-son la siguiente cohorte de integridad; requieren revisar sus límites
-transaccionales por módulo antes de cambiarlos.
+La búsqueda global de llamadas best-effort encontró además flujos de
+empleados/importación, contratos, lotes, documentos generados y sedes. Deben
+revisarse por método antes de clasificarlos: los registros de fallo, acceso y
+telemetría no son por sí mismos una mutación exitosa sin auditoría.
 
 La migración `20261116080000_password_reset_tenant_integrity` valida los datos
 existentes y aborta si encuentra un token asociado a otro tenant; luego reemplaza

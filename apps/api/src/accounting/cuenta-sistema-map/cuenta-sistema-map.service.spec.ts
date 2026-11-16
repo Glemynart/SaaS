@@ -121,6 +121,7 @@ describe('CuentaSistemaMapService tenant isolation', () => {
     });
     expect(auditLog).toHaveBeenCalledWith(
       expect.objectContaining({ tenantId: 'tenant-a', userId: 'user-a' }),
+      prisma,
     );
   });
 
@@ -223,6 +224,27 @@ describe('CuentaSistemaMapService tenant isolation', () => {
     });
     expect(auditLog).toHaveBeenCalledWith(
       expect.objectContaining({ tenantId: 'tenant-a', userId: 'user-a' }),
+      prisma,
+    );
+  });
+
+  it('rejects a mapping update when its transactional audit fails', async () => {
+    maps.findFirst.mockResolvedValueOnce({
+      id: 'map-a',
+      tenantId: 'tenant-a',
+      rol: 'IVA_GENERADO',
+      cuentaId: 'cuenta-a',
+    });
+    auditLog.mockRejectedValueOnce(new Error('audit down'));
+
+    await expect(
+      service.update('tenant-a', 'user-a', 'map-a', {
+        descripcion: 'Cambio de cuenta',
+      }),
+    ).rejects.toThrow('audit down');
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'CUENTA_SISTEMA_MAP_UPDATE' }),
+      prisma,
     );
   });
 

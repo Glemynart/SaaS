@@ -116,6 +116,7 @@ describe('CentrosCostoService tenant isolation', () => {
     });
     expect(auditLog).toHaveBeenCalledWith(
       expect.objectContaining({ tenantId: 'tenant-a', userId: 'user-a' }),
+      tx,
     );
   });
 
@@ -186,6 +187,7 @@ describe('CentrosCostoService tenant isolation', () => {
         userId: 'user-a',
         action: 'CENTRO_COSTO_UPDATE',
       }),
+      tx,
     );
   });
 
@@ -252,6 +254,23 @@ describe('CentrosCostoService tenant isolation', () => {
         userId: 'user-a',
         action: 'CENTRO_COSTO_DELETE',
       }),
+      tx,
+    );
+  });
+
+  it('rejects cost-center creation when its transactional audit fails', async () => {
+    auditLog.mockRejectedValueOnce(new Error('audit down'));
+
+    await expect(
+      service.create('tenant-a', 'user-a', {
+        codigo: 'ADM',
+        nombre: 'Administración',
+        sedeId: 'sede-a',
+      }),
+    ).rejects.toThrow('audit down');
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'CENTRO_COSTO_CREATE' }),
+      tx,
     );
   });
 
