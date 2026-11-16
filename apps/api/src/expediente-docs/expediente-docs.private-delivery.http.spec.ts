@@ -54,10 +54,11 @@ class TestAuthGuard implements CanActivate {
 describe('Expediente document private delivery', () => {
   let app: INestApplication<App>;
 
-  const storageKey = 'tenant-a/expediente/employee-a/family-a_v1.pdf';
+  const storageKey = 'tenant-a/expediente/employee-a/OTRO/family-a_v1.pdf';
   const document = {
     id: 'doc-a',
     tenantId: 'tenant-a',
+    empleadoId: 'employee-a',
     nombre: 'Acta.pdf',
     mimeType: 'application/pdf',
     storageKey,
@@ -76,11 +77,12 @@ describe('Expediente document private delivery', () => {
           : null,
       ),
   );
+  const transaction = {
+    expedienteDoc: { findFirst },
+  } as unknown as Prisma.TransactionClient;
   const tenantPrismaExecute = jest.fn(
     async <T>(work: (prisma: Prisma.TransactionClient) => Promise<T>) =>
-      work({
-        expedienteDoc: { findFirst },
-      } as unknown as Prisma.TransactionClient),
+      work(transaction),
   );
   const getObject = jest.fn(() =>
     Promise.resolve(Buffer.from('%PDF-1.7 test')),
@@ -146,6 +148,7 @@ describe('Expediente document private delivery', () => {
         action: 'EXPEDIENTE_DOCUMENT_ACCESS_GRANTED',
         entityId: 'doc-a',
       }),
+      transaction,
     );
   });
 

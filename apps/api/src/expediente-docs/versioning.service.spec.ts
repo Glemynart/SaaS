@@ -122,9 +122,11 @@ describe('ExpedienteDocsService document history and download', () => {
   it('downloads the stored revision using the tenant-scoped document key', async () => {
     documentFindFirst.mockResolvedValue({
       id: 'doc-002',
+      empleadoId: 'employee-001',
       nombre: 'cedula-actualizada.pdf',
       mimeType: 'application/pdf',
-      storageKey: 'tenant-001/expediente/employee-001/family-001_v2.pdf',
+      storageKey:
+        'tenant-001/expediente/employee-001/DOCUMENTO_PERSONAL/family-001_v2.pdf',
       familiaId: 'family-001',
       version: 2,
       categoria: 'DOCUMENTO_PERSONAL',
@@ -141,23 +143,26 @@ describe('ExpedienteDocsService document history and download', () => {
       body: Buffer.from('%PDF-1.7'),
     });
     expect(getObject).toHaveBeenCalledWith(
-      'tenant-001/expediente/employee-001/family-001_v2.pdf',
+      'tenant-001/expediente/employee-001/DOCUMENTO_PERSONAL/family-001_v2.pdf',
     );
-    expect(auditLog).toHaveBeenCalledWith({
-      tenantId: 'tenant-001',
-      userId: 'user-001',
-      action: 'EXPEDIENTE_DOCUMENT_ACCESS_GRANTED',
-      entityType: 'ExpedienteDoc',
-      entityId: 'doc-002',
-      metadata: {
-        delivery: 'DOWNLOAD',
-        familiaId: 'family-001',
-        version: 2,
-        categoria: 'DOCUMENTO_PERSONAL',
-        generatedDocumentId: null,
-        contratoId: null,
+    expect(auditLog).toHaveBeenCalledWith(
+      {
+        tenantId: 'tenant-001',
+        userId: 'user-001',
+        action: 'EXPEDIENTE_DOCUMENT_ACCESS_GRANTED',
+        entityType: 'ExpedienteDoc',
+        entityId: 'doc-002',
+        metadata: {
+          delivery: 'DOWNLOAD',
+          familiaId: 'family-001',
+          version: 2,
+          categoria: 'DOCUMENTO_PERSONAL',
+          generatedDocumentId: null,
+          contratoId: null,
+        },
       },
-    });
+      transaction,
+    );
   });
 
   it('downloads a generated document using its canonical storage key', async () => {
@@ -165,6 +170,7 @@ describe('ExpedienteDocsService document history and download', () => {
     const pdfBytes = Buffer.from('PDF-BYTES');
     documentFindFirst.mockResolvedValue({
       id: 'doc-generated-001',
+      empleadoId: 'employee-001',
       nombre: 'Documento generado',
       mimeType: 'application/pdf',
       storageKey,
