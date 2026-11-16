@@ -15,6 +15,8 @@ import { TenantContextService } from '../tenant-context/tenant-context.service';
 import { installSignedTenantDatabaseContext } from '../tenant-context/signed-database-context';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ClosureService } from '../accounting/closure/closure.service';
+import { ReportingService } from '../accounting/reporting/reporting.service';
 import {
   PayrollAccountingPreflightService,
   PAYROLL_ACCOUNTING_REQUIRED_ROLES,
@@ -45,8 +47,15 @@ describe('Payroll accounting PostgreSQL integration', () => {
     new TenantContextBoundary(contextService),
   );
   const audit = new AuditService(prisma, tenantPrisma, contextService);
+  const reporting = new ReportingService(tenantPrisma);
   const accountingPreflight = new PayrollAccountingPreflightService(
     tenantPrisma,
+  );
+  const closure = new ClosureService(
+    tenantPrisma,
+    reporting,
+    audit,
+    new LedgerService(tenantPrisma, audit),
   );
   const service = new PayrollService(
     prisma,
@@ -1108,4 +1117,273 @@ describe('Payroll accounting PostgreSQL integration', () => {
       'payroll_pila_events_vacation_remuneration_declaration_check',
     );
   });
+
+  it('rejects payroll accrual atomically when the accounting close acquired the period lock first', async () => {
+    await resetAccrualFixture();
+    const heldClose = holdTenantOperation(() =>
+      closure.cerrarPeriodo(tenantId, accountingPeriodId, actorId),
+    );
+    const closeResultInsideTransaction = await heldClose.ready;
+    const accrualRequest = contextService.run(context, () =>
+      service.contabilizar(tenantId, actorId, payrollPeriodId),
+    );
+
+    let waiters = 0;
+    try {
+      waiters = await waitForAdvisoryWaiters(1);
+    } finally {
+      heldClose.release();
+    }
+    await heldClose.operation;
+
+    expect(waiters).toBeGreaterThanOrEqual(1);
+    expect(closeResultInsideTransaction).toEqual({
+      cerrado: true,
+      yaEstabaCerrado: false,
+    });
+    await expect(accrualRequest).rejects.toThrow('El período está CERRADO');
+
+    const persisted = await contextService.run(context, () =>
+      tenantPrisma.execute(async (tx) => {
+        const [payrollPeriod, accountingPeriod, vouchers, movements, audits] =
+          await Promise.all([
+            tx.payrollPeriod.findUniqueOrThrow({
+              where: { id: payrollPeriodId },
+              select: { status: true },
+            }),
+            tx.periodoContable.findUniqueOrThrow({
+              where: { id: accountingPeriodId },
+              select: { estado: true },
+            }),
+            tx.comprobanteContable.findMany({
+              where: {
+                tenantId,
+                origenTipo: 'PAYROLL',
+                origenId: payrollPeriodId,
+                origenEvento: 'CAUSACION',
+              },
+            }),
+            tx.movimientoContable.count({
+              where: {
+                tenantId,
+                comprobante: {
+                  origenTipo: 'PAYROLL',
+                  origenId: payrollPeriodId,
+                  origenEvento: 'CAUSACION',
+                },
+              },
+            }),
+            tx.auditLog.count({
+              where: {
+                tenantId,
+                action: 'PAYROLL_ACCRUED',
+                entityId: payrollPeriodId,
+              },
+            }),
+          ]);
+        return { payrollPeriod, accountingPeriod, vouchers, movements, audits };
+      }),
+    );
+
+    expect(persisted).toEqual({
+      payrollPeriod: { status: PayrollPeriodStatus.APROBADA },
+      accountingPeriod: { estado: EstadoPeriodo.CERRADO },
+      vouchers: [],
+      movements: 0,
+      audits: 0,
+    });
+    await expect(
+      prisma.auditLog.count({
+        where: {
+          tenantId,
+          action: 'PERIODO_CONTABLE_CERRADO',
+          entityId: accountingPeriodId,
+        },
+      }),
+    ).resolves.toBe(1);
+  }, 30000);
+
+  it('waits for payroll accrual before closing and validates its committed ledger movements', async () => {
+    await resetAccrualFixture();
+    const originalReport = reporting.obtenerBalancePrueba.bind(reporting);
+    let reportSawPayrollMovements = false;
+    const reportSpy = jest
+      .spyOn(reporting, 'obtenerBalancePrueba')
+      .mockImplementation(async (candidateTenantId, range) => {
+        const balance = await originalReport(candidateTenantId, range);
+        reportSawPayrollMovements = balance.some(
+          (item) =>
+            Number(item.totalDebito) > 0 || Number(item.totalCredito) > 0,
+        );
+        return balance;
+      });
+    const heldAccrual = holdTenantOperation(() =>
+      service.contabilizar(tenantId, actorId, payrollPeriodId),
+    );
+    const accrualInsideTransaction = await heldAccrual.ready;
+    expect(accrualInsideTransaction.status).toBe('CAUSADA');
+    const closeRequest = contextService.run(context, () =>
+      closure.cerrarPeriodo(tenantId, accountingPeriodId, actorId),
+    );
+
+    let waiters = 0;
+    try {
+      waiters = await waitForAdvisoryWaiters(1);
+    } finally {
+      heldAccrual.release();
+    }
+    await heldAccrual.operation;
+    const closeResult = await closeRequest;
+    reportSpy.mockRestore();
+
+    expect(waiters).toBeGreaterThanOrEqual(1);
+    expect(closeResult).toEqual({ cerrado: true, yaEstabaCerrado: false });
+    expect(reportSawPayrollMovements).toBe(true);
+    const persisted = await contextService.run(context, () =>
+      tenantPrisma.execute(async (tx) => {
+        const [payrollPeriod, accountingPeriod, vouchers, auditCounts] =
+          await Promise.all([
+            tx.payrollPeriod.findUniqueOrThrow({
+              where: { id: payrollPeriodId },
+              select: { status: true },
+            }),
+            tx.periodoContable.findUniqueOrThrow({
+              where: { id: accountingPeriodId },
+              select: { estado: true },
+            }),
+            tx.comprobanteContable.findMany({
+              where: {
+                tenantId,
+                origenTipo: 'PAYROLL',
+                origenId: payrollPeriodId,
+                origenEvento: 'CAUSACION',
+              },
+              include: { movimientos: true },
+            }),
+            tx.auditLog.count({
+              where: {
+                tenantId,
+                action: {
+                  in: ['PAYROLL_ACCRUED', 'PERIODO_CONTABLE_CERRADO'],
+                },
+                entityId: { in: [payrollPeriodId, accountingPeriodId] },
+              },
+            }),
+          ]);
+        return { payrollPeriod, accountingPeriod, vouchers, auditCounts };
+      }),
+    );
+
+    expect(persisted.payrollPeriod.status).toBe(PayrollPeriodStatus.CAUSADA);
+    expect(persisted.accountingPeriod.estado).toBe(EstadoPeriodo.CERRADO);
+    expect(persisted.vouchers).toHaveLength(1);
+    // The mapper aggregates the fixture into four accounting lines: payroll
+    // expense, net payable, health payable and pension payable.
+    expect(persisted.vouchers[0].movimientos).toHaveLength(4);
+    expect(
+      persisted.vouchers[0].movimientos.reduce(
+        (sum, movement) => sum + Number(movement.debito),
+        0,
+      ),
+    ).toBe(
+      persisted.vouchers[0].movimientos.reduce(
+        (sum, movement) => sum + Number(movement.credito),
+        0,
+      ),
+    );
+    expect(persisted.auditCounts).toBe(2);
+  }, 30000);
+
+  async function resetAccrualFixture() {
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+      const vouchers = await tx.comprobanteContable.findMany({
+        where: {
+          tenantId,
+          origenTipo: 'PAYROLL',
+          origenId: payrollPeriodId,
+          origenEvento: 'CAUSACION',
+        },
+        select: { id: true },
+      });
+      const voucherIds = vouchers.map(({ id }) => id);
+      if (voucherIds.length > 0) {
+        await tx.movimientoContable.deleteMany({
+          where: { tenantId, comprobanteId: { in: voucherIds } },
+        });
+        await tx.comprobanteContable.deleteMany({
+          where: { tenantId, id: { in: voucherIds } },
+        });
+      }
+      await tx.auditLog.deleteMany({
+        where: {
+          tenantId,
+          action: { in: ['PAYROLL_ACCRUED', 'PERIODO_CONTABLE_CERRADO'] },
+          entityId: { in: [payrollPeriodId, accountingPeriodId] },
+        },
+      });
+      await tx.payrollPeriod.update({
+        where: { id: payrollPeriodId },
+        data: { status: PayrollPeriodStatus.APROBADA },
+      });
+      await tx.periodoContable.update({
+        where: { id: accountingPeriodId },
+        data: {
+          estado: EstadoPeriodo.ABIERTO,
+          cerradoAt: null,
+          cerradoPorId: null,
+        },
+      });
+    });
+  }
+
+  function holdTenantOperation<T>(work: () => Promise<T>) {
+    let resolveReady!: (result: T) => void;
+    let rejectReady!: (error: unknown) => void;
+    let releaseGate!: () => void;
+    let released = false;
+    const ready = new Promise<T>((resolve, reject) => {
+      resolveReady = resolve;
+      rejectReady = reject;
+    });
+    const gate = new Promise<void>((resolve) => {
+      releaseGate = resolve;
+    });
+    const operation = contextService.run(context, () =>
+      tenantPrisma.execute(async () => {
+        const result = await work();
+        resolveReady(result);
+        await gate;
+        return result;
+      }),
+    );
+    void operation.catch(rejectReady);
+    return {
+      ready,
+      operation,
+      release: () => {
+        if (released) return;
+        released = true;
+        releaseGate();
+      },
+    };
+  }
+
+  async function waitForAdvisoryWaiters(expected: number): Promise<number> {
+    const deadline = Date.now() + 10_000;
+    let latest = 0;
+    while (Date.now() < deadline) {
+      const rows = await prisma.$queryRaw<Array<{ waiting: bigint }>>`
+        SELECT COUNT(*) AS waiting
+        FROM pg_locks
+        WHERE locktype = 'advisory' AND NOT granted
+      `;
+      latest = Number(rows[0]?.waiting ?? 0n);
+      if (latest >= expected) return latest;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    throw new Error(
+      `Timed out waiting for ${expected} PostgreSQL advisory-lock waiter(s); observed ${latest}.`,
+    );
+  }
 });

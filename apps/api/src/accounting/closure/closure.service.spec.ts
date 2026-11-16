@@ -75,10 +75,16 @@ function build() {
     obtenerSaldosDimensionados: jest.fn(),
     periodoUpdateMany: jest.fn(),
     auditLog: jest.fn(),
-    txUpdateMany: jest.fn(),
+    txUpdateMany: jest.fn<
+      Promise<Prisma.BatchPayload>,
+      [Prisma.PeriodoContableUpdateManyArgs]
+    >(),
     tipoComprobanteFindFirst: jest.fn(),
     cuentaSistemaMapFindFirst: jest.fn(),
-    registrarComprobante: jest.fn(),
+    registrarComprobante: jest.fn<
+      Promise<{ id: string }>,
+      [RegistrarComprobanteInput, client?: unknown]
+    >(),
     executeRaw: jest.fn().mockResolvedValue(1),
   };
 
@@ -325,14 +331,17 @@ describe('ClosureService', () => {
       );
 
       expect(result).toEqual({ cerrado: true, yaEstabaCerrado: false });
-      expect(mocks.txUpdateMany).toHaveBeenCalledWith({
-        where: { id: PERIODO_ID, tenantId: TENANT_ID, estado: 'ABIERTO' },
-        data: {
-          estado: 'CERRADO',
-          cerradoAt: expect.any(Date),
-          cerradoPorId: USER_ID,
-        },
+      const update = mocks.txUpdateMany.mock.calls[0]?.[0];
+      expect(update?.where).toEqual({
+        id: PERIODO_ID,
+        tenantId: TENANT_ID,
+        estado: 'ABIERTO',
       });
+      expect(update?.data).toMatchObject({
+        estado: 'CERRADO',
+        cerradoPorId: USER_ID,
+      });
+      expect(update?.data.cerradoAt).toBeInstanceOf(Date);
       expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
       expect(audit.log).toHaveBeenCalledWith(
         {
@@ -442,6 +451,8 @@ describe('ClosureService', () => {
       const { service, mocks } = build();
       mocks.periodoFindFirst
         .mockResolvedValueOnce(periodo())
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(periodo())
         .mockResolvedValueOnce(null);
       mocks.comprobanteCount.mockResolvedValue(0);
       mocks.obtenerBalancePrueba.mockResolvedValue(balanceCuadrado());
@@ -468,6 +479,8 @@ describe('ClosureService', () => {
     it('no registra auditoría cuando el cierre concurrente no actualiza filas', async () => {
       const { service, mocks, audit } = build();
       mocks.periodoFindFirst
+        .mockResolvedValueOnce(periodo())
+        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(periodo())
         .mockResolvedValueOnce(null);
       mocks.comprobanteCount.mockResolvedValue(0);
@@ -865,10 +878,14 @@ describe('ClosureService', () => {
     // tipo conocido — evita indexar `mock.calls` (valor `any`) en las
     // aserciones.
     function capturarComprobante(mocks: ReturnType<typeof build>['mocks']) {
-      const capturado: { input?: RegistrarComprobanteInput } = {};
+      const capturado: {
+        input?: RegistrarComprobanteInput;
+        client?: unknown;
+      } = {};
       mocks.registrarComprobante.mockImplementationOnce(
-        (input: RegistrarComprobanteInput) => {
+        (input: RegistrarComprobanteInput, client?: unknown) => {
           capturado.input = input;
+          capturado.client = client;
           return Promise.resolve({ id: COMPROBANTE_ID });
         },
       );
@@ -1169,7 +1186,7 @@ describe('ClosureService', () => {
         }),
         expect.anything(),
       );
-      expect(mocks.registrarComprobante.mock.calls[0][1]).toBe(client);
+      expect(capturado.client).toBe(client);
 
       const lineas = capturado.input!.lineas;
       expect(lineas).toHaveLength(3);

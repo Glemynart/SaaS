@@ -27,18 +27,8 @@ describe('ClosureService PostgreSQL concurrency', () => {
     new TenantContextBoundary(contextService),
   );
   let connected = false;
-  let validationCount = 0;
-  let releaseValidations!: () => void;
-  const bothValidated = new Promise<void>((resolve) => {
-    releaseValidations = resolve;
-  });
   const reporting = {
-    obtenerBalancePrueba: jest.fn(async () => {
-      validationCount += 1;
-      if (validationCount === 2) releaseValidations();
-      await bothValidated;
-      return [];
-    }),
+    obtenerBalancePrueba: jest.fn(() => Promise.resolve([])),
   };
   const audit = new AuditService(prisma);
   const service = new ClosureService(
@@ -118,7 +108,9 @@ describe('ClosureService PostgreSQL concurrency', () => {
         { cerrado: true, yaEstabaCerrado: true },
       ]),
     );
-    expect(reporting.obtenerBalancePrueba).toHaveBeenCalledTimes(2);
+    // The second request waits for the period lock, then observes the closed
+    // state and must not validate stale balances a second time.
+    expect(reporting.obtenerBalancePrueba).toHaveBeenCalledTimes(1);
 
     const persisted = await contextService.run(context, () =>
       tenantPrisma.execute(async (tx) => {

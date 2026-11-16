@@ -226,27 +226,30 @@ export class ClosureService {
     periodoId: string,
     userId: string,
   ): Promise<CerrarPeriodoResult> {
-    const validacion = await this.validarCierrePeriodo(tenantId, periodoId);
-
-    if (validacion.bloqueos.includes(ClosureBloqueo.PERIODO_YA_CERRADO)) {
-      return { cerrado: true, yaEstabaCerrado: true };
-    }
-
-    if (!validacion.procede) {
-      return {
-        cerrado: false,
-        yaEstabaCerrado: false,
-        bloqueos: validacion.bloqueos,
-      };
-    }
-
     const updated = await this.tenantPrisma.execute(async (tx) => {
       await lockAccountingPeriod(tx, tenantId, periodoId);
+
+      // Validate only after acquiring the same period lock used by Ledger.
+      // Otherwise a posting could commit after the balance/draft checks but
+      // before this transaction closes the period.
+      const validacion = await this.validarCierrePeriodo(tenantId, periodoId);
+      if (validacion.bloqueos.includes(ClosureBloqueo.PERIODO_YA_CERRADO)) {
+        return { count: 0, yaEstabaCerrado: true };
+      }
+      if (!validacion.procede) {
+        return { count: 0, bloqueos: validacion.bloqueos };
+      }
+
       const periodoActual = await tx.periodoContable.findFirst({
         where: { id: periodoId, tenantId },
         select: { anio: true, mes: true },
       });
-      if (!periodoActual) return { count: 0, cierreCronologico: false };
+      if (!periodoActual) {
+        return {
+          count: 0,
+          bloqueos: [ClosureBloqueo.PERIODO_NO_ENCONTRADO],
+        };
+      }
 
       const anteriorAbierto = await tx.periodoContable.findFirst({
         where: {
@@ -259,7 +262,12 @@ export class ClosureService {
         },
         select: { id: true },
       });
-      if (anteriorAbierto) return { count: 0, cierreCronologico: true };
+      if (anteriorAbierto) {
+        return {
+          count: 0,
+          bloqueos: [ClosureBloqueo.CIERRE_CRONOLOGICO],
+        };
+      }
 
       const result = await tx.periodoContable.updateMany({
         where: {
@@ -287,18 +295,21 @@ export class ClosureService {
         );
       }
 
-      return { count: result.count, cierreCronologico: false };
+      return { count: result.count };
     });
 
-    if (updated.cierreCronologico) {
+    if ('bloqueos' in updated) {
       return {
         cerrado: false,
         yaEstabaCerrado: false,
-        bloqueos: [ClosureBloqueo.CIERRE_CRONOLOGICO],
+        bloqueos: updated.bloqueos,
       };
     }
 
-    if (updated.count === 0) {
+    if (
+      ('yaEstabaCerrado' in updated && updated.yaEstabaCerrado) ||
+      updated.count === 0
+    ) {
       return { cerrado: true, yaEstabaCerrado: true };
     }
 

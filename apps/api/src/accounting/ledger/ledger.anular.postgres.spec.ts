@@ -4,6 +4,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { TenantContextBoundary } from '../../tenant-context/tenant-context.boundary';
 import { TenantContextService } from '../../tenant-context/tenant-context.service';
 import { TenantPrismaService } from '../../tenant-prisma/tenant-prisma.service';
+import { ClosureService } from '../closure/closure.service';
+import { ReportingService } from '../reporting/reporting.service';
 import { LedgerService } from './ledger.service';
 
 jest.setTimeout(30_000);
@@ -17,6 +19,9 @@ describe('LedgerService.anular PostgreSQL concurrency', () => {
   const creditAccountId = randomUUID();
   const openPeriodId = randomUUID();
   const failurePeriodId = randomUUID();
+  const closureWinsAnnulPeriodId = randomUUID();
+  const annulWinsClosurePeriodId = randomUUID();
+  const concurrentPostPeriodId = randomUUID();
   const tenantContext = new TenantContextService();
   const prisma = new PrismaService();
   const tenantPrisma = new TenantPrismaService(
@@ -25,6 +30,8 @@ describe('LedgerService.anular PostgreSQL concurrency', () => {
   );
   const audit = new AuditService(prisma);
   const ledger = new LedgerService(tenantPrisma, audit);
+  const reporting = new ReportingService(tenantPrisma);
+  const closure = new ClosureService(tenantPrisma, reporting, audit, ledger);
   let connected = false;
 
   beforeAll(async () => {
@@ -198,7 +205,7 @@ describe('LedgerService.anular PostgreSQL concurrency', () => {
 
   it('crea un solo reverso y dos movimientos de reversión al anular en período cerrado', async () => {
     const sourcePeriodId = randomUUID();
-    const reversalPeriodId = randomUUID();
+    const reversalPeriodId = closureWinsAnnulPeriodId;
     await createPeriod(sourcePeriodId, 2026, 3);
     await createPeriod(reversalPeriodId, 2026, 4);
     const original = await createVoucher(sourcePeriodId, 'Reverso concurrente');
@@ -250,6 +257,299 @@ describe('LedgerService.anular PostgreSQL concurrency', () => {
     ]);
   });
 
+  it('espera la contabilización concurrente antes de validar y cerrar el período', async () => {
+    const input = await voucherInput(
+      openPeriodId,
+      'Posteo confirmado antes del cierre',
+    );
+    const originalReport = reporting.obtenerBalancePrueba.bind(reporting);
+    let reportIncludedCommittedPosting = false;
+    const reportSpy = jest
+      .spyOn(reporting, 'obtenerBalancePrueba')
+      .mockImplementation(async (candidateTenantId, range) => {
+        const balance = await originalReport(candidateTenantId, range);
+        reportIncludedCommittedPosting = balance.some(
+          (item) =>
+            item.cuentaId === debitAccountId && Number(item.totalDebito) >= 100,
+        );
+        return balance;
+      });
+    const heldPosting = holdTenantOperation(() =>
+      ledger.registrarComprobante(input),
+    );
+    const posted = await heldPosting.ready;
+    const closeRequest = runAsTenant(() =>
+      closure.cerrarPeriodo(tenantId, openPeriodId, userId),
+    );
+
+    let waiters = 0;
+    try {
+      waiters = await waitForAdvisoryWaiters(1);
+    } finally {
+      heldPosting.release();
+    }
+    await heldPosting.operation;
+    const closeResult = await closeRequest;
+    reportSpy.mockRestore();
+
+    expect(waiters).toBeGreaterThanOrEqual(1);
+    expect(closeResult).toEqual({ cerrado: true, yaEstabaCerrado: false });
+    expect(reportIncludedCommittedPosting).toBe(true);
+    await expect(
+      prisma.periodoContable.findUniqueOrThrow({
+        where: { id: openPeriodId },
+        select: { estado: true },
+      }),
+    ).resolves.toEqual({ estado: 'CERRADO' });
+    await expect(
+      prisma.comprobanteContable.findUniqueOrThrow({
+        where: { id: posted.id },
+        select: { estado: true },
+      }),
+    ).resolves.toEqual({ estado: 'CONTABILIZADO' });
+    await expect(
+      prisma.auditLog.count({
+        where: {
+          tenantId,
+          action: 'PERIODO_CONTABLE_CERRADO',
+          entityId: openPeriodId,
+        },
+      }),
+    ).resolves.toBe(1);
+    await expect(
+      prisma.auditLog.count({
+        where: {
+          tenantId,
+          action: 'COMPROBANTE_CONTABILIZADO',
+          entityId: posted.id,
+        },
+      }),
+    ).resolves.toBe(1);
+  });
+
+  it('si el cierre obtiene primero el lock, no contabiliza en el período cerrado', async () => {
+    const input = await voucherInput(
+      failurePeriodId,
+      'Posteo rechazado tras cierre',
+    );
+    const postingAuditsBefore = await prisma.auditLog.count({
+      where: { tenantId, action: 'COMPROBANTE_CONTABILIZADO' },
+    });
+    const heldClose = holdTenantOperation(() =>
+      closure.cerrarPeriodo(tenantId, failurePeriodId, userId),
+    );
+    const closeResultInsideTransaction = await heldClose.ready;
+    const postRequest = runAsTenant(() => ledger.registrarComprobante(input));
+
+    let waiters = 0;
+    try {
+      waiters = await waitForAdvisoryWaiters(1);
+    } finally {
+      heldClose.release();
+    }
+    await heldClose.operation;
+
+    expect(waiters).toBeGreaterThanOrEqual(1);
+    expect(closeResultInsideTransaction).toEqual({
+      cerrado: true,
+      yaEstabaCerrado: false,
+    });
+    await expect(postRequest).rejects.toThrow('El período está CERRADO');
+    await expect(
+      prisma.comprobanteContable.count({
+        where: {
+          tenantId,
+          periodoId: failurePeriodId,
+          concepto: input.concepto,
+        },
+      }),
+    ).resolves.toBe(0);
+    await expect(
+      prisma.movimientoContable.count({
+        where: {
+          tenantId,
+          comprobante: { periodoId: failurePeriodId, concepto: input.concepto },
+        },
+      }),
+    ).resolves.toBe(0);
+    await expect(
+      prisma.auditLog.count({
+        where: { tenantId, action: 'COMPROBANTE_CONTABILIZADO' },
+      }),
+    ).resolves.toBe(postingAuditsBefore);
+    await expect(
+      prisma.auditLog.count({
+        where: {
+          tenantId,
+          action: 'PERIODO_CONTABLE_CERRADO',
+          entityId: failurePeriodId,
+        },
+      }),
+    ).resolves.toBe(1);
+  });
+
+  it('si el cierre precede a la anulación, registra un reverso en el período abierto siguiente', async () => {
+    const sourcePeriodId = closureWinsAnnulPeriodId;
+    await createPeriod(annulWinsClosurePeriodId, 2026, 5);
+    const balancesBeforeVoucher = await activeBalances();
+    const original = await createVoucher(
+      sourcePeriodId,
+      'Anulación concurrente después del cierre',
+    );
+    const heldClose = holdTenantOperation(() =>
+      closure.cerrarPeriodo(tenantId, sourcePeriodId, userId),
+    );
+    const closeResultInsideTransaction = await heldClose.ready;
+    const voidRequest = runAsTenant(() =>
+      ledger.anular(tenantId, userId, original.id, 'cierre ganó el lock'),
+    );
+
+    let waiters = 0;
+    try {
+      waiters = await waitForAdvisoryWaiters(1);
+    } finally {
+      heldClose.release();
+    }
+    await heldClose.operation;
+    const reversal = await voidRequest;
+
+    expect(waiters).toBeGreaterThanOrEqual(1);
+    expect(closeResultInsideTransaction).toEqual({
+      cerrado: true,
+      yaEstabaCerrado: false,
+    });
+    expect(reversal.reversaAId).toBe(original.id);
+    expect(reversal.periodoId).toBe(annulWinsClosurePeriodId);
+    await expect(
+      prisma.comprobanteContable.findUniqueOrThrow({
+        where: { id: original.id },
+        select: { estado: true },
+      }),
+    ).resolves.toEqual({ estado: 'CONTABILIZADO' });
+    await expect(
+      prisma.comprobanteContable.count({
+        where: { tenantId, reversaAId: original.id, estado: 'CONTABILIZADO' },
+      }),
+    ).resolves.toBe(1);
+    await expect(activeBalances()).resolves.toEqual(balancesBeforeVoucher);
+    await expect(
+      prisma.auditLog.count({
+        where: {
+          tenantId,
+          action: 'COMPROBANTE_REVERSO',
+          entityId: reversal.id,
+        },
+      }),
+    ).resolves.toBe(1);
+    await expect(
+      prisma.auditLog.count({
+        where: {
+          tenantId,
+          action: 'PERIODO_CONTABLE_CERRADO',
+          entityId: sourcePeriodId,
+        },
+      }),
+    ).resolves.toBe(1);
+  });
+
+  it('si la anulación obtiene primero el lock, cierra después sin duplicar reversos', async () => {
+    const balancesBeforeVoucher = await activeBalances();
+    const original = await createVoucher(
+      annulWinsClosurePeriodId,
+      'Anulación confirmada antes del cierre',
+    );
+    const heldVoid = holdTenantOperation(() =>
+      ledger.anular(tenantId, userId, original.id, 'anulación ganó el lock'),
+    );
+    const voidResultInsideTransaction = await heldVoid.ready;
+    const closeRequest = runAsTenant(() =>
+      closure.cerrarPeriodo(tenantId, annulWinsClosurePeriodId, userId),
+    );
+
+    let waiters = 0;
+    try {
+      waiters = await waitForAdvisoryWaiters(1);
+    } finally {
+      heldVoid.release();
+    }
+    await heldVoid.operation;
+    const closeResult = await closeRequest;
+
+    expect(waiters).toBeGreaterThanOrEqual(1);
+    expect(voidResultInsideTransaction.estado).toBe('ANULADO');
+    expect(closeResult).toEqual({ cerrado: true, yaEstabaCerrado: false });
+    await expect(
+      prisma.comprobanteContable.count({
+        where: { tenantId, reversaAId: original.id },
+      }),
+    ).resolves.toBe(0);
+    await expect(countVoidAudits(original.id)).resolves.toBe(1);
+    await expect(activeBalances()).resolves.toEqual(balancesBeforeVoucher);
+    await expect(
+      prisma.periodoContable.findUniqueOrThrow({
+        where: { id: annulWinsClosurePeriodId },
+        select: { estado: true },
+      }),
+    ).resolves.toEqual({ estado: 'CERRADO' });
+  });
+
+  it('serializa dos contabilizaciones del mismo período sin duplicar movimientos ni consecutivos', async () => {
+    await createPeriod(concurrentPostPeriodId, 2026, 6);
+    const balancesBefore = await activeBalances();
+    const [firstInput, secondInput] = await Promise.all([
+      voucherInput(concurrentPostPeriodId, 'Posteo concurrente A'),
+      voucherInput(concurrentPostPeriodId, 'Posteo concurrente B'),
+    ]);
+
+    const [results, waiters] = await withHeldPeriodLock(
+      concurrentPostPeriodId,
+      () =>
+        Promise.all([
+          runAsTenant(() => ledger.registrarComprobante(firstInput)),
+          runAsTenant(() => ledger.registrarComprobante(secondInput)),
+        ]),
+    );
+
+    expect(waiters).toBeGreaterThanOrEqual(2);
+    expect(results).toHaveLength(2);
+    expect(new Set(results.map(({ id }) => id)).size).toBe(2);
+    expect(new Set(results.map(({ numero }) => numero)).size).toBe(2);
+    await expect(
+      prisma.comprobanteContable.count({
+        where: {
+          tenantId,
+          id: { in: results.map(({ id }) => id) },
+          estado: 'CONTABILIZADO',
+        },
+      }),
+    ).resolves.toBe(2);
+    await expect(
+      prisma.movimientoContable.count({
+        where: { tenantId, comprobanteId: { in: results.map(({ id }) => id) } },
+      }),
+    ).resolves.toBe(4);
+    await expect(
+      prisma.auditLog.count({
+        where: {
+          tenantId,
+          action: 'COMPROBANTE_CONTABILIZADO',
+          entityId: { in: results.map(({ id }) => id) },
+        },
+      }),
+    ).resolves.toBe(2);
+    const balancesAfter = await activeBalances();
+    expect(balancesAfter).toEqual([
+      {
+        accountId: debitAccountId,
+        balance: String(Number(balancesBefore[0].balance) + 200),
+      },
+      {
+        accountId: creditAccountId,
+        balance: String(Number(balancesBefore[1].balance) - 200),
+      },
+    ]);
+  });
+
   async function createPeriod(id: string, anio: number, mes: number) {
     await prisma.periodoContable.create({
       data: {
@@ -265,24 +565,59 @@ describe('LedgerService.anular PostgreSQL concurrency', () => {
   }
 
   async function createVoucher(periodoId: string, concepto: string) {
+    const input = await voucherInput(periodoId, concepto);
+    return runAsTenant(() => ledger.registrarComprobante(input));
+  }
+
+  async function voucherInput(periodoId: string, concepto: string) {
     const period = await prisma.periodoContable.findUniqueOrThrow({
       where: { id: periodoId },
       select: { fechaInicio: true },
     });
-    return runAsTenant(() =>
-      ledger.registrarComprobante({
-        tenantId,
-        userId,
-        tipoComprobanteId: voucherTypeId,
-        periodoId,
-        fecha: period.fechaInicio,
-        concepto,
-        lineas: [
-          { cuentaId: debitAccountId, debito: 100, credito: 0 },
-          { cuentaId: creditAccountId, debito: 0, credito: 100 },
-        ],
+    return {
+      tenantId,
+      userId,
+      tipoComprobanteId: voucherTypeId,
+      periodoId,
+      fecha: period.fechaInicio,
+      concepto,
+      lineas: [
+        { cuentaId: debitAccountId, debito: 100, credito: 0 },
+        { cuentaId: creditAccountId, debito: 0, credito: 100 },
+      ],
+    };
+  }
+
+  function holdTenantOperation<T>(work: () => Promise<T>) {
+    let resolveReady!: (result: T) => void;
+    let rejectReady!: (error: unknown) => void;
+    let releaseGate!: () => void;
+    let released = false;
+    const ready = new Promise<T>((resolve, reject) => {
+      resolveReady = resolve;
+      rejectReady = reject;
+    });
+    const gate = new Promise<void>((resolve) => {
+      releaseGate = resolve;
+    });
+    const operation = runAsTenant(() =>
+      tenantPrisma.execute(async () => {
+        const result = await work();
+        resolveReady(result);
+        await gate;
+        return result;
       }),
     );
+    void operation.catch(rejectReady);
+    return {
+      ready,
+      operation,
+      release: () => {
+        if (released) return;
+        released = true;
+        releaseGate();
+      },
+    };
   }
 
   async function countVoidAudits(entityId: string) {
