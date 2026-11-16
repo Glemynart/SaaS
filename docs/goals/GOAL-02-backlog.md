@@ -2713,9 +2713,12 @@ de errores. No se añadieron pruebas PostgreSQL específicas de rollback para
 cada mutación.
 
 La búsqueda global de llamadas best-effort encontró además flujos de
-empleados/importación, contratos, lotes, documentos generados y sedes. Deben
-revisarse por método antes de clasificarlos: los registros de fallo, acceso y
-telemetría no son por sí mismos una mutación exitosa sin auditoría.
+importación de empleados, contratos, lotes, documentos generados y sedes. El
+CRUD de empleados ya trasladó sus tres auditorías a la transacción que escribe
+el empleado y, en creación, su afiliación PILA inicial. Cada ruta tiene una
+prueba unitaria de propagación del fallo. Los demás call sites deben revisarse
+por método antes de clasificarlos: los registros de fallo, acceso y telemetría
+no son por sí mismos una mutación exitosa sin auditoría.
 
 La migración `20261116080000_password_reset_tenant_integrity` valida los datos
 existentes y aborta si encuentra un token asociado a otro tenant; luego reemplaza
