@@ -574,6 +574,35 @@ describe('Payroll accounting PostgreSQL integration', () => {
     }
   }, 30000);
 
+  it('rolls back period creation when its transactional audit write fails', async () => {
+    const periodName = `Audit rollback ${suffix}`;
+    const auditSpy = jest
+      .spyOn(audit, 'log')
+      .mockRejectedValueOnce(new Error('audit unavailable'));
+
+    try {
+      await expect(
+        contextService.run(context, () =>
+          service.createPeriod(tenantId, actorId, {
+            nombre: periodName,
+            fechaInicio: '2026-05-01',
+            fechaFin: '2026-05-31',
+          }),
+        ),
+      ).rejects.toThrow('audit unavailable');
+    } finally {
+      auditSpy.mockRestore();
+    }
+
+    const persisted = await contextService.run(context, () =>
+      tenantPrisma.execute((tx) =>
+        tx.payrollPeriod.findFirst({ where: { tenantId, nombre: periodName } }),
+      ),
+    );
+
+    expect(persisted).toBeNull();
+  }, 30000);
+
   it('persists one balanced voucher, preserves the snapshot and retries by origin', async () => {
     const first = await contextService.run(context, () =>
       service.contabilizar(tenantId, actorId, payrollPeriodId),

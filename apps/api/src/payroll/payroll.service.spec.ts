@@ -31,6 +31,7 @@ import { PayrollAccountingPreflightService } from './accounting-preflight/payrol
 import { PAYROLL_ACCOUNTING_REQUIRED_ROLES } from './accounting-preflight/payroll-accounting-preflight.service';
 import { Test } from '@nestjs/testing';
 import { calculate } from './calculator/payroll-calculator';
+import { PayrollNoveltyType } from './dto/create-payroll.dto';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -54,6 +55,7 @@ const mockAfiliacionFindMany = jest.fn();
 const mockPilaWorkAssignmentFindMany = jest.fn();
 const mockPilaWorkLocationFindMany = jest.fn();
 const mockPayrollNoveltyFindMany = jest.fn();
+const mockPayrollNoveltyCreate = jest.fn();
 const mockPayrollPilaEventFindMany = jest.fn();
 const mockPayrollPilaEventFindFirst = jest.fn();
 const mockPayrollPilaEventCreate = jest.fn();
@@ -110,7 +112,10 @@ const mockPrisma = {
   afiliacionSeguridadSocial: { findMany: mockAfiliacionFindMany },
   pilaAsignacionCentroTrabajo: { findMany: mockPilaWorkAssignmentFindMany },
   pilaUbicacionLaboral: { findMany: mockPilaWorkLocationFindMany },
-  payrollNovelty: { findMany: mockPayrollNoveltyFindMany },
+  payrollNovelty: {
+    findMany: mockPayrollNoveltyFindMany,
+    create: mockPayrollNoveltyCreate,
+  },
   payrollPilaEvent: {
     findMany: mockPayrollPilaEventFindMany,
     findFirst: mockPayrollPilaEventFindFirst,
@@ -3145,6 +3150,29 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         },
         data: { status: 'CALCULADA' },
       });
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PAYROLL_GENERATED' }),
+        mockPrisma,
+      );
+    });
+
+    it('no confirma el cálculo si falla su registro de auditoría', async () => {
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('BORRADOR'));
+      mockParametroLegalFindFirst.mockResolvedValue(makeLegalParam());
+      mockTenantFindUnique.mockResolvedValue({ aportesExonerados: false });
+      mockEmpleadoFindMany.mockResolvedValue([]);
+      mockPayrollNoveltyFindMany.mockResolvedValue([]);
+      mockContratoFindMany.mockResolvedValue([]);
+      mockPayrollPeriodUpdateMany.mockResolvedValue({ count: 1 });
+      mockAudit.log.mockRejectedValueOnce(new Error('audit down'));
+
+      await expect(
+        service.generatePayroll(TENANT, USER, PERIOD_ID),
+      ).rejects.toThrow('audit down');
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PAYROLL_GENERATED' }),
+        mockPrisma,
+      );
     });
 
     it('bloquea generación si un RET quedó asociado a un empleado inactivo', async () => {
@@ -3686,6 +3714,28 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
         },
         data: { status: 'CALCULADA' },
       });
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PAYROLL_RECALCULATED' }),
+        mockPrisma,
+      );
+    });
+
+    it('no confirma la reliquidación si falla su registro de auditoría', async () => {
+      setupPayrollGeneration();
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('CALCULADA'));
+      mockEmpleadoFindMany.mockResolvedValue([]);
+      mockPayrollNoveltyFindMany.mockResolvedValue([]);
+      mockContratoFindMany.mockResolvedValue([]);
+      mockPayrollPeriodUpdateMany.mockResolvedValue({ count: 1 });
+      mockAudit.log.mockRejectedValueOnce(new Error('audit down'));
+
+      await expect(
+        service.recalculatePayroll(TENANT, USER, PERIOD_ID),
+      ).rejects.toThrow('audit down');
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PAYROLL_RECALCULATED' }),
+        mockPrisma,
+      );
     });
 
     it('bloquea reliquidación si un RET quedó asociado a un empleado inactivo', async () => {
@@ -4018,6 +4068,68 @@ describe('PayrollService — máquina de estados del ProcesoNómina (U1)', () =>
             fechaPrevistaPagoPila: '2026-11-05',
           },
         }),
+        mockPrisma,
+      );
+    });
+
+    it('propaga un fallo de auditoría para que el período no se confirme sin trazabilidad', async () => {
+      const created = jest.fn().mockResolvedValue(makePeriod('BORRADOR'));
+      (
+        mockPrisma as unknown as { payrollPeriod: { create: typeof created } }
+      ).payrollPeriod.create = created;
+      mockAudit.log.mockRejectedValueOnce(new Error('audit down'));
+
+      await expect(
+        service.createPeriod(TENANT, USER, {
+          nombre: 'Enero 2026',
+          fechaInicio: '2026-01-01',
+          fechaFin: '2026-01-31',
+        }),
+      ).rejects.toThrow('audit down');
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PAYROLL_PERIOD_CREATED' }),
+        mockPrisma,
+      );
+    });
+  });
+
+  describe('createNovelty — auditoría transaccional', () => {
+    const dto = {
+      employeeId: 'employee-1',
+      payrollPeriodId: PERIOD_ID,
+      tipo: PayrollNoveltyType.BONUS,
+      descripcion: 'Bono de prueba',
+      fecha: '2026-01-15',
+      valor: 100_000,
+    };
+
+    beforeEach(() => {
+      mockEmpleadoFindFirst.mockResolvedValue({ id: dto.employeeId });
+      mockPayrollPeriodFindFirst.mockResolvedValue(makePeriod('BORRADOR'));
+      mockPayrollNoveltyCreate.mockResolvedValue({ id: 'novelty-1' });
+    });
+
+    it('escribe la auditoría con el cliente tenant transaccional', async () => {
+      await service.createNovelty(TENANT, USER, dto);
+
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PAYROLL_NOVELTY_CREATED',
+          entityId: 'novelty-1',
+        }),
+        mockPrisma,
+      );
+    });
+
+    it('propaga un fallo de auditoría para no confirmar la novedad sin trazabilidad', async () => {
+      mockAudit.log.mockRejectedValueOnce(new Error('audit down'));
+
+      await expect(service.createNovelty(TENANT, USER, dto)).rejects.toThrow(
+        'audit down',
+      );
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PAYROLL_NOVELTY_CREATED' }),
+        mockPrisma,
       );
     });
   });

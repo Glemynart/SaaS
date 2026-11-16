@@ -2633,12 +2633,15 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
 
 ### Auditoría de RLS laboral, documental y de nómina — GOAL-02 (2026-11-15)
 
-El inventario inicial de 21 modelos sin RLS fue contrastado contra Prisma, los
-consumidores del API y el catálogo PostgreSQL de una base desechable. La primera
-cohorte dejó nueve modelos con RLS forzado. La siguiente protege también
-`lotes_contrato` y `batch_document_generation_plans`, para un total de once de
-los 21 modelos iniciales. Las migraciones son aditivas y todavía no se han
-aplicado en staging ni producción.
+El inventario inicial de 21 modelos tenant-scoped sin RLS fue contrastado con
+Prisma, los consumidores del API y el catálogo PostgreSQL de una base
+desechable. En el HEAD auditado, 12 de esos modelos tienen RLS forzado; los
+nueve restantes se explican en la tabla y no deben recibir una política
+genérica sin resolver sus rutas preautenticadas, su condición de legado o la
+identidad de auditoría. Algunas políticas abarcan tablas dependientes, por lo
+que el total de tablas protegidas no equivale al número de modelos del
+inventario. Las migraciones son aditivas y todavía no se han aplicado en
+staging ni producción.
 
 | Modelo al corte inicial    | Evidencia de código y decisión                                                                                                                                                                                                                                           |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -2682,9 +2685,26 @@ transacción de `TenantPrismaService` no confirma el asiento o cambio de estado.
 El mismo control se aplicó al cierre de período, reapertura y cierre anual:
 el registro se espera dentro de la transacción de la transición. Las pruebas
 unitarias verifican el cliente transaccional y la propagación de fallos para
-estas seis rutas. Quedan pendientes los eventos de nómina y otros escritores
-que todavía usan auditoría asíncrona no transaccional; no se generalizó el
-cambio fuera de los límites de contabilización y cierre aquí auditados.
+estas seis rutas.
+
+Una revisión posterior encontró cuatro rutas de nómina con el mismo problema:
+crear período, generar nómina, reliquidar y crear novedad descartaban errores
+de auditoría después de confirmar la operación. Las cuatro ahora esperan
+`AuditService.log` dentro de la transacción tenant-scoped, usando su mismo
+cliente Prisma. Si la auditoría falla, el error se propaga para que la
+transacción revierta los cambios de nómina. Las pruebas unitarias verifican el
+cliente transaccional y la propagación; se añade una prueba PostgreSQL que
+provoca un fallo de auditoría al crear un período y comprueba que la fila no se
+persista. Esa prueba representa el límite real de rollback para el patrón; la
+suite no introduce un caso PostgreSQL separado para cada operación de cálculo.
+
+La búsqueda estática posterior también encontró escrituras exitosas con
+auditoría best-effort en cuentas contables, mapeos del sistema, terceros,
+centros y períodos contables, provisión/desprovisión y liquidaciones laborales.
+Las llamadas que solo intentan registrar un fallo ya ocurrido se clasifican
+aparte: su auditoría no precede ni acompaña una mutación exitosa. Estos flujos
+son la siguiente cohorte de integridad; requieren revisar sus límites
+transaccionales por módulo antes de cambiarlos.
 
 La migración `20261116080000_password_reset_tenant_integrity` valida los datos
 existentes y aborta si encuentra un token asociado a otro tenant; luego reemplaza
