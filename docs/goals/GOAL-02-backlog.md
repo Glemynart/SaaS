@@ -2908,11 +2908,31 @@ el comprobante a `ANULADO`, generando un segundo evento de auditoría. No se
 duplicaban movimientos contables, pero sí se duplicaba la transición auditada.
 La operación ahora vuelve a leer el comprobante después de obtener el bloqueo
 y devuelve el estado `ANULADO` ya confirmado sin repetir la actualización ni su
-auditoría. La prueba de concurrencia reproduce el orden de lecturas y bloqueo:
-fallaba con dos actualizaciones y dos auditorías, y pasa con una de cada una.
-Es una prueba de servicio con bloqueo controlado; no se afirma que sea una
-prueba de concurrencia contra PostgreSQL. No se modifica el esquema ni se
-accedió a bases desplegadas.
+auditoría. La prueba unitaria reproduce el orden de lecturas y bloqueo: fallaba
+con dos actualizaciones y dos auditorías, y pasa con una de cada una. Una suite
+nueva también fuerza dos solicitudes reales a esperar el advisory lock en
+PostgreSQL 17.11 (aislamiento `read committed`) tras aplicar las 120 migraciones
+de `main`. En período abierto comprueba una sola transición, una auditoría, dos
+movimientos originales y saldo cero. Una falla provocada después de insertar la
+auditoría revierte el estado y la fila auditada; el reintento y su repetición
+quedan idempotentes y el saldo termina en cero. En período cerrado la
+concurrencia crea un solo reverso y mantiene el saldo en cero. La suite pasó 3
+pruebas contra la base desechable; no se modifica el esquema ni se accedió a
+bases desplegadas. Se observaron ambos contendientes esperando el mismo lock;
+esta prueba no constituye un ensayo de carga ni un detector general de
+deadlocks.
+
+La inspección de consumidores muestra que las operaciones de corrección de
+nómina toman primero sus advisory locks por IDs ordenados y luego el lock del
+período mediante Ledger; la anulación toma los mismos tipos de lock en ese
+orden. El cierre contable adquiere los locks de períodos en orden cronológico.
+No se encontró un camino que adquiera primero el período y después la
+dependencia de corrección, ni se reprodujo un ciclo de espera. PostgreSQL usa
+`READ COMMITTED` para estas transacciones. Los locks advisory emplean hashes de
+tenant e ID: una colisión puede serializar trabajo no relacionado, pero no
+duplica ni pierde movimientos. La prueba cubre dos contendientes sobre un
+comprobante; estrés sostenido y detección de deadlocks multientidad quedan como
+validación futura, no como evidencia aprobada.
 
 La lectura del proyecto Vercel `saa-s-web` confirma plan Hobby, repositorio
 `Glemynart/SaaS`, rama de producción `main`, Root Directory `apps/web` y
