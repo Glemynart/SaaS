@@ -140,11 +140,7 @@ export class LedgerService {
     client?: TenantPrismaClient,
   ) {
     const anular = async (tx: TenantPrismaClient) => {
-      const comprobante = await this.findComprobante(
-        tx,
-        tenantId,
-        comprobanteId,
-      );
+      let comprobante = await this.findComprobante(tx, tenantId, comprobanteId);
 
       if (comprobante.estado === 'ANULADO') {
         return comprobante; // idempotente
@@ -163,6 +159,13 @@ export class LedgerService {
 
       await lockAccountingPeriod(tx, tenantId, comprobante.periodoId);
 
+      // The original read can become stale while this request waits for the
+      // period lock. Re-read after acquiring it so concurrent anulaciones of
+      // an open-period voucher do not repeat its state transition or audit.
+      comprobante = await this.findComprobante(tx, tenantId, comprobante.id);
+      if (comprobante.estado === 'ANULADO') {
+        return comprobante;
+      }
       if (comprobante.estado === 'BORRADOR') {
         throw new BadRequestException(
           'Un comprobante en borrador no puede anularse. Descártelo directamente.',

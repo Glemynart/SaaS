@@ -622,6 +622,7 @@ describe('LedgerService', () => {
 
       mocks.comprobanteFindFirst
         .mockResolvedValueOnce(comprobanteCreado({ estado: 'CONTABILIZADO' }))
+        .mockResolvedValueOnce(comprobanteCreado({ estado: 'CONTABILIZADO' }))
         .mockResolvedValue(null);
       mocks.periodoFindUniqueOrThrow.mockResolvedValue({
         id: PERIODO_ID,
@@ -662,6 +663,7 @@ describe('LedgerService', () => {
 
       mocks.comprobanteFindFirst
         .mockResolvedValueOnce(comprobanteCreado({ estado: 'CONTABILIZADO' }))
+        .mockResolvedValueOnce(comprobanteCreado({ estado: 'CONTABILIZADO' }))
         .mockResolvedValue(null);
       mocks.periodoFindUniqueOrThrow.mockResolvedValue({
         id: PERIODO_ID,
@@ -680,10 +682,75 @@ describe('LedgerService', () => {
       );
     });
 
+    it('no duplica la auditoría cuando dos anulaciones concurrentes encuentran el período abierto', async () => {
+      const { service, mocks, audit, mockTx, tenantPrisma } = build();
+      let estado = 'CONTABILIZADO';
+      let lockHeld = false;
+      let readsBeforePeriodLock = 0;
+      const queuedLocks: Array<() => void> = [];
+
+      mocks.comprobanteFindFirst.mockImplementation(
+        (args: { where: { id?: string; reversaAId?: string } }) => {
+          if (args.where.id === 'comp-001') {
+            if (!lockHeld) readsBeforePeriodLock += 1;
+            return comprobanteCreado({ estado });
+          }
+          if (args.where.reversaAId === 'comp-001') return null;
+          return null;
+        },
+      );
+      mocks.executeRaw.mockImplementation(async () => {
+        if (!lockHeld) {
+          lockHeld = true;
+          return 1;
+        }
+        await new Promise<void>((resolve) => queuedLocks.push(resolve));
+        return 1;
+      });
+      tenantPrisma.execute.mockImplementation(
+        (callback: (tx: unknown) => Promise<unknown>) =>
+          (async () => {
+            try {
+              return await callback(mockTx);
+            } finally {
+              const next = queuedLocks.shift();
+              if (next) next();
+              else lockHeld = false;
+            }
+          })(),
+      );
+      mocks.periodoFindUniqueOrThrow.mockResolvedValue({
+        id: PERIODO_ID,
+        estado: 'ABIERTO',
+      });
+      mocks.comprobanteUpdate.mockImplementation(() => {
+        estado = 'ANULADO';
+        return comprobanteCreado({ estado });
+      });
+
+      const results = (await Promise.all([
+        service.anular(TENANT_ID, USER_ID, 'comp-001', 'error'),
+        service.anular(TENANT_ID, USER_ID, 'comp-001', 'error'),
+      ])) as Array<{ estado: string }>;
+
+      expect(results).toHaveLength(2);
+      expect(readsBeforePeriodLock).toBe(2);
+      expect(results.every((result) => result.estado === 'ANULADO')).toBe(true);
+      expect(mocks.comprobanteUpdate).toHaveBeenCalledTimes(1);
+      expect(audit.log).toHaveBeenCalledTimes(1);
+    });
+
     it('bloquea la corrección antes de anular un ajuste de nómina', async () => {
       const { service, mocks } = build();
 
       mocks.comprobanteFindFirst
+        .mockResolvedValueOnce(
+          comprobanteCreado({
+            origenTipo: 'PAYROLL_CORRECTION',
+            origenId: 'correction-a',
+            origenEvento: 'AJUSTE',
+          }),
+        )
         .mockResolvedValueOnce(
           comprobanteCreado({
             origenTipo: 'PAYROLL_CORRECTION',
@@ -714,6 +781,7 @@ describe('LedgerService', () => {
         concepto: 'Nómina enero',
       });
       mocks.comprobanteFindFirst
+        .mockResolvedValueOnce(original)
         .mockResolvedValueOnce(original)
         .mockResolvedValue(null);
       mocks.periodoFindUniqueOrThrow.mockResolvedValue({
@@ -792,6 +860,7 @@ describe('LedgerService', () => {
 
       mocks.comprobanteFindFirst
         .mockResolvedValueOnce(comprobanteCreado({ estado: 'CONTABILIZADO' }))
+        .mockResolvedValueOnce(comprobanteCreado({ estado: 'CONTABILIZADO' }))
         .mockResolvedValue(null);
       mocks.periodoFindUniqueOrThrow.mockResolvedValue({
         id: PERIODO_ID,
@@ -829,6 +898,7 @@ describe('LedgerService', () => {
         concepto: 'Nómina enero',
       });
       mocks.comprobanteFindFirst
+        .mockResolvedValueOnce(original)
         .mockResolvedValueOnce(original)
         .mockResolvedValue(null);
       mocks.periodoFindUniqueOrThrow.mockResolvedValue({
@@ -901,6 +971,7 @@ describe('LedgerService', () => {
       });
       mocks.comprobanteFindFirst
         .mockResolvedValueOnce(original)
+        .mockResolvedValueOnce(original)
         .mockResolvedValueOnce(reverso);
 
       const result = await service.anular(
@@ -911,7 +982,7 @@ describe('LedgerService', () => {
       );
 
       expect(result).toEqual(reverso);
-      expect(mocks.comprobanteFindFirst).toHaveBeenNthCalledWith(2, {
+      expect(mocks.comprobanteFindFirst).toHaveBeenNthCalledWith(3, {
         where: {
           tenantId: TENANT_ID,
           reversaAId: original.id,
@@ -932,6 +1003,7 @@ describe('LedgerService', () => {
       });
       mocks.comprobanteFindFirst
         .mockResolvedValueOnce(original)
+        .mockResolvedValueOnce(original)
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({ id: 'comp-reverso-anulado' });
       mocks.periodoFindUniqueOrThrow.mockResolvedValue({
@@ -943,7 +1015,7 @@ describe('LedgerService', () => {
         service.anular(TENANT_ID, USER_ID, original.id, 'reintento'),
       ).rejects.toThrow(ConflictException);
 
-      expect(mocks.comprobanteFindFirst).toHaveBeenNthCalledWith(3, {
+      expect(mocks.comprobanteFindFirst).toHaveBeenNthCalledWith(4, {
         where: {
           tenantId: TENANT_ID,
           reversaAId: original.id,
@@ -962,6 +1034,7 @@ describe('LedgerService', () => {
         periodoId: PERIODO_ID,
       });
       mocks.comprobanteFindFirst
+        .mockResolvedValueOnce(original)
         .mockResolvedValueOnce(original)
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({ id: 'comp-reverso-anulado' });

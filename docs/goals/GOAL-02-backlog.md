@@ -1,6 +1,6 @@
 # Backlog de GOAL-02 — Evolución Financiera y Cumplimiento Electrónico
 
-Actualizado: 2026-11-14. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
+Actualizado: 2026-11-16. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
 no cerrado. Este backlog conserva el resultado completo de GOAL-02 y prioriza
 primero flujos financieros internos que puedan mostrarse a futuros clientes.
 
@@ -2897,6 +2897,22 @@ Typecheck y build de API, ESLint de los archivos modificados, Prettier y
 a bases desplegadas. El inventario RLS de los 21 modelos sigue en 12 con RLS
 forzada y nueve excepciones documentadas; esta cohorte no añade políticas
 genéricas.
+
+### Anulación concurrente en período abierto — GOAL-02 (2026-11-16)
+
+La revisión financiera identificó una carrera acotada en `LedgerService.anular`:
+dos solicitudes podían leer el mismo comprobante `CONTABILIZADO` antes de
+esperar el bloqueo advisory del período. Aunque ese bloqueo serializaba las
+transacciones, la segunda conservaba el estado anterior y volvía a actualizar
+el comprobante a `ANULADO`, generando un segundo evento de auditoría. No se
+duplicaban movimientos contables, pero sí se duplicaba la transición auditada.
+La operación ahora vuelve a leer el comprobante después de obtener el bloqueo
+y devuelve el estado `ANULADO` ya confirmado sin repetir la actualización ni su
+auditoría. La prueba de concurrencia reproduce el orden de lecturas y bloqueo:
+fallaba con dos actualizaciones y dos auditorías, y pasa con una de cada una.
+Es una prueba de servicio con bloqueo controlado; no se afirma que sea una
+prueba de concurrencia contra PostgreSQL. No se modifica el esquema ni se
+accedió a bases desplegadas.
 
 La lectura del proyecto Vercel `saa-s-web` confirma plan Hobby, repositorio
 `Glemynart/SaaS`, rama de producción `main`, Root Directory `apps/web` y
