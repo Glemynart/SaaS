@@ -8,6 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { TenantsService } from '../tenants/tenants.service';
+import { AuditService } from '../audit/audit.service';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { Prisma, UserRole } from '@prisma/client';
@@ -26,6 +27,7 @@ export class AuthService {
     private usersService: UsersService,
     private tenantsService: TenantsService,
     private jwtService: JwtService,
+    private auditService: AuditService,
   ) {}
 
   async register(data: {
@@ -71,6 +73,18 @@ export class AuthService {
           activo: true,
         },
       });
+
+      await this.auditService.log(
+        {
+          tenantId: tenant.id,
+          userId: user.id,
+          action: 'TENANT_REGISTERED',
+          entityType: 'Tenant',
+          entityId: tenant.id,
+          metadata: { onboarding: 'SELF_SERVICE' },
+        },
+        tx,
+      );
 
       return {
         tenant: {
@@ -145,33 +159,50 @@ export class AuthService {
       throw new UnauthorizedException(INVALID_LOGIN_MESSAGE);
     }
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+    return this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      });
+
+      const tokens = await this.generateTokens(
+        user.id,
+        tenant.id,
+        user.rol,
+        user.email,
+        data.userAgent,
+        data.ipAddress,
+        tx,
+      );
+
+      await this.auditService.log(
+        {
+          tenantId: tenant.id,
+          userId: user.id,
+          action: 'LOGIN',
+          entityType: 'Auth',
+          metadata: {
+            ip: data.ipAddress,
+            userAgent: String(data.userAgent ?? ''),
+          },
+        },
+        tx,
+      );
+
+      return {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          nombre: user.nombre,
+          apellido: user.apellido,
+          rol: user.rol,
+          tenantId: tenant.id,
+          tenantNombre: tenant.nombre,
+        },
+      };
     });
-
-    const tokens = await this.generateTokens(
-      user.id,
-      tenant.id,
-      user.rol,
-      user.email,
-      data.userAgent,
-      data.ipAddress,
-    );
-
-    return {
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        nombre: user.nombre,
-        apellido: user.apellido,
-        rol: user.rol,
-        tenantId: tenant.id,
-        tenantNombre: tenant.nombre,
-      },
-    };
   }
 
   async refresh(

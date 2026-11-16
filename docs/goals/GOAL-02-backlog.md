@@ -2854,10 +2854,14 @@ dejó de almacenar la lista de cédulas.
 
 La descarga del expediente espera un evento tenant-scoped de acceso después de
 leer el objeto; si no puede registrarlo, la API no devuelve el contenido. El
-login también dejó de ignorar fallos del evento `LOGIN` y la API no informa
-éxito si no puede guardarlo. Los registros de fallo de operaciones que vuelven
-a lanzar la excepción original y los eventos de correo fallido permanecen
-como telemetría de error; no representan escrituras exitosas sin auditoría.
+evento `LOGIN` ahora comparte transacción con `lastLoginAt` y la creación del
+refresh token. El registro público de empresa también escribe
+`TENANT_REGISTERED` dentro de la transacción que crea el tenant y su primer
+usuario administrador. Un fallo de auditoría revierte esos cambios junto con
+la operación y no devuelve tokens. Los registros de fallo de operaciones que
+vuelven a lanzar la excepción original y los eventos de correo fallido
+permanecen como telemetría de error; no representan escrituras exitosas sin
+auditoría.
 
 Validación local de esta rama: 120 migraciones aplicadas en PostgreSQL 17.11
 desechable; 24 suites PostgreSQL y 104 pruebas pasaron. Las nueve suites
@@ -2883,3 +2887,19 @@ disponibles por CLI/API. La producción más reciente consultada permanece
 en las 24 horas previas a la consulta. Presupuesto y almacenamiento siguen sin
 verificarse: no se publica esta rama ni se abre PR hasta obtener esos datos,
 sin deshabilitar checks ni alterar despliegues existentes.
+
+### Auditoría atómica de autenticación — GOAL-02 (2026-11-15)
+
+La revisión de atribución encontró dos brechas en los flujos públicos de
+autenticación. El login registraba su evento después de persistir
+`lastLoginAt` y el refresh token; el registro inicial de una empresa no tenía
+evento de auditoría. Ahora `LOGIN` comparte el cliente transaccional con la
+marca de último acceso y el refresh token, y `TENANT_REGISTERED` comparte la
+transacción que crea el tenant y al primer usuario administrador. Si falla el
+registro de auditoría, la transacción aborta y no se devuelve una sesión.
+
+El endpoint conserva la misma respuesta. El `AuditLog` sigue sin una relación
+de clave foránea hacia `User` ni RLS genérico; esa restricción histórica se
+mantiene pendiente de una decisión global de atribución para actores públicos
+y de sistema. Validación local: 10 suites focalizadas y 127 pruebas aprobadas,
+typecheck, ESLint de los archivos de autenticación y build de API aprobados.

@@ -24,7 +24,6 @@ import { CurrentUser } from './decorators/current-user.decorator';
 import type { CurrentUserPayload } from './decorators/current-user.decorator';
 import type { Request } from 'express';
 import { ThrottlerGuard, Throttle, SkipThrottle } from '@nestjs/throttler';
-import { AuditService } from '../audit/audit.service';
 import {
   Authenticated,
   Unauthenticated,
@@ -43,7 +42,6 @@ export class AuthController {
   constructor(
     private authService: AuthService,
     private passwordResetService: PasswordResetService,
-    private auditService: AuditService,
     private readonly userInvitationsService: UserInvitationsService,
   ) {}
 
@@ -69,15 +67,6 @@ export class AuthController {
       userAgent,
       ipAddress: ip,
     });
-    if (result?.user) {
-      await this.auditService.log({
-        tenantId: result.user.tenantId,
-        userId: result.user.id,
-        action: 'LOGIN',
-        entityType: 'Auth',
-        metadata: { ip, userAgent: String(userAgent ?? '') },
-      });
-    }
     return result;
   }
 

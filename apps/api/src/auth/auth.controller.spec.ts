@@ -4,7 +4,6 @@ import { Test } from '@nestjs/testing';
 import { ThrottlerModule } from '@nestjs/throttler';
 import request from 'supertest';
 import type { App } from 'supertest/types';
-import { AuditService } from '../audit/audit.service';
 import { TenantsService } from '../tenants/tenants.service';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
@@ -32,7 +31,6 @@ describe('AuthController reset token validation', () => {
           provide: PasswordResetService,
           useValue: { validateResetToken },
         },
-        { provide: AuditService, useValue: {} },
         { provide: UserInvitationsService, useValue: {} },
       ],
     }).compile();
@@ -82,11 +80,9 @@ describe('AuthController login audit', () => {
     rol: 'ADMIN',
   };
   const login = jest.fn();
-  const auditLog = jest.fn();
   const controller = new AuthController(
     { login } as unknown as AuthService,
     {} as PasswordResetService,
-    { log: auditLog } as unknown as AuditService,
     {} as UserInvitationsService,
   );
   const request = { headers: { 'user-agent': 'test-agent' } } as Request;
@@ -98,27 +94,16 @@ describe('AuthController login audit', () => {
 
   beforeEach(() => {
     login.mockReset().mockResolvedValue({ accessToken: 'token', user });
-    auditLog.mockReset().mockResolvedValue(undefined);
   });
 
-  it('espera el evento de auditoría antes de devolver el resultado del login', async () => {
+  it('delegates successful login auditing to the transactional auth service', async () => {
     const result = await controller.login(dto, request, '127.0.0.1');
 
     expect(result).toEqual({ accessToken: 'token', user });
-    expect(auditLog).toHaveBeenCalledWith({
-      tenantId: user.tenantId,
-      userId: user.id,
-      action: 'LOGIN',
-      entityType: 'Auth',
-      metadata: { ip: '127.0.0.1', userAgent: 'test-agent' },
+    expect(login).toHaveBeenCalledWith({
+      ...dto,
+      userAgent: 'test-agent',
+      ipAddress: '127.0.0.1',
     });
-  });
-
-  it('propaga el fallo de auditoría y no informa el login como exitoso', async () => {
-    auditLog.mockRejectedValue(new Error('audit unavailable'));
-
-    await expect(controller.login(dto, request, '127.0.0.1')).rejects.toThrow(
-      'audit unavailable',
-    );
   });
 });
