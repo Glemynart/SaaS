@@ -32,7 +32,7 @@ export class CuentasContablesService {
         dto.cuentaPadreId,
       );
 
-      return tx.cuentaContable.create({
+      const cuenta = await tx.cuentaContable.create({
         data: {
           tenantId,
           codigo: dto.codigo,
@@ -49,19 +49,19 @@ export class CuentasContablesService {
           // esCuentaSistema queda en false: solo el seed/clonado crea cuentas de sistema.
         },
       });
+      await this.audit.log(
+        {
+          tenantId,
+          userId,
+          action: 'CUENTA_CONTABLE_CREATE',
+          entityType: 'CuentaContable',
+          entityId: cuenta.id,
+          metadata: { codigo: cuenta.codigo },
+        },
+        tx,
+      );
+      return cuenta;
     });
-
-    this.audit
-      .log({
-        tenantId,
-        userId,
-        action: 'CUENTA_CONTABLE_CREATE',
-        entityType: 'CuentaContable',
-        entityId: cuenta.id,
-        metadata: { codigo: cuenta.codigo },
-      })
-      .catch(() => {});
-
     return cuenta;
   }
 
@@ -126,7 +126,7 @@ export class CuentasContablesService {
         }
       }
 
-      return tx.cuentaContable.update({
+      const updated = await tx.cuentaContable.update({
         where: { id: current.id },
         data: {
           ...(dto.nombre !== undefined && { nombre: dto.nombre }),
@@ -143,19 +143,19 @@ export class CuentasContablesService {
           ...(dto.activa !== undefined && { activa: dto.activa }),
         },
       });
+      await this.audit.log(
+        {
+          tenantId,
+          userId,
+          action: 'CUENTA_CONTABLE_UPDATE',
+          entityType: 'CuentaContable',
+          entityId: updated.id,
+          metadata: { codigo: updated.codigo },
+        },
+        tx,
+      );
+      return updated;
     });
-
-    this.audit
-      .log({
-        tenantId,
-        userId,
-        action: 'CUENTA_CONTABLE_UPDATE',
-        entityType: 'CuentaContable',
-        entityId: updated.id,
-        metadata: { codigo: updated.codigo },
-      })
-      .catch(() => {});
-
     return updated;
   }
 
@@ -181,23 +181,23 @@ export class CuentasContablesService {
         );
       }
 
-      return tx.cuentaContable.update({
+      const eliminada = await tx.cuentaContable.update({
         where: { id: cuenta.id },
         data: { deletedAt: new Date(), activa: false },
       });
+      await this.audit.log(
+        {
+          tenantId,
+          userId,
+          action: 'CUENTA_CONTABLE_DELETE',
+          entityType: 'CuentaContable',
+          entityId: eliminada.id,
+          metadata: { codigo: eliminada.codigo },
+        },
+        tx,
+      );
+      return eliminada;
     });
-
-    this.audit
-      .log({
-        tenantId,
-        userId,
-        action: 'CUENTA_CONTABLE_DELETE',
-        entityType: 'CuentaContable',
-        entityId: eliminada.id,
-        metadata: { codigo: eliminada.codigo },
-      })
-      .catch(() => {});
-
     return eliminada;
   }
 

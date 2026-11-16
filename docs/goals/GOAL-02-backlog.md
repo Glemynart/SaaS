@@ -2705,9 +2705,15 @@ de estado y la auditoría queda obligatoria para la operación. La suite unitari
 de liquidaciones verifica el cliente y la propagación. No se añadió una prueba
 PostgreSQL específica para cada transición.
 
-La búsqueda estática posterior también encontró escrituras exitosas con
-auditoría best-effort en cuentas contables, mapeos del sistema, terceros,
-centros y períodos contables y provisión/desprovisión.
+La siguiente cohorte hizo obligatoria y transaccional la auditoría de crear,
+actualizar y eliminar cuentas contables y terceros. Cada mutación entrega el
+mismo cliente Prisma a `AuditService.log`; las pruebas unitarias verifican el
+cliente y la propagación de errores. No se añadió una prueba PostgreSQL
+específica de rollback para cada mutación.
+
+La búsqueda estática posterior todavía encuentra escrituras exitosas con
+auditoría best-effort en mapeos del sistema, centros y períodos contables y
+provisión/desprovisión.
 Las llamadas que solo intentan registrar un fallo ya ocurrido se clasifican
 aparte: su auditoría no precede ni acompaña una mutación exitosa. Estos flujos
 son la siguiente cohorte de integridad; requieren revisar sus límites

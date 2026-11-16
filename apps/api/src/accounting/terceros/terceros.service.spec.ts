@@ -149,6 +149,65 @@ describe('TercerosService tenant isolation', () => {
       tipoDocumento: TipoDocIdentidad.NIT,
       numeroDocumento: '900000001',
     });
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'TERCERO_CREATE' }),
+      tx,
+    );
+  });
+
+  it('rejects third party creation if its transactional audit fails', async () => {
+    audit.log.mockRejectedValueOnce(new Error('audit down'));
+    const dto = {
+      tipoDocumento: TipoDocIdentidad.NIT,
+      numeroDocumento: '900000001',
+      tipoPersona: TipoPersona.JURIDICA,
+      razonSocial: 'Proveedor de prueba',
+    } as CreateTerceroDto;
+
+    await expect(service.create('tenant-a', 'user-a', dto)).rejects.toThrow(
+      'audit down',
+    );
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'TERCERO_CREATE' }),
+      tx,
+    );
+  });
+
+  it('rejects third party updates if their transactional audit fails', async () => {
+    tx.tercero.findFirst.mockResolvedValueOnce({
+      id: 'tercero-a',
+      tenantId: 'tenant-a',
+      tipoPersona: TipoPersona.JURIDICA,
+      razonSocial: 'Proveedor anterior',
+    });
+    audit.log.mockRejectedValueOnce(new Error('audit down'));
+
+    await expect(
+      service.update('tenant-a', 'user-a', 'tercero-a', {
+        razonSocial: 'Proveedor actualizado',
+      }),
+    ).rejects.toThrow('audit down');
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'TERCERO_UPDATE' }),
+      tx,
+    );
+  });
+
+  it('rejects third party removal if its transactional audit fails', async () => {
+    tx.tercero.findFirst.mockResolvedValueOnce({
+      id: 'tercero-a',
+      tenantId: 'tenant-a',
+      deletedAt: null,
+    });
+    audit.log.mockRejectedValueOnce(new Error('audit down'));
+
+    await expect(
+      service.remove('tenant-a', 'user-a', 'tercero-a'),
+    ).rejects.toThrow('audit down');
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'TERCERO_DELETE' }),
+      tx,
+    );
   });
 
   it('keeps duplicate document detection scoped to the same tenant', async () => {
