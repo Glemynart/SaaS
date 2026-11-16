@@ -451,8 +451,10 @@ export class PilaExportService {
       }
       return summarize(persisted.record);
     } catch (error) {
-      await this.cleanupObjects(type1StorageKey, type2StorageKey);
       if (isUniqueViolation(error)) {
+        // The transaction definitely rejected the duplicate write, so these
+        // per-attempt objects are unreferenced and can be compensated.
+        await this.cleanupObjects(type1StorageKey, type2StorageKey);
         const concurrent = await this.tenantPrisma.execute((tx) =>
           tx.pilaExport.findUnique({
             where: {
@@ -466,6 +468,25 @@ export class PilaExportService {
           }),
         );
         if (concurrent) return summarize(concurrent);
+        throw error;
+      }
+
+      // A connection failure while Prisma returns from COMMIT has an ambiguous
+      // outcome. Check by the attempt's random ID before deleting either file;
+      // if this read also fails, preserve both objects rather than risk breaking
+      // a row that may already have committed.
+      const persisted = await this.tenantPrisma
+        .execute((tx) =>
+          tx.pilaExport.findUnique({
+            where: { id: exportId },
+            select: exportSummarySelect,
+          }),
+        )
+        .then((record) => ({ checked: true, record }))
+        .catch(() => ({ checked: false, record: null }));
+      if (persisted.record) return summarize(persisted.record);
+      if (persisted.checked) {
+        await this.cleanupObjects(type1StorageKey, type2StorageKey);
       }
       throw error;
     }
