@@ -274,6 +274,19 @@ export class ClosureService {
         },
       });
 
+      if (result.count > 0) {
+        await this.audit.log(
+          {
+            tenantId,
+            userId,
+            action: 'PERIODO_CONTABLE_CERRADO',
+            entityType: 'PeriodoContable',
+            entityId: periodoId,
+          },
+          tx,
+        );
+      }
+
       return { count: result.count, cierreCronologico: false };
     });
 
@@ -288,16 +301,6 @@ export class ClosureService {
     if (updated.count === 0) {
       return { cerrado: true, yaEstabaCerrado: true };
     }
-
-    this.audit
-      .log({
-        tenantId,
-        userId,
-        action: 'PERIODO_CONTABLE_CERRADO',
-        entityType: 'PeriodoContable',
-        entityId: periodoId,
-      })
-      .catch(() => {});
 
     return { cerrado: true, yaEstabaCerrado: false };
   }
@@ -401,16 +404,17 @@ export class ClosureService {
         return { reabierto: true, yaEstabaAbierto: true };
       }
 
-      this.audit
-        .log({
+      await this.audit.log(
+        {
           tenantId,
           userId,
           action: 'PERIODO_CONTABLE_REABIERTO',
           entityType: 'PeriodoContable',
           entityId: periodoId,
           metadata: { motivo },
-        })
-        .catch(() => {});
+        },
+        tx,
+      );
 
       return { reabierto: true, yaEstabaAbierto: false };
     });
@@ -632,16 +636,17 @@ export class ClosureService {
 
       // --- 9. Auditoría funcional única del cierre anual (C3-I5), con el
       //        CONJUNTO de comprobantes ---
-      this.audit
-        .log({
+      await this.audit.log(
+        {
           tenantId,
           userId,
           action: 'CIERRE_ANUAL_EJECUTADO',
           entityType: 'PeriodoContable',
           entityId: diciembre.id,
           metadata: { anio, comprobanteIds },
-        })
-        .catch(() => {});
+        },
+        tx,
+      );
 
       return {
         posteado: true,

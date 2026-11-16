@@ -2679,10 +2679,12 @@ sin esperar el resultado y descartaban errores, pese a que ADR-001 I9 exige
 auditar esas transiciones. Ahora las tres operaciones esperan el registro y le
 pasan su cliente transaccional; un fallo de auditoría se propaga y la
 transacción de `TenantPrismaService` no confirma el asiento o cambio de estado.
-Las pruebas unitarias verifican el cliente transaccional y la propagación del
-fallo para las tres rutas. Queda pendiente extender la revisión a los eventos
-de nómina y otros escritores que todavía usan auditoría asíncrona no
-transaccional; no se generalizó el cambio fuera de este límite financiero.
+El mismo control se aplicó al cierre de período, reapertura y cierre anual:
+el registro se espera dentro de la transacción de la transición. Las pruebas
+unitarias verifican el cliente transaccional y la propagación de fallos para
+estas seis rutas. Quedan pendientes los eventos de nómina y otros escritores
+que todavía usan auditoría asíncrona no transaccional; no se generalizó el
+cambio fuera de los límites de contabilización y cierre aquí auditados.
 
 La migración `20261116080000_password_reset_tenant_integrity` valida los datos
 existentes y aborta si encuentra un token asociado a otro tenant; luego reemplaza

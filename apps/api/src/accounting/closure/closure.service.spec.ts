@@ -306,7 +306,7 @@ describe('ClosureService', () => {
 
   describe('cerrarPeriodo()', () => {
     it('cierra exitosamente un período que pasa todas las validaciones', async () => {
-      const { service, mocks, audit } = build();
+      const { service, mocks, audit, client } = build();
       mocks.periodoFindFirst
         .mockResolvedValueOnce(periodo())
         .mockResolvedValueOnce(null);
@@ -334,13 +334,37 @@ describe('ClosureService', () => {
         },
       });
       expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
-      expect(audit.log).toHaveBeenCalledWith({
-        tenantId: TENANT_ID,
-        userId: USER_ID,
-        action: 'PERIODO_CONTABLE_CERRADO',
-        entityType: 'PeriodoContable',
-        entityId: PERIODO_ID,
-      });
+      expect(audit.log).toHaveBeenCalledWith(
+        {
+          tenantId: TENANT_ID,
+          userId: USER_ID,
+          action: 'PERIODO_CONTABLE_CERRADO',
+          entityType: 'PeriodoContable',
+          entityId: PERIODO_ID,
+        },
+        client,
+      );
+    });
+
+    it('propaga el fallo de auditoría al cerrar un período', async () => {
+      const { service, mocks, audit, client } = build();
+      mocks.periodoFindFirst
+        .mockResolvedValueOnce(periodo())
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(periodo())
+        .mockResolvedValueOnce(null);
+      mocks.comprobanteCount.mockResolvedValue(0);
+      mocks.obtenerBalancePrueba.mockResolvedValue(balanceCuadrado());
+      mocks.txUpdateMany.mockResolvedValue({ count: 1 });
+      mocks.auditLog.mockRejectedValue(new Error('audit unavailable'));
+
+      await expect(
+        service.cerrarPeriodo(TENANT_ID, PERIODO_ID, USER_ID),
+      ).rejects.toThrow('audit unavailable');
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PERIODO_CONTABLE_CERRADO' }),
+        client,
+      );
     });
 
     it('rechaza el cierre si un período anterior se reabrió mientras esperaba el lock', async () => {
@@ -623,7 +647,7 @@ describe('ClosureService', () => {
     });
 
     it('reabre exitosamente el único período cerrado (la frontera) y audita con el motivo', async () => {
-      const { service, mocks, audit } = build();
+      const { service, mocks, audit, client } = build();
       mocks.periodoFindFirst
         .mockResolvedValueOnce(periodo({ estado: 'CERRADO' }))
         .mockResolvedValueOnce(null);
@@ -647,14 +671,35 @@ describe('ClosureService', () => {
           cerradoPorId: null,
         },
       });
-      expect(audit.log).toHaveBeenCalledWith({
-        tenantId: TENANT_ID,
-        userId: USER_ID,
-        action: 'PERIODO_CONTABLE_REABIERTO',
-        entityType: 'PeriodoContable',
-        entityId: PERIODO_ID,
-        metadata: { motivo: MOTIVO },
-      });
+      expect(audit.log).toHaveBeenCalledWith(
+        {
+          tenantId: TENANT_ID,
+          userId: USER_ID,
+          action: 'PERIODO_CONTABLE_REABIERTO',
+          entityType: 'PeriodoContable',
+          entityId: PERIODO_ID,
+          metadata: { motivo: MOTIVO },
+        },
+        client,
+      );
+    });
+
+    it('propaga el fallo de auditoría al reabrir', async () => {
+      const { service, mocks, audit, client } = build();
+      mocks.periodoFindFirst
+        .mockResolvedValueOnce(periodo({ estado: 'CERRADO' }))
+        .mockResolvedValueOnce(null);
+      mocks.comprobanteFindFirst.mockResolvedValue(null);
+      mocks.txUpdateMany.mockResolvedValue({ count: 1 });
+      mocks.auditLog.mockRejectedValue(new Error('audit unavailable'));
+
+      await expect(
+        service.reabrirPeriodo(TENANT_ID, PERIODO_ID, USER_ID, MOTIVO),
+      ).rejects.toThrow('audit unavailable');
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PERIODO_CONTABLE_REABIERTO' }),
+        client,
+      );
     });
 
     it('devuelve reabierto=true yaEstabaAbierto=true cuando una reapertura concurrente ya actuó (carrera)', async () => {
@@ -1138,14 +1183,36 @@ describe('ClosureService', () => {
         DICIEMBRE_ID,
         USER_ID,
       );
-      expect(audit.log).toHaveBeenCalledWith({
-        tenantId: TENANT_ID,
-        userId: USER_ID,
-        action: 'CIERRE_ANUAL_EJECUTADO',
-        entityType: 'PeriodoContable',
-        entityId: DICIEMBRE_ID,
-        metadata: { anio: ANIO, comprobanteIds: [COMPROBANTE_ID] },
-      });
+      expect(audit.log).toHaveBeenCalledWith(
+        {
+          tenantId: TENANT_ID,
+          userId: USER_ID,
+          action: 'CIERRE_ANUAL_EJECUTADO',
+          entityType: 'PeriodoContable',
+          entityId: DICIEMBRE_ID,
+          metadata: { anio: ANIO, comprobanteIds: [COMPROBANTE_ID] },
+        },
+        client,
+      );
+    });
+
+    it('propaga el fallo de auditoría al cerrar el año fiscal', async () => {
+      const { service, mocks, audit, client } = build();
+      mockDependenciasOk(mocks);
+      mocks.obtenerSaldosDimensionados.mockResolvedValue(balanceUtilidad());
+      capturarComprobante(mocks);
+      jest
+        .spyOn(service, 'cerrarPeriodo')
+        .mockResolvedValue({ cerrado: true, yaEstabaCerrado: false });
+      mocks.auditLog.mockRejectedValue(new Error('audit unavailable'));
+
+      await expect(
+        service.cerrarAnioFiscal(TENANT_ID, ANIO, USER_ID),
+      ).rejects.toThrow('audit unavailable');
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'CIERRE_ANUAL_EJECUTADO' }),
+        client,
+      );
     });
 
     it('postea el asiento de pérdida — el neto queda en débito de la cuenta de patrimonio', async () => {
