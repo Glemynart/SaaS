@@ -501,43 +501,90 @@ export class PayrollService {
         }),
       ) as PayrollSystemAccounts;
 
-      const comprobante = await this.ledger.registrarComprobante(
-        {
-          tenantId,
-          userId,
-          tipoComprobanteId: voucherType.id,
-          periodoId: accountingPeriod.id,
-          fecha: current.fechaFin,
-          concepto: `Causación nómina ${current.nombre}`,
-          lineas: buildPayrollAccrualLines(
-            runs.map((run) => ({
-              terceroId: thirdPartyByIdentity.get(
-                `${run.employee.tipoDocumento}\u0000${run.employee.cedula}`,
-              )!,
-              centroCostoId: run.centroCostoId,
-              totalDevengos: Number(run.totalDevengos),
-              totalDeducciones: Number(run.totalDeducciones),
-              netoPagar: Number(run.netoPagar),
-              totalAportesPatronales: run.totalAportesPatronales
-                ? Number(run.totalAportesPatronales)
-                : null,
-              totalProvisiones: run.totalProvisiones
-                ? Number(run.totalProvisiones)
-                : null,
-              concepts: run.concepts.map((concept) => ({
-                codigo: concept.codigo,
-                tipo: concept.tipo,
-                valor: Number(concept.valor),
+      let comprobante: Awaited<
+        ReturnType<LedgerService['registrarComprobante']>
+      >;
+      try {
+        comprobante = await this.ledger.registrarComprobante(
+          {
+            tenantId,
+            userId,
+            tipoComprobanteId: voucherType.id,
+            periodoId: accountingPeriod.id,
+            fecha: current.fechaFin,
+            concepto: `Causación nómina ${current.nombre}`,
+            lineas: buildPayrollAccrualLines(
+              runs.map((run) => ({
+                terceroId: thirdPartyByIdentity.get(
+                  `${run.employee.tipoDocumento}\u0000${run.employee.cedula}`,
+                )!,
+                centroCostoId: run.centroCostoId,
+                totalDevengos: Number(run.totalDevengos),
+                totalDeducciones: Number(run.totalDeducciones),
+                netoPagar: Number(run.netoPagar),
+                totalAportesPatronales: run.totalAportesPatronales
+                  ? Number(run.totalAportesPatronales)
+                  : null,
+                totalProvisiones: run.totalProvisiones
+                  ? Number(run.totalProvisiones)
+                  : null,
+                concepts: run.concepts.map((concept) => ({
+                  codigo: concept.codigo,
+                  tipo: concept.tipo,
+                  valor: Number(concept.valor),
+                })),
               })),
-            })),
-            accounts,
-          ),
-          origenTipo: 'PAYROLL',
-          origenId: current.id,
-          origenEvento: 'CAUSACION',
-        },
-        tx,
-      );
+              accounts,
+            ),
+            origenTipo: 'PAYROLL',
+            origenId: current.id,
+            origenEvento: 'CAUSACION',
+          },
+          tx,
+        );
+      } catch (error) {
+        if (!(error instanceof ConflictException)) throw error;
+
+        // Concurrent retries may both pass the initial origin check. Ledger
+        // serializes registration by accounting period; after waiting, the
+        // loser sees the winner's committed voucher and raises a conflict.
+        // Reconcile only when the period and active source voucher prove the
+        // accrual already completed; unrelated errors still propagate.
+        const [latestPeriod, latestVoucher] = await Promise.all([
+          tx.payrollPeriod.findFirst({
+            where: { id: current.id, tenantId },
+            select: { status: true },
+          }),
+          tx.comprobanteContable.findFirst({
+            where: {
+              tenantId,
+              origenTipo: 'PAYROLL',
+              origenId: current.id,
+              origenEvento: 'CAUSACION',
+            },
+            select: {
+              id: true,
+              estado: true,
+              reversos: {
+                where: { tenantId, estado: 'CONTABILIZADO' },
+                select: { id: true },
+              },
+            },
+          }),
+        ]);
+        if (
+          latestPeriod?.status === PayrollPeriodStatus.CAUSADA &&
+          latestVoucher?.estado === 'CONTABILIZADO' &&
+          latestVoucher.reversos.length === 0
+        ) {
+          return {
+            status: 'YA_CAUSADA' as const,
+            payrollPeriodId: current.id,
+            comprobanteId: latestVoucher.id,
+          };
+        }
+        throw error;
+      }
 
       const transition = await tx.payrollPeriod.updateMany({
         where: {

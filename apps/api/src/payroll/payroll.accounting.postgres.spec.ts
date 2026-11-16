@@ -45,12 +45,15 @@ describe('Payroll accounting PostgreSQL integration', () => {
     new TenantContextBoundary(contextService),
   );
   const audit = new AuditService(prisma, tenantPrisma, contextService);
+  const accountingPreflight = new PayrollAccountingPreflightService(
+    tenantPrisma,
+  );
   const service = new PayrollService(
     prisma,
     tenantPrisma,
     audit,
     new LedgerService(tenantPrisma, audit),
-    new PayrollAccountingPreflightService(tenantPrisma),
+    accountingPreflight,
   );
   const context = {
     tenantId,
@@ -607,6 +610,124 @@ describe('Payroll accounting PostgreSQL integration', () => {
     );
 
     expect(persisted).toBeNull();
+  }, 30000);
+
+  it('reconciles concurrent payroll accrual retries without duplicate vouchers or audit', async () => {
+    const validate = accountingPreflight.validate.bind(accountingPreflight);
+    let validations = 0;
+    let releaseBarrier!: () => void;
+    const barrier = new Promise<void>((resolve) => {
+      releaseBarrier = resolve;
+    });
+    const preflightSpy = jest
+      .spyOn(accountingPreflight, 'validate')
+      .mockImplementation(async (candidateTenantId, input) => {
+        const result = await validate(candidateTenantId, input);
+        validations += 1;
+        if (validations === 2) releaseBarrier();
+        await barrier;
+        return result;
+      });
+
+    try {
+      const results = await Promise.all([
+        contextService.run(context, () =>
+          service.contabilizar(tenantId, actorId, payrollPeriodId),
+        ),
+        contextService.run(context, () =>
+          service.contabilizar(tenantId, actorId, payrollPeriodId),
+        ),
+      ]);
+
+      expect(results.map(({ status }) => status).sort()).toEqual([
+        'CAUSADA',
+        'YA_CAUSADA',
+      ]);
+      const voucherIds = results.flatMap((result) =>
+        'comprobanteId' in result ? [result.comprobanteId] : [],
+      );
+      expect(voucherIds).toHaveLength(2);
+      expect(new Set(voucherIds).size).toBe(1);
+
+      const [period, vouchers, auditCount] = await contextService.run(
+        context,
+        () =>
+          tenantPrisma.execute(async (tx) => {
+            const [currentPeriod, currentVouchers, currentAuditCount] =
+              await Promise.all([
+                tx.payrollPeriod.findUniqueOrThrow({
+                  where: { id: payrollPeriodId },
+                  select: { status: true },
+                }),
+                tx.comprobanteContable.findMany({
+                  where: {
+                    tenantId,
+                    origenTipo: 'PAYROLL',
+                    origenId: payrollPeriodId,
+                    origenEvento: 'CAUSACION',
+                  },
+                  include: { movimientos: true },
+                }),
+                tx.auditLog.count({
+                  where: {
+                    tenantId,
+                    action: 'PAYROLL_ACCRUED',
+                    entityId: payrollPeriodId,
+                  },
+                }),
+              ]);
+            return [currentPeriod, currentVouchers, currentAuditCount] as const;
+          }),
+      );
+
+      expect(period.status).toBe(PayrollPeriodStatus.CAUSADA);
+      expect(vouchers).toHaveLength(1);
+      expect(vouchers[0].movimientos.length).toBeGreaterThan(0);
+      const debits = vouchers[0].movimientos.reduce(
+        (sum, movement) => sum + Number(movement.debito),
+        0,
+      );
+      const credits = vouchers[0].movimientos.reduce(
+        (sum, movement) => sum + Number(movement.credito),
+        0,
+      );
+      expect(debits).toBe(credits);
+      expect(auditCount).toBe(1);
+    } finally {
+      preflightSpy.mockRestore();
+      await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+        const vouchers = await tx.comprobanteContable.findMany({
+          where: {
+            tenantId,
+            origenTipo: 'PAYROLL',
+            origenId: payrollPeriodId,
+            origenEvento: 'CAUSACION',
+          },
+          select: { id: true },
+        });
+        const voucherIds = vouchers.map(({ id }) => id);
+        if (voucherIds.length > 0) {
+          await tx.movimientoContable.deleteMany({
+            where: { tenantId, comprobanteId: { in: voucherIds } },
+          });
+          await tx.comprobanteContable.deleteMany({
+            where: { tenantId, id: { in: voucherIds } },
+          });
+        }
+        await tx.auditLog.deleteMany({
+          where: {
+            tenantId,
+            action: 'PAYROLL_ACCRUED',
+            entityId: payrollPeriodId,
+          },
+        });
+        await tx.payrollPeriod.update({
+          where: { id: payrollPeriodId },
+          data: { status: PayrollPeriodStatus.APROBADA },
+        });
+      });
+    }
   }, 30000);
 
   it('persists one balanced voucher, preserves the snapshot and retries by origin', async () => {
