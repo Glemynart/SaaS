@@ -17,7 +17,7 @@ import {
   StorageObjectNotFoundError,
   StorageProvider,
 } from './storage.types';
-import { createR2PilaPrefixCredentials } from './r2-pila-prefix-credentials';
+import { createR2TenantPrefixCredentials } from './r2-tenant-prefix-credentials';
 
 const R2_REQUIRED_ENVIRONMENT_VARIABLES = [
   'R2_ENDPOINT',
@@ -187,7 +187,7 @@ export class CloudflareR2StorageProvider implements StorageProvider {
     this.validateConfiguration();
     this.validateKey(prefix);
 
-    const credentials = createR2PilaPrefixCredentials({
+    const credentials = createR2TenantPrefixCredentials({
       endpoint: process.env.R2_ENDPOINT!.trim(),
       bucket: process.env.R2_BUCKET!,
       parentAccessKeyId: process.env.R2_ACCESS_KEY_ID!,

@@ -375,6 +375,8 @@ model Tenant {
   facturas           Factura[]
   parametrosLegales  ParametroLegalNomina[]
   liquidations       Liquidation[]
+  employeeDisbursements          EmployeeDisbursement[]
+  employeeDisbursementReversals  EmployeeDisbursementReversal[]
 
   // Motor contable C0 (TipoComprobante es catálogo global → sin relación aquí)
   cuentasContables  CuentaContable[]
@@ -424,6 +426,10 @@ model User {
   periodosNominaAprobados  PayrollPeriod[]      @relation("PayrollPeriodAprobadoPor")
   snapshotsNominaAprobados PayrollSnapshot[]    @relation("PayrollSnapshotAprobadoPor")
   bloqueosNominaExcluidos  PayrollBlock[]       @relation("PayrollBlockExcludedBy")
+  employeeDisbursementsRegistered      EmployeeDisbursement[]         @relation("EmployeeDisbursementRegisteredBy")
+  employeeDisbursementsVerified        EmployeeDisbursement[]         @relation("EmployeeDisbursementVerifiedBy")
+  employeeDisbursementsCancelled       EmployeeDisbursement[]         @relation("EmployeeDisbursementCancelledBy")
+  employeeDisbursementReversalsCreated EmployeeDisbursementReversal[] @relation("EmployeeDisbursementReversalCreatedBy")
 
   @@unique([tenantId, email]) // Un email es único por empresa, no globalmente
   @@unique([tenantId, id], map: "users_tenantId_id_key")
@@ -590,6 +596,7 @@ model Empleado {
   expediente         ExpedienteDoc[]
   alertas            Alerta[]
   liquidations       Liquidation[]
+  employeeDisbursements EmployeeDisbursement[]
   afiliacionesSeguridadSocial AfiliacionSeguridadSocial[]
   asignacionesCentroPila PilaAsignacionCentroTrabajo[]
   ubicacionesLaboralesPila PilaUbicacionLaboral[]
@@ -1160,8 +1167,22 @@ enum ServicePremiumLineStatus {
 enum LiquidationStatus {
   DRAFT // En elaboración, aún modificable
   APPROVED // Aprobada y congelada — no modificable
-  PAID // Pagada — terminal
+  PAID // Declaración administrativa de pago — no confirma un desembolso bancario
   VOIDED // Anulada sin pago — terminal
+}
+
+enum EmployeeDisbursementStatus {
+  DECLARED
+  SUPPORTED
+  VERIFIED
+  CANCELLED
+}
+
+enum EmployeeDisbursementMethod {
+  BANK_TRANSFER
+  CASH
+  CHECK
+  OTHER
 }
 
 // =============================================================================
@@ -1268,8 +1289,10 @@ model PayrollRun {
 
   concepts PayrollConcept[]
   snapshot PayrollSnapshot?
+  employeeDisbursements EmployeeDisbursement[] @relation("PayrollRunEmployeeDisbursement")
 
   @@unique([tenantId, payrollPeriodId, employeeId])
+  @@unique([tenantId, id, employeeId], map: "payroll_runs_tenant_id_employee_key")
   @@index([tenantId])
   @@index([tenantId, payrollPeriodId])
   @@index([tenantId, employeeId])
@@ -1647,7 +1670,9 @@ model Liquidation {
   totalLiquidacion Decimal @db.Decimal(14, 2)
 
   concepts LiquidationConcept[]
+  employeeDisbursements EmployeeDisbursement[] @relation("LiquidationEmployeeDisbursement")
 
+  @@unique([tenantId, id, empleadoId], map: "liquidations_tenant_id_employee_key")
   @@index([tenantId])
   @@index([empleadoId])
   @@index([status])
@@ -1677,6 +1702,89 @@ model LiquidationConcept {
   @@index([liquidationId])
   @@index([codigo])
   @@map("liquidation_concepts")
+}
+
+// =============================================================================
+// EMPLOYEE DISBURSEMENT — Evidencia de pago a un empleado (ADR-026)
+// =============================================================================
+
+model EmployeeDisbursement {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Empleado @relation(fields: [employeeId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "employee_disbursements_employee_tenant_fkey")
+
+  // Exactly one source is required and enforced by the migration CHECK.
+  payrollRunId  String?
+  payrollRun    PayrollRun?  @relation("PayrollRunEmployeeDisbursement", fields: [tenantId, payrollRunId, employeeId], references: [tenantId, id, employeeId], onDelete: Restrict, map: "employee_disbursements_payroll_run_employee_fkey")
+  liquidationId String?
+  liquidation   Liquidation? @relation("LiquidationEmployeeDisbursement", fields: [tenantId, liquidationId, employeeId], references: [tenantId, id, empleadoId], onDelete: Restrict, map: "employee_disbursements_liquidation_employee_fkey")
+
+  amount         Decimal                    @db.Decimal(14, 2)
+  currency       String                     @default("COP") @db.Char(3)
+  paidAt         DateTime                   @db.Date
+  method         EmployeeDisbursementMethod
+  reference      String?                    @db.VarChar(128)
+  idempotencyKey String                     @db.VarChar(128)
+
+  status EmployeeDisbursementStatus @default(DECLARED)
+
+  supportStorageKey String?   @db.VarChar(512)
+  supportMimeType   String?   @db.VarChar(100)
+  supportSizeBytes  Int?
+  supportSha256     String?   @db.Char(64)
+  supportedAt       DateTime?
+
+  registeredByUserId String
+  registeredBy       User   @relation("EmployeeDisbursementRegisteredBy", fields: [tenantId, registeredByUserId], references: [tenantId, id], onDelete: Restrict, map: "employee_disbursements_registered_by_fkey")
+
+  verifiedByUserId String?
+  verifiedBy       User?     @relation("EmployeeDisbursementVerifiedBy", fields: [tenantId, verifiedByUserId], references: [tenantId, id], onDelete: Restrict, map: "employee_disbursements_verified_by_fkey")
+  verifiedAt       DateTime?
+
+  cancelledByUserId  String?
+  cancelledBy        User?     @relation("EmployeeDisbursementCancelledBy", fields: [tenantId, cancelledByUserId], references: [tenantId, id], onDelete: Restrict, map: "employee_disbursements_cancelled_by_fkey")
+  cancelledAt        DateTime?
+  cancellationReason String?   @db.VarChar(512)
+
+  reversals EmployeeDisbursementReversal[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, idempotencyKey])
+  @@unique([tenantId, supportStorageKey])
+  @@index([tenantId, employeeId, paidAt])
+  @@index([tenantId, payrollRunId, status])
+  @@index([tenantId, liquidationId, status])
+  @@map("employee_disbursements")
+}
+
+// Reversal is a new immutable financial fact, never an update to the payment.
+model EmployeeDisbursementReversal {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  disbursementId String
+  disbursement   EmployeeDisbursement @relation(fields: [tenantId, disbursementId], references: [tenantId, id], onDelete: Restrict, map: "employee_disbursement_reversals_disbursement_fkey")
+
+  amount         Decimal @db.Decimal(14, 2)
+  reason         String  @db.VarChar(512)
+  idempotencyKey String  @db.VarChar(128)
+
+  createdByUserId String
+  createdBy       User   @relation("EmployeeDisbursementReversalCreatedBy", fields: [tenantId, createdByUserId], references: [tenantId, id], onDelete: Restrict, map: "employee_disbursement_reversals_created_by_fkey")
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, disbursementId, createdAt])
+  @@map("employee_disbursement_reversals")
 }
 
 // =============================================================================

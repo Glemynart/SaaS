@@ -10,6 +10,7 @@ describe('CloudflareR2StorageProvider', () => {
   const accountId = '0123456789abcdef0123456789abcdef';
   const tenantId = '11111111-2222-4333-8444-555555555555';
   const tenantPrefix = `tenants/${tenantId}/pila-exports/`;
+  const disbursementPrefix = `tenants/${tenantId}/employee-disbursements/`;
   const environment = [
     'R2_ENDPOINT',
     'R2_ACCESS_KEY_ID',
@@ -221,12 +222,36 @@ describe('CloudflareR2StorageProvider', () => {
     ]);
   });
 
-  it('rechaza el listado de un prefijo no PILA antes de llamar R2', async () => {
+  it('lista el namespace de soportes de desembolso del tenant solicitado', async () => {
+    send.mockResolvedValueOnce({
+      Contents: [{ Key: `${disbursementPrefix}payment/proof.pdf`, Size: 24 }],
+      IsTruncated: false,
+    });
     const provider = new CloudflareR2StorageProvider();
 
-    await expect(provider.list('tenants/not-a-uuid/')).rejects.toThrow(
-      'storageKey inválida',
-    );
+    await expect(provider.list(disbursementPrefix)).resolves.toEqual([
+      { key: `${disbursementPrefix}payment/proof.pdf`, size: 24 },
+    ]);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(
+      send.mock.calls.map(
+        ([command]) => (command as ListObjectsV2Command).input,
+      ),
+    ).toEqual([
+      {
+        Bucket: 'test-r2_bucket',
+        Prefix: disbursementPrefix,
+        MaxKeys: 1000,
+      },
+    ]);
+  });
+
+  it('rechaza el listado de un namespace no autorizado antes de llamar R2', async () => {
+    const provider = new CloudflareR2StorageProvider();
+
+    await expect(
+      provider.list(`tenants/${tenantId}/documents/`),
+    ).rejects.toThrow('storageKey inválida');
     expect(send).not.toHaveBeenCalled();
   });
 
