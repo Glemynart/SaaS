@@ -39,6 +39,14 @@ describe('Employee disbursements PostgreSQL: RLS, audit, concurrency and N2D.4',
       if (!body) return Promise.reject(new Error('test support not found'));
       return Promise.resolve(body);
     }),
+    getObjectWithinPrefix: jest.fn((key: string, prefix: string) => {
+      if (!key.startsWith(prefix)) {
+        return Promise.reject(new Error('outside scoped prefix'));
+      }
+      const body = files.get(key);
+      if (!body) return Promise.reject(new Error('test support not found'));
+      return Promise.resolve(body);
+    }),
     deleteObject: jest.fn((key: string) => {
       files.delete(key);
       return Promise.resolve();
@@ -345,6 +353,8 @@ describe('Employee disbursements PostgreSQL: RLS, audit, concurrency and N2D.4',
 
   it('lista obligaciones y soportes dentro del tenant y reconcilia sin reparar objetos', async () => {
     storage.deleteObject.mockClear();
+    const generalReadsBefore = storage.getObject.mock.calls.length;
+    const scopedReadsBefore = storage.getObjectWithinPrefix.mock.calls.length;
     const run = await seedRun(tenantA, false);
     const payment = await withTenant(tenantA, userA, () =>
       createPayment(run.runId, '40000', 'reconcile-support-001'),
@@ -403,6 +413,17 @@ describe('Employee disbursements PostgreSQL: RLS, audit, concurrency and N2D.4',
     expect(storage.listObjects).toHaveBeenCalledWith(
       `tenants/${tenantA}/employee-disbursements/`,
     );
+    const reconciliationReads =
+      storage.getObjectWithinPrefix.mock.calls.slice(scopedReadsBefore);
+    expect(reconciliationReads.length).toBeGreaterThan(0);
+    expect(
+      reconciliationReads.every(
+        ([key, prefix]) =>
+          key.startsWith(prefix) &&
+          prefix === `tenants/${tenantA}/employee-disbursements/`,
+      ),
+    ).toBe(true);
+    expect(storage.getObject).toHaveBeenCalledTimes(generalReadsBefore);
     await expect(
       prisma.auditLog.count({
         where: {

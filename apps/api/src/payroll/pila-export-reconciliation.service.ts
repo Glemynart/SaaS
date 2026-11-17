@@ -121,7 +121,7 @@ export class PilaExportReconciliationService {
 
         let body: Buffer;
         try {
-          body = await this.storage.getObject(expectedKey);
+          body = await this.storage.getObjectWithinPrefix(expectedKey, prefix);
         } catch (error) {
           if (error instanceof StorageObjectNotFoundError) {
             findings.push({

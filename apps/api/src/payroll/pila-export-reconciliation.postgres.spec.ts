@@ -48,6 +48,14 @@ describe('PilaExportReconciliationService PostgreSQL', () => {
       if (!body) return Promise.reject(new StorageObjectNotFoundError(key));
       return Promise.resolve(body);
     }),
+    getObjectWithinPrefix: jest.fn((key: string, prefix: string) => {
+      if (!key.startsWith(prefix)) {
+        return Promise.reject(new Error('outside scoped prefix'));
+      }
+      const body = objects.get(key);
+      if (!body) return Promise.reject(new StorageObjectNotFoundError(key));
+      return Promise.resolve(body);
+    }),
     deleteObject: jest.fn((key: string) => {
       objects.delete(key);
       return Promise.resolve();
@@ -167,10 +175,11 @@ describe('PilaExportReconciliationService PostgreSQL', () => {
       `tenants/${tenantId}/pila-exports/`,
     );
     expect(
-      storage.getObject.mock.calls.some(([key]) =>
+      storage.getObjectWithinPrefix.mock.calls.some(([key]) =>
         key.startsWith(`tenants/${otherTenantId}/`),
       ),
     ).toBe(false);
+    expect(storage.getObject).not.toHaveBeenCalled();
     expect(storage.deleteObject).not.toHaveBeenCalled();
     expect([...objects.entries()].map(([key, body]) => [key, body])).toEqual(
       keysBefore,
