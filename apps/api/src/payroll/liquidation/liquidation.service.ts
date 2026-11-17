@@ -198,8 +198,10 @@ export class LiquidationService {
    *     período de retiro.
    *
    * No se analizan períodos anteriores ni se reconcilian históricos. Si no
-   * existe ningún período que contenga fechaRetiro, no hay marco temporal para
-   * determinar días pendientes y se retorna 0 (no se emite el concepto).
+   * existe un período que contenga fechaRetiro, la ventana del salario pendiente
+   * es el mes calendario de fechaRetiro; se acota desde fechaIngreso y se cuentan
+   * los días comerciales hasta el retiro inclusive. Si el intervalo no contiene
+   * días trabajados, se retorna 0 y no se emite el concepto.
    *
    * @param fechaRetiro - Último día trabajado (inclusivo) leído de la BD.
    */
@@ -221,7 +223,7 @@ export class LiquidationService {
       select: { id: true, status: true, fechaInicio: true },
     });
 
-    // Sin período → fallback: mes calendario de fechaRetiro como ventana.
+    // Sin período → usa el mes calendario de fechaRetiro como ventana.
     if (!periodo) {
       const inicioMes = new Date(
         Date.UTC(fechaRetiro.getUTCFullYear(), fechaRetiro.getUTCMonth(), 1),

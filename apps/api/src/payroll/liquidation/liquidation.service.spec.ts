@@ -126,7 +126,7 @@ describe('LiquidationService — validaciones de dominio', () => {
     mockEmpleadoFindFirst.mockResolvedValue(makeEmp());
     // Anti-duplicado: no hay DRAFT existente
     mockLiquidationFindFirst.mockResolvedValue(null);
-    // Sin período de retiro → resolución N2D.4 retorna 0
+    // Sin período de retiro → N2D.4 usa el fallback del mes calendario.
     mockPayrollPeriodFindFirst.mockResolvedValue(null);
     // La transacción devuelve una liquidación mínima
     mockPrisma.$transaction.mockImplementation(
