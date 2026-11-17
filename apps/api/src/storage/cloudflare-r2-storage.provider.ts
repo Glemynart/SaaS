@@ -3,6 +3,7 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
+  ListObjectsV2CommandOutput,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -16,6 +17,7 @@ import {
   StorageObjectNotFoundError,
   StorageProvider,
 } from './storage.types';
+import { createR2PilaPrefixCredentials } from './r2-pila-prefix-credentials';
 
 const R2_REQUIRED_ENVIRONMENT_VARIABLES = [
   'R2_ENDPOINT',
@@ -62,7 +64,7 @@ export class CloudflareR2StorageProvider implements StorageProvider {
 
     if (
       endpoint.protocol !== 'https:' ||
-      !endpoint.hostname.endsWith('.r2.cloudflarestorage.com') ||
+      !/^[a-f0-9]{32}\.r2\.cloudflarestorage\.com$/i.test(endpoint.hostname) ||
       endpoint.port !== '' ||
       endpoint.pathname !== '/' ||
       endpoint.username !== '' ||
@@ -185,28 +187,60 @@ export class CloudflareR2StorageProvider implements StorageProvider {
     this.validateConfiguration();
     this.validateKey(prefix);
 
+    const credentials = createR2PilaPrefixCredentials({
+      endpoint: process.env.R2_ENDPOINT!.trim(),
+      bucket: process.env.R2_BUCKET!,
+      parentAccessKeyId: process.env.R2_ACCESS_KEY_ID!,
+      parentSecretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+      prefix,
+    });
+    const scopedClient = new S3Client({
+      region: 'auto',
+      endpoint: process.env.R2_ENDPOINT!.trim(),
+      forcePathStyle: true,
+      credentials,
+    });
+
     const results: StorageObjectMetadata[] = [];
     let continuationToken: string | undefined;
-    do {
-      try {
-        const page = await this.client.send(
-          new ListObjectsV2Command({
-            Bucket: process.env.R2_BUCKET,
-            Prefix: prefix,
-            ContinuationToken: continuationToken,
-          }),
-        );
+    const seenContinuationTokens = new Set<string>();
+    try {
+      for (;;) {
+        let page: ListObjectsV2CommandOutput;
+        try {
+          page = await scopedClient.send(
+            new ListObjectsV2Command({
+              Bucket: process.env.R2_BUCKET,
+              Prefix: prefix,
+              MaxKeys: 1000,
+              ContinuationToken: continuationToken,
+            }),
+          );
+        } catch (error) {
+          throw this.translateError(error, prefix);
+        }
         for (const object of page.Contents ?? []) {
           if (!object.Key?.startsWith(prefix)) continue;
           results.push({ key: object.Key, size: object.Size ?? 0 });
         }
-        continuationToken = page.IsTruncated
-          ? page.NextContinuationToken
-          : undefined;
-      } catch (error) {
-        throw this.translateError(error, prefix);
+        if (!page.IsTruncated) break;
+
+        const nextToken = page.NextContinuationToken;
+        if (
+          !nextToken ||
+          nextToken === continuationToken ||
+          seenContinuationTokens.has(nextToken)
+        ) {
+          throw new CloudflareR2StorageUnavailableError(
+            'R2 devolvió una paginación incompleta o repetida',
+          );
+        }
+        seenContinuationTokens.add(nextToken);
+        continuationToken = nextToken;
       }
-    } while (continuationToken);
+    } finally {
+      scopedClient.destroy();
+    }
 
     return results.sort((left, right) => left.key.localeCompare(right.key));
   }

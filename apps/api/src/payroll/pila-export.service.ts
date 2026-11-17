@@ -336,6 +336,7 @@ export class PilaExportService {
     const type2StorageKey = `${keyPrefix}/type-2.txt`;
     const type1Sha256 = sha256(files.type1File);
     const type2Sha256 = sha256(files.type2File);
+    let persistenceAttempted = false;
 
     try {
       const type1Metadata = await this.storage.putObject({
@@ -359,6 +360,7 @@ export class PilaExportService {
         );
       }
 
+      persistenceAttempted = true;
       const persisted = await this.tenantPrisma.execute(async (tx) => {
         const existing = await tx.pilaExport.findUnique({
           where: {
@@ -472,9 +474,16 @@ export class PilaExportService {
       }
 
       // A connection failure while Prisma returns from COMMIT has an ambiguous
-      // outcome. Check by the attempt's random ID before deleting either file;
-      // if this read also fails, preserve both objects rather than risk breaking
-      // a row that may already have committed.
+      // outcome. Check by the attempt's random ID before returning a committed
+      // export. A missing row in this immediate read does not prove rollback:
+      // the original transaction may still finish after the read. Keep the
+      // objects whenever persistence was attempted so a late commit cannot
+      // leave a database row pointing at deleted files.
+      if (!persistenceAttempted || error instanceof ConflictException) {
+        await this.cleanupObjects(type1StorageKey, type2StorageKey);
+        throw error;
+      }
+
       const persisted = await this.tenantPrisma
         .execute((tx) =>
           tx.pilaExport.findUnique({
@@ -485,9 +494,6 @@ export class PilaExportService {
         .then((record) => ({ checked: true, record }))
         .catch(() => ({ checked: false, record: null }));
       if (persisted.record) return summarize(persisted.record);
-      if (persisted.checked) {
-        await this.cleanupObjects(type1StorageKey, type2StorageKey);
-      }
       throw error;
     }
   }

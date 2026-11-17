@@ -30,7 +30,7 @@ describe('PilaExportService PostgreSQL concurrency', () => {
     prisma,
     new TenantContextBoundary(contextService),
   );
-  const audit = new AuditService(prisma);
+  const audit = new AuditService(prisma, tenantPrisma, contextService);
   const context = {
     tenantId,
     userId,

@@ -32,7 +32,7 @@ describe('PilaExportReconciliationService PostgreSQL', () => {
     prisma,
     new TenantContextBoundary(contextService),
   );
-  const audit = new AuditService(prisma);
+  const audit = new AuditService(prisma, tenantPrisma, contextService);
   const objects = new Map<string, Buffer>();
   const storage = {
     listObjects: jest.fn((prefix: string) =>

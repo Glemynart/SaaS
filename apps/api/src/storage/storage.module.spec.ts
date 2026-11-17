@@ -99,7 +99,8 @@ describe('StorageModule', () => {
 
 function setR2Environment(provider: 'r2' | 'r2-migration'): void {
   process.env.STORAGE_PROVIDER = provider;
-  process.env.R2_ENDPOINT = 'https://account.r2.cloudflarestorage.com';
+  process.env.R2_ENDPOINT =
+    'https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com';
   process.env.R2_ACCESS_KEY_ID = 'access-key';
   process.env.R2_SECRET_ACCESS_KEY = 'secret-key';
   process.env.R2_BUCKET = 'documents';

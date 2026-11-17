@@ -1,4 +1,4 @@
-import { S3Client } from '@aws-sdk/client-s3';
+import { ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import { CloudflareR2StorageProvider } from './cloudflare-r2-storage.provider';
 import {
   CloudflareR2StorageConfigurationError,
@@ -7,6 +7,9 @@ import {
 } from './storage.types';
 
 describe('CloudflareR2StorageProvider', () => {
+  const accountId = '0123456789abcdef0123456789abcdef';
+  const tenantId = '11111111-2222-4333-8444-555555555555';
+  const tenantPrefix = `tenants/${tenantId}/pila-exports/`;
   const environment = [
     'R2_ENDPOINT',
     'R2_ACCESS_KEY_ID',
@@ -21,7 +24,7 @@ describe('CloudflareR2StorageProvider', () => {
       previous.set(name, process.env[name]);
       process.env[name] = `test-${name.toLowerCase()}`;
     }
-    process.env.R2_ENDPOINT = 'https://account.r2.cloudflarestorage.com';
+    process.env.R2_ENDPOINT = `https://${accountId}.r2.cloudflarestorage.com`;
     send = jest.spyOn(S3Client.prototype, 'send');
   });
 
@@ -139,19 +142,25 @@ describe('CloudflareR2StorageProvider', () => {
   });
 
   it.each([
-    ['rechaza HTTP', 'http://account.r2.cloudflarestorage.com'],
+    ['rechaza HTTP', `http://${accountId}.r2.cloudflarestorage.com`],
     ['rechaza host externo', 'https://attacker.example.invalid'],
     [
       'rechaza puerto personalizado',
-      'https://account.r2.cloudflarestorage.com:8443',
+      `https://${accountId}.r2.cloudflarestorage.com:8443`,
     ],
-    ['rechaza rutas', 'https://account.r2.cloudflarestorage.com/other'],
+    ['rechaza rutas', `https://${accountId}.r2.cloudflarestorage.com/other`],
     [
       'rechaza credenciales embebidas',
-      'https://user:password@account.r2.cloudflarestorage.com',
+      `https://user:password@${accountId}.r2.cloudflarestorage.com`,
     ],
-    ['rechaza query string', 'https://account.r2.cloudflarestorage.com/?x=1'],
-    ['rechaza fragmento', 'https://account.r2.cloudflarestorage.com/#fragment'],
+    [
+      'rechaza query string',
+      `https://${accountId}.r2.cloudflarestorage.com/?x=1`,
+    ],
+    [
+      'rechaza fragmento',
+      `https://${accountId}.r2.cloudflarestorage.com/#fragment`,
+    ],
   ])(
     'rechaza endpoint R2 inseguro antes de enviar solicitudes: %s',
     (_, endpoint) => {
@@ -177,22 +186,77 @@ describe('CloudflareR2StorageProvider', () => {
     send
       .mockResolvedValueOnce({
         Contents: [
-          { Key: 'tenants/t1/pila-exports/a/type-1.txt', Size: 10 },
-          { Key: 'tenants/t2/pila-exports/b/type-1.txt', Size: 20 },
+          { Key: `${tenantPrefix}a/type-1.txt`, Size: 10 },
+          {
+            Key: 'tenants/22222222-2222-4333-8444-555555555555/pila-exports/b/type-1.txt',
+            Size: 20,
+          },
         ],
         IsTruncated: true,
         NextContinuationToken: 'next-page',
       })
       .mockResolvedValueOnce({
-        Contents: [{ Key: 'tenants/t1/pila-exports/a/type-2.txt', Size: 12 }],
+        Contents: [{ Key: `${tenantPrefix}a/type-2.txt`, Size: 12 }],
         IsTruncated: false,
       });
     const provider = new CloudflareR2StorageProvider();
 
-    await expect(provider.list('tenants/t1/pila-exports/')).resolves.toEqual([
-      { key: 'tenants/t1/pila-exports/a/type-1.txt', size: 10 },
-      { key: 'tenants/t1/pila-exports/a/type-2.txt', size: 12 },
+    await expect(provider.list(tenantPrefix)).resolves.toEqual([
+      { key: `${tenantPrefix}a/type-1.txt`, size: 10 },
+      { key: `${tenantPrefix}a/type-2.txt`, size: 12 },
     ]);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(
+      send.mock.calls.map(
+        ([command]) => (command as ListObjectsV2Command).input,
+      ),
+    ).toEqual([
+      { Bucket: 'test-r2_bucket', Prefix: tenantPrefix, MaxKeys: 1000 },
+      {
+        Bucket: 'test-r2_bucket',
+        Prefix: tenantPrefix,
+        MaxKeys: 1000,
+        ContinuationToken: 'next-page',
+      },
+    ]);
+  });
+
+  it('rechaza el listado de un prefijo no PILA antes de llamar R2', async () => {
+    const provider = new CloudflareR2StorageProvider();
+
+    await expect(provider.list('tenants/not-a-uuid/')).rejects.toThrow(
+      'storageKey inválida',
+    );
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('falla de forma cerrada si una página truncada no trae token de continuación', async () => {
+    send.mockResolvedValueOnce({ Contents: [], IsTruncated: true });
+    const provider = new CloudflareR2StorageProvider();
+
+    await expect(provider.list(tenantPrefix)).rejects.toBeInstanceOf(
+      CloudflareR2StorageUnavailableError,
+    );
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('falla de forma cerrada si R2 repite un token de continuación', async () => {
+    send
+      .mockResolvedValueOnce({
+        Contents: [],
+        IsTruncated: true,
+        NextContinuationToken: 'repeated-page',
+      })
+      .mockResolvedValueOnce({
+        Contents: [],
+        IsTruncated: true,
+        NextContinuationToken: 'repeated-page',
+      });
+    const provider = new CloudflareR2StorageProvider();
+
+    await expect(provider.list(tenantPrefix)).rejects.toBeInstanceOf(
+      CloudflareR2StorageUnavailableError,
+    );
     expect(send).toHaveBeenCalledTimes(2);
   });
 });
