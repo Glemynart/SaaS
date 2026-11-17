@@ -33,6 +33,80 @@
   tercero empleado y centro de costo disponibles. Actualizar esa afirmación en
   la documentación de Payroll antes de integrar el diseño.
 
+## Catálogo contable verificado en el código
+
+La plantilla C0 y `DEFAULT_SYSTEM_ACCOUNT_MAPPINGS` contienen estos roles y
+códigos. Su existencia en la plantilla es un hecho del repositorio; no aprueba
+por sí sola su uso para desembolsos ni demuestra que cada tenant tenga una
+cuenta bancaria conciliada:
+
+| Uso actual o candidato           | Rol / cuenta                              | Código C0 | Evidencia y límite                                                                                                        |
+| -------------------------------- | ----------------------------------------- | --------: | ------------------------------------------------------------------------------------------------------------------------- |
+| Efectivo                         | `CAJA_GENERAL`                            |  `110505` | Mapeo de tesorería existente. No hay selección de caja por desembolso.                                                    |
+| Banco                            | `BANCO_PRINCIPAL`                         |  `111005` | Mapeo existente a Bancos moneda nacional. No identifica la cuenta bancaria concreta de origen.                            |
+| Pasivo neto de nómina            | `SALARIOS_POR_PAGAR`                      |  `250505` | La causación vigente lo acredita por tercero empleado; su uso para debitar pagos es candidato pendiente de aprobación.    |
+| Cesantías por pagar              | `PROVISION_CESANTIAS_POR_PAGAR`           |  `261005` | Rol usado por la causación de provisiones de nómina. No está asociado hoy a conceptos de `Liquidation`.                   |
+| Intereses de cesantías por pagar | `PROVISION_INTERESES_CESANTIAS_POR_PAGAR` |  `261010` | Mismo límite: existe en la causación de nómina, falta mapeo aprobado de finiquito.                                        |
+| Vacaciones por pagar             | `PROVISION_VACACIONES_POR_PAGAR`          |  `261015` | Mismo límite.                                                                                                             |
+| Prima por pagar                  | `PROVISION_PRIMA_POR_PAGAR`               |  `261020` | Mismo límite.                                                                                                             |
+| Gasto de sueldos                 | `GASTO_SUELDOS`                           |  `510506` | Usado por el mapper de causación de nómina.                                                                               |
+| Gasto de cesantías               | `GASTO_PROVISION_CESANTIAS`               |  `510530` | Usado por el mapper de provisiones de nómina.                                                                             |
+| Gasto de intereses de cesantías  | `GASTO_PROVISION_INTERESES_CESANTIAS`     |  `510533` | Usado por el mapper de provisiones de nómina.                                                                             |
+| Gasto de prima                   | `GASTO_PROVISION_PRIMA`                   |  `510536` | Usado por el mapper de provisiones de nómina.                                                                             |
+| Gasto de vacaciones              | `GASTO_PROVISION_VACACIONES`              |  `510539` | Usado por el mapper de provisiones de nómina.                                                                             |
+| Anticipo tributario              | `ANTICIPO_RETEFUENTE`                     |  `135515` | **No** es anticipo al empleado; el nombre C0 es Retención en la fuente (anticipo). No debe mapearse a pagos de empleados. |
+| Comprobante genérico de ajuste   | tipo `AJ`                                 |      `AJ` | Existe en C0 como “Comprobante de ajuste”; no está aprobado como tipo para pago o reverso de desembolso.                  |
+
+No se encontró un rol de cuenta para anticipos a empleados, ni un campo que
+vincule cada desembolso con una cuenta concreta de caja/banco. Tampoco existe
+una causación contable del agregado `Liquidation` (finiquito): tiene conceptos
+y valores, pero el código no resuelve cuentas por concepto ni crea el
+comprobante de causación. Por tanto, no se deben completar esos vacíos con
+`135515`, `AJ` o una cuenta elegida por el método de pago.
+
+## Matriz funcional y ejemplos aritméticos (sin autorización de posteo)
+
+Los importes de esta tabla son una ilustración matemática de saldo, no una
+política contable ni una instrucción ejecutable. Los asientos candidatos
+permanecen pendientes de aprobación de Contabilidad. La causación de nómina
+existente usa sus mappers y las cuentas de la tabla anterior; no debe duplicarse
+al contabilizar un desembolso. Para las filas de pagos y reversos, se supone
+que los importes citados fueron registrados y verificados, y que los reversos
+reducen la cobertura conforme al comportamiento actual; no se afirma que los
+fondos se hayan liquidado o devuelto realmente.
+
+| Evento / ejemplo                                              | Hecho que queda registrado                                                                                                                   | Cuenta/asiento candidato                                                                                                                                                                                                                              | Fecha y período                                                                                                                                                 | Auditoría / reverso                                                                                                                     |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Causación de nómina por COP 1.000.000 netos                   | El período `CAUSADA` tiene un comprobante `CAUSACION` de Payroll; el ejemplo es solo el componente neto por pagar.                           | El mapper vigente acredita `SALARIOS_POR_PAGAR` (`250505`) por tercero empleado. El débito total de causación incluye devengos, aportes y provisiones según Payroll; no se puede inferir del neto aislado.                                            | Fecha y período del comprobante de causación ya creado.                                                                                                         | AuditLog de la operación fuente y origen idempotente `PAYROLL / periodoId / CAUSACION`. No crear otro comprobante al registrar el pago. |
+| Desembolso completo por COP 1.000.000                         | Solo tras adjuntar soporte y verificación administrativa; `VERIFIED` no confirma liquidación bancaria.                                       | Candidato: débito `SALARIOS_POR_PAGAR` (`250505`) y crédito a la cuenta real de fondos. No se postea hasta decidir banco/caja y tipo de comprobante.                                                                                                  | `paidAt` es la fecha declarada; si su período está cerrado, bloquear hasta regla de regularización aprobada. `verifiedAt` no sustituye la fecha del movimiento. | Origen candidato `EMPLOYEE_DISBURSEMENT / disbursementId / PAGO`; reverso contable solo si se confirma retorno de fondos.               |
+| Primer desembolso parcial por COP 400.000 sobre COP 1.000.000 | Saldo aritmético no cubierto: COP 600.000.                                                                                                   | Mismo asiento candidato por COP 400.000; pendiente aprobación.                                                                                                                                                                                        | `paidAt`, sujeto a período abierto y a la decisión de fecha.                                                                                                    | Una operación idempotente por desembolso; no tocar el comprobante de causación.                                                         |
+| Segundo desembolso por COP 350.000                            | Total declarado/verificado COP 750.000; saldo aritmético no cubierto COP 250.000.                                                            | Mismo asiento candidato por COP 350.000; no exceder saldo pendiente.                                                                                                                                                                                  | Igual regla; la fecha propia de cada pago.                                                                                                                      | Segundo origen distinto para el segundo desembolso. Los dos comprobantes no se consolidan sobrescribiendo el primero.                   |
+| Reverso parcial de COP 100.000 del primer pago                | Cobertura aritmética neta pasa de COP 750.000 a COP 650.000; saldo no cubierto pasa a COP 350.000.                                           | No hay asiento autorizado. Si hubo devolución efectiva, el candidato compensa el importe contra las mismas cuentas del pago original; si solo se corrige el soporte, no debe afirmar devolución de dinero. El esquema actual no distingue esos casos. | Período abierto autorizado para el reverso; no modificar el original ni reabrir el período.                                                                     | Evento de reverso idempotente relacionado con el comprobante original; decisión pendiente sobre evidencia y aprobación.                 |
+| Reverso total de los COP 350.000 del segundo pago             | Tras reversar íntegramente el segundo pago y mantener el reverso parcial anterior, cobertura neta aritmética COP 300.000; saldo COP 700.000. | No hay asiento autorizado; compensatorio candidato por COP 350.000 solo si retornaron los fondos.                                                                                                                                                     | Igual regla del reverso parcial.                                                                                                                                | Append-only y enlazado al pago original; el estado histórico queda preservado.                                                          |
+| Pago declarado el 31-oct y verificado el 02-nov               | La fecha de evidencia y la fecha de revisión son distintas; verificar después no cambia el día real declarado.                               | No generar asiento por la mera verificación. Si octubre está cerrado, no postear automáticamente en noviembre ni alterar octubre.                                                                                                                     | `paidAt` candidato para fecha contable; `verifiedAt` solo fecha de control. Una regularización en período abierto requiere política aprobada.                   | Conservar ambas fechas. AuditLog registra la verificación; no constituye confirmación bancaria.                                         |
+
+La cuenta de salida debe seleccionarse o mapearse por configuración tenant-scoped
+aprobada, no derivarse de `BANK_TRANSFER`, `CASH`, `CHECK` o `OTHER`. La
+distinción entre `FUNDS_RETURNED` y `EVIDENCE_CORRECTION`, el tipo documental,
+la fecha de un ajuste tardío y la segregación de funciones siguen siendo
+decisiones contables/operativas pendientes.
+
+## Evidencia técnica para concurrencia
+
+El servicio de desembolsos usa una transacción tenant-aware y bloquea la
+obligación fuente antes de volver a leerla y calcular el saldo. PostgreSQL 17
+documenta que `SELECT ... FOR UPDATE` mantiene el bloqueo de fila hasta el fin
+de la transacción y que el segundo solicitante espera y ve la fila confirmada
+actualizada bajo `READ COMMITTED`. Esto respalda el patrón, pero no sustituye
+una prueba concurrente real para la futura operación de posteo Ledger. Prisma
+ORM v6 permite configurar el nivel de aislamiento de una transacción
+interactiva; cualquier estrategia de reintento ante conflicto/deadlock debe
+repetir la transacción completa y solo para errores transitorios identificados.
+
+Referencias oficiales: [Prisma ORM v6 — Transactions](https://www.prisma.io/docs/orm/v6/prisma-client/queries/transactions),
+[PostgreSQL 17 — Explicit Locking](https://www.postgresql.org/docs/17/explicit-locking.html),
+[PostgreSQL 17 — Transaction Isolation](https://www.postgresql.org/docs/17/transaction-iso.html).
+
 ## Alternativas
 
 ### A. Mantener los desembolsos fuera de Ledger
