@@ -23,7 +23,7 @@ describe('AuthorizationSurfaceClassifier', () => {
   it('classifies the complete current HTTP surface without ambiguity', () => {
     const operations = classifier.classifyModuleGraph(AppModule);
 
-    expect(operations).toHaveLength(223);
+    expect(operations).toHaveLength(233);
     expect(new Set(operations.map(({ operationId }) => operationId)).size).toBe(
       operations.length,
     );
@@ -88,6 +88,63 @@ describe('AuthorizationSurfaceClassifier', () => {
       requiresActiveTenant: true,
       status: AuthorizationClassificationStatus.CLASSIFIED,
     });
+
+    const disbursementPolicies = [
+      [
+        'EmployeeDisbursementController.listObligations',
+        'GET',
+        [UserRole.ADMIN, UserRole.OPERADOR],
+      ],
+      [
+        'EmployeeDisbursementController.listPendingVerification',
+        'GET',
+        [UserRole.ADMIN, UserRole.OPERADOR],
+      ],
+      [
+        'EmployeeDisbursementController.create',
+        'POST',
+        [UserRole.ADMIN, UserRole.OPERADOR],
+      ],
+      [
+        'EmployeeDisbursementController.getSummary',
+        'GET',
+        [UserRole.ADMIN, UserRole.OPERADOR],
+      ],
+      [
+        'EmployeeDisbursementController.attachSupport',
+        'POST',
+        [UserRole.ADMIN, UserRole.OPERADOR],
+      ],
+      ['EmployeeDisbursementController.verify', 'POST', [UserRole.ADMIN]],
+      [
+        'EmployeeDisbursementController.cancel',
+        'POST',
+        [UserRole.ADMIN, UserRole.OPERADOR],
+      ],
+      ['EmployeeDisbursementController.reverse', 'POST', [UserRole.ADMIN]],
+      [
+        'EmployeeDisbursementController.downloadSupport',
+        'GET',
+        [UserRole.ADMIN, UserRole.OPERADOR],
+      ],
+      [
+        'EmployeeDisbursementReconciliationController.reconcileSupports',
+        'POST',
+        [UserRole.ADMIN],
+      ],
+    ] as const;
+    for (const [operationId, requestMethod, roles] of disbursementPolicies) {
+      expect(
+        operations.find((operation) => operation.operationId === operationId),
+      ).toMatchObject({
+        requestMethod,
+        policy: AuthorizationPolicyKind.RBAC,
+        roles,
+        requiresAuthentication: true,
+        requiresActiveTenant: true,
+        status: AuthorizationClassificationStatus.CLASSIFIED,
+      });
+    }
 
     for (const expected of [
       {
@@ -177,11 +234,11 @@ describe('AuthorizationSurfaceClassifier', () => {
     expect(countBy(operations, 'policy')).toEqual({
       [AuthorizationPolicyKind.UNAUTHENTICATED]: 12,
       [AuthorizationPolicyKind.AUTHENTICATED]: 66,
-      [AuthorizationPolicyKind.RBAC]: 145,
+      [AuthorizationPolicyKind.RBAC]: 155,
     });
     expect(countBy(operations, 'source')).toEqual({
       [AuthorizationClassificationSource.EXPLICIT]: 78,
-      [AuthorizationClassificationSource.EXISTING_RBAC]: 145,
+      [AuthorizationClassificationSource.EXISTING_RBAC]: 155,
     });
     expect(
       operations.filter(

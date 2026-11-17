@@ -71,6 +71,24 @@ jobs:
       - name: Prepare database
         run: |
           pnpm --filter @saas/api exec prisma generate
+          docker exec "${{ job.services.postgres.id }}" \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d saas_e2e \
+            -c 'CREATE ROLE saas_ci_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS'
+          docker exec "${{ job.services.postgres.id }}" \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d saas_e2e \
+            -c "COMMENT ON ROLE saas_ci_runtime IS 'dusema:goal01-staging-runtime'"
+          docker exec "${{ job.services.postgres.id }}" \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d saas_e2e \
+            -c 'GRANT CONNECT ON DATABASE saas_e2e TO saas_ci_runtime'
+          docker exec "${{ job.services.postgres.id }}" \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d saas_e2e \
+            -c 'GRANT USAGE ON SCHEMA public TO saas_ci_runtime'
+          docker exec "${{ job.services.postgres.id }}" \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d saas_e2e \
+            -c 'ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO saas_ci_runtime'
+          docker exec "${{ job.services.postgres.id }}" \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d saas_e2e \
+            -c 'ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO saas_ci_runtime'
           pnpm --filter @saas/api exec prisma migrate deploy
           docker exec -i \
             -e AUDIT_LOG_SIGNING_KEY="$AUDIT_LOG_SIGNING_KEY" \
