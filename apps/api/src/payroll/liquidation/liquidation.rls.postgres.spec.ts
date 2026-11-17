@@ -7,6 +7,7 @@ import {
   TenantPrismaService,
 } from '../../tenant-prisma/tenant-prisma.service';
 import { LiquidationService } from './liquidation.service';
+import { EmployeeDisbursementService } from '../disbursements/employee-disbursement.service';
 
 describe('Liquidation PostgreSQL RLS', () => {
   const suffix = randomUUID();
@@ -25,9 +26,21 @@ describe('Liquidation PostgreSQL RLS', () => {
     { $transaction: runAsRlsRole } as unknown as PrismaService,
     new TenantContextBoundary(tenantContext),
   );
-  const service = new LiquidationService(prisma, tenantPrisma, {
-    log: jest.fn().mockResolvedValue(undefined),
-  } as never);
+  const service = new LiquidationService(
+    prisma,
+    tenantPrisma,
+    {
+      log: jest.fn().mockResolvedValue(undefined),
+    } as never,
+    {
+      getPayrollRunNetVerifiedAmount: jest.fn().mockResolvedValue({
+        gt: () => false,
+      }),
+      getLiquidationNetVerifiedAmount: jest.fn().mockResolvedValue({
+        gt: () => false,
+      }),
+    } as unknown as EmployeeDisbursementService,
+  );
 
   beforeAll(async () => {
     await prisma.$connect();
@@ -37,7 +50,7 @@ describe('Liquidation PostgreSQL RLS', () => {
     );
     await prisma.$executeRawUnsafe(`GRANT USAGE ON SCHEMA public TO "${role}"`);
     await prisma.$executeRawUnsafe(
-      `GRANT SELECT ON TABLE "empleados" TO "${role}"`,
+      `GRANT SELECT, UPDATE ON TABLE "empleados" TO "${role}"`,
     );
     await prisma.$executeRawUnsafe(
       `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "liquidations" TO "${role}"`,

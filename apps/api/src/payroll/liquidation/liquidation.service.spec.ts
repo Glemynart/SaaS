@@ -9,6 +9,7 @@ import { LiquidationService } from './liquidation.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TenantPrismaService } from '../../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../../audit/audit.service';
+import { EmployeeDisbursementService } from '../disbursements/employee-disbursement.service';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,12 @@ const mockLiquidationCount = jest.fn();
 const mockPayrollPeriodFindFirst = jest.fn();
 const mockPayrollRunFindFirst = jest.fn();
 const mockPayrollPilaEventFindFirst = jest.fn();
+const mockPayrollVerifiedAmount = jest
+  .fn()
+  .mockResolvedValue(new Prisma.Decimal(0));
+const mockLiquidationVerifiedAmount = jest
+  .fn()
+  .mockResolvedValue(new Prisma.Decimal(0));
 
 const mockPrisma = {
   empleado: { findFirst: mockEmpleadoFindFirst },
@@ -84,6 +91,7 @@ describe('LiquidationService — validaciones de dominio', () => {
     mockPayrollRunFindFirst.mockResolvedValue(null);
     mockPayrollPilaEventFindFirst.mockResolvedValue(null);
     mockPrisma.$queryRaw.mockResolvedValue([]);
+    mockLiquidationVerifiedAmount.mockResolvedValue(new Prisma.Decimal(0));
 
     const module = await Test.createTestingModule({
       providers: [
@@ -91,6 +99,13 @@ describe('LiquidationService — validaciones de dominio', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TenantPrismaService, useValue: mockTenantPrisma },
         { provide: AuditService, useValue: mockAudit },
+        {
+          provide: EmployeeDisbursementService,
+          useValue: {
+            getPayrollRunNetVerifiedAmount: mockPayrollVerifiedAmount,
+            getLiquidationNetVerifiedAmount: mockLiquidationVerifiedAmount,
+          },
+        },
       ],
     }).compile();
 
@@ -210,8 +225,7 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
   let service: LiquidationService;
 
   // Retiro a mitad del período de diciembre: 15 días comerciales trabajados.
-  // status base = BORRADOR: no procesado bajo la máquina de estados P1/U1
-  // (ver PERIODOS_PROCESADOS en liquidation.service.ts).
+  // El período BORRADOR conserva el bloqueo mientras la nómina no se apruebe.
   const PERIODO_DIC = {
     id: 'per-dic',
     status: 'BORRADOR' as const,
@@ -250,6 +264,8 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPayrollVerifiedAmount.mockResolvedValue(new Prisma.Decimal(0));
+    mockLiquidationVerifiedAmount.mockResolvedValue(new Prisma.Decimal(0));
     mockPayrollRunFindFirst.mockResolvedValue(null);
     mockPayrollPilaEventFindFirst.mockResolvedValue(null);
     mockPrisma.$queryRaw.mockResolvedValue([]);
@@ -260,35 +276,48 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TenantPrismaService, useValue: mockTenantPrisma },
         { provide: AuditService, useValue: mockAudit },
+        {
+          provide: EmployeeDisbursementService,
+          useValue: {
+            getPayrollRunNetVerifiedAmount: mockPayrollVerifiedAmount,
+            getLiquidationNetVerifiedAmount: mockLiquidationVerifiedAmount,
+          },
+        },
       ],
     }).compile();
 
     service = module.get(LiquidationService);
   });
 
-  it('período APROBADA con PayrollRun del empleado → NO emite salario pendiente', async () => {
+  it('período APROBADA sin desembolso verificado conserva todos los días pendientes', async () => {
     mockPayrollPeriodFindFirst.mockResolvedValue({
       ...PERIODO_DIC,
       status: 'APROBADA',
     });
-    mockPayrollRunFindFirst.mockResolvedValue({ id: 'run-1' });
+    mockPayrollRunFindFirst.mockResolvedValue({
+      id: 'run-1',
+      netoPagar: new Prisma.Decimal(100_000),
+    });
 
     const data = await runAndCaptureCreateData();
 
-    expect(salarioPendienteConcept(data)).toBeUndefined();
+    expect(salarioPendienteConcept(data)?.factor).toBeCloseTo(15 / 30, 6);
     expect(mockPayrollRunFindFirst).toHaveBeenCalled();
   });
 
-  it('período CAUSADA con PayrollRun del empleado → NO emite salario pendiente', async () => {
+  it('período CAUSADA sin desembolso verificado conserva todos los días pendientes', async () => {
     mockPayrollPeriodFindFirst.mockResolvedValue({
       ...PERIODO_DIC,
       status: 'CAUSADA',
     });
-    mockPayrollRunFindFirst.mockResolvedValue({ id: 'run-1' });
+    mockPayrollRunFindFirst.mockResolvedValue({
+      id: 'run-1',
+      netoPagar: new Prisma.Decimal(100_000),
+    });
 
     const data = await runAndCaptureCreateData();
 
-    expect(salarioPendienteConcept(data)).toBeUndefined();
+    expect(salarioPendienteConcept(data)?.factor).toBeCloseTo(15 / 30, 6);
   });
 
   it('período APROBADA pero SIN PayrollRun del empleado → emite días trabajados', async () => {
@@ -306,7 +335,7 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
     expect(concept!.factor).toBeCloseTo(15 / 30, 6);
   });
 
-  it('período CERRADA (legado, backfill de CLOSED) con PayrollRun → NO emite salario pendiente', async () => {
+  it('período CERRADA sin desembolso verificado conserva todos los días pendientes', async () => {
     // Regresión H1: antes de la corrección, esta rama nunca se ejecutaba
     // porque ningún PayrollPeriod vuelve a estar en CLOSED tras el backfill
     // de U1 — los períodos legados quedan en CERRADA, no en APROBADA.
@@ -314,12 +343,53 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
       ...PERIODO_DIC,
       status: 'CERRADA',
     });
-    mockPayrollRunFindFirst.mockResolvedValue({ id: 'run-1' });
+    mockPayrollRunFindFirst.mockResolvedValue({
+      id: 'run-1',
+      netoPagar: new Prisma.Decimal(100_000),
+    });
+
+    const data = await runAndCaptureCreateData();
+
+    expect(salarioPendienteConcept(data)?.factor).toBeCloseTo(15 / 30, 6);
+    expect(mockPayrollRunFindFirst).toHaveBeenCalled();
+  });
+
+  it('desembolso verificado completo elimina salario pendiente del mes', async () => {
+    mockPayrollPeriodFindFirst.mockResolvedValue({
+      ...PERIODO_DIC,
+      status: 'CAUSADA',
+    });
+    mockPayrollRunFindFirst.mockResolvedValue({
+      id: 'run-verified',
+      netoPagar: new Prisma.Decimal(100_000),
+    });
+    mockPayrollVerifiedAmount.mockResolvedValue(new Prisma.Decimal(100_000));
 
     const data = await runAndCaptureCreateData();
 
     expect(salarioPendienteConcept(data)).toBeUndefined();
-    expect(mockPayrollRunFindFirst).toHaveBeenCalled();
+    expect(mockPayrollVerifiedAmount).toHaveBeenCalledWith(
+      mockPrisma,
+      'tenant-1',
+      'run-verified',
+    );
+  });
+
+  it('desembolso verificado parcial bloquea porque no existe equivalencia aprobada a días', async () => {
+    mockPayrollPeriodFindFirst.mockResolvedValue({
+      ...PERIODO_DIC,
+      status: 'CAUSADA',
+    });
+    mockPayrollRunFindFirst.mockResolvedValue({
+      id: 'run-partial',
+      netoPagar: new Prisma.Decimal(100_000),
+    });
+    mockPayrollVerifiedAmount.mockResolvedValue(new Prisma.Decimal(50_000));
+
+    await expect(
+      service.createLiquidacion('tenant-1', 'user-1', 'emp-001'),
+    ).rejects.toThrow(ConflictException);
+    expect(mockPrisma.liquidation.create).not.toHaveBeenCalled();
   });
 
   it('período BORRADOR sin PayrollRun → emite días trabajados', async () => {
@@ -336,7 +406,7 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
         employeeId: 'emp-001',
         payrollPeriodId: PERIODO_DIC.id,
       },
-      select: { id: true },
+      select: { id: true, netoPagar: true },
     });
   });
 
@@ -467,6 +537,8 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPrisma.$queryRaw.mockResolvedValue([{ id: 'emp-001' }]);
+    mockLiquidationVerifiedAmount.mockResolvedValue(new Prisma.Decimal(0));
 
     const module = await Test.createTestingModule({
       providers: [
@@ -474,6 +546,13 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TenantPrismaService, useValue: mockTenantPrisma },
         { provide: AuditService, useValue: mockAudit },
+        {
+          provide: EmployeeDisbursementService,
+          useValue: {
+            getPayrollRunNetVerifiedAmount: mockPayrollVerifiedAmount,
+            getLiquidationNetVerifiedAmount: mockLiquidationVerifiedAmount,
+          },
+        },
       ],
     }).compile();
 
@@ -671,6 +750,22 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
     expect(result.status).toBe('VOIDED');
   });
 
+  it('no anula una liquidación mientras conserve desembolsos verificados', async () => {
+    mockLiquidationFindFirst.mockResolvedValue(makeLiq('APPROVED'));
+    mockLiquidationVerifiedAmount.mockResolvedValue(new Prisma.Decimal(25_000));
+
+    await expect(service.voidLiquidation(TENANT, USER, LIQ_ID)).rejects.toThrow(
+      /revierta primero los desembolsos/i,
+    );
+
+    expect(mockLiquidationUpdateMany).not.toHaveBeenCalled();
+    expect(mockLiquidationVerifiedAmount).toHaveBeenCalledWith(
+      mockPrisma,
+      TENANT,
+      LIQ_ID,
+    );
+  });
+
   it('DRAFT → VOIDED: registra auditoría LIQUIDATION_VOIDED', async () => {
     mockLiquidationFindFirst
       .mockResolvedValueOnce(makeLiq('DRAFT'))
@@ -839,6 +934,8 @@ describe('LiquidationService — concurrencia y lectura (N2D.6)', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPrisma.$queryRaw.mockResolvedValue([{ id: 'emp-001' }]);
+    mockLiquidationVerifiedAmount.mockResolvedValue(new Prisma.Decimal(0));
 
     const module = await Test.createTestingModule({
       providers: [
@@ -846,6 +943,13 @@ describe('LiquidationService — concurrencia y lectura (N2D.6)', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TenantPrismaService, useValue: mockTenantPrisma },
         { provide: AuditService, useValue: mockAudit },
+        {
+          provide: EmployeeDisbursementService,
+          useValue: {
+            getPayrollRunNetVerifiedAmount: mockPayrollVerifiedAmount,
+            getLiquidationNetVerifiedAmount: mockLiquidationVerifiedAmount,
+          },
+        },
       ],
     }).compile();
 

@@ -3067,3 +3067,10 @@ auditoría atómica. Los movimientos contables del desembolso permanecen fuera
 del incremento hasta que Contabilidad defina las cuentas, fecha de registro y
 comportamiento frente a períodos cerrados. El cambio todavía debe pasar la
 revisión de RLS firmado introducido por el PR #391 antes de considerarse listo.
+
+La recuperación local de la implementación de ADR-026 está en curso sobre una
+rama separada basada en `main`. Incluye declaración, soporte privado,
+verificación administrativa, reversos append-only y cobertura N2D.4. El código
+no se considera integrado ni listo para producción hasta verificar las nuevas
+políticas RLS contra el contexto firmado de `main`, aplicar la migración en una
+base PostgreSQL desechable y completar las pruebas de interfaz y autorización.
