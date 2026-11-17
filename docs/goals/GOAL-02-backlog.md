@@ -3057,47 +3057,52 @@ ni se verificó una cuenta R2 real.
 
 ### Cobertura salarial mediante desembolsos verificados — GOAL-02 (2026-11-17)
 
-La regla funcional aprobada para N2D.4 es que solo cuenta como salario cubierto
-el importe de un desembolso con soporte privado revisado y verificado
-explícitamente por un ADMIN autorizado. Aprobación o causación de nómina,
-declaración manual `PAID` y soporte pendiente no prueban el desembolso. La
-verificación administrativa tampoco confirma una transferencia bancaria.
+La regla aprobada para N2D.4 es que solo cuenta como salario cubierto el importe
+respaldado por soporte privado revisado y verificado por un ADMIN autorizado.
+Aprobación o causación de nómina, declaración manual `PAID` y soporte pendiente
+no prueban el desembolso. La verificación administrativa tampoco confirma que
+un banco haya ejecutado la transferencia.
 
-Los pagos parciales y múltiples se registran por separado y se acumulan. Sin
-una regla laboral aprobada para distribuirlos en días, el cálculo de liquidación
-falla cerrado cuando queda cobertura parcial; el dinero no se convierte en
-días. Los reversos son registros append-only. Recibos de clientes no se
-reutilizan.
+Los pagos parciales y múltiples se registran por separado y se acumulan. Sin una
+regla laboral aprobada para distribuir importes en días, la liquidación falla
+cerrada cuando queda cobertura parcial; el dinero no se convierte en días. Los
+reversos son eventos append-only vinculados al desembolso original. No se
+reutilizan recibos de clientes.
 
-ADR-026 define una entidad tenant-scoped para una obligación de nómina o
-liquidación, con claves idempotentes, soporte privado, revisión explícita y
-AuditLog atómico. Las políticas RLS usan el tenant firmado de
-`audit_private.current_tenant_id()`. Una prueba PostgreSQL real rechaza acceso
-cuando solo se falsifica el GUC mutable. La migración también protege el
-historial y restringe privilegios destructivos del runtime.
+ADR-026 define una entidad tenant-scoped para exactamente una obligación de
+nómina o liquidación, con claves idempotentes, soporte privado, revisión
+explícita y AuditLog atómico. Las políticas RLS usan
+`audit_private.current_tenant_id()` y una prueba PostgreSQL real rechaza acceso
+cuando solo se falsifica el GUC mutable. El runtime no tiene privilegios
+destructivos sobre el historial.
 
-La base API y su migración se integraron en `main` mediante el PR #395
-(merge SHA `2be8c6bd`); sus checks post-merge de CI y Browser E2E pasaron. La
-ejecución Browser no publicó artifacts. El merge generó automáticamente un
-deployment Production de Vercel para la aplicación web; ese deployment no
-representa una publicación de la API del VPS. No se publicó una imagen API, no
-se ejecutó una migración productiva ni se hizo un despliegue manual. El uso y la
-facturación de Vercel no están verificados.
+#### API integrado primero — PR #395
 
-El PR #394 ahora contiene el UI y el BFF, actualizado con `main` en
-`c58a8dd8`. CI, Browser E2E, Vercel Preview y Vercel Preview Comments están
-verdes; Browser E2E no publicó artifacts. El PR permanece abierto para evitar
-que la interfaz invoque rutas que la API actualmente ejecutada aún no ofrece.
-Integrarlo requiere primero un release coordinado y aprobado de API y esquema;
-ninguna migración o actualización de la API productiva se ha ejecutado.
+El incremento de API y migración se integró en `main` mediante PR #395, merge
+`2be8c6bd58751ae10d156f94d491f489565636cd`. La implementación cubre
+declaraciones, soporte privado, verificación, cancelación, reversos append-only
+y reconciliación diagnóstica; esta última no repara ni elimina objetos. La
+migración se validó localmente en PostgreSQL 17.11 desechable y CI pasó 184
+suites/2.291 pruebas, typecheck, validación Prisma y build. CI y Browser E2E
+posteriores al merge también pasaron; Browser no generó artifacts. La migración
+no se ha aplicado a producción.
 
-La migración se probó en PostgreSQL 17.11 desechable desde base vacía y con las
-migraciones anteriores. Se validó con un runtime de prueba sin
-`SUPERUSER`, `BYPASSRLS` ni membresías; el runtime conserva `SELECT`/`INSERT`/
-`UPDATE` sobre desembolsos y solo `SELECT`/`INSERT` sobre reversos, sin
-`DELETE`/`TRUNCATE`. La CI del PR incluye la preparación del rol marcado que
-requiere la migración. Los resultados del PR no sustituyen la validación del
-usuario y privilegios reales de producción antes de aplicar la migración.
+El merge activó automáticamente un deployment Production de Vercel para el SHA
+`2be8c6bd`. No cambió archivos web, el deployment terminó success y no se
+realizó un despliegue manual. No se verificaron facturación ni consumo.
+
+#### Interfaz y BFF — PR #394
+
+La interfaz para declarar desembolsos, adjuntar soporte, verificar, cancelar y
+consultar obligaciones sigue en PR #394. La rama incluye página, BFF, workspace,
+pruebas de servicio y smoke E2E. Antes de actualizarla, sus checks habían
+aprobado 184 suites/2.291 pruebas y Browser E2E; `no-browser-evidence` omitió la
+carga de artifacts. El Preview de Vercel quedó READY. La rama ya se sincronizó
+localmente con el nuevo `main`; tras publicar la actualización, deben repetirse
+los checks. No se debe fusionar la interfaz hasta verificar la liberación del
+API y su esquema.
+
+#### R2 y operación de producción
 
 El endpoint de reconciliación solo diagnostica y audita; no repara ni borra
 objetos. El código genera credenciales temporales R2 de 15 minutos separadas:
@@ -3107,13 +3112,18 @@ usa las credenciales generales del cliente de almacenamiento. La documentación
 oficial de Cloudflare confirma los campos `actions`, `paths.prefixPaths`, el
 formato de token y ambas acciones; no se usaron credenciales reales ni se
 verificó el alcance de la clave padre contra una cuenta R2.
+El soporte de lectura tenant-scoped se integró por PR #397 (merge SHA
+`686a4f60`). Los checks de CI y Browser E2E post-merge terminaron en verde;
+Browser omitió la carga y no dejó artifacts. Vercel registró un deployment
+Production exitoso de la aplicación web; no representa un release del API del
+VPS. No se publicó una imagen API ni se ejecutó una migración productiva. El
+consumo y la facturación de Vercel no están verificados.
 
 Pendiente antes de liberar en producción: que el preflight de identidad y
 privilegios del rol runtime pase en el entorno objetivo; ejecutar la migración
 solo mediante un procedimiento aprobado; desplegar la API compatible y comprobar
 health checks, endpoints, RLS y soporte privado; y después integrar el UI. La
-contabilización de pagos
-permanece fuera del incremento: ADR-027 documenta cuentas reales y ejemplos,
-pero requiere decisión de Contabilidad/Producto/Nómina sobre cuenta de salida,
-tipo de comprobante, fecha/período cerrado, conceptos de liquidación y
-semántica/evidencia de reversos.
+contabilización de pagos permanece fuera del incremento: ADR-027 documenta
+cuentas reales y ejemplos, pero requiere decisión de Contabilidad/Producto/Nómina
+sobre cuenta de salida, tipo de comprobante, fecha/período cerrado, conceptos de
+liquidación y semántica/evidencia de reversos.

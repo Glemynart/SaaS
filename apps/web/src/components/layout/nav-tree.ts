@@ -72,6 +72,7 @@ export const NAV_TREE: NavItem[] = [
     group: 'Procesos',
     children: [
       { label: 'Períodos', href: '/nomina/periodos' },
+      { label: 'Desembolsos', href: '/nomina/desembolsos', requiredRole: ['ADMIN', 'OPERADOR'] },
       {
         label: 'Prima de servicios',
         href: '/nomina/prima',
