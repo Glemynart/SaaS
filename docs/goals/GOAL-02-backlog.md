@@ -3048,53 +3048,67 @@ ni se verificó una cuenta R2 real.
 
 ### Cobertura salarial mediante desembolsos verificados — GOAL-02 (2026-11-17)
 
-La decisión funcional para N2D.4 ya está aprobada: solo el importe de un
-desembolso que tenga soporte privado y haya sido verificado explícitamente por
-un ADMIN autorizado cuenta como salario cubierto. La causación `CAUSADA`, la
-aprobación `APROBADA`, una declaración manual `PAID` y un soporte sin revisar no
-son evidencia de desembolso verificado.
+La regla aprobada para N2D.4 es que solo cuenta como salario cubierto el importe
+respaldado por soporte privado revisado y verificado por un ADMIN autorizado.
+Aprobación o causación de nómina, declaración manual `PAID` y soporte pendiente
+no prueban el desembolso. La verificación administrativa tampoco confirma que
+un banco haya ejecutado la transferencia.
 
-Los pagos parciales o múltiples se registran por separado. Si la suma verificada
-no cubre exactamente el neto de nómina, el cálculo de días pendientes falla
-cerrado; no se convierten pesos parciales a días sin una regla laboral aprobada.
-Los reversos son eventos append-only vinculados al desembolso original. La
-verificación administrativa expresa revisión de evidencia, no confirma que un
-banco haya ejecutado la transferencia. Los recibos de clientes no se reutilizan.
+Los pagos parciales y múltiples se registran por separado y se acumulan. Sin una
+regla laboral aprobada para distribuir importes en días, la liquidación falla
+cerrada cuando queda cobertura parcial; el dinero no se convierte en días. Los
+reversos son eventos append-only vinculados al desembolso original. No se
+reutilizan recibos de clientes.
 
-La primera entrega usa una entidad independiente asociada a exactamente una
-obligación de nómina o liquidación, con idempotencia, soporte tenant-scoped y
-auditoría atómica. Los movimientos contables del desembolso permanecen fuera
-del incremento hasta que Contabilidad defina las cuentas, fecha de registro y
-comportamiento frente a períodos cerrados. El PR #391 integró el contexto
-tenant firmado y el append controlado de AuditLog. La migración de desembolsos
-se ordenó después de ese helper y sus políticas usan
-`audit_private.current_tenant_id()`; una prueba PostgreSQL real confirma que
-un GUC tenant mutable sin firma no permite leer ni insertar desembolsos.
+ADR-026 define una entidad tenant-scoped para exactamente una obligación de
+nómina o liquidación, con claves idempotentes, soporte privado, revisión
+explícita y AuditLog atómico. Las políticas RLS usan
+`audit_private.current_tenant_id()` y una prueba PostgreSQL real rechaza acceso
+cuando solo se falsifica el GUC mutable. El runtime no tiene privilegios
+destructivos sobre el historial.
 
-La implementación de ADR-026 está validada localmente en la rama
-`codex/goal02-employee-disbursements`, basada en `main@a5b129f`. Declara pagos,
-guarda soporte privado, permite revisión administrativa, conserva reversos
-append-only y aplica cobertura N2D.4 solo con desembolsos verificados. La base
-PostgreSQL 17.11 desechable aplicó las 123 migraciones. Se simuló el ACL CRUD
-del bootstrap de staging con un rol runtime sin `SUPERUSER`, `BYPASSRLS` ni
-membresías: el rol conserva `SELECT`/`INSERT`/`UPDATE` en desembolsos, solo
-`SELECT`/`INSERT` en reversos y no tiene `DELETE` ni `TRUNCATE` en ninguna de
-las dos tablas. La migración revoca y verifica esos permisos destructivos.
-Prisma `validate` y `migrate status` pasan; el conjunto API pasó 184
-suites/2.289 pruebas, junto con typecheck de API/web, build de API/web y ESLint
-de los ocho archivos API modificados. El build web conserva dos advertencias
-`<img>` preexistentes en configuración de identidad.
+#### API integrado primero — PR #395
 
-La interfaz permite declarar, adjuntar soporte, verificar, cancelar y consultar
-obligaciones. La reconciliación diagnóstica detecta y audita discrepancias; no
-repara ni elimina objetos. El Browser E2E local recorrió registro, soporte,
-verificación y reverso y pasó (1 prueba). El primer Browser E2E de CI encontró
-que la guarda descartable del nuevo escenario no reconocía la base efímera
-saas_e2e; se ajustó para admitir únicamente ese nombre exacto en loopback,
-además de bases que indiquen test/CI/disposable. Se espera el rerun remoto. La
-política no-browser-evidence omitió la carga; la API de Actions confirma cero
-artefactos para la ejecución fallida.
-La integración sigue pendiente de revisión y CI.
-La disponibilidad de `ListObjectsV2` en las credenciales reales de R2 y la
-identidad/privilegios del runtime de producción no se han verificado; no se
-usaron credenciales R2 ni se aplicaron cambios a producción.
+El incremento de API y migración se integró en `main` mediante PR #395, merge
+`2be8c6bd58751ae10d156f94d491f489565636cd`. La implementación cubre
+declaraciones, soporte privado, verificación, cancelación, reversos append-only
+y reconciliación diagnóstica; esta última no repara ni elimina objetos. La
+migración se validó localmente en PostgreSQL 17.11 desechable y CI pasó 184
+suites/2.291 pruebas, typecheck, validación Prisma y build. CI y Browser E2E
+posteriores al merge también pasaron; Browser no generó artifacts. La migración
+no se ha aplicado a producción.
+
+El merge activó automáticamente un deployment Production de Vercel para el SHA
+`2be8c6bd`. No cambió archivos web, el deployment terminó success y no se
+realizó un despliegue manual. No se verificaron facturación ni consumo.
+
+#### Interfaz y BFF — PR #394
+
+La interfaz para declarar desembolsos, adjuntar soporte, verificar, cancelar y
+consultar obligaciones sigue en PR #394. La rama incluye página, BFF, workspace,
+pruebas de servicio y smoke E2E. Antes de actualizarla, sus checks habían
+aprobado 184 suites/2.291 pruebas y Browser E2E; `no-browser-evidence` omitió la
+carga de artifacts. El Preview de Vercel quedó READY. La rama ya se sincronizó
+localmente con el nuevo `main`; tras publicar la actualización, deben repetirse
+los checks. No se debe fusionar la interfaz hasta verificar la liberación del
+API y su esquema.
+
+#### R2 y operación de producción
+
+El endpoint de reconciliación genera credenciales temporales R2 de 15 minutos,
+limitadas a `ListObjectsV2` y al prefijo tenant. No se usaron credenciales
+reales ni se verificó que la clave padre tenga el permiso necesario. Antes de
+aplicar la migración o liberar el API se deben verificar la identidad y los
+privilegios efectivos del runtime, la secuencia de migración, la recuperación,
+los health checks, los endpoints, RLS y el acceso privado a soportes. Los
+procedimientos versionados de `deploy/README.md` cubren staging, no establecen
+un release de producción del API. No se ejecutaron migraciones ni operaciones
+manuales en producción.
+
+#### Contabilización de desembolsos — ADR-027
+
+La contabilización permanece fuera del incremento. ADR-027 identifica cuentas
+reales y propone separar la verificación de evidencia de la contabilización
+explícita, pero faltan decisiones de Contabilidad/Producto/Nómina sobre cuenta
+de salida, tipo de comprobante, fecha/período cerrado, mapeo de conceptos de
+liquidación y semántica/evidencia de reversos. No se deben inventar esas reglas.
