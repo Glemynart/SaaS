@@ -34,6 +34,12 @@ export interface StorageObjectMetadata {
 export interface StorageProvider {
   put(input: PutObjectInput): Promise<StorageObjectMetadata>;
   get(key: string): Promise<Buffer>;
+  /**
+   * Reads one object limited to this exact logical prefix. External providers
+   * must use credentials scoped to the prefix; unsupported providers leave the
+   * capability absent.
+   */
+  getWithinPrefix?(key: string, prefix: string): Promise<Buffer>;
   delete(key: string): Promise<void>;
   exists(key: string): Promise<boolean>;
   /** Lista objetos bajo un prefijo lógico, sin recorrer otros tenants. */
@@ -66,6 +72,14 @@ export class CloudflareR2StorageUnavailableError extends Error {
   }
 }
 
+/** Se lanza si una lectura necesita alcance por prefijo que el proveedor no ofrece. */
+export class StoragePrefixScopedReadUnavailableError extends Error {
+  constructor() {
+    super('El proveedor no admite lecturas con alcance de prefijo');
+    this.name = 'StoragePrefixScopedReadUnavailableError';
+  }
+}
+
 /** Se lanza cuando R2 está seleccionado pero su configuración es inválida. */
 export class CloudflareR2StorageConfigurationError extends Error {
   constructor(reason: string) {
@@ -79,5 +93,41 @@ export class UnknownStorageProviderError extends Error {
   constructor(provider: string) {
     super(`Proveedor de almacenamiento desconocido: ${provider}`);
     this.name = 'UnknownStorageProviderError';
+  }
+}
+
+/** Valida que una key canónica pertenezca a un prefijo lógico no ambiguo. */
+export function assertStorageKeyWithinPrefix(
+  key: string,
+  prefix: string,
+): void {
+  const invalidSegments = (value: string): boolean =>
+    value.includes('\\') ||
+    value
+      .split('/')
+      .some((segment) => !segment || segment === '.' || segment === '..');
+
+  if (
+    !prefix ||
+    !prefix.endsWith('/') ||
+    prefix.startsWith('/') ||
+    invalidSegments(prefix.slice(0, -1))
+  ) {
+    throw new InvalidStorageKeyError(
+      prefix,
+      'el prefijo de lectura debe ser relativo y canónico',
+    );
+  }
+
+  if (
+    !key ||
+    key.length <= prefix.length ||
+    !key.startsWith(prefix) ||
+    invalidSegments(key)
+  ) {
+    throw new InvalidStorageKeyError(
+      key,
+      'la key no pertenece al prefijo autorizado o no es canónica',
+    );
   }
 }

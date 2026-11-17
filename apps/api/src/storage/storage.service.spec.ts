@@ -1,12 +1,18 @@
 import { Test } from '@nestjs/testing';
 import { StorageService } from './storage.service';
-import { StorageProvider, STORAGE_PROVIDER } from './storage.types';
+import {
+  InvalidStorageKeyError,
+  StoragePrefixScopedReadUnavailableError,
+  StorageProvider,
+  STORAGE_PROVIDER,
+} from './storage.types';
 
 describe('StorageService', () => {
   let service: StorageService;
 
   const mockPut = jest.fn();
   const mockGet = jest.fn();
+  const mockGetWithinPrefix = jest.fn();
   const mockDelete = jest.fn();
   const mockExists = jest.fn();
   const mockList = jest.fn();
@@ -15,6 +21,7 @@ describe('StorageService', () => {
   beforeEach(async () => {
     mockPut.mockReset();
     mockGet.mockReset();
+    mockGetWithinPrefix.mockReset();
     mockDelete.mockReset();
     mockExists.mockReset();
     mockList.mockReset();
@@ -57,6 +64,76 @@ describe('StorageService', () => {
 
     await expect(service.getObject('k')).resolves.toBe(body);
     expect(mockGet).toHaveBeenCalledWith('k');
+  });
+
+  it('falla de forma cerrada si el proveedor no admite lectura con prefijo', async () => {
+    await expect(
+      Promise.resolve().then(() =>
+        service.getObjectWithinPrefix(
+          'tenants/tenant-a/pila-exports/file.pdf',
+          'tenants/tenant-a/pila-exports/',
+        ),
+      ),
+    ).rejects.toBeInstanceOf(StoragePrefixScopedReadUnavailableError);
+    expect(mockGet).not.toHaveBeenCalled();
+  });
+
+  it('rechaza keys fuera del prefijo antes de invocar al proveedor', async () => {
+    await expect(
+      Promise.resolve().then(() =>
+        service.getObjectWithinPrefix(
+          'tenants/tenant-b/pila-exports/file.pdf',
+          'tenants/tenant-a/pila-exports/',
+        ),
+      ),
+    ).rejects.toBeInstanceOf(InvalidStorageKeyError);
+    expect(mockGet).not.toHaveBeenCalled();
+    expect(mockGetWithinPrefix).not.toHaveBeenCalled();
+  });
+
+  it('rechaza traversal aunque la key empiece con el prefijo permitido', async () => {
+    await expect(
+      Promise.resolve().then(() =>
+        service.getObjectWithinPrefix(
+          'tenants/tenant-a/pila-exports/../private/file.pdf',
+          'tenants/tenant-a/pila-exports/',
+        ),
+      ),
+    ).rejects.toBeInstanceOf(InvalidStorageKeyError);
+    expect(mockGet).not.toHaveBeenCalled();
+    expect(mockGetWithinPrefix).not.toHaveBeenCalled();
+  });
+
+  it('delega lecturas acotadas sin recurrir al get general', async () => {
+    const provider: StorageProvider = {
+      put: mockPut,
+      get: mockGet,
+      getWithinPrefix: mockGetWithinPrefix,
+      delete: mockDelete,
+      exists: mockExists,
+      list: mockList,
+    };
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        StorageService,
+        { provide: STORAGE_PROVIDER, useValue: provider },
+      ],
+    }).compile();
+    service = moduleRef.get(StorageService);
+    const body = Buffer.from('scoped');
+    mockGetWithinPrefix.mockResolvedValue(body);
+
+    await expect(
+      service.getObjectWithinPrefix(
+        'tenants/tenant-a/pila-exports/file.pdf',
+        'tenants/tenant-a/pila-exports/',
+      ),
+    ).resolves.toBe(body);
+    expect(mockGetWithinPrefix).toHaveBeenCalledWith(
+      'tenants/tenant-a/pila-exports/file.pdf',
+      'tenants/tenant-a/pila-exports/',
+    );
+    expect(mockGet).not.toHaveBeenCalled();
   });
 
   it('delega deleteObject en el proveedor', async () => {

@@ -56,6 +56,21 @@ describe('LocalDiskStorageProvider', () => {
     expect(read.equals(body)).toBe(true);
   });
 
+  it('permite lectura acotada sólo dentro del prefijo indicado', async () => {
+    const prefix = 'tenants/tenant-a/pila-exports/';
+    const body = Buffer.from('private');
+    const key = `${prefix}file.pdf`;
+    await provider.put({ key, body });
+
+    await expect(provider.getWithinPrefix(key, prefix)).resolves.toEqual(body);
+    await expect(
+      provider.getWithinPrefix(
+        'tenants/tenant-b/pila-exports/file.pdf',
+        prefix,
+      ),
+    ).rejects.toBeInstanceOf(InvalidStorageKeyError);
+  });
+
   it('reporta existencia correctamente', async () => {
     expect(await provider.exists(key)).toBe(false);
     await provider.put({ key, body: Buffer.from('x') });

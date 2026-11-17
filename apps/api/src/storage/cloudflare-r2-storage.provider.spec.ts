@@ -1,4 +1,8 @@
-import { ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
+import {
+  GetObjectCommand,
+  ListObjectsV2Command,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { CloudflareR2StorageProvider } from './cloudflare-r2-storage.provider';
 import {
   CloudflareR2StorageConfigurationError,
@@ -19,6 +23,7 @@ describe('CloudflareR2StorageProvider', () => {
   ] as const;
   const previous = new Map<string, string | undefined>();
   let send: jest.SpyInstance;
+  let destroy: jest.SpyInstance;
 
   beforeEach(() => {
     for (const name of environment) {
@@ -27,10 +32,12 @@ describe('CloudflareR2StorageProvider', () => {
     }
     process.env.R2_ENDPOINT = `https://${accountId}.r2.cloudflarestorage.com`;
     send = jest.spyOn(S3Client.prototype, 'send');
+    destroy = jest.spyOn(S3Client.prototype, 'destroy');
   });
 
   afterEach(() => {
     send.mockRestore();
+    destroy.mockRestore();
     for (const name of environment) {
       const value = previous.get(name);
       if (value === undefined) delete process.env[name];
@@ -71,6 +78,75 @@ describe('CloudflareR2StorageProvider', () => {
       Buffer.from([1, 2]),
     );
   });
+
+  it('lee dentro de un prefijo tenant con un cliente temporal distinto del cliente general', async () => {
+    const body = Buffer.from('private tenant object');
+    send.mockResolvedValueOnce({
+      Body: { transformToByteArray: jest.fn().mockResolvedValue(body) },
+    });
+    const provider = new CloudflareR2StorageProvider();
+    const parentClient = (provider as unknown as { client: S3Client }).client;
+
+    await expect(
+      provider.getWithinPrefix(`${tenantPrefix}support.pdf`, tenantPrefix),
+    ).resolves.toEqual(body);
+
+    expect(send).toHaveBeenCalledTimes(1);
+    const calls = send.mock.calls as unknown as Array<[GetObjectCommand]>;
+    const contexts = send.mock.contexts as unknown[];
+    const [command] = calls[0];
+    expect(command).toBeInstanceOf(GetObjectCommand);
+    expect(command.input).toEqual({
+      Bucket: 'test-r2_bucket',
+      Key: `${tenantPrefix}support.pdf`,
+    });
+    expect(contexts[0]).not.toBe(parentClient);
+    const scopedClient = contexts[0] as {
+      config: {
+        credentials: () => Promise<{ sessionToken?: string }>;
+      };
+    };
+    const scopedCredentials = await scopedClient.config.credentials();
+    expect(scopedCredentials.sessionToken).toBeDefined();
+    const jwt = Buffer.from(scopedCredentials.sessionToken!, 'base64')
+      .toString('utf8')
+      .replace(/^jwt\//, '');
+    const [, payloadSegment] = jwt.split('.');
+    const payload = JSON.parse(
+      Buffer.from(payloadSegment, 'base64url').toString('utf8'),
+    ) as { actions: string[]; paths: { prefixPaths: string[] } };
+    expect(payload.actions).toEqual(['GetObject']);
+    expect(payload.paths.prefixPaths).toEqual([tenantPrefix]);
+    expect(destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('destruye el cliente de lectura acotada también ante error de R2', async () => {
+    send.mockRejectedValueOnce(s3Error('NoSuchKey', 404));
+    const provider = new CloudflareR2StorageProvider();
+
+    await expect(
+      provider.getWithinPrefix(`${tenantPrefix}missing.pdf`, tenantPrefix),
+    ).rejects.toBeInstanceOf(StorageObjectNotFoundError);
+    expect(destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [
+      `tenants/22222222-2222-4333-8444-555555555555/pila-exports/file.pdf`,
+      tenantPrefix,
+    ],
+    [`${tenantPrefix}../other-tenant/file.pdf`, tenantPrefix],
+  ])(
+    'rechaza lectura fuera del prefijo antes de enviar una solicitud',
+    async (key, prefix) => {
+      const provider = new CloudflareR2StorageProvider();
+
+      await expect(provider.getWithinPrefix(key, prefix)).rejects.toThrow(
+        'storageKey inválida',
+      );
+      expect(send).not.toHaveBeenCalled();
+    },
+  );
 
   it('clasifica NotFound y fallos transitorios', async () => {
     const provider = new CloudflareR2StorageProvider();

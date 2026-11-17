@@ -3032,12 +3032,21 @@ exportaciones históricas.
 
 Para listar en R2, el servidor firma credenciales temporales de 15 minutos con
 la única acción `ListObjectsV2`, limitadas a
-`tenants/{tenantId}/pila-exports/`. No se agrega una política o credencial R2.
+`tenants/{tenantId}/pila-exports/`. Para leer cada objeto observado, el
+reconciliador utiliza un cliente temporal separado con la única acción
+`GetObject` y el mismo prefijo tenant; no recurre al cliente general del
+proveedor. Ambos clientes temporales se destruyen al terminar. La fachada de
+almacenamiento rechaza keys fuera del prefijo y falla cerrada si el proveedor
+no implementa lectura acotada. No se agrega una política o credencial R2.
+
 Cloudflare exige que una credencial temporal no exceda los permisos de su clave
-padre; por tanto, la clave ya configurada debe permitir el listado en el bucket
-correspondiente. Ese permiso efectivo no se verificó contra R2 y no se cambió
-Cloudflare. El adaptador además rechaza prefijos fuera de esa forma y falla si
-la paginación está truncada sin un cursor válido.
+padre; por tanto, la clave ya configurada debe permitir el listado y la lectura
+de objetos en el bucket correspondiente. Esos permisos efectivos no se
+verificaron contra R2 y no se cambió Cloudflare. El adaptador además rechaza
+prefijos fuera de los namespaces permitidos y falla si la paginación está
+truncada sin un cursor válido. La documentación oficial describe las acciones
+`ListObjectsV2` y `GetObject`, y el alcance por `prefixPaths`:
+[credenciales temporales de R2](https://developers.cloudflare.com/r2/api/s3/temporary-credentials/).
 
 La recuperación de una escritura de `PilaExport` con resultado de commit
 ambiguo ya no borra los objetos si una lectura inmediata todavía no ve la
@@ -3095,20 +3104,26 @@ API y su esquema.
 
 #### R2 y operación de producción
 
-El endpoint de reconciliación genera credenciales temporales R2 de 15 minutos,
-limitadas a `ListObjectsV2` y al prefijo tenant. No se usaron credenciales
-reales ni se verificó que la clave padre tenga el permiso necesario. Antes de
-aplicar la migración o liberar el API se deben verificar la identidad y los
-privilegios efectivos del runtime, la secuencia de migración, la recuperación,
-los health checks, los endpoints, RLS y el acceso privado a soportes. Los
-procedimientos versionados de `deploy/README.md` cubren staging, no establecen
-un release de producción del API. No se ejecutaron migraciones ni operaciones
-manuales en producción.
+El endpoint de reconciliación solo diagnostica y audita; no repara ni borra
+objetos. El código genera credenciales temporales R2 de 15 minutos separadas:
+`ListObjectsV2` para enumerar el prefijo tenant de PILA o desembolsos, y
+`GetObject` para leer una key dentro de ese mismo prefijo. La lectura acotada no
+usa las credenciales generales del cliente de almacenamiento. La documentación
+oficial de Cloudflare confirma los campos `actions`, `paths.prefixPaths`, el
+formato de token y ambas acciones; no se usaron credenciales reales ni se
+verificó el alcance de la clave padre contra una cuenta R2.
+El soporte de lectura tenant-scoped se integró por PR #397 (merge SHA
+`686a4f60`). Los checks de CI y Browser E2E post-merge terminaron en verde;
+Browser omitió la carga y no dejó artifacts. Vercel registró un deployment
+Production exitoso de la aplicación web; no representa un release del API del
+VPS. No se publicó una imagen API ni se ejecutó una migración productiva. El
+consumo y la facturación de Vercel no están verificados.
 
-#### Contabilización de desembolsos — ADR-027
-
-La contabilización permanece fuera del incremento. ADR-027 identifica cuentas
-reales y propone separar la verificación de evidencia de la contabilización
-explícita, pero faltan decisiones de Contabilidad/Producto/Nómina sobre cuenta
-de salida, tipo de comprobante, fecha/período cerrado, mapeo de conceptos de
-liquidación y semántica/evidencia de reversos. No se deben inventar esas reglas.
+Pendiente antes de liberar en producción: que el preflight de identidad y
+privilegios del rol runtime pase en el entorno objetivo; ejecutar la migración
+solo mediante un procedimiento aprobado; desplegar la API compatible y comprobar
+health checks, endpoints, RLS y soporte privado; y después integrar el UI. La
+contabilización de pagos permanece fuera del incremento: ADR-027 documenta
+cuentas reales y ejemplos, pero requiere decisión de Contabilidad/Producto/Nómina
+sobre cuenta de salida, tipo de comprobante, fecha/período cerrado, conceptos de
+liquidación y semántica/evidencia de reversos.
