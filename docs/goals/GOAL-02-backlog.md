@@ -3045,3 +3045,25 @@ fila. Cuando no se puede demostrar que la persistencia falló, conserva los dos
 objetos para evitar que un commit tardío deje referencias rotas. Las pruebas
 unitarias y PostgreSQL usan storage y base desechables; no se accedió a Cloudflare
 ni se verificó una cuenta R2 real.
+
+### Cobertura salarial mediante desembolsos verificados — GOAL-02 (2026-11-17)
+
+La decisión funcional para N2D.4 ya está aprobada: solo el importe de un
+desembolso que tenga soporte privado y haya sido verificado explícitamente por
+un ADMIN autorizado cuenta como salario cubierto. La causación `CAUSADA`, la
+aprobación `APROBADA`, una declaración manual `PAID` y un soporte sin revisar no
+son evidencia de desembolso verificado.
+
+Los pagos parciales o múltiples se registran por separado. Si la suma verificada
+no cubre exactamente el neto de nómina, el cálculo de días pendientes falla
+cerrado; no se convierten pesos parciales a días sin una regla laboral aprobada.
+Los reversos son eventos append-only vinculados al desembolso original. La
+verificación administrativa expresa revisión de evidencia, no confirma que un
+banco haya ejecutado la transferencia. Los recibos de clientes no se reutilizan.
+
+La primera entrega usa una entidad independiente asociada a exactamente una
+obligación de nómina o liquidación, con idempotencia, soporte tenant-scoped y
+auditoría atómica. Los movimientos contables del desembolso permanecen fuera
+del incremento hasta que Contabilidad defina las cuentas, fecha de registro y
+comportamiento frente a períodos cerrados. El cambio todavía debe pasar la
+revisión de RLS firmado introducido por el PR #391 antes de considerarse listo.

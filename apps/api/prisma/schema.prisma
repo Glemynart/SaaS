@@ -1160,7 +1160,7 @@ enum ServicePremiumLineStatus {
 enum LiquidationStatus {
   DRAFT // En elaboración, aún modificable
   APPROVED // Aprobada y congelada — no modificable
-  PAID // Pagada — terminal
+  PAID // Declaración administrativa de pago — no confirma un desembolso bancario
   VOIDED // Anulada sin pago — terminal
 }
 

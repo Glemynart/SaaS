@@ -24,12 +24,10 @@ const VALID_TRANSITIONS: Record<LiquidationStatus, LiquidationStatus[]> = {
 };
 
 /**
- * Estados de PayrollPeriod que indican "el mes ya se procesó" (resolveDias-
- * SalarioPendiente los usa como proxy temporal de PAID; ver ese método).
- * Antes de U1 el único estado terminal era CLOSED; U1 lo reemplazó por
- * APROBADA (P1) y migró los períodos legados CLOSED → CERRADA (backfill).
- * CAUSADA también cuenta: el salario ya fue aprobado y contabilizado. Ningún
- * código nuevo escribe CLOSED — ver payroll-states.ts.
+ * Estados que la regla actual N2D.4 trata como salario cubierto al calcular la
+ * liquidación. Esto es un proxy funcional heredado, no evidencia de desembolso:
+ * el modelo no registra pagos de nómina ni confirmación bancaria. No ampliar ni
+ * reinterpretar esta lista sin definir primero qué hecho satisface el salario.
  */
 const PERIODOS_PROCESADOS: PayrollPeriodStatus[] = [
   PayrollPeriodStatus.APROBADA,
@@ -188,12 +186,11 @@ export class LiquidationService {
   /**
    * Resuelve los días de salario pendiente del mes de retiro (política N2D.4).
    *
-   * Política (decisión funcional cerrada):
+   * Regla actualmente implementada (la evidencia de pago queda pendiente):
    *  1. Buscar el PayrollPeriod que contiene fechaRetiro (último día trabajado).
-   *  2. Si existe un PayrollRun del empleado en ese período y el período ya
-   *     fue procesado (APROBADA o, legado, CERRADA — ver PERIODOS_PROCESADOS)
-   *     → 0 (el salario del mes ya se pagó; el estado "procesado" es proxy
-   *     temporal de PAID).
+   *  2. Si existe un PayrollRun del empleado en ese período y su estado está en
+   *     PERIODOS_PROCESADOS → 0 días. Es un proxy histórico de salario cubierto,
+   *     no una comprobación de pago ni de transferencia.
    *  3. En caso contrario → días comerciales (30/360) trabajados dentro del
    *     período de retiro.
    *
@@ -233,9 +230,9 @@ export class LiquidationService {
       return dias > 0 ? dias : 0;
     }
 
-    // 2. A run in a processed period already paid this salary; a run in a
-    //    draft/in-progress period must be completed or removed before a
-    //    liquidation can include the same days.
+    // 2. The existing rule treats a processed period as covering these days;
+    //    it does not verify disbursement. A run in an unprocessed period must
+    //    be completed or removed before the liquidation can include the days.
     const run = await db.payrollRun.findFirst({
       where: {
         tenantId,
@@ -325,12 +322,18 @@ export class LiquidationService {
   }
 
   markLiquidationPaid(tenantId: string, userId: string, liquidationId: string) {
+    // This ADMIN action records a declaration. It is not backed by bank
+    // confirmation or payment evidence in the current data model.
     return this.transition(
       tenantId,
       userId,
       liquidationId,
       'PAID',
       'LIQUIDATION_PAID',
+      {
+        paymentEvidence: 'MANUAL_DECLARATION',
+        disbursementVerification: 'NOT_VERIFIED',
+      },
     );
   }
 
@@ -366,6 +369,7 @@ export class LiquidationService {
     liquidationId: string,
     target: LiquidationStatus,
     auditAction: string,
+    auditMetadata: Record<string, unknown> = {},
   ) {
     return this.tenantPrisma.execute(async (tx) => {
       const liq = await tx.liquidation.findFirst({
@@ -405,7 +409,7 @@ export class LiquidationService {
           action: auditAction,
           entityType: 'Liquidation',
           entityId: liquidationId,
-          metadata: { empleadoId: liq.empleadoId },
+          metadata: { empleadoId: liq.empleadoId, ...auditMetadata },
         },
         tx,
       );

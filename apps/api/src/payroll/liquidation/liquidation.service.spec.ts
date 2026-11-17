@@ -13,7 +13,14 @@ import { AuditService } from '../../audit/audit.service';
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 const mockEmpleadoFindFirst = jest.fn();
-const mockLiquidationFindFirst = jest.fn();
+const mockLiquidationFindFirst = jest.fn<
+  Promise<unknown>,
+  [Prisma.LiquidationFindFirstArgs]
+>();
+const mockLiquidationCreate = jest.fn<
+  Promise<unknown>,
+  [Prisma.LiquidationCreateArgs]
+>();
 const mockLiquidationUpdateMany = jest.fn();
 const mockLiquidationFindMany = jest.fn();
 const mockLiquidationCount = jest.fn();
@@ -27,7 +34,7 @@ const mockPrisma = {
     findFirst: mockLiquidationFindFirst,
     findMany: mockLiquidationFindMany,
     count: mockLiquidationCount,
-    create: jest.fn(),
+    create: mockLiquidationCreate,
     update: jest.fn(),
     updateMany: mockLiquidationUpdateMany,
   },
@@ -44,6 +51,14 @@ const mockTenantPrisma = {
     work(mockPrisma),
   ),
 };
+
+function expectTenantScopedLiquidationFindFirst(tenantId: string) {
+  expect(
+    mockLiquidationFindFirst.mock.calls.some(
+      ([args]) => args.where?.tenantId === tenantId,
+    ),
+  ).toBe(true);
+}
 
 // ── Fixture de empleado ───────────────────────────────────────────────────────
 
@@ -220,7 +235,7 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
 
     await service.createLiquidacion('tenant-1', 'user-1', 'emp-001');
 
-    return mockPrisma.liquidation.create.mock.calls[0][0].data as {
+    return mockLiquidationCreate.mock.calls[0][0].data as unknown as {
       concepts: { create: { codigo: string; factor: number }[] };
     };
   }
@@ -370,7 +385,7 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
 
     await service.createLiquidacion('tenant-1', 'user-1', 'emp-001');
 
-    const data = mockPrisma.liquidation.create.mock.calls[0][0].data as {
+    const data = mockLiquidationCreate.mock.calls[0][0].data as unknown as {
       concepts: { create: { codigo: string; factor: number }[] };
     };
     const concept = salarioPendienteConcept(data);
@@ -398,7 +413,7 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
 
     await service.createLiquidacion('tenant-1', 'user-1', 'emp-001');
 
-    const data = mockPrisma.liquidation.create.mock.calls[0][0].data as {
+    const data = mockLiquidationCreate.mock.calls[0][0].data as unknown as {
       concepts: { create: { codigo: string; factor: number }[] };
     };
     const concept = salarioPendienteConcept(data);
@@ -427,7 +442,7 @@ describe('LiquidationService — salario pendiente (política N2D.4)', () => {
 
     await service.createLiquidacion('tenant-1', 'user-1', 'emp-001');
 
-    const data = mockPrisma.liquidation.create.mock.calls[0][0].data as {
+    const data = mockLiquidationCreate.mock.calls[0][0].data as unknown as {
       concepts: { create: { codigo: string; factor: number }[] };
     };
     const concept = salarioPendienteConcept(data);
@@ -475,7 +490,7 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
 
     const result = await service.approveLiquidation(TENANT, USER, LIQ_ID);
 
-    expect(result!.status).toBe('APPROVED');
+    expect(result.status).toBe('APPROVED');
     // El WHERE incluye el estado leído → cierra la ventana TOCTOU.
     expect(mockLiquidationUpdateMany).toHaveBeenCalledWith({
       where: { id: LIQ_ID, tenantId: TENANT, status: 'DRAFT' },
@@ -550,11 +565,7 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
 
     await service.approveLiquidation(TENANT, USER, LIQ_ID);
 
-    expect(mockLiquidationFindFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ tenantId: TENANT }),
-      }),
-    );
+    expectTenantScopedLiquidationFindFirst(TENANT);
   });
 
   // ── markLiquidationPaid ─────────────────────────────────────────────────────
@@ -567,14 +578,14 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
 
     const result = await service.markLiquidationPaid(TENANT, USER, LIQ_ID);
 
-    expect(result!.status).toBe('PAID');
+    expect(result.status).toBe('PAID');
     expect(mockLiquidationUpdateMany).toHaveBeenCalledWith({
       where: { id: LIQ_ID, tenantId: TENANT, status: 'APPROVED' },
       data: { status: 'PAID' },
     });
   });
 
-  it('APPROVED → PAID: registra auditoría LIQUIDATION_PAID', async () => {
+  it('APPROVED → PAID: registra una declaración manual sin verificación bancaria', async () => {
     mockLiquidationFindFirst
       .mockResolvedValueOnce(makeLiq('APPROVED'))
       .mockResolvedValueOnce(makeLiq('PAID'));
@@ -587,6 +598,11 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
         action: 'LIQUIDATION_PAID',
         entityType: 'Liquidation',
         entityId: LIQ_ID,
+        metadata: {
+          empleadoId: 'emp-001',
+          paymentEvidence: 'MANUAL_DECLARATION',
+          disbursementVerification: 'NOT_VERIFIED',
+        },
       }),
       mockPrisma,
     );
@@ -624,11 +640,7 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
 
     await service.markLiquidationPaid(TENANT, USER, LIQ_ID);
 
-    expect(mockLiquidationFindFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ tenantId: TENANT }),
-      }),
-    );
+    expectTenantScopedLiquidationFindFirst(TENANT);
   });
 
   // ── voidLiquidation ─────────────────────────────────────────────────────────
@@ -641,7 +653,7 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
 
     const result = await service.voidLiquidation(TENANT, USER, LIQ_ID);
 
-    expect(result!.status).toBe('VOIDED');
+    expect(result.status).toBe('VOIDED');
     expect(mockLiquidationUpdateMany).toHaveBeenCalledWith({
       where: { id: LIQ_ID, tenantId: TENANT, status: 'DRAFT' },
       data: { status: 'VOIDED' },
@@ -656,7 +668,7 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
 
     const result = await service.voidLiquidation(TENANT, USER, LIQ_ID);
 
-    expect(result!.status).toBe('VOIDED');
+    expect(result.status).toBe('VOIDED');
   });
 
   it('DRAFT → VOIDED: registra auditoría LIQUIDATION_VOIDED', async () => {
@@ -709,11 +721,7 @@ describe('LiquidationService — estados e inmutabilidad (N2D.5)', () => {
 
     await service.voidLiquidation(TENANT, USER, LIQ_ID);
 
-    expect(mockLiquidationFindFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ tenantId: TENANT }),
-      }),
-    );
+    expectTenantScopedLiquidationFindFirst(TENANT);
   });
 
   it('VOIDED es terminal: no puede aprobarse ni pagarse', async () => {
