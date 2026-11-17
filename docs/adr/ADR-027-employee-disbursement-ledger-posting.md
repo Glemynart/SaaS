@@ -3,13 +3,14 @@
 - **Estado:** Propuesta pendiente de decisión de Contabilidad / Producto / Nómina.
 - **Fecha:** 2026-11-17.
 - **Goal:** GOAL-02 — Evolución Financiera y Cumplimiento Electrónico.
-- **Dependencia:** la entidad `EmployeeDisbursement` y la verificación de soportes están en el PR #394; ese PR sigue abierto y esta propuesta no implica que la capacidad esté desplegada.
+- **Dependencia:** la base API de `EmployeeDisbursement` y la verificación de soportes se integraron en `main` mediante el PR #395 (`2be8c6bd`). El PR #394 conserva la interfaz y el BFF y sigue abierto; esta propuesta no implica que la capacidad esté liberada en producción.
 
 ## Contexto comprobado
 
-- El PR #394 separa declaración, soporte, verificación administrativa y reverso
-  de cobertura salarial. `VERIFIED` significa que una persona revisó evidencia;
-  no confirma una transferencia bancaria.
+- La API integrada por el PR #395 y la interfaz/BFF del PR #394 separan
+  declaración, soporte, verificación administrativa y reverso de cobertura
+  salarial. `VERIFIED` significa que una persona revisó evidencia; no confirma
+  una transferencia bancaria.
 - Nómina ya crea un comprobante de causación por `PayrollPeriod` en la misma
   transacción que cambia el período a `CAUSADA`. El origen es
   `(PAYROLL, periodoId, CAUSACION)`. La línea `SALARIOS_POR_PAGAR` acredita el
