@@ -175,7 +175,7 @@ export class EmployeeDisbursementReconciliationService {
         continue;
       }
 
-      const observed = await this.readObservedObject(key);
+      const observed = await this.readObservedObject(key, prefix);
       if (!observed) {
         findings.push({
           code: 'SUPPORT_OBJECT_MISSING',
@@ -222,7 +222,7 @@ export class EmployeeDisbursementReconciliationService {
         code: 'ORPHAN_STORAGE_OBJECT',
         storageKey: object.key,
       });
-      const observed = await this.readObservedObject(object.key);
+      const observed = await this.readObservedObject(object.key, prefix);
       if (!observed) {
         findings.push({
           code: 'LISTED_OBJECT_MISSING',
@@ -322,9 +322,10 @@ export class EmployeeDisbursementReconciliationService {
 
   private async readObservedObject(
     key: string,
+    prefix: string,
   ): Promise<ReconciledObject | null> {
     try {
-      const body = await this.storage.getObject(key);
+      const body = await this.storage.getObjectWithinPrefix(key, prefix);
       return { key, size: body.length, sha256: sha256(body) };
     } catch (error) {
       if (error instanceof StorageObjectNotFoundError) return null;

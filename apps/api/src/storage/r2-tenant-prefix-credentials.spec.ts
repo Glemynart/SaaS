@@ -1,5 +1,8 @@
 import { createHash, createHmac } from 'node:crypto';
-import { InvalidStorageKeyError } from './storage.types';
+import {
+  CloudflareR2StorageConfigurationError,
+  InvalidStorageKeyError,
+} from './storage.types';
 import { createR2TenantPrefixCredentials } from './r2-tenant-prefix-credentials';
 
 describe('createR2TenantPrefixCredentials', () => {
@@ -10,6 +13,7 @@ describe('createR2TenantPrefixCredentials', () => {
     parentAccessKeyId: 'test-parent-key-id',
     parentSecretAccessKey: 'test-parent-secret-only',
     prefix: 'tenants/11111111-2222-4333-8444-555555555555/pila-exports/',
+    action: 'ListObjectsV2' as const,
     nowSeconds: 1_800_000_000,
   };
 
@@ -66,6 +70,32 @@ describe('createR2TenantPrefixCredentials', () => {
 
     expect(payload.actions).toEqual(['ListObjectsV2']);
     expect(payload.paths.prefixPaths).toEqual([prefix]);
+  });
+
+  it('firma credenciales de lectura de objeto limitadas al prefijo del tenant', () => {
+    const credentials = createR2TenantPrefixCredentials({
+      ...input,
+      action: 'GetObject',
+    });
+    const jwt = Buffer.from(credentials.sessionToken, 'base64')
+      .toString('utf8')
+      .replace(/^jwt\//, '');
+    const [, payloadSegment] = jwt.split('.');
+    const payload = JSON.parse(
+      Buffer.from(payloadSegment, 'base64url').toString('utf8'),
+    ) as { actions: string[]; paths: { prefixPaths: string[] } };
+
+    expect(payload.actions).toEqual(['GetObject']);
+    expect(payload.paths.prefixPaths).toEqual([input.prefix]);
+  });
+
+  it('rechaza acciones de escritura o acciones no reconocidas en runtime', () => {
+    expect(() =>
+      createR2TenantPrefixCredentials({
+        ...input,
+        action: 'PutObject' as never,
+      }),
+    ).toThrow(CloudflareR2StorageConfigurationError);
   });
 
   it.each([

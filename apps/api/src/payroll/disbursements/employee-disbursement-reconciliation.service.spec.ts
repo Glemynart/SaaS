@@ -34,7 +34,9 @@ describe('EmployeeDisbursementReconciliationService', () => {
           .sort((left, right) => left.key.localeCompare(right.key)),
       ),
     ),
-    getObject: jest.fn((key: string) => {
+    getObjectWithinPrefix: jest.fn((key: string, prefix: string) => {
+      if (!key.startsWith(prefix))
+        return Promise.reject(new Error('outside scoped prefix'));
       const body = objects.get(key);
       if (!body)
         return Promise.reject(new Error(`missing test object: ${key}`));
@@ -67,6 +69,16 @@ describe('EmployeeDisbursementReconciliationService', () => {
           .map(([key, body]) => ({ key, size: body.length }))
           .sort((left, right) => left.key.localeCompare(right.key)),
       ),
+    );
+    storage.getObjectWithinPrefix.mockImplementation(
+      (key: string, prefix: string) => {
+        if (!key.startsWith(prefix))
+          return Promise.reject(new Error('outside scoped prefix'));
+        const body = objects.get(key);
+        if (!body)
+          return Promise.reject(new Error(`missing test object: ${key}`));
+        return Promise.resolve(body);
+      },
     );
   });
 
@@ -116,6 +128,10 @@ describe('EmployeeDisbursementReconciliationService', () => {
     expect(storage.listObjects).toHaveBeenCalledWith(
       `tenants/${TENANT_ID}/employee-disbursements/`,
     );
+    expect(storage.getObjectWithinPrefix).toHaveBeenCalledWith(
+      KEY,
+      `tenants/${TENANT_ID}/employee-disbursements/`,
+    );
     expect(storage.deleteObject).not.toHaveBeenCalled();
     expect([...objects.entries()]).toEqual(before);
     expect(report.auditRecorded).toBe(true);
@@ -151,7 +167,7 @@ describe('EmployeeDisbursementReconciliationService', () => {
     expect(storage.listObjects).toHaveBeenCalledWith(
       `tenants/${TENANT_ID}/employee-disbursements/`,
     );
-    expect(storage.getObject).not.toHaveBeenCalled();
+    expect(storage.getObjectWithinPrefix).not.toHaveBeenCalled();
     expect(JSON.stringify(report)).not.toContain('tenant-b');
   });
 

@@ -7,6 +7,7 @@ import {
   StorageObjectMetadata,
   StorageObjectNotFoundError,
   StorageProvider,
+  assertStorageKeyWithinPrefix,
 } from './storage.types';
 
 /**
@@ -50,6 +51,11 @@ export class LocalDiskStorageProvider implements StorageProvider {
       }
       throw error;
     }
+  }
+
+  async getWithinPrefix(key: string, prefix: string): Promise<Buffer> {
+    assertStorageKeyWithinPrefix(key, prefix);
+    return this.get(key);
   }
 
   async delete(key: string): Promise<void> {

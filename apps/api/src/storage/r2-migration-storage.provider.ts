@@ -41,6 +41,24 @@ export class R2MigrationStorageProvider implements StorageProvider {
     }
   }
 
+  async getWithinPrefix(key: string, prefix: string): Promise<Buffer> {
+    try {
+      return await this.r2.getWithinPrefix(key, prefix);
+    } catch (r2Error) {
+      if (!this.canFallback(r2Error)) throw r2Error;
+
+      this.logger.warn(
+        `Fallback de lectura acotada R2 -> LocalDisk (${this.reason(r2Error)})`,
+      );
+      try {
+        return await this.local.getWithinPrefix(key, prefix);
+      } catch (localError) {
+        if (localError instanceof StorageObjectNotFoundError) throw r2Error;
+        throw localError;
+      }
+    }
+  }
+
   delete(key: string): Promise<void> {
     return this.r2.delete(key);
   }

@@ -16,6 +16,7 @@ import {
   StorageObjectMetadata,
   StorageObjectNotFoundError,
   StorageProvider,
+  assertStorageKeyWithinPrefix,
 } from './storage.types';
 import { createR2TenantPrefixCredentials } from './r2-tenant-prefix-credentials';
 
@@ -154,6 +155,44 @@ export class CloudflareR2StorageProvider implements StorageProvider {
     }
   }
 
+  async getWithinPrefix(key: string, prefix: string): Promise<Buffer> {
+    this.validateConfiguration();
+    assertStorageKeyWithinPrefix(key, prefix);
+    this.validateKey(key);
+
+    const credentials = createR2TenantPrefixCredentials({
+      endpoint: process.env.R2_ENDPOINT!.trim(),
+      bucket: process.env.R2_BUCKET!,
+      parentAccessKeyId: process.env.R2_ACCESS_KEY_ID!,
+      parentSecretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+      prefix,
+      action: 'GetObject',
+    });
+    const scopedClient = new S3Client({
+      region: 'auto',
+      endpoint: process.env.R2_ENDPOINT!.trim(),
+      forcePathStyle: true,
+      credentials,
+    });
+
+    try {
+      const response = await scopedClient.send(
+        new GetObjectCommand({ Bucket: process.env.R2_BUCKET, Key: key }),
+      );
+      if (!response.Body) {
+        throw new CloudflareR2StorageUnavailableError(
+          'R2 devolvió una respuesta sin cuerpo',
+        );
+      }
+      return Buffer.from(await response.Body.transformToByteArray());
+    } catch (error) {
+      if (error instanceof CloudflareR2StorageUnavailableError) throw error;
+      throw this.translateError(error, key);
+    } finally {
+      scopedClient.destroy();
+    }
+  }
+
   async delete(key: string): Promise<void> {
     this.validateConfiguration();
     this.validateKey(key);
@@ -193,6 +232,7 @@ export class CloudflareR2StorageProvider implements StorageProvider {
       parentAccessKeyId: process.env.R2_ACCESS_KEY_ID!,
       parentSecretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
       prefix,
+      action: 'ListObjectsV2',
     });
     const scopedClient = new S3Client({
       region: 'auto',

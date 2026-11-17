@@ -77,6 +77,49 @@ describe('R2MigrationStorageProvider', () => {
     await expect(migration.get(key)).rejects.toBe(r2NotFound);
   });
 
+  it('usa lecturas acotadas de R2 y mantiene el prefijo al hacer fallback local', async () => {
+    const prefix = 'tenants/tenant-a/pila-exports/';
+    const objectKey = `${prefix}file.pdf`;
+    const localBody = Buffer.from('local tenant object');
+    const local = mockStorage({
+      getWithinPrefix: jest.fn().mockResolvedValue(localBody),
+    });
+    const r2 = mockStorage({
+      getWithinPrefix: jest
+        .fn()
+        .mockRejectedValue(new StorageObjectNotFoundError(objectKey)),
+    });
+    const migration = createMigration(local.storage, r2.storage);
+
+    await expect(migration.getWithinPrefix(objectKey, prefix)).resolves.toEqual(
+      localBody,
+    );
+    expect(r2.getWithinPrefix).toHaveBeenCalledWith(objectKey, prefix);
+    expect(local.getWithinPrefix).toHaveBeenCalledWith(objectKey, prefix);
+    expect(r2.get).not.toHaveBeenCalled();
+    expect(local.get).not.toHaveBeenCalled();
+  });
+
+  it('no convierte un AccessDenied de la lectura acotada en fallback local', async () => {
+    const prefix = 'tenants/tenant-a/pila-exports/';
+    const objectKey = `${prefix}file.pdf`;
+    const accessDenied = Object.assign(new Error('AccessDenied'), {
+      name: 'AccessDenied',
+      $metadata: { httpStatusCode: 403 },
+    });
+    const local = mockStorage();
+    const r2 = mockStorage({
+      getWithinPrefix: jest.fn().mockRejectedValue(accessDenied),
+    });
+    const migration = createMigration(local.storage, r2.storage);
+
+    await expect(migration.getWithinPrefix(objectKey, prefix)).rejects.toBe(
+      accessDenied,
+    );
+    expect(local.getWithinPrefix).not.toHaveBeenCalled();
+    expect(local.get).not.toHaveBeenCalled();
+  });
+
   it('mantiene writes, deletes y exists exclusivamente en R2', async () => {
     const local = mockStorage();
     const r2 = mockStorage({ exists: jest.fn().mockResolvedValue(false) });
@@ -105,21 +148,32 @@ function mockStorage(overrides: Partial<jest.Mocked<StorageProvider>> = {}): {
   storage: StorageProvider;
   put: jest.Mock;
   get: jest.Mock;
+  getWithinPrefix: jest.Mock;
   delete: jest.Mock;
   exists: jest.Mock;
   list: jest.Mock;
 } {
   const put = jest.fn().mockResolvedValue({ key: 'default', size: 2 });
   const get = jest.fn().mockResolvedValue(Buffer.from('r2'));
+  const getWithinPrefix = jest.fn().mockResolvedValue(Buffer.from('scoped-r2'));
   const remove = jest.fn().mockResolvedValue(undefined);
   const exists = jest.fn().mockResolvedValue(true);
   const list = jest.fn().mockResolvedValue([]);
-  const storage = { put, get, delete: remove, exists, list, ...overrides };
+  const storage = {
+    put,
+    get,
+    getWithinPrefix,
+    delete: remove,
+    exists,
+    list,
+    ...overrides,
+  };
 
   return {
     storage,
     put: storage.put as jest.Mock,
     get: storage.get as jest.Mock,
+    getWithinPrefix: storage.getWithinPrefix as jest.Mock,
     delete: storage.delete as jest.Mock,
     exists: storage.exists as jest.Mock,
     list: storage.list as jest.Mock,

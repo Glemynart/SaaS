@@ -1,5 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { STORAGE_PROVIDER } from './storage.types';
+import {
+  assertStorageKeyWithinPrefix,
+  STORAGE_PROVIDER,
+  StoragePrefixScopedReadUnavailableError,
+} from './storage.types';
 import type {
   PutObjectInput,
   StorageObjectMetadata,
@@ -27,6 +31,15 @@ export class StorageService {
   /** Lee el contenido binario de un objeto. */
   getObject(key: string): Promise<Buffer> {
     return this.provider.get(key);
+  }
+
+  /** Reads an object only through a provider capability scoped to one prefix. */
+  getObjectWithinPrefix(key: string, prefix: string): Promise<Buffer> {
+    assertStorageKeyWithinPrefix(key, prefix);
+    if (!this.provider.getWithinPrefix) {
+      throw new StoragePrefixScopedReadUnavailableError();
+    }
+    return this.provider.getWithinPrefix(key, prefix);
   }
 
   /** Elimina un objeto. Idempotente: no falla si la key no existe. */

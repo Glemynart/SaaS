@@ -3032,12 +3032,21 @@ exportaciones históricas.
 
 Para listar en R2, el servidor firma credenciales temporales de 15 minutos con
 la única acción `ListObjectsV2`, limitadas a
-`tenants/{tenantId}/pila-exports/`. No se agrega una política o credencial R2.
+`tenants/{tenantId}/pila-exports/`. Para leer cada objeto observado, el
+reconciliador utiliza un cliente temporal separado con la única acción
+`GetObject` y el mismo prefijo tenant; no recurre al cliente general del
+proveedor. Ambos clientes temporales se destruyen al terminar. La fachada de
+almacenamiento rechaza keys fuera del prefijo y falla cerrada si el proveedor
+no implementa lectura acotada. No se agrega una política o credencial R2.
+
 Cloudflare exige que una credencial temporal no exceda los permisos de su clave
-padre; por tanto, la clave ya configurada debe permitir el listado en el bucket
-correspondiente. Ese permiso efectivo no se verificó contra R2 y no se cambió
-Cloudflare. El adaptador además rechaza prefijos fuera de esa forma y falla si
-la paginación está truncada sin un cursor válido.
+padre; por tanto, la clave ya configurada debe permitir el listado y la lectura
+de objetos en el bucket correspondiente. Esos permisos efectivos no se
+verificaron contra R2 y no se cambió Cloudflare. El adaptador además rechaza
+prefijos fuera de los namespaces permitidos y falla si la paginación está
+truncada sin un cursor válido. La documentación oficial describe las acciones
+`ListObjectsV2` y `GetObject`, y el alcance por `prefixPaths`:
+[credenciales temporales de R2](https://developers.cloudflare.com/r2/api/s3/temporary-credentials/).
 
 La recuperación de una escritura de `PilaExport` con resultado de commit
 ambiguo ya no borra los objetos si una lectura inmediata todavía no ve la
@@ -3091,11 +3100,13 @@ requiere la migración. Los resultados del PR no sustituyen la validación del
 usuario y privilegios reales de producción antes de aplicar la migración.
 
 El endpoint de reconciliación solo diagnostica y audita; no repara ni borra
-objetos. El código genera credenciales temporales R2 de 15 minutos limitadas a
-`ListObjectsV2` y al prefijo tenant de PILA o desembolsos. La documentación
+objetos. El código genera credenciales temporales R2 de 15 minutos separadas:
+`ListObjectsV2` para enumerar el prefijo tenant de PILA o desembolsos, y
+`GetObject` para leer una key dentro de ese mismo prefijo. La lectura acotada no
+usa las credenciales generales del cliente de almacenamiento. La documentación
 oficial de Cloudflare confirma los campos `actions`, `paths.prefixPaths`, el
-formato de token y la acción `ListObjectsV2`; no se usaron credenciales reales,
-ni se verificó el alcance de la clave padre contra una cuenta R2.
+formato de token y ambas acciones; no se usaron credenciales reales ni se
+verificó el alcance de la clave padre contra una cuenta R2.
 
 Pendiente antes de liberar en producción: que el preflight de identidad y
 privilegios del rol runtime pase en el entorno objetivo; ejecutar la migración

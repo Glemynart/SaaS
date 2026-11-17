@@ -1,5 +1,8 @@
 import { createHash, createHmac } from 'node:crypto';
-import { InvalidStorageKeyError } from './storage.types';
+import {
+  CloudflareR2StorageConfigurationError,
+  InvalidStorageKeyError,
+} from './storage.types';
 
 const TEMPORARY_CREDENTIAL_TTL_SECONDS = 15 * 60;
 const APPROVED_TENANT_PREFIX =
@@ -11,8 +14,11 @@ export interface R2TenantPrefixCredentialInput {
   parentAccessKeyId: string;
   parentSecretAccessKey: string;
   prefix: string;
+  action: R2TenantPrefixAction;
   nowSeconds?: number;
 }
+
+export type R2TenantPrefixAction = 'ListObjectsV2' | 'GetObject';
 
 export interface R2TemporaryCredentials {
   accessKeyId: string;
@@ -21,14 +27,20 @@ export interface R2TemporaryCredentials {
 }
 
 /**
- * Locally signs short-lived Cloudflare R2 credentials for listing one
- * allowlisted namespace belonging to one tenant. The parent key is used only
- * to sign the token; the returned S3 credentials can call ListObjectsV2 only
- * and only within this exact prefix.
+ * Locally signs short-lived Cloudflare R2 credentials for one action within
+ * one allowlisted namespace belonging to one tenant. The parent key is used
+ * only to sign the token; the returned S3 credentials cannot access other
+ * actions or prefixes.
  */
 export function createR2TenantPrefixCredentials(
   input: R2TenantPrefixCredentialInput,
 ): R2TemporaryCredentials {
+  if (input.action !== 'ListObjectsV2' && input.action !== 'GetObject') {
+    throw new CloudflareR2StorageConfigurationError(
+      'la acción de credencial temporal no está permitida',
+    );
+  }
+
   if (!APPROVED_TENANT_PREFIX.test(input.prefix)) {
     throw new InvalidStorageKeyError(
       input.prefix,
@@ -64,7 +76,7 @@ export function createR2TenantPrefixCredentials(
   const header = encodeBase64Url({ alg: 'HS256', typ: 'JWT' });
   const payload = encodeBase64Url({
     bucket: input.bucket,
-    actions: ['ListObjectsV2'],
+    actions: [input.action],
     paths: { prefixPaths: [input.prefix], objectPaths: [] },
     iss: input.parentAccessKeyId,
     sub: accountMatch[1].toLowerCase(),
