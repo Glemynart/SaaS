@@ -30,7 +30,7 @@ describe('ClosureService PostgreSQL concurrency', () => {
   const reporting = {
     obtenerBalancePrueba: jest.fn(() => Promise.resolve([])),
   };
-  const audit = new AuditService(prisma);
+  const audit = new AuditService(prisma, tenantPrisma, contextService);
   const service = new ClosureService(
     tenantPrisma,
     reporting as unknown as ReportingService,

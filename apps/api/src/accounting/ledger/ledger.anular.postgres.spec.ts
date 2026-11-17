@@ -28,7 +28,7 @@ describe('LedgerService.anular PostgreSQL concurrency', () => {
     prisma,
     new TenantContextBoundary(tenantContext),
   );
-  const audit = new AuditService(prisma);
+  const audit = new AuditService(prisma, tenantPrisma, tenantContext);
   const ledger = new LedgerService(tenantPrisma, audit);
   const reporting = new ReportingService(tenantPrisma);
   const closure = new ClosureService(tenantPrisma, reporting, audit, ledger);
@@ -46,6 +46,17 @@ describe('LedgerService.anular PostgreSQL concurrency', () => {
         nit: `98${suffix.slice(0, 9)}`,
         digitoVerif: '1',
         razonSocial: `Ledger concurrency ${suffix}`,
+      },
+    });
+    await prisma.user.create({
+      data: {
+        id: userId,
+        tenantId,
+        email: `ledger-concurrency-${suffix}@example.invalid`,
+        passwordHash: 'test-only-not-a-password',
+        nombre: 'Ledger',
+        apellido: 'Concurrency Test',
+        rol: 'ADMIN',
       },
     });
     await prisma.tipoComprobante.create({
@@ -85,6 +96,7 @@ describe('LedgerService.anular PostgreSQL concurrency', () => {
       await prisma.secuenciaComprobante.deleteMany({ where: { tenantId } });
       await prisma.periodoContable.deleteMany({ where: { tenantId } });
       await prisma.cuentaContable.deleteMany({ where: { tenantId } });
+      await prisma.user.deleteMany({ where: { id: userId } });
       await prisma.tenant.deleteMany({ where: { id: tenantId } });
       await prisma.tipoComprobante.deleteMany({
         where: { id: voucherTypeId },

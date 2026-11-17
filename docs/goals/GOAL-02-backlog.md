@@ -1,6 +1,6 @@
 # Backlog de GOAL-02 — Evolución Financiera y Cumplimiento Electrónico
 
-Actualizado: 2026-11-16. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
+Actualizado: 2026-11-17. GOAL-02 es el único Goal activo; GOAL-01 está pausado,
 no cerrado. Este backlog conserva el resultado completo de GOAL-02 y prioriza
 primero flujos financieros internos que puedan mostrarse a futuros clientes.
 
@@ -2898,7 +2898,7 @@ a bases desplegadas. El inventario RLS de los 21 modelos sigue en 12 con RLS
 forzada y nueve excepciones documentadas; esta cohorte no añade políticas
 genéricas.
 
-### Anulación concurrente en período abierto — GOAL-02 (2026-11-16)
+### Anulación concurrente en período abierto — GOAL-02 (2026-11-17)
 
 La revisión financiera identificó una carrera acotada en `LedgerService.anular`:
 dos solicitudes podían leer el mismo comprobante `CONTABILIZADO` antes de
@@ -2911,14 +2911,14 @@ y devuelve el estado `ANULADO` ya confirmado sin repetir la actualización ni su
 auditoría. La prueba unitaria reproduce el orden de lecturas y bloqueo: fallaba
 con dos actualizaciones y dos auditorías, y pasa con una de cada una. Una suite
 nueva también fuerza dos solicitudes reales a esperar el advisory lock en
-PostgreSQL 17.11 (aislamiento `read committed`) tras aplicar las 120 migraciones
+PostgreSQL 17.11 (aislamiento `read committed`) tras aplicar las 122 migraciones
 de `main`. En período abierto comprueba una sola transición, una auditoría, dos
 movimientos originales y saldo cero. Una falla provocada después de insertar la
 auditoría revierte el estado y la fila auditada; el reintento y su repetición
 quedan idempotentes y el saldo termina en cero. En período cerrado la
-concurrencia crea un solo reverso y mantiene el saldo en cero. La suite pasó 3
-pruebas contra la base desechable; no se modifica el esquema ni se accedió a
-bases desplegadas. Se observaron ambos contendientes esperando el mismo lock;
+concurrencia crea un solo reverso y mantiene el saldo en cero. La suite de
+Ledger pasó 8 pruebas contra la base desechable; no se modifica el esquema ni
+se accedió a bases desplegadas. Se observaron ambos contendientes esperando el mismo lock;
 esta prueba no constituye un ensayo de carga ni un detector general de
 deadlocks.
 
@@ -2932,7 +2932,12 @@ dependencia de corrección, ni se reprodujo un ciclo de espera. PostgreSQL usa
 tenant e ID: una colisión puede serializar trabajo no relacionado, pero no
 duplica ni pierde movimientos. La prueba cubre dos contendientes sobre un
 comprobante; estrés sostenido y detección de deadlocks multientidad quedan como
-validación futura, no como evidencia aprobada.
+validación futura, no como evidencia aprobada. Revalidación sobre esta base de
+`main`: las suites PostgreSQL de cierre, Ledger y causación de nómina pasan 18
+pruebas; al añadir regresiones unitarias de esos servicios y la suite PostgreSQL
+de RLS de AuditLog, pasan 7 suites y 180 pruebas. La suite completa de API pasa
+176 suites y 2.227 pruebas. Typecheck, ESLint de los archivos modificados y
+build de API también pasan en la rama integrada.
 
 La lectura del proyecto Vercel `saa-s-web` confirma plan Hobby, repositorio
 `Glemynart/SaaS`, rama de producción `main`, Root Directory `apps/web` y

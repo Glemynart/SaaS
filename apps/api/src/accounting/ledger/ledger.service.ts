@@ -383,7 +383,7 @@ export class LedgerService {
   ) {
     if (!totalDebito.eq(totalCredito)) {
       throw new BadRequestException(
-        `Partida no balanceada: débitos ${totalDebito} ≠ créditos ${totalCredito}.`,
+        `Partida no balanceada: débitos ${totalDebito.toString()} ≠ créditos ${totalCredito.toString()}.`,
       );
     }
   }
