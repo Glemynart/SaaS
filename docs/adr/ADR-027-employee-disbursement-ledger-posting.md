@@ -40,6 +40,12 @@ códigos. Su existencia en la plantilla es un hecho del repositorio; no aprueba
 por sí sola su uso para desembolsos ni demuestra que cada tenant tenga una
 cuenta bancaria conciliada:
 
+Fuentes revisadas: `apps/api/prisma/seed-data/accounting-c0.ts`,
+`apps/api/src/accounting/provisioning/system-account-mappings.ts`,
+`apps/api/src/payroll/accounting/payroll-accounting.mapper.ts`,
+`apps/api/src/payroll/disbursements/employee-disbursement.service.ts` y
+`apps/api/prisma/schema.prisma` (`EmployeeDisbursement`).
+
 | Uso actual o candidato           | Rol / cuenta                              | Código C0 | Evidencia y límite                                                                                                        |
 | -------------------------------- | ----------------------------------------- | --------: | ------------------------------------------------------------------------------------------------------------------------- |
 | Efectivo                         | `CAJA_GENERAL`                            |  `110505` | Mapeo de tesorería existente. No hay selección de caja por desembolso.                                                    |
