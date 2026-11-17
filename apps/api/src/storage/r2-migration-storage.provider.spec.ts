@@ -107,12 +107,14 @@ function mockStorage(overrides: Partial<jest.Mocked<StorageProvider>> = {}): {
   get: jest.Mock;
   delete: jest.Mock;
   exists: jest.Mock;
+  list: jest.Mock;
 } {
   const put = jest.fn().mockResolvedValue({ key: 'default', size: 2 });
   const get = jest.fn().mockResolvedValue(Buffer.from('r2'));
   const remove = jest.fn().mockResolvedValue(undefined);
   const exists = jest.fn().mockResolvedValue(true);
-  const storage = { put, get, delete: remove, exists, ...overrides };
+  const list = jest.fn().mockResolvedValue([]);
+  const storage = { put, get, delete: remove, exists, list, ...overrides };
 
   return {
     storage,
@@ -120,5 +122,6 @@ function mockStorage(overrides: Partial<jest.Mocked<StorageProvider>> = {}): {
     get: storage.get as jest.Mock,
     delete: storage.delete as jest.Mock,
     exists: storage.exists as jest.Mock,
+    list: storage.list as jest.Mock,
   };
 }

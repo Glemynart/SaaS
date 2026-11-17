@@ -23,7 +23,7 @@ describe('AuthorizationSurfaceClassifier', () => {
   it('classifies the complete current HTTP surface without ambiguity', () => {
     const operations = classifier.classifyModuleGraph(AppModule);
 
-    expect(operations).toHaveLength(222);
+    expect(operations).toHaveLength(223);
     expect(new Set(operations.map(({ operationId }) => operationId)).size).toBe(
       operations.length,
     );
@@ -44,6 +44,19 @@ describe('AuthorizationSurfaceClassifier', () => {
       policy: AuthorizationPolicyKind.UNAUTHENTICATED,
       requiresAuthentication: false,
       requiresActiveTenant: false,
+      status: AuthorizationClassificationStatus.CLASSIFIED,
+    });
+    expect(
+      operations.find(
+        ({ operationId }) =>
+          operationId === 'PilaExportReconciliationController.reconcile',
+      ),
+    ).toMatchObject({
+      requestMethod: 'POST',
+      policy: AuthorizationPolicyKind.RBAC,
+      roles: [UserRole.ADMIN],
+      requiresAuthentication: true,
+      requiresActiveTenant: true,
       status: AuthorizationClassificationStatus.CLASSIFIED,
     });
 
@@ -164,11 +177,11 @@ describe('AuthorizationSurfaceClassifier', () => {
     expect(countBy(operations, 'policy')).toEqual({
       [AuthorizationPolicyKind.UNAUTHENTICATED]: 12,
       [AuthorizationPolicyKind.AUTHENTICATED]: 66,
-      [AuthorizationPolicyKind.RBAC]: 144,
+      [AuthorizationPolicyKind.RBAC]: 145,
     });
     expect(countBy(operations, 'source')).toEqual({
       [AuthorizationClassificationSource.EXPLICIT]: 78,
-      [AuthorizationClassificationSource.EXISTING_RBAC]: 144,
+      [AuthorizationClassificationSource.EXISTING_RBAC]: 145,
     });
     expect(
       operations.filter(

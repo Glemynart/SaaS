@@ -39,6 +39,11 @@ export class StorageService {
     return this.provider.exists(key);
   }
 
+  /** Lista objetos bajo un prefijo previamente acotado por el consumidor. */
+  listObjects(prefix: string): Promise<StorageObjectMetadata[]> {
+    return this.provider.list(prefix);
+  }
+
   /** Comprueba conectividad del backend sin leer datos de un tenant. */
   async checkReadiness(): Promise<void> {
     if (this.provider.checkReadiness) {

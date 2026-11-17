@@ -50,6 +50,18 @@ export class R2MigrationStorageProvider implements StorageProvider {
     return this.r2.exists(key);
   }
 
+  async list(prefix: string): Promise<StorageObjectMetadata[]> {
+    const [r2Objects, localObjects] = await Promise.all([
+      this.r2.list(prefix),
+      this.local.list(prefix),
+    ]);
+    const byKey = new Map(localObjects.map((object) => [object.key, object]));
+    for (const object of r2Objects) byKey.set(object.key, object);
+    return [...byKey.values()].sort((left, right) =>
+      left.key.localeCompare(right.key),
+    );
+  }
+
   checkReadiness(): Promise<void> {
     return this.r2.checkReadiness();
   }

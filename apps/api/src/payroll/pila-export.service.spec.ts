@@ -190,6 +190,79 @@ describe('PilaExportService', () => {
     );
   });
 
+  it('preserves files and returns the export when the commit acknowledgement is ambiguous', async () => {
+    const runTransaction = execute.getMockImplementation();
+    if (!runTransaction) throw new Error('Missing test transaction handler.');
+    let transactionCount = 0;
+    execute.mockImplementation(async (work) => {
+      const result = await runTransaction(work);
+      transactionCount += 1;
+      if (transactionCount === 3) {
+        tx.pilaExport.findUnique.mockResolvedValue({
+          id: String(createdData?.id),
+          createdAt: now,
+          status: PilaExportStatus.LOCAL_VALIDATED,
+          fechaInicioPeriodo: period.fechaInicio,
+          fechaFinPeriodo: period.fechaFin,
+          fechaPrevistaPagoPila: new Date('2026-11-06T00:00:00.000Z'),
+          normativeVersion: 'AT2_V30',
+          fileFormatVersion: files.formatVersion,
+          normativeRuleVersions: ['PILA_AT2_V30_MVP_RULESET_V1'],
+          sourceSnapshotIds: ['snapshot-1'],
+          type1Sha256: createHash('sha256')
+            .update(files.type1File)
+            .digest('hex'),
+          type1SizeBytes: files.type1File.length,
+          type1RecordCount: 1,
+          type2Sha256: createHash('sha256')
+            .update(files.type2File)
+            .digest('hex'),
+          type2SizeBytes: files.type2File.length,
+          type2RecordCount: 2,
+          detailRecordCount: 1,
+        });
+        throw new Error('database connection lost after commit');
+      }
+      return result;
+    });
+
+    const result = await service.create('tenant-1', 'user-1', 'period-1');
+
+    expect(result.id).toBe(createdData?.id);
+    expect(storage.deleteObject).not.toHaveBeenCalled();
+    expect(stored.size).toBe(2);
+    expect(tx.pilaExport.findUnique).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { id: createdData?.id } }),
+    );
+  });
+
+  it('preserves files when an ambiguous commit is not visible to the immediate lookup', async () => {
+    const runTransaction = execute.getMockImplementation();
+    if (!runTransaction) throw new Error('Missing test transaction handler.');
+    let transactionCount = 0;
+    execute.mockImplementation(async (work) => {
+      const result = await runTransaction(work);
+      transactionCount += 1;
+      if (transactionCount === 3) {
+        // Simulate a lost COMMIT acknowledgement while the follow-up read has
+        // not observed the row yet. Absence at this instant cannot prove that
+        // the server will not finish the commit.
+        throw new Error('database connection lost around commit');
+      }
+      return result;
+    });
+
+    await expect(
+      service.create('tenant-1', 'user-1', 'period-1'),
+    ).rejects.toThrow('database connection lost around commit');
+
+    expect(tx.pilaExport.findUnique).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { id: createdData?.id } }),
+    );
+    expect(storage.deleteObject).not.toHaveBeenCalled();
+    expect(stored.size).toBe(2);
+  });
+
   it('returns the existing export on a retry without writing duplicate objects', async () => {
     tx.pilaExport.findUnique.mockResolvedValueOnce({
       id: 'existing-export',

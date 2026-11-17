@@ -2989,12 +2989,59 @@ El permiso `TRUNCATE` no se concede al rol runtime en el bootstrap administrado;
 los roles de aplicación deben permanecer sin ownership, `SUPERUSER` ni
 `BYPASSRLS`.
 
-En la rama aislada `codex/goal02-auditlog-actor-attribution`, las 121
-migraciones y las 174 suites/2.204 pruebas de API pasan contra PostgreSQL
-16.15 desechable. La prueba específica verifica aislamiento entre tenants,
-ausencia de acceso sin contexto, rechazo de inserción cruzada y bloqueo de
-update/delete con un rol no propietario `NOSUPERUSER NOBYPASSRLS`. Typecheck,
-build y ESLint de los archivos modificados también pasan. El cambio todavía no
-está en `main` y no se ha aplicado a staging ni producción. Antes de cualquier
-despliegue debe confirmarse el rol real de conexión de producción y su ausencia
-de `BYPASSRLS`, ownership y `TRUNCATE`; no se comprobó desde este worktree.
+La validación inicial en `codex/goal02-auditlog-actor-attribution` pasó 121
+migraciones y las pruebas entonces existentes contra PostgreSQL 16.15
+desechable. Después, el PR #391 integró en `main` el contexto firmado y el
+append controlado de AuditLog (merge `5046266a50f59ac9e0e0263c42a0b8af07509038`).
+La sección siguiente registra la verificación adicional en PostgreSQL 17.11.
+El cambio no se ha aplicado ni validado en producción. Antes de desplegarlo debe
+confirmarse el rol real de conexión y su ausencia de `BYPASSRLS`, ownership y
+privilegios de modificación de AuditLog.
+
+#### Corrección del contexto mutable — GOAL-02 (2026-11-17)
+
+La revisión de amenaza demostró que un rol SQL capaz de ejecutar `set_config`
+podía cambiar libremente `app.current_tenant_id`; un GUC sin autenticación no
+es una frontera de seguridad. La migración
+`20261117000000_signed_tenant_context_and_audit_append` reemplaza la confianza
+en ese valor por un contexto HMAC firmado por la API y ligado al ID de la
+transacción PostgreSQL. Las funciones de RLS verifican firma, tenant, actor,
+tipo de actor y transacción; cualquier divergencia devuelve contexto nulo y
+falla cerrada. La clave se almacena en un esquema privado que el runtime no
+puede leer, y el rol runtime no recibe `INSERT`, `UPDATE`, `DELETE` ni
+`TRUNCATE` directo en `audit_logs`; la escritura pasa por una función
+`SECURITY DEFINER` que valida la firma del evento y la identidad del actor.
+
+La verificación local sobre PostgreSQL 17.11 desechable pasó 29 pruebas entre
+AuditLog RLS, tablas tenant-scoped y reutilización del contexto de transacción.
+La reproducción de un GUC tenant sin firma no obtiene contexto y las escrituras
+directas en AuditLog son rechazadas. Esta evidencia confirma el comportamiento
+de la migración en un rol no propietario sin `SUPERUSER`/`BYPASSRLS`; no prueba
+la identidad ni los privilegios efectivos de la conexión de producción. El
+procedimiento de solo lectura previo a cualquier despliegue sigue pendiente.
+
+### Reconciliación diagnóstica de exportaciones PILA — GOAL-02 (2026-11-17)
+
+Se añade `POST /payroll/pila-exports/reconciliation`, limitado a usuarios
+`ADMIN`, JWT válido y tenant activo. El tenant proviene del usuario autenticado.
+El diagnóstico compara registros de exportación con sus dos objetos canónicos,
+verifica existencia, tamaño y SHA-256, y señala referencias cruzadas y objetos
+huérfanos. El reporte y su evento de auditoría usan una huella determinista e
+idempotente. El endpoint no repara ni elimina archivos, ni modifica
+exportaciones históricas.
+
+Para listar en R2, el servidor firma credenciales temporales de 15 minutos con
+la única acción `ListObjectsV2`, limitadas a
+`tenants/{tenantId}/pila-exports/`. No se agrega una política o credencial R2.
+Cloudflare exige que una credencial temporal no exceda los permisos de su clave
+padre; por tanto, la clave ya configurada debe permitir el listado en el bucket
+correspondiente. Ese permiso efectivo no se verificó contra R2 y no se cambió
+Cloudflare. El adaptador además rechaza prefijos fuera de esa forma y falla si
+la paginación está truncada sin un cursor válido.
+
+La recuperación de una escritura de `PilaExport` con resultado de commit
+ambiguo ya no borra los objetos si una lectura inmediata todavía no ve la
+fila. Cuando no se puede demostrar que la persistencia falló, conserva los dos
+objetos para evitar que un commit tardío deje referencias rotas. Las pruebas
+unitarias y PostgreSQL usan storage y base desechables; no se accedió a Cloudflare
+ni se verificó una cuenta R2 real.
