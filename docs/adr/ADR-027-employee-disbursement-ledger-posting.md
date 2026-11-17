@@ -28,10 +28,10 @@
   regresó o si solo se corrigió evidencia.
 - ADR-001 define eventos de origen estables e idempotentes y separa `CAUSACION`
   de `PAGO`. ADR-002 asigna el pago a Treasury y la causación a Accounting.
-- **Divergencia documental:** ADR-002 §11 afirma que salarios por pagar se
-  agregan por período y no requieren tercero. El mapper vigente sí conserva el
-  tercero empleado y centro de costo disponibles. Actualizar esa afirmación en
-  la documentación de Payroll antes de integrar el diseño.
+- **Divergencia documental corregida localmente:** ADR-002 §11 se actualiza en
+  revisión 4 para indicar que el mapper conserva tercero y centro de costo
+  cuando existen y agrupa según esas dimensiones. La revisión local aún no se ha
+  publicado.
 
 ## Catálogo contable verificado en el código
 
