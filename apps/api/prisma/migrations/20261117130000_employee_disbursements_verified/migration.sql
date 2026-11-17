@@ -171,6 +171,7 @@ REVOKE DELETE, TRUNCATE ON TABLE "employee_disbursements" FROM PUBLIC;
 DO $$
 DECLARE
   runtime_role record;
+  recognized_runtime_roles integer := 0;
 BEGIN
   FOR runtime_role IN
     SELECT oid, rolname
@@ -178,6 +179,7 @@ BEGIN
     WHERE (rolname = 'saas_api_runtime' AND current_database() = 'oficina_nitida')
        OR pg_catalog.shobj_description(oid, 'pg_authid') = 'dusema:goal01-staging-runtime'
   LOOP
+    recognized_runtime_roles := recognized_runtime_roles + 1;
     EXECUTE format(
       'REVOKE DELETE, TRUNCATE ON TABLE public.employee_disbursements FROM %I',
       runtime_role.rolname
@@ -195,6 +197,11 @@ BEGIN
       RAISE EXCEPTION 'Runtime role % retains destructive employee-disbursement privileges', runtime_role.rolname;
     END IF;
   END LOOP;
+
+  IF recognized_runtime_roles = 0 THEN
+    RAISE EXCEPTION
+      'No recognized API runtime role found; provision and mark the runtime role before applying employee-disbursement migration';
+  END IF;
 END;
 $$;
 

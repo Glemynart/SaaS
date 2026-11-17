@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
   EmployeeDisbursementMethod,
@@ -145,6 +147,97 @@ describe('Employee disbursements PostgreSQL: RLS, audit, concurrency and N2D.4',
       data: [userData(userA, tenantA), userData(userB, tenantB)],
     });
   }, 30000);
+
+  it('migration revokes destructive ACLs from the marked database runtime role', async () => {
+    const runtimeRoles = await prisma.$queryRaw<
+      Array<{
+        roleName: string;
+        superuser: boolean;
+        bypassRls: boolean;
+        disbursementDelete: boolean;
+        disbursementTruncate: boolean;
+        reversalUpdate: boolean;
+        reversalDelete: boolean;
+        reversalTruncate: boolean;
+      }>
+    >`
+      SELECT
+        roles.rolname AS "roleName",
+        roles.rolsuper AS "superuser",
+        roles.rolbypassrls AS "bypassRls",
+        has_table_privilege(roles.oid, 'public.employee_disbursements', 'DELETE') AS "disbursementDelete",
+        has_table_privilege(roles.oid, 'public.employee_disbursements', 'TRUNCATE') AS "disbursementTruncate",
+        has_table_privilege(roles.oid, 'public.employee_disbursement_reversals', 'UPDATE') AS "reversalUpdate",
+        has_table_privilege(roles.oid, 'public.employee_disbursement_reversals', 'DELETE') AS "reversalDelete",
+        has_table_privilege(roles.oid, 'public.employee_disbursement_reversals', 'TRUNCATE') AS "reversalTruncate"
+      FROM pg_roles AS roles
+      WHERE pg_catalog.shobj_description(roles.oid, 'pg_authid') =
+        'dusema:goal01-staging-runtime'
+    `;
+
+    expect(runtimeRoles.length).toBeGreaterThan(0);
+    for (const role of runtimeRoles) {
+      expect(role.superuser).toBe(false);
+      expect(role.bypassRls).toBe(false);
+      expect(role.disbursementDelete).toBe(false);
+      expect(role.disbursementTruncate).toBe(false);
+      expect(role.reversalUpdate).toBe(false);
+      expect(role.reversalDelete).toBe(false);
+      expect(role.reversalTruncate).toBe(false);
+    }
+  });
+
+  it('migration privilege guard aborts when no runtime role is recognized', async () => {
+    const runtimeRoles = await prisma.$queryRaw<Array<{ roleName: string }>>`
+      SELECT roles.rolname AS "roleName"
+      FROM pg_roles AS roles
+      WHERE pg_catalog.shobj_description(roles.oid, 'pg_authid') =
+        'dusema:goal01-staging-runtime'
+    `;
+    expect(runtimeRoles.length).toBeGreaterThan(0);
+
+    const migrationSql = readFileSync(
+      resolve(
+        __dirname,
+        '../../prisma/migrations/20261117130000_employee_disbursements_verified/migration.sql',
+      ),
+      'utf8',
+    );
+    const guardComment =
+      '-- The staging bootstrap grants CRUD on newly-created public tables.';
+    const guardStart = migrationSql.indexOf(
+      'DO $$',
+      migrationSql.indexOf(guardComment),
+    );
+    const guardEndMarker = '\n$$;';
+    const guardEnd = migrationSql.indexOf(guardEndMarker, guardStart);
+    expect(guardStart).toBeGreaterThanOrEqual(0);
+    expect(guardEnd).toBeGreaterThan(guardStart);
+    const guardSql = migrationSql.slice(
+      guardStart,
+      guardEnd + guardEndMarker.length,
+    );
+
+    const quoteIdentifier = (value: string) =>
+      `"${value.replaceAll('"', '""')}"`;
+    try {
+      for (const role of runtimeRoles) {
+        await prisma.$executeRawUnsafe(
+          `COMMENT ON ROLE ${quoteIdentifier(role.roleName)} IS 'test-unrecognized-runtime'`,
+        );
+      }
+
+      await expect(prisma.$executeRawUnsafe(guardSql)).rejects.toThrow(
+        /No recognized API runtime role found/,
+      );
+    } finally {
+      for (const role of runtimeRoles) {
+        await prisma.$executeRawUnsafe(
+          `COMMENT ON ROLE ${quoteIdentifier(role.roleName)} IS 'dusema:goal01-staging-runtime'`,
+        );
+      }
+    }
+  });
 
   afterAll(async () => {
     if (!connected) return;
