@@ -227,9 +227,11 @@ export class LiquidationService {
       return dias > 0 ? dias : 0;
     }
 
-    // 2. The existing rule treats a processed period as covering these days;
-    //    it does not verify disbursement. A run in an unprocessed period must
-    //    be completed or removed before the liquidation can include the days.
+    // 2. A processed period alone is not evidence that the salary was covered.
+    //    Full verified disbursement coverage removes the pending-salary days;
+    //    partial verified coverage is blocked because no approved rule converts
+    //    a partial amount into days. An unprocessed run must be completed or
+    //    removed before the liquidation can include those days.
     const run = await db.payrollRun.findFirst({
       where: {
         tenantId,
