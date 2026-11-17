@@ -583,6 +583,8 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return b as T;
 }
 
+export const MAX_EMPLOYEE_DISBURSEMENT_SUPPORT_BYTES = 4 * 1024 * 1024;
+
 export const payrollApi = {
   getDisbursementObligations: (sourceType: EmployeeDisbursementSourceType, page = 1) =>
     req<DisbursementPage<DisbursementObligation>>(
@@ -610,6 +612,9 @@ export const payrollApi = {
       body: JSON.stringify(payload),
     }),
   attachDisbursementSupport: async (id: string, file: File) => {
+    if (file.size > MAX_EMPLOYEE_DISBURSEMENT_SUPPORT_BYTES) {
+      throw new Error('El soporte no puede superar 4 MiB.');
+    }
     const formData = new FormData();
     formData.append('file', file);
     const response = await fetch(`/api/payroll/disbursements/${encodeURIComponent(id)}/support`, {

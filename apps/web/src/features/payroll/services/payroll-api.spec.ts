@@ -1,4 +1,4 @@
-import { payrollApi } from './payroll-api';
+import { MAX_EMPLOYEE_DISBURSEMENT_SUPPORT_BYTES, payrollApi } from './payroll-api';
 
 describe('payrollApi.contabilizar', () => {
   const originalFetch = global.fetch;
@@ -217,6 +217,21 @@ describe('payrollApi employee disbursements', () => {
     expect(init.body).toBeInstanceOf(FormData);
     expect((init.body as FormData).get('file')).toBeInstanceOf(File);
     expect(init.headers).toBeUndefined();
+  });
+
+  it('rechaza soportes que exceden el límite seguro de Vercel antes de hacer fetch', async () => {
+    const fetchMock = jest.fn();
+    global.fetch = fetchMock;
+    const file = new File(
+      [new ArrayBuffer(MAX_EMPLOYEE_DISBURSEMENT_SUPPORT_BYTES + 1)],
+      'oversized.pdf',
+      { type: 'application/pdf' },
+    );
+
+    await expect(payrollApi.attachDisbursementSupport('payment-1', file)).rejects.toThrow(
+      'El soporte no puede superar 4 MiB.',
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('envía reversos idempotentes y expone el diagnóstico de solo lectura', async () => {
