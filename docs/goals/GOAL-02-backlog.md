@@ -3065,19 +3065,31 @@ La primera entrega usa una entidad independiente asociada a exactamente una
 obligación de nómina o liquidación, con idempotencia, soporte tenant-scoped y
 auditoría atómica. Los movimientos contables del desembolso permanecen fuera
 del incremento hasta que Contabilidad defina las cuentas, fecha de registro y
-comportamiento frente a períodos cerrados. El cambio todavía debe pasar la
-revisión de RLS firmado introducido por el PR #391 antes de considerarse listo.
+comportamiento frente a períodos cerrados. El PR #391 integró el contexto
+tenant firmado y el append controlado de AuditLog. La migración de desembolsos
+se ordenó después de ese helper y sus políticas usan
+`audit_private.current_tenant_id()`; una prueba PostgreSQL real confirma que
+un GUC tenant mutable sin firma no permite leer ni insertar desembolsos.
 
-La recuperación local de la implementación de ADR-026 está en curso sobre una
-rama separada basada en `main`. Incluye declaración, soporte privado,
-verificación administrativa, reversos append-only y cobertura N2D.4. El código
-no se considera integrado ni listo para producción hasta verificar las nuevas
-políticas RLS contra el contexto firmado de `main`, aplicar la migración en una
-base PostgreSQL desechable y completar las pruebas de interfaz y autorización.
+La implementación de ADR-026 está validada localmente en la rama
+`codex/goal02-employee-disbursements`, basada en `main@a5b129f`. Declara pagos,
+guarda soporte privado, permite revisión administrativa, conserva reversos
+append-only y aplica cobertura N2D.4 solo con desembolsos verificados. La base
+PostgreSQL 17.11 desechable aplicó las 123 migraciones. Se simuló el ACL CRUD
+del bootstrap de staging con un rol runtime sin `SUPERUSER`, `BYPASSRLS` ni
+membresías: el rol conserva `SELECT`/`INSERT`/`UPDATE` en desembolsos, solo
+`SELECT`/`INSERT` en reversos y no tiene `DELETE` ni `TRUNCATE` en ninguna de
+las dos tablas. La migración revoca y verifica esos permisos destructivos.
+Prisma `validate` y `migrate status` pasan; el conjunto API pasó 184
+suites/2.289 pruebas, junto con typecheck de API/web, build de API/web y ESLint
+de los ocho archivos API modificados. El build web conserva dos advertencias
+`<img>` preexistentes en configuración de identidad.
 
-La rama local de recuperación también incorpora los controladores de interfaz
-para declarar, adjuntar soporte, verificar, cancelar y consultar obligaciones,
-además de una reconciliación diagnóstica de soportes. La reconciliación solo
-detecta y audita discrepancias; no repara ni elimina objetos. Estos recorridos
-siguen pendientes de auditoría completa sobre el `main` actual y de validación
-Browser E2E antes de publicar un PR.
+La interfaz permite declarar, adjuntar soporte, verificar, cancelar y consultar
+obligaciones. La reconciliación diagnóstica detecta y audita discrepancias; no
+repara ni elimina objetos. El Browser E2E local recorrió registro, soporte,
+verificación y reverso y pasó (1 prueba, sin publicar artefactos). La integración
+sigue pendiente de revisión y CI.
+La disponibilidad de `ListObjectsV2` en las credenciales reales de R2 y la
+identidad/privilegios del runtime de producción no se han verificado; no se
+usaron credenciales R2 ni se aplicaron cambios a producción.

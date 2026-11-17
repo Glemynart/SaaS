@@ -1,8 +1,8 @@
 import { createHash, createHmac } from 'node:crypto';
 import { InvalidStorageKeyError } from './storage.types';
-import { createR2PilaPrefixCredentials } from './r2-pila-prefix-credentials';
+import { createR2TenantPrefixCredentials } from './r2-tenant-prefix-credentials';
 
-describe('createR2PilaPrefixCredentials', () => {
+describe('createR2TenantPrefixCredentials', () => {
   const input = {
     endpoint:
       'https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com',
@@ -14,7 +14,7 @@ describe('createR2PilaPrefixCredentials', () => {
   };
 
   it('firma credenciales temporales de solo listado y un único prefijo tenant', () => {
-    const credentials = createR2PilaPrefixCredentials(input);
+    const credentials = createR2TenantPrefixCredentials(input);
     const jwt = Buffer.from(credentials.sessionToken, 'base64')
       .toString('utf8')
       .replace(/^jwt\//, '');
@@ -52,21 +52,38 @@ describe('createR2PilaPrefixCredentials', () => {
     });
   });
 
+  it('permite listar soportes de desembolsos de un solo tenant', () => {
+    const prefix =
+      'tenants/11111111-2222-4333-8444-555555555555/employee-disbursements/';
+    const credentials = createR2TenantPrefixCredentials({ ...input, prefix });
+    const jwt = Buffer.from(credentials.sessionToken, 'base64')
+      .toString('utf8')
+      .replace(/^jwt\//, '');
+    const [, payloadSegment] = jwt.split('.');
+    const payload = JSON.parse(
+      Buffer.from(payloadSegment, 'base64url').toString('utf8'),
+    ) as { actions: string[]; paths: { prefixPaths: string[] } };
+
+    expect(payload.actions).toEqual(['ListObjectsV2']);
+    expect(payload.paths.prefixPaths).toEqual([prefix]);
+  });
+
   it.each([
     'tenants/11111111-2222-4333-8444-555555555555/',
     'tenants/11111111-2222-4333-8444-555555555555/pila-exports',
     'tenants/11111111-2222-4333-8444-555555555555/pila-exports/../other/',
     'tenants/11111111-2222-4333-8444-555555555555/documents/',
+    'tenants/11111111-2222-4333-8444-555555555555/employee-disbursements/../documents/',
     'pila-exports/',
-  ])('rechaza prefijos fuera del namespace PILA de un tenant: %s', (prefix) => {
-    expect(() => createR2PilaPrefixCredentials({ ...input, prefix })).toThrow(
+  ])('rechaza prefijos fuera de los namespaces permitidos: %s', (prefix) => {
+    expect(() => createR2TenantPrefixCredentials({ ...input, prefix })).toThrow(
       InvalidStorageKeyError,
     );
   });
 
   it('rechaza endpoints que no identifican exactamente una cuenta R2', () => {
     expect(() =>
-      createR2PilaPrefixCredentials({
+      createR2TenantPrefixCredentials({
         ...input,
         endpoint: 'https://attacker.example.invalid',
       }),

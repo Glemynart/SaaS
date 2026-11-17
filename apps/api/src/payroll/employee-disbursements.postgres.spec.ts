@@ -109,6 +109,9 @@ describe('Employee disbursements PostgreSQL: RLS, audit, concurrency and N2D.4',
       `GRANT SELECT, INSERT ON "audit_logs" TO "${role}"`,
     );
     await prisma.$executeRawUnsafe(
+      `GRANT EXECUTE ON FUNCTION audit_private.append_audit_event(text, bytea, text) TO "${role}"`,
+    );
+    await prisma.$executeRawUnsafe(
       `GRANT SELECT, INSERT, UPDATE ON "employee_disbursements" TO "${role}"`,
     );
     await prisma.$executeRawUnsafe(
@@ -212,6 +215,38 @@ describe('Employee disbursements PostgreSQL: RLS, audit, concurrency and N2D.4',
           run.runId,
         ),
       ),
+    ).rejects.toThrow();
+  });
+
+  it('no confía en un GUC mutable para leer ni insertar desembolsos', async () => {
+    const run = await seedRun(tenantA, false);
+    await withTenant(tenantA, userA, () =>
+      createPayment(run.runId, '25000', 'mutable-guc-regression-001'),
+    );
+
+    const forgedRead = await runAsRlsRole(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantA}, true)`;
+      return tx.employeeDisbursement.findMany({ where: { tenantId: tenantA } });
+    });
+    expect(forgedRead).toHaveLength(0);
+
+    await expect(
+      runAsRlsRole(async (tx) => {
+        await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantA}, true)`;
+        return tx.$executeRaw`
+          INSERT INTO "employee_disbursements" (
+            "id", "createdAt", "updatedAt", "tenantId", "employeeId",
+            "payrollRunId", "amount", "paidAt", "method", "idempotencyKey",
+            "status", "registeredByUserId"
+          ) VALUES (
+            ${randomUUID()}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+            ${tenantA}, ${run.employeeId}, ${run.runId}, 1,
+            DATE '2026-01-15', 'BANK_TRANSFER'::"EmployeeDisbursementMethod",
+            ${`forged-guc-${randomUUID()}`},
+            'DECLARED'::"EmployeeDisbursementStatus", ${userA}
+          )
+        `;
+      }),
     ).rejects.toThrow();
   });
 

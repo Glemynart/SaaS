@@ -48,7 +48,11 @@ causación, declaración manual y archivo aún no revisado no son cobertura.
    mientras una liquidación activa haya usado esa cobertura; se anula primero
    la liquidación para preservar su snapshot y luego se registra el reverso.
 5. Los estados y hechos se auditan en la misma transacción tenant-scoped que
-   los cambios. La tabla tiene RLS habilitado y forzado. Los soportes se guardan
+   los cambios. La tabla tiene RLS habilitado y forzado; sus políticas consumen
+   `audit_private.current_tenant_id()` del contexto firmado y nunca confían por
+   sí solas en `app.current_tenant_id`, que es un GUC modificable por el rol SQL.
+   La migración de desembolsos debe ejecutarse después de la migración que
+   instala ese helper. Los soportes se guardan
    bajo un prefijo privado derivado del tenant y del desembolso; nunca se
    devuelve una URL pública. Si una transacción falla después de subir el
    archivo, el servicio bloquea y consulta la referencia persistida antes de

@@ -144,26 +144,59 @@ ALTER TABLE "employee_disbursements" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "employee_disbursements" FORCE ROW LEVEL SECURITY;
 CREATE POLICY "employee_disbursements_tenant_select"
   ON "employee_disbursements" FOR SELECT
-  USING ("tenantId" = NULLIF(current_setting('app.current_tenant_id', true), ''));
+  USING ("tenantId" = (SELECT audit_private.current_tenant_id()));
 CREATE POLICY "employee_disbursements_tenant_insert"
   ON "employee_disbursements" FOR INSERT
-  WITH CHECK ("tenantId" = NULLIF(current_setting('app.current_tenant_id', true), ''));
+  WITH CHECK ("tenantId" = (SELECT audit_private.current_tenant_id()));
 CREATE POLICY "employee_disbursements_tenant_update"
   ON "employee_disbursements" FOR UPDATE
-  USING ("tenantId" = NULLIF(current_setting('app.current_tenant_id', true), ''))
-  WITH CHECK ("tenantId" = NULLIF(current_setting('app.current_tenant_id', true), ''));
+  USING ("tenantId" = (SELECT audit_private.current_tenant_id()))
+  WITH CHECK ("tenantId" = (SELECT audit_private.current_tenant_id()));
 
 ALTER TABLE "employee_disbursement_reversals" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "employee_disbursement_reversals" FORCE ROW LEVEL SECURITY;
 CREATE POLICY "employee_disbursement_reversals_tenant_select"
   ON "employee_disbursement_reversals" FOR SELECT
-  USING ("tenantId" = NULLIF(current_setting('app.current_tenant_id', true), ''));
+  USING ("tenantId" = (SELECT audit_private.current_tenant_id()));
 CREATE POLICY "employee_disbursement_reversals_tenant_insert"
   ON "employee_disbursement_reversals" FOR INSERT
-  WITH CHECK ("tenantId" = NULLIF(current_setting('app.current_tenant_id', true), ''));
+  WITH CHECK ("tenantId" = (SELECT audit_private.current_tenant_id()));
 
 REVOKE UPDATE, DELETE, TRUNCATE ON TABLE "employee_disbursement_reversals" FROM PUBLIC;
 REVOKE DELETE, TRUNCATE ON TABLE "employee_disbursements" FROM PUBLIC;
+
+-- The staging bootstrap grants CRUD on newly-created public tables by default.
+-- Remove destructive privileges from the identified API runtime role while
+-- retaining only the table operations required by this workflow.
+DO $$
+DECLARE
+  runtime_role record;
+BEGIN
+  FOR runtime_role IN
+    SELECT oid, rolname
+    FROM pg_roles
+    WHERE (rolname = 'saas_api_runtime' AND current_database() = 'oficina_nitida')
+       OR pg_catalog.shobj_description(oid, 'pg_authid') = 'dusema:goal01-staging-runtime'
+  LOOP
+    EXECUTE format(
+      'REVOKE DELETE, TRUNCATE ON TABLE public.employee_disbursements FROM %I',
+      runtime_role.rolname
+    );
+    EXECUTE format(
+      'REVOKE UPDATE, DELETE, TRUNCATE ON TABLE public.employee_disbursement_reversals FROM %I',
+      runtime_role.rolname
+    );
+
+    IF has_table_privilege(runtime_role.oid, 'public.employee_disbursements', 'DELETE')
+       OR has_table_privilege(runtime_role.oid, 'public.employee_disbursements', 'TRUNCATE')
+       OR has_table_privilege(runtime_role.oid, 'public.employee_disbursement_reversals', 'UPDATE')
+       OR has_table_privilege(runtime_role.oid, 'public.employee_disbursement_reversals', 'DELETE')
+       OR has_table_privilege(runtime_role.oid, 'public.employee_disbursement_reversals', 'TRUNCATE') THEN
+      RAISE EXCEPTION 'Runtime role % retains destructive employee-disbursement privileges', runtime_role.rolname;
+    END IF;
+  END LOOP;
+END;
+$$;
 
 CREATE FUNCTION "guard_employee_disbursement_history"() RETURNS trigger
 LANGUAGE plpgsql

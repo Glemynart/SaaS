@@ -2,10 +2,10 @@ import { createHash, createHmac } from 'node:crypto';
 import { InvalidStorageKeyError } from './storage.types';
 
 const TEMPORARY_CREDENTIAL_TTL_SECONDS = 15 * 60;
-const PILA_EXPORT_PREFIX =
-  /^tenants\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/pila-exports\/$/i;
+const APPROVED_TENANT_PREFIX =
+  /^tenants\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(?:pila-exports|employee-disbursements)\/$/i;
 
-export interface R2PilaPrefixCredentialInput {
+export interface R2TenantPrefixCredentialInput {
   endpoint: string;
   bucket: string;
   parentAccessKeyId: string;
@@ -21,17 +21,18 @@ export interface R2TemporaryCredentials {
 }
 
 /**
- * Locally signs short-lived Cloudflare R2 credentials for listing one tenant's
- * PILA exports. The parent key is used only to sign the token; the returned
- * S3 credentials can call ListObjectsV2 only and only within this prefix.
+ * Locally signs short-lived Cloudflare R2 credentials for listing one
+ * allowlisted namespace belonging to one tenant. The parent key is used only
+ * to sign the token; the returned S3 credentials can call ListObjectsV2 only
+ * and only within this exact prefix.
  */
-export function createR2PilaPrefixCredentials(
-  input: R2PilaPrefixCredentialInput,
+export function createR2TenantPrefixCredentials(
+  input: R2TenantPrefixCredentialInput,
 ): R2TemporaryCredentials {
-  if (!PILA_EXPORT_PREFIX.test(input.prefix)) {
+  if (!APPROVED_TENANT_PREFIX.test(input.prefix)) {
     throw new InvalidStorageKeyError(
       input.prefix,
-      'el prefijo debe pertenecer a las exportaciones PILA de un tenant',
+      'el prefijo debe pertenecer a un namespace tenant autorizado',
     );
   }
   if (
