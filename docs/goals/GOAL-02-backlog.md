@@ -3045,3 +3045,59 @@ fila. Cuando no se puede demostrar que la persistencia falló, conserva los dos
 objetos para evitar que un commit tardío deje referencias rotas. Las pruebas
 unitarias y PostgreSQL usan storage y base desechables; no se accedió a Cloudflare
 ni se verificó una cuenta R2 real.
+
+### Cobertura salarial mediante desembolsos verificados — GOAL-02 (2026-11-17)
+
+La regla funcional aprobada para N2D.4 es que solo cuenta como salario cubierto
+el importe de un desembolso con soporte privado revisado y verificado
+explícitamente por un ADMIN autorizado. Aprobación o causación de nómina,
+declaración manual `PAID` y soporte pendiente no prueban el desembolso. La
+verificación administrativa tampoco confirma una transferencia bancaria.
+
+Los pagos parciales y múltiples se registran por separado y se acumulan. Sin
+una regla laboral aprobada para distribuirlos en días, el cálculo de liquidación
+falla cerrado cuando queda cobertura parcial; el dinero no se convierte en
+días. Los reversos son registros append-only. Recibos de clientes no se
+reutilizan.
+
+ADR-026 define una entidad tenant-scoped para una obligación de nómina o
+liquidación, con claves idempotentes, soporte privado, revisión explícita y
+AuditLog atómico. Las políticas RLS usan el tenant firmado de
+`audit_private.current_tenant_id()`. Una prueba PostgreSQL real rechaza acceso
+cuando solo se falsifica el GUC mutable. La migración también protege el
+historial y restringe privilegios destructivos del runtime.
+
+La rama combinada del PR #394 (`bb65db7e`) contiene API, migración, BFF e
+interfaz; sus checks actuales aprobaron 184 suites y 2.291 pruebas, typecheck,
+builds y Browser E2E. La etiqueta `no-browser-evidence` evitó artefactos; la
+consulta de Actions confirmó cero. El último cambio generó un deployment de
+Vercel marcado `Skipped - Not affected`; no se ha verificado la facturación ni
+el almacenamiento del equipo, y existe un Preview READY previo. Para evitar
+publicar el UI antes que el API, se prepara la separación: primero revisar e
+integrar el incremento del API; después desplegarlo por el procedimiento
+aprobado y solo entonces integrar el UI. Ninguna migración ni despliegue de
+producción se ha ejecutado.
+
+La migración se probó en PostgreSQL 17.11 desechable desde base vacía y con las
+migraciones anteriores. Se validó con un runtime de prueba sin
+`SUPERUSER`, `BYPASSRLS` ni membresías; el runtime conserva `SELECT`/`INSERT`/
+`UPDATE` sobre desembolsos y solo `SELECT`/`INSERT` sobre reversos, sin
+`DELETE`/`TRUNCATE`. La CI del PR incluye la preparación del rol marcado que
+requiere la migración. Los resultados del PR no sustituyen la validación del
+usuario y privilegios reales de producción antes de aplicar la migración.
+
+El endpoint de reconciliación solo diagnostica y audita; no repara ni borra
+objetos. El código genera credenciales temporales R2 de 15 minutos limitadas a
+`ListObjectsV2` y al prefijo tenant de PILA o desembolsos. La documentación
+oficial de Cloudflare confirma los campos `actions`, `paths.prefixPaths`, el
+formato de token y la acción `ListObjectsV2`; no se usaron credenciales reales,
+ni se verificó el alcance de la clave padre contra una cuenta R2.
+
+Pendiente antes de liberar en producción: verificar identidad y privilegios del
+rol de runtime; ejecutar la migración solo mediante un procedimiento aprobado;
+desplegar el API compatible y comprobar health checks, endpoints, RLS y soporte
+privado; y después integrar y desplegar el UI. La contabilización de pagos
+permanece fuera del incremento: ADR-027 documenta cuentas reales y ejemplos,
+pero requiere decisión de Contabilidad/Producto/Nómina sobre cuenta de salida,
+tipo de comprobante, fecha/período cerrado, conceptos de liquidación y
+semántica/evidencia de reversos.

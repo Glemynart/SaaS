@@ -15,6 +15,13 @@ import {
   buildLiquidationInput,
 } from './liquidation-mapper';
 import { ListLiquidationsDto } from '../dto/list-liquidations.dto';
+import { EmployeeDisbursementService } from '../disbursements/employee-disbursement.service';
+
+const PERIODOS_PROCESADOS: PayrollPeriodStatus[] = [
+  PayrollPeriodStatus.APROBADA,
+  PayrollPeriodStatus.CAUSADA,
+  PayrollPeriodStatus.CERRADA,
+];
 
 const VALID_TRANSITIONS: Record<LiquidationStatus, LiquidationStatus[]> = {
   DRAFT: ['APPROVED', 'VOIDED'],
@@ -23,26 +30,13 @@ const VALID_TRANSITIONS: Record<LiquidationStatus, LiquidationStatus[]> = {
   VOIDED: [],
 };
 
-/**
- * Estados de PayrollPeriod que indican "el mes ya se procesó" (resolveDias-
- * SalarioPendiente los usa como proxy temporal de PAID; ver ese método).
- * Antes de U1 el único estado terminal era CLOSED; U1 lo reemplazó por
- * APROBADA (P1) y migró los períodos legados CLOSED → CERRADA (backfill).
- * CAUSADA también cuenta: el salario ya fue aprobado y contabilizado. Ningún
- * código nuevo escribe CLOSED — ver payroll-states.ts.
- */
-const PERIODOS_PROCESADOS: PayrollPeriodStatus[] = [
-  PayrollPeriodStatus.APROBADA,
-  PayrollPeriodStatus.CAUSADA,
-  PayrollPeriodStatus.CERRADA,
-];
-
 @Injectable()
 export class LiquidationService {
   constructor(
     private prisma: PrismaService,
     private readonly tenantPrisma: TenantPrismaService,
     private audit: AuditService,
+    private readonly employeeDisbursements: EmployeeDisbursementService,
   ) {}
 
   assertTransition(current: LiquidationStatus, target: LiquidationStatus) {
@@ -188,14 +182,14 @@ export class LiquidationService {
   /**
    * Resuelve los días de salario pendiente del mes de retiro (política N2D.4).
    *
-   * Política (decisión funcional cerrada):
+   * N2D.4 conserva días pendientes hasta que la obligación de nómina esté
+   * completamente cubierta por desembolsos registrados y verificados.
    *  1. Buscar el PayrollPeriod que contiene fechaRetiro (último día trabajado).
-   *  2. Si existe un PayrollRun del empleado en ese período y el período ya
-   *     fue procesado (APROBADA o, legado, CERRADA — ver PERIODOS_PROCESADOS)
-   *     → 0 (el salario del mes ya se pagó; el estado "procesado" es proxy
-   *     temporal de PAID).
-   *  3. En caso contrario → días comerciales (30/360) trabajados dentro del
-   *     período de retiro.
+   *  2. Un PayrollRun en un período sin aprobar/cerrar bloquea como antes.
+   *  3. Un PayrollRun aprobado/cerrado con cobertura verificada total → 0 días.
+   *     Sin desembolso verificado → días comerciales completos.
+   *  4. Una cobertura parcial bloquea la liquidación porque no hay regla
+   *     aprobada que convierta pesos en días.
    *
    * No se analizan períodos anteriores ni se reconcilian históricos. Si no
    * existe un período que contenga fechaRetiro, la ventana del salario pendiente
@@ -210,7 +204,7 @@ export class LiquidationService {
     empleadoId: string,
     fechaIngreso: Date,
     fechaRetiro: Date,
-    db: Prisma.TransactionClient | PrismaService = this.prisma,
+    db: Prisma.TransactionClient,
   ): Promise<number> {
     // 1. Período que contiene fechaRetiro.
     const periodo = await db.payrollPeriod.findFirst({
@@ -233,24 +227,38 @@ export class LiquidationService {
       return dias > 0 ? dias : 0;
     }
 
-    // 2. A run in a processed period already paid this salary; a run in a
-    //    draft/in-progress period must be completed or removed before a
-    //    liquidation can include the same days.
+    // 2. A processed period alone is not evidence that the salary was covered.
+    //    Full verified disbursement coverage removes the pending-salary days;
+    //    partial verified coverage is blocked because no approved rule converts
+    //    a partial amount into days. An unprocessed run must be completed or
+    //    removed before the liquidation can include those days.
     const run = await db.payrollRun.findFirst({
       where: {
         tenantId,
         employeeId: empleadoId,
         payrollPeriodId: periodo.id,
       },
-      select: { id: true },
+      select: { id: true, netoPagar: true },
     });
     if (run) {
-      if (PERIODOS_PROCESADOS.includes(periodo.status)) {
-        return 0;
+      if (!PERIODOS_PROCESADOS.includes(periodo.status)) {
+        throw new ConflictException(
+          'Ya existe una ejecución de nómina sin aprobar en el período de retiro. Apruébela o elimínela antes de generar la liquidación.',
+        );
       }
-      throw new ConflictException(
-        'Ya existe una ejecución de nómina sin aprobar en el período de retiro. Apruébela o elimínela antes de generar la liquidación.',
-      );
+
+      const verifiedAmount =
+        await this.employeeDisbursements.getPayrollRunNetVerifiedAmount(
+          db,
+          tenantId,
+          run.id,
+        );
+      if (verifiedAmount.gt(0) && run.netoPagar.gt(0)) {
+        if (verifiedAmount.equals(run.netoPagar)) return 0;
+        throw new ConflictException(
+          'La nómina tiene desembolsos verificados parciales. Resuelva el saldo antes de liquidar; no existe una regla aprobada para convertir el pago parcial en días.',
+        );
+      }
     }
 
     // 3. Días comerciales trabajados dentro del período de retiro.
@@ -325,12 +333,18 @@ export class LiquidationService {
   }
 
   markLiquidationPaid(tenantId: string, userId: string, liquidationId: string) {
+    // This ADMIN action records a declaration. It is not backed by bank
+    // confirmation or payment evidence in the current data model.
     return this.transition(
       tenantId,
       userId,
       liquidationId,
       'PAID',
       'LIQUIDATION_PAID',
+      {
+        paymentEvidence: 'MANUAL_DECLARATION',
+        disbursementVerification: 'NOT_VERIFIED',
+      },
     );
   }
 
@@ -366,21 +380,50 @@ export class LiquidationService {
     liquidationId: string,
     target: LiquidationStatus,
     auditAction: string,
+    auditMetadata: Record<string, unknown> = {},
   ) {
     return this.tenantPrisma.execute(async (tx) => {
-      const liq = await tx.liquidation.findFirst({
+      const initial = await tx.liquidation.findFirst({
         where: { id: liquidationId, tenantId },
         select: { id: true, status: true, empleadoId: true },
       });
 
-      if (!liq) {
+      if (!initial) {
         throw new NotFoundException('Liquidación no encontrada');
       }
 
-      this.assertTransition(liq.status, target);
+      this.assertTransition(initial.status, target);
+
+      // Share the employee-first lock order used by disbursement registration,
+      // verification, reversal, and liquidation creation. This serializes a
+      // status transition with payment coverage decisions and avoids locking
+      // a finalized PayrollRun through a status-restricted RLS policy.
+      const employee = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "empleados"
+        WHERE "tenantId" = ${tenantId} AND "id" = ${initial.empleadoId}
+        FOR UPDATE
+      `;
+      if (employee.length === 0) {
+        throw new NotFoundException('Liquidación no encontrada');
+      }
+
+      if (target === 'VOIDED') {
+        const netVerifiedAmount =
+          await this.employeeDisbursements.getLiquidationNetVerifiedAmount(
+            tx,
+            tenantId,
+            liquidationId,
+          );
+        if (netVerifiedAmount.gt(0)) {
+          throw new ConflictException(
+            'No se puede anular una liquidación con desembolsos verificados. ' +
+              'Revierta primero los desembolsos y vuelva a intentar.',
+          );
+        }
+      }
 
       const { count } = await tx.liquidation.updateMany({
-        where: { id: liquidationId, tenantId, status: liq.status },
+        where: { id: liquidationId, tenantId, status: initial.status },
         data: { status: target },
       });
 
@@ -405,7 +448,7 @@ export class LiquidationService {
           action: auditAction,
           entityType: 'Liquidation',
           entityId: liquidationId,
-          metadata: { empleadoId: liq.empleadoId },
+          metadata: { empleadoId: initial.empleadoId, ...auditMetadata },
         },
         tx,
       );
