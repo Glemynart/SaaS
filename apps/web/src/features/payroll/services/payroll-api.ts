@@ -473,6 +473,106 @@ export interface PayrollBlock {
 }
 
 type ApiEnvelope = { message?: string };
+
+export type EmployeeDisbursementSourceType = 'PAYROLL_RUN' | 'LIQUIDATION';
+export type EmployeeDisbursementStatus = 'DECLARED' | 'SUPPORTED' | 'VERIFIED' | 'CANCELLED';
+export type EmployeeDisbursementMethod = 'BANK_TRANSFER' | 'CASH' | 'CHECK' | 'OTHER';
+
+export interface EmployeeDisbursementReversal {
+  id: string;
+  disbursementId: string;
+  amount: string;
+  currency: 'COP';
+  reason: string;
+  createdByUserId: string;
+  createdAt: string;
+}
+
+export interface EmployeeDisbursement {
+  id: string;
+  tenantId: string;
+  employeeId: string;
+  sourceType: EmployeeDisbursementSourceType;
+  sourceId: string;
+  amount: string;
+  currency: 'COP';
+  paidAt: string;
+  method: EmployeeDisbursementMethod;
+  reference: string | null;
+  status: EmployeeDisbursementStatus;
+  registeredByUserId: string;
+  createdAt: string;
+  supportedAt: string | null;
+  support: { mimeType: string | null; sizeBytes: number | null; sha256: string | null } | null;
+  verifiedByUserId: string | null;
+  verifiedAt: string | null;
+  cancelledByUserId: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  reversedAmount: string;
+  reversalCount: number;
+  reversals: EmployeeDisbursementReversal[];
+}
+
+export interface DisbursementObligation {
+  sourceType: EmployeeDisbursementSourceType;
+  sourceId: string;
+  label: string;
+  status: string;
+  amountDue: string;
+  periodStart: string;
+  periodEnd: string;
+  employee: { id: string; name: string; document: string };
+}
+
+export interface DisbursementPage<T> {
+  data: T[];
+  meta: { total: number; page: number; limit: number; totalPages: number };
+}
+
+export interface EmployeeDisbursementSummary {
+  sourceType: EmployeeDisbursementSourceType;
+  sourceId: string;
+  employeeId: string;
+  currency: 'COP';
+  amountDue: string;
+  declaredAmount: string;
+  supportedAmount: string;
+  verifiedAmount: string;
+  reversedAmount: string;
+  netVerifiedAmount: string;
+  outstandingAmount: string;
+  reservedAmount: string;
+  availableToDeclare: string;
+  payments: EmployeeDisbursement[];
+}
+
+export interface PendingEmployeeDisbursement extends EmployeeDisbursement {
+  sourceLabel: string;
+  amountDue: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  employee: { id: string; name: string; document: string };
+}
+
+export interface EmployeeDisbursementReconciliationReport {
+  tenantId: string;
+  checkedAt: string;
+  scannedDisbursements: number;
+  scannedObjects: number;
+  findings: Array<{
+    code: string;
+    disbursementId?: string;
+    disbursementIds?: string[];
+    storageKey?: string;
+    storageKeys?: string[];
+    expectedBytes?: number;
+    observedBytes?: number;
+  }>;
+  fingerprint: string;
+  auditRecorded: boolean;
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(path, {
     ...init,
@@ -484,6 +584,75 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const payrollApi = {
+  getDisbursementObligations: (sourceType: EmployeeDisbursementSourceType, page = 1) =>
+    req<DisbursementPage<DisbursementObligation>>(
+      `/api/payroll/disbursements/obligations?${new URLSearchParams({ sourceType, page: String(page), limit: '25' })}`,
+    ),
+  getPendingDisbursements: (page = 1) =>
+    req<DisbursementPage<PendingEmployeeDisbursement>>(
+      `/api/payroll/disbursements/pending-verification?${new URLSearchParams({ page: String(page), limit: '25' })}`,
+    ),
+  getDisbursementSummary: (sourceType: EmployeeDisbursementSourceType, sourceId: string) =>
+    req<EmployeeDisbursementSummary>(
+      `/api/payroll/disbursements?${new URLSearchParams({ sourceType, sourceId })}`,
+    ),
+  createDisbursement: (payload: {
+    sourceType: EmployeeDisbursementSourceType;
+    sourceId: string;
+    amount: string;
+    paidAt: string;
+    method: EmployeeDisbursementMethod;
+    reference?: string;
+    idempotencyKey: string;
+  }) =>
+    req<EmployeeDisbursement>('/api/payroll/disbursements', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  attachDisbursementSupport: async (id: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`/api/payroll/disbursements/${encodeURIComponent(id)}/support`, {
+      method: 'POST',
+      body: formData,
+    });
+    const body = (await response.json().catch(() => ({}))) as ApiEnvelope;
+    if (!response.ok) throw new Error(body.message ?? 'No se pudo adjuntar el soporte.');
+    return body as EmployeeDisbursement;
+  },
+  verifyDisbursement: (id: string) =>
+    req<EmployeeDisbursement>(`/api/payroll/disbursements/${encodeURIComponent(id)}/verify`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  cancelDisbursement: (id: string, reason: string) =>
+    req<EmployeeDisbursement>(`/api/payroll/disbursements/${encodeURIComponent(id)}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+  reverseDisbursement: (
+    id: string,
+    payload: { amount: string; reason: string; idempotencyKey: string },
+  ) =>
+    req<EmployeeDisbursementReversal>(
+      `/api/payroll/disbursements/${encodeURIComponent(id)}/reversals`,
+      { method: 'POST', body: JSON.stringify(payload) },
+    ),
+  downloadDisbursementSupport: async (id: string) => {
+    const response = await fetch(`/api/payroll/disbursements/${encodeURIComponent(id)}/support`, {
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as ApiEnvelope;
+      throw new Error(body.message ?? 'No se pudo descargar el soporte.');
+    }
+    return response.blob();
+  },
+  reconcileDisbursementSupports: () =>
+    req<EmployeeDisbursementReconciliationReport>(
+      '/api/payroll/disbursements/reconciliation/supports',
+      { method: 'POST', body: '{}' },
+    ),
   getDashboard: () => req<PayrollDashboard>('/api/payroll/dashboard'),
   getPeriods: () => req<PayrollPeriod[]>('/api/payroll/periods'),
   createPeriod: (d: {

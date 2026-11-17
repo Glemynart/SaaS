@@ -14,6 +14,8 @@ const user: CurrentUserPayload = {
 
 describe('EmployeeDisbursementController authorization and dispatch', () => {
   const service = {
+    listObligations: jest.fn(),
+    listPendingVerification: jest.fn(),
     create: jest.fn(),
     getSummary: jest.fn(),
     attachSupport: jest.fn(),
@@ -42,8 +44,37 @@ describe('EmployeeDisbursementController authorization and dispatch', () => {
 
     expect(roles('create')).toEqual([UserRole.ADMIN, UserRole.OPERADOR]);
     expect(roles('attachSupport')).toEqual([UserRole.ADMIN, UserRole.OPERADOR]);
+    expect(roles('listObligations')).toEqual([
+      UserRole.ADMIN,
+      UserRole.OPERADOR,
+    ]);
+    expect(roles('listPendingVerification')).toEqual([
+      UserRole.ADMIN,
+      UserRole.OPERADOR,
+    ]);
     expect(roles('verify')).toEqual([UserRole.ADMIN]);
     expect(roles('reverse')).toEqual([UserRole.ADMIN]);
+  });
+
+  it('deriva el tenant autenticado para listar obligaciones y la cola de verificación', async () => {
+    const obligationsQuery = {
+      sourceType: 'PAYROLL_RUN',
+      page: 2,
+      limit: 10,
+    } as never;
+    const pendingQuery = { page: 1, limit: 25 } as never;
+
+    await controller.listObligations(user, obligationsQuery);
+    await controller.listPendingVerification(user, pendingQuery);
+
+    expect(service.listObligations).toHaveBeenCalledWith(
+      'tenant-a',
+      obligationsQuery,
+    );
+    expect(service.listPendingVerification).toHaveBeenCalledWith(
+      'tenant-a',
+      pendingQuery,
+    );
   });
 
   it('rechaza un resumen sin tipo de obligación reconocido', () => {

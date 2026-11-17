@@ -14,6 +14,8 @@ import { PilaExportReconciliationController } from './pila-export-reconciliation
 import { PilaExportReconciliationService } from './pila-export-reconciliation.service';
 import { EmployeeDisbursementController } from './disbursements/employee-disbursement.controller';
 import { EmployeeDisbursementService } from './disbursements/employee-disbursement.service';
+import { EmployeeDisbursementReconciliationController } from './disbursements/employee-disbursement-reconciliation.controller';
+import { EmployeeDisbursementReconciliationService } from './disbursements/employee-disbursement-reconciliation.service';
 
 @Module({
   imports: [TenantsModule, AccountingModule, ServicePremiumModule],
@@ -23,6 +25,7 @@ import { EmployeeDisbursementService } from './disbursements/employee-disburseme
     PilaExportController,
     PilaExportReconciliationController,
     EmployeeDisbursementController,
+    EmployeeDisbursementReconciliationController,
   ],
   providers: [
     PayrollService,
@@ -32,6 +35,7 @@ import { EmployeeDisbursementService } from './disbursements/employee-disburseme
     PilaExportService,
     PilaExportReconciliationService,
     EmployeeDisbursementService,
+    EmployeeDisbursementReconciliationService,
   ],
 })
 export class PayrollModule {}

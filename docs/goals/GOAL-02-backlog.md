@@ -3074,3 +3074,10 @@ verificación administrativa, reversos append-only y cobertura N2D.4. El código
 no se considera integrado ni listo para producción hasta verificar las nuevas
 políticas RLS contra el contexto firmado de `main`, aplicar la migración en una
 base PostgreSQL desechable y completar las pruebas de interfaz y autorización.
+
+La rama local de recuperación también incorpora los controladores de interfaz
+para declarar, adjuntar soporte, verificar, cancelar y consultar obligaciones,
+además de una reconciliación diagnóstica de soportes. La reconciliación solo
+detecta y audita discrepancias; no repara ni elimina objetos. Estos recorridos
+siguen pendientes de auditoría completa sobre el `main` actual y de validación
+Browser E2E antes de publicar un PR.

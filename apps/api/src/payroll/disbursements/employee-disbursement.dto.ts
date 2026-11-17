@@ -1,12 +1,16 @@
 import {
+  IsInt,
   IsDateString,
   IsEnum,
   IsOptional,
   IsString,
   Length,
+  Max,
+  Min,
   Matches,
   MaxLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { EmployeeDisbursementMethod } from '@prisma/client';
 
 export enum EmployeeDisbursementSourceType {
@@ -64,4 +68,37 @@ export class CancelEmployeeDisbursementDto {
   @IsString()
   @Length(3, 512)
   reason!: string;
+}
+
+export class ListEmployeeDisbursementObligationsDto {
+  @IsEnum(EmployeeDisbursementSourceType)
+  sourceType!: EmployeeDisbursementSourceType;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Transform(({ value }) => (value === undefined ? undefined : Number(value)))
+  page = 1;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  @Transform(({ value }) => (value === undefined ? undefined : Number(value)))
+  limit = 25;
+}
+
+export class ListPendingEmployeeDisbursementsDto {
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Transform(({ value }) => (value === undefined ? undefined : Number(value)))
+  page = 1;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  @Transform(({ value }) => (value === undefined ? undefined : Number(value)))
+  limit = 25;
 }

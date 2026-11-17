@@ -84,9 +84,10 @@ causación, declaración manual y archivo aún no revisado no son cobertura.
   contabilización del desembolso. Para Ledger, Contabilidad debe definir la
   cuenta de salida, asiento para cada concepto de liquidación, fecha contable y
   tratamiento cuando el período del desembolso está cerrado.
-- No hay ruta web de liquidaciones existente. Este ADR cubre el contrato de API,
-  persistencia, seguridad y cálculo del backend; la interfaz de usuario queda
-  pendiente para una Epic end-to-end.
+- La interfaz de desembolsos en la rama de implementación cubre obligaciones de
+  nómina/liquidación, soporte privado, cola de revisión, historial y reversos.
+  Su disponibilidad a clientes requiere integrar y desplegar la rama; esta
+  implementación local no se declara publicada.
 - La verificación no requiere que `verifiedByUserId` sea diferente del
   registrador: el sistema exige una acción explícita y un permiso de ADMIN,
   pero no inventa una política de doble firma para tenants con un solo
@@ -102,6 +103,29 @@ causación, declaración manual y archivo aún no revisado no son cobertura.
   saldo; no se estima su equivalente en días.
 - Ledger puede mostrar un pasivo aún abierto después de que se verifique un
   desembolso, hasta que se defina y ejecute la contabilización de tesorería.
+
+## Procedimiento de diagnóstico de soportes
+
+El endpoint administrativo de reconciliación es exclusivamente diagnóstico:
+
+1. Ejecutar el diagnóstico con un ADMIN en el tenant afectado y conservar la
+   huella, el resumen de hallazgos y el evento de AuditLog.
+2. Repetirlo antes de resolver una diferencia. Si la huella cambió, revisar el
+   nuevo estado en lugar de actuar sobre el reporte anterior.
+3. Para `ORPHAN_STORAGE_OBJECT`, comprobar que terminó cualquier solicitud
+   ambigua y buscar la referencia exacta en los registros de desembolso y
+   auditoría. No borrar el archivo desde la aplicación ni por antigüedad.
+4. Para `SUPPORT_OBJECT_MISSING`, `SUPPORT_SIZE_MISMATCH` o
+   `SUPPORT_HASH_MISMATCH`, conservar el registro y el objeto original
+   disponible; verificación y descarga fallan cerradas. Determinar primero si
+   puede recuperarse el objeto original desde el proveedor o un backup.
+5. Para `CROSS_TENANT_STORAGE_REFERENCE`, detener cualquier reparación y
+   escalar como incidente de aislamiento. El reporte de un tenant no revela la
+   key del otro tenant.
+6. Cualquier resolución futura que modifique un registro o elimine un objeto
+   requiere un cambio separado con autorización explícita, revalidación de la
+   huella, operación idempotente y evento de auditoría. Esta implementación no
+   expone reparación ni eliminación automática.
 
 ## Validación esperada
 

@@ -11,6 +11,7 @@ import { TenantContextBoundary } from '../tenant-context/tenant-context.boundary
 import { TenantContextService } from '../tenant-context/tenant-context.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { EmployeeDisbursementService } from './disbursements/employee-disbursement.service';
+import { EmployeeDisbursementReconciliationService } from './disbursements/employee-disbursement-reconciliation.service';
 import { EmployeeDisbursementSourceType } from './disbursements/employee-disbursement.dto';
 import { LiquidationService } from './liquidation/liquidation.service';
 
@@ -22,6 +23,7 @@ describe('Employee disbursements PostgreSQL: RLS, audit, concurrency and N2D.4',
   const userA = randomUUID();
   const userB = randomUUID();
   let nextSeedPeriodMonth = 0;
+  let connected = false;
   const context = new TenantContextService();
   const prisma = new PrismaService();
   const files = new Map<string, Buffer>();
@@ -40,6 +42,14 @@ describe('Employee disbursements PostgreSQL: RLS, audit, concurrency and N2D.4',
       return Promise.resolve();
     }),
     objectExists: jest.fn((key: string) => Promise.resolve(files.has(key))),
+    listObjects: jest.fn((prefix: string) =>
+      Promise.resolve(
+        [...files.entries()]
+          .filter(([key]) => key.startsWith(prefix))
+          .map(([key, body]) => ({ key, size: body.length }))
+          .sort((left, right) => left.key.localeCompare(right.key)),
+      ),
+    ),
   };
   const roleAwarePrisma = {
     $transaction: <T>(
@@ -71,9 +81,17 @@ describe('Employee disbursements PostgreSQL: RLS, audit, concurrency and N2D.4',
     audit,
     disbursements,
   );
+  const disbursementReconciliation =
+    new EmployeeDisbursementReconciliationService(
+      tenantPrisma,
+      storage as unknown as StorageService,
+      audit,
+    );
 
   beforeAll(async () => {
+    assertDisposableDatabase();
     await prisma.$connect();
+    connected = true;
     await prisma.$executeRawUnsafe(
       `CREATE ROLE "${role}" NOLOGIN NOSUPERUSER NOBYPASSRLS`,
     );
@@ -126,6 +144,7 @@ describe('Employee disbursements PostgreSQL: RLS, audit, concurrency and N2D.4',
   }, 30000);
 
   afterAll(async () => {
+    if (!connected) return;
     try {
       await prisma.$transaction(async (tx) => {
         await tx.$executeRawUnsafe(
@@ -194,6 +213,77 @@ describe('Employee disbursements PostgreSQL: RLS, audit, concurrency and N2D.4',
         ),
       ),
     ).rejects.toThrow();
+  });
+
+  it('lista obligaciones y soportes dentro del tenant y reconcilia sin reparar objetos', async () => {
+    storage.deleteObject.mockClear();
+    const run = await seedRun(tenantA, false);
+    const payment = await withTenant(tenantA, userA, () =>
+      createPayment(run.runId, '40000', 'reconcile-support-001'),
+    );
+    await withTenant(tenantA, userA, () => attachSupport(payment.id));
+    const keysBefore = [...files.entries()].map(([key, body]) => [
+      key,
+      Buffer.from(body),
+    ]);
+
+    const obligationsA = await withTenant(tenantA, userA, () =>
+      disbursements.listObligations(tenantA, {
+        sourceType: EmployeeDisbursementSourceType.PAYROLL_RUN,
+        page: 1,
+        limit: 25,
+      }),
+    );
+    const obligationsB = await withTenant(tenantB, userB, () =>
+      disbursements.listObligations(tenantB, {
+        sourceType: EmployeeDisbursementSourceType.PAYROLL_RUN,
+        page: 1,
+        limit: 25,
+      }),
+    );
+    const pendingA = await withTenant(tenantA, userA, () =>
+      disbursements.listPendingVerification(tenantA, { page: 1, limit: 25 }),
+    );
+    const pendingB = await withTenant(tenantB, userB, () =>
+      disbursements.listPendingVerification(tenantB, { page: 1, limit: 25 }),
+    );
+
+    expect(obligationsA.data.map((item) => item.sourceId)).toContain(run.runId);
+    expect(obligationsB.data).toHaveLength(0);
+    expect(pendingA.data.map((item) => item.id)).toContain(payment.id);
+    expect(pendingB.data).toHaveLength(0);
+
+    const reportA = await withTenant(tenantA, userA, () =>
+      disbursementReconciliation.reconcile(tenantA, userA),
+    );
+    const reportB = await withTenant(tenantB, userB, () =>
+      disbursementReconciliation.reconcile(tenantB, userB),
+    );
+
+    expect(reportA.scannedDisbursements).toBeGreaterThanOrEqual(1);
+    expect(reportA.scannedObjects).toBeGreaterThanOrEqual(1);
+    expect(reportA.findings).not.toContainEqual(
+      expect.objectContaining({
+        code: 'SUPPORT_OBJECT_MISSING',
+        disbursementId: payment.id,
+      }),
+    );
+    expect(reportB.scannedDisbursements).toBe(0);
+    expect(reportB.scannedObjects).toBe(0);
+    expect([...files.entries()]).toEqual(keysBefore);
+    expect(storage.deleteObject).not.toHaveBeenCalled();
+    expect(storage.listObjects).toHaveBeenCalledWith(
+      `tenants/${tenantA}/employee-disbursements/`,
+    );
+    await expect(
+      prisma.auditLog.count({
+        where: {
+          tenantId: tenantA,
+          action: 'employee.disbursement.support.reconciled',
+          entityId: reportA.fingerprint,
+        },
+      }),
+    ).resolves.toBe(1);
   });
 
   it('serializa declaraciones concurrentes y no reserva más que la obligación', async () => {
@@ -529,6 +619,31 @@ describe('Employee disbursements PostgreSQL: RLS, audit, concurrency and N2D.4',
       { tenantId, userId, rol: 'ADMIN', email: `${userId}@example.test` },
       work,
     );
+  }
+
+  function assertDisposableDatabase() {
+    const value = process.env.DATABASE_URL;
+    if (!value) {
+      throw new Error('DATABASE_URL is required for PostgreSQL tests.');
+    }
+
+    let parsed: URL;
+    try {
+      parsed = new URL(value);
+    } catch {
+      throw new Error('PostgreSQL tests require a valid DATABASE_URL.');
+    }
+
+    const loopbackHosts = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+    const databaseName = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
+    if (
+      !loopbackHosts.has(parsed.hostname) ||
+      !/(test|ci|disposable)/i.test(databaseName)
+    ) {
+      throw new Error(
+        'Employee disbursement PostgreSQL tests require a loopback database whose name identifies it as test, CI, or disposable.',
+      );
+    }
   }
 
   function runAsRlsRole<T>(work: (tx: Prisma.TransactionClient) => Promise<T>) {

@@ -169,3 +169,78 @@ describe('payrollApi PILA events', () => {
     });
   });
 });
+
+describe('payrollApi employee disbursements', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('carga obligaciones y resúmenes por el tenant activo en la API', async () => {
+    const page = { data: [], meta: { total: 0, page: 1, limit: 25, totalPages: 0 } };
+    const summary = { sourceType: 'PAYROLL_RUN', sourceId: 'run-1', payments: [] };
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => page })
+      .mockResolvedValueOnce({ ok: true, json: async () => summary });
+    global.fetch = fetchMock;
+
+    await expect(payrollApi.getDisbursementObligations('PAYROLL_RUN')).resolves.toEqual(page);
+    await expect(payrollApi.getDisbursementSummary('PAYROLL_RUN', 'run-1')).resolves.toEqual(
+      summary,
+    );
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/payroll/disbursements/obligations?sourceType=PAYROLL_RUN&page=1&limit=25',
+      { headers: { 'Content-Type': 'application/json' } },
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/payroll/disbursements?sourceType=PAYROLL_RUN&sourceId=run-1',
+      { headers: { 'Content-Type': 'application/json' } },
+    );
+  });
+
+  it('sube soporte privado como multipart sin forzar Content-Type JSON', async () => {
+    const payment = { id: 'payment-1', status: 'SUPPORTED' };
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => payment });
+    global.fetch = fetchMock;
+    const file = new File(['private receipt'], 'receipt.pdf', { type: 'application/pdf' });
+
+    await expect(payrollApi.attachDisbursementSupport('payment-1', file)).resolves.toEqual(payment);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/payroll/disbursements/payment-1/support');
+    expect(init.method).toBe('POST');
+    expect(init.body).toBeInstanceOf(FormData);
+    expect((init.body as FormData).get('file')).toBeInstanceOf(File);
+    expect(init.headers).toBeUndefined();
+  });
+
+  it('envía reversos idempotentes y expone el diagnóstico de solo lectura', async () => {
+    const reversal = { id: 'reversal-1', disbursementId: 'payment-1' };
+    const report = { findings: [], auditRecorded: true };
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => reversal })
+      .mockResolvedValueOnce({ ok: true, json: async () => report });
+    global.fetch = fetchMock;
+    const payload = { amount: '10000', reason: 'Reintegro', idempotencyKey: 'reverse-key-001' };
+
+    await expect(payrollApi.reverseDisbursement('payment-1', payload)).resolves.toEqual(reversal);
+    await expect(payrollApi.reconcileDisbursementSupports()).resolves.toEqual(report);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/payroll/disbursements/payment-1/reversals', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/payroll/disbursements/reconciliation/supports',
+      { method: 'POST', body: '{}', headers: { 'Content-Type': 'application/json' } },
+    );
+  });
+});

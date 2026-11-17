@@ -27,6 +27,8 @@ import {
   CreateEmployeeDisbursementDto,
   EmployeeDisbursementSourceType,
   ReverseEmployeeDisbursementDto,
+  ListEmployeeDisbursementObligationsDto,
+  ListPendingEmployeeDisbursementsDto,
 } from './employee-disbursement.dto';
 import { EmployeeDisbursementService } from './employee-disbursement.service';
 
@@ -34,6 +36,24 @@ import { EmployeeDisbursementService } from './employee-disbursement.service';
 @Controller('payroll/disbursements')
 export class EmployeeDisbursementController {
   constructor(private readonly service: EmployeeDisbursementService) {}
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Get('obligations')
+  listObligations(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query() query: ListEmployeeDisbursementObligationsDto,
+  ) {
+    return this.service.listObligations(user.tenantId, query);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Get('pending-verification')
+  listPendingVerification(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query() query: ListPendingEmployeeDisbursementsDto,
+  ) {
+    return this.service.listPendingVerification(user.tenantId, query);
+  }
 
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Post()

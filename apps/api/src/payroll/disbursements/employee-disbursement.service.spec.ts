@@ -66,11 +66,16 @@ const makePayment = (overrides: Record<string, unknown> = {}) => ({
 describe('EmployeeDisbursementService', () => {
   const tx = {
     $queryRaw: jest.fn().mockResolvedValue([{ id: EMPLOYEE_ID }]),
-    payrollRun: { findFirst: jest.fn() },
-    liquidation: { findFirst: jest.fn() },
+    payrollRun: { findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+    liquidation: {
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
+    },
     employeeDisbursement: {
       findFirst: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
     },
@@ -102,9 +107,14 @@ describe('EmployeeDisbursementService', () => {
     jest.clearAllMocks();
     tx.$queryRaw.mockResolvedValue([{ id: EMPLOYEE_ID }]);
     tx.payrollRun.findFirst.mockResolvedValue(makePayrollRun());
+    tx.payrollRun.findMany.mockResolvedValue([]);
+    tx.payrollRun.count.mockResolvedValue(0);
     tx.liquidation.findFirst.mockResolvedValue(null);
+    tx.liquidation.findMany.mockResolvedValue([]);
+    tx.liquidation.count.mockResolvedValue(0);
     tx.employeeDisbursement.findFirst.mockResolvedValue(null);
     tx.employeeDisbursement.findMany.mockResolvedValue([]);
+    tx.employeeDisbursement.count.mockResolvedValue(0);
     tx.employeeDisbursement.create.mockImplementation(({ data }) =>
       Promise.resolve(makePayment(data as Record<string, unknown>)),
     );
@@ -148,6 +158,149 @@ describe('EmployeeDisbursementService', () => {
       tx,
     );
     expect(tx.$queryRaw).toHaveBeenCalledTimes(2); // idempotency + tenant employee lock
+  });
+
+  it('lista únicamente obligaciones de nómina del tenant y estados aptos', async () => {
+    tx.payrollRun.findMany.mockResolvedValue([
+      {
+        id: RUN_ID,
+        netoPagar: new Prisma.Decimal(100_000),
+        employee: {
+          id: EMPLOYEE_ID,
+          primerNombre: 'Valentina',
+          segundoNombre: null,
+          primerApellido: 'Martínez',
+          segundoApellido: null,
+          cedula: '12345678',
+        },
+        payrollPeriod: {
+          id: 'period-a',
+          nombre: 'Noviembre',
+          fechaInicio: new Date('2026-11-01T00:00:00.000Z'),
+          fechaFin: new Date('2026-11-30T00:00:00.000Z'),
+          status: PayrollPeriodStatus.CAUSADA,
+        },
+      },
+    ]);
+    tx.payrollRun.count.mockResolvedValue(1);
+
+    const result = await service.listObligations(TENANT_ID, {
+      sourceType: EmployeeDisbursementSourceType.PAYROLL_RUN,
+      page: 1,
+      limit: 25,
+    });
+
+    expect(result.data).toEqual([
+      expect.objectContaining({
+        sourceType: EmployeeDisbursementSourceType.PAYROLL_RUN,
+        sourceId: RUN_ID,
+        amountDue: '100000.00',
+        employee: {
+          id: EMPLOYEE_ID,
+          name: 'Valentina Martínez',
+          document: '12345678',
+        },
+      }),
+    ]);
+    const payrollRunCalls = tx.payrollRun.findMany.mock
+      .calls as unknown as Array<
+      [{ where: Prisma.PayrollRunWhereInput; take: number }]
+    >;
+    const payrollRunQuery = payrollRunCalls[0]?.[0];
+    expect(payrollRunQuery).toBeDefined();
+    expect(payrollRunQuery?.where.tenantId).toBe(TENANT_ID);
+    expect(payrollRunQuery?.take).toBe(25);
+  });
+
+  it('lista obligaciones aprobadas de liquidación con su beneficiario derivado', async () => {
+    tx.liquidation.findMany.mockResolvedValue([
+      {
+        id: 'liquidation-a',
+        status: 'APPROVED',
+        totalLiquidacion: new Prisma.Decimal(250_000),
+        fechaRetiro: new Date('2026-10-31T00:00:00.000Z'),
+        empleado: {
+          id: EMPLOYEE_ID,
+          primerNombre: 'Mateo',
+          segundoNombre: 'Andrés',
+          primerApellido: 'López',
+          segundoApellido: null,
+          cedula: '87654321',
+        },
+      },
+    ]);
+    tx.liquidation.count.mockResolvedValue(1);
+
+    const result = await service.listObligations(TENANT_ID, {
+      sourceType: EmployeeDisbursementSourceType.LIQUIDATION,
+      page: 1,
+      limit: 25,
+    });
+
+    expect(result.data[0]).toMatchObject({
+      sourceType: EmployeeDisbursementSourceType.LIQUIDATION,
+      sourceId: 'liquidation-a',
+      amountDue: '250000.00',
+      employee: { id: EMPLOYEE_ID, name: 'Mateo Andrés López' },
+    });
+    const liquidationCalls = tx.liquidation.findMany.mock
+      .calls as unknown as Array<[{ where: Prisma.LiquidationWhereInput }]>;
+    const liquidationQuery = liquidationCalls[0]?.[0];
+    expect(liquidationQuery).toBeDefined();
+    expect(liquidationQuery?.where.tenantId).toBe(TENANT_ID);
+  });
+
+  it('devuelve solo desembolsos SUPPORTED de la organización en la cola de revisión', async () => {
+    tx.employeeDisbursement.findMany.mockResolvedValue([
+      makePayment({
+        status: EmployeeDisbursementStatus.SUPPORTED,
+        supportStorageKey: `tenants/${TENANT_ID}/employee-disbursements/${PAYMENT_ID}/00000000-0000-4000-8000-000000000000.pdf`,
+        supportMimeType: 'application/pdf',
+        supportSizeBytes: PDF.length,
+        supportSha256: PDF_SHA256,
+        supportedAt: new Date('2026-01-16T00:00:00.000Z'),
+        reversals: [],
+        employee: {
+          id: EMPLOYEE_ID,
+          primerNombre: 'Valentina',
+          segundoNombre: null,
+          primerApellido: 'Martínez',
+          segundoApellido: null,
+          cedula: '12345678',
+        },
+        payrollRun: {
+          id: RUN_ID,
+          netoPagar: new Prisma.Decimal(100_000),
+          payrollPeriod: {
+            nombre: 'Enero',
+            fechaInicio: new Date('2026-01-01T00:00:00.000Z'),
+            fechaFin: new Date('2026-01-31T00:00:00.000Z'),
+          },
+        },
+        liquidation: null,
+      }),
+    ]);
+    tx.employeeDisbursement.count.mockResolvedValue(1);
+
+    const result = await service.listPendingVerification(TENANT_ID, {
+      page: 1,
+      limit: 25,
+    });
+
+    expect(result.data[0]).toMatchObject({
+      status: EmployeeDisbursementStatus.SUPPORTED,
+      sourceLabel: 'Nómina · Enero',
+      employee: { name: 'Valentina Martínez', document: '12345678' },
+    });
+    expect(tx.employeeDisbursement.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          tenantId: TENANT_ID,
+          status: EmployeeDisbursementStatus.SUPPORTED,
+        },
+        take: 25,
+      }),
+    );
   });
 
   it('hace idempotente el alta y rechaza reutilizar la clave con otros datos', async () => {

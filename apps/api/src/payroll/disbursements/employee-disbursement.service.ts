@@ -21,6 +21,10 @@ import {
   EmployeeDisbursementSourceType,
   CreateEmployeeDisbursementDto,
 } from './employee-disbursement.dto';
+import type {
+  ListEmployeeDisbursementObligationsDto,
+  ListPendingEmployeeDisbursementsDto,
+} from './employee-disbursement.dto';
 
 const COVERAGE_PERIOD_STATUSES: PayrollPeriodStatus[] = [
   PayrollPeriodStatus.APROBADA,
@@ -538,6 +542,204 @@ export class EmployeeDisbursementService {
     });
   }
 
+  async listObligations(
+    tenantId: string,
+    query: ListEmployeeDisbursementObligationsDto,
+  ) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 25;
+    const skip = (page - 1) * limit;
+
+    return this.tenantPrisma.execute(async (tx) => {
+      if (query.sourceType === EmployeeDisbursementSourceType.PAYROLL_RUN) {
+        const where: Prisma.PayrollRunWhereInput = {
+          tenantId,
+          netoPagar: { gt: 0 },
+          payrollPeriod: {
+            is: {
+              tenantId,
+              status: { in: COVERAGE_PERIOD_STATUSES },
+            },
+          },
+        };
+        const [runs, total] = await Promise.all([
+          tx.payrollRun.findMany({
+            where,
+            skip,
+            take: limit,
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            select: {
+              id: true,
+              netoPagar: true,
+              employee: {
+                select: {
+                  id: true,
+                  primerNombre: true,
+                  segundoNombre: true,
+                  primerApellido: true,
+                  segundoApellido: true,
+                  cedula: true,
+                },
+              },
+              payrollPeriod: {
+                select: {
+                  id: true,
+                  nombre: true,
+                  fechaInicio: true,
+                  fechaFin: true,
+                  status: true,
+                },
+              },
+            },
+          }),
+          tx.payrollRun.count({ where }),
+        ]);
+        return {
+          data: runs.map((run) => ({
+            sourceType: EmployeeDisbursementSourceType.PAYROLL_RUN,
+            sourceId: run.id,
+            label: `Nómina · ${run.payrollPeriod.nombre}`,
+            status: run.payrollPeriod.status,
+            amountDue: run.netoPagar.toFixed(2),
+            periodStart: run.payrollPeriod.fechaInicio,
+            periodEnd: run.payrollPeriod.fechaFin,
+            employee: {
+              id: run.employee.id,
+              name: this.employeeName(run.employee),
+              document: run.employee.cedula,
+            },
+          })),
+          meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+        };
+      }
+
+      const where: Prisma.LiquidationWhereInput = {
+        tenantId,
+        status: { in: [LiquidationStatus.APPROVED, LiquidationStatus.PAID] },
+        totalLiquidacion: { gt: 0 },
+      };
+      const [liquidations, total] = await Promise.all([
+        tx.liquidation.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          select: {
+            id: true,
+            status: true,
+            totalLiquidacion: true,
+            fechaRetiro: true,
+            empleado: {
+              select: {
+                id: true,
+                primerNombre: true,
+                segundoNombre: true,
+                primerApellido: true,
+                segundoApellido: true,
+                cedula: true,
+              },
+            },
+          },
+        }),
+        tx.liquidation.count({ where }),
+      ]);
+      return {
+        data: liquidations.map((liquidation) => ({
+          sourceType: EmployeeDisbursementSourceType.LIQUIDATION,
+          sourceId: liquidation.id,
+          label: 'Liquidación laboral',
+          status: liquidation.status,
+          amountDue: liquidation.totalLiquidacion.toFixed(2),
+          periodStart: liquidation.fechaRetiro,
+          periodEnd: liquidation.fechaRetiro,
+          employee: {
+            id: liquidation.empleado.id,
+            name: this.employeeName(liquidation.empleado),
+            document: liquidation.empleado.cedula,
+          },
+        })),
+        meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      };
+    });
+  }
+
+  async listPendingVerification(
+    tenantId: string,
+    query: ListPendingEmployeeDisbursementsDto,
+  ) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 25;
+    const where = {
+      tenantId,
+      status: EmployeeDisbursementStatus.SUPPORTED,
+    };
+    const skip = (page - 1) * limit;
+
+    return this.tenantPrisma.execute(async (tx) => {
+      const [payments, total] = await Promise.all([
+        tx.employeeDisbursement.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: [{ supportedAt: 'asc' }, { id: 'asc' }],
+          include: {
+            reversals: true,
+            employee: {
+              select: {
+                id: true,
+                primerNombre: true,
+                segundoNombre: true,
+                primerApellido: true,
+                segundoApellido: true,
+                cedula: true,
+              },
+            },
+            payrollRun: {
+              select: {
+                id: true,
+                netoPagar: true,
+                payrollPeriod: {
+                  select: {
+                    nombre: true,
+                    fechaInicio: true,
+                    fechaFin: true,
+                  },
+                },
+              },
+            },
+            liquidation: {
+              select: { id: true, totalLiquidacion: true, fechaRetiro: true },
+            },
+          },
+        }),
+        tx.employeeDisbursement.count({ where }),
+      ]);
+      return {
+        data: payments.map((payment) => ({
+          ...this.toPaymentResponse(payment),
+          sourceLabel: payment.payrollRun
+            ? `Nómina · ${payment.payrollRun.payrollPeriod.nombre}`
+            : 'Liquidación laboral',
+          amountDue: payment.payrollRun
+            ? payment.payrollRun.netoPagar.toFixed(2)
+            : (payment.liquidation?.totalLiquidacion.toFixed(2) ?? null),
+          periodStart: payment.payrollRun
+            ? payment.payrollRun.payrollPeriod.fechaInicio
+            : (payment.liquidation?.fechaRetiro ?? null),
+          periodEnd: payment.payrollRun
+            ? payment.payrollRun.payrollPeriod.fechaFin
+            : (payment.liquidation?.fechaRetiro ?? null),
+          employee: {
+            id: payment.employee.id,
+            name: this.employeeName(payment.employee),
+            document: payment.employee.cedula,
+          },
+        })),
+        meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      };
+    });
+  }
+
   async downloadSupport(tenantId: string, userId: string, paymentId: string) {
     return this.tenantPrisma.execute(async (tx) => {
       const payment = await this.findPayment(tx, tenantId, paymentId);
@@ -813,6 +1015,7 @@ export class EmployeeDisbursementService {
           : { liquidationId: source.sourceId }),
       },
       include: { reversals: true },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     });
 
     let declaredAmount = new Prisma.Decimal(0);
@@ -956,7 +1159,26 @@ export class EmployeeDisbursementService {
       cancellationReason: payment.cancellationReason,
       reversedAmount: reversedAmount.toFixed(2),
       reversalCount: payment.reversals.length,
+      reversals: payment.reversals.map((reversal) =>
+        this.toReversalResponse(reversal),
+      ),
     };
+  }
+
+  private employeeName(employee: {
+    primerNombre: string;
+    segundoNombre: string | null;
+    primerApellido: string;
+    segundoApellido: string | null;
+  }): string {
+    return [
+      employee.primerNombre,
+      employee.segundoNombre,
+      employee.primerApellido,
+      employee.segundoApellido,
+    ]
+      .filter(Boolean)
+      .join(' ');
   }
 
   private toReversalResponse(reversal: {
