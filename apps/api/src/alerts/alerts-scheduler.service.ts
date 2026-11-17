@@ -14,6 +14,10 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../tenant-context/tenant-context.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
+import {
+  installSignedSystemTenantDatabaseContext,
+  installSignedTenantDatabaseContext,
+} from '../tenant-context/signed-database-context';
 import { AuditService } from '../audit/audit.service';
 import {
   AuditActor,
@@ -226,10 +230,15 @@ export class AlertsSchedulerService {
     trigger: AlertGenerationRunTrigger;
     parentRunId?: string;
     tenantIds?: string[];
+    actor: RunActor;
   }): Promise<RunClaim> {
+    // Recover stale per-tenant rows in a separate SYSTEM-scoped transaction.
+    // The subsequent claim transaction may represent a HUMAN retry and must
+    // not inherit or relabel the recovery actor.
+    await this.prisma.$transaction((tx) => this.recoverStaleRuns(tx));
+
     try {
       return await this.prisma.$transaction(async (tx) => {
-        await this.recoverStaleRuns(tx);
         await this.purgeExpiredRuns(tx);
 
         const tenants = await tx.tenant.findMany({
@@ -240,6 +249,11 @@ export class AlertsSchedulerService {
           orderBy: { id: 'asc' },
         });
         const tenantIds = tenants.map((tenant) => tenant.id);
+        if (input.actor.kind === 'HUMAN' && tenantIds.length > 1) {
+          throw new ConflictException(
+            'Una ejecución manual solo puede abarcar una organización.',
+          );
+        }
         const run = await tx.alertGenerationRun.create({
           data: {
             schedulerKey: ALERTS_SCHEDULER_KEY,
@@ -258,9 +272,7 @@ export class AlertsSchedulerService {
 
         if (tenantIds.length > 0) {
           for (const tenantId of tenantIds) {
-            await tx.$executeRaw`
-              SELECT set_config('app.current_tenant_id', ${tenantId}, true)
-            `;
+            await this.installTenantDatabaseContext(tx, tenantId, input.actor);
             await tx.alertGenerationRunTenant.create({
               data: { runId: run.id, tenantId },
             });
@@ -308,9 +320,7 @@ export class AlertsSchedulerService {
         });
 
         await this.prisma.$transaction(async (tx) => {
-          await tx.$executeRaw`
-            SELECT set_config('app.current_tenant_id', ${tenantId}, true)
-          `;
+          await this.installTenantDatabaseContext(tx, tenantId, actor);
 
           const result = await this.withTenantActorContext(
             tenantId,
@@ -459,9 +469,7 @@ export class AlertsSchedulerService {
   ) {
     await this.withTenantActorContext(tenantId, actor, () =>
       this.prisma.$transaction(async (tx) => {
-        await tx.$executeRaw`
-          SELECT set_config('app.current_tenant_id', ${tenantId}, true)
-        `;
+        await this.installTenantDatabaseContext(tx, tenantId, actor);
         await tx.alertGenerationRunTenant.update({
           where: { runId_tenantId: { runId, tenantId } },
           data: {
@@ -537,9 +545,6 @@ export class AlertsSchedulerService {
     metadata: Record<string, unknown>,
   ) {
     return this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`
-        SELECT set_config('app.current_tenant_id', ${tenantId}, true)
-      `;
       return this.auditService.log(
         {
           tenantId,
@@ -565,14 +570,18 @@ export class AlertsSchedulerService {
       },
       select: { id: true },
     });
+    if (staleRuns.length === 0) return;
+
     const tenants = await tx.tenant.findMany({ select: { id: true } });
 
     for (const run of staleRuns) {
       let staleTenantCount = 0;
       for (const tenant of tenants) {
-        await tx.$executeRaw`
-          SELECT set_config('app.current_tenant_id', ${tenant.id}, true)
-        `;
+        await installSignedSystemTenantDatabaseContext(
+          tx,
+          tenant.id,
+          SYSTEM_AUDIT_ACTORS.ALERTS_SCHEDULER,
+        );
         const result = await tx.alertGenerationRunTenant.updateMany({
           where: {
             runId: run.id,
@@ -622,6 +631,27 @@ export class AlertsSchedulerService {
     return actor.kind === 'SYSTEM'
       ? { kind: 'SYSTEM', id: actor.userId }
       : { kind: 'HUMAN', id: actor.userId };
+  }
+
+  private async installTenantDatabaseContext(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    actor: RunActor,
+  ): Promise<void> {
+    if (actor.kind === 'SYSTEM') {
+      await installSignedSystemTenantDatabaseContext(
+        tx,
+        tenantId,
+        actor.userId,
+      );
+      return;
+    }
+    await installSignedTenantDatabaseContext(
+      tx,
+      tenantId,
+      actor.userId,
+      'HUMAN',
+    );
   }
 
   private async purgeExpiredRuns(tx: Prisma.TransactionClient) {

@@ -7,18 +7,16 @@ import { AuditService } from './audit.service';
 import { SYSTEM_AUDIT_ACTORS } from './audit-actor';
 
 describe('AuditService', () => {
+  type QueryRawCall = [strings: TemplateStringsArray, ...values: unknown[]];
+
   const tenantContext = new TenantContextService();
-  const queryRaw = jest.fn();
+  const queryRaw = jest.fn<Promise<unknown[]>, QueryRawCall>();
   const executeRaw = jest.fn();
-  const create = jest.fn<
-    Promise<unknown>,
-    [{ data: Record<string, unknown> }]
-  >();
+  const findActor = jest.fn().mockResolvedValue({ id: 'human-user-a' });
   const client = {
     $queryRaw: queryRaw,
     $executeRaw: executeRaw,
-    auditLog: { create },
-    user: { findFirst: jest.fn().mockResolvedValue({ id: 'human-user-a' }) },
+    user: { findFirst: findActor },
   } as unknown as Prisma.TransactionClient;
   const prismaTransaction = jest.fn(
     (work: (transaction: Prisma.TransactionClient) => Promise<unknown>) =>
@@ -34,13 +32,52 @@ describe('AuditService', () => {
     tenantContext,
   );
 
+  const storedEvent = {
+    id: 'event-id',
+    createdAt: new Date('2026-11-17T00:00:00.000Z'),
+    tenantId: 'tenant-a',
+    actorId: 'human-user-a',
+    actorKind: 'HUMAN',
+    action: 'AUDIT_TEST',
+    entityType: 'AuditLogTest',
+    entityId: null,
+    metadata: {},
+  };
+
+  function parseEventPayload(payload: unknown): Record<string, unknown> {
+    if (typeof payload !== 'string') {
+      throw new Error('The AuditLog append payload must be a string.');
+    }
+    return JSON.parse(payload) as Record<string, unknown>;
+  }
+
+  beforeAll(() => {
+    process.env.AUDIT_LOG_SIGNING_KEY = Buffer.from(
+      'goal02-disposable-audit-signing-key-for-unit-tests',
+    ).toString('base64');
+    process.env.AUDIT_LOG_SIGNING_KEY_ID = 'unit-test-v1';
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
-    queryRaw.mockResolvedValue([{ tenantId: null }]);
+    queryRaw.mockImplementation((strings: TemplateStringsArray) => {
+      if (strings.join('').includes('pg_current_xact_id')) {
+        return Promise.resolve([
+          {
+            transactionId: '123',
+            tenantId: null,
+            actorId: null,
+            actorType: null,
+            rawTenantId: null,
+            rawPayload: null,
+            rawSignature: null,
+          },
+        ]);
+      }
+      return Promise.resolve([storedEvent]);
+    });
     executeRaw.mockResolvedValue(1);
-    create.mockImplementation(({ data }: { data: unknown }) =>
-      Promise.resolve(data),
-    );
+    findActor.mockResolvedValue({ id: 'human-user-a' });
   });
 
   it('keeps existing userId callers as human actors and installs transaction scope', async () => {
@@ -53,12 +90,20 @@ describe('AuditService', () => {
 
     expect(prismaTransaction).toHaveBeenCalledTimes(1);
     expect(executeRaw).toHaveBeenCalledTimes(1);
-    const [call] = create.mock.calls;
-    expect(call?.[0].data).toMatchObject({
+    const appendCall = queryRaw.mock.calls.find(([strings]) =>
+      strings.join('').includes('append_audit_event'),
+    );
+    expect(appendCall).toBeDefined();
+    if (!appendCall) throw new Error('Expected the AuditLog append call.');
+    const event = parseEventPayload(appendCall[1]);
+    expect(event).toMatchObject({
       tenantId: 'tenant-a',
       actorId: 'human-user-a',
-      actorKind: 'HUMAN',
+      actorType: 'HUMAN',
+      action: 'EMPLOYEE_UPDATED',
     });
+    expect(Buffer.isBuffer(appendCall[2])).toBe(true);
+    expect(appendCall[3]).toBe('unit-test-v1');
   });
 
   it('persists an allowlisted system actor explicitly', async () => {
@@ -69,15 +114,30 @@ describe('AuditService', () => {
       entityType: 'AlertGenerationRun',
     });
 
-    const [call] = create.mock.calls;
-    expect(call?.[0].data).toMatchObject({
+    const appendCall = queryRaw.mock.calls.find(([strings]) =>
+      strings.join('').includes('append_audit_event'),
+    );
+    expect(appendCall).toBeDefined();
+    if (!appendCall) throw new Error('Expected the AuditLog append call.');
+    const event = parseEventPayload(appendCall[1]);
+    expect(event).toMatchObject({
       actorId: 'system:alerts-scheduler',
-      actorKind: 'SYSTEM',
+      actorType: 'SYSTEM',
     });
   });
 
-  it('reuses an already matching transaction tenant without resetting it', async () => {
-    queryRaw.mockResolvedValueOnce([{ tenantId: 'tenant-a' }]);
+  it('reuses a matching signed transaction scope without resetting it', async () => {
+    queryRaw.mockResolvedValueOnce([
+      {
+        transactionId: '123',
+        tenantId: 'tenant-a',
+        actorId: 'human-user-a',
+        actorType: 'HUMAN',
+        rawTenantId: 'tenant-a',
+        rawPayload: 'signed',
+        rawSignature: 'signature',
+      },
+    ]);
     const tx = client;
 
     await service.log(
@@ -93,11 +153,25 @@ describe('AuditService', () => {
     expect(prismaTransaction).not.toHaveBeenCalled();
     expect(tenantExecute).not.toHaveBeenCalled();
     expect(executeRaw).not.toHaveBeenCalled();
-    expect(create).toHaveBeenCalledTimes(1);
+    expect(
+      queryRaw.mock.calls.some(([strings]) =>
+        strings.join('').includes('append_audit_event'),
+      ),
+    ).toBe(true);
   });
 
-  it('rejects a tenant mismatch in an existing transaction', async () => {
-    queryRaw.mockResolvedValueOnce([{ tenantId: 'tenant-a' }]);
+  it('rejects a tenant mismatch in an existing signed transaction', async () => {
+    queryRaw.mockResolvedValueOnce([
+      {
+        transactionId: '123',
+        tenantId: 'tenant-a',
+        actorId: 'human-user-a',
+        actorType: 'HUMAN',
+        rawTenantId: 'tenant-a',
+        rawPayload: 'signed',
+        rawSignature: 'signature',
+      },
+    ]);
 
     await expect(
       service.log(
@@ -111,7 +185,7 @@ describe('AuditService', () => {
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
-    expect(create).not.toHaveBeenCalled();
+    expect(queryRaw).toHaveBeenCalledTimes(1);
   });
 
   it('uses the active tenant transaction and rejects a mismatched human actor', async () => {
@@ -134,7 +208,7 @@ describe('AuditService', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(tenantExecute).not.toHaveBeenCalled();
-    expect(create).not.toHaveBeenCalled();
+    expect(queryRaw).not.toHaveBeenCalled();
   });
 
   it('rejects system identities that are not registered', async () => {
@@ -152,11 +226,27 @@ describe('AuditService', () => {
 
   it('rejects an unauthenticated human actor that does not belong to the tenant', async () => {
     const findActor = jest.fn().mockResolvedValue(null);
+    const txQueryRaw = jest
+      .fn<Promise<unknown[]>, QueryRawCall>()
+      .mockImplementation((strings: TemplateStringsArray) =>
+        strings.join('').includes('pg_current_xact_id')
+          ? Promise.resolve([
+              {
+                transactionId: '123',
+                tenantId: null,
+                actorId: null,
+                actorType: null,
+                rawTenantId: null,
+                rawPayload: null,
+                rawSignature: null,
+              },
+            ])
+          : Promise.resolve([storedEvent]),
+      );
     const tx = {
-      $queryRaw: jest.fn().mockResolvedValue([{ tenantId: null }]),
+      $queryRaw: txQueryRaw,
       $executeRaw: jest.fn().mockResolvedValue(1),
       user: { findFirst: findActor },
-      auditLog: { create },
     } as unknown as Prisma.TransactionClient;
     const transaction = jest.fn(
       (work: (client: Prisma.TransactionClient) => Promise<unknown>) =>
@@ -181,6 +271,10 @@ describe('AuditService', () => {
       where: { id: 'unknown-human', tenantId: 'tenant-a' },
       select: { id: true },
     });
-    expect(create).not.toHaveBeenCalled();
+    expect(
+      txQueryRaw.mock.calls.some(([strings]) =>
+        strings.join('').includes('append_audit_event'),
+      ),
+    ).toBe(false);
   });
 });

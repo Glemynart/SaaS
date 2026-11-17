@@ -3,6 +3,12 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../tenant-context/tenant-context.service';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
+import {
+  createAuditEventId,
+  installSignedTenantDatabaseContext,
+  SignedDatabaseContextError,
+  signAuditEvent,
+} from '../tenant-context/signed-database-context';
 import { AuditActor, SYSTEM_AUDIT_ACTORS } from './audit-actor';
 
 type AuditEventFields = {
@@ -83,21 +89,20 @@ export class AuditService {
     params: AuditEventFields,
     actor: AuditActor,
   ) {
-    const [scope] = await client.$queryRaw<{ tenantId: string | null }[]>`
-      SELECT NULLIF(current_setting('app.current_tenant_id', true), '')
-        AS "tenantId"
-    `;
-
-    if (scope?.tenantId && scope.tenantId !== params.tenantId) {
-      throw new ForbiddenException(
-        'El evento de auditoría no coincide con el tenant de la transacción.',
+    try {
+      await installSignedTenantDatabaseContext(
+        client,
+        params.tenantId,
+        actor.id,
+        actor.kind,
       );
-    }
-
-    if (!scope?.tenantId) {
-      await client.$executeRaw`
-        SELECT set_config('app.current_tenant_id', ${params.tenantId}, true)
-      `;
+    } catch (error) {
+      if (error instanceof SignedDatabaseContextError) {
+        throw new ForbiddenException(
+          'El evento de auditoría no coincide con el contexto firmado activo.',
+        );
+      }
+      throw error;
     }
 
     if (actor.kind === 'HUMAN' && !this.tenantContext.get()) {
@@ -112,17 +117,40 @@ export class AuditService {
       }
     }
 
-    const metadataInput = (params.metadata ?? {}) as Prisma.InputJsonValue;
-    return client.auditLog.create({
-      data: {
-        tenantId: params.tenantId,
-        actorId: actor.id,
-        actorKind: actor.kind,
-        action: params.action,
-        entityType: params.entityType,
-        entityId: params.entityId ?? null,
-        metadata: metadataInput,
-      },
-    });
+    const event = {
+      id: createAuditEventId(),
+      tenantId: params.tenantId,
+      actorId: actor.id,
+      actorType: actor.kind,
+      action: params.action,
+      entityType: params.entityType,
+      entityId: params.entityId ?? null,
+      metadata: params.metadata ?? {},
+    };
+    const signedEvent = signAuditEvent(event);
+    const [stored] = await client.$queryRaw<
+      {
+        id: string;
+        createdAt: Date;
+        tenantId: string;
+        actorId: string;
+        actorKind: string;
+        action: string;
+        entityType: string;
+        entityId: string | null;
+        metadata: Prisma.JsonValue;
+      }[]
+    >`
+      SELECT *
+      FROM audit_private.append_audit_event(
+        ${signedEvent.payload},
+        ${signedEvent.signature},
+        ${signedEvent.keyId}
+      )
+    `;
+    if (!stored) {
+      throw new Error('No fue posible registrar el evento de auditoría.');
+    }
+    return stored;
   }
 }

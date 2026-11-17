@@ -12,6 +12,7 @@ import { AuditService } from '../audit/audit.service';
 import { LedgerService } from '../accounting/ledger/ledger.service';
 import { TenantContextBoundary } from '../tenant-context/tenant-context.boundary';
 import { TenantContextService } from '../tenant-context/tenant-context.service';
+import { installSignedTenantDatabaseContext } from '../tenant-context/signed-database-context';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -96,7 +97,6 @@ describe('Payroll accounting PostgreSQL integration', () => {
     }
 
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
       await tx.tenant.create({
         data: {
           id: tenantId,
@@ -117,6 +117,7 @@ describe('Payroll accounting PostgreSQL integration', () => {
           rol: 'ADMIN',
         },
       });
+      await installSignedTenantDatabaseContext(tx, tenantId, actorId, 'HUMAN');
       await tx.empleado.create({
         data: {
           id: employeeId,
@@ -542,7 +543,12 @@ describe('Payroll accounting PostgreSQL integration', () => {
   afterAll(async () => {
     try {
       await prisma.$transaction(async (tx) => {
-        await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+        await installSignedTenantDatabaseContext(
+          tx,
+          tenantId,
+          actorId,
+          'HUMAN',
+        );
         await tx.movimientoContable.deleteMany({ where: { tenantId } });
         await tx.comprobanteContable.deleteMany({ where: { tenantId } });
         await tx.secuenciaComprobante.deleteMany({ where: { tenantId } });

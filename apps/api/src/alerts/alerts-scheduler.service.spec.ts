@@ -29,6 +29,7 @@ describe('AlertsSchedulerService', () => {
   const findRunTenants = jest.fn();
   const findLatestRun = jest.fn();
   const updateRun = jest.fn();
+  const queryRaw = jest.fn();
   const executeRaw = jest.fn();
   const generateForTenant = jest.fn();
   const auditLog = jest.fn();
@@ -59,6 +60,7 @@ describe('AlertsSchedulerService', () => {
   };
 
   const tx = {
+    $queryRaw: queryRaw,
     $executeRaw: executeRaw,
     tenant: { findMany: findManyTenants },
     alertGenerationRun: {
@@ -175,6 +177,21 @@ describe('AlertsSchedulerService', () => {
     );
     findFailedRunTenant.mockResolvedValue({ runId: 'failed-parent-run' });
     executeRaw.mockResolvedValue(0);
+    process.env.AUDIT_LOG_SIGNING_KEY = Buffer.from(
+      'goal02-disposable-audit-signing-key-for-unit-tests',
+    ).toString('base64');
+    process.env.AUDIT_LOG_SIGNING_KEY_ID = 'unit-test-v1';
+    queryRaw.mockResolvedValue([
+      {
+        transactionId: '123',
+        tenantId: null,
+        actorId: null,
+        actorType: null,
+        rawTenantId: null,
+        rawPayload: null,
+        rawSignature: null,
+      },
+    ]);
     generateForTenant.mockResolvedValue({
       contractAlerts: { created: 2 },
       missingDocAlerts: { created: 1 },
@@ -211,6 +228,14 @@ describe('AlertsSchedulerService', () => {
       tenantB,
       expect.anything(),
     );
+    expect(queryRaw).toHaveBeenCalled();
+    expect(
+      executeRaw.mock.calls.some(([query]) =>
+        (query as TemplateStringsArray)
+          .join('')
+          .includes('app.signed_tenant_context_signature'),
+      ),
+    ).toBe(true);
     expect(auditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'ALERT_GENERATION_STARTED',

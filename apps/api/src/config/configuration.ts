@@ -1,6 +1,10 @@
 export default () => ({
   port: parseInt(process.env.PORT ?? '3000', 10),
   databaseUrl: process.env.DATABASE_URL,
+  auditLog: {
+    signingKey: process.env.AUDIT_LOG_SIGNING_KEY,
+    signingKeyId: process.env.AUDIT_LOG_SIGNING_KEY_ID ?? 'v1',
+  },
   jwt: {
     secret: process.env.JWT_SECRET,
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
