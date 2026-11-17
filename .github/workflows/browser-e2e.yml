@@ -41,6 +41,9 @@ jobs:
       NODE_ENV: test
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/saas_e2e
       JWT_SECRET: ci-only-e2e-secret
+      # Public, disposable key used only by this ephemeral CI database.
+      AUDIT_LOG_SIGNING_KEY: Z29hbDAyLWRpc3Bvc2FibGUtYXVkaXQtc2lnbmluZy1rZXktZm9yLXRlc3RzLW9ubHk=
+      AUDIT_LOG_SIGNING_KEY_ID: ci-test-v1
       ALLOWED_ORIGINS: http://127.0.0.1:3000
       STORAGE_PROVIDER: local
       STORAGE_LOCAL_ROOT: /tmp/saas-e2e-storage
@@ -69,6 +72,12 @@ jobs:
         run: |
           pnpm --filter @saas/api exec prisma generate
           pnpm --filter @saas/api exec prisma migrate deploy
+          docker exec -i \
+            -e AUDIT_LOG_SIGNING_KEY="$AUDIT_LOG_SIGNING_KEY" \
+            -e AUDIT_LOG_SIGNING_KEY_ID="$AUDIT_LOG_SIGNING_KEY_ID" \
+            "${{ job.services.postgres.id }}" \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d saas_e2e \
+            < deploy/postgres/provision-audit-log-signing-key.sql
 
       - name: Build applications
         run: |

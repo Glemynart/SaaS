@@ -218,6 +218,7 @@ describe('empleados PostgreSQL RLS', () => {
       { tableName: 'afiliaciones_seguridad_social' },
       { tableName: 'alert_generation_run_tenants' },
       { tableName: 'alerts_new' },
+      { tableName: 'audit_logs' },
       { tableName: 'batch_document_generation_exclusions' },
       { tableName: 'batch_document_generation_plans' },
       { tableName: 'centros_costo' },

@@ -12,15 +12,31 @@ describe('TenantPrismaService', () => {
   };
 
   const executeRaw = jest.fn();
+  const queryRaw = jest.fn();
   const transaction = jest.fn();
   const requireTenantContext = jest.fn();
-  const client = { $executeRaw: executeRaw };
+  const client = { $queryRaw: queryRaw, $executeRaw: executeRaw };
 
   let service: TenantPrismaService;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env.AUDIT_LOG_SIGNING_KEY = Buffer.from(
+      'goal02-disposable-audit-signing-key-for-unit-tests',
+    ).toString('base64');
+    process.env.AUDIT_LOG_SIGNING_KEY_ID = 'unit-test-v1';
     requireTenantContext.mockReturnValue(tenantContext);
+    queryRaw.mockResolvedValue([
+      {
+        transactionId: '123',
+        tenantId: null,
+        actorId: null,
+        actorType: null,
+        rawTenantId: null,
+        rawPayload: null,
+        rawSignature: null,
+      },
+    ]);
     executeRaw.mockResolvedValue(undefined);
     transaction.mockImplementation(
       (work: (transactionClient: typeof client) => unknown) =>
@@ -38,8 +54,24 @@ describe('TenantPrismaService', () => {
     await expect(service.execute(work)).resolves.toBe('result');
 
     expect(requireTenantContext).toHaveBeenCalledTimes(1);
+    expect(queryRaw).toHaveBeenCalledTimes(1);
     expect(executeRaw).toHaveBeenCalledTimes(1);
+    const contextQuery = queryRaw.mock.calls[0] as unknown as
+      | [TemplateStringsArray, ...unknown[]]
+      | undefined;
+    expect((contextQuery?.[0] as TemplateStringsArray).join('')).toContain(
+      'current_tenant_id',
+    );
+    const contextInstall = executeRaw.mock.calls[0] as unknown as
+      | [TemplateStringsArray, ...unknown[]]
+      | undefined;
+    expect((contextInstall?.[0] as TemplateStringsArray).join('')).toContain(
+      'app.signed_tenant_context_signature',
+    );
     expect(work).toHaveBeenCalledWith(client, tenantContext);
+    expect(queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      executeRaw.mock.invocationCallOrder[0],
+    );
     expect(executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
       work.mock.invocationCallOrder[0],
     );
@@ -68,6 +100,7 @@ describe('TenantPrismaService', () => {
     );
 
     expect(transaction).not.toHaveBeenCalled();
+    expect(queryRaw).not.toHaveBeenCalled();
     expect(executeRaw).not.toHaveBeenCalled();
     expect(work).not.toHaveBeenCalled();
   });

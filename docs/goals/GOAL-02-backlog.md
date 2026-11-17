@@ -2439,7 +2439,7 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   expediente siguen sin política RLS y dependen del filtro de aplicación. Las
   pruebas HTTP de entrega sustituyen Prisma y almacenamiento por mocks, por lo
   que no acreditan aislamiento real en R2 ni privacidad efectiva del bucket.
-- Hallazgo de seguridad: las políticas usan `current_setting` sobre el GUC
+- Hallazgo histórico de seguridad al corte `main@68b3926`: las políticas usaban `current_setting` sobre el GUC
   personalizado `app.current_tenant_id`, que `TenantPrismaService` establece
   para las transacciones tenant-scoped. PostgreSQL acepta opciones personalizadas
   de dos partes; el repositorio no define un mecanismo que haga confiable ese
@@ -2447,12 +2447,37 @@ entrar en el alcance acotado nuevo, sujeto a sus guardas y validación.
   contra omisiones de filtro dentro del flujo de aplicación, pero no una barrera
   independiente frente a credenciales SQL comprometidas. El estado de permisos,
   roles y red de la base desplegada no se determinó.
-- Clasificación: divergencia documental corregida en ADR-SEC-002, el modelo de
-  amenazas y la arquitectura de plataforma; riesgo restante de cobertura parcial
-  y de confianza en el GUC. La siguiente expansión requiere una revisión de
-  arquitectura para tablas/documentos y una decisión explícita sobre la fuente
-  confiable del tenant; no se cambió código, almacenamiento ni ningún entorno.
+- Clasificación histórica: divergencia documental corregida en ADR-SEC-002, el
+  modelo de amenazas y la arquitectura de plataforma; en ese corte quedaba
+  pendiente definir una fuente confiable para el tenant. La actualización de
+  seguridad de AuditLog se registra en la sección siguiente y no implica que
+  una migración se haya aplicado en un entorno desplegado.
 - Referencia primaria: [opciones personalizadas de PostgreSQL](https://www.postgresql.org/docs/current/runtime-config-custom.html).
+
+### Contexto firmado de tenant y append protegido de AuditLog — PR #391
+
+- La prueba que cambió el diagnóstico demostró que un rol SQL runtime podía
+  falsificar `app.current_tenant_id`; las políticas que confiaban solo en ese
+  GUC no constituían una frontera frente a SQL arbitrario.
+- La migración propuesta en PR #391 cambia las políticas tenant-scoped para
+  comprobar un contexto HMAC firmado, ligado al ID de la transacción actual.
+  También revoca el acceso directo a `audit_logs` y canaliza las escrituras por
+  una función `SECURITY DEFINER` que valida el evento, el actor humano activo o
+  el actor SYSTEM allowlisted. El rol runtime no recibe la clave ni puede asumir
+  el rol propietario de las funciones.
+- En PostgreSQL 17.11 desechable, la migración completa se aplicó con el rol
+  migrador restringido; la suite RLS verificó falsificación de GUC, aislamiento,
+  append firmado, actores, reintentos, rollback, reutilización de conexiones y
+  concurrencia. El verificador conectado directamente como runtime confirmó
+  RLS forzado y ausencia de privilegios de tabla/columna sobre AuditLog y
+  `_prisma_migrations`.
+- PR #391 aún requiere revisión de los checks actualizados antes de cualquier
+  merge. La migración y la clave no se han aplicado a producción. Antes de
+  cualquier despliegue, un operador autorizado debe comprobar en modo de solo
+  lectura la identidad y privilegios reales del runtime, verificar la clave
+  provisionada y seguir el runbook de `deploy/README.md`.
+- El control reduce el riesgo de exposición de credenciales SQL runtime; no
+  protege frente a un compromiso completo del proceso API o de su secreto HMAC.
 
 ### RLS tenant-scoped para el maestro de terceros contables — PR #373 integrada
 
@@ -2903,3 +2928,32 @@ de clave foránea hacia `User` ni RLS genérico; esa restricción histórica se
 mantiene pendiente de una decisión global de atribución para actores públicos
 y de sistema. Validación local: 10 suites focalizadas y 127 pruebas aprobadas,
 typecheck, ESLint de los archivos de autenticación y build de API aprobados.
+
+### Atribución explícita y RLS de AuditLog — GOAL-02 (2026-11-16)
+
+ADR-025, aceptada bajo delegación de Producto, resuelve la diferencia entre
+usuarios humanos, solicitudes públicas y workers. La columna física histórica
+`userId` se conserva, mientras Prisma la expone como `actorId` junto con
+`actorKind` (`HUMAN` / `SYSTEM`). Las solicitudes públicas de restablecimiento
+se registran con el actor de sistema `system:password-reset` y guardan el usuario
+objetivo por separado; el scheduler y el worker de prima usan identidades
+permitidas explícitamente. Los reintentos manuales siguen atribuidos al admin.
+
+`AuditService` verifica tenant y actor contra el contexto autenticado; las
+escrituras humanas sin contexto comprueban que el actor exista en ese tenant.
+Las transacciones validan el GUC existente o instalan el tenant solo para esa
+transacción. La nueva migración habilita y fuerza RLS en `audit_logs`, con
+lectura e inserción por tenant y sin políticas de actualización o eliminación.
+El permiso `TRUNCATE` no se concede al rol runtime en el bootstrap administrado;
+los roles de aplicación deben permanecer sin ownership, `SUPERUSER` ni
+`BYPASSRLS`.
+
+En la rama aislada `codex/goal02-auditlog-actor-attribution`, las 121
+migraciones y las 174 suites/2.204 pruebas de API pasan contra PostgreSQL
+16.15 desechable. La prueba específica verifica aislamiento entre tenants,
+ausencia de acceso sin contexto, rechazo de inserción cruzada y bloqueo de
+update/delete con un rol no propietario `NOSUPERUSER NOBYPASSRLS`. Typecheck,
+build y ESLint de los archivos modificados también pasan. El cambio todavía no
+está en `main` y no se ha aplicado a staging ni producción. Antes de cualquier
+despliegue debe confirmarse el rol real de conexión de producción y su ausencia
+de `BYPASSRLS`, ownership y `TRUNCATE`; no se comprobó desde este worktree.

@@ -47,7 +47,7 @@ describe('PayrollPilaEvent PostgreSQL RLS', () => {
   const service = new PayrollService(
     prisma,
     tenantPrisma,
-    new AuditService(prisma),
+    new AuditService(prisma, tenantPrisma, tenantContext),
     {} as LedgerService,
     new PayrollAccountingPreflightService(tenantPrisma),
   );

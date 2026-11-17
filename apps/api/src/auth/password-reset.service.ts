@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { SYSTEM_AUDIT_ACTORS } from '../audit/audit-actor';
 import { EmailService } from '../email/email.service';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
@@ -66,11 +67,16 @@ export class PasswordResetService {
       await this.auditService.log(
         {
           tenantId: tenant.id,
-          userId: user.id,
+          actor: {
+            kind: 'SYSTEM',
+            id: SYSTEM_AUDIT_ACTORS.PASSWORD_RESET,
+          },
           action: 'PASSWORD_RESET_REQUESTED',
           entityType: 'Auth',
           entityId: user.id,
           metadata: {
+            requester: 'UNAUTHENTICATED',
+            subjectUserId: user.id,
             ip: ipAddress ?? null,
             userAgent: userAgent ?? null,
             email: emailObfuscated,
@@ -99,7 +105,10 @@ export class PasswordResetService {
         resetUrl: resetUrl.toString(),
         expiresInHours: RESET_EXPIRY_HOURS,
       },
-      auditContext: { tenantId: tenant.id, userId: user.id },
+      auditContext: {
+        tenantId: tenant.id,
+        actor: { kind: 'SYSTEM', id: SYSTEM_AUDIT_ACTORS.PASSWORD_RESET },
+      },
     });
 
     return { message: GENERIC_RESPONSE };
@@ -144,11 +153,20 @@ export class PasswordResetService {
       await this.auditService.log(
         {
           tenantId: dbToken.tenantId,
-          userId: dbToken.userId,
+          actor: {
+            kind: 'SYSTEM',
+            id: SYSTEM_AUDIT_ACTORS.PASSWORD_RESET,
+          },
           action: 'PASSWORD_RESET_COMPLETED',
           entityType: 'Auth',
           entityId: dbToken.userId,
-          metadata: { ip: ipAddress ?? null, userAgent: userAgent ?? null },
+          metadata: {
+            requester: 'UNAUTHENTICATED',
+            authenticationMethod: 'PASSWORD_RESET_TOKEN',
+            subjectUserId: dbToken.userId,
+            ip: ipAddress ?? null,
+            userAgent: userAgent ?? null,
+          },
         },
         tx,
       );

@@ -1,4 +1,5 @@
 import { ExpedienteDocsService } from './expediente-docs.service';
+import { SYSTEM_AUDIT_ACTORS } from '../audit/audit-actor';
 
 describe('ExpedienteDocsService prima de servicios publication', () => {
   const lineFindFirst = jest.fn();
@@ -65,7 +66,10 @@ describe('ExpedienteDocsService prima de servicios publication', () => {
   it('publica el PDF en la categoría de prima con hash y tenant filtrado', async () => {
     const result = await service.publishServicePremiumDocument({
       tenantId: 'tenant-a',
-      userId: 'user-a',
+      actor: {
+        kind: 'SYSTEM',
+        id: SYSTEM_AUDIT_ACTORS.SERVICE_PREMIUM_WORKER,
+      },
       lineId: 'line-a',
       storageKey: 'tenant-a/nomina/prima/2026/S1/v1/line-a.pdf',
       sizeBytes: 1024,
@@ -86,6 +90,7 @@ describe('ExpedienteDocsService prima de servicios publication', () => {
       empleadoId: 'employee-a',
       servicePremiumLineId: 'line-a',
       categoria: 'PRIMA_SERVICIOS',
+      subidoPorId: SYSTEM_AUDIT_ACTORS.SERVICE_PREMIUM_WORKER,
     });
     expect(lineUpdateInputs[0]?.data).toMatchObject({
       status: 'DOCUMENTADA',
@@ -94,6 +99,10 @@ describe('ExpedienteDocsService prima de servicios publication', () => {
     expect(auditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         tenantId: 'tenant-a',
+        actor: {
+          kind: 'SYSTEM',
+          id: SYSTEM_AUDIT_ACTORS.SERVICE_PREMIUM_WORKER,
+        },
         action: 'SERVICE_PREMIUM_DOCUMENT_PUBLISHED',
       }),
       transaction,
@@ -108,7 +117,10 @@ describe('ExpedienteDocsService prima de servicios publication', () => {
     });
     const result = await service.publishServicePremiumDocument({
       tenantId: 'tenant-a',
-      userId: 'user-a',
+      actor: {
+        kind: 'SYSTEM',
+        id: SYSTEM_AUDIT_ACTORS.SERVICE_PREMIUM_WORKER,
+      },
       lineId: 'line-a',
       storageKey: 'tenant-a/nomina/prima/2026/S1/v1/line-a.pdf',
       sizeBytes: 1024,
@@ -126,7 +138,10 @@ describe('ExpedienteDocsService prima de servicios publication', () => {
     await expect(
       service.publishServicePremiumDocument({
         tenantId: 'tenant-a',
-        userId: 'user-a',
+        actor: {
+          kind: 'SYSTEM',
+          id: SYSTEM_AUDIT_ACTORS.SERVICE_PREMIUM_WORKER,
+        },
         lineId: 'line-a',
         storageKey: 'tenant-b/nomina/prima/2026/S1/v1/line-b.pdf',
         sizeBytes: 1024,

@@ -57,7 +57,7 @@ describe('Payroll corrections PostgreSQL integration', () => {
   const service = new PayrollService(
     prisma,
     tenantPrisma,
-    new AuditService(prisma),
+    new AuditService(prisma, tenantPrisma, tenantContext),
     {} as LedgerService,
     {} as PayrollAccountingPreflightService,
   );
@@ -188,7 +188,9 @@ describe('Payroll corrections PostgreSQL integration', () => {
         '"',
     );
     await prisma.$executeRawUnsafe(
-      'GRANT SELECT, INSERT ON TABLE "audit_logs" TO "' + role + '"',
+      'GRANT EXECUTE ON FUNCTION audit_private.append_audit_event(text, bytea, text) TO "' +
+        role +
+        '"',
     );
     await prisma.$executeRawUnsafe(
       'GRANT USAGE ON TYPE "PayrollCorrectionStatus", "PayrollPeriodStatus", ' +
@@ -608,6 +610,8 @@ describe('Payroll corrections PostgreSQL integration', () => {
       `DO $$ BEGIN
         IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN
           REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM "${role}";
+          REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA audit_private FROM "${role}";
+          REVOKE ALL PRIVILEGES ON SCHEMA audit_private FROM "${role}";
           REVOKE USAGE ON TYPE "PayrollCorrectionStatus", "PayrollPeriodStatus", "EstadoComprobante" FROM "${role}";
           REVOKE ALL PRIVILEGES ON SCHEMA public FROM "${role}";
           DROP ROLE "${role}";

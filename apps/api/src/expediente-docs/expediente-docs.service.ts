@@ -8,6 +8,7 @@ import {
 import { ExpedienteCategoria, Prisma } from '@prisma/client';
 import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { AuditActor } from '../audit/audit-actor';
 import { StorageService } from '../storage/storage.service';
 import { StorageObjectNotFoundError } from '../storage/storage.types';
 import type { StorageObjectMetadata } from '../storage/storage.types';
@@ -42,7 +43,7 @@ export interface PublishGeneratedDocumentResult {
 
 export interface PublishServicePremiumDocumentInput {
   tenantId: string;
-  userId: string;
+  actor: AuditActor;
   lineId: string;
   storageKey: string;
   sizeBytes: number;
@@ -609,7 +610,7 @@ export class ExpedienteDocsService {
   async publishServicePremiumDocument(
     input: PublishServicePremiumDocumentInput,
   ) {
-    const { tenantId, userId, lineId, storageKey, sizeBytes, sha256 } = input;
+    const { tenantId, actor, lineId, storageKey, sizeBytes, sha256 } = input;
     try {
       return await this.tenantPrisma.execute(async (tx) => {
         const line = await tx.servicePremiumLine.findFirst({
@@ -711,7 +712,7 @@ export class ExpedienteDocsService {
             storageKey,
             mimeType: 'application/pdf',
             tamanoBytes: sizeBytes,
-            subidoPorId: userId,
+            subidoPorId: actor.id,
             subidoPorNombre: 'sistema',
           },
           select: { id: true },
@@ -728,7 +729,7 @@ export class ExpedienteDocsService {
         await this.auditService.log(
           {
             tenantId,
-            userId,
+            actor,
             action: 'SERVICE_PREMIUM_DOCUMENT_PUBLISHED',
             entityType: 'ExpedienteDoc',
             entityId: document.id,

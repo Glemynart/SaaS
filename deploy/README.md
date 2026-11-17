@@ -948,14 +948,17 @@ El bootstrap anterior deja el rol `NOLOGIN`. No pases contraseñas al bootstrap;
 habilita `LOGIN` únicamente con el procedimiento interactivo descrito después
 del commit transaccional del script.
 
-Usa una identidad de migración aprobada para staging y con permisos distintos
-del rol runtime. La identidad de bootstrap/migración debe poder crear o alterar
-roles, ser propietaria de la base staging y de los objetos que migrará, y revocar
-los permisos de base y esquema que el script normaliza. Prisma debe migrar como
-esa misma identidad para que los privilegios por defecto coincidan con el
-propietario de los objetos. Si esas condiciones no se cumplen, detén el
-procedimiento y pide al DBA una identidad aprobada; no ejecutes el SQL como el
-rol runtime. No uses las identidades del entorno clasificado como producción.
+Usa identidades de staging separadas del rol runtime. La operación inicial de
+`bootstrap-runtime-role.sql` requiere una identidad autorizada para administrar
+roles; no mantengas `CREATEROLE` en la identidad runtime ni en las credenciales
+que recibe la API. Prisma debe migrar como una identidad propietaria de la base
+staging y de los objetos migrados para que los privilegios por defecto coincidan
+con su propietario. El migrador rutinario no necesita `CREATEROLE` para esta
+migración AuditLog: un DBA aprovisiona por separado la membresía temporal `SET`
+sin `ADMIN` ni herencia descrita en “Contexto firmado de AuditLog” más abajo.
+Si estas identidades no están separadas, detén el procedimiento y pide al DBA
+una identidad aprobada; no ejecutes el SQL como el rol runtime ni uses
+identidades del entorno clasificado como producción.
 
 Después, obtiene `DATABASE_URL_MIGRATION` de la fuente aprobada de secretos; no
 escribas su valor literal en un comando ni lo guardes en el `.env` permanente.
@@ -1302,3 +1305,90 @@ El Compose rota los logs `json-file` de API a un máximo de cinco archivos de
 10 MB. La política de logs del Caddy existente queda fuera de este Compose. La
 aplicación conserva `x-request-id` y logs sanitizados; no se agrega una
 plataforma de observabilidad nueva para este staging.
+
+## Contexto firmado de AuditLog
+
+La migración `20261117000000_signed_tenant_context_and_audit_append` reemplaza
+la confianza en `app.current_tenant_id` sin firma. La API firma el contexto
+tenant/actor y cada evento con HMAC-SHA256. PostgreSQL verifica la firma,
+`pg_current_xact_id()` y la coincidencia entre tenant y actor antes de permitir
+RLS o anexar un evento. El material de firma se mantiene fuera de Git en un
+gestor de secretos y se provisiona en `audit_private`; no se imprime en logs.
+El rol runtime no puede leer la clave ni insertar directamente en
+`public.audit_logs`.
+
+### Preparación de una base nueva o aislada
+
+Este procedimiento describe la futura operación autorizada; no implica que la
+migración se haya ejecutado en una instancia activa. Usa una base desechable o
+de staging aprobada y una identidad DBA separada. La API recibe únicamente la
+URL de `staging_runtime`; la URL de migración nunca se pone en el Compose de API.
+
+1. Confirma la base exacta, el rol runtime y el migrador con las verificaciones
+   de solo lectura del procedimiento de staging. El migrador debe ser distinto
+   del runtime, no ser `SUPERUSER`, `BYPASSRLS`, `CREATEDB` ni `CREATEROLE`, y
+   ser propietario de la base y de los objetos Prisma que migra.
+2. **Antes de migrar**, ejecuta
+   `deploy/postgres/verify-audit-runtime-identity-readonly.sql` directamente
+   como el runtime existente, sin `SET ROLE`, definiendo los nombres esperados
+   de base y rol. El script verifica identidad, atributos, posibilidad de
+   asumir roles y propiedad de `audit_logs` dentro de `READ ONLY`. También
+   informa las ACL y políticas actuales: los grants directos heredados se
+   revisan porque la migración los revocará; ownership, membresías o atributos
+   inseguros bloquean el procedimiento.
+3. Como DBA autorizado, carga el identificador del migrador en
+   `AUDIT_LOG_MIGRATION_ROLE` desde el entorno seguro y ejecuta
+   `deploy/postgres/provision-audit-log-function-owner.sql`. El script crea o
+   valida `saas_audit_log_function_owner` y concede al migrador solamente una
+   membresía temporal `SET TRUE`, `INHERIT FALSE`, `ADMIN FALSE`. No pases una
+   contraseña en SQL ni en argumentos.
+4. Con la URL migradora obtenida de la fuente aprobada de secretos, ejecuta
+   `prisma migrate deploy` contra la base aislada. La migración aborta si el rol
+   propietario de funciones, la membresía temporal o los atributos no son los
+   esperados. No arranques la API todavía.
+5. Carga `AUDIT_LOG_SIGNING_KEY` y `AUDIT_LOG_SIGNING_KEY_ID` desde el gestor de
+   secretos del entorno. La clave debe ser Base64 canónico de al menos 32 bytes,
+   única por entorno y coincidir exactamente con la que recibirá la API. Ejecuta
+   `deploy/postgres/provision-audit-log-signing-key.sql` con el migrador; la
+   membresía temporal permite usar la identidad propietaria de funciones. El
+   script compara la clave provisionada sin devolver el material. Un ID ya
+   asociado a otra clave falla de forma segura; para rotar, provisiona un ID
+   nuevo y conserva el anterior hasta terminar la transición aprobada.
+6. Como DBA, revoca la membresía temporal con
+   `REVOKE saas_audit_log_function_owner FROM <rol_migrador>;`. Antes de iniciar
+   la API, confirma en `pg_auth_members` que no quede ninguna membresía del
+   runtime ni del migrador a `saas_audit_log_function_owner`. La migración no
+   puede revocar una membresía concedida por un DBA distinto.
+7. **Después de migrar, provisionar la clave y revocar la membresía temporal**,
+   ejecuta `deploy/postgres/verify-audit-runtime-readonly.sql` directamente como
+   el runtime, sin `SET ROLE`. El script comprueba atributos, membresías,
+   propiedad, RLS `FORCE`, políticas firmadas, ACLs de tabla y columna,
+   funciones y `_prisma_migrations`, dentro de `READ ONLY`.
+8. Un DBA puede ejecutar
+   `deploy/postgres/verify-audit-signing-key-readonly.sql` con el ID esperado.
+   Solo consulta el ID, longitud y fecha de creación; no devuelve la clave.
+   Esta comprobación complementa, no reemplaza, la validación runtime.
+9. Entrega al servicio API solamente `DATABASE_URL` del runtime,
+   `AUDIT_LOG_SIGNING_KEY` y `AUDIT_LOG_SIGNING_KEY_ID` del mismo entorno. El
+   runtime no debe recibir `DATABASE_URL_MIGRATION` ni credenciales DBA.
+   `deploy/docker-compose.staging.yml` exige la clave antes de iniciar la API.
+
+Al cargar secretos en Windows o Linux, usa el gestor de secretos y el entorno
+de proceso del cliente `psql`; no los escribas en el historial de shell, una
+línea de comando registrada, el `.env` versionado o la salida de CI. Los
+scripts no muestran URL, firma ni material de clave.
+
+### Verificación previa a producción
+
+La migración y su clave **no están aplicadas ni verificadas en producción**.
+Antes de cualquier despliegue autorizado, un DBA debe confirmar de solo lectura
+la identidad real del runtime con
+`deploy/postgres/verify-audit-runtime-identity-readonly.sql`. Después de una
+eventual migración autorizada, debe ejecutar
+`deploy/postgres/verify-audit-runtime-readonly.sql` y confirmar que no quedan
+atributos administrativos, membresías ni propiedad incompatibles, RLS forzado,
+políticas firmadas y ausencia de ACLs directas sobre AuditLog o
+`_prisma_migrations`. También debe confirmar la existencia de la clave mediante
+el script de metadatos y que su ID coincida con el entorno API. Si no se dispone
+de esas evidencias, no se deben ejecutar la migración ni arrancar la nueva API
+en producción.

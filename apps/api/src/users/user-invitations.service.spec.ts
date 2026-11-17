@@ -522,6 +522,7 @@ describe('UserInvitationsService', () => {
       ip: '127.0.0.1',
       userAgent: 'test-agent',
       rol: 'OPERADOR',
+      authenticationMethod: 'INVITATION_TOKEN',
     });
     expect(audit.log).toHaveBeenCalledWith(expect.any(Object), tx);
   });

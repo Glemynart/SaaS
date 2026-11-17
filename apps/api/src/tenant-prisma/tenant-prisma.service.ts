@@ -4,6 +4,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextBoundary } from '../tenant-context/tenant-context.boundary';
 import { TenantExecutionContext } from '../tenant-context/tenant-context.types';
+import { installSignedTenantDatabaseContext } from '../tenant-context/signed-database-context';
 
 export type TenantPrismaClient = Prisma.TransactionClient;
 
@@ -47,9 +48,11 @@ export class TenantPrismaService {
     const context = this.tenantContext.require();
 
     return this.prisma.$transaction(async (client) => {
-      await client.$executeRaw`
-        SELECT set_config('app.current_tenant_id', ${context.tenantId}, true)
-      `;
+      await installSignedTenantDatabaseContext(
+        client,
+        context.tenantId,
+        context.userId,
+      );
 
       return this.transactions.run(Object.freeze({ client, context }), () =>
         work(client, context),

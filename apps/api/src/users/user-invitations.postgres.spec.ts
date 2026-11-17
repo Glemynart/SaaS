@@ -5,6 +5,9 @@ import { randomUUID, createHash } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantContextBoundary } from '../tenant-context/tenant-context.boundary';
+import { TenantContextService } from '../tenant-context/tenant-context.service';
+import { TenantPrismaService } from '../tenant-prisma/tenant-prisma.service';
 import { UserInvitationsService } from './user-invitations.service';
 
 type InvitationDelivery = {
@@ -18,6 +21,11 @@ describe('UserInvitationsService PostgreSQL integration', () => {
   const tenantIds = [randomUUID(), randomUUID()];
   const actorIds = [randomUUID(), randomUUID()];
   const prisma = new PrismaService();
+  const tenantContext = new TenantContextService();
+  const tenantPrisma = new TenantPrismaService(
+    prisma,
+    new TenantContextBoundary(tenantContext),
+  );
   const deliveries: InvitationDelivery[] = [];
   const email = {
     getReadiness: jest.fn(() => ({ status: 'up' as const })),
@@ -31,7 +39,7 @@ describe('UserInvitationsService PostgreSQL integration', () => {
     {
       get: jest.fn(() => 'https://app.example.test'),
     } as unknown as ConfigService,
-    new AuditService(prisma),
+    new AuditService(prisma, tenantPrisma, tenantContext),
     email as unknown as EmailService,
   );
 
@@ -173,7 +181,7 @@ describe('UserInvitationsService PostgreSQL integration', () => {
       },
     });
     expect(acceptedAudits).toHaveLength(1);
-    expect(acceptedAudits[0].userId).toBe(
+    expect(acceptedAudits[0].actorId).toBe(
       tenantAUsers.find(
         ({ email: userEmail }) => userEmail === invitationA.email,
       )!.id,

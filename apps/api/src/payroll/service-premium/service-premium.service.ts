@@ -15,6 +15,7 @@ import {
 } from '@prisma/client';
 import { randomUUID, createHash } from 'node:crypto';
 import { AuditService } from '../../audit/audit.service';
+import { SYSTEM_AUDIT_ACTORS } from '../../audit/audit-actor';
 import { ExpedienteDocsService } from '../../expediente-docs/expediente-docs.service';
 import { PdfRenderService } from '../../pdf-render/pdf-render.service';
 import { escapeHtml } from '../../pdf-render/template-html';
@@ -330,7 +331,7 @@ export class ServicePremiumService {
     for (const tenant of tenants) {
       const context: TenantExecutionContext = {
         tenantId: tenant.id,
-        userId: 'service-premium-worker',
+        userId: SYSTEM_AUDIT_ACTORS.SERVICE_PREMIUM_WORKER,
         rol: 'ADMIN',
         email: 'service-premium-worker@system.invalid',
       };
@@ -611,7 +612,6 @@ export class ServicePremiumService {
       }),
     );
     if (!batch) return;
-    const actorId = batch.approvedById ?? batch.createdById;
     for (const line of batch.lines) {
       const claim = await this.tenantPrisma.execute((tx) =>
         tx.servicePremiumLine.updateMany({
@@ -642,7 +642,10 @@ export class ServicePremiumService {
         const result = await this.materializePdf({ tenantId, batch, line });
         await this.expediente.publishServicePremiumDocument({
           tenantId,
-          userId: actorId,
+          actor: {
+            kind: 'SYSTEM',
+            id: SYSTEM_AUDIT_ACTORS.SERVICE_PREMIUM_WORKER,
+          },
           lineId: line.id,
           storageKey: result.key,
           sizeBytes: result.size,
