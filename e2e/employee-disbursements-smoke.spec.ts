@@ -15,9 +15,13 @@ function assertDisposableDatabase() {
 
   const loopbackHosts = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
   const databaseName = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
-  if (!loopbackHosts.has(parsed.hostname) || !/(test|ci|disposable)/i.test(databaseName)) {
+  const namedAsDisposable = /(?:test|ci|disposable)/i.test(databaseName);
+  // The Browser E2E workflow provisions this exact database in its disposable
+  // PostgreSQL service; do not broadly allow arbitrary names containing "e2e".
+  const isWorkflowE2eDatabase = databaseName === 'saas_e2e';
+  if (!loopbackHosts.has(parsed.hostname) || (!namedAsDisposable && !isWorkflowE2eDatabase)) {
     throw new Error(
-      'Employee disbursement Browser E2E requires a loopback database whose name identifies it as test, CI, or disposable.',
+      'Employee disbursement Browser E2E requires a loopback database named for tests or the disposable saas_e2e workflow service.',
     );
   }
 }

@@ -3088,8 +3088,13 @@ de los ocho archivos API modificados. El build web conserva dos advertencias
 La interfaz permite declarar, adjuntar soporte, verificar, cancelar y consultar
 obligaciones. La reconciliación diagnóstica detecta y audita discrepancias; no
 repara ni elimina objetos. El Browser E2E local recorrió registro, soporte,
-verificación y reverso y pasó (1 prueba, sin publicar artefactos). La integración
-sigue pendiente de revisión y CI.
+verificación y reverso y pasó (1 prueba). El primer Browser E2E de CI encontró
+que la guarda descartable del nuevo escenario no reconocía la base efímera
+saas_e2e; se ajustó para admitir únicamente ese nombre exacto en loopback,
+además de bases que indiquen test/CI/disposable. Se espera el rerun remoto. La
+política no-browser-evidence omitió la carga; la API de Actions confirma cero
+artefactos para la ejecución fallida.
+La integración sigue pendiente de revisión y CI.
 La disponibilidad de `ListObjectsV2` en las credenciales reales de R2 y la
 identidad/privilegios del runtime de producción no se han verificado; no se
 usaron credenciales R2 ni se aplicaron cambios a producción.
